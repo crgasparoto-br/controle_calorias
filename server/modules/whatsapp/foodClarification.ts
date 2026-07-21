@@ -1,20 +1,26 @@
 import { randomUUID } from "node:crypto";
-import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { findCatalogFood } from "../../catalogMatching";
+import { getDb, getHabitSnapshots, logPersistenceWarning } from "../../db";
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
-import { cleanFoodName, extractExplicitQuantities, normalizeText, parseQuantityUnitFromPortionText } from "../../mealTextParsing";
+import {
+  cleanFoodName,
+  extractExplicitQuantities,
+  normalizeText,
+  parseQuantityUnitFromPortionText,
+} from "../../mealTextParsing";
 import { processMealInput } from "../../nutritionEngine";
 import type { CatalogFood, MealDraftItem } from "../../nutritionEngineTypes";
-import { findTacoFood } from "../../tacoLookup";
-import { getDb, getHabitSnapshots, logPersistenceWarning } from "../../db";
-import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
-import { createManualMeal, listMeals, removeMeal, updateMeal } from "../meals/service";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
   type WhatsAppPendingOperationRepository,
 } from "../../repositories/whatsappPendingOperationRepository";
+import { findTacoFood } from "../../tacoLookup";
+import { createManualMeal, listMeals, removeMeal, updateMeal } from "../meals/service";
+import type { WhatsappIntentResult } from "./intent/types";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
 import {
   buildWhatsAppActionCancelledReplyMessage,
   buildWhatsAppCallbackUnavailableReplyMessage,
@@ -27,7 +33,6 @@ import {
   isStandaloneWhatsappConfirmationWord,
   normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
-import { supersedeActiveWhatsappPendingOperations } from "./pendingOperationPrecedence";
 
 export const PENDING_FOOD_CLARIFICATION_TYPE = "food_registration_clarification";
 export const PENDING_FOOD_CLARIFICATION_ORIGIN = "foodClarification";
@@ -42,6 +47,7 @@ export type FoodClarificationCandidate = {
   gramsPerServing: number;
   brandName: string | null;
   isBrandedProduct: boolean;
+  matchKind: "exact" | "fallback";
 };
 
 export type PendingFoodClarificationTarget = {
@@ -65,14 +71,7 @@ export type PendingFoodClarificationTarget = {
   allowedDomainEffect: "register_original_food_once";
 };
 
-export type WhatsappFoodClarificationResult = {
-  handled: true;
-  action: string;
-  reply: string;
-  eventType: string;
-  detail: string;
-  data?: Record<string, unknown>;
-};
+export type WhatsappFoodClarificationResult = WhatsappIntentResult;
 
 type FoodClarificationDependencies = {
   repository: WhatsAppPendingOperationRepository;
@@ -126,11 +125,14 @@ const NON_FOOD_COUNT_CONTEXT = /\b(?:relatorio|resumo|registro|opcao|dia|semana|
 const FULL_COMMAND_WORDS = /\b(?:excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
 const COUNTABLE_SERVING = /\b(?:unidade|unid|und|fatia|pedaco|x[ií]cara|copo|colher|dose|scoop|lata|garrafa|long\s*neck|por[cç][aã]o)\b/i;
 const EXPLICIT_MASS_OR_VOLUME = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
+const QUANTITY_ONLY_REPLY = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s*$/i;
 
 function normalizeCandidate(value: string) {
-  const words = cleanFoodName(value).split(/\s+/).filter(Boolean);
-  const normalizedWords = words.map(word => SAFE_TYPO_REPLACEMENTS[normalizeText(word)] ?? word);
-  return cleanFoodName(normalizedWords.join(" "));
+  return cleanFoodName(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => SAFE_TYPO_REPLACEMENTS[normalizeText(word)] ?? word)
+    .join(" ");
 }
 
 function parseCount(value: string) {
@@ -158,7 +160,7 @@ export function parseCountedFoodRequest(text?: string | null): CountedFoodReques
 
   const count = parseCount(match[1]);
   const originalCandidate = cleanFoodName(match[2]);
-  if (!count || count <= 0 || count > 50 || !originalCandidate || NON_FOOD_COUNT_CONTEXT.test(originalCandidate)) return null;
+  if (!count || count > 50 || !originalCandidate || NON_FOOD_COUNT_CONTEXT.test(originalCandidate)) return null;
 
   const normalizedCandidate = normalizeCandidate(originalCandidate);
   return {
@@ -170,21 +172,20 @@ export function parseCountedFoodRequest(text?: string | null): CountedFoodReques
   };
 }
 
-function snapshotCandidate(food: CatalogFood): FoodClarificationCandidate {
+function toCandidate(food: CatalogFood, matchKind: FoodClarificationCandidate["matchKind"]): FoodClarificationCandidate {
   return {
     name: food.name,
     servingLabel: food.servingLabel,
     gramsPerServing: food.gramsPerServing,
     brandName: food.brandName?.trim() || null,
     isBrandedProduct: Boolean(food.isBrandedProduct || food.brandName),
+    matchKind,
   };
 }
 
-function exactReferenceCandidates(candidate: string) {
+function isExactFoodMatch(food: Pick<CatalogFood, "name" | "aliases">, candidate: string) {
   const normalized = normalizeText(candidate);
-  return FOOD_CATALOG_REFERENCE
-    .filter(food => [food.name, ...food.aliases].some(name => normalizeText(name) === normalized))
-    .map(food => snapshotCandidate(food as CatalogFood));
+  return [food.name, ...food.aliases].some(name => normalizeText(name) === normalized);
 }
 
 function uniqueCandidates(candidates: FoodClarificationCandidate[]) {
@@ -198,25 +199,25 @@ function uniqueCandidates(candidates: FoodClarificationCandidate[]) {
 }
 
 export function resolveFoodClarificationCandidates(candidate: string): FoodClarificationCandidate[] {
-  const exact = exactReferenceCandidates(candidate);
+  const exactReference = FOOD_CATALOG_REFERENCE
+    .filter(food => isExactFoodMatch(food as CatalogFood, candidate))
+    .map(food => toCandidate(food as CatalogFood, "exact"));
   const catalog = findCatalogFood(candidate);
   const taco = findTacoFood(candidate);
+
   return uniqueCandidates([
-    ...exact,
-    ...(catalog ? [snapshotCandidate(catalog)] : []),
-    ...(taco ? [snapshotCandidate(taco)] : []),
+    ...exactReference,
+    ...(catalog ? [toCandidate(catalog, isExactFoodMatch(catalog, candidate) ? "exact" : "fallback")] : []),
+    ...(taco ? [toCandidate(taco, normalizeText(taco.name) === normalizeText(candidate) ? "exact" : "fallback")] : []),
   ]);
 }
 
 export function hasSafeCanonicalPortion(candidate: FoodClarificationCandidate) {
+  if (candidate.matchKind !== "exact") return false;
   if (!Number.isFinite(candidate.gramsPerServing) || candidate.gramsPerServing <= 0) return false;
   if (/^100\s*g$/i.test(candidate.servingLabel.trim())) return false;
   if (COUNTABLE_SERVING.test(candidate.servingLabel)) return true;
   return candidate.isBrandedProduct && EXPLICIT_MASS_OR_VOLUME.test(candidate.servingLabel.trim()) !== null;
-}
-
-function resolveSafeCandidates(candidates: FoodClarificationCandidate[]) {
-  return candidates.filter(hasSafeCanonicalPortion);
 }
 
 function buildQuantityInstruction(candidate: string) {
@@ -232,6 +233,25 @@ function buildSelectionInstruction(candidates: FoodClarificationCandidate[]) {
   return `Encontrei mais de um alimento possível. Qual deles você quis dizer?\n${options}\n\nResponda com o número ou CANCELAR.`;
 }
 
+function buildActions(kind: FoodClarificationKind, candidates: FoodClarificationCandidate[]) {
+  if (kind === "quantity") {
+    return [
+      { id: "provide_quantity", label: "Informar quantidade", effect: "complete_original_food" },
+      { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+    ];
+  }
+  if (kind === "confirmation") {
+    return [
+      { id: "confirm", label: "Confirmar", effect: "register_original_food_once" },
+      { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+    ];
+  }
+  return [
+    ...candidates.map((_, index) => ({ id: `select:${index}`, label: `Opção ${index + 1}`, effect: "select_candidate" })),
+    { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+  ];
+}
+
 function buildTarget(input: {
   request: CountedFoodRequest;
   pendingKind: FoodClarificationKind;
@@ -240,27 +260,11 @@ function buildTarget(input: {
   instructionText: string;
   messageId?: string | null;
 }): PendingFoodClarificationTarget {
-  const classification: FoodClarificationClassification = input.pendingKind === "quantity" ? "open" : "closed";
-  const actions = input.pendingKind === "quantity"
-    ? [
-        { id: "provide_quantity", label: "Informar quantidade", effect: "complete_original_food" },
-        { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
-      ]
-    : input.pendingKind === "confirmation"
-      ? [
-          { id: "confirm", label: "Confirmar", effect: "register_original_food_once" },
-          { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
-        ]
-      : [
-          ...input.candidates.map((_, index) => ({ id: `select:${index}`, label: `Opção ${index + 1}`, effect: "select_candidate" })),
-          { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
-        ];
-
   return {
     contractVersion: 1,
     interactionId: randomUUID(),
     kind: "food_registration_clarification",
-    classification,
+    classification: input.pendingKind === "quantity" ? "open" : "closed",
     pendingKind: input.pendingKind,
     originalText: input.request.originalText,
     sanitizedOriginalText: cleanFoodName(input.request.originalText),
@@ -271,7 +275,7 @@ function buildTarget(input: {
     qualifiers: input.request.normalizedCandidate.split(/\s+/).slice(1),
     candidates: input.candidates,
     selectedCandidateIndex: input.selectedCandidateIndex ?? null,
-    actions,
+    actions: buildActions(input.pendingKind, input.candidates),
     instructionText: input.instructionText,
     inboundMessageId: input.messageId?.trim() || null,
     allowedDomainEffect: "register_original_food_once",
@@ -280,24 +284,19 @@ function buildTarget(input: {
 
 export function isPendingFoodClarificationTarget(value: unknown): value is PendingFoodClarificationTarget {
   if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<PendingFoodClarificationTarget>;
-  return candidate.contractVersion === 1
-    && candidate.kind === "food_registration_clarification"
-    && ["confirmation", "quantity", "selection"].includes(candidate.pendingKind ?? "")
-    && typeof candidate.originalText === "string"
-    && typeof candidate.normalizedCandidate === "string"
-    && typeof candidate.count === "number"
-    && Array.isArray(candidate.candidates)
-    && typeof candidate.instructionText === "string";
+  const target = value as Partial<PendingFoodClarificationTarget>;
+  return target.contractVersion === 1
+    && target.kind === "food_registration_clarification"
+    && ["confirmation", "quantity", "selection"].includes(target.pendingKind ?? "")
+    && typeof target.originalText === "string"
+    && typeof target.normalizedCandidate === "string"
+    && typeof target.count === "number"
+    && Array.isArray(target.candidates)
+    && Array.isArray(target.actions)
+    && typeof target.instructionText === "string";
 }
 
-function buildResult(input: {
-  action: string;
-  reply: string;
-  eventType: string;
-  detail: string;
-  data?: Record<string, unknown>;
-}): WhatsappFoodClarificationResult {
+function result(input: Omit<WhatsappFoodClarificationResult, "handled">): WhatsappFoodClarificationResult {
   return { handled: true, ...input };
 }
 
@@ -316,30 +315,35 @@ function pendingData(pending: Pick<WhatsAppPendingOperationRecord, "id" | "type"
     originalCandidate: target.originalCandidate,
     normalizedCandidate: target.normalizedCandidate,
     normalizationChanged: target.normalizationChanged,
+    inboundMessageId: target.inboundMessageId,
     allowedDomainEffect: target.allowedDomainEffect,
   };
 }
 
 function inferCountUnit(candidate: FoodClarificationCandidate) {
   const parsed = parseQuantityUnitFromPortionText(candidate.servingLabel);
-  if (parsed && COUNTABLE_SERVING.test(parsed.unit)) return parsed.unit;
-  return "unidades";
+  return parsed && COUNTABLE_SERVING.test(parsed.unit) ? parsed.unit : "unidades";
 }
 
-function buildRegistrationText(target: PendingFoodClarificationTarget, candidate: FoodClarificationCandidate, explicitQuantity?: { quantity: number; unit: string }) {
-  if (explicitQuantity) {
-    return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${target.normalizedCandidate}`;
-  }
-
+function buildRegistrationText(
+  target: PendingFoodClarificationTarget,
+  candidate: FoodClarificationCandidate,
+  explicitQuantity?: { quantity: number; unit: string },
+) {
+  if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${target.normalizedCandidate}`;
   if (COUNTABLE_SERVING.test(candidate.servingLabel)) {
     return `${target.count} ${inferCountUnit(candidate)} de ${target.normalizedCandidate}`;
   }
-
   const grams = Math.round(candidate.gramsPerServing * target.count * 100) / 100;
   return `${grams} g de ${target.normalizedCandidate}`;
 }
 
-function sameLogicalMeal(meal: { mealLabel: string; occurredAt: Date | number | string }, mealLabel: string, occurredAt: Date, timeZone: string) {
+function sameLogicalMeal(
+  meal: { mealLabel: string; occurredAt: Date | number | string },
+  mealLabel: string,
+  occurredAt: Date,
+  timeZone: string,
+) {
   return normalizeText(meal.mealLabel) === normalizeText(mealLabel)
     && getDateKeyInTimeZone(new Date(meal.occurredAt), timeZone) === getDateKeyInTimeZone(occurredAt, timeZone);
 }
@@ -353,20 +357,18 @@ async function persistResolvedFood(
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string },
 ): Promise<WhatsappFoodClarificationResult> {
-  const registrationText = buildRegistrationText(target, candidate, explicitQuantity);
   const processed = await deps.processFood({
-    text: registrationText,
+    text: buildRegistrationText(target, candidate, explicitQuantity),
     habits: await deps.getHabits(userId),
     occurredAt,
     timeZone,
   });
-  if (!processed.items.length) {
-    throw new Error("A resolução da pendência não produziu alimento válido.");
-  }
+  if (!processed.items.length) throw new Error("A resolução não produziu alimento válido.");
 
-  const existingMeals = await deps.listMeals(userId);
-  const existing = existingMeals.find(meal => sameLogicalMeal(meal, processed.detectedMealLabel, occurredAt, timeZone));
+  const meals = await deps.listMeals(userId);
+  const existing = meals.find(meal => sameLogicalMeal(meal, processed.detectedMealLabel, occurredAt, timeZone));
   const notes = target.originalText;
+
   const saved = existing
     ? await deps.updateMeal(userId, {
         mealId: existing.id,
@@ -382,11 +384,20 @@ async function persistResolvedFood(
         items: processed.items,
       });
 
-  const consolidated = await consolidateWhatsAppMealAfterSave({
-    listUserMeals: deps.listMeals,
-    updateUserMeal: deps.updateMeal,
-    removeUserMeal: deps.removeMeal,
-  }, saved, timeZone);
+  const consolidated = existing
+    ? { action: "updated" as const, meal: saved }
+    : await consolidateWhatsAppMealAfterSave({
+        listUserMeals: deps.listMeals,
+        updateUserMeal: input => deps.updateMeal(input.userId, {
+          mealId: input.mealId,
+          mealLabel: input.mealLabel,
+          occurredAt: input.occurredAt,
+          notes: input.notes,
+          items: input.items,
+        }),
+        removeUserMeal: deps.removeMeal,
+      }, saved, timeZone);
+
   const meal = consolidated.meal;
   const reply = await composeWhatsAppMealActionReply({
     userId,
@@ -394,16 +405,16 @@ async function persistResolvedFood(
     timeZone,
     options: {
       title: consolidated.action === "updated" ? "Alimento adicionado" : "Alimento registrado",
-      actionLines: [`Registrei ${target.normalizedCandidate} usando a quantidade confirmada, sem usar uma palavra de continuidade como alimento.`],
+      actionLines: [`Registrei ${target.normalizedCandidate} usando a quantidade resolvida para a mensagem original.`],
       mealResultState: consolidated.action === "updated" ? "updated" : "registered",
     },
   });
 
-  return buildResult({
+  return result({
     action: "food_clarification_completed",
     reply,
     eventType: "whatsapp.food_clarification.completed",
-    detail: "Pendência alimentar resolvida com texto original preservado, serviço canônico e estado persistido recarregado.",
+    detail: "Pendência alimentar resolvida com serviço canônico, consolidação e estado persistido recarregado.",
     data: {
       mealId: meal.id,
       interactionId: target.interactionId,
@@ -414,7 +425,12 @@ async function persistResolvedFood(
   });
 }
 
-async function recreateAfterFailure(deps: FoodClarificationDependencies, userId: number, target: PendingFoodClarificationTarget, occurredAt: Date) {
+async function recreateAfterFailure(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: PendingFoodClarificationTarget,
+  occurredAt: Date,
+) {
   await deps.repository.createPendingOperation({
     userId,
     type: PENDING_FOOD_CLARIFICATION_TYPE,
@@ -426,25 +442,63 @@ async function recreateAfterFailure(deps: FoodClarificationDependencies, userId:
 }
 
 function parseQuantityReply(text?: string | null) {
-  const quantities = extractExplicitQuantities(text?.trim() ?? "");
-  if (quantities.length !== 1) return null;
-  return { quantity: quantities[0].quantity, unit: quantities[0].unit };
+  const raw = text?.trim() ?? "";
+  if (!QUANTITY_ONLY_REPLY.test(raw)) return null;
+  const quantities = extractExplicitQuantities(raw);
+  return quantities.length === 1
+    ? { quantity: quantities[0].quantity, unit: quantities[0].unit }
+    : null;
 }
 
 function parseSelectionReply(text?: string | null, candidateCount = 0) {
-  const normalized = normalizeStandaloneWhatsappCommand(text);
-  const match = normalized.match(/^(?:opcao\s*)?(\d{1,2})$/);
+  const match = normalizeStandaloneWhatsappCommand(text).match(/^(?:opcao\s*)?(\d{1,2})$/);
   if (!match) return null;
   const index = Number(match[1]) - 1;
   return index >= 0 && index < candidateCount ? index : -1;
 }
 
 function isFullNewCommand(text?: string | null) {
-  const normalized = text?.trim() ?? "";
-  return Boolean(normalized && !isStandaloneWhatsappCommandWord(normalized) && /\p{L}/u.test(normalized) && normalized.split(/\s+/).length >= 2);
+  const raw = text?.trim() ?? "";
+  return Boolean(raw && !isStandaloneWhatsappCommandWord(raw) && /\p{L}/u.test(raw) && raw.split(/\s+/).length >= 2);
 }
 
-async function resolvePending(
+function reprompt(pending: WhatsAppPendingOperationRecord, target: PendingFoodClarificationTarget, eventType: string, detail: string) {
+  return result({
+    action: "food_clarification_reprompted",
+    reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
+    eventType,
+    detail,
+    data: pendingData(pending, target),
+  });
+}
+
+async function claimOrUnavailable(deps: FoodClarificationDependencies, pending: WhatsAppPendingOperationRecord) {
+  return deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
+}
+
+async function persistAfterClaim(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: PendingFoodClarificationTarget,
+  candidate: FoodClarificationCandidate,
+  occurredAt: Date,
+  timeZone: string,
+  explicitQuantity?: { quantity: number; unit: string },
+) {
+  try {
+    return await persistResolvedFood(deps, userId, target, candidate, occurredAt, timeZone, explicitQuantity);
+  } catch {
+    await recreateAfterFailure(deps, userId, target, occurredAt);
+    return result({
+      action: "food_clarification_retryable_failure",
+      reply: buildWhatsAppRecoverableErrorReplyMessage(`Não consegui concluir o registro agora. Mantive ${target.normalizedCandidate} pendente para nova tentativa.`),
+      eventType: "whatsapp.food_clarification.retryable_failure",
+      detail: "Falha após claim recriou a pendência sem descartar o texto original.",
+    });
+  }
+}
+
+async function resolvePendingText(
   deps: FoodClarificationDependencies,
   userId: number,
   pending: WhatsAppPendingOperationRecord,
@@ -452,23 +506,16 @@ async function resolvePending(
   text: string | null | undefined,
   occurredAt: Date,
   timeZone: string,
-): Promise<WhatsappFoodClarificationResult | null | "new_command"> {
+): Promise<WhatsappFoodClarificationResult | "new_command"> {
   if (isStandaloneWhatsappCancellationWord(text)) {
     const cancelled = await deps.repository.cancelPendingOperation(pending.id);
-    if (!cancelled.cancelled) {
-      return buildResult({
-        action: "food_clarification_unavailable",
-        reply: buildWhatsAppCallbackUnavailableReplyMessage(),
-        eventType: "whatsapp.food_clarification.unavailable",
-        detail: "Pendência alimentar não pôde ser cancelada porque já foi resolvida, substituída ou expirou.",
-      });
-    }
-    return buildResult({
+    if (!cancelled.cancelled) return unavailable("A pendência alimentar já não estava ativa.");
+    return result({
       action: "food_clarification_cancelled",
       reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
       eventType: "whatsapp.food_clarification.cancelled",
       detail: "Pendência alimentar cancelada sem mutação.",
-      data: pendingData({ ...pending, state: "cancelled" }, target),
+      data: { ...pendingData(pending, target), pendingState: "cancelled" },
     });
   }
 
@@ -476,96 +523,63 @@ async function resolvePending(
     const quantity = parseQuantityReply(text);
     if (!quantity) {
       if (isFullNewCommand(text)) return "new_command";
-      return buildResult({
-        action: "food_clarification_reprompted",
-        reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
-        eventType: "whatsapp.food_clarification.invalid_quantity_response",
-        detail: "Resposta incompatível não consumiu a pendência aberta de quantidade.",
-        data: pendingData(pending, target),
-      });
+      return reprompt(pending, target, "whatsapp.food_clarification.invalid_quantity_response", "Resposta incompatível não consumiu a pendência aberta de quantidade.");
     }
-    const claimed = await deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
-    if (!claimed.claimed) {
-      return buildResult({
-        action: "food_clarification_unavailable",
-        reply: buildWhatsAppCallbackUnavailableReplyMessage(),
-        eventType: "whatsapp.food_clarification.unavailable",
-        detail: "Claim atômico da pendência alimentar falhou.",
-      });
-    }
-    const candidate = target.candidates[target.selectedCandidateIndex ?? 0]
-      ?? { name: target.normalizedCandidate, servingLabel: `${quantity.quantity} ${quantity.unit}`, gramsPerServing: quantity.quantity, brandName: null, isBrandedProduct: false };
-    try {
-      return await persistResolvedFood(deps, userId, target, candidate, occurredAt, timeZone, quantity);
-    } catch {
-      await recreateAfterFailure(deps, userId, target, occurredAt);
-      return buildResult({
-        action: "food_clarification_retryable_failure",
-        reply: buildWhatsAppRecoverableErrorReplyMessage(`Não consegui concluir o registro agora. Mantive ${target.normalizedCandidate} pendente; envie novamente a quantidade.`),
-        eventType: "whatsapp.food_clarification.retryable_failure",
-        detail: "Falha de domínio após claim recriou a pendência sem descartar o texto original.",
-      });
-    }
+    const claimed = await claimOrUnavailable(deps, pending);
+    if (!claimed.claimed) return unavailable("Claim atômico da quantidade falhou.");
+    const candidate = target.candidates[target.selectedCandidateIndex ?? 0] ?? {
+      name: target.normalizedCandidate,
+      servingLabel: `${quantity.quantity} ${quantity.unit}`,
+      gramsPerServing: quantity.quantity,
+      brandName: null,
+      isBrandedProduct: false,
+      matchKind: "exact" as const,
+    };
+    return persistAfterClaim(deps, userId, target, candidate, occurredAt, timeZone, quantity);
   }
 
   let selectedIndex = target.selectedCandidateIndex ?? 0;
   if (target.pendingKind === "confirmation") {
     if (!isStandaloneWhatsappConfirmationWord(text)) {
       if (isFullNewCommand(text)) return "new_command";
-      return buildResult({
-        action: "food_clarification_reprompted",
-        reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
-        eventType: "whatsapp.food_clarification.invalid_confirmation_response",
-        detail: "Resposta incompatível não consumiu a confirmação alimentar.",
-        data: pendingData(pending, target),
-      });
+      return reprompt(pending, target, "whatsapp.food_clarification.invalid_confirmation_response", "Resposta incompatível não consumiu a confirmação alimentar.");
     }
   } else {
     const selection = parseSelectionReply(text, target.candidates.length);
     if (selection === null || selection < 0) {
       if (isFullNewCommand(text)) return "new_command";
-      return buildResult({
-        action: "food_clarification_reprompted",
-        reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
-        eventType: "whatsapp.food_clarification.invalid_selection_response",
-        detail: "Opção inválida não consumiu a seleção alimentar.",
-        data: pendingData(pending, target),
-      });
+      return reprompt(pending, target, "whatsapp.food_clarification.invalid_selection_response", "Opção inválida não consumiu a seleção alimentar.");
     }
     selectedIndex = selection;
   }
 
   const candidate = target.candidates[selectedIndex];
   if (!candidate || !hasSafeCanonicalPortion(candidate)) {
-    return buildResult({
-      action: "food_clarification_reprompted",
-      reply: buildWhatsAppClarificationReplyMessage(buildQuantityInstruction(target.normalizedCandidate)),
-      eventType: "whatsapp.food_clarification.canonical_portion_missing",
-      detail: "Candidato selecionado não possui porção canônica segura; nenhuma unidade foi inferida.",
-      data: pendingData(pending, target),
-    });
+    return reprompt(pending, target, "whatsapp.food_clarification.canonical_portion_missing", "Candidato sem porção canônica segura não foi tratado como unidade.");
   }
+  const claimed = await claimOrUnavailable(deps, pending);
+  if (!claimed.claimed) return unavailable("Claim atômico da confirmação/seleção falhou.");
+  return persistAfterClaim(deps, userId, { ...target, selectedCandidateIndex: selectedIndex }, candidate, occurredAt, timeZone);
+}
 
-  const claimed = await deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
-  if (!claimed.claimed) {
-    return buildResult({
-      action: "food_clarification_unavailable",
-      reply: buildWhatsAppCallbackUnavailableReplyMessage(),
-      eventType: "whatsapp.food_clarification.unavailable",
-      detail: "Claim atômico da pendência alimentar falhou.",
-    });
-  }
-  try {
-    return await persistResolvedFood(deps, userId, { ...target, selectedCandidateIndex: selectedIndex }, candidate, occurredAt, timeZone);
-  } catch {
-    await recreateAfterFailure(deps, userId, target, occurredAt);
-    return buildResult({
-      action: "food_clarification_retryable_failure",
-      reply: buildWhatsAppRecoverableErrorReplyMessage(`Não consegui concluir o registro agora. Mantive ${target.normalizedCandidate} pendente; confirme novamente.`),
-      eventType: "whatsapp.food_clarification.retryable_failure",
-      detail: "Falha de domínio após claim recriou a pendência sem descartar o texto original.",
-    });
-  }
+function unavailable(detail: string): WhatsappFoodClarificationResult {
+  return result({
+    action: "food_clarification_unavailable",
+    reply: buildWhatsAppCallbackUnavailableReplyMessage(),
+    eventType: "whatsapp.food_clarification.unavailable",
+    detail,
+  });
+}
+
+async function supersedeActive(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  occurredAt: Date,
+) {
+  const active = await deps.repository.getActivePendingOperation(userId, occurredAt);
+  if (!active) return true;
+  const transitioned = await deps.repository.supersedePendingOperation(active.id);
+  return transitioned.superseded;
 }
 
 async function createPending(
@@ -574,13 +588,12 @@ async function createPending(
   target: PendingFoodClarificationTarget,
   occurredAt: Date,
 ): Promise<WhatsappFoodClarificationResult> {
-  const replaced = await supersedeActiveWhatsappPendingOperations(userId, occurredAt);
-  if (!replaced) {
-    return buildResult({
+  if (!await supersedeActive(deps, userId, occurredAt)) {
+    return result({
       action: "food_clarification_blocked",
       reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui substituir a operação pendente com segurança. Cancele a anterior e envie o alimento novamente."),
       eventType: "whatsapp.food_clarification.pending_replacement_blocked",
-      detail: "Criação da pendência alimentar bloqueada porque uma operação anterior não pôde ser substituída.",
+      detail: "Uma operação anterior não pôde ser marcada como substituída.",
     });
   }
   const created = await deps.repository.createPendingOperation({
@@ -592,52 +605,59 @@ async function createPending(
     now: occurredAt,
   });
   if (!created) {
-    return buildResult({
+    return result({
       action: "food_clarification_blocked",
       reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui guardar o contexto do alimento com segurança. Envie a mensagem completa novamente."),
       eventType: "whatsapp.food_clarification.persistence_unavailable",
-      detail: "Persistência da pendência alimentar indisponível; fallback nutricional bloqueado.",
+      detail: "Persistência indisponível; fallback nutricional bloqueado.",
     });
   }
-  return buildResult({
+  return result({
     action: "food_clarification_requested",
     reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
     eventType: "whatsapp.food_clarification.requested",
-    detail: "Pergunta alimentar específica criada em whatsappPendingOperations com contrato consumível pela #858.",
+    detail: "Pergunta específica criada em whatsappPendingOperations com contrato consumível pela #858.",
     data: pendingData(created, target),
   });
+}
+
+export function isExpectedWhatsappFoodClarificationAction(target: PendingFoodClarificationTarget, action: string) {
+  return target.actions.some(candidate => candidate.id === action);
 }
 
 export function createWhatsappFoodClarificationService(overrides: Partial<FoodClarificationDependencies> = {}) {
   const deps = { ...defaultDependencies, ...overrides };
 
-  return async function handleWhatsappFoodClarification(input: {
+  const handle = async (input: {
     userId: number;
     text?: string | null;
     receivedAt?: Date;
     userTimezone: string;
     messageId?: string | null;
-  }): Promise<WhatsappFoodClarificationResult | null> {
+  }): Promise<WhatsappFoodClarificationResult | null> => {
     const occurredAt = input.receivedAt ?? new Date();
     const text = input.text?.trim() ?? "";
     const active = await deps.repository.getActivePendingOperation(input.userId, occurredAt);
 
     if (active?.type === PENDING_FOOD_CLARIFICATION_TYPE && isPendingFoodClarificationTarget(active.target)) {
-      const pendingResult = await resolvePending(deps, input.userId, active, active.target, text, occurredAt, input.userTimezone);
+      const pendingResult = await resolvePendingText(deps, input.userId, active, active.target, text, occurredAt, input.userTimezone);
       if (pendingResult !== "new_command") return pendingResult;
-      const superseded = await deps.repository.supersedePendingOperation(active.id);
-      if (!superseded.superseded) {
-        return buildResult({
+      const transitioned = await deps.repository.supersedePendingOperation(active.id);
+      if (!transitioned.superseded) {
+        return result({
           action: "food_clarification_blocked",
           reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui substituir a operação pendente com segurança. Cancele a anterior e tente novamente."),
           eventType: "whatsapp.food_clarification.pending_replacement_blocked",
-          detail: "Novo comando completo foi bloqueado porque a pendência alimentar não pôde ser substituída.",
+          detail: "Novo comando completo bloqueado porque a pendência alimentar não pôde ser substituída.",
         });
       }
+    } else if (active && isStandaloneWhatsappCommandWord(text)) {
+      // Outra pendência possui precedência própria; não roubar sua resposta curta.
+      return null;
     }
 
     if (isStandaloneWhatsappCommandWord(text)) {
-      return buildResult({
+      return result({
         action: "food_clarification_standalone_command_blocked",
         reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma operação compatível pendente. Envie a mensagem completa, por exemplo: registrar 100 g de arroz."),
         eventType: "whatsapp.food_clarification.standalone_command_blocked",
@@ -649,7 +669,7 @@ export function createWhatsappFoodClarificationService(overrides: Partial<FoodCl
     if (!request) return null;
 
     const candidates = resolveFoodClarificationCandidates(request.normalizedCandidate);
-    const safeCandidates = resolveSafeCandidates(candidates);
+    const safeCandidates = candidates.filter(hasSafeCanonicalPortion);
 
     if (safeCandidates.length === 1 && !request.normalizationChanged) {
       const target = buildTarget({
@@ -667,7 +687,7 @@ export function createWhatsappFoodClarificationService(overrides: Partial<FoodCl
       }
     }
 
-    if (safeCandidates.length === 1 && request.normalizationChanged) {
+    if (safeCandidates.length === 1) {
       return createPending(deps, input.userId, buildTarget({
         request,
         pendingKind: "confirmation",
@@ -697,6 +717,61 @@ export function createWhatsappFoodClarificationService(overrides: Partial<FoodCl
       messageId: input.messageId,
     }), occurredAt);
   };
+
+  const completeClaimedCallback = async (input: {
+    userId: number;
+    pendingOperation: WhatsAppPendingOperationRecord;
+    action: string;
+    receivedAt?: Date;
+    userTimezone?: string | null;
+  }): Promise<WhatsappFoodClarificationResult> => {
+    const target = input.pendingOperation.target;
+    if (!isPendingFoodClarificationTarget(target) || !isExpectedWhatsappFoodClarificationAction(target, input.action)) {
+      return unavailable("Callback não corresponde ao contrato alimentar persistido.");
+    }
+    if (input.action === "cancel") {
+      return result({
+        action: "food_clarification_cancelled",
+        reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
+        eventType: "whatsapp.food_clarification.cancelled",
+        detail: "Callback cancelou a operação já reivindicada sem mutação.",
+      });
+    }
+
+    const index = input.action === "confirm"
+      ? target.selectedCandidateIndex ?? 0
+      : Number(input.action.match(/^select:(\d+)$/)?.[1] ?? Number.NaN);
+    const candidate = target.candidates[index];
+    if (!candidate || !hasSafeCanonicalPortion(candidate)) {
+      await recreateAfterFailure(deps, input.userId, {
+        ...target,
+        pendingKind: "quantity",
+        classification: "open",
+        selectedCandidateIndex: Number.isInteger(index) ? index : null,
+        actions: buildActions("quantity", target.candidates),
+        instructionText: buildQuantityInstruction(target.normalizedCandidate),
+      }, input.receivedAt ?? new Date());
+      return result({
+        action: "food_clarification_reprompted",
+        reply: buildWhatsAppClarificationReplyMessage(buildQuantityInstruction(target.normalizedCandidate)),
+        eventType: "whatsapp.food_clarification.canonical_portion_missing",
+        detail: "Callback não inferiu unidade sem porção canônica segura.",
+      });
+    }
+
+    return persistAfterClaim(
+      deps,
+      input.userId,
+      { ...target, selectedCandidateIndex: index },
+      candidate,
+      input.receivedAt ?? new Date(),
+      input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+    );
+  };
+
+  return { handle, completeClaimedCallback };
 }
 
-export const handleWhatsappFoodClarification = createWhatsappFoodClarificationService();
+const defaultService = createWhatsappFoodClarificationService();
+export const handleWhatsappFoodClarification = defaultService.handle;
+export const completeClaimedWhatsappFoodClarificationCallback = defaultService.completeClaimedCallback;
