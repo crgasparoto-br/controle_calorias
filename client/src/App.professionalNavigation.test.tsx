@@ -10,7 +10,18 @@ const cancel = vi.fn().mockResolvedValue(undefined);
 const setData = vi.fn();
 const fetchPatientTimeZone = vi.fn().mockResolvedValue({ timeZone: "America/Sao_Paulo" });
 const mutate = vi.fn();
-const entitlementState = { allowed: true };
+const allResources = [
+  "professional_dashboard",
+  "professional_portfolio",
+  "professional_record",
+  "professional_goals",
+  "professional_operational_alerts",
+  "professional_messages",
+  "professional_reports",
+  "professional_ai_assistance",
+  "professional_settings",
+];
+const entitlementState = { allowed: true, enabledResources: [...allResources] };
 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ loading: false, user: { id: 1, name: "Nutricionista", professionalProfileActive: true }, refresh }) }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
@@ -28,7 +39,7 @@ vi.mock("@/lib/trpc", () => ({
     } },
     professionalRecord: {
       settings: {
-        entitlements: { useQuery: () => ({ data: { allowed: entitlementState.allowed, planName: entitlementState.allowed ? "Acesso aberto" : "Sem acesso" }, isLoading: false, isError: false, refetch }) },
+        entitlements: { useQuery: () => ({ data: { allowed: entitlementState.allowed, enabledResources: entitlementState.enabledResources, planName: entitlementState.allowed ? "Acesso aberto" : "Sem acesso" }, isLoading: false, isError: false, refetch }) },
       },
       operationalAlerts: {
         list: { useQuery: () => ({ data: [], isLoading: false, isError: false, refetch }) },
@@ -84,12 +95,13 @@ vi.mock("@/pages/SyncedHealthDataPage", () => ({ default: () => <Fixture name="S
 vi.mock("@/pages/WhatsappOnboardingPage", () => ({ default: () => <Fixture name="WhatsappOnboardingPage" /> }));
 
 afterEach(cleanup);
-beforeEach(() => { entitlementState.allowed = true; refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); cancel.mockClear(); setData.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
+beforeEach(() => { entitlementState.allowed = true; entitlementState.enabledResources = [...allResources]; refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); cancel.mockClear(); setData.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
 
 describe("App professional navigation", () => {
   it("loads a professional deep link through the real router", async () => { const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); expect(screen.getAllByText("Contexto profissional").length).toBeGreaterThan(0); });
   it("routes professional settings to the dedicated screen", async () => { window.history.replaceState({}, "", "/professional/settings"); const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Configurações profissionais" })).toBeTruthy(); });
-  it("blocks professional workspace routes when the backend denies entitlement", async () => { entitlementState.allowed = false; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Acesso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Relatórios profissionais" })).toBeNull(); });
+  it("blocks all workspace routes when the backend denies access", async () => { entitlementState.allowed = false; entitlementState.enabledResources = []; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Recurso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Relatórios profissionais" })).toBeNull(); });
+  it("blocks a report route when only another resource is enabled", async () => { entitlementState.enabledResources = ["professional_settings"]; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Recurso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Relatórios profissionais" })).toBeNull(); });
   it("redirects the retired legacy entry to the current professional reports", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); await waitFor(() => expect(window.location.pathname).toBe("/professional/reports")); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); });
   it("revalidates backend authorization before opening a patient context", async () => { window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); await waitFor(() => expect(fetchPatientTimeZone).toHaveBeenCalledWith({ patientId: 41, weekOffset: 0 })); await waitFor(() => expect(window.location.pathname).toBe("/professional/follow-up")); });
   it("does not open stale cached access when backend revalidation fails", async () => { fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked")); window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); expect(await screen.findByText("O acesso a este paciente não está mais disponível. A carteira foi atualizada.")).toBeTruthy(); expect(window.location.pathname).toBe("/professional/patients"); expect(refetch).toHaveBeenCalled(); });
