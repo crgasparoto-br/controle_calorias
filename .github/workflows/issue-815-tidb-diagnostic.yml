@@ -36,21 +36,22 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
+          import textwrap
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-          pattern = re.compile(
-              r'''  const migration = await migrateAllLegacyProfessionalData\(\);\n'''
-              r'''  const goalSuggestionMigration =\n'''
-              r'''    await migrateAllLegacyProfessionalGoalSuggestions\(\);\n'''
-              r'''  const rows = await db\n'''
-              r'''    \.select\(\)\n'''
-              r'''    \.from\(userPreferences\)\n'''
-              r'''    \.where\(inArray\(userPreferences\.preferenceKey, \[\.\.\.legacyKeys\]\)\);\n'''
-              r'''  const verification = await verifyCanonicalCoverage\(db, rows\);\n'''
-          )
-          replacement = '''  const rowsBeforeMigration = await db
+          old = textwrap.dedent('''
+          const migration = await migrateAllLegacyProfessionalData();
+          const goalSuggestionMigration =
+            await migrateAllLegacyProfessionalGoalSuggestions();
+          const rows = await db
+            .select()
+            .from(userPreferences)
+            .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
+          const verification = await verifyCanonicalCoverage(db, rows);
+          ''').strip()
+          new = textwrap.dedent('''
+          const rowsBeforeMigration = await db
             .select()
             .from(userPreferences)
             .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
@@ -69,52 +70,53 @@ jobs:
             .from(userPreferences)
             .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
           const verification = await verifyCanonicalCoverage(db, rows);
-          '''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'retirement main structural match count={count}')
-          retirement_path.write_text(text)
+          ''').strip()
+          if old not in text:
+              raise SystemExit('retirement main block not found')
+          retirement_path.write_text(text.replace(old, new, 1))
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          old = '''    assert.throws(
-              () => runLegacyRetirement(true),
-              /preferências profissionais legadas inválidas|Command failed/i,
-              "equal-version conflicting legacy copies must block retirement"
-            );
-            const [rowsAfterEqualVersionConflict] = await connection.query<
-          '''
-          new = '''    assert.throws(
-              () => runLegacyRetirement(true),
-              /preferências profissionais legadas inválidas|Command failed/i,
-              "equal-version conflicting legacy copies must block retirement"
-            );
-            const [canonicalAfterEqualVersionConflict] = await connection.query<
-              mysql.RowDataPacket[]
-            >(
-              "SELECT reason FROM professionalPatientAuthorizations WHERE id = ?",
-              [untouched.id]
-            );
-            assert.equal(
-              canonicalAfterEqualVersionConflict[0]?.reason,
-              untouched.reason,
-              "preflight conflict must not mutate the canonical authorization"
-            );
-            const [goalAfterEqualVersionConflict] = await connection.query<
-              mysql.RowDataPacket[]
-            >(
-              "SELECT rationale FROM professionalGoalSuggestions WHERE id = ?",
-              [retirementLegacyGoal.id]
-            );
-            assert.equal(
-              goalAfterEqualVersionConflict[0]?.rationale,
-              retirementLegacyGoal.rationale,
-              "preflight conflict must not mutate the canonical goal suggestion"
-            );
-            const [rowsAfterEqualVersionConflict] = await connection.query<
-          '''
+          old = textwrap.dedent('''
+          assert.throws(
+            () => runLegacyRetirement(true),
+            /preferências profissionais legadas inválidas|Command failed/i,
+            "equal-version conflicting legacy copies must block retirement"
+          );
+          const [rowsAfterEqualVersionConflict] = await connection.query<
+          ''').strip()
+          new = textwrap.dedent('''
+          assert.throws(
+            () => runLegacyRetirement(true),
+            /preferências profissionais legadas inválidas|Command failed/i,
+            "equal-version conflicting legacy copies must block retirement"
+          );
+          const [canonicalAfterEqualVersionConflict] = await connection.query<
+            mysql.RowDataPacket[]
+          >(
+            "SELECT reason FROM professionalPatientAuthorizations WHERE id = ?",
+            [untouched.id]
+          );
+          assert.equal(
+            canonicalAfterEqualVersionConflict[0]?.reason,
+            untouched.reason,
+            "preflight conflict must not mutate the canonical authorization"
+          );
+          const [goalAfterEqualVersionConflict] = await connection.query<
+            mysql.RowDataPacket[]
+          >(
+            "SELECT rationale FROM professionalGoalSuggestions WHERE id = ?",
+            [retirementLegacyGoal.id]
+          );
+          assert.equal(
+            goalAfterEqualVersionConflict[0]?.rationale,
+            retirementLegacyGoal.rationale,
+            "preflight conflict must not mutate the canonical goal suggestion"
+          );
+          const [rowsAfterEqualVersionConflict] = await connection.query<
+          ''').strip()
           if old not in test:
-              raise SystemExit('equal-version assertion anchor not found')
+              raise SystemExit('equal-version assertion block not found')
           test_path.write_text(test.replace(old, new, 1))
           PY
       - name: Remove temporary diagnostics
