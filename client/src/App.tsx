@@ -64,6 +64,9 @@ export function professionalResourceForPath(
   if (location.startsWith("/professional/reports")) {
     return "professional_reports";
   }
+  if (location.startsWith("/professional/settings")) {
+    return "professional_settings";
+  }
   return "professional_dashboard";
 }
 
@@ -72,6 +75,14 @@ function ProfessionalWorkspaceRoute() {
   return (
     <ProfessionalEntitlementGate resource={professionalResourceForPath(location)}>
       <ProfessionalWorkspacePage />
+    </ProfessionalEntitlementGate>
+  );
+}
+
+function ProfessionalSettingsRoute() {
+  return (
+    <ProfessionalEntitlementGate resource="professional_settings">
+      <ProfessionalSettingsPage />
     </ProfessionalEntitlementGate>
   );
 }
@@ -107,7 +118,7 @@ function Router() {
     <Route path="/professional/follow-up" component={ProfessionalWorkspaceRoute} />
     <Route path="/professional/messages" component={ProfessionalWorkspaceRoute} />
     <Route path="/professional/reports" component={ProfessionalWorkspaceRoute} />
-    <Route path="/professional/settings" component={ProfessionalSettingsPage} />
+    <Route path="/professional/settings" component={ProfessionalSettingsRoute} />
     <Route path="/professional" component={ProfessionalWorkspaceRoute} />
     <Route path="/admin" component={AdminPage} />
     <Route path="/404" component={NotFound} />
