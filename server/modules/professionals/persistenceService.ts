@@ -1,3 +1,6 @@
+import { and, eq } from "drizzle-orm";
+import { professionalProfiles } from "../../../drizzle/professional-schema";
+import { userPreferences } from "../../../drizzle/schema";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleProfessionalRepository,
@@ -10,19 +13,54 @@ import {
   releaseProfessionalCapacityReservation,
   withProfessionalCapacityReservation,
 } from "./entitlementService";
+import { PROFESSIONAL_PROFILE_PREFERENCE_KEY } from "./persistence";
 
 const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const deletedProfileUserIds = new Set<number>();
 
 function capacityCoverageKey(authorizationId: string) {
   return `professional-authorization:${authorizationId}`;
 }
 
-export const professionalRepository: typeof baseProfessionalRepository = {
+async function deleteProfessionalProfile(userId: number) {
+  const db = await getDb();
+  if (db) {
+    await db.transaction(async tx => {
+      await tx
+        .delete(userPreferences)
+        .where(
+          and(
+            eq(userPreferences.userId, userId),
+            eq(
+              userPreferences.preferenceKey,
+              PROFESSIONAL_PROFILE_PREFERENCE_KEY
+            )
+          )
+        );
+      await tx
+        .delete(professionalProfiles)
+        .where(eq(professionalProfiles.userId, userId));
+    });
+  }
+  deletedProfileUserIds.add(userId);
+}
+
+export const professionalRepository = {
   ...baseProfessionalRepository,
-  async transitionAuthorization(input) {
+  async getProfile(userId: number) {
+    if (deletedProfileUserIds.has(userId)) return null;
+    return baseProfessionalRepository.getProfile(userId);
+  },
+  async upsertProfile(input: UpsertCanonicalProfessionalProfileInput) {
+    const profile = await baseProfessionalRepository.upsertProfile(input);
+    deletedProfileUserIds.delete(input.userId);
+    return profile;
+  },
+  deleteProfile: deleteProfessionalProfile,
+  async transitionAuthorization(input: TransitionProfessionalAuthorizationInput) {
     const current = await baseProfessionalRepository.getAuthorizationById(
       input.authorizationId
     );
