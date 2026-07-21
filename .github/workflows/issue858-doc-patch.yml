@@ -1,9 +1,9 @@
 name: Issue 858 documentation patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/858-interactive-coverage
+      - develop
 
 permissions:
   contents: write
@@ -23,80 +23,54 @@ jobs:
           from pathlib import Path
 
           design = Path("docs/design-docs/whatsapp-ingestion.md")
-          design_marker = "## Registro executável de interações fechadas (issue #858)"
-          design_text = design.read_text()
-          if design_marker not in design_text:
-              design_text += '''
+          marker = "## Registro executável de interações fechadas (issue #858)"
+          text = design.read_text()
+          if marker not in text:
+              text += '''
 
 ## Registro executável de interações fechadas (issue #858)
 
 O WhatsApp usa `server/modules/whatsapp/interactionRegistry.ts` como registro executável, transversal e versionado das interações vinculadas a `whatsappPendingOperations`. O registro não é uma segunda persistência: ele associa o tipo e o `target` canônico já produzido pelo domínio a um identificador estável, classificação, ações, componente, estratégia de reconstrução e efeitos permitidos/proibidos.
 
-Regras obrigatórias de apresentação:
-
-- pergunta aberta (`quantity`, marca, tamanho ou outro valor não enumerável) permanece textual;
-- decisão fechada com até três ações no total, contando **Cancelar**, usa botões;
-- decisão fechada com quatro ou mais ações usa lista;
-- os produtores fornecem ações estruturadas e reutilizam `buildWhatsappClosedDecisionReply`;
-- títulos nunca expõem IDs internos; callbacks usam IDs opacos e são validados por usuário, canal, tipo, ação, versão, expiração e estado.
+- Pergunta aberta (`quantity`, marca, tamanho ou outro valor não enumerável) permanece textual.
+- Decisão fechada com até três ações no total, contando **Cancelar**, usa botões.
+- Decisão fechada com quatro ou mais ações usa lista.
+- Produtores fornecem ações estruturadas e reutilizam `buildWhatsappClosedDecisionReply`.
+- Callbacks usam IDs opacos e são validados por usuário, canal, tipo, ação, versão, expiração e estado.
 
 O registro cobre exclusão, seleção de item para ajuste/substituição, confirmação genérica, reclassificação de escopo, período de resumo, autorização profissional, clarificação genérica de intenção e os contratos alimentares `quantity`, `confirmation` e `selection` da issue #855.
 
 ### Resolução e reapresentação
 
-`messageRouter.ts` resolve callbacks antes de qualquer classificador ou fallback e despacha pelo registro central. Respostas textuais passam pelo mesmo gate persistente no webhook real e no simulador:
+`messageRouter.ts` resolve callbacks antes de qualquer classificador ou fallback. Resposta compatível reivindica atomicamente a mesma operação; resposta incompatível mantém a operação ativa e reconstrói as mesmas ações, ordem e rótulos sem criar pendência equivalente; novo comando completo substitui a pendência incompatível e segue o fluxo normal. Pendência expirada, consumida, cancelada, adulterada, de outro usuário ou obsoleta responde indisponibilidade sem recriação silenciosa.
 
-1. resposta compatível reivindica atomicamente a mesma operação e executa a mesma ação canônica do callback;
-2. resposta incompatível mantém a operação ativa e reconstrói as mesmas ações, ordem e rótulos sem criar pendência equivalente;
-3. novo comando completo substitui a pendência incompatível e segue o roteador normal;
-4. pendência expirada, consumida, cancelada, adulterada, de outro usuário ou com recurso obsoleto responde indisponibilidade sem recriação silenciosa;
-5. callback ou resposta inválida nunca alcançam parser, LLM ou fallback nutricional.
-
-A reapresentação registra `interactionId`, origem, classificação, componente, quantidade de ações, ciclo de vida e motivo da resposta inválida, sem armazenar conteúdo sensível.
-
-### Paridade de entrypoints
-
-- webhook textual e callback: `resolveWhatsAppPrecedenceGate`;
-- áudio transcrito: retorna ao mesmo pipeline textual do webhook;
-- simulador: usa o mesmo gate persistente antes de `processMealDraft`;
-- autorização enviada fora do webhook: usa o mesmo builder e contrato estruturado.
+A reapresentação registra `interactionId`, origem, classificação, componente, quantidade de ações, ciclo de vida e motivo da resposta inválida, sem conteúdo sensível. Webhook, áudio transcrito e simulador usam o mesmo gate persistente antes do pipeline nutricional.
 '''
-              design.write_text(design_text)
+              design.write_text(text)
 
           regression = Path("docs/testing/whatsapp-response-contract-regression.md")
-          regression_marker = "## Matriz interativa transversal da issue #858"
-          regression_text = regression.read_text()
-          if regression_marker not in regression_text:
-              regression_text += '''
+          marker = "## Matriz interativa transversal da issue #858"
+          text = regression.read_text()
+          if marker not in text:
+              text += '''
 
 ## Matriz interativa transversal da issue #858
 
 | Cenário | Componente esperado | Resolução textual | Resposta inválida | Proteção obrigatória |
 |---|---|---|---|---|
 | Confirmar/Cancelar | 2 botões | SIM/CANCELAR | reapresentar os 2 botões | nenhuma mutação antes da confirmação |
-| 2 candidatos + Cancelar | 3 botões | índice/ordinal/CANCELAR | reapresentar a mesma ordem | seleção não executa efeito prematuro |
-| 3+ candidatos + Cancelar | lista | índice/ordinal/CANCELAR | reapresentar as mesmas linhas | callback opaco e isolado por usuário |
-| Período de resumo | lista com Hoje, Ontem, Esta semana, Este mês e Cancelar | período/CANCELAR | manter a mesma pendência | não gerar resumo em cancelamento |
-| Reclassificação ambígua | 3 botões: Só compatíveis, Todos recentes e Cancelar | APENAS/TODOS/CANCELAR | `sim` não escolhe escopo | revalidar registros atuais antes de alterar |
-| Clarificação genérica | lista com Registrar, Corrigir, Consultar e Cancelar | número/rótulo/CANCELAR | preservar a mensagem original | nunca persistir palavra de comando como alimento |
-| Clarificação alimentar `quantity` | texto | quantidade e unidade | repetir instrução específica | preservar texto/candidato da #855 |
-| Clarificação alimentar `confirmation`/`selection` | botão ou lista pela cardinalidade | ação canônica equivalente | manter operação ativa | sem fallback genérico de 100 g |
-| Autorização profissional | 2 botões | AUTORIZAR/NEGAR | recarregar autorização atual | reentrega não muda decisão consumida |
+| 2 candidatos + Cancelar | 3 botões | índice/ordinal/CANCELAR | mesma ordem | sem efeito prematuro |
+| 3+ candidatos + Cancelar | lista | índice/ordinal/CANCELAR | mesmas linhas | callback opaco e isolado |
+| Período | lista com 4 períodos e Cancelar | período/CANCELAR | manter pendência | cancelamento sem resumo |
+| Reclassificação | 3 botões | APENAS/TODOS/CANCELAR | `sim` não escolhe escopo | revalidar registros atuais |
+| Clarificação genérica | lista com 4 ações | número/rótulo/CANCELAR | preservar texto original | nunca persistir comando como alimento |
+| Alimento `quantity` | texto | quantidade/unidade | instrução específica | preservar contrato #855 |
+| Alimento `confirmation`/`selection` | botão/lista | ação equivalente | manter pendência | sem fallback implícito de 100 g |
+| Autorização profissional | 2 botões | AUTORIZAR/NEGAR | recarregar domínio | reentrega idempotente |
 
-Validações automatizadas obrigatórias:
-
-- descoberta dos tipos `PENDING_*_TYPE` e comparação com o registro executável;
-- ausência de listas/switches paralelos no `messageRouter.ts`;
-- ausência de `buttonsReply`/`listReply` diretos nos produtores principais;
-- limites de 1, 2, 3, 4 e mais ações;
-- callback repetido, expirado, consumido, adulterado e de outro usuário;
-- resposta inválida sem nova pendência ou mutação;
-- comando completo incompatível liberado para o fluxo normal;
-- preservação da pendência após reapresentação no webhook;
-- equivalência de webhook, áudio transcrito e simulador;
-- clarificação genérica de baixa confiança do LLM com lista interativa persistida.
+A suíte valida descoberta de tipos `PENDING_*_TYPE`, ausência de registros paralelos, limites de cardinalidade, reentrega, expiração, adulteração, isolamento, resposta inválida sem mutação, comando completo incompatível, preservação no webhook, paridade dos entrypoints e clarificação genérica interativa do LLM.
 '''
-              regression.write_text(regression_text)
+              regression.write_text(text)
 
           Path(".github/workflows/issue858-doc-patch.yml").unlink()
           PY
