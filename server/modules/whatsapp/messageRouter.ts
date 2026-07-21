@@ -32,6 +32,7 @@ export type WhatsAppPrecedenceGateResult =
   | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
   | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
   | { step: "delete_intent"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> }
+  | { step: "generic_confirmation"; result: WhatsAppInteractiveCallbackResult }
   | { step: "pending_interaction"; result: WhatsAppInteractiveCallbackResult }
   | { step: "continue_pipeline" };
 
@@ -57,9 +58,7 @@ async function resolveWhatsAppInteractiveCallback(
     expectedTypes: listWhatsappRegisteredPendingTypes(),
     isExpectedAction: isExpectedWhatsappRegisteredAction,
   });
-  if (claim.status !== "claimed") {
-    return buildUnavailableInteractiveCallbackResult(claim.status);
-  }
+  if (claim.status !== "claimed") return buildUnavailableInteractiveCallbackResult(claim.status);
 
   const description = describeWhatsappRegisteredInteraction(claim.pendingOperation);
   const completed = await completeWhatsappRegisteredCallback({
@@ -139,6 +138,9 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     messageId: input.messageId,
   });
   if (pendingInteraction) {
+    if (pendingInteraction.eventType.startsWith("whatsapp.action_")) {
+      return { step: "generic_confirmation", result: pendingInteraction };
+    }
     return { step: "pending_interaction", result: pendingInteraction };
   }
 
