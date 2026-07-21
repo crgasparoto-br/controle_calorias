@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   logPersistenceWarning: vi.fn(),
   appendHistory: vi.fn(),
   upsertProfile: vi.fn(),
+  deleteProfile: vi.fn(),
   listAuthorizationsByPatient: vi.fn(),
   getProfessionalProfile: vi.fn(),
   getProfessionalEntitlements: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("./contentPersistenceService", () => ({
 vi.mock("./persistenceService", () => ({
   professionalRepository: {
     upsertProfile: mocks.upsertProfile,
+    deleteProfile: mocks.deleteProfile,
     listAuthorizationsByPatient: mocks.listAuthorizationsByPatient,
   },
 }));
@@ -70,6 +72,7 @@ beforeEach(() => {
     updatedAt: Date.parse("2026-07-20T00:00:00Z"),
   });
   mocks.upsertProfile.mockResolvedValue(canonicalProfile(true));
+  mocks.deleteProfile.mockResolvedValue(undefined);
   mocks.appendHistory.mockResolvedValue(undefined);
   mocks.getProfessionalEntitlements.mockResolvedValue({ allowed: true });
   mocks.listAuthorizationsByPatient.mockResolvedValue([]);
@@ -148,6 +151,35 @@ describe("professional settings service", () => {
     ).rejects.toThrow("audit unavailable");
 
     const snapshot = await getProfessionalSettingsSnapshot(10);
+    expect(snapshot.preferences).toEqual({
+      defaultReviewIntervalDays: null,
+      messageTemplates: [],
+    });
+  });
+
+  it("removes a newly created profile when completion auditing fails", async () => {
+    mocks.getProfessionalProfile.mockResolvedValue(null);
+    mocks.upsertProfile.mockResolvedValue(canonicalProfile(true));
+    mocks.appendHistory
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(
+      updateProfessionalIdentitySettings(10, {
+        displayName: "Nutricionista Ana",
+        registrationNumber: "CRN 123",
+        contactEmail: "ana@example.com",
+        contactPhone: "+55 15 99999-9999",
+        patientFacingBio: "Atendimento individual.",
+      })
+    ).rejects.toThrow("audit unavailable");
+
+    expect(mocks.upsertProfile).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteProfile).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteProfile).toHaveBeenCalledWith(10);
+
+    const snapshot = await getProfessionalSettingsSnapshot(10);
+    expect(snapshot.profile).toBeNull();
     expect(snapshot.preferences).toEqual({
       defaultReviewIntervalDays: null,
       messageTemplates: [],
