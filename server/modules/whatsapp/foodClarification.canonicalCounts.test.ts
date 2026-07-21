@@ -50,6 +50,28 @@ describe("contagens com porção canônica da issue #855", () => {
     expect(buildFoodClarificationRegistrationText(target(text), safe!)).toMatch(expectedRegistration);
   });
 
+  it.each([
+    ["1 pão integral Wickbold", "2 fatias de Pão integral Wickbold"],
+    ["2 pão integral Wickbold", "4 fatias de Pão integral Wickbold"],
+  ])("preserva o multiplicador da porção canônica em %s", (text, expectedRegistration) => {
+    const request = parseCountedFoodRequest(text);
+    expect(request).not.toBeNull();
+    const safe = resolveFoodClarificationCandidates(request!.normalizedCandidate)
+      .find(candidate => candidate.name === "Pão integral Wickbold" && hasSafeCanonicalPortion(candidate));
+
+    expect(safe).toEqual(expect.objectContaining({
+      servingLabel: "2 fatias",
+      gramsPerServing: 50,
+      matchKind: "exact",
+    }));
+    expect(buildFoodClarificationRegistrationText(target(text), safe!)).toBe(expectedRegistration);
+  });
+
+  it("mantém porções canônicas unitárias sem regressão", () => {
+    const safe = resolveFoodClarificationCandidates("banana").find(hasSafeCanonicalPortion);
+    expect(buildFoodClarificationRegistrationText(target("2 bananas"), safe!)).toMatch(/^2 unidade(?:s)? de Banana$/);
+  });
+
   it("aceita iogurte exato de marca com embalagem fixa", () => {
     const candidates = resolveFoodClarificationCandidates("iogurte natural nestlé");
     expect(candidates.find(hasSafeCanonicalPortion)).toEqual(expect.objectContaining({
