@@ -23,23 +23,43 @@ describe("professional settings schemas", () => {
     });
   });
 
-  it("rejects unsupported review and reminder ranges", () => {
+  it("rejects unsupported review ranges", () => {
     const result = professionalPreferencesSettingsSchema.safeParse({
       defaultReviewIntervalDays: 500,
       remindersEnabled: true,
-      defaultReminderLeadDays: 60,
-      summaryFrequency: "weekly",
+      defaultReminderLeadDays: 1,
+      summaryFrequency: "disabled",
       messageTemplates: [],
     });
 
     expect(result.success).toBe(false);
   });
 
+  it("rejects automatic reminder and summary settings without consumers", () => {
+    const reminderAutomation = professionalPreferencesSettingsSchema.safeParse({
+      defaultReviewIntervalDays: 30,
+      remindersEnabled: false,
+      defaultReminderLeadDays: 5,
+      summaryFrequency: "disabled",
+      messageTemplates: [],
+    });
+    const summaryAutomation = professionalPreferencesSettingsSchema.safeParse({
+      defaultReviewIntervalDays: 30,
+      remindersEnabled: true,
+      defaultReminderLeadDays: 1,
+      summaryFrequency: "weekly",
+      messageTemplates: [],
+    });
+
+    expect(reminderAutomation.success).toBe(false);
+    expect(summaryAutomation.success).toBe(false);
+  });
+
   it("limits templates and requires explicit content", () => {
     const invalidTemplate = professionalPreferencesSettingsSchema.safeParse({
       defaultReviewIntervalDays: null,
-      remindersEnabled: false,
-      defaultReminderLeadDays: 0,
+      remindersEnabled: true,
+      defaultReminderLeadDays: 1,
       summaryFrequency: "disabled",
       messageTemplates: [
         { title: "Lembrete", messageType: "reminder", content: "" },
@@ -47,8 +67,8 @@ describe("professional settings schemas", () => {
     });
     const tooManyTemplates = professionalPreferencesSettingsSchema.safeParse({
       defaultReviewIntervalDays: null,
-      remindersEnabled: false,
-      defaultReminderLeadDays: 0,
+      remindersEnabled: true,
+      defaultReminderLeadDays: 1,
       summaryFrequency: "disabled",
       messageTemplates: Array.from({ length: 21 }, (_, index) => ({
         title: `Modelo ${index}`,
