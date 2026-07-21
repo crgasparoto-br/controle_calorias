@@ -39,7 +39,26 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply audit corrections
-        run: node scripts/issue-815-audit-fix.mjs
+        id: transform
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node scripts/issue-815-audit-fix.mjs 2>&1 | tee /tmp/issue-815-audit-transform.log
+
+      - name: Publish transform diagnostics
+        if: steps.transform.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### Diagnóstico da correção de auditoria da issue #815"
+            echo
+            echo '```text'
+            tail -n 100 /tmp/issue-815-audit-transform.log
+            echo '```'
+          } > /tmp/issue-815-audit-comment.md
+          gh pr comment 864 --body-file /tmp/issue-815-audit-comment.md
+          exit 1
 
       - name: Format and regenerate documentation
         run: |
