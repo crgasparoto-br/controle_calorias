@@ -71,6 +71,14 @@ export function ProfessionalEntitlementSummaryCard({
 }: {
   entitlements: EntitlementSnapshot;
 }) {
+  const capacityLabel =
+    entitlements.capacity.limit === null
+      ? "Sem limite comercial configurado"
+      : entitlements.capacity.usageAvailable &&
+          entitlements.capacity.used !== null
+        ? `${entitlements.capacity.used} de ${entitlements.capacity.limit}`
+        : `Limite contratado: ${entitlements.capacity.limit}`;
+
   return (
     <Card>
       <CardHeader>
@@ -93,15 +101,12 @@ export function ProfessionalEntitlementSummaryCard({
           </div>
           <div className="rounded-xl border p-4">
             <p className="text-xs text-muted-foreground">Capacidade</p>
-            <p className="mt-1 font-semibold">
-              {entitlements.capacity.limit === null
-                ? "Sem limite comercial configurado"
-                : `${entitlements.capacity.used ?? 0} de ${entitlements.capacity.limit}`}
-            </p>
+            <p className="mt-1 font-semibold">{capacityLabel}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {entitlements.capacity.usageAvailable
-                ? `${entitlements.capacity.used ?? 0} acompanhamentos ativos`
-                : "Uso temporariamente indisponível"}
+              {entitlements.capacity.usageAvailable &&
+              entitlements.capacity.used !== null
+                ? `${entitlements.capacity.used} acompanhamentos contabilizados pelo billing`
+                : "Uso não informado pelo contrato central"}
             </p>
           </div>
           <div className="rounded-xl border p-4">
@@ -123,17 +128,23 @@ export function ProfessionalEntitlementSummaryCard({
         </div>
         <div>
           <p className="mb-2 text-sm font-medium">Recursos habilitados</p>
-          <div className="flex flex-wrap gap-2">
-            {entitlements.enabledResources.map(resource => (
-              <span
-                key={resource}
-                className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {resource.replace(/^professional_/, "").replaceAll("_", " ")}
-              </span>
-            ))}
-          </div>
+          {entitlements.enabledResources.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {entitlements.enabledResources.map(resource => (
+                <span
+                  key={resource}
+                  className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {resource.replace(/^professional_/, "").replaceAll("_", " ")}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nenhum recurso profissional liberado pelo contrato atual.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
