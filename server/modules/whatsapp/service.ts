@@ -268,6 +268,19 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return contextResult;
   }
 
+  // Gate destrutivo compartilhado: deve rodar antes de resolução temporal,
+  // multi-action, acesso profissional e qualquer parser alimentar. O próprio
+  // executor distingue respostas curtas de pendências e novos comandos completos.
+  const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
+    text,
+    receivedAt,
+    timeZone: userTimezone,
+    entrypoint: "simulateWhatsappInbound",
+  }), { text, receivedAt });
+  if (deleteIntentResult) {
+    return deleteIntentResult;
+  }
+
   const temporalResolution = resolveWhatsappTemporalContext({
     text,
     receivedAt,
@@ -292,16 +305,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
   if (professionalAccessResponse) {
     return professionalAccessResponse;
-  }
-
-  const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
-    text,
-    timeZone: userTimezone,
-  }), { text, receivedAt });
-  if (deleteIntentResult) {
-    return temporalResolution.context
-      ? { ...deleteIntentResult, data: { ...deleteIntentResult.data, temporalContext: temporalResolution.context } }
-      : deleteIntentResult;
   }
 
   const route = evaluateWhatsappIntentRoute({
