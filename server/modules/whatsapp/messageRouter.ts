@@ -70,10 +70,11 @@ async function resolveWhatsAppInteractiveCallback(
     userTimezone,
   });
   if (!completed) return buildUnavailableInteractiveCallbackResult("unregistered_dispatch");
+  const completedResult = completed as WhatsAppInteractiveCallbackResult;
 
   return {
-    ...completed,
-    detail: `${completed.detail} interaction=${JSON.stringify({
+    ...completedResult,
+    detail: `${completedResult.detail} interaction=${JSON.stringify({
       interactionId: description?.interaction.id ?? null,
       origin: description?.interaction.origin ?? claim.pendingOperation.origin,
       classification: description?.interaction.classification ?? null,
@@ -82,7 +83,7 @@ async function resolveWhatsAppInteractiveCallback(
       lifecycle: "consumed",
     })}`,
     data: {
-      ...(completed.data ?? {}),
+      ...(completedResult.data ?? {}),
       pendingOperationId: claim.pendingOperation.id,
       pendingType: claim.pendingOperation.type,
       interactionId: description?.interaction.id ?? null,
@@ -122,8 +123,6 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     if (result) return { step: "ai_question", result };
   }
 
-  // Um novo comando destrutivo completo sempre tem precedência e substitui uma
-  // pendência incompatível conforme o contrato da #856.
   const deleteIntent = await executeWhatsappDeleteIntent(input.userId, {
     text: input.text,
     receivedAt: input.receivedAt,
