@@ -1,0 +1,78 @@
+name: Issue 815 records regression correction
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - .github/workflows/issue-815-records-regression-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-validate-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cleanup/815-retire-professional-legacy
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Strengthen patient records regression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test_path = Path('client/src/pages/nutritionPages.test.tsx')
+          text = test_path.read_text()
+          old = '''  it("renderiza todos os exercícios do intervalo com detalhes operacionais", async () => {
+              const { RegisteredMealsPage } = await import("@/features/meals/RegisteredMealsPageContent");
+              const html = renderToString(React.createElement(RegisteredMealsPage));
+
+              expect(html).toContain("Registros de exercícios");'''
+          new = '''  it("renderiza registros de refeições e todos os exercícios do intervalo", async () => {
+              const { RegisteredMealsPage } = await import("@/features/meals/RegisteredMealsPageContent");
+              const html = renderToString(React.createElement(RegisteredMealsPage));
+
+              expect(html).toContain("Almoço");
+              expect(html).toContain("Frango grelhado");
+              expect(html).toContain("Registros de exercícios");'''
+          if old not in text:
+              raise SystemExit('records regression anchor not found')
+          test_path.write_text(text.replace(old, new, 1))
+
+          check_path = Path('scripts/check-professional-legacy-retirement.ts')
+          check = check_path.read_text()
+          old_marker = 'renderiza todos os exercícios do intervalo'
+          new_marker = 'renderiza registros de refeições e todos os exercícios do intervalo'
+          if old_marker not in check:
+              raise SystemExit('records gate marker not found')
+          check_path.write_text(check.replace(old_marker, new_marker, 1))
+          PY
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/issue-815-records-regression-fix.yml
+      - name: Format and validate
+        run: |
+          pnpm exec prettier --write client/src/pages/nutritionPages.test.tsx scripts/check-professional-legacy-retirement.ts
+          git diff --check
+          pnpm agent:check
+          pnpm build
+      - name: Commit validated correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test(patient): completar regressão da tela Registros (#815)"
+          git push origin HEAD:cleanup/815-retire-professional-legacy
