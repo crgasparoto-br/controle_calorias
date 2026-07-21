@@ -104,7 +104,7 @@ async function recreatePendingAfterSafeFailure(
     userId,
     type: PENDING_FOOD_CLARIFICATION_TYPE,
     origin: PENDING_FOOD_CLARIFICATION_ORIGIN,
-    target: { ...target, interactionId: randomUUID() },
+    target,
     ttlMs: PENDING_FOOD_CLARIFICATION_TTL_MS,
     now: occurredAt,
   });
@@ -251,12 +251,11 @@ async function resolvePendingText(
   if (!candidate || !hasSafeCanonicalPortion(candidate)) {
     const quantityTarget: PendingFoodClarificationTarget = {
       ...target,
-      interactionId: randomUUID(),
       pendingKind: "quantity",
       classification: "open",
       selectedCandidateIndex: candidate ? selectedIndex : null,
       actions: buildFoodClarificationActions("quantity", target.candidates),
-      instructionText: buildQuantityInstruction(target.normalizedCandidate),
+      instructionText: buildQuantityInstruction(candidate?.name ?? target.normalizedCandidate),
     };
     const transitioned = await deps.repository.supersedePendingOperation(pending.id);
     if (!transitioned.superseded) {
@@ -495,12 +494,11 @@ export function createWhatsappFoodClarificationService(
     if (!candidate || !hasSafeCanonicalPortion(candidate)) {
       const quantityTarget: PendingFoodClarificationTarget = {
         ...target,
-        interactionId: randomUUID(),
         pendingKind: "quantity",
         classification: "open",
         selectedCandidateIndex: Number.isInteger(index) ? index : null,
         actions: buildFoodClarificationActions("quantity", target.candidates),
-        instructionText: buildQuantityInstruction(target.normalizedCandidate),
+        instructionText: buildQuantityInstruction(candidate?.name ?? target.normalizedCandidate),
       };
       const recreated = await recreatePendingAfterSafeFailure(
         deps,
