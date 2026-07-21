@@ -38,9 +38,6 @@ function defaultSettings(): StoredProfessionalSettings {
     contactPhone: null,
     patientFacingBio: null,
     defaultReviewIntervalDays: null,
-    remindersEnabled: true,
-    defaultReminderLeadDays: 1,
-    summaryFrequency: "disabled",
     messageTemplates: [],
     updatedAt: Date.now(),
   };
@@ -318,9 +315,6 @@ export async function updateProfessionalPreferencesSettings(
     const next = storedProfessionalSettingsSchema.parse({
       ...current,
       defaultReviewIntervalDays: input.defaultReviewIntervalDays,
-      remindersEnabled: true,
-      defaultReminderLeadDays: 1,
-      summaryFrequency: "disabled",
       messageTemplates: input.messageTemplates.map(template => ({
         ...template,
         id: template.id ?? crypto.randomUUID(),
