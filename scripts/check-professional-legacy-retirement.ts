@@ -96,15 +96,29 @@ for (const key of [
   "professional_profile_v1",
   "professional_accesses_v1",
   "patient_professional_access_requests_v1",
-  "patient_professional_goal_suggestions_v1",
 ]) {
   requireText("scripts/retire-professional-legacy-preferences.ts", key);
-  requireText("docs/design-docs/database-persistence.md", key);
 }
+
+requireText(
+  "scripts/retire-professional-legacy-preferences.ts",
+  "PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY"
+);
 requireText(
   "scripts/retire-professional-legacy-preferences.ts",
   "goalSuggestionIsCovered"
 );
+requireText("scripts/retire-professional-legacy-preferences.ts", "stableJson");
+
+for (const key of [
+  "professional_profile_v1",
+  "professional_accesses_v1",
+  "patient_professional_access_requests_v1",
+  "patient_professional_goal_suggestions_v1",
+]) {
+  requireText("docs/design-docs/database-persistence.md", key);
+}
+
 requireText(
   "docs/testing/professional-legacy-retirement-regression.md",
   "Inventário de artefatos legados"
@@ -112,6 +126,14 @@ requireText(
 requireText(
   "docs/testing/professional-legacy-retirement-regression.md",
   "Matriz de regressão reproduzível"
+);
+requireText(
+  "docs/testing/professional-legacy-retirement-regression.md",
+  "Metas JSON semanticamente equivalentes"
+);
+requireText(
+  "docs/testing/professional-legacy-retirement-regression.md",
+  "Ordenação de resultados canônicos"
 );
 
 if (failures.length) {
