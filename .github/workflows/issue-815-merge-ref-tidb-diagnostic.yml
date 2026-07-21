@@ -1,4 +1,4 @@
-name: Issue 815 merge-ref TiDB diagnostic
+name: Issue 815 semantic goal comparison correction
 
 on:
   pull_request:
@@ -15,13 +15,14 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  correct-validate-commit:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: cleanup/815-retire-professional-legacy
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
@@ -31,13 +32,107 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Record checked out commits
+      - name: Compare goal JSON semantically
         run: |
-          git rev-parse HEAD
-          git show -s --format='%H %P %s' HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
+          text = retirement_path.read_text()
+          old = '''function sameGoal(left: unknown, right: unknown) {
+            return JSON.stringify(left) === JSON.stringify(right);
+          }
+          '''
+          new = '''function stableJson(value: unknown): unknown {
+            if (Array.isArray(value)) return value.map(stableJson);
+            if (value && typeof value === "object") {
+              return Object.fromEntries(
+                Object.entries(value as Record<string, unknown>)
+                  .sort(([left], [right]) => left.localeCompare(right))
+                  .map(([key, nested]) => [key, stableJson(nested)])
+              );
+            }
+            return value;
+          }
+
+          function sameGoal(left: unknown, right: unknown) {
+            return JSON.stringify(stableJson(left)) === JSON.stringify(stableJson(right));
+          }
+          '''
+          if old not in text:
+              raise SystemExit('sameGoal anchor not found')
+          text = text.replace(old, new, 1)
+          if '      goal: suggestion.goal,' not in text:
+              raise SystemExit('goal signature anchor not found')
+          text = text.replace(
+              '      goal: suggestion.goal,',
+              '      goal: stableJson(suggestion.goal),',
+              1,
+          )
+          retirement_path.write_text(text)
+
+          test_path = Path('scripts/test-professional-persistence-tidb.ts')
+          test = test_path.read_text()
+          marker = textwrap.dedent('''
+          await connection.query(
+            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
+          ''').strip()
+          position = test.find(marker)
+          if position < 0:
+              raise SystemExit('semantic order test insertion marker not found')
+          block = textwrap.indent(textwrap.dedent('''
+          const sameVersionGoalEquivalent = {
+            ...retirementLegacyGoal,
+            goal: {
+              exceptions: [],
+              defaultGoal: {
+                fatGrams: 54,
+                carbsGrams: 180,
+                proteinGrams: 115,
+                calories: 1750,
+              },
+            },
+          };
+          await connection.query(
+            "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+            [
+              JSON.stringify([retirementLegacyGoal, sameVersionGoalEquivalent]),
+              8062,
+              "patient_professional_goal_suggestions_v1",
+            ]
+          );
+          const semanticOrderDryRun = runLegacyRetirement();
+          assert.equal(
+            semanticOrderDryRun.apply,
+            false,
+            "semantically equal goal JSON with different property order must not be treated as a conflict"
+          );
+          await connection.query(
+            "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+            [
+              JSON.stringify([retirementLegacyGoal]),
+              8062,
+              "patient_professional_goal_suggestions_v1",
+            ]
+          );
+
+          ''').strip() + '\n', '    ')
+          test_path.write_text(test[:position] + block + test[position:])
+          PY
+      - name: Remove temporary diagnostics
+        run: |
+          rm -f .github/workflows/issue-815-merge-ref-tidb-diagnostic.yml
+          rm -f scripts/issue-815-merge-ref-tidb-error.txt
+      - name: Format and run repository gates
+        run: |
+          pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
+          git diff --check
+          pnpm agent:check
+          pnpm build
       - name: Start TiDB
         run: |
-          docker run -d --name issue-815-merge-ref-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          docker run -d --name issue-815-semantic-goal-tidb -p 4000:4000 pingcap/tidb:v8.5.1
           for attempt in $(seq 1 90); do
             if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
               exit 0
@@ -45,27 +140,19 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Apply schema and reproduce official sequence
+      - name: Apply schema and run complete TiDB gates
         run: |
-          {
-            pnpm exec drizzle-kit push --force
-            pnpm exec drizzle-kit generate
-            git checkout -- drizzle
-            pnpm db:test:professionals
-          } > /tmp/issue-815-merge-ref-tidb.log 2>&1 || {
-            cat /tmp/issue-815-merge-ref-tidb.log
-            exit 1
-          }
-      - name: Persist merge-ref diagnostic
-        if: failure()
+          pnpm exec drizzle-kit push --force
+          pnpm exec drizzle-kit generate
+          git checkout -- drizzle
+          pnpm db:test:professionals
+          pnpm db:migrate:professionals
+          pnpm db:migrate:professionals
+          pnpm db:check-integrity
+      - name: Commit validated correction
         run: |
-          if [ -f /tmp/issue-815-merge-ref-tidb.log ]; then
-            cp /tmp/issue-815-merge-ref-tidb.log /tmp/issue-815-merge-ref-tidb-error.txt
-            git checkout cleanup/815-retire-professional-legacy
-            cp /tmp/issue-815-merge-ref-tidb-error.txt scripts/issue-815-merge-ref-tidb-error.txt
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add scripts/issue-815-merge-ref-tidb-error.txt
-            git commit -m "chore: registrar falha TiDB do merge ref #815"
-            git push origin HEAD:cleanup/815-retire-professional-legacy
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(professional): comparar metas legadas semanticamente (#815)"
+          git push origin HEAD:cleanup/815-retire-professional-legacy
