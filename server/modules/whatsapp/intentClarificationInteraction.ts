@@ -10,7 +10,7 @@ import {
   type WhatsappInteractionAction,
 } from "./interactionPresentation";
 import type { WhatsAppLogicalReply } from "./replyContract";
-import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
+import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 
 export const PENDING_INTENT_CLARIFICATION_TYPE = "intent_clarification";
 export const PENDING_INTENT_CLARIFICATION_ORIGIN = "intentClarificationInteraction";
@@ -112,7 +112,7 @@ export async function createWhatsappIntentClarificationInteraction(input: {
 }
 
 export function parseIntentClarificationTextAction(text?: string | null): IntentClarificationAction | null {
-  const normalized = normalizeWhatsAppShortCommandText(text ?? "");
+  const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
   if (!normalized) return null;
   if (["cancelar", "cancela", "cancele", "nao", "nenhuma", "0"].includes(normalized)) return "cancel";
   const numeric = normalized.match(/^(?:opcao\s*)?([1-3])$/);
