@@ -36,65 +36,66 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import textwrap
 
           repository_path = Path('server/repositories/professionalContentRepository.ts')
           text = repository_path.read_text()
-          old = '''    const respondedAt =
-              input.respondedAt ??
-              (["accepted", "refused", "cancelled"].includes(input.status)
-                ? createdAt
-                : null);
-            const suggestion: ProfessionalGoalSuggestion = {
-          '''
-          new = '''    const respondedAt =
-              input.respondedAt ??
-              (["accepted", "refused", "cancelled"].includes(input.status)
-                ? createdAt
-                : null);
-            const updatedAt = Math.max(
-              createdAt,
-              sentAt ?? 0,
-              respondedAt ?? 0
-            );
-            const suggestion: ProfessionalGoalSuggestion = {
-          '''
-          if old not in text:
-              raise SystemExit('goal suggestion version anchor not found')
-          text = text.replace(old, new, 1)
-          text = text.replace('''      updatedAt: createdAt,
-            };''', '''      updatedAt,
-            };''', 1)
-          text = text.replace('''          updatedAt: new Date(createdAt),''', '''          updatedAt: new Date(updatedAt),''', 1)
-          repository_path.write_text(text)
+          start = text.find('  async function createGoalSuggestion(')
+          end = text.find('  async function readGoalSuggestionsByPatient(', start)
+          if start < 0 or end < 0:
+              raise SystemExit(f'createGoalSuggestion boundaries not found: start={start}, end={end}')
+          segment = text[start:end]
+          marker = '    const suggestion: ProfessionalGoalSuggestion = {'
+          if marker not in segment:
+              raise SystemExit('suggestion marker not found')
+          updated_at_block = textwrap.dedent('''
+          const updatedAt = Math.max(
+            createdAt,
+            sentAt ?? 0,
+            respondedAt ?? 0
+          );
+          ''').strip()
+          segment = segment.replace(
+              marker,
+              textwrap.indent(updated_at_block, '    ') + '\n    const suggestion: ProfessionalGoalSuggestion = {',
+              1,
+          )
+          if '      updatedAt: createdAt,' not in segment:
+              raise SystemExit('in-memory updatedAt marker not found')
+          segment = segment.replace('      updatedAt: createdAt,', '      updatedAt,', 1)
+          if '          updatedAt: new Date(createdAt),' not in segment:
+              raise SystemExit('database updatedAt marker not found')
+          segment = segment.replace(
+              '          updatedAt: new Date(createdAt),',
+              '          updatedAt: new Date(updatedAt),',
+              1,
+          )
+          repository_path.write_text(text[:start] + segment + text[end:])
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          old = '''    assert.equal(firstGoalSuggestionBackfill.migrated, 1);
-            assert.equal(
-              (await contentRepository.listGoalSuggestionsByPatient(8062)).some(
-                item => item.id === retirementLegacyGoal.id
-              ),
-              true,
-              "explicit backfill must migrate legacy goal suggestions"
-            );
-          '''
-          new = '''    assert.equal(firstGoalSuggestionBackfill.migrated, 1);
-            const migratedRetirementGoal = (
-              await contentRepository.listGoalSuggestionsByPatient(8062)
-            ).find(item => item.id === retirementLegacyGoal.id);
-            assert.ok(
-              migratedRetirementGoal,
-              "explicit backfill must migrate legacy goal suggestions"
-            );
-            assert.equal(
-              migratedRetirementGoal.updatedAt,
-              retirementLegacyGoal.sentAt,
-              "legacy backfill must preserve the latest lifecycle timestamp as its canonical version"
-            );
-          '''
-          if old not in test:
-              raise SystemExit('goal suggestion integration assertion anchor not found')
-          test_path.write_text(test.replace(old, new, 1))
+          start_marker = '    assert.equal(firstGoalSuggestionBackfill.migrated, 1);\n'
+          end_marker = '    const secondGoalSuggestionBackfill =\n'
+          start = test.find(start_marker)
+          end = test.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit(f'goal backfill assertion boundaries not found: start={start}, end={end}')
+          replacement = textwrap.indent(textwrap.dedent('''
+          assert.equal(firstGoalSuggestionBackfill.migrated, 1);
+          const migratedRetirementGoal = (
+            await contentRepository.listGoalSuggestionsByPatient(8062)
+          ).find(item => item.id === retirementLegacyGoal.id);
+          assert.ok(
+            migratedRetirementGoal,
+            "explicit backfill must migrate legacy goal suggestions"
+          );
+          assert.equal(
+            migratedRetirementGoal.updatedAt,
+            retirementLegacyGoal.sentAt,
+            "legacy backfill must preserve the latest lifecycle timestamp as its canonical version"
+          );
+          ''').strip() + '\n', '    ')
+          test_path.write_text(test[:start] + replacement + test[end:])
           PY
       - name: Remove temporary diagnostic artifacts
         run: |
