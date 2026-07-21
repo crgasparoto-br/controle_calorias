@@ -91,10 +91,10 @@ export async function createWhatsappIntentClarificationInteraction(input: {
     ?? "Você quer registrar um alimento, corrigir uma refeição ou consultar seus registros?";
   return {
     handled: true as const,
-    action: "clarification_needed",
+    action: "food_clarification_standalone_command_blocked",
     reply,
     eventType: "whatsapp.intent_clarification.requested",
-    detail: "Clarificação genérica persistida como decisão fechada antes de qualquer fallback nutricional.",
+    detail: "Comando isolado bloqueado antes da inferência; clarificação genérica persistida como decisão fechada.",
     data: {
       pendingOperationId: created.id,
       pendingType: created.type,
