@@ -33,7 +33,7 @@ Manter a evidência versionada do gate final da issue #815. Este documento relac
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------- |
 | Paciente — Hoje                                              | renderiza metas, consumo, exercícios e água                                    | `nutritionPages.test.tsx`                      |
 | Paciente — Registrar                                         | carrega registro multimodal, água, exercício e peso                            | `nutritionPages.test.tsx`                      |
-| Paciente — Registros                                         | renderiza registros e detalhes operacionais                                    | `nutritionPages.test.tsx`                      |
+| Paciente — Registros                                         | renderiza refeição, itens alimentares, exercícios e detalhes operacionais      | `nutritionPages.test.tsx`                      |
 | Paciente — Metas                                             | renderiza meta geral, exceções e soma semanal                                  | `nutritionPages.test.tsx` e navegação de metas |
 | Paciente — Relatórios                                        | renderiza contratos canônicos de período e indicadores                         | `nutritionPages.test.tsx`                      |
 | Paciente — Configurações                                     | mantém perfil, vínculos e solicitações                                         | `nutritionPages.test.tsx`                      |
