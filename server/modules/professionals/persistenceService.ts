@@ -23,8 +23,9 @@ function capacityCoverageKey(authorizationId: string) {
 }
 
 async function deleteProfessionalProfile(userId: number) {
-  await deleteProfessionalProfilePersistence({ getDb, userId });
-  deletedProfileUserIds.add(userId);
+  const result = await deleteProfessionalProfilePersistence({ getDb, userId });
+  if (result.persisted) deletedProfileUserIds.delete(userId);
+  else deletedProfileUserIds.add(userId);
 }
 
 export const professionalRepository = {
