@@ -42,6 +42,21 @@ const groupDescriptions: Record<string, string> = {
   professionalRecord: "Prontuário, ciclo e metas profissionais oficiais",
 };
 
+const legacyProfessionalEntitledProcedures = new Set([
+  "requestAccess",
+  "myAccesses",
+  "portfolio",
+  "transitionTracking",
+  "patientTimeZone",
+  "patientDashboard",
+  "patientPeriodBundle",
+  "addComment",
+  "suggestGoalAdjustment",
+  "suggestMealPlan",
+  "askPatientQuestion",
+  "history",
+]);
+
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath))
     throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
@@ -79,16 +94,29 @@ function parseOperation(source: string) {
   return "unknown";
 }
 
-function normalizeProcedureScope(procedureName: string) {
-  if (procedureName === "protectedProcedure") return "protected";
-  if (procedureName === "adminProcedure") return "admin";
-  if (/^professional\w+Procedure$/.test(procedureName)) {
+function normalizeProcedureScope(
+  groupName: string,
+  procedureName: string,
+  procedureFactory: string
+) {
+  if (
+    groupName === "professionals" &&
+    legacyProfessionalEntitledProcedures.has(procedureName)
+  ) {
+    return "professional-entitled";
+  }
+  if (procedureFactory === "protectedProcedure") return "protected";
+  if (procedureFactory === "adminProcedure") return "admin";
+  if (/^professional\w+Procedure$/.test(procedureFactory)) {
     return "professional-entitled";
   }
   return "unknown";
 }
 
-function parseProcedures(groupSource: string): ProcedureInfo[] {
+function parseProcedures(
+  groupName: string,
+  groupSource: string
+): ProcedureInfo[] {
   const procedureRegex =
     /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure|professional\w+Procedure)/gm;
   const matches = Array.from(groupSource.matchAll(procedureRegex));
@@ -102,7 +130,7 @@ function parseProcedures(groupSource: string): ProcedureInfo[] {
     const procedureSource = groupSource.slice(start, end);
     return {
       name: match[1],
-      scope: normalizeProcedureScope(match[2]),
+      scope: normalizeProcedureScope(groupName, match[1], match[2]),
       operation: parseOperation(procedureSource),
     };
   });
@@ -117,7 +145,7 @@ function parseGroups(source: string): GroupInfo[] {
     const braceStart = source.indexOf("{", match.index ?? 0);
     const braceEnd = findMatchingBrace(source, braceStart);
     const groupSource = source.slice(braceStart + 1, braceEnd);
-    groups.push({ name, procedures: parseProcedures(groupSource) });
+    groups.push({ name, procedures: parseProcedures(name, groupSource) });
   }
 
   return groups;
@@ -135,7 +163,10 @@ function parseTopLevelRouter(
   const braceEnd = findMatchingBrace(source, braceStart);
   return {
     name: groupName,
-    procedures: parseProcedures(source.slice(braceStart + 1, braceEnd)),
+    procedures: parseProcedures(
+      groupName,
+      source.slice(braceStart + 1, braceEnd)
+    ),
   };
 }
 
@@ -199,6 +230,9 @@ function generateMarkdown(groups: GroupInfo[]) {
   lines.push("- Use `protectedProcedure` por padrão.");
   lines.push(
     "- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido."
+  );
+  lines.push(
+    "- Procedures profissionais legadas em `nutrition.professionals` devem constar na política central e no conjunto `legacyProfessionalEntitledProcedures` deste gerador."
   );
   lines.push(
     "- Use `adminProcedure` apenas para operação administrativa real."
