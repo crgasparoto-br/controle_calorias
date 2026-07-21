@@ -426,6 +426,17 @@ async function main() {
     );
   }
 
+  const rowsBeforeMigration = await db
+    .select()
+    .from(userPreferences)
+    .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
+  const preflight = await verifyCanonicalCoverage(db, rowsBeforeMigration);
+  if (preflight.invalidPreferences > 0) {
+    throw new Error(
+      "Existem preferências profissionais legadas inválidas; nenhuma migração ou exclusão foi executada."
+    );
+  }
+
   const migration = await migrateAllLegacyProfessionalData();
   const goalSuggestionMigration =
     await migrateAllLegacyProfessionalGoalSuggestions();

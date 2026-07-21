@@ -366,6 +366,26 @@ async function main() {
       /preferências profissionais legadas inválidas|Command failed/i,
       "equal-version conflicting legacy copies must block retirement"
     );
+    const [canonicalAfterEqualVersionConflict] = await connection.query<
+      mysql.RowDataPacket[]
+    >("SELECT reason FROM professionalPatientAuthorizations WHERE id = ?", [
+      untouched.id,
+    ]);
+    assert.equal(
+      canonicalAfterEqualVersionConflict[0]?.reason,
+      untouched.reason,
+      "preflight conflict must not mutate the canonical authorization"
+    );
+    const [goalAfterEqualVersionConflict] = await connection.query<
+      mysql.RowDataPacket[]
+    >("SELECT rationale FROM professionalGoalSuggestions WHERE id = ?", [
+      retirementLegacyGoal.id,
+    ]);
+    assert.equal(
+      goalAfterEqualVersionConflict[0]?.rationale,
+      retirementLegacyGoal.rationale,
+      "preflight conflict must not mutate the canonical goal suggestion"
+    );
     const [rowsAfterEqualVersionConflict] = await connection.query<
       mysql.RowDataPacket[]
     >(
