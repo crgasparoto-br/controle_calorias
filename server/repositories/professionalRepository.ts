@@ -119,7 +119,6 @@ export type ProfessionalRepository = {
   transitionTracking(
     input: TransitionProfessionalTrackingInput
   ): Promise<CanonicalProfessionalTracking>;
-  migrateLegacyUser(userId: number): Promise<ProfessionalLegacyMigrationResult>;
   migrateAllLegacyData(): Promise<ProfessionalLegacyMigrationResult>;
 };
 
@@ -613,31 +612,6 @@ export function createDrizzleProfessionalRepository(deps: {
     return result;
   }
 
-  async function migrateLegacyUser(userId: number) {
-    const db = await getProfessionalPersistenceDb(deps.getDb);
-    if (!db) {
-      return {
-        scannedPreferences: 0,
-        migratedProfiles: 0,
-        migratedAuthorizations: 0,
-        invalidPreferences: 0,
-      };
-    }
-    const rows = await db
-      .select()
-      .from(userPreferences)
-      .where(
-        and(
-          eq(userPreferences.userId, userId),
-          inArray(userPreferences.preferenceKey, [
-            PROFESSIONAL_PROFILE_PREFERENCE_KEY,
-            PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
-            PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
-          ])
-        )
-      );
-    return migrateRows(rows);
-  }
   async function getProfile(userId: number) {
     const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackProfiles.get(userId) ?? null;
@@ -1090,7 +1064,6 @@ export function createDrizzleProfessionalRepository(deps: {
     updateAuthorizationMessage,
     getTrackingByAuthorization,
     transitionTracking,
-    migrateLegacyUser,
     migrateAllLegacyData,
   };
 }

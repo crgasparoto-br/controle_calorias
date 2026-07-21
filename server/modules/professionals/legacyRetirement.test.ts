@@ -10,6 +10,9 @@ describe("professional legacy retirement architecture", () => {
   it("keeps legacy JSON access behind explicit migration commands only", () => {
     const repository = source("server/repositories/professionalRepository.ts");
     const service = source("server/modules/professionals/service.ts");
+    const persistenceService = source(
+      "server/modules/professionals/persistenceService.ts"
+    );
     const migration = source(
       "scripts/retire-professional-legacy-preferences.ts"
     );
@@ -18,6 +21,10 @@ describe("professional legacy retirement architecture", () => {
     expect(repository).not.toContain("writeLegacyAuthorization");
     expect(repository).not.toContain("await migrateLegacyUser(");
     expect(repository).not.toContain("await migrateRelatedAuthorizations(");
+    expect(repository).not.toContain("migrateLegacyUser");
+    expect(persistenceService).not.toContain(
+      "migrateLegacyProfessionalDataForUser"
+    );
     expect(service).not.toContain("userPreferences");
     expect(service).not.toContain("professional_profile_v1");
     expect(migration).toContain("migrateAllLegacyProfessionalData");

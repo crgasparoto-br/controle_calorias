@@ -24,7 +24,10 @@ const legacyKeys = [
   PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
 ] as const;
 
-function sameInstant(left: Date | string | number, right: Date | string | number) {
+function sameInstant(
+  left: Date | string | number,
+  right: Date | string | number
+) {
   return new Date(left).getTime() === new Date(right).getTime();
 }
 
@@ -88,7 +91,8 @@ async function verifyCanonicalCoverage(db: any, rows: any[]) {
         new Date(profile.sourceUpdatedAt).getTime() > sourceUpdatedAt.getTime();
       const sameVersionMatches =
         profile &&
-        new Date(profile.sourceUpdatedAt).getTime() === sourceUpdatedAt.getTime() &&
+        new Date(profile.sourceUpdatedAt).getTime() ===
+          sourceUpdatedAt.getTime() &&
         profile.displayName === parsed.value.displayName &&
         (profile.registrationNumber ?? undefined) ===
           parsed.value.registrationNumber &&
