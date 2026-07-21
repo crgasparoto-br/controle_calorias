@@ -335,6 +335,66 @@ async function main() {
       [8067, "professional_profile_v1"]
     );
 
+    const sameVersionAccessConflict = {
+      ...untouched,
+      reason: "Conflito legado com a mesma versão",
+    };
+    const sameVersionGoalConflict = {
+      ...retirementLegacyGoal,
+      rationale: "Conflito de sugestão com a mesma versão",
+    };
+    await connection.query(
+      "INSERT INTO userPreferences (userId, preferenceKey, preferenceValue, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
+      [
+        8066,
+        "patient_professional_access_requests_v1",
+        JSON.stringify([sameVersionAccessConflict]),
+        new Date("2026-07-14T20:00:00.000Z"),
+        new Date("2026-07-14T20:03:00.000Z"),
+      ]
+    );
+    await connection.query(
+      "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+      [
+        JSON.stringify([retirementLegacyGoal, sameVersionGoalConflict]),
+        8062,
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
+    assert.throws(
+      () => runLegacyRetirement(true),
+      /preferências profissionais legadas inválidas|Command failed/i,
+      "equal-version conflicting legacy copies must block retirement"
+    );
+    const [rowsAfterEqualVersionConflict] = await connection.query<
+      mysql.RowDataPacket[]
+    >(
+      "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?, ?)",
+      [
+        "professional_profile_v1",
+        "professional_accesses_v1",
+        "patient_professional_access_requests_v1",
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
+    assert.equal(
+      Number(rowsAfterEqualVersionConflict[0]?.total) > 0,
+      true,
+      "equal-version conflicts must preserve every legacy preference"
+    );
+    await connection.query(
+      "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
+      [8066, "patient_professional_access_requests_v1"]
+    );
+    await connection.query(
+      "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+      [
+        JSON.stringify([retirementLegacyGoal]),
+        8062,
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
+
     await connection.query(
       "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
       [

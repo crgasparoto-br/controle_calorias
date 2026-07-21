@@ -62,6 +62,50 @@ function sameGoal(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function nullableInstantValue(value: Date | string | number | null) {
+  return value === null ? null : new Date(value).getTime();
+}
+
+function legacyAuthorizationSignature(access: LegacyProfessionalAccess) {
+  const value = legacyAccessToCanonical(access);
+  return JSON.stringify({
+    id: value.id,
+    professionalUserId: value.professionalUserId,
+    patientUserId: value.patientUserId,
+    status: value.status,
+    reason: value.reason,
+    requestedAt: value.requestedAt.getTime(),
+    approvedAt: nullableInstantValue(value.approvedAt),
+    rejectedAt: nullableInstantValue(value.rejectedAt),
+    revokedAt: nullableInstantValue(value.revokedAt),
+    respondedAt: nullableInstantValue(value.respondedAt),
+    responseOrigin: value.responseOrigin,
+    responseDecision: value.responseDecision,
+    authorizationMessageStatus: value.authorizationMessageStatus,
+    authorizationMessageSentAt: nullableInstantValue(
+      value.authorizationMessageSentAt
+    ),
+    authorizationMessageError: value.authorizationMessageError,
+    sourceUpdatedAt: value.sourceUpdatedAt.getTime(),
+  });
+}
+
+function legacyGoalSuggestionSignature(
+  suggestion: NonNullable<ReturnType<typeof normalizeLegacyGoalSuggestion>>
+) {
+  return JSON.stringify({
+    id: suggestion.id,
+    professionalUserId: suggestion.professionalUserId,
+    patientUserId: suggestion.patientUserId,
+    rationale: suggestion.rationale,
+    status: suggestion.status,
+    goal: suggestion.goal,
+    createdAt: suggestion.createdAt,
+    sentAt: suggestion.sentAt,
+    respondedAt: suggestion.respondedAt,
+  });
+}
+
 function authorizationStatusCovers(
   canonical: CanonicalProfessionalAuthorization["status"],
   legacy: CanonicalProfessionalAuthorization["status"]
@@ -274,6 +318,12 @@ async function verifyCanonicalCoverage(db: any, rows: any[]) {
           : -1;
         if (!previous || previousVersion < normalizedVersion) {
           expectedGoalSuggestions.set(normalized.id, normalized);
+        } else if (
+          previousVersion === normalizedVersion &&
+          legacyGoalSuggestionSignature(previous) !==
+            legacyGoalSuggestionSignature(normalized)
+        ) {
+          invalidPreferences += 1;
         }
       }
       continue;
@@ -291,12 +341,21 @@ async function verifyCanonicalCoverage(db: any, rows: any[]) {
     if (parsed.issue) invalidPreferences += 1;
     for (const access of parsed.value) {
       const previous = expectedAuthorizations.get(access.id);
-      if (
-        !previous ||
-        legacyAccessToCanonical(previous).sourceUpdatedAt.getTime() <
-          legacyAccessToCanonical(access).sourceUpdatedAt.getTime()
-      ) {
+      const previousVersion = previous
+        ? legacyAccessToCanonical(previous).sourceUpdatedAt.getTime()
+        : -1;
+
+      const accessVersion =
+        legacyAccessToCanonical(access).sourceUpdatedAt.getTime();
+
+      if (!previous || previousVersion < accessVersion) {
         expectedAuthorizations.set(access.id, access);
+      } else if (
+        previousVersion === accessVersion &&
+        legacyAuthorizationSignature(previous) !==
+          legacyAuthorizationSignature(access)
+      ) {
+        invalidPreferences += 1;
       }
     }
   }
