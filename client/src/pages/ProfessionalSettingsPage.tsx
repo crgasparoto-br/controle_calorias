@@ -8,7 +8,6 @@ import {
 } from "@/components/professional-settings/ProfessionalAccessSettingsCards";
 import ProfessionalIdentitySettingsCard from "@/components/professional-settings/ProfessionalIdentitySettingsCard";
 import ProfessionalPreferencesSettingsCard, {
-  type SummaryFrequency,
   type TemplateDraft,
 } from "@/components/professional-settings/ProfessionalPreferencesSettingsCard";
 import { Button } from "@/components/ui/button";
@@ -35,10 +34,6 @@ function SettingsContent() {
   const [patientFacingBio, setPatientFacingBio] = useState("");
   const [defaultReviewIntervalDays, setDefaultReviewIntervalDays] =
     useState("");
-  const [remindersEnabled, setRemindersEnabled] = useState(true);
-  const [defaultReminderLeadDays, setDefaultReminderLeadDays] = useState("1");
-  const [summaryFrequency, setSummaryFrequency] =
-    useState<SummaryFrequency>("disabled");
   const [messageTemplates, setMessageTemplates] = useState<TemplateDraft[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -52,11 +47,6 @@ function SettingsContent() {
     setDefaultReviewIntervalDays(
       query.data.preferences.defaultReviewIntervalDays?.toString() ?? ""
     );
-    setRemindersEnabled(query.data.preferences.remindersEnabled);
-    setDefaultReminderLeadDays(
-      String(query.data.preferences.defaultReminderLeadDays)
-    );
-    setSummaryFrequency(query.data.preferences.summaryFrequency);
     setMessageTemplates(query.data.preferences.messageTemplates);
   }, [query.data]);
 
@@ -180,15 +170,9 @@ function SettingsContent() {
 
       <ProfessionalPreferencesSettingsCard
         defaultReviewIntervalDays={defaultReviewIntervalDays}
-        remindersEnabled={remindersEnabled}
-        defaultReminderLeadDays={defaultReminderLeadDays}
-        summaryFrequency={summaryFrequency}
         messageTemplates={messageTemplates}
         saving={updatePreferences.isPending}
         onDefaultReviewIntervalDaysChange={setDefaultReviewIntervalDays}
-        onRemindersEnabledChange={setRemindersEnabled}
-        onDefaultReminderLeadDaysChange={setDefaultReminderLeadDays}
-        onSummaryFrequencyChange={setSummaryFrequency}
         onMessageTemplatesChange={setMessageTemplates}
         onSave={() => {
           setSuccessMessage(null);
@@ -196,9 +180,9 @@ function SettingsContent() {
             defaultReviewIntervalDays: defaultReviewIntervalDays
               ? Number(defaultReviewIntervalDays)
               : null,
-            remindersEnabled,
-            defaultReminderLeadDays: Number(defaultReminderLeadDays),
-            summaryFrequency,
+            remindersEnabled: true,
+            defaultReminderLeadDays: 1,
+            summaryFrequency: "disabled",
             messageTemplates,
           });
         }}
