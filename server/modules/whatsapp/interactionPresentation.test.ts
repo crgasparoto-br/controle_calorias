@@ -12,6 +12,17 @@ function actions(count: number) {
   }));
 }
 
+function buildCandidateReply(candidateCount: number, pendingOperationId: number) {
+  return buildWhatsappClosedDecisionReply({
+    bodyText: "Escolha",
+    pendingOperationId,
+    actions: [
+      ...actions(candidateCount),
+      { id: "cancel", label: "Cancelar", effect: "cancel" },
+    ],
+  });
+}
+
 describe("regra central de apresentação de decisões fechadas", () => {
   it("mantém perguntas abertas em texto", () => {
     expect(selectWhatsappInteractionComponent("open", 0)).toBe("text");
@@ -26,33 +37,38 @@ describe("regra central de apresentação de decisões fechadas", () => {
     expect(selectWhatsappInteractionComponent("closed", 8)).toBe("list");
   });
 
+  it("um candidato mais Cancelar produz dois botões", () => {
+    const message = buildCandidateReply(1, 9).messages[0];
+    expect(message.type).toBe("buttons");
+    if (message.type !== "buttons") throw new Error("expected buttons");
+    expect(message.buttons).toHaveLength(2);
+  });
+
   it("dois candidatos mais Cancelar produzem três botões", () => {
-    const reply = buildWhatsappClosedDecisionReply({
-      bodyText: "Escolha",
-      pendingOperationId: 10,
-      actions: [
-        ...actions(2),
-        { id: "cancel", label: "Cancelar", effect: "cancel" },
-      ],
-    });
-    const message = reply.messages[0];
+    const message = buildCandidateReply(2, 10).messages[0];
     expect(message.type).toBe("buttons");
     if (message.type !== "buttons") throw new Error("expected buttons");
     expect(message.buttons).toHaveLength(3);
   });
 
   it("três candidatos mais Cancelar produzem lista com quatro linhas", () => {
-    const reply = buildWhatsappClosedDecisionReply({
-      bodyText: "Escolha",
-      pendingOperationId: 11,
-      actions: [
-        ...actions(3),
-        { id: "cancel", label: "Cancelar", effect: "cancel" },
-      ],
-    });
-    const message = reply.messages[0];
+    const message = buildCandidateReply(3, 11).messages[0];
     expect(message.type).toBe("list");
     if (message.type !== "list") throw new Error("expected list");
     expect(message.sections.flatMap(section => section.rows)).toHaveLength(4);
+  });
+
+  it("quatro candidatos mais Cancelar produzem lista com cinco linhas", () => {
+    const message = buildCandidateReply(4, 12).messages[0];
+    expect(message.type).toBe("list");
+    if (message.type !== "list") throw new Error("expected list");
+    expect(message.sections.flatMap(section => section.rows)).toHaveLength(5);
+  });
+
+  it("mais de quatro candidatos permanece em lista", () => {
+    const message = buildCandidateReply(7, 13).messages[0];
+    expect(message.type).toBe("list");
+    if (message.type !== "list") throw new Error("expected list");
+    expect(message.sections.flatMap(section => section.rows)).toHaveLength(8);
   });
 });
