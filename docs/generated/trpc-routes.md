@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.
+Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
 
 ## Grupos
 
@@ -12,7 +12,7 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
-| `professionals` | 19 | 9 | 10 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
+| `professionals` | 19 | 9 | 10 | professional-entitled | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
 | `whatsappPreferences` | 2 | 1 | 1 | protected | Grupo de procedures tRPC |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
@@ -26,7 +26,7 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
-| `professionalRecord` | 12 | 4 | 8 | protected | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
 
 ## Procedures por grupo
 
@@ -68,23 +68,23 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 |---|---|---|
 | `profile` | query | protected |
 | `upsertProfile` | mutation | protected |
-| `requestAccess` | mutation | protected |
-| `myAccesses` | query | protected |
-| `portfolio` | query | protected |
+| `requestAccess` | mutation | professional-entitled |
+| `myAccesses` | query | professional-entitled |
+| `portfolio` | query | professional-entitled |
 | `patientRequests` | query | protected |
 | `patientGoalSuggestions` | query | protected |
 | `approveAccess` | mutation | protected |
 | `revokeAccess` | mutation | protected |
-| `transitionTracking` | mutation | protected |
+| `transitionTracking` | mutation | professional-entitled |
 | `respondGoalSuggestion` | mutation | protected |
-| `patientTimeZone` | query | protected |
-| `patientDashboard` | query | protected |
-| `patientPeriodBundle` | query | protected |
-| `addComment` | mutation | protected |
-| `suggestGoalAdjustment` | mutation | protected |
-| `suggestMealPlan` | mutation | protected |
-| `askPatientQuestion` | mutation | protected |
-| `history` | query | protected |
+| `patientTimeZone` | query | professional-entitled |
+| `patientDashboard` | query | professional-entitled |
+| `patientPeriodBundle` | query | professional-entitled |
+| `addComment` | mutation | professional-entitled |
+| `suggestGoalAdjustment` | mutation | professional-entitled |
+| `suggestMealPlan` | mutation | professional-entitled |
+| `askPatientQuestion` | mutation | professional-entitled |
+| `history` | query | professional-entitled |
 
 ### onboarding
 
@@ -220,15 +220,15 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 
 | Procedure | Operação | Escopo |
 |---|---|---|
-| `get` | query | protected |
-| `saveAssessment` | mutation | protected |
-| `createNote` | mutation | protected |
-| `createGuidance` | mutation | protected |
-| `transitionTracking` | mutation | protected |
+| `get` | query | professional-entitled |
+| `saveAssessment` | mutation | professional-entitled |
+| `createNote` | mutation | professional-entitled |
+| `createGuidance` | mutation | professional-entitled |
+| `transitionTracking` | mutation | professional-entitled |
 | `patientGuidances` | query | protected |
-| `professionalState` | query | protected |
-| `activate` | mutation | protected |
-| `retryNotification` | mutation | protected |
+| `professionalState` | query | professional-entitled |
+| `activate` | mutation | professional-entitled |
+| `retryNotification` | mutation | professional-entitled |
 | `patientState` | query | protected |
 | `requestReview` | mutation | protected |
 | `adoptAsPersonal` | mutation | protected |
@@ -236,8 +236,9 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 ## Regras para novas procedures
 
 - Use `protectedProcedure` por padrão.
+- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido.
+- Procedures profissionais legadas em `nutrition.professionals` devem constar no mapa central `LEGACY_PROFESSIONAL_RESOURCES`; o gerador lê esse mapa diretamente.
 - Use `adminProcedure` apenas para operação administrativa real.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
-

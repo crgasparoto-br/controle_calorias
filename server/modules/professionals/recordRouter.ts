@@ -33,27 +33,33 @@ import { getEffectiveUserTimeZone } from "../timeZone/service";
 import { professionalOperationalAlertsRouter } from "./operationalAlertsRouter";
 import { professionalMessageRouter } from "./messageRouter";
 import { professionalAiRouter } from "./aiRouter";
+import { professionalSettingsRouter } from "./settingsRouter";
+import {
+  professionalGoalsProcedure,
+  professionalRecordProcedure,
+} from "./entitledProcedure";
 
 export const professionalRecordRouter = router({
   messages: professionalMessageRouter,
   ai: professionalAiRouter,
-  get: protectedProcedure
+  settings: professionalSettingsRouter,
+  get: professionalRecordProcedure
     .input(professionalRecordSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),
-  saveAssessment: protectedProcedure
+  saveAssessment: professionalRecordProcedure
     .input(professionalAssessmentSchema)
     .mutation(({ ctx, input }) =>
       saveProfessionalAssessment(ctx.user.id, input)
     ),
-  createNote: protectedProcedure
+  createNote: professionalRecordProcedure
     .input(professionalNoteSchema)
     .mutation(({ ctx, input }) => createProfessionalNote(ctx.user.id, input)),
-  createGuidance: protectedProcedure
+  createGuidance: professionalRecordProcedure
     .input(professionalGuidanceSchema)
     .mutation(({ ctx, input }) =>
       createProfessionalGuidance(ctx.user.id, input)
     ),
-  transitionTracking: protectedProcedure
+  transitionTracking: professionalRecordProcedure
     .input(professionalTrackingTransitionSchema)
     .mutation(({ ctx, input }) =>
       transitionPatientTracking(ctx.user.id, input)
@@ -63,12 +69,12 @@ export const professionalRecordRouter = router({
   ),
   operationalAlerts: professionalOperationalAlertsRouter,
   officialGoal: router({
-    professionalState: protectedProcedure
+    professionalState: professionalGoalsProcedure
       .input(professionalRecordSchema.pick({ patientId: true }))
       .query(({ ctx, input }) =>
         getProfessionalOfficialGoalState(ctx.user.id, input.patientId)
       ),
-    activate: protectedProcedure
+    activate: professionalGoalsProcedure
       .input(professionalOfficialGoalSchema)
       .mutation(async ({ ctx, input }) => {
         try {
@@ -80,7 +86,7 @@ export const professionalRecordRouter = router({
           throw error;
         }
       }),
-    retryNotification: protectedProcedure
+    retryNotification: professionalGoalsProcedure
       .input(professionalGoalNotificationRetrySchema)
       .mutation(({ ctx, input }) =>
         deliverProfessionalGoalNotification(input.goalId, ctx.user.id)

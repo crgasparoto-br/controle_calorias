@@ -7,6 +7,7 @@ import type {
   ProfessionalNoteInput,
   ProfessionalRecordInput,
 } from "./schemas";
+import { getProfessionalOperationalDefaults } from "./settingsService";
 
 export type ProfessionalRecordState = "not_started" | "active" | "paused" | "ended";
 type Row = Record<string, unknown>;
@@ -27,6 +28,20 @@ function numberOrNull(value: unknown) {
 }
 function count(result: unknown) {
   return Number(rows(result)[0]?.total ?? 0);
+}
+
+export function resolveProfessionalNextReviewAt(input: {
+  assessedAt: number;
+  nextReviewAt?: number | null;
+  defaultReviewIntervalDays: number | null;
+}) {
+  if (input.nextReviewAt) return new Date(input.nextReviewAt);
+  if (!input.defaultReviewIntervalDays) return null;
+  const reviewAt = new Date(input.assessedAt);
+  reviewAt.setUTCDate(
+    reviewAt.getUTCDate() + input.defaultReviewIntervalDays
+  );
+  return reviewAt;
 }
 
 async function requireProfessionalScope(
@@ -174,7 +189,17 @@ export async function saveProfessionalAssessment(
   professionalUserId: number,
   input: ProfessionalAssessmentInput
 ) {
-  const scope = await requireProfessionalScope(professionalUserId, input.patientId, { requireActive: true });
+  const [scope, defaults] = await Promise.all([
+    requireProfessionalScope(professionalUserId, input.patientId, {
+      requireActive: true,
+    }),
+    getProfessionalOperationalDefaults(professionalUserId),
+  ]);
+  const nextReviewAt = resolveProfessionalNextReviewAt({
+    assessedAt: input.assessedAt,
+    nextReviewAt: input.nextReviewAt,
+    defaultReviewIntervalDays: defaults.defaultReviewIntervalDays,
+  });
   const id = crypto.randomUUID();
   try {
     await scope.db.transaction(async tx => {
@@ -194,16 +219,16 @@ export async function saveProfessionalAssessment(
           ${input.weightKg ?? null}, ${input.heightCm ?? null}, ${input.routineAndSchedule ?? null},
           ${input.physicalActivity ?? null}, ${input.foodPreferences ?? null}, ${input.restrictionsAndAllergies ?? null},
           ${input.reportedDifficulties ?? null}, ${input.relevantHabits ?? null}, ${input.professionalObservations ?? null},
-          ${new Date(input.assessedAt)}, ${input.nextReviewAt ? new Date(input.nextReviewAt) : null}
+          ${new Date(input.assessedAt)}, ${nextReviewAt}
         )`);
       await tx.execute(sql`
-        UPDATE professionalPatientTrackings SET nextReviewAt = ${input.nextReviewAt ? new Date(input.nextReviewAt) : null}, updatedAt = NOW()
+        UPDATE professionalPatientTrackings SET nextReviewAt = ${nextReviewAt}, updatedAt = NOW()
         WHERE authorizationId = ${scope.authorizationId}`);
       await tx.execute(sql`
         INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
         VALUES (${crypto.randomUUID()}, ${professionalUserId}, ${professionalUserId}, ${input.patientId}, 'assessment_version_created', 'assessment', ${id}, NOW())`);
     });
-    return { id };
+    return { id, nextReviewAt: nextReviewAt?.getTime() ?? null };
   } catch (error) {
     logPersistenceWarning("professional_record_assessment", error);
     throw new Error("Não foi possível salvar a avaliação. O conteúdo informado foi preservado na tela.");
