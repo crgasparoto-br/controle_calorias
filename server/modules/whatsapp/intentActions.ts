@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
+import { getCurrentInboundExternalMessageId } from "./messageLifecycle";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -50,7 +51,8 @@ function resolveInboundCorrelationId(
   receivedAt: Date,
   messageId?: string | null,
 ) {
-  if (messageId?.trim()) return messageId.trim();
+  const externalMessageId = messageId?.trim() || getCurrentInboundExternalMessageId()?.trim();
+  if (externalMessageId) return externalMessageId;
   const digest = createHash("sha256")
     .update(`${userId}|${receivedAt.toISOString()}|${text}`)
     .digest("hex")
@@ -116,8 +118,8 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   // A clarificação persistente antecede o parser alimentar genérico. Assim uma
   // contagem sem porção canônica segura preserva o alimento original e pede
   // somente o dado ausente, enquanto frases completas com unidade continuam no
-  // pipeline normal. Quando o wrapper não repassa o ID externo, a chave derivada
-  // mantém um vínculo idempotente estável com o inbound real ou transcrito.
+  // pipeline normal. O ID externo vindo do lifecycle tem prioridade; wrappers
+  // sem lifecycle usam uma chave derivada estável.
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
     text,
