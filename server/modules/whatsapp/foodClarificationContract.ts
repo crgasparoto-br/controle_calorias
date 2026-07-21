@@ -291,9 +291,9 @@ export function buildFoodClarificationPendingData(
   };
 }
 
-function inferCountUnit(candidate: FoodClarificationCandidate) {
+function parseCountableServing(candidate: FoodClarificationCandidate) {
   const parsed = parseQuantityUnitFromPortionText(candidate.servingLabel);
-  return parsed && COUNTABLE_SERVING.test(parsed.unit) ? parsed.unit : "unidades";
+  return parsed && COUNTABLE_SERVING.test(parsed.unit) ? parsed : null;
 }
 
 export function buildFoodClarificationRegistrationText(
@@ -302,8 +302,10 @@ export function buildFoodClarificationRegistrationText(
   explicitQuantity?: { quantity: number; unit: string },
 ) {
   if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`;
-  if (COUNTABLE_SERVING.test(candidate.servingLabel)) {
-    return `${target.count} ${inferCountUnit(candidate)} de ${candidate.name}`;
+  const countableServing = parseCountableServing(candidate);
+  if (countableServing) {
+    const quantity = Math.round(target.count * countableServing.quantity * 100) / 100;
+    return `${quantity} ${countableServing.unit} de ${candidate.name}`;
   }
   const grams = Math.round(candidate.gramsPerServing * target.count * 100) / 100;
   return `${grams} g de ${candidate.name}`;
