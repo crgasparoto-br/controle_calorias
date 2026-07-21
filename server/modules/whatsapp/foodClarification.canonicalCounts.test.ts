@@ -70,7 +70,7 @@ describe("contagens com porção canônica da issue #855", () => {
 
     const item = buildHeuristicItem(registration);
     expect(item).toEqual(expect.objectContaining({
-      canonicalName: "Pão integral Wickbold",
+      canonicalName: "Pão Integral Wickbold",
       quantity: expectedGrams,
       unit: "g",
       estimatedGrams: expectedGrams,
