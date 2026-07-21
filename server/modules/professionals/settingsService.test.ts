@@ -113,9 +113,6 @@ describe("professional settings service", () => {
     await expect(
       updateProfessionalPreferencesSettings(10, {
         defaultReviewIntervalDays: 30,
-        remindersEnabled: true,
-        defaultReminderLeadDays: 1,
-        summaryFrequency: "disabled",
         messageTemplates: [
           {
             title: "Lembrete",
@@ -180,9 +177,6 @@ describe("professional settings service", () => {
     });
     await updateProfessionalPreferencesSettings(10, {
       defaultReviewIntervalDays: 30,
-      remindersEnabled: true,
-      defaultReminderLeadDays: 1,
-      summaryFrequency: "disabled",
       messageTemplates: [
         {
           title: "Privado",
