@@ -221,14 +221,13 @@ export async function runWithMessageLifecycleRequestScope<T>(operation: () => Pr
 }
 
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
-  const handle = await getActiveService().beginInboundMessage(input);
   const scope = lifecycleScope.getStore();
-  if (handle && scope) {
-    const externalMessageId = input.externalMessageId?.trim() || null;
-    scope.currentExternalMessageId = externalMessageId;
-    if (externalMessageId) {
-      scope.externalMessageIdByMessageId.set(handle.messageId, externalMessageId);
-    }
+  const externalMessageId = input.externalMessageId?.trim() || null;
+  if (scope) scope.currentExternalMessageId = externalMessageId;
+
+  const handle = await getActiveService().beginInboundMessage(input);
+  if (handle && scope && externalMessageId) {
+    scope.externalMessageIdByMessageId.set(handle.messageId, externalMessageId);
   }
   return handle;
 }
