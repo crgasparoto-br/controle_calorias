@@ -286,7 +286,7 @@ describe("simulateWhatsappInbound", () => {
   it("não bloqueia o fallback nutricional quando não há intenção destrutiva", async () => {
     executeWhatsappTextIntentMock.mockResolvedValueOnce({ handled: true, action: "water_logged", reply: "Registrei 300 ml de água.", eventType: "whatsapp.intent.water_logged", detail: "Registro de hidratação via WhatsApp.", data: { amountMl: 300 } });
 
-    const result = await simulateWhatsappInbound(42, { text: "300 ml de água" });
+    const result = await simulateWhatsappInbound(44, { text: "300 ml de água" });
 
     expect(result).toEqual(expect.objectContaining({ handled: true, action: "water_logged" }));
   });
