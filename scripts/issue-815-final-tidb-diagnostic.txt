@@ -1,0 +1,90 @@
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/home/runner/work/controle_calorias/controle_calorias/drizzle.config.ts'
+[⣷] Pulling schema from database...
+[2K[1G[✓] Pulling schema from database...
+Reading schema files:
+/home/runner/work/controle_calorias/controle_calorias/drizzle/schema.ts
+/home/runner/work/controle_calorias/controle_calorias/drizzle/professional-schema.ts
+
+Error: Identifier name 'professionalPatientTrackingEvents_trackingId_professionalPatientTrackings_id_fk' is too long
+    at PromiseConnection.execute (/home/runner/work/controle_calorias/controle_calorias/node_modules/.pnpm/mysql2@3.15.1/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at Object.query (/home/runner/work/controle_calorias/controle_calorias/node_modules/.pnpm/drizzle-kit@0.31.5/node_modules/drizzle-kit/bin.cjs:81025:40)
+    at mysqlPush (/home/runner/work/controle_calorias/controle_calorias/node_modules/.pnpm/drizzle-kit@0.31.5/node_modules/drizzle-kit/bin.cjs:84250:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.handler (/home/runner/work/controle_calorias/controle_calorias/node_modules/.pnpm/drizzle-kit@0.31.5/node_modules/drizzle-kit/bin.cjs:93824:9)
+    at async run (/home/runner/work/controle_calorias/controle_calorias/node_modules/.pnpm/drizzle-kit@0.31.5/node_modules/drizzle-kit/bin.cjs:93101:7) {
+  code: 'ER_TOO_LONG_IDENT',
+  errno: 1059,
+  sql: 'ALTER TABLE `professionalPatientTrackingEvents` ADD CONSTRAINT `professionalPatientTrackingEvents_trackingId_professionalPatientTrackings_id_fk` FOREIGN KEY (`trackingId`) REFERENCES `professionalPatientTrackings`(`id`) ON DELETE cascade ON UPDATE no action;',
+  sqlState: '42000',
+  sqlMessage: "Identifier name 'professionalPatientTrackingEvents_trackingId_professionalPatientTrackings_id_fk' is too long"
+}
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/home/runner/work/controle_calorias/controle_calorias/drizzle.config.ts'
+Reading schema files:
+/home/runner/work/controle_calorias/controle_calorias/drizzle/schema.ts
+/home/runner/work/controle_calorias/controle_calorias/drizzle/professional-schema.ts
+
+52 tables
+appSecrets 6 columns 1 indexes 1 fks
+dailySummaries 9 columns 1 indexes 1 fks
+exercises 11 columns 3 indexes 1 fks
+food_aliases 6 columns 3 indexes 2 fks
+foodBrands 7 columns 1 indexes 0 fks
+foodCatalog 28 columns 5 indexes 2 fks
+foodFavorites 4 columns 2 indexes 2 fks
+food_portions 12 columns 3 indexes 2 fks
+food_sources 9 columns 2 indexes 0 fks
+foods 21 columns 6 indexes 3 fks
+habitMemories 10 columns 2 indexes 1 fks
+healthSyncedRecords 13 columns 4 indexes 1 fks
+inferenceLogs 7 columns 2 indexes 1 fks
+mealFavorites 7 columns 2 indexes 1 fks
+mealInferences 14 columns 2 indexes 2 fks
+mealItems 19 columns 4 indexes 4 fks
+mealMedia 8 columns 1 indexes 1 fks
+meals 12 columns 2 indexes 1 fks
+nutritionGoals 14 columns 2 indexes 1 fks
+portions 9 columns 2 indexes 1 fks
+quickEditTokens 9 columns 2 indexes 2 fks
+recipeItems 13 columns 3 indexes 3 fks
+recipes 13 columns 2 indexes 1 fks
+userBadges 6 columns 2 indexes 1 fks
+userGamificationSettings 5 columns 1 indexes 1 fks
+userPreferences 6 columns 1 indexes 1 fks
+userProfiles 18 columns 1 indexes 1 fks
+userRestrictions 8 columns 2 indexes 1 fks
+users 10 columns 1 indexes 0 fks
+waterGoals 5 columns 0 indexes 1 fks
+waterLogs 6 columns 1 indexes 1 fks
+weightEntries 7 columns 1 indexes 1 fks
+whatsappConnections 7 columns 2 indexes 1 fks
+whatsappConversationMessages 23 columns 4 indexes 3 fks
+whatsappConversationSummaries 9 columns 2 indexes 4 fks
+whatsappConversations 11 columns 2 indexes 2 fks
+whatsappMessageDomainLinks 8 columns 5 indexes 6 fks
+whatsappPendingOperations 11 columns 1 indexes 1 fks
+professionalComments 5 columns 2 indexes 2 fks
+professionalConversations 7 columns 3 indexes 3 fks
+professionalGoalNotifications 13 columns 2 indexes 2 fks
+professionalGoalReviewRequests 11 columns 3 indexes 4 fks
+professionalGoalSuggestions 13 columns 2 indexes 2 fks
+professionalHistoryEvents 9 columns 3 indexes 3 fks
+professionalMealSuggestions 14 columns 2 indexes 2 fks
+professionalMessageDeliveryAttempts 12 columns 2 indexes 1 fks
+professionalMessages 24 columns 4 indexes 5 fks
+professionalOfficialGoals 22 columns 3 indexes 5 fks
+professionalPatientAuthorizations 19 columns 4 indexes 2 fks
+professionalPatientTrackingEvents 9 columns 3 indexes 3 fks
+professionalPatientTrackings 13 columns 3 indexes 4 fks
+professionalProfiles 7 columns 1 indexes 1 fks
+
+No schema changes, nothing to migrate 😴
+
+> controle_calorias@1.0.0 db:test:professionals /home/runner/work/controle_calorias/controle_calorias
+> tsx scripts/test-professional-persistence-tidb.ts && tsx scripts/test-professional-operational-alerts-tidb.ts
+
+{"event":"professional.persistence.legacy_retirement.failed","error":"Existem preferências profissionais legadas inválidas; nenhuma migração ou exclusão foi executada."}
+{"event":"professional.persistence.legacy_retirement.failed","error":"A cobertura canônica está incompleta: perfis=0, autorizações=1, sugestões=0."}
+{"event":"professional.persistence.integration.failed","error":"Expected values to be strictly equal:\n+ actual - expected\n\n+ 'canonical-only-goal-815'\n- 'legacy-goal-805'"}
+ ELIFECYCLE  Command failed with exit code 1.
