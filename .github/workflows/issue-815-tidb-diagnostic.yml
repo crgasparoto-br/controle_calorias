@@ -114,6 +114,7 @@ jobs:
           rm -f .github/workflows/issue-815-tidb-diagnostic.yml
           rm -f scripts/issue-815-tidb-error.txt
           rm -f scripts/issue-815-preflight-gate-error.txt
+          rm -f scripts/issue-815-preflight-tidb-error.txt
       - name: Format and run repository gates
         run: |
           {
@@ -148,11 +149,27 @@ jobs:
           exit 1
       - name: Apply schema and run TiDB gates
         run: |
-          pnpm exec drizzle-kit push --force
-          pnpm db:test:professionals
-          pnpm db:migrate:professionals
-          pnpm db:migrate:professionals
-          pnpm db:check-integrity
+          {
+            pnpm exec drizzle-kit push --force
+            pnpm db:test:professionals
+            pnpm db:migrate:professionals
+            pnpm db:migrate:professionals
+            pnpm db:check-integrity
+          } > /tmp/issue-815-preflight-tidb.log 2>&1 || {
+            cat /tmp/issue-815-preflight-tidb.log
+            exit 1
+          }
+      - name: Persist TiDB diagnostic
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-preflight-tidb.log ]; then
+            cp /tmp/issue-815-preflight-tidb.log scripts/issue-815-preflight-tidb-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-preflight-tidb-error.txt
+            git commit -m "chore: registrar falha TiDB do preflight #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
       - name: Commit validated correction
         run: |
           git config user.name "github-actions[bot]"
