@@ -133,7 +133,7 @@ describe("professional settings service", () => {
     });
   });
 
-  it("restores preferences when the completion audit cannot be persisted", async () => {
+  it("restores the absence of preferences when the first completion audit fails", async () => {
     mocks.appendHistory
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("audit unavailable"));
@@ -151,6 +151,7 @@ describe("professional settings service", () => {
       })
     ).rejects.toThrow("audit unavailable");
 
+    expect(_forTestOnly_hasProfessionalSettings(10)).toBe(false);
     const snapshot = await getProfessionalSettingsSnapshot(10);
     expect(snapshot.preferences).toEqual({
       defaultReviewIntervalDays: null,
