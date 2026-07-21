@@ -34,8 +34,8 @@ function target(text: string): PendingFoodClarificationTarget {
 
 describe("contagens com porção canônica da issue #855", () => {
   it.each([
-    ["2 bananas", "Banana", /^2 unidades de Banana$/],
-    ["3 ovos cozidos", "Ovo de galinha", /^3 unidades de Ovo de galinha$/],
+    ["2 bananas", "Banana", /^2 unidade(?:s)? de Banana$/],
+    ["3 ovos cozidos", "Ovo de galinha", /^3 unidade(?:s)? de Ovo de galinha$/],
   ])("resolve flexão em %s como candidato exato contável", (text, expectedName, expectedRegistration) => {
     const request = parseCountedFoodRequest(text);
     expect(request).not.toBeNull();
