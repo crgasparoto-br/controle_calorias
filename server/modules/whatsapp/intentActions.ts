@@ -1,5 +1,6 @@
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
+import { handleWhatsappFoodClarification } from "./foodClarification";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -62,6 +63,21 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   });
   if (deleteIntent) {
     return deleteIntent;
+  }
+
+  // A clarificação alimentar persistente vem logo depois do gate destrutivo e
+  // antes dos parsers nutricionais. Assim texto, áudio transcrito, webhook e
+  // simulador preservam a mesma operação original e nunca transformam uma
+  // palavra de continuidade em alimento (issue #855).
+  const foodClarification = await handleWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone: userTimeZone,
+    messageId: input.messageId,
+  });
+  if (foodClarification) {
+    return foodClarification;
   }
 
   const waterIntent = parseWaterIntent(text);
