@@ -55,3 +55,6 @@ export const professionalReportsProcedure = professionalEntitledProcedure(
 export const professionalAiProcedure = professionalEntitledProcedure(
   "professional_ai_assistance"
 );
+export const professionalSettingsProcedure = professionalEntitledProcedure(
+  "professional_settings"
+);
