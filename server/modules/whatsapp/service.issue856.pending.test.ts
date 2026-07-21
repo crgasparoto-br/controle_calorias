@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDbMock = vi.fn();
 const listMealsMock = vi.fn();
+const removeMealMock = vi.fn();
 const processMealDraftMock = vi.fn();
 const executeWhatsappDatedFoodAdditionIntentMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
@@ -21,7 +22,7 @@ vi.mock("../../db", () => ({
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: vi.fn(),
-  removeMeal: vi.fn(),
+  removeMeal: removeMealMock,
   processMealDraft: processMealDraftMock,
 }));
 
@@ -58,12 +59,30 @@ const legacyRegistrarMeal = {
   }],
 };
 
+function compoundResult() {
+  return {
+    handled: true,
+    action: "multi_action_clarification_needed",
+    reply: "Revise as ações antes de continuar.",
+    eventType: "whatsapp.multi_action.clarification_needed",
+    detail: "Comando composto mantido em modo seguro.",
+    data: {
+      actionCount: 2,
+      extractedActions: [
+        { actionType: "excluir_alimento" },
+        { actionType: "adicionar_alimento" },
+      ],
+    },
+  };
+}
+
 describe("simulateWhatsappInbound destructive precedence #856", () => {
   beforeEach(() => {
     clearWhatsappConversationContext();
     getDbMock.mockReset();
     getDbMock.mockResolvedValue(null);
     listMealsMock.mockReset();
+    removeMealMock.mockReset();
     processMealDraftMock.mockReset();
     executeWhatsappDatedFoodAdditionIntentMock.mockReset();
     executeWhatsappLlmIntentMock.mockReset();
@@ -106,21 +125,7 @@ describe("simulateWhatsappInbound destructive precedence #856", () => {
   });
 
   it("mantém comando composto no coordenador all-or-nothing sem fallback nutricional", async () => {
-    const multiActionResult = {
-      handled: true,
-      action: "multi_action_clarification_needed",
-      reply: "Revise as ações antes de continuar.",
-      eventType: "whatsapp.multi_action.clarification_needed",
-      detail: "Comando composto mantido em modo seguro.",
-      data: {
-        actionCount: 2,
-        extractedActions: [
-          { actionType: "excluir_alimento" },
-          { actionType: "adicionar_alimento" },
-        ],
-      },
-    };
-    executeWhatsappMultiActionIntentMock.mockReturnValue(multiActionResult);
+    executeWhatsappMultiActionIntentMock.mockReturnValue(compoundResult());
 
     const result = await simulateWhatsappInbound(92, {
       text: "Excluir o Registrar e adicionar 100 g de arroz",
@@ -136,6 +141,57 @@ describe("simulateWhatsappInbound destructive precedence #856", () => {
     expect(listMealsMock).not.toHaveBeenCalled();
     expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("substitui exclusão antiga antes de pedir data para um novo comando composto", async () => {
+    listMealsMock.mockResolvedValue([legacyRegistrarMeal]);
+    await simulateWhatsappInbound(93, {
+      text: "Excluir o Registrar",
+      receivedAt: new Date("2026-07-20T15:00:00.000Z"),
+      messageId: "old-delete-1",
+    });
+
+    executeWhatsappMultiActionIntentMock.mockReturnValue(compoundResult());
+    const clarification = await simulateWhatsappInbound(93, {
+      text: "Adicionar arroz no sábado e excluir o Registrar",
+      receivedAt: new Date("2026-07-20T15:10:00.000Z"),
+      messageId: "compound-temporal-1",
+    });
+
+    expect(clarification).toEqual(expect.objectContaining({
+      action: "temporal_context_clarification_needed",
+    }));
+
+    executeWhatsappMultiActionIntentMock.mockReturnValue(null);
+    const staleConfirmation = await simulateWhatsappInbound(93, {
+      text: "sim",
+      receivedAt: new Date("2026-07-20T15:11:00.000Z"),
+      messageId: "stale-confirmation-1",
+    });
+
+    expect(staleConfirmation).not.toEqual(expect.objectContaining({ action: "meal_deleted" }));
+    expect(removeMealMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia fallback quando a validação final do comando composto diverge da pré-classificação", async () => {
+    executeWhatsappMultiActionIntentMock
+      .mockReturnValueOnce(compoundResult())
+      .mockReturnValueOnce(null);
+
+    const result = await simulateWhatsappInbound(94, {
+      text: "Excluir o Registrar e adicionar arroz",
+      receivedAt: new Date("2026-07-20T15:10:00.000Z"),
+      messageId: "compound-validation-divergence-1",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      eventType: "whatsapp.multi_action.validation_blocked",
+      data: expect.objectContaining({ fallbackBlocked: true }),
+    }));
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
