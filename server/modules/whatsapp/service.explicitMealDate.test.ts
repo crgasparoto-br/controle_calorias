@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getAdminWhatsAppTokenStatusMock = vi.fn();
+const getDbMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
@@ -17,8 +18,10 @@ const executeWhatsappDeleteIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
+  getDb: getDbMock,
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
   logInferenceEvent: logInferenceEventMock,
+  logPersistenceWarning: vi.fn(),
   upsertUserWhatsappConnection: upsertUserWhatsappConnectionMock,
 }));
 
@@ -73,6 +76,8 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
   beforeEach(() => {
     clearWhatsappConversationContext();
     getAdminWhatsAppTokenStatusMock.mockReset();
+    getDbMock.mockReset();
+    getDbMock.mockResolvedValue(null);
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
     upsertUserWhatsappConnectionMock.mockReset();
