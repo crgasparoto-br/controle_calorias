@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { transcribeAudioMock } = vi.hoisted(() => ({
+const { transcribeAudioMock, listMealsMock } = vi.hoisted(() => ({
   transcribeAudioMock: vi.fn(),
+  listMealsMock: vi.fn(),
 }));
 
 vi.mock("./storage", () => ({
@@ -14,6 +15,14 @@ vi.mock("./storage", () => ({
 vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: transcribeAudioMock,
 }));
+
+vi.mock("./modules/meals/service", async () => {
+  const actual = await vi.importActual<typeof import("./modules/meals/service")>("./modules/meals/service");
+  return {
+    ...actual,
+    listMeals: listMealsMock,
+  };
+});
 
 const processMealInputMock = vi.fn(async () => ({
   detectedMealLabel: "Almoço",
@@ -133,6 +142,8 @@ describe("whatsappWebhook audio transcription failures", () => {
     process.env.QUICK_EDIT_BASE_URL = "https://app.example.com";
 
     sentWhatsAppPayloads = [];
+    listMealsMock.mockReset();
+    listMealsMock.mockResolvedValue([]);
     transcribeAudioMock.mockReset();
     transcribeAudioMock.mockResolvedValue({
       task: "transcribe",
@@ -272,5 +283,47 @@ describe("whatsappWebhook audio transcription failures", () => {
     }));
     expect(outboundTextBodies().some(body => body.includes("Vou considerar o texto que você enviou"))).toBe(true);
     expect(outboundTextBodies().at(-1)).toContain("*Almoço Registrado");
+  });
+
+  it("roteia exclusao transcrita pelo gate destrutivo antes da inferencia nutricional", async () => {
+    const userId = 2100004;
+    const phone = "5511210000004";
+    await upsertUserWhatsappConnection({ userId, phoneNumber: phone, displayName: "Audio delete" });
+    transcribeAudioMock.mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 1.5,
+      text: "Excluir o Registrar",
+      segments: [],
+    });
+    listMealsMock.mockResolvedValue([{
+      id: 44,
+      mealLabel: "Almoço",
+      occurredAt: "2026-04-20T11:30:00.000Z",
+      notes: null,
+      items: [{
+        foodName: "Registrar",
+        canonicalName: "Registrar",
+        portionText: "1 unidade",
+        servings: 1,
+        estimatedGrams: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        confidence: 0.1,
+        source: "legacy",
+      }],
+    }]);
+
+    const res = createResponse();
+    await handleWhatsAppWebhook({ body: createAudioPayload({ phone, messageId: "audio-delete-1" }) } as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(outboundTextBodies().at(-1)).toContain("Encontrei o item Registrar em Almoço");
+    expect(outboundTextBodies().at(-1)).not.toContain("quantidade");
+    expect((await listUserMeals(userId)).filter(meal => meal.source === "whatsapp")).toHaveLength(0);
   });
 });

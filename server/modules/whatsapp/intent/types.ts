@@ -2,7 +2,17 @@ import type { MealDraftItem } from "../../../nutritionEngine";
 
 export type WhatsappIntentResult = {
   handled: true;
-  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_item_replaced" | "meal_suggestion" | "period_report" | "clarification_needed";
+  action:
+    | "water_logged"
+    | "meal_item_added"
+    | "meal_item_grams_adjusted"
+    | "meal_item_replaced"
+    | "meal_suggestion"
+    | "period_report"
+    | "clarification_needed"
+    | "meal_deleted"
+    | "meal_item_deleted"
+    | "delete_cancelled";
   reply: string;
   eventType: string;
   detail: string;
@@ -15,6 +25,8 @@ export type WhatsappIntentInput = {
   text?: string | null;
   receivedAt?: Date;
   userTimezone?: string | null;
+  /** Identificador sanitizado do wrapper que iniciou o roteamento. */
+  entrypoint?: string;
 };
 
 export type ZonedParts = {

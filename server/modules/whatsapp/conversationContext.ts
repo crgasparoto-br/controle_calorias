@@ -1,3 +1,5 @@
+import { detectWhatsappDeleteIntent } from "./deleteIntentDetection";
+
 type WhatsappConversationPendingKind = "selection" | "confirmation";
 
 type WhatsappConversationOption = {
@@ -206,6 +208,14 @@ export function resolveWhatsappConversationContext(
 ): WhatsappConversationContextResult | null {
   const text = normalizeText(input.text);
   if (!text) return null;
+
+  // Um comando destrutivo completo é um novo pedido de domínio, não uma resposta
+  // curta para uma seleção/confirmacão alimentar anterior. A pendência em memória é
+  // substituída e o comando segue para o executor canônico de exclusão (#856).
+  if (detectWhatsappDeleteIntent(input.text)) {
+    pendingByUser.delete(userId);
+    return null;
+  }
 
   const pending = getPending(userId, input.receivedAt);
   if (pending === "expired") {

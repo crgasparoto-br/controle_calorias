@@ -1,4 +1,5 @@
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
+import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -49,6 +50,20 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const receivedAt = input.receivedAt ?? new Date();
   const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
+
+  // Gate destrutivo compartilhado: todo consumidor do parser textual, inclusive
+  // áudio transcrito, bloqueia exclusões antes de água, ajustes, adições, LLM ou
+  // persistência nutricional (issue #856).
+  const deleteIntent = await executeWhatsappDeleteIntent(userId, {
+    text,
+    receivedAt,
+    timeZone: userTimeZone,
+    entrypoint: input.entrypoint ?? "executeWhatsappTextIntent",
+  });
+  if (deleteIntent) {
+    return deleteIntent;
+  }
+
   const waterIntent = parseWaterIntent(text);
   if (waterIntent?.kind === "clarification") {
     return {

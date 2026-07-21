@@ -175,4 +175,45 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
     expect(sentMessages.at(-1)).toContain("Não excluí nada ainda");
     expect(sentMessages.at(-1)).toContain("não registrei nenhum alimento novo");
   });
+
+  it("roteia Excluir o Registrar pelo executor destrutivo no payload HTTP real", async () => {
+    listMealsMock.mockResolvedValue([{
+      id: 11,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-23T15:00:00.000Z",
+      items: [{
+        foodName: "Registrar",
+        canonicalName: "Registrar",
+        portionText: "1 unidade",
+        servings: 1,
+        estimatedGrams: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        confidence: 0.1,
+        source: "legacy",
+      }],
+    }]);
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createTextWebhookRequest("Excluir o Registrar") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
+    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      eventType: "whatsapp.intent.delete_food_confirmation_requested",
+      detail: expect.stringContaining('"fallbackBlocked":true'),
+    }));
+    expect(sentMessages.at(-1)).toContain("Encontrei o item Registrar em Almoço");
+    expect(sentMessages.at(-1)).not.toContain("preciso da quantidade");
+  });
 });

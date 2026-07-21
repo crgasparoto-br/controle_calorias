@@ -82,6 +82,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Refeições criadas por texto, imagem ou áudio no WhatsApp devem passar pela mesma consolidação lógica por usuário, dia, origem `whatsapp` e rótulo de refeição antes de serem tratadas como blocos separados.
 - O wrapper de imagem anotada deve usar a mesma consolidação pós-salvamento do webhook principal para evitar que uma foto enviada depois de uma refeição abra bloco separado apenas pelo horário.
 - Comandos destrutivos por alimento devem procurar no contexto lógico seguro do dia/refeição e considerar `foodName`, `canonicalName` e nomes originais/preservados quando existirem, pedindo confirmação quando houver múltiplos candidatos.
+- Comandos destrutivos completos substituem de forma explícita pendências alimentares incompatíveis antes de qualquer parser alimentar, LLM ou fallback nutricional; respostas curtas compatíveis continuam resolvendo a pendência ativa.
+- Uma resposta inválida a seleção ou confirmação destrutiva mantém `whatsappPendingOperations` ativa, reapresenta a interação e bloqueia inferência, criação de refeição e mutação sem confirmação.
+- Resolução destrutiva de alimento e refeição segue cardinalidade 0/1/N: nenhum candidato gera esclarecimento específico, um candidato gera confirmação e múltiplos candidatos geram seleção determinística antes da confirmação.
 - O campo `occurredAt` deve continuar disponível como metadado de ocorrência para horário exibido, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como identidade da refeição lógica.
 
 ## Contrato central de resposta
@@ -145,7 +148,19 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` (`⚠️ Valores nutricionais estimados pela IA.`) abaixo dos itens `heuristic` e `hybrid`; itens `catalog` não recebem o aviso, e os totais incluem os itens estimados.
 - **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, schema de persistência e a regra de meta ajustada da #756 não foram alterados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas preservado.
 
-## Validação recomendada
+### Gate destrutivo antes do fallback nutricional (issue #856)
+
+A causa raiz não estava no reconhecimento do verbo. `detectWhatsappDeleteIntent` já reconhecia `Excluir o Registrar`; a regressão estava na composição dos entrypoints e na política das pendências: o simulador possuía uma pendência conversacional em memória antes do executor, o webhook resolvia seleções alimentares antes da exclusão e uma resposta incompatível a confirmação destrutiva podia retornar `null` e continuar para LLM ou persistência nutricional.
+
+A ordem canônica passou a ser: segurança/idempotência → callback interativo → pergunta iniciada por `/` → resposta curta compatível com exclusão pendente → novo comando destrutivo completo → demais pendências e intents → fallback nutricional. `messageRouter.ts` executa `executeWhatsappDeleteIntent` no gate compartilhado do webhook; `executeWhatsappTextIntent` mantém o mesmo gate para áudio transcrito; `simulateWhatsappInbound` libera comandos destrutivos de `conversationContext` e chama o executor antes dos parsers alimentares.
+
+Um novo comando destrutivo marca pendências operacionais incompatíveis como `superseded` antes de criar a seleção ou confirmação canônica. Uma resposta inválida a seleção/confirmação destrutiva reapresenta a mesma interação, mantém a pendência ativa e nunca chama parser alimentar, LLM, assistente de alimento, `processMealInput`, `processMealDraft` ou persistência nutricional.
+
+Alimentos e refeições usam resolução 0/1/N. Um candidato cria confirmação; múltiplos candidatos, inclusive dois almoços em datas diferentes, criam seleção ordenada por ocorrência e identificador antes da confirmação; nenhum candidato gera esclarecimento específico. A escolha por texto e callback converge para a mesma pendência e a mutação continua protegida por claim compare-and-set e revalidação do estado atual.
+
+A comparação disponível cobriu `main`, `develop`, a branch da PR e todos os entrypoints publicados no repositório. Não havia acesso aos logs do ambiente para confirmar o commit efetivamente implantado; por isso a telemetria registra `entrypoint`, executor, quantidade de candidatos, estado da pendência e commit de runtime quando `RENDER_GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA` ou `GITHUB_SHA` estiver disponível, sem registrar conteúdo sensível.
+
+Os testes de regressão criam pendências reais em `whatsappPendingOperations` e no contexto conversacional, cobrem substituição por `Excluir o Registrar`, resposta inválida fail-closed, refeições ambíguas, webhook HTTP, simulador, áudio transcrito, texto/callback e idempotência.
 
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.
@@ -210,7 +225,6 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - Testar que a exclusão por botão só executa após `Confirmar`, que `Cancelar` não altera o domínio, e que uma seleção ambígua por lista avança para confirmação por botões em vez de excluir diretamente.
 - Testar que autorização/recusa profissional por botão aplica a decisão uma única vez e que repetir o clique ou o texto equivalente não muda uma decisão já consumida.
 - Testar que o webhook real reconhece `button_reply` recebido pela Cloud API e resolve a exclusão pendente sem passar pelo fallback nutricional.
-
 
 ## Invariantes finais da epic #779
 
