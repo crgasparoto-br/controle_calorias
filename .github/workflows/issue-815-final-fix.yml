@@ -11,9 +11,12 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: issue-815-final-fix
+  cancel-in-progress: true
+
 jobs:
   apply-and-validate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
