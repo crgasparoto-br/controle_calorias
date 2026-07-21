@@ -22,20 +22,26 @@ export const WHATSAPP_PERIOD_REPORT_OPTIONS = [
   { action: `${PERIOD_ACTION_PREFIX}mes`, title: "Este mês", intentText: "Resumo do mês" },
 ] as const;
 
+const CANCEL_ACTION = "cancel";
+
 export function isExpectedWhatsappPeriodReportAction(action: string) {
-  return WHATSAPP_PERIOD_REPORT_OPTIONS.some(option => option.action === action);
+  return action === CANCEL_ACTION || WHATSAPP_PERIOD_REPORT_OPTIONS.some(option => option.action === action);
 }
 
+/** Decisão fechada com pendência inclui Cancelar (issue #858): 4 períodos + Cancelar = 5 ações → lista. */
 export function buildWhatsappPeriodReportClarificationListReply(
   pendingOperationId: number,
   bodyText: string,
 ): WhatsAppLogicalReply {
-  return listReply(bodyText, "Escolher período", [{
-    rows: WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => ({
-      id: buildWhatsAppCallbackId(pendingOperationId, option.action),
-      title: option.title,
-    })),
-  }]);
+  return listReply(bodyText, "Escolher período", [
+    {
+      rows: WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => ({
+        id: buildWhatsAppCallbackId(pendingOperationId, option.action),
+        title: option.title,
+      })),
+    },
+    { rows: [{ id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" }] },
+  ]);
 }
 
 export async function completeWhatsappPeriodReportCallback(
@@ -43,6 +49,16 @@ export async function completeWhatsappPeriodReportCallback(
   action: string,
   receivedAt?: Date,
 ): Promise<{ handled: true; action?: string; reply: string; eventType: string; detail: string; data?: Record<string, unknown> }> {
+  if (action === CANCEL_ACTION) {
+    return {
+      handled: true,
+      action: "period_report_cancelled",
+      reply: "Tudo certo. Não montei o resumo. Quando quiser, é só pedir de novo.",
+      eventType: "whatsapp.interactive_callback.period_report_cancelled",
+      detail: "Clarificação de período cancelada pelo usuário sem gerar resumo.",
+    };
+  }
+
   const option = WHATSAPP_PERIOD_REPORT_OPTIONS.find(candidate => candidate.action === action);
   if (!option) {
     return {

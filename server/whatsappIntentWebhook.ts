@@ -48,6 +48,11 @@ import {
   buildWhatsappPeriodReportClarificationListReply,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./modules/whatsapp/periodReportClarification";
+import {
+  createWhatsappIntentClarificationInteraction,
+  isGenericIntentClarificationResult,
+  PENDING_INTENT_CLARIFICATION_TYPE,
+} from "./modules/whatsapp/intentClarificationInteraction";
 import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
@@ -357,15 +362,31 @@ async function getPendingTextIntentContext(userId: number) {
 async function clearPendingTextIntentContext(userId: number) {
   const pending =
     await pendingOperationRepository.getActivePendingOperation(userId);
-  if (pending && pending.type === PENDING_PERIOD_REPORT_TYPE) {
+  if (
+    pending &&
+    (pending.type === PENDING_PERIOD_REPORT_TYPE ||
+      pending.type === PENDING_INTENT_CLARIFICATION_TYPE)
+  ) {
     await pendingOperationRepository.cancelPendingOperation(pending.id);
   }
 }
 
 async function rememberPendingTextIntentContext(
   userId: number,
-  result: TextIntentResult
+  result: TextIntentResult,
+  originalText?: string
 ) {
+  // Clarificação genérica é decisão fechada (issue #858): registrar alimento,
+  // corrigir refeição, consultar registros e Cancelar (4 ações → lista), com a
+  // mensagem original preservada na pendência e nunca persistida como alimento.
+  if (isGenericIntentClarificationResult(result)) {
+    await clearPendingTextIntentContext(userId);
+    return createWhatsappIntentClarificationInteraction(
+      userId,
+      originalText ?? "",
+      result.reply
+    );
+  }
   if (
     result.action === "clarification_needed" &&
     result.detail === "Pedido de relatório sem período explícito."
@@ -553,7 +574,10 @@ async function tryHandleTextIntent(
     });
     if (precedenceGate.step !== "continue_pipeline") {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      // Reapresentação (issue #858) mantém a MESMA pendência ativa: nada é cancelado.
+      if (precedenceGate.step !== "pending_reprompt") {
+        await clearPendingTextIntentContext(userId);
+      }
       await sendAndLogTextReply({
         userId,
         sourcePhone,
@@ -971,7 +995,8 @@ async function tryHandleTextIntent(
     markTextIntentMessageHandled(message.id);
     const pendingInteractiveReply = await rememberPendingTextIntentContext(
       userId,
-      result
+      result,
+      text
     );
     await sendAndLogTextReply({
       userId,

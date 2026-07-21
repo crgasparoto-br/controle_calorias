@@ -1,6 +1,7 @@
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { buildWhatsAppCallbackId } from "./interactiveCallback";
-import { buttonsReply, listReply, type WhatsAppLogicalReply } from "./replyContract";
+import { buildWhatsappClosedDecisionReply } from "./interactionInventory";
+import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "./replyMessages";
 import type { WhatsappDeleteIntentDetection } from "./deleteIntentDetection";
 
@@ -10,7 +11,6 @@ export const SELECT_ACTION_PREFIX = "select:";
 export const PENDING_DELETE_TYPE = "delete";
 export const PENDING_DELETE_ORIGIN = "deleteIntent";
 export const PENDING_DELETE_TTL_MS = 10 * 60 * 1000;
-const MAX_LIST_ROW_TITLE_LENGTH = 24;
 
 export type PendingDeleteIntent = {
   kind: "delete_meal" | "delete_food_from_meal";
@@ -192,25 +192,27 @@ export function buildCancellationResult(): WhatsappDeleteIntentResult {
   };
 }
 
-function truncateListRowTitle(title: string) {
-  return title.length > MAX_LIST_ROW_TITLE_LENGTH ? `${title.slice(0, MAX_LIST_ROW_TITLE_LENGTH - 1)}…` : title;
-}
-
+/**
+ * Regra central de componente (issue #858): a contagem inclui Cancelar. Dois
+ * candidatos + Cancelar usam três botões; três ou mais candidatos usam lista.
+ */
 export function buildSelectionListReply(
   bodyText: string,
   pendingOperationId: number,
   candidates: PendingDeleteIntent[],
 ): WhatsAppLogicalReply {
-  return listReply(bodyText, "Ver opções", [
-    {
-      rows: candidates.map((candidate, index) => ({
-        id: buildWhatsAppCallbackId(pendingOperationId, `${SELECT_ACTION_PREFIX}${index}`),
-        title: truncateListRowTitle(`${index + 1}. ${candidate.itemName ?? "Alimento"}`),
+  return buildWhatsappClosedDecisionReply({
+    bodyText,
+    pendingOperationId,
+    actions: [
+      ...candidates.map((candidate, index) => ({
+        action: `${SELECT_ACTION_PREFIX}${index}`,
+        label: `${index + 1}. ${candidate.itemName ?? "Alimento"}`,
         description: candidate.mealLabel,
       })),
-    },
-    { rows: [{ id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" }] },
-  ]);
+      { action: CANCEL_ACTION, label: "Cancelar" },
+    ],
+  });
 }
 
 export function buildSelectionResult(input: {

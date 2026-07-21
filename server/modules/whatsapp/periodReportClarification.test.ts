@@ -54,7 +54,8 @@ describe("clarificação interativa de período (issues #782/#784)", () => {
     const reply = buildWhatsappPeriodReportClarificationListReply(pending.id, "Me diga o período.");
 
     const rows = listRows(reply);
-    expect(rows.map(row => row.title)).toEqual(WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => option.title));
+    // Decisão fechada com pendência inclui Cancelar (issue #858).
+    expect(rows.map(row => row.title)).toEqual([...WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => option.title), "Cancelar"]);
     for (const row of rows) {
       // ID opaco criptografado (v1.<iv>.<payload>.<tag>): não expõe a ação nem o id interno.
       expect(row.id).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);

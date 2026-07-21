@@ -27,10 +27,14 @@ function extractButtonId(interactiveReply: unknown, title: string) {
 }
 
 function extractListRowId(interactiveReply: unknown, titleContains: string) {
-  const message = (interactiveReply as { messages: ListMessage[] }).messages[0];
-  const row = message.sections.flatMap(section => section.rows).find(candidate => candidate.title.includes(titleContains));
-  if (!row) throw new Error(`linha contendo "${titleContains}" não encontrada na lista`);
-  return row.id;
+  // Regra central de componente (issue #858): até 3 ações usam botões; 4+ usam lista.
+  const message = (interactiveReply as { messages: Array<ButtonsMessage | ListMessage> }).messages[0];
+  const options = message.type === "buttons"
+    ? message.buttons
+    : message.sections.flatMap(section => section.rows);
+  const option = options.find(candidate => candidate.title.includes(titleContains));
+  if (!option) throw new Error(`opção contendo "${titleContains}" não encontrada na resposta interativa`);
+  return option.id;
 }
 
 function baseMeal() {

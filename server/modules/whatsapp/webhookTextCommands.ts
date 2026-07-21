@@ -2,6 +2,7 @@ import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from ".
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
+import { buildWhatsappClosedDecisionReply } from "./interactionInventory";
 import { formatWhatsAppReplyTime } from "./replyFormatting";
 import {
   buildWhatsAppActionCancelledReplyMessage,
@@ -17,6 +18,7 @@ import {
 } from "./webhookUtils";
 
 const CONFIRM_ACTION = "confirm";
+export const CONFIRM_ALL_ACTION = "confirm_all";
 const CANCEL_ACTION = "cancel";
 
 export type WhatsAppAction = {
@@ -29,6 +31,14 @@ export type PendingWhatsAppConfirmation = {
   action: WhatsAppAction;
   mealIds: number[];
   summary: string;
+  /**
+   * Decisão fechada de escopo (issue #858): reclassificação ambígua pergunta se
+   * move só os registros compatíveis ou todos os recentes. `confirm` move os
+   * compatíveis; `confirm_all` move todos; `cancel` desiste.
+   */
+  decision?: "reclassify_scope";
+  /** IDs de todos os registros recentes no momento da pergunta (escopo "todos"). */
+  allMealIds?: number[];
 };
 
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
@@ -134,9 +144,11 @@ async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number
 async function applyClaimedGenericConfirmation(
   userId: number,
   pending: PendingWhatsAppConfirmation,
+  scope: "matching" | "all" = "matching",
 ): Promise<{ handled: true; reply: string; eventType: string; detail: string }> {
   // Revalida o alvo contra o estado atual do banco em vez de confiar cegamente no target persistido (issue #766).
-  const { matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
+  const { recentMeals, matchingMeals: matchingOnly } = await resolveMatchingRecentMeals(pending.action, userId);
+  const matchingMeals = scope === "all" ? recentMeals : matchingOnly;
   if (!matchingMeals.length) {
     return {
       handled: true,
@@ -177,10 +189,33 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     };
   }
 
+  const pendingTarget = pendingRow.target as PendingWhatsAppConfirmation;
+  if (pendingTarget?.decision === "reclassify_scope") {
+    // Decisão fechada de escopo (issue #858): "sim" é ambíguo entre os dois
+    // escopos e NÃO consome a pendência — o gate reapresenta as opções.
+    const scopeAction = parseReclassifyScopeMessage(message);
+    if (!scopeAction) return null;
+    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, scopeAction);
+    if (claim.status !== "claimed") return null;
+    return applyClaimedGenericConfirmation(
+      userId,
+      claim.pendingOperation.target as PendingWhatsAppConfirmation,
+      scopeAction === CONFIRM_ALL_ACTION ? "all" : "matching",
+    );
+  }
+
   if (!isConfirmationMessage(message)) return null;
   const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRM_ACTION);
   if (claim.status !== "claimed") return null;
   return applyClaimedGenericConfirmation(userId, claim.pendingOperation.target as PendingWhatsAppConfirmation);
+}
+
+/** Resposta textual equivalente aos botões de escopo: APENAS/SÓ → compatíveis; TODOS → todos. */
+function parseReclassifyScopeMessage(message: WhatsAppWebhookMessage): typeof CONFIRM_ACTION | typeof CONFIRM_ALL_ACTION | null {
+  const normalized = normalizeWhatsAppIntentText(getWhatsAppMessageTextBody(message));
+  if (/^(apenas|somente|so)(\s|$)/.test(normalized) || normalized === "1") return CONFIRM_ACTION;
+  if (/^(todos|todas)(\s|$)/.test(normalized) || normalized === "2") return CONFIRM_ALL_ACTION;
+  return null;
 }
 
 /**
@@ -208,6 +243,10 @@ export async function completeWhatsappGenericConfirmationCallback(
     return applyClaimedGenericConfirmation(userId, pending);
   }
 
+  if (action === CONFIRM_ALL_ACTION && pending.decision === "reclassify_scope") {
+    return applyClaimedGenericConfirmation(userId, pending, "all");
+  }
+
   return {
     handled: true,
     reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
@@ -232,10 +271,42 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
     const recentSummary = recentMeals
       .map(meal => `${meal.mealLabel} às ${formatWhatsAppReplyTime(new Date(meal.occurredAt))}`)
       .join(", ");
+    // Decisão fechada (issue #858): duas alternativas + Cancelar = três botões,
+    // com pendência persistida e resposta textual equivalente (APENAS/TODOS/CANCELAR).
+    const scopeSummary = `${action.fromMealLabel} → ${action.toMealLabel}`;
+    const scopePending = await pendingOperationRepository.createPendingOperation({
+      userId,
+      type: PENDING_CONFIRMATION_TYPE,
+      origin: PENDING_CONFIRMATION_ORIGIN,
+      ttlMs: PENDING_CONFIRMATION_TTL_MS,
+      target: {
+        action,
+        mealIds: matchingMeals.map(meal => meal.id),
+        allMealIds: recentMeals.map(meal => meal.id),
+        summary: scopeSummary,
+        decision: "reclassify_scope",
+      } satisfies PendingWhatsAppConfirmation,
+    });
+    const scopeReply = buildWhatsAppClarificationReplyMessage(
+      `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?\n\nResponda APENAS, TODOS ou CANCELAR.`,
+    );
 
     return {
       handled: true,
-      reply: buildWhatsAppClarificationReplyMessage(`Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?`),
+      reply: scopeReply,
+      ...(scopePending
+        ? {
+            interactiveReply: buildWhatsappClosedDecisionReply({
+              bodyText: scopeReply,
+              pendingOperationId: scopePending.id,
+              actions: [
+                { action: CONFIRM_ACTION, label: "Só compatíveis" },
+                { action: CONFIRM_ALL_ACTION, label: "Todos recentes" },
+                { action: CANCEL_ACTION, label: "Cancelar" },
+              ],
+            }),
+          }
+        : {}),
       eventType: "whatsapp.action_clarification_needed",
       detail: `Comando ambíguo de reclassificação para ${action.toMealLabel}. Registros recentes: ${recentSummary}.`,
     };

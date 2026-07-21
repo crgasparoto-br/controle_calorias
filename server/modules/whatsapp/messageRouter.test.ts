@@ -85,6 +85,9 @@ vi.mock("./aiQuestionAssistant", () => ({
 const handlePendingWhatsAppConfirmationMock = vi.fn();
 vi.mock("./webhookTextCommands", () => ({
   handlePendingWhatsAppConfirmation: handlePendingWhatsAppConfirmationMock,
+  completeWhatsappGenericConfirmationCallback: vi.fn(),
+  PENDING_CONFIRMATION_TYPE: "confirmation",
+  CONFIRM_ALL_ACTION: "confirm_all",
 }));
 
 const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
@@ -188,5 +191,126 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     expect(decision).toEqual({ step: "continue_pipeline" });
     const stillActive = await repository.getActivePendingOperation(5);
     expect(stillActive).not.toBeNull();
+  });
+});
+
+describe("reapresentação transversal e resolução textual (issue #858)", () => {
+  beforeEach(() => {
+    fakeDb.reset();
+    executeWhatsappAiQuestionIntentMock.mockReset();
+    handlePendingWhatsAppConfirmationMock.mockReset();
+  });
+
+  it("palavra de comando isolada durante pendência de exclusão reapresenta os mesmos botões sem consumir a pendência", async () => {
+    const created = await repository.createPendingOperation({
+      userId: 10,
+      type: "delete",
+      origin: "deleteIntent",
+      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 10, text: "registrar" });
+
+    expect(decision.step).toBe("pending_reprompt");
+    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
+    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "buttons" });
+    expect(decision.result.data).toMatchObject({ pendingType: "delete", fallbackBlocked: true });
+
+    const stillActive = await repository.getActivePendingOperation(10);
+    expect(stillActive?.id).toBe(created?.id);
+    expect(stillActive?.state).toBe("active");
+  });
+
+  it("índice fora da faixa durante seleção de exclusão reapresenta as mesmas opções", async () => {
+    await repository.createPendingOperation({
+      userId: 11,
+      type: "delete",
+      origin: "deleteIntent",
+      target: {
+        kind: "selection",
+        targetFoodName: "pão",
+        candidates: [
+          { kind: "delete_food_from_meal", mealId: 1, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString(), itemIndex: 0, itemName: "Pão francês" },
+          { kind: "delete_food_from_meal", mealId: 2, mealLabel: "Lanche", mealOccurredAt: new Date().toISOString(), itemIndex: 1, itemName: "Pão de queijo" },
+        ],
+      },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 11, text: "9" });
+
+    expect(decision.step).toBe("pending_reprompt");
+    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
+    // 2 candidatos + Cancelar = 3 botões (regra central de componente).
+    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "buttons" });
+    const stillActive = await repository.getActivePendingOperation(11);
+    expect(stillActive?.state).toBe("active");
+  });
+
+  it("resposta válida à pendência de exclusão segue para a cadeia existente (continue_pipeline)", async () => {
+    await repository.createPendingOperation({
+      userId: 12,
+      type: "delete",
+      origin: "deleteIntent",
+      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 12, text: "sim" });
+    expect(decision).toEqual({ step: "continue_pipeline" });
+  });
+
+  it("comando completo novo não consome a pendência e segue o pipeline", async () => {
+    const created = await repository.createPendingOperation({
+      userId: 13,
+      type: "delete",
+      origin: "deleteIntent",
+      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 13, text: "registrar 100 g de arroz" });
+    expect(decision).toEqual({ step: "continue_pipeline" });
+    const stillActive = await repository.getActivePendingOperation(13);
+    expect(stillActive?.id).toBe(created?.id);
+  });
+
+  it("texto numérico resolve a clarificação genérica pela mesma ação canônica do callback", async () => {
+    await repository.createPendingOperation({
+      userId: 14,
+      type: "intent_clarification",
+      origin: "intentClarificationInteraction",
+      target: { kind: "intent_clarification", originalText: "registrar" },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 14, text: "2" });
+
+    expect(decision.step).toBe("pending_text_resolution");
+    if (decision.step !== "pending_text_resolution") throw new Error("unreachable");
+    expect(decision.result.eventType).toBe("whatsapp.intent_clarification.correct_meal");
+
+    const stillActive = await repository.getActivePendingOperation(14);
+    expect(stillActive).toBeNull();
+  });
+
+  it("resposta inválida à clarificação genérica reapresenta a lista sem criar nova pendência", async () => {
+    const created = await repository.createPendingOperation({
+      userId: 15,
+      type: "intent_clarification",
+      origin: "intentClarificationInteraction",
+      target: { kind: "intent_clarification", originalText: "editar" },
+      ttlMs: 60_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 15, text: "7" });
+
+    expect(decision.step).toBe("pending_reprompt");
+    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
+    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "list" });
+
+    const stillActive = await repository.getActivePendingOperation(15);
+    expect(stillActive?.id).toBe(created?.id);
   });
 });

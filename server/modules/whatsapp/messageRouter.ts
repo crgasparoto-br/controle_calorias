@@ -29,6 +29,18 @@ import {
   isExpectedWhatsappPeriodReportAction,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./periodReportClarification";
+import {
+  completeWhatsappIntentClarificationCallback,
+  isExpectedWhatsappIntentClarificationAction,
+  parseIntentClarificationTextAction,
+  PENDING_INTENT_CLARIFICATION_TYPE,
+} from "./intentClarificationInteraction";
+import {
+  classifyWhatsappPendingTextResponse,
+  isReclassifyScopeConfirmation,
+  rebuildWhatsappPendingInteractionReply,
+} from "./interactionReplay";
+import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -38,6 +50,31 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
 });
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
+
+/**
+ * Registro central de tipos de pendência resolvíveis pelo gate (issue #858).
+ * `interactionInventory.test.ts` valida que todo tipo aqui possui entrada no
+ * inventário versionado — um novo tipo sem registro/inventário falha em teste.
+ */
+export const WHATSAPP_REGISTERED_PENDING_TYPES = [
+  PENDING_DELETE_TYPE,
+  PENDING_MEAL_ITEM_SELECTION_TYPE,
+  PENDING_CONFIRMATION_TYPE,
+  PENDING_PROFESSIONAL_ACCESS_TYPE,
+  PENDING_PERIOD_REPORT_TYPE,
+  PENDING_INTENT_CLARIFICATION_TYPE,
+] as const;
+
+export function isExpectedWhatsAppCallbackAction(type: string, action: string): boolean {
+  if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
+  if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "confirm_all" || action === "cancel";
+  if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
+  if (type === PENDING_INTENT_CLARIFICATION_TYPE) return isExpectedWhatsappIntentClarificationAction(action);
+  if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
+    return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
+  }
+  return false;
+}
 
 export type WhatsAppInteractiveCallbackResult = {
   handled: true;
@@ -53,6 +90,10 @@ export type WhatsAppPrecedenceGateResult =
   | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
   | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
   | { step: "generic_confirmation"; result: NonNullable<Awaited<ReturnType<typeof handlePendingWhatsAppConfirmation>>> }
+  /** Resposta textual resolve a mesma ação canônica do callback (issue #858). */
+  | { step: "pending_text_resolution"; result: WhatsAppInteractiveCallbackResult }
+  /** Resposta inválida a pendência válida: mesma interação reapresentada sem consumo (issue #858). */
+  | { step: "pending_reprompt"; result: WhatsAppInteractiveCallbackResult }
   | { step: "continue_pipeline" };
 
 function buildUnavailableInteractiveCallbackResult(): WhatsAppInteractiveCallbackResult {
@@ -77,25 +118,10 @@ async function resolveWhatsAppInteractiveCallback(
   sourcePhone?: string | null,
   userTimezone?: string | null,
 ): Promise<WhatsAppInteractiveCallbackResult> {
-  const expectedTypes = [
-    PENDING_DELETE_TYPE,
-    PENDING_MEAL_ITEM_SELECTION_TYPE,
-    PENDING_CONFIRMATION_TYPE,
-    PENDING_PROFESSIONAL_ACCESS_TYPE,
-    PENDING_PERIOD_REPORT_TYPE,
-  ] as const;
   const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
     sourcePhone,
-    expectedTypes,
-    isExpectedAction: (type, action) => {
-      if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
-      if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "cancel";
-      if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
-      if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
-        return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
-      }
-      return false;
-    },
+    expectedTypes: WHATSAPP_REGISTERED_PENDING_TYPES,
+    isExpectedAction: isExpectedWhatsAppCallbackAction,
   });
   if (claim.status !== "claimed") {
     return buildUnavailableInteractiveCallbackResult();
@@ -110,6 +136,8 @@ async function resolveWhatsAppInteractiveCallback(
       return completeWhatsappGenericConfirmationCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_PERIOD_REPORT_TYPE:
       return completeWhatsappPeriodReportCallback(userId, claim.action, receivedAt);
+    case PENDING_INTENT_CLARIFICATION_TYPE:
+      return completeWhatsappIntentClarificationCallback(userId, claim.pendingOperation, claim.action, receivedAt);
     case PENDING_PROFESSIONAL_ACCESS_TYPE: {
       const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
       return completeWhatsAppProfessionalAccessCallback(userId, claim.pendingOperation, claim.action);
@@ -161,6 +189,60 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     const result = await handlePendingWhatsAppConfirmation(message, input.userId);
     if (result) {
       return { step: "generic_confirmation", result };
+    }
+  }
+
+  // Resolução textual da clarificação genérica (issue #858): número/rótulo
+  // resolve a MESMA ação canônica do callback, pelo mesmo claim atômico.
+  if (pending && pending.type === PENDING_INTENT_CLARIFICATION_TYPE) {
+    const textAction = parseIntentClarificationTextAction(input.text);
+    if (textAction) {
+      const claim = await claimWhatsAppTextPendingOperation(
+        input.userId,
+        PENDING_INTENT_CLARIFICATION_TYPE,
+        textAction,
+        input.receivedAt,
+      );
+      if (claim.status === "claimed") {
+        const result = await completeWhatsappIntentClarificationCallback(
+          input.userId,
+          claim.pendingOperation,
+          claim.action,
+          input.receivedAt,
+        );
+        return { step: "pending_text_resolution", result };
+      }
+    }
+  }
+
+  // Reapresentação transversal (issue #858): resposta inválida a uma pendência
+  // ainda válida reapresenta as mesmas ações, sem consumir a pendência, sem
+  // mutação e sem alcançar o pipeline nutricional.
+  if (pending && (WHATSAPP_REGISTERED_PENDING_TYPES as readonly string[]).includes(pending.type)) {
+    const classification = classifyWhatsappPendingTextResponse(pending, input.text);
+    if (classification === "invalid_response") {
+      const replay = rebuildWhatsappPendingInteractionReply(pending, { timeZone: input.userTimezone });
+      if (replay) {
+        return {
+          step: "pending_reprompt",
+          result: {
+            handled: true,
+            action: "clarification_needed",
+            reply: replay.reply,
+            eventType: "whatsapp.interaction.pending_represented",
+            detail: `Resposta inválida para pendência ${pending.type} ainda válida; mesmas ações reapresentadas sem consumo (issue #858).`,
+            data: {
+              pendingOperationId: pending.id,
+              pendingType: pending.type,
+              reclassifyScope: isReclassifyScopeConfirmation(pending.target),
+              invalidResponseReason: "incompatible_text",
+              fallbackBlocked: true,
+              fallbackBlockReason: "pending_interaction_represented",
+            },
+            interactiveReply: replay.interactiveReply,
+          },
+        };
+      }
     }
   }
 
