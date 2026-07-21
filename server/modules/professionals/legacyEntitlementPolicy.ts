@@ -65,9 +65,11 @@ export function createLegacyProfessionalEntitlementPolicy(
   };
 }
 
-registerProtectedProcedurePolicy(
-  createLegacyProfessionalEntitlementPolicy({
-    getProfile: getProfessionalProfile,
-    assertEntitlement: assertProfessionalEntitlement,
-  })
-);
+export function registerLegacyProfessionalEntitlementPolicy() {
+  return registerProtectedProcedurePolicy(
+    createLegacyProfessionalEntitlementPolicy({
+      getProfile: getProfessionalProfile,
+      assertEntitlement: assertProfessionalEntitlement,
+    })
+  );
+}
