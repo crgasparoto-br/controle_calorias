@@ -4,25 +4,25 @@ Este diretório reúne a documentação canônica do Controle de Calorias. Use e
 
 ## Documentos raiz
 
-| Documento | Uso |
-|---|---|
-| `../README.md` | Visão geral do produto, stack e configuração inicial. |
+| Documento            | Uso                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `../README.md`       | Visão geral do produto, stack e configuração inicial.                                      |
 | `../ARCHITECTURE.md` | Fronteiras de camadas, áreas de experiência, regras de dependência e direção arquitetural. |
-| `../AGENTS.md` | Guia obrigatório para agentes e automações. |
-| `../CONTRIBUTING.md` | Gates de validação, critérios antes de PR e comandos mínimos por tipo de mudança. |
+| `../AGENTS.md`       | Guia obrigatório para agentes e automações.                                                |
+| `../CONTRIBUTING.md` | Gates de validação, critérios antes de PR e comandos mínimos por tipo de mudança.          |
 
 ## Especificações de produto
 
 Use `docs/product-specs/` para regras funcionais, critérios de aceite e comportamento esperado por domínio.
 
-| Área | Documento |
-|---|---|
-| Modelo do produto e separação dos fluxos | `product-specs/product-experience-model.md` |
-| Registro de refeições | `product-specs/meal-registration.md` |
-| Metas, Hoje, Registros e Relatórios | `product-specs/goals-and-reports.md` |
-| Privacidade, exportação e exclusão | `product-specs/privacy-export-deletion.md` |
-| Área Profissional, vínculos e acompanhamento | `product-specs/professionals.md` |
-| Integrações de saúde / Strava | `product-specs/health-integrations.md` |
+| Área                                         | Documento                                   |
+| -------------------------------------------- | ------------------------------------------- |
+| Modelo do produto e separação dos fluxos     | `product-specs/product-experience-model.md` |
+| Registro de refeições                        | `product-specs/meal-registration.md`        |
+| Metas, Hoje, Registros e Relatórios          | `product-specs/goals-and-reports.md`        |
+| Privacidade, exportação e exclusão           | `product-specs/privacy-export-deletion.md`  |
+| Área Profissional, vínculos e acompanhamento | `product-specs/professionals.md`            |
+| Integrações de saúde / Strava                | `product-specs/health-integrations.md`      |
 
 `product-experience-model.md` é a fonte canônica para:
 
@@ -61,12 +61,12 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 
 ## Documentação operacional e sensível
 
-| Documento | Uso |
-|---|---|
-| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão. |
-| `SECURITY.md` | Regras de segurança, segredos e hardening. |
-| `RELIABILITY.md` | Resiliência, observabilidade e riscos operacionais. |
-| `runbooks/` | Checklists e evidências operacionais de rollout. |
+| Documento         | Uso                                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
+| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
+| `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
+| `runbooks/`       | Checklists e evidências operacionais de rollout. A aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. |
 
 ## Documentação gerada
 

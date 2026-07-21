@@ -483,3 +483,7 @@ Não bloqueiam as fases iniciais:
 ## Timezone do paciente
 
 Consultas, filtros, agrupamentos e horários de dados clínico-nutricionais usam o timezone efetivo da pessoa acompanhada. O timezone do profissional é usado somente em datas operacionais do próprio vínculo. A interface não deve disparar consultas de período antes de conhecer o timezone do paciente selecionado.
+
+## Aposentadoria do legado profissional
+
+A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.

@@ -70,7 +70,7 @@ function assertAbsent(path, content, values) {
   content = replaceRegex(
     path,
     content,
-    /\n\s*it\("redirects the retired legacy entry to the current professional reports",[\s\S]*?\n\s*\}\);/g,
+    /\n\s*it\("redirects the retired legacy entry to the current professional reports",[^\n]*?\}\);/g,
     `\n  it("redirects an old professional bookmark without exposing legacy UI", async () => { window.history.replaceState({}, "", "/professional/legacy"); const { default: App } = await import("./App"); render(<App />); await waitFor(() => expect(window.location.pathname).toBe("/professional")); expect(await screen.findByRole("heading", { name: "Início profissional" })).toBeTruthy(); expect(screen.queryByRole("button", { name: "Experiência legada" })).toBeNull(); });`,
     "legacy navigation test"
   );
@@ -308,12 +308,9 @@ function assertAbsent(path, content, values) {
     "",
     "legacy question schemas"
   );
-  content = replaceRegex(
-    path,
-    content,
-    /\nexport type ProfessionalPatientQuestionInput =[\s\S]*?\nexport type ProfessionalPatientAnswer = z\.infer<[\s\S]*?;$/g,
-    "\n",
-    "legacy question types"
+  content = content.replace(
+    /\nexport type ProfessionalPatientQuestionInput = z\.infer<[\s\S]*?\n>;\nexport type ProfessionalPatientAnswer = z\.infer<[\s\S]*?\n>;/,
+    ""
   );
   assertAbsent(path, content, ["professionalPatientQuestionSchema", "professionalPatientAnswerSchema", "ProfessionalPatientQuestionInput", "ProfessionalPatientAnswer"]);
   write(path, content);
@@ -330,7 +327,7 @@ function assertAbsent(path, content, values) {
   content = replaceRegex(
     path,
     content,
-    /\n\s*it\("exibe vínculo na aba Perfil quando cópia do lado do paciente está ausente \(backfill assimétrico\)",[\s\S]*?\n\s*\}\);/g,
+    /\n\s*it\("exibe vínculo na aba Perfil quando cópia do lado do paciente está ausente \(backfill assimétrico\)",[\s\S]*?(?=\n\s*it\("reconcilia cópia)/g,
     "",
     "asymmetric legacy fallback test"
   );

@@ -143,3 +143,7 @@ A migration `0032_professional_official_goals.sql` cria o modelo versionado da i
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
 - O workflow `Professional persistence TiDB gate` executa `pnpm db:push`, verifica estabilidade dos metadados Drizzle e cobre backfill, vínculo assimétrico, concorrência, transação de aprovação, leitura por outra instância, revogação imediata, persistência de comentários/sugestões/histórico e decisão idempotente de sugestão.
+
+## Aposentadoria do legado profissional
+
+A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.

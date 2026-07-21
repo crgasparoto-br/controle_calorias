@@ -25,7 +25,9 @@
     "foods:seed:industrializados-br": "tsx scripts/import-foods/seed_industrializados_brasil.ts",
     "foods:import:taco": "tsx scripts/import-foods/import_taco.ts",
     "foods:import:tbca": "tsx scripts/import-foods/import_tbca.ts",
-    "foods:backfill-classification": "tsx scripts/backfill-food-classification.ts"
+    "foods:backfill-classification": "tsx scripts/backfill-food-classification.ts",
+    "db:retire-professional-legacy": "tsx scripts/retire-professional-legacy-preferences.ts",
+    "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
