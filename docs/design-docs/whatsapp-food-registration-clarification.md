@@ -23,7 +23,7 @@ Preservar a mensagem alimentar original quando o registro depende de confirmaç�
 
 O tipo `food_registration_clarification` armazena um `PendingFoodClarificationTarget` versionado com:
 
-- `interactionId` estável da interação;
+- `interactionId` estável da interação, preservado em transições de tipo e recuperação segura;
 - classificação `open` ou `closed`;
 - tipo `quantity`, `confirmation` ou `selection`;
 - texto original e texto sanitizado separados;
@@ -35,6 +35,8 @@ O tipo `food_registration_clarification` armazena um `PendingFoodClarificationTa
 - instrução textual equivalente;
 - `messageId` do inbound quando disponível;
 - único efeito autorizado: registrar uma vez o alimento original resolvido.
+
+Uma nova linha em `whatsappPendingOperations` pode ser criada ao mudar de seleção para quantidade ou ao restaurar uma falha anterior à mutação, mas ela mantém o mesmo `interactionId`. O identificador só muda quando começa uma nova interação alimentar.
 
 Esse contrato é consumível pela #858 sem reimplementar a regra alimentar. A #858 decide genericamente o componente de transporte; a #855 continua dona da detecção, da compatibilidade da resposta e do efeito de domínio.
 
@@ -48,6 +50,8 @@ Uma contagem vira unidade somente quando o candidato é exato e possui porção 
 - candidato aproximado ou produto semelhante nunca fornece porção para o alimento original.
 
 Quando não existe porção segura, o sistema preserva o alimento e pergunta apenas peso, volume ou tamanho. Exemplo: `1 iogurte natural desnatado` sem produto/porção exatos cria pendência aberta e pede `170 g`, `200 ml` ou equivalente.
+
+Um candidato único sem porção segura não substitui o candidato normalizado preservado. Quando o usuário escolhe explicitamente uma opção entre múltiplos candidatos, essa opção passa a ser a identidade usada na pergunta de quantidade e na persistência final.
 
 ## Normalização conservadora
 
@@ -63,17 +67,20 @@ Erros ortográficos simples conhecidos, como `natual` → `natural`, são aplica
 - `confirmation` aceita confirmação/cancelamento compatíveis;
 - `quantity` aceita somente uma resposta formada apenas por número e unidade;
 - `selection` aceita somente opção válida/callback correspondente;
+- pontuação de apresentação no início ou no fim, como `registrar!`, `cancelar.` e `170 g.`, é normalizada antes da compatibilidade;
 - resposta incompatível reapresenta a mesma pergunta e não consome a pendência;
 - novo comando completo marca a pendência anterior como `superseded` e volta ao roteador central;
+- uma nova refeição completa, como `200 g de frango` ou `1 banana`, não precisa conter verbo operacional para substituir a pendência anterior;
 - exclusão completa sempre mantém a precedência da #856;
 - claim compare-and-set impede clique, callback ou confirmação repetidos;
 - usuário, estado, expiração e versão são revalidados pelo repositório;
-- falha após claim recria a pendência com o texto original, sem persistir item parcial;
+- falha comprovadamente anterior à mutação restaura a pendência com o mesmo texto e `interactionId`;
+- falha após possível mutação bloqueia retry automático para evitar duplicidade;
 - após sucesso, a refeição é criada/atualizada pelos serviços canônicos, consolidada e recarregada antes da resposta.
 
 ## Bloqueio em profundidade
 
-`standaloneCommandWords.ts` centraliza comandos inteiros como `registrar`, `confirmar`, `cancelar`, `editar`, `consultar`, `sim`, `não`, `ok` e número isolado.
+`standaloneCommandWords.ts` centraliza comandos inteiros como `registrar`, `confirmar`, `cancelar`, `editar`, `consultar`, `sim`, `não`, `ok`, quantidade e número isolado. A comparação remove acentos, espaços excedentes e pontuação periférica, sem transformar uma frase completa em comando isolado.
 
 As barreiras são:
 
@@ -89,11 +96,15 @@ As barreiras são:
 - iogurte exato com embalagem estável registra a porção canônica;
 - iogurte genérico pede peso/tamanho sem assumir `100 g`;
 - `1 iogurte natual desnatado` preserva original e normaliza o candidato;
-- `170 g` conclui pendência aberta;
+- seleção de candidato sem porção segura mantém a opção escolhida ao receber o peso;
+- `170 g` e `170 g.` concluem pendência aberta;
 - `registrar` não conclui pendência de quantidade;
 - `registrar` confirma somente pendência fechada compatível;
+- `cancelar.` cancela sem persistir;
 - exclusão durante pendência segue o gate destrutivo;
-- comando isolado sem pendência não chama IA nem persistência;
+- comando isolado, com ou sem pontuação, não chama IA nem persistência;
+- `200 g de frango` e `1 banana` seguem o roteador como novas mensagens completas;
 - frase operacional completa segue o roteador;
 - `foodName: Registrar` é rejeitado pelo schema;
-- reentrega, expiração, cancelamento, callback repetido e isolamento entre usuários são fail-closed.
+- reentrega, expiração, cancelamento, callback repetido e isolamento entre usuários são fail-closed;
+- transições e retries seguros preservam o mesmo `interactionId`.
