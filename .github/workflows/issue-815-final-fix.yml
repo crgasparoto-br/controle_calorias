@@ -1,0 +1,67 @@
+name: Issue 815 final corrections
+
+on:
+  push:
+    branches:
+      - cleanup/815-retire-professional-legacy
+    paths:
+      - scripts/issue-815-final-fix.mjs.gz.b64
+      - .github/workflows/issue-815-final-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cleanup/815-retire-professional-legacy
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply audited corrections
+        run: |
+          base64 -d scripts/issue-815-final-fix.mjs.gz.b64 | gzip -d > /tmp/issue-815-final-fix.mjs
+          node --check /tmp/issue-815-final-fix.mjs
+          node /tmp/issue-815-final-fix.mjs
+      - name: Format changed sources
+        run: |
+          pnpm exec prettier --write \
+            AGENTS.md \
+            docs/README.md \
+            docs/design-docs/database-persistence.md \
+            docs/runbooks/professional-legacy-retirement.md \
+            docs/testing/professional-legacy-retirement-regression.md \
+            package.json \
+            scripts/check-professional-legacy-retirement.ts \
+            scripts/generate-trpc-routes-doc.ts \
+            scripts/migrate-professional-persistence.ts \
+            scripts/retire-professional-legacy-preferences.ts \
+            scripts/test-professional-persistence-tidb.ts \
+            server/modules/professionals/contentPersistenceService.ts \
+            server/modules/professionals/legacyRetirement.test.ts \
+            server/repositories/professionalContentRepository.ts \
+            client/src/App.professionalNavigation.test.tsx
+      - name: Regenerate tRPC documentation
+        run: pnpm docs:generate:trpc
+      - name: Validate implementation
+        run: |
+          git diff --check
+          pnpm agent:check
+          pnpm build
+      - name: Commit validated corrections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(professional): concluir auditoria da issue #815"
+          git push origin HEAD:cleanup/815-retire-professional-legacy
