@@ -72,7 +72,6 @@ describe("executeWhatsappTextIntent issue #855", () => {
       text: "1 iogurte natual desnatado",
       receivedAt: new Date("2026-07-21T15:00:00.000Z"),
       userTimezone: "America/Sao_Paulo",
-      messageId: "wamid.855",
       entrypoint: "audio_transcription",
     });
 
@@ -84,7 +83,7 @@ describe("executeWhatsappTextIntent issue #855", () => {
     expect(foodClarificationMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       text: "1 iogurte natual desnatado",
-      messageId: "wamid.855",
+      messageId: expect.stringMatching(/^derived:[a-f0-9]{32}$/),
     }));
     expect(result).toEqual(expect.objectContaining({ action: "food_clarification_requested" }));
   });
