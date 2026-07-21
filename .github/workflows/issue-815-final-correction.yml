@@ -36,23 +36,30 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+          import textwrap
 
           path = Path('scripts/test-professional-persistence-tidb.ts')
           text = path.read_text()
-          old = '''    assert.equal(
-              (await contentSecondInstance.listGoalSuggestionsByPatient(8062))[0]?.id,
-              legacyGoal.id
-            );'''.replace('              ', '      ')
-          new = '''    assert.equal(
-              (
-                await contentSecondInstance.listGoalSuggestionsByPatient(8062)
-              ).some(item => item.id === legacyGoal.id),
-              true,
-              "explicit legacy backfill must preserve the migrated goal regardless of canonical result ordering"
-            );'''.replace('              ', '      ')
-          if old not in text:
-              raise SystemExit('order-dependent assertion anchor not found')
-          path.write_text(text.replace(old, new, 1))
+          pattern = re.compile(
+              r'    assert\.equal\(\n'
+              r'      \(await contentSecondInstance\.listGoalSuggestionsByPatient\(8062\)\)\[0\]\?\.id,\n'
+              r'      legacyGoal\.id\n'
+              r'    \);'
+          )
+          replacement = textwrap.dedent('''
+              assert.equal(
+                (
+                  await contentSecondInstance.listGoalSuggestionsByPatient(8062)
+                ).some(item => item.id === legacyGoal.id),
+                true,
+                "explicit legacy backfill must preserve the migrated goal regardless of canonical result ordering"
+              );
+          ''').strip()
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'order-dependent assertion match count={count}')
+          path.write_text(text)
           PY
       - name: Remove temporary artifacts
         run: |
