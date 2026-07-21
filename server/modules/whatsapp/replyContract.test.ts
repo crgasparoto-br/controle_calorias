@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   acknowledgementReply,
+  buildWhatsAppOutboundFallbackText,
   buttonsReply,
   listReply,
   logicalReplyFromLegacyText,
@@ -116,5 +117,85 @@ describe("replyContract", () => {
       sections: [{ rows: [] }],
     });
     expect(errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: "sections" })]));
+  });
+
+  it("valida corpo vazio, IDs duplicados/ausentes e limites de lista (issue #859)", () => {
+    expect(validateWhatsAppOutboundMessage({ type: "buttons", bodyText: "", buttons: [{ id: "a", title: "A" }] }))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ field: "bodyText" })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "buttons",
+      bodyText: "x",
+      buttons: [{ id: "dup", title: "Um" }, { id: "dup", title: "Dois" }],
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ detail: expect.stringContaining("duplicado") })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "list",
+      bodyText: "x",
+      buttonText: "Ver",
+      sections: Array.from({ length: 11 }, () => ({ rows: [{ id: crypto.randomUUID(), title: "Item" }] })),
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "sections" })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "cta_url",
+      bodyText: "x",
+      buttonText: "Editar",
+      url: "not-a-url",
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "url" })]));
+  });
+
+  it("deriva fallback textual determinístico de botões sem expor IDs de callback", () => {
+    const fallback = buildWhatsAppOutboundFallbackText({
+      type: "buttons",
+      bodyText: "Confirme a exclusão:",
+      buttons: [{ id: "delete:1:confirm", title: "Confirmar" }, { id: "delete:1:cancel", title: "Cancelar" }],
+    });
+    expect(fallback).toBe([
+      "Confirme a exclusão:",
+      "",
+      "1. Confirmar",
+      "2. Cancelar",
+      "",
+      "Responda com o número ou o texto da opção.",
+    ].join("\n"));
+    expect(fallback).not.toContain("delete:1");
+  });
+
+  it("deriva fallback textual numerado de lista preservando título e descrição, sem IDs", () => {
+    const fallback = buildWhatsAppOutboundFallbackText({
+      type: "list",
+      bodyText: "Escolha uma opção:",
+      buttonText: "Ver opções",
+      sections: [{ rows: [
+        { id: "select:1", title: "Arroz", description: "Almoço" },
+        { id: "select:2", title: "Arroz integral", description: "Jantar" },
+        { id: "cancel", title: "Cancelar" },
+      ] }],
+    });
+    expect(fallback).toBe([
+      "Escolha uma opção:",
+      "",
+      "1. Arroz — Almoço",
+      "2. Arroz integral — Jantar",
+      "3. Cancelar",
+      "",
+      "Responda com o número da opção.",
+    ].join("\n"));
+    expect(fallback).not.toContain("select:1");
+  });
+
+  it("não gera fallback inventado quando não há opções suficientes (lista/botões vazios)", () => {
+    expect(buildWhatsAppOutboundFallbackText({ type: "buttons", bodyText: "x", buttons: [] })).toBeNull();
+    expect(buildWhatsAppOutboundFallbackText({ type: "list", bodyText: "x", buttonText: "Ver", sections: [{ rows: [] }] })).toBeNull();
+  });
+
+  it("deriva fallback de CTA no mesmo formato já usado pelo adapter existente", () => {
+    const fallback = buildWhatsAppOutboundFallbackText({
+      type: "cta_url",
+      bodyText: "Refeição registrada.",
+      buttonText: "Editar refeição",
+      url: "https://app.test/quick-edit/abc",
+    });
+    expect(fallback).toBe("Refeição registrada.\n\nEditar refeição: https://app.test/quick-edit/abc");
   });
 });
