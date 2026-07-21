@@ -1,0 +1,86 @@
+name: Apply issue 815 retirement
+
+on:
+  push:
+    branches:
+      - cleanup/815-retire-professional-legacy
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-815-retirement
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cleanup/815-retire-professional-legacy
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply retirement transform
+        run: node scripts/issue-815-transform.mjs
+
+      - name: Format changed sources
+        run: |
+          pnpm exec prettier --write \
+            client/src/App.tsx \
+            client/src/App.professionalNavigation.test.tsx \
+            client/src/components/ProfessionalLayout.tsx \
+            server/repositories/professionalRepository.ts \
+            server/modules/professionals/service.ts \
+            server/modules/professionals/service.test.ts \
+            server/modules/professionals/schemas.ts \
+            server/modules/professionals/legacyRetirement.test.ts \
+            server/nutritionRouter.ts \
+            scripts/retire-professional-legacy-preferences.ts \
+            package.json \
+            ARCHITECTURE.md \
+            docs/README.md \
+            docs/product-specs/professionals.md \
+            docs/design-docs/database-persistence.md \
+            docs/runbooks/professional-legacy-retirement.md
+
+      - name: Refresh generated route documentation
+        run: pnpm docs:generate:trpc
+
+      - name: Validate implementation
+        run: |
+          pnpm check
+          pnpm test
+          pnpm architecture:check
+          pnpm docs:check
+          pnpm build
+
+      - name: Remove one-shot automation
+        run: |
+          rm scripts/issue-815-transform.mjs
+          rm .github/workflows/issue-815-apply.yml
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor(professional): retire legacy compatibility (#815)"
+          git push origin HEAD:cleanup/815-retire-professional-legacy
