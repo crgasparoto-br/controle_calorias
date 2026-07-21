@@ -9,6 +9,7 @@ import {
 import type { CatalogFood } from "../../nutritionEngineTypes";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { findTacoFood } from "../../tacoLookup";
+import { evaluateWhatsappIntentRoute } from "./intentRouter";
 import {
   isStandaloneWhatsappCommandWord,
   normalizeStandaloneWhatsappCommand,
@@ -324,6 +325,13 @@ export function parseFoodClarificationSelectionReply(text?: string | null, candi
   return index >= 0 && index < candidateCount ? index : -1;
 }
 
+function isRoutableFreeTextFoodMessage(text: string) {
+  const route = evaluateWhatsappIntentRoute({ text });
+  return route.action === "continue_pipeline"
+    && route.shouldAllowNutritionFallback
+    && (route.canonicalIntent === "registrar_alimento" || route.canonicalIntent === "adicionar_alimento");
+}
+
 export function isCompleteWhatsappCommand(text?: string | null) {
   const raw = text?.trim() ?? "";
   if (!raw || isStandaloneWhatsappCommandWord(raw)) return false;
@@ -331,7 +339,7 @@ export function isCompleteWhatsappCommand(text?: string | null) {
   const explicitFood = COMPLETE_EXPLICIT_FOOD.test(normalized);
   const countedFood = parseCountedFoodRequest(raw) !== null;
   const operationalCommand = COMPLETE_COMMAND_SIGNAL.test(normalized) && normalized.split(/\s+/).length >= 2;
-  return explicitFood || countedFood || operationalCommand;
+  return explicitFood || countedFood || operationalCommand || isRoutableFreeTextFoodMessage(raw);
 }
 
 export function isExpectedWhatsappFoodClarificationAction(target: PendingFoodClarificationTarget, action: string) {
