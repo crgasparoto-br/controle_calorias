@@ -97,6 +97,21 @@ function normalizeCandidate(value: string) {
     .join(" ");
 }
 
+/**
+ * Normalização lexical usada somente para comparar identidade de catálogo.
+ * Não altera o texto preservado e não é tratada como correção ortográfica.
+ */
+function normalizeFoodIdentity(value: string) {
+  return normalizeText(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => {
+      if (word.length <= 3 || !word.endsWith("s")) return word;
+      return word.slice(0, -1);
+    })
+    .join(" ");
+}
+
 function parseCount(value: string) {
   const normalized = normalizeStandaloneWhatsappCommand(value);
   if (/^\d+$/.test(normalized)) return Number(normalized);
@@ -138,8 +153,8 @@ function toCandidate(food: CatalogFood, matchKind: FoodClarificationCandidate["m
 }
 
 function isExactFoodMatch(food: Pick<CatalogFood, "name" | "aliases">, candidate: string) {
-  const normalized = normalizeText(candidate);
-  return [food.name, ...food.aliases].some(name => normalizeText(name) === normalized);
+  const normalized = normalizeFoodIdentity(candidate);
+  return [food.name, ...food.aliases].some(name => normalizeFoodIdentity(name) === normalized);
 }
 
 function uniqueCandidates(candidates: FoodClarificationCandidate[]) {
@@ -162,7 +177,7 @@ export function resolveFoodClarificationCandidates(candidate: string): FoodClari
   return uniqueCandidates([
     ...exactReference,
     ...(catalog ? [toCandidate(catalog, isExactFoodMatch(catalog, candidate) ? "exact" : "fallback")] : []),
-    ...(taco ? [toCandidate(taco, normalizeText(taco.name) === normalizeText(candidate) ? "exact" : "fallback")] : []),
+    ...(taco ? [toCandidate(taco, normalizeFoodIdentity(taco.name) === normalizeFoodIdentity(candidate) ? "exact" : "fallback")] : []),
   ]);
 }
 
@@ -286,10 +301,10 @@ export function buildFoodClarificationRegistrationText(
 ) {
   if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${target.normalizedCandidate}`;
   if (COUNTABLE_SERVING.test(candidate.servingLabel)) {
-    return `${target.count} ${inferCountUnit(candidate)} de ${target.normalizedCandidate}`;
+    return `${target.count} ${inferCountUnit(candidate)} de ${candidate.name}`;
   }
   const grams = Math.round(candidate.gramsPerServing * target.count * 100) / 100;
-  return `${grams} g de ${target.normalizedCandidate}`;
+  return `${grams} g de ${candidate.name}`;
 }
 
 export function parseFoodClarificationQuantityReply(text?: string | null) {
