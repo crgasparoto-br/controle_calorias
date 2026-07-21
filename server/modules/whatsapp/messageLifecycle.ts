@@ -22,6 +22,12 @@ import {
   type WhatsAppProcessingClaimRepository,
 } from "../../repositories/whatsappProcessingClaimRepository";
 import { getDb, logPersistenceWarning } from "../../db";
+import {
+  runWithWhatsappInboundCorrelationScope,
+  setCurrentWhatsappInboundExternalMessageId,
+} from "./inboundCorrelationContext";
+
+export { getCurrentWhatsappInboundExternalMessageId as getCurrentInboundExternalMessageId } from "./inboundCorrelationContext";
 
 const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
 
@@ -56,7 +62,6 @@ type MessageLifecycleScope = {
   externalMessageIdByMessageId: Map<number, string>;
   claimedExternalMessageIds: Set<string>;
   pendingProcessedMessages: Map<number, PendingProcessedMessage>;
-  currentExternalMessageId: string | null;
 };
 
 export function createMessageLifecycleService(input: {
@@ -181,7 +186,6 @@ function createScope(service: MessageLifecycleService, current?: MessageLifecycl
     externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
     claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
     pendingProcessedMessages: current?.pendingProcessedMessages ?? new Map<number, PendingProcessedMessage>(),
-    currentExternalMessageId: current?.currentExternalMessageId ?? null,
   };
 }
 
@@ -198,11 +202,11 @@ async function flushProcessedMessages(scope: MessageLifecycleScope) {
 }
 
 async function runOwnedScope<T>(scope: MessageLifecycleScope, operation: () => Promise<T>): Promise<T> {
-  return lifecycleScope.run(scope, async () => {
+  return runWithWhatsappInboundCorrelationScope(() => lifecycleScope.run(scope, async () => {
     const result = await operation();
     await flushProcessedMessages(scope);
     return result;
-  });
+  }));
 }
 
 export async function withMessageLifecycleService<T>(
@@ -221,20 +225,15 @@ export async function runWithMessageLifecycleRequestScope<T>(operation: () => Pr
 }
 
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
-  const scope = lifecycleScope.getStore();
   const externalMessageId = input.externalMessageId?.trim() || null;
-  if (scope) scope.currentExternalMessageId = externalMessageId;
+  setCurrentWhatsappInboundExternalMessageId(externalMessageId);
 
   const handle = await getActiveService().beginInboundMessage(input);
+  const scope = lifecycleScope.getStore();
   if (handle && scope && externalMessageId) {
     scope.externalMessageIdByMessageId.set(handle.messageId, externalMessageId);
   }
   return handle;
-}
-
-/** Identificador externo da mensagem inbound atualmente roteada no mesmo request. */
-export function getCurrentInboundExternalMessageId() {
-  return lifecycleScope.getStore()?.currentExternalMessageId ?? null;
 }
 
 export async function claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
