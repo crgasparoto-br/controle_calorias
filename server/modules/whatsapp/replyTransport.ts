@@ -101,9 +101,14 @@ function transportHandlesOwnFallback(message: WhatsAppOutboundMessage) {
   return message.type === "cta_url";
 }
 
-function logOutboundAttempt(input: {
+/**
+ * Registra a observabilidade sanitizada da tentativa (issue #859) e devolve o
+ * mesmo objeto como `WhatsAppOutboundSendResult`, evitando repetir a
+ * montagem do resultado em cada ponto de saída de `sendOutboundMessageWithFallback`.
+ */
+function finalizeSend(input: {
+  message: WhatsAppOutboundMessage;
   role: WhatsAppOutboundRole;
-  type: WhatsAppOutboundMessage["type"];
   origin?: string;
   category: WhatsAppOutboundFailureCategory;
   originalOk: boolean;
@@ -111,11 +116,11 @@ function logOutboundAttempt(input: {
   fallbackOk?: boolean;
   effectiveOk: boolean;
   detail: string;
-}) {
+}): WhatsAppOutboundSendResult {
   console.info(
     "[WhatsAppReplyTransport]",
     safeLogDetail({
-      type: input.type,
+      type: input.message.type,
       role: input.role,
       origin: input.origin,
       category: input.category,
@@ -126,6 +131,17 @@ function logOutboundAttempt(input: {
       detail: input.detail,
     }),
   );
+  return {
+    message: input.message,
+    role: input.role,
+    originalOk: input.originalOk,
+    usedFallback: input.usedFallback,
+    fallbackOk: input.fallbackOk,
+    effectiveOk: input.effectiveOk,
+    category: input.category,
+    ok: input.effectiveOk,
+    detail: input.detail,
+  };
 }
 
 /**
@@ -149,53 +165,49 @@ async function sendOutboundMessageWithFallback(
   if (original.ok || transportHandlesOwnFallback(message)) {
     const usedFallback = transportHandlesOwnFallback(message) && /fallback textual/i.test(original.detail);
     const category = original.ok ? "none" : classifyFailure(original.detail);
-    const result: WhatsAppOutboundSendResult = {
+    return finalizeSend({
       message,
       role,
+      origin,
+      category,
       originalOk: original.ok && !usedFallback,
       usedFallback,
       fallbackOk: usedFallback ? original.ok : undefined,
       effectiveOk: original.ok,
-      category,
-      ok: original.ok,
       detail: original.detail,
-    };
-    logOutboundAttempt({ role, type: message.type, origin, category, originalOk: result.originalOk, usedFallback, fallbackOk: result.fallbackOk, effectiveOk: result.effectiveOk, detail: original.detail });
-    return result;
+    });
   }
 
   const category = classifyFailure(original.detail);
   const fallbackText = buildWhatsAppOutboundFallbackText(message);
   if (!fallbackText) {
-    logOutboundAttempt({ role, type: message.type, origin, category, originalOk: false, usedFallback: false, effectiveOk: false, detail: original.detail });
-    return {
+    return finalizeSend({
       message,
       role,
+      origin,
+      category,
       originalOk: false,
       usedFallback: false,
       effectiveOk: false,
-      category,
-      ok: false,
       detail: original.detail,
-    };
+    });
   }
 
   const fallback = await sendWhatsAppTextMessage(to, fallbackText);
   const detail = fallback.ok
     ? `Envio original falhou (${original.detail}); fallback textual entregue com sucesso.`
     : `Envio original falhou (${original.detail}); fallback textual também falhou (${fallback.detail}).`;
-  logOutboundAttempt({ role, type: message.type, origin, category, originalOk: false, usedFallback: true, fallbackOk: fallback.ok, effectiveOk: fallback.ok, detail });
-  return {
+  return finalizeSend({
     message,
     role,
+    origin,
+    category,
     originalOk: false,
     usedFallback: true,
     fallbackOk: fallback.ok,
     effectiveOk: fallback.ok,
-    category,
-    ok: fallback.ok,
     detail,
-  };
+  });
 }
 
 export type WhatsAppLogicalReplyLifecycleInput = {
