@@ -82,7 +82,7 @@ export async function claimWhatsAppInteractiveCallback(
   context?: {
     sourcePhone?: string | null;
     expectedTypes?: readonly string[];
-    isExpectedAction?: (type: string, action: string) => boolean;
+    isExpectedAction?: (type: string, action: string, pendingOperation: WhatsAppPendingOperationRecord) => boolean;
   },
 ): Promise<WhatsAppInteractiveCallbackClaim> {
   const parsed = parseWhatsAppCallbackId(rawCallbackId);
@@ -91,7 +91,7 @@ export async function claimWhatsAppInteractiveCallback(
   const pendingOperation = await pendingOperationRepository.getPendingOperationById(parsed.pendingOperationId);
   if (!pendingOperation || pendingOperation.userId !== userId || pendingOperation.state !== "active") return { status: "unavailable" };
   if (context?.expectedTypes && !context.expectedTypes.includes(pendingOperation.type)) return { status: "unavailable" };
-  if (context?.isExpectedAction && !context.isExpectedAction(pendingOperation.type, parsed.action)) return { status: "invalid" };
+  if (context?.isExpectedAction && !context.isExpectedAction(pendingOperation.type, parsed.action, pendingOperation)) return { status: "invalid" };
   if (context?.sourcePhone) {
     const connection = await getUserWhatsappConnection(userId);
     const expectedPhone = connection?.phoneNumber ? normalizeWhatsAppPhoneNumber(connection.phoneNumber) : null;
