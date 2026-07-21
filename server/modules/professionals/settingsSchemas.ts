@@ -32,9 +32,12 @@ export const professionalMessageTemplateSchema = z.object({
 
 export const professionalPreferencesSettingsSchema = z.object({
   defaultReviewIntervalDays: z.number().int().min(1).max(365).nullable(),
-  remindersEnabled: z.boolean(),
-  defaultReminderLeadDays: z.number().int().min(0).max(30),
-  summaryFrequency: z.enum(["disabled", "weekly", "biweekly", "monthly"]),
+  // Automação de lembretes e resumos ainda não possui consumidor operacional.
+  // O contrato permanece explícito e fechado nos valores neutros para impedir
+  // que clientes antigos criem uma configuração sem efeito observável.
+  remindersEnabled: z.literal(true),
+  defaultReminderLeadDays: z.literal(1),
+  summaryFrequency: z.literal("disabled"),
   messageTemplates: z.array(professionalMessageTemplateSchema).max(20),
 });
 
