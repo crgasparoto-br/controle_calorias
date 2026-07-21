@@ -52,9 +52,6 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const receivedAt = input.receivedAt ?? new Date();
   const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
 
-  // Gate destrutivo compartilhado: todo consumidor do parser textual, inclusive
-  // áudio transcrito, bloqueia exclusões antes de água, ajustes, adições, LLM ou
-  // persistência nutricional (issue #856).
   const deleteIntent = await executeWhatsappDeleteIntent(userId, {
     text,
     receivedAt,
@@ -63,21 +60,6 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   });
   if (deleteIntent) {
     return deleteIntent;
-  }
-
-  // A clarificação alimentar persistente vem logo depois do gate destrutivo e
-  // antes dos parsers nutricionais. Assim texto, áudio transcrito, webhook e
-  // simulador preservam a mesma operação original e nunca transformam uma
-  // palavra de continuidade em alimento (issue #855).
-  const foodClarification = await handleWhatsappFoodClarification({
-    userId,
-    text,
-    receivedAt,
-    userTimezone: userTimeZone,
-    messageId: input.messageId,
-  });
-  if (foodClarification) {
-    return foodClarification;
   }
 
   const waterIntent = parseWaterIntent(text);
@@ -104,6 +86,8 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
   }
 
+  // Parsers alimentares especializados mantêm precedência para não transformar
+  // entradas já inequívocas, como "1 café lor", em pergunta genérica (#855).
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
   if (coffeeCapsule) {
     return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
@@ -112,6 +96,21 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const coffeeAddition = parseCoffeeAdditionIntent(text);
   if (coffeeAddition) {
     return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
+  }
+
+  // A clarificação persistente antecede o parser alimentar genérico. Assim uma
+  // contagem sem porção canônica segura preserva o alimento original e pede
+  // somente o dado ausente, enquanto frases completas com unidade continuam no
+  // pipeline normal.
+  const foodClarification = await handleWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone: userTimeZone,
+    messageId: input.messageId,
+  });
+  if (foodClarification) {
+    return foodClarification;
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
