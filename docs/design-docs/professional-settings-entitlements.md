@@ -23,7 +23,11 @@ A API `professionalRecord.settings` oferece operações independentes para reduz
 - `entitlements`: reavalia o snapshot comercial sem cache indefinido;
 - `patientVisible`: retorna somente dados públicos de profissionais ativos com autorização aprovada.
 
+`get`, `updateIdentity`, `updatePreferences` e `setActive` exigem perfil ativo e o recurso exato `professional_settings`. A consulta isolada `entitlements` permanece autenticada e disponível mesmo quando esse recurso é negado, pois é a fonte necessária para explicar o bloqueio sem liberar leitura ou alteração das configurações internas. `patientVisible` pertence ao fluxo do paciente e não depende da elegibilidade comercial do profissional solicitante.
+
 Alterações são serializadas por profissional. Se a gravação do evento de auditoria falhar, a alteração afetada é compensada antes de o erro retornar. Falha da própria compensação é registrada e retorna um erro explícito de consistência; ela não é ignorada. Eventos de configuração usam identificador próprio e não registram conteúdo de modelos ou outros dados sensíveis.
+
+Quando a primeira gravação de identidade cria um perfil que não existia e uma etapa posterior falha, a compensação remove o perfil canônico e o espelho legado em uma única operação de persistência. Em ambientes sem banco fora de produção, um tombstone em processo impede que o fallback volte a expor o perfil removido. Em produção, indisponibilidade do banco faz a compensação falhar de forma explícita em vez de simular sucesso volátil.
 
 O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional.
 
@@ -33,9 +37,9 @@ Lembretes continuam sendo criados no contexto de cada paciente pela central de a
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
 
-As APIs de prontuário, metas oficiais, alertas, mensagens e assistência por IA usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico, como carteira, relatório, prontuário, metas ou IA.
+As APIs de prontuário, metas oficiais, alertas, mensagens, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico, como carteira, relatório, prontuário, metas ou IA.
 
-No frontend, cada rota profissional declara seu próprio recurso. Um snapshot com `allowed: true` não libera uma rota quando o recurso correspondente não está presente em `enabledResources`.
+No frontend, cada rota profissional declara seu próprio recurso. Um snapshot com `allowed: true` não libera uma rota quando o recurso correspondente não está presente em `enabledResources`. A rota `/professional/settings` exige `professional_settings`; quando negada, oferece retorno às configurações pessoais em vez de criar um redirecionamento circular para a própria rota bloqueada.
 
 ## Critérios operacionais
 
