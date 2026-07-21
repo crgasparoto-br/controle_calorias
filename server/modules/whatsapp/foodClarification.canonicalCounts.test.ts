@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildHeuristicItem } from "../../mealItemBuilders";
 import {
   buildFoodClarificationRegistrationText,
   hasSafeCanonicalPortion,
@@ -51,9 +52,9 @@ describe("contagens com porção canônica da issue #855", () => {
   });
 
   it.each([
-    ["1 pão integral Wickbold", "2 fatias de Pão integral Wickbold"],
-    ["2 pão integral Wickbold", "4 fatias de Pão integral Wickbold"],
-  ])("preserva o multiplicador da porção canônica em %s", (text, expectedRegistration) => {
+    ["1 pão integral Wickbold", "50 g de Pão integral Wickbold", 50, 124],
+    ["2 pão integral Wickbold", "100 g de Pão integral Wickbold", 100, 248],
+  ])("preserva o multiplicador e os nutrientes da porção canônica em %s", (text, expectedRegistration, expectedGrams, expectedCalories) => {
     const request = parseCountedFoodRequest(text);
     expect(request).not.toBeNull();
     const safe = resolveFoodClarificationCandidates(request!.normalizedCandidate)
@@ -64,7 +65,17 @@ describe("contagens com porção canônica da issue #855", () => {
       gramsPerServing: 50,
       matchKind: "exact",
     }));
-    expect(buildFoodClarificationRegistrationText(target(text), safe!)).toBe(expectedRegistration);
+    const registration = buildFoodClarificationRegistrationText(target(text), safe!);
+    expect(registration).toBe(expectedRegistration);
+
+    const item = buildHeuristicItem(registration);
+    expect(item).toEqual(expect.objectContaining({
+      canonicalName: "Pão integral Wickbold",
+      quantity: expectedGrams,
+      unit: "g",
+      estimatedGrams: expectedGrams,
+      calories: expectedCalories,
+    }));
   });
 
   it("mantém porções canônicas unitárias sem regressão", () => {
