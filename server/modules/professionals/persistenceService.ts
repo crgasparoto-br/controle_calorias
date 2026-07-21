@@ -1,6 +1,3 @@
-import { and, eq } from "drizzle-orm";
-import { professionalProfiles } from "../../../drizzle/professional-schema";
-import { userPreferences } from "../../../drizzle/schema";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleProfessionalRepository,
@@ -9,11 +6,11 @@ import {
   type UpsertCanonicalProfessionalAuthorizationInput,
   type UpsertCanonicalProfessionalProfileInput,
 } from "../../repositories/professionalRepository";
+import { deleteProfessionalProfilePersistence } from "../../repositories/professionalProfileDeletionRepository";
 import {
   releaseProfessionalCapacityReservation,
   withProfessionalCapacityReservation,
 } from "./entitlementService";
-import { PROFESSIONAL_PROFILE_PREFERENCE_KEY } from "./persistence";
 
 const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
@@ -26,25 +23,7 @@ function capacityCoverageKey(authorizationId: string) {
 }
 
 async function deleteProfessionalProfile(userId: number) {
-  const db = await getDb();
-  if (db) {
-    await db.transaction(async tx => {
-      await tx
-        .delete(userPreferences)
-        .where(
-          and(
-            eq(userPreferences.userId, userId),
-            eq(
-              userPreferences.preferenceKey,
-              PROFESSIONAL_PROFILE_PREFERENCE_KEY
-            )
-          )
-        );
-      await tx
-        .delete(professionalProfiles)
-        .where(eq(professionalProfiles.userId, userId));
-    });
-  }
+  await deleteProfessionalProfilePersistence({ getDb, userId });
   deletedProfileUserIds.add(userId);
 }
 
