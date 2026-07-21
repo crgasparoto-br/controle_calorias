@@ -54,6 +54,7 @@ jobs:
               node scripts/issue-815-transform.mjs
               node scripts/issue-815-fixup.mjs
             fi
+            node scripts/issue-815-checkpoint-fix.mjs
             pnpm exec prettier --write \
               client/src/App.tsx \
               client/src/App.professionalNavigation.test.tsx \
@@ -96,8 +97,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: checkpoint issue 815 implementation diagnostics"
-          git push origin HEAD:cleanup/815-retire-professional-legacy
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: checkpoint issue 815 implementation diagnostics"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
           gh pr comment 864 --body-file /tmp/issue-815-pipeline-comment.md
           exit 1
 
@@ -108,6 +111,7 @@ jobs:
           rm scripts/issue-815-bootstrap-fix.mjs
           rm scripts/issue-815-transform.mjs
           rm scripts/issue-815-fixup.mjs
+          rm scripts/issue-815-checkpoint-fix.mjs
           rm .github/workflows/issue-815-apply.yml
           rm .github/issue-815-trigger
 
