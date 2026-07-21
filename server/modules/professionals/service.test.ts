@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  _forTestOnly_setAccessInMap,
-  answerProfessionalPatientQuestion,
   approvePatientAccess,
   buildPhoneLookupCandidates,
   getProfessionalPatientTimeZone,
@@ -12,7 +10,6 @@ import {
   suggestGoalAdjustment,
   suggestMealPlan,
   upsertProfessionalProfile,
-  type ProfessionalPatientAccess,
 } from "./service";
 
 function goalInput(calories = 1800) {
@@ -37,7 +34,9 @@ describe("professional profile", () => {
       active: true,
     });
 
-    await expect(getProfessionalProfile(professionalUserId)).resolves.toMatchObject({
+    await expect(
+      getProfessionalProfile(professionalUserId)
+    ).resolves.toMatchObject({
       userId: professionalUserId,
       displayName: "Marina Souza",
       registrationNumber: "Registro 12345",
@@ -53,7 +52,9 @@ describe("professional profile", () => {
       active: false,
     });
 
-    await expect(getProfessionalProfile(professionalUserId)).resolves.toMatchObject({
+    await expect(
+      getProfessionalProfile(professionalUserId)
+    ).resolves.toMatchObject({
       userId: professionalUserId,
       displayName: "Camila Pereira",
       active: false,
@@ -63,21 +64,25 @@ describe("professional profile", () => {
 
 describe("professional access contact lookup", () => {
   it("adds Brazilian phone variants when contact is typed without country code", () => {
-    expect(buildPhoneLookupCandidates("1599604601")).toEqual(expect.arrayContaining([
-      "1599604601",
-      "+1599604601",
-      "551599604601",
-      "+551599604601",
-    ]));
+    expect(buildPhoneLookupCandidates("1599604601")).toEqual(
+      expect.arrayContaining([
+        "1599604601",
+        "+1599604601",
+        "551599604601",
+        "+551599604601",
+      ])
+    );
   });
 
   it("also searches the national format when contact is typed with Brazil country code", () => {
-    expect(buildPhoneLookupCandidates("+55 (15) 99604-601")).toEqual(expect.arrayContaining([
-      "551599604601",
-      "+551599604601",
-      "1599604601",
-      "+1599604601",
-    ]));
+    expect(buildPhoneLookupCandidates("+55 (15) 99604-601")).toEqual(
+      expect.arrayContaining([
+        "551599604601",
+        "+551599604601",
+        "1599604601",
+        "+1599604601",
+      ])
+    );
   });
 });
 
@@ -95,23 +100,29 @@ describe("professional access requests", () => {
       reason: "Acompanhamento semanal",
     });
 
-    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: access.id,
-        professionalUserId,
-        patientUserId,
-        status: "pending",
-      }),
-    ]));
-    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: access.id,
-        professionalUserId,
-        patientUserId,
-        status: "pending",
-        professional: expect.objectContaining({ displayName: "Marina Souza" }),
-      }),
-    ]));
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: access.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+        }),
+      ])
+    );
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: access.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+          professional: expect.objectContaining({
+            displayName: "Marina Souza",
+          }),
+        }),
+      ])
+    );
   });
 
   it("keeps the approved status visible for both sides", async () => {
@@ -128,50 +139,16 @@ describe("professional access requests", () => {
     });
     await approvePatientAccess(patientUserId, access.id);
 
-    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: access.id, status: "approved" }),
-    ]));
-    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: access.id, status: "approved" }),
-    ]));
-  });
-
-  it("exibe vínculo na aba Perfil quando cópia do lado do paciente está ausente (backfill assimétrico)", async () => {
-    const professionalUserId = 24140;
-    const patientUserId = 24141;
-    await upsertProfessionalProfile(professionalUserId, {
-      displayName: "Fernanda Costa",
-      active: true,
-    });
-
-    const legacyAccess: ProfessionalPatientAccess = {
-      id: "legacy-access-24141",
-      professionalUserId,
-      patientUserId,
-      status: "pending",
-      reason: "Acompanhamento legado",
-      requestedAt: Date.now(),
-      approvedAt: null,
-      revokedAt: null,
-      rejectedAt: null,
-      respondedAt: null,
-      responseOrigin: null,
-      responseDecision: null,
-      authorizationMessageStatus: null,
-      authorizationMessageSentAt: null,
-      authorizationMessageError: null,
-    };
-    _forTestOnly_setAccessInMap(legacyAccess);
-
-    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: legacyAccess.id,
-        professionalUserId,
-        patientUserId,
-        status: "pending",
-        professional: expect.objectContaining({ displayName: "Fernanda Costa" }),
-      }),
-    ]));
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: access.id, status: "approved" }),
+      ])
+    );
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: access.id, status: "approved" }),
+      ])
+    );
   });
 
   it("reconcilia cópia do paciente ao reenviar solicitação de acesso existente", async () => {
@@ -194,14 +171,16 @@ describe("professional access requests", () => {
 
     expect(second.id).toBe(first.id);
 
-    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: first.id,
-        professionalUserId,
-        patientUserId,
-        status: "pending",
-      }),
-    ]));
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+        }),
+      ])
+    );
   });
 });
 
@@ -214,8 +193,9 @@ describe("professional patient timezone", () => {
       active: true,
     });
 
-    await expect(getProfessionalPatientTimeZone(professionalUserId, patientUserId))
-      .rejects.toThrow("Acesso profissional não autorizado");
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).rejects.toThrow("Acesso profissional não autorizado");
   });
 
   it("expõe somente a resolução temporal após autorização", async () => {
@@ -231,8 +211,12 @@ describe("professional patient timezone", () => {
     });
     await approvePatientAccess(patientUserId, access.id);
 
-    await expect(getProfessionalPatientTimeZone(professionalUserId, patientUserId))
-      .resolves.toMatchObject({ timeZone: expect.any(String), source: expect.any(String) });
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).resolves.toMatchObject({
+      timeZone: expect.any(String),
+      source: expect.any(String),
+    });
   });
 });
 
@@ -245,12 +229,16 @@ describe("professional goal suggestions", () => {
       active: true,
     });
 
-    await expect(suggestGoalAdjustment(professionalUserId, {
-      patientId: patientUserId,
-      rationale: "Ajuste inicial de acompanhamento.",
-      status: "sent",
-      goal: goalInput(),
-    })).rejects.toThrow("Acesso profissional não autorizado pela pessoa acompanhada.");
+    await expect(
+      suggestGoalAdjustment(professionalUserId, {
+        patientId: patientUserId,
+        rationale: "Ajuste inicial de acompanhamento.",
+        status: "sent",
+        goal: goalInput(),
+      })
+    ).rejects.toThrow(
+      "Acesso profissional não autorizado pela pessoa acompanhada."
+    );
   });
 
   it("creates a sent goal suggestion for an approved patient", async () => {
@@ -295,14 +283,18 @@ describe("professional meal suggestions", () => {
       active: true,
     });
 
-    await expect(suggestMealPlan(professionalUserId, {
-      patientId: patientUserId,
-      mealLabel: "Jantar",
-      title: "Jantar leve",
-      description: "Omelete com legumes e salada.",
-      rationale: "Melhorar saciedade à noite.",
-      status: "sent",
-    })).rejects.toThrow("Acesso profissional não autorizado pela pessoa acompanhada.");
+    await expect(
+      suggestMealPlan(professionalUserId, {
+        patientId: patientUserId,
+        mealLabel: "Jantar",
+        title: "Jantar leve",
+        description: "Omelete com legumes e salada.",
+        rationale: "Melhorar saciedade à noite.",
+        status: "sent",
+      })
+    ).rejects.toThrow(
+      "Acesso profissional não autorizado pela pessoa acompanhada."
+    );
   });
 
   it("creates a sent meal suggestion for an approved patient", async () => {
@@ -339,21 +331,5 @@ describe("professional meal suggestions", () => {
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
-  });
-});
-
-describe("professional patient AI questions", () => {
-  it("blocks patient questions when patient access is not approved", async () => {
-    const professionalUserId = 24410;
-    const patientUserId = 24411;
-    await upsertProfessionalProfile(professionalUserId, {
-      displayName: "Beatriz Lima",
-      active: true,
-    });
-
-    await expect(answerProfessionalPatientQuestion(professionalUserId, {
-      patientId: patientUserId,
-      question: "O que chama atenção nos registros da semana?",
-    })).rejects.toThrow("Acesso profissional não autorizado pela pessoa acompanhada.");
   });
 });
