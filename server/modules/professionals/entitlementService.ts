@@ -314,9 +314,12 @@ export async function withProfessionalCapacityReservation<T>(
     );
   }
 
-  if (!entitlementProvider?.reserveCapacity) {
+  if (
+    !entitlementProvider?.reserveCapacity ||
+    !entitlementProvider.releaseCapacity
+  ) {
     throw new ProfessionalCapacityUnavailableError(
-      "O serviço central de capacidade ainda não está disponível para aprovar este acompanhamento."
+      "O serviço central de capacidade precisa oferecer reserva e liberação atômicas antes de aprovar este acompanhamento."
     );
   }
 
