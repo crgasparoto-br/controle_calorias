@@ -812,7 +812,28 @@ export async function requestPatientAccess(
     authorizationMessageSentAt: null,
     authorizationMessageError: null,
   };
-  const persistedAccess = await persistAccessForBothSides(access);
+  const persistedAccess = rememberCanonicalAuthorization(
+    await professionalRepository.upsertAuthorization({
+      id: access.id,
+      professionalUserId: access.professionalUserId,
+      patientUserId: access.patientUserId,
+      status: access.status,
+      reason: access.reason,
+      requestedAt: new Date(access.requestedAt),
+      approvedAt: access.approvedAt ? new Date(access.approvedAt) : null,
+      rejectedAt: access.rejectedAt ? new Date(access.rejectedAt) : null,
+      revokedAt: access.revokedAt ? new Date(access.revokedAt) : null,
+      respondedAt: access.respondedAt ? new Date(access.respondedAt) : null,
+      responseOrigin: access.responseOrigin,
+      responseDecision: access.responseDecision,
+      authorizationMessageStatus: access.authorizationMessageStatus,
+      authorizationMessageSentAt: access.authorizationMessageSentAt
+        ? new Date(access.authorizationMessageSentAt)
+        : null,
+      authorizationMessageError: access.authorizationMessageError,
+      sourceUpdatedAt: new Date(),
+    })
+  );
   if (persistedAccess.id !== access.id) {
     return {
       ...publicAccess(persistedAccess),
@@ -885,11 +906,10 @@ export async function listPatientAccessRequests(patientUserId: number) {
       getProfessionalProfile(access.professionalUserId)
     )
   );
-  const professionalMap = new Map(
-    professionalProfiles
-      .filter((profile): profile is ProfessionalProfile => Boolean(profile))
-      .map(profile => [profile.userId, profile])
-  );
+  const professionalMap = new Map<number, ProfessionalProfile>();
+  for (const profile of professionalProfiles) {
+    if (profile) professionalMap.set(profile.userId, profile);
+  }
 
   return patientAccesses.map(access => ({
     ...publicAccess(access),
