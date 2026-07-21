@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../../_core/trpc";
 import { getProfessionalEntitlements } from "./entitlementService";
+import { professionalSettingsProcedure } from "./entitledProcedure";
 import {
   professionalActiveSettingsSchema,
   professionalIdentitySettingsSchema,
@@ -26,13 +27,13 @@ function safeSettingsError(error: unknown): never {
 }
 
 export const professionalSettingsRouter = router({
-  get: protectedProcedure.query(({ ctx }) =>
+  get: professionalSettingsProcedure.query(({ ctx }) =>
     getProfessionalSettingsSnapshot(ctx.user.id)
   ),
   entitlements: protectedProcedure.query(({ ctx }) =>
     getProfessionalEntitlements(ctx.user.id)
   ),
-  updateIdentity: protectedProcedure
+  updateIdentity: professionalSettingsProcedure
     .input(professionalIdentitySettingsSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -41,7 +42,7 @@ export const professionalSettingsRouter = router({
         return safeSettingsError(error);
       }
     }),
-  updatePreferences: protectedProcedure
+  updatePreferences: professionalSettingsProcedure
     .input(professionalPreferencesSettingsSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -50,7 +51,7 @@ export const professionalSettingsRouter = router({
         return safeSettingsError(error);
       }
     }),
-  setActive: protectedProcedure
+  setActive: professionalSettingsProcedure
     .input(professionalActiveSettingsSchema)
     .mutation(async ({ ctx, input }) => {
       try {
