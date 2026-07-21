@@ -170,6 +170,15 @@ async function deleteStoredSettings(professionalUserId: number) {
   memorySettings.delete(professionalUserId);
 }
 
+function restoreStoredSettings(
+  professionalUserId: number,
+  current: StoredSettingsState
+) {
+  return current.persisted
+    ? writeStoredSettings(professionalUserId, current.settings)
+    : deleteStoredSettings(professionalUserId);
+}
+
 function settingsAuditEventId(
   professionalUserId: number,
   eventType: string,
@@ -331,9 +340,7 @@ export async function updateProfessionalIdentitySettings(
       return { profile: updatedProfile, settings };
     } catch (error) {
       const compensations: Promise<unknown>[] = [
-        currentSettingsState.persisted
-          ? writeStoredSettings(professionalUserId, currentSettings)
-          : deleteStoredSettings(professionalUserId),
+        restoreStoredSettings(professionalUserId, currentSettingsState),
       ];
       if (currentProfile) {
         compensations.push(
@@ -365,9 +372,9 @@ export async function updateProfessionalPreferencesSettings(
   const input = professionalPreferencesSettingsSchema.parse(rawInput);
   return serializeSettingsMutation(professionalUserId, async () => {
     const mutationId = crypto.randomUUID();
-    const current = await readStoredSettings(professionalUserId);
+    const current = await readStoredSettingsState(professionalUserId);
     const next = storedProfessionalSettingsSchema.parse({
-      ...current,
+      ...current.settings,
       defaultReviewIntervalDays: input.defaultReviewIntervalDays,
       messageTemplates: input.messageTemplates.map(template => ({
         ...template,
@@ -392,7 +399,7 @@ export async function updateProfessionalPreferencesSettings(
     } catch (error) {
       await runSettingsCompensations(
         "professional_settings_preferences_compensation",
-        [writeStoredSettings(professionalUserId, current)]
+        [restoreStoredSettings(professionalUserId, current)]
       );
       throw error;
     }
