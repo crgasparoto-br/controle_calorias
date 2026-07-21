@@ -6,7 +6,7 @@ import {
   type UpsertCanonicalProfessionalAuthorizationInput,
   type UpsertCanonicalProfessionalProfileInput,
 } from "../../repositories/professionalRepository";
-import { assertProfessionalCapacityAvailable } from "./entitlementService";
+import { withProfessionalCapacityReservation } from "./entitlementService";
 
 const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
@@ -16,15 +16,25 @@ const baseProfessionalRepository = createDrizzleProfessionalRepository({
 export const professionalRepository: typeof baseProfessionalRepository = {
   ...baseProfessionalRepository,
   async transitionAuthorization(input) {
-    if (input.nextStatus === "approved") {
-      const current = await baseProfessionalRepository.getAuthorizationById(
-        input.authorizationId
-      );
-      if (current && current.status !== "approved") {
-        await assertProfessionalCapacityAvailable(current.professionalUserId);
-      }
+    if (input.nextStatus !== "approved") {
+      return baseProfessionalRepository.transitionAuthorization(input);
     }
-    return baseProfessionalRepository.transitionAuthorization(input);
+
+    const current = await baseProfessionalRepository.getAuthorizationById(
+      input.authorizationId
+    );
+    if (!current || current.status === "approved") {
+      return baseProfessionalRepository.transitionAuthorization(input);
+    }
+
+    return withProfessionalCapacityReservation(
+      {
+        professionalUserId: current.professionalUserId,
+        patientUserId: current.patientUserId,
+        coverageKey: `professional-authorization:${current.id}`,
+      },
+      () => baseProfessionalRepository.transitionAuthorization(input)
+    );
   },
 };
 
@@ -88,8 +98,4 @@ export function transitionCanonicalProfessionalTracking(
 
 export function migrateLegacyProfessionalDataForUser(userId: number) {
   return professionalRepository.migrateLegacyUser(userId);
-}
-
-export function migrateAllLegacyProfessionalData() {
-  return professionalRepository.migrateAllLegacyData();
 }
