@@ -6,7 +6,7 @@
  * 2. pergunta explícita iniciada por `/`;
  * 3. resposta curta compatível com pendência destrutiva;
  * 4. novo comando destrutivo completo, que substitui pendência incompatível;
- * 5. pendência/registro alimentar por contagem com contexto preservado;
+ * 5. resolução de pendência alimentar persistida;
  * 6. confirmação genérica e demais intents.
  */
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
@@ -28,12 +28,12 @@ import {
 } from "./periodReportClarification";
 import {
   completeClaimedWhatsappFoodClarificationCallback,
-  handleWhatsappFoodClarification,
   isExpectedWhatsappFoodClarificationAction,
   isPendingFoodClarificationTarget,
   PENDING_FOOD_CLARIFICATION_TYPE,
   type WhatsappFoodClarificationResult,
 } from "./foodClarification";
+import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -174,7 +174,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     return { step: "delete_intent", result: deleteIntent };
   }
 
-  const foodClarification = await handleWhatsappFoodClarification({
+  const foodClarification = await resolvePendingWhatsappFoodClarification({
     userId: input.userId,
     text: input.text,
     receivedAt: input.receivedAt,
