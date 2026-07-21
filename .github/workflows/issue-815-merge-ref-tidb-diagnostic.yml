@@ -78,11 +78,13 @@ jobs:
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          marker = '''    await connection.query(
-              "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'''
-          position = test.find(marker)
-          if position < 0:
-              raise SystemExit('semantic order test insertion marker not found')
+          needle = '"UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'
+          sql_position = test.find(needle)
+          if sql_position < 0:
+              raise SystemExit('semantic order SQL marker not found')
+          await_position = test.rfind('    await connection.query(', 0, sql_position)
+          if await_position < 0:
+              raise SystemExit('semantic order await marker not found')
           block = textwrap.indent(textwrap.dedent('''
           const sameVersionGoalEquivalent = {
             ...retirementLegacyGoal,
@@ -120,7 +122,7 @@ jobs:
           );
 
           ''').strip() + '\n', '    ')
-          test_path.write_text(test[:position] + block + test[position:])
+          test_path.write_text(test[:await_position] + block + test[await_position:])
           PY
       - name: Remove temporary diagnostics
         run: |
