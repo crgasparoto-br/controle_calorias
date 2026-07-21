@@ -420,6 +420,40 @@ async function main() {
       ]
     );
 
+    const sameVersionGoalEquivalent = {
+      ...retirementLegacyGoal,
+      goal: {
+        exceptions: [],
+        defaultGoal: {
+          fatGrams: 58,
+          carbsGrams: 195,
+          proteinGrams: 125,
+          calories: 1850,
+        },
+      },
+    };
+    await connection.query(
+      "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+      [
+        JSON.stringify([retirementLegacyGoal, sameVersionGoalEquivalent]),
+        8062,
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
+    const semanticOrderDryRun = runLegacyRetirement();
+    assert.equal(
+      semanticOrderDryRun.apply,
+      false,
+      "semantically equal goal JSON with different property order must not be treated as a conflict"
+    );
+    await connection.query(
+      "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+      [
+        JSON.stringify([retirementLegacyGoal]),
+        8062,
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
     await connection.query(
       "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
       [

@@ -1,5 +1,6 @@
+import { PassThrough } from "node:stream";
 import React from "react";
-import { renderToString } from "react-dom/server";
+import { renderToPipeableStream, renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardOverviewMock = vi.fn();
@@ -10,6 +11,31 @@ const reportsHabitAnalyticsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
+
+async function renderSuspenseToString(element: React.ReactElement) {
+  return new Promise<string>((resolve, reject) => {
+    const destination = new PassThrough();
+    let html = "";
+    destination.setEncoding("utf8");
+    destination.on("data", chunk => {
+      html += chunk;
+    });
+    destination.on("end", () => resolve(html));
+    destination.on("error", reject);
+
+    const { pipe } = renderToPipeableStream(element, {
+      onAllReady() {
+        pipe(destination);
+      },
+      onShellError(error) {
+        reject(error);
+      },
+      onError(error) {
+        reject(error);
+      },
+    });
+  });
+}
 
 const mealSchedulesMock = [
   {
@@ -977,7 +1003,9 @@ describe("nutrition pages", () => {
     const { RegisteredMealsPage } = await import(
       "@/features/meals/RegisteredMealsPageContent"
     );
-    const html = renderToString(React.createElement(RegisteredMealsPage));
+    const html = await renderSuspenseToString(
+      React.createElement(RegisteredMealsPage)
+    );
 
     expect(html).toContain("Almoço");
     expect(html).toContain("Frango grelhado");

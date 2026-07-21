@@ -58,8 +58,20 @@ function canonicalInstantPreserves(
   );
 }
 
+function stableJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, stableJson(nested)])
+    );
+  }
+  return value;
+}
+
 function sameGoal(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify(stableJson(left)) === JSON.stringify(stableJson(right));
 }
 
 function nullableInstantValue(value: Date | string | number | null) {
@@ -99,7 +111,7 @@ function legacyGoalSuggestionSignature(
     patientUserId: suggestion.patientUserId,
     rationale: suggestion.rationale,
     status: suggestion.status,
-    goal: suggestion.goal,
+    goal: stableJson(suggestion.goal),
     createdAt: suggestion.createdAt,
     sentAt: suggestion.sentAt,
     respondedAt: suggestion.respondedAt,

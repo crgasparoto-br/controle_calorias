@@ -32,7 +32,11 @@ describe("professional legacy retirement architecture", () => {
     expect(service).not.toContain("professional_profile_v1");
     expect(migration).toContain("migrateAllLegacyProfessionalData");
     expect(migration).toContain("--apply");
-    expect(migration).toContain("patient_professional_goal_suggestions_v1");
+
+    expect(migration).toContain("PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY");
+    expect(migration).toMatch(
+      /const legacyKeys = \[[\s\S]*PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY/
+    );
     expect(contentRepository).not.toContain("syncLegacyGoalSuggestions");
     expect(contentRepository).not.toContain(
       "await migrateLegacyGoalSuggestions"
@@ -64,8 +68,8 @@ describe("professional legacy retirement architecture", () => {
 
     expect(inventory).toContain("patient_professional_goal_suggestions_v1");
     expect(inventory).toContain("nutrition.professionals.askPatientQuestion");
-    expect(inventory).toContain("Área do Paciente");
-    expect(inventory).toContain("Área Profissional");
+    expect(inventory).toContain("Paciente — Hoje");
+    expect(inventory).toContain("Profissional — autorização");
     expect(gate).toContain("App.professionalNavigation.test.tsx");
     expect(gate).toContain("nutritionPages.test.tsx");
   });
