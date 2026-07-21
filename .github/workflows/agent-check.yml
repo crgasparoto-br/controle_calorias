@@ -8,7 +8,7 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
@@ -20,9 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -131,65 +128,3 @@ jobs:
             echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
             echo "Vercel preview/deploy checks are complementary and do not replace this gate."
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Apply issue 858 documentation and restore workflow
-        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'feat/858-interactive-coverage' }}
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          design = Path("docs/design-docs/whatsapp-ingestion.md")
-          marker = "## Registro executável de interações fechadas (issue #858)"
-          text = design.read_text()
-          if marker not in text:
-              text += '''
-
-## Registro executável de interações fechadas (issue #858)
-
-O WhatsApp usa `server/modules/whatsapp/interactionRegistry.ts` como registro executável, transversal e versionado das interações vinculadas a `whatsappPendingOperations`. O registro não cria persistência paralela: associa o `target` canônico do domínio a identificador estável, classificação, ações, componente, reconstrução e efeitos permitidos/proibidos.
-
-Perguntas abertas permanecem textuais. Decisões fechadas com até três ações, contando **Cancelar**, usam botões; quatro ou mais usam lista. Produtores reutilizam `buildWhatsappClosedDecisionReply`, callbacks usam IDs opacos e o gate valida usuário, canal, tipo, ação, versão, expiração e estado.
-
-O registro cobre exclusão, seleção para ajuste/substituição, confirmação genérica, reclassificação de escopo, período, autorização profissional, clarificação genérica e contratos alimentares `quantity`, `confirmation` e `selection` da #855. Resposta incompatível mantém a mesma pendência e reapresenta ações, ordem e rótulos; novo comando completo substitui pendência incompatível; callback ou resposta inválida não alcançam fallback nutricional. Webhook, áudio e simulador usam o mesmo gate persistente.
-'''
-              design.write_text(text)
-
-          regression = Path("docs/testing/whatsapp-response-contract-regression.md")
-          marker = "## Matriz interativa transversal da issue #858"
-          text = regression.read_text()
-          if marker not in text:
-              text += '''
-
-## Matriz interativa transversal da issue #858
-
-| Cenário | Componente | Texto equivalente | Resposta inválida |
-|---|---|---|---|
-| Confirmar + Cancelar | 2 botões | SIM/CANCELAR | reapresenta sem mutação |
-| 2 candidatos + Cancelar | 3 botões | índice/ordinal/CANCELAR | mantém ordem e pendência |
-| 3+ candidatos + Cancelar | lista | índice/ordinal/CANCELAR | mantém linhas e pendência |
-| Período | lista com 4 períodos + Cancelar | período/CANCELAR | não gera resumo ao cancelar |
-| Reclassificação | 3 botões | APENAS/TODOS/CANCELAR | `sim` não escolhe escopo |
-| Clarificação genérica | lista com 4 ações | número/rótulo/CANCELAR | preserva mensagem original |
-| Alimento `quantity` | texto | quantidade/unidade | repete pergunta específica |
-| Alimento `confirmation`/`selection` | botão/lista | ação canônica | sem fallback implícito de 100 g |
-| Autorização profissional | 2 botões | AUTORIZAR/NEGAR | recarrega domínio e mantém idempotência |
-
-A suíte valida descoberta de tipos `PENDING_*_TYPE`, cardinalidade, reentrega, expiração, adulteração, isolamento, replay sem mutação, comando completo incompatível, preservação no webhook e paridade entre webhook, áudio e simulador.
-'''
-              regression.write_text(text)
-
-          for temporary in [
-              Path(".github/issue858-doc-trigger"),
-              Path(".github/issue858-doc-trigger-2"),
-              Path(".github/workflows/issue858-doc-patch.yml"),
-          ]:
-              temporary.unlink(missing_ok=True)
-          PY
-          git fetch origin develop
-          git checkout origin/develop -- .github/workflows/agent-check.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet || git commit -m "docs(whatsapp): documentar registro interativo da issue 858"
-          git push origin HEAD:feat/858-interactive-coverage
