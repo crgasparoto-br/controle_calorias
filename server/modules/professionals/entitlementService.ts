@@ -51,6 +51,13 @@ export type ProfessionalCapacityReservationResult =
       reason: "capacity_exceeded" | "unavailable";
     };
 
+export type ProfessionalCapacityReleaseInput = {
+  professionalUserId: number;
+  patientUserId: number;
+  coverageKey: string;
+  reservationId?: string;
+};
+
 export type ProfessionalEntitlementProvider = {
   getEntitlements: (
     professionalUserId: number
@@ -58,11 +65,7 @@ export type ProfessionalEntitlementProvider = {
   reserveCapacity?: (
     input: ProfessionalCapacityReservationInput
   ) => Promise<ProfessionalCapacityReservationResult>;
-  releaseCapacity?: (input: {
-    professionalUserId: number;
-    reservationId: string;
-    coverageKey: string;
-  }) => Promise<void>;
+  releaseCapacity?: (input: ProfessionalCapacityReleaseInput) => Promise<void>;
 };
 
 type LegacyProfessionalEntitlementProvider = (
@@ -130,25 +133,36 @@ function stateForReason(reason: ProfessionalEntitlementReason) {
   return "no_access" as const;
 }
 
+function normalizeCapacity(
+  capacity: ProfessionalEntitlementProviderResult["capacity"]
+) {
+  const used = capacity?.used ?? null;
+  const limit = capacity?.limit ?? null;
+  return {
+    limit,
+    used,
+    available:
+      limit !== null && used !== null ? Math.max(0, limit - used) : null,
+    usageAvailable: used !== null,
+  };
+}
+
 function openAccessSnapshot(input: {
   providerAvailable: boolean;
   fallbackUsed: boolean;
+  providerResult?: ProfessionalEntitlementProviderResult;
 }): ProfessionalEntitlementSnapshot {
+  const providerResult = input.providerResult;
   return {
     allowed: true,
     reason: "free_access",
     mode: "open_access",
     commercialState: "open_access",
-    planCode: null,
-    planName: "Acesso aberto",
-    validUntil: null,
+    planCode: providerResult?.planCode?.trim() || null,
+    planName: providerResult?.planName?.trim() || "Acesso aberto",
+    validUntil: providerResult?.validUntil?.getTime() ?? null,
     enabledResources: [...PROFESSIONAL_ENTITLEMENT_RESOURCES],
-    capacity: {
-      limit: null,
-      used: null,
-      available: null,
-      usageAvailable: false,
-    },
+    capacity: normalizeCapacity(providerResult?.capacity),
     providerAvailable: input.providerAvailable,
     fallbackUsed: input.fallbackUsed,
     evaluatedAt: Date.now(),
@@ -168,12 +182,7 @@ function unavailableSnapshot(
     planName: "Elegibilidade indisponível",
     validUntil: null,
     enabledResources: [],
-    capacity: {
-      limit: null,
-      used: null,
-      available: null,
-      usageAvailable: false,
-    },
+    capacity: normalizeCapacity(null),
     providerAvailable: false,
     fallbackUsed,
     evaluatedAt: Date.now(),
@@ -195,10 +204,15 @@ export async function getProfessionalEntitlements(
     const result = await entitlementProvider.getEntitlements(
       professionalUserId
     );
-    const used = result.capacity?.used ?? null;
-    const limit = result.capacity?.limit ?? null;
-    const available =
-      limit !== null && used !== null ? Math.max(0, limit - used) : null;
+
+    if (mode === "open_access") {
+      return openAccessSnapshot({
+        providerAvailable: true,
+        fallbackUsed: false,
+        providerResult: result,
+      });
+    }
+
     const validUntil = result.validUntil?.getTime() ?? null;
     const expired = validUntil !== null && validUntil <= Date.now();
     const effectiveAllowed = result.allowed && !expired;
@@ -217,12 +231,7 @@ export async function getProfessionalEntitlements(
       enabledResources: effectiveAllowed
         ? normalizeResources(result.entitlements)
         : [],
-      capacity: {
-        limit,
-        used,
-        available,
-        usageAvailable: used !== null,
-      },
+      capacity: normalizeCapacity(result.capacity),
       providerAvailable: true,
       fallbackUsed: false,
       evaluatedAt: Date.now(),
@@ -260,6 +269,7 @@ export async function assertProfessionalCapacityAvailable(
     "professional_portfolio"
   );
   if (
+    snapshot.mode === "enforced" &&
     snapshot.capacity.limit !== null &&
     snapshot.capacity.used !== null &&
     snapshot.capacity.used >= snapshot.capacity.limit
@@ -271,6 +281,22 @@ export async function assertProfessionalCapacityAvailable(
   return snapshot;
 }
 
+export async function releaseProfessionalCapacityReservation(
+  input: ProfessionalCapacityReleaseInput
+) {
+  if (!entitlementProvider?.releaseCapacity) {
+    return { released: false, reason: "not_configured" as const };
+  }
+
+  try {
+    await entitlementProvider.releaseCapacity(input);
+    return { released: true as const };
+  } catch (error) {
+    logPersistenceWarning("professional_capacity_reservation_release", error);
+    return { released: false, reason: "unavailable" as const };
+  }
+}
+
 export async function withProfessionalCapacityReservation<T>(
   input: ProfessionalCapacityReservationInput,
   operation: () => Promise<T>
@@ -278,7 +304,9 @@ export async function withProfessionalCapacityReservation<T>(
   const snapshot = await assertProfessionalCapacityAvailable(
     input.professionalUserId
   );
-  if (snapshot.capacity.limit === null) return operation();
+  if (snapshot.mode === "open_access" || snapshot.capacity.limit === null) {
+    return operation();
+  }
 
   if (snapshot.capacity.used === null) {
     throw new ProfessionalCapacityUnavailableError(
@@ -316,20 +344,12 @@ export async function withProfessionalCapacityReservation<T>(
   try {
     return await operation();
   } catch (error) {
-    if (entitlementProvider.releaseCapacity) {
-      try {
-        await entitlementProvider.releaseCapacity({
-          professionalUserId: input.professionalUserId,
-          reservationId: reservation.reservationId,
-          coverageKey: input.coverageKey,
-        });
-      } catch (releaseError) {
-        logPersistenceWarning(
-          "professional_capacity_reservation_release",
-          releaseError
-        );
-      }
-    }
+    await releaseProfessionalCapacityReservation({
+      professionalUserId: input.professionalUserId,
+      patientUserId: input.patientUserId,
+      coverageKey: input.coverageKey,
+      reservationId: reservation.reservationId,
+    });
     throw error;
   }
 }
