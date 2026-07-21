@@ -6,8 +6,10 @@
  * 2. pergunta explícita iniciada por `/`;
  * 3. resposta curta compatível com pendência destrutiva;
  * 4. novo comando destrutivo completo, que substitui pendência incompatível;
- * 5. confirmação genérica e demais intents.
+ * 5. pendência/registro alimentar por contagem com contexto preservado;
+ * 6. confirmação genérica e demais intents.
  */
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
@@ -24,6 +26,7 @@ import {
   isExpectedWhatsappPeriodReportAction,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./periodReportClarification";
+import { handleWhatsappFoodClarification, type WhatsappFoodClarificationResult } from "./foodClarification";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -48,6 +51,7 @@ export type WhatsAppPrecedenceGateResult =
   | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
   | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
   | { step: "delete_intent"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> }
+  | { step: "food_clarification"; result: WhatsappFoodClarificationResult }
   | { step: "generic_confirmation"; result: NonNullable<Awaited<ReturnType<typeof handlePendingWhatsAppConfirmation>>> }
   | { step: "continue_pipeline" };
 
@@ -116,6 +120,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   userTimezone?: string | null;
   interactiveReplyId?: string | null;
   sourcePhone?: string | null;
+  messageId?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
     const result = await resolveWhatsAppInteractiveCallback(
@@ -139,9 +144,6 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     }
   }
 
-  // O executor destrutivo também resolve respostas curtas de uma pendência de
-  // exclusão. Quando o texto é um novo comando destrutivo, ele substitui de forma
-  // atômica qualquer pendência incompatível antes dos parsers alimentares (#856).
   const deleteIntent = await executeWhatsappDeleteIntent(input.userId, {
     text: input.text,
     receivedAt: input.receivedAt,
@@ -150,6 +152,17 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   });
   if (deleteIntent) {
     return { step: "delete_intent", result: deleteIntent };
+  }
+
+  const foodClarification = await handleWhatsappFoodClarification({
+    userId: input.userId,
+    text: input.text,
+    receivedAt: input.receivedAt,
+    userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+    messageId: input.messageId,
+  });
+  if (foodClarification) {
+    return { step: "food_clarification", result: foodClarification };
   }
 
   const pending = await pendingOperationRepository.getActivePendingOperation(input.userId, input.receivedAt);
