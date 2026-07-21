@@ -17,10 +17,13 @@ import {
   whatsappOnboardingCompleteSchema,
   whatsappOnboardingTokenSchema,
 } from "./modules/onboarding/whatsappLeadSchemas";
+import { registerLegacyProfessionalEntitlementPolicy } from "./modules/professionals/legacyEntitlementPolicy";
 import { getCanonicalProfessionalProfile } from "./modules/professionals/persistenceService";
 import { professionalRecordRouter } from "./modules/professionals/recordRouter";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
+
+registerLegacyProfessionalEntitlementPolicy();
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),

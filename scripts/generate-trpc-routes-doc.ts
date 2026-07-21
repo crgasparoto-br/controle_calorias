@@ -5,6 +5,7 @@ const root = process.cwd();
 const sourcePaths = [
   path.join(root, "server/nutritionRouter.ts"),
   path.join(root, "server/modules/professionals/recordRouter.ts"),
+  path.join(root, "server/modules/professionals/legacyEntitlementPolicy.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
 const checkOnly = process.argv.includes("--check");
@@ -42,6 +43,8 @@ const groupDescriptions: Record<string, string> = {
   professionalRecord: "Prontuário, ciclo e metas profissionais oficiais",
 };
 
+let legacyProfessionalEntitledProcedures = new Set<string>();
+
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath))
     throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
@@ -73,15 +76,54 @@ function findMatchingBrace(source: string, start: number) {
   throw new Error(`Bloco sem fechamento em ${start}.`);
 }
 
+function parseLegacyProfessionalEntitledProcedures(source: string) {
+  const marker = "const LEGACY_PROFESSIONAL_RESOURCES";
+  const start = source.indexOf(marker);
+  if (start < 0) {
+    throw new Error("Mapa LEGACY_PROFESSIONAL_RESOURCES não encontrado.");
+  }
+  const braceStart = source.indexOf("{", start);
+  const braceEnd = findMatchingBrace(source, braceStart);
+  const mappingSource = source.slice(braceStart + 1, braceEnd);
+  return new Set(
+    Array.from(
+      mappingSource.matchAll(/"nutrition\.professionals\.(\w+)"\s*:/g),
+      match => match[1]
+    )
+  );
+}
+
 function parseOperation(source: string) {
   if (source.includes(".mutation(")) return "mutation";
   if (source.includes(".query(")) return "query";
   return "unknown";
 }
 
-function parseProcedures(groupSource: string): ProcedureInfo[] {
+function normalizeProcedureScope(
+  groupName: string,
+  procedureName: string,
+  procedureFactory: string
+) {
+  if (
+    groupName === "professionals" &&
+    legacyProfessionalEntitledProcedures.has(procedureName)
+  ) {
+    return "professional-entitled";
+  }
+  if (procedureFactory === "protectedProcedure") return "protected";
+  if (procedureFactory === "adminProcedure") return "admin";
+  if (/^professional\w+Procedure$/.test(procedureFactory)) {
+    return "professional-entitled";
+  }
+  return "unknown";
+}
+
+function parseProcedures(
+  groupName: string,
+  groupSource: string
+): ProcedureInfo[] {
   const procedureRegex =
-    /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure)/gm;
+    /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure|professional\w+Procedure)/gm;
   const matches = Array.from(groupSource.matchAll(procedureRegex));
 
   return matches.map((match, index) => {
@@ -93,7 +135,7 @@ function parseProcedures(groupSource: string): ProcedureInfo[] {
     const procedureSource = groupSource.slice(start, end);
     return {
       name: match[1],
-      scope: match[2].replace("Procedure", ""),
+      scope: normalizeProcedureScope(groupName, match[1], match[2]),
       operation: parseOperation(procedureSource),
     };
   });
@@ -108,7 +150,7 @@ function parseGroups(source: string): GroupInfo[] {
     const braceStart = source.indexOf("{", match.index ?? 0);
     const braceEnd = findMatchingBrace(source, braceStart);
     const groupSource = source.slice(braceStart + 1, braceEnd);
-    groups.push({ name, procedures: parseProcedures(groupSource) });
+    groups.push({ name, procedures: parseProcedures(name, groupSource) });
   }
 
   return groups;
@@ -126,7 +168,10 @@ function parseTopLevelRouter(
   const braceEnd = findMatchingBrace(source, braceStart);
   return {
     name: groupName,
-    procedures: parseProcedures(source.slice(braceStart + 1, braceEnd)),
+    procedures: parseProcedures(
+      groupName,
+      source.slice(braceStart + 1, braceEnd)
+    ),
   };
 }
 
@@ -158,7 +203,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.",
+    "Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.",
     "",
     "## Grupos",
     "",
@@ -189,6 +234,12 @@ function generateMarkdown(groups: GroupInfo[]) {
   lines.push("## Regras para novas procedures", "");
   lines.push("- Use `protectedProcedure` por padrão.");
   lines.push(
+    "- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido."
+  );
+  lines.push(
+    "- Procedures profissionais legadas em `nutrition.professionals` devem constar no mapa central `LEGACY_PROFESSIONAL_RESOURCES`; o gerador lê esse mapa diretamente."
+  );
+  lines.push(
     "- Use `adminProcedure` apenas para operação administrativa real."
   );
   lines.push(
@@ -200,13 +251,15 @@ function generateMarkdown(groups: GroupInfo[]) {
   lines.push(
     "- Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde."
   );
-  lines.push("");
 
   return `${lines.join("\n")}\n`;
 }
 
 const nutritionSource = readRequiredFile(sourcePaths[0]);
 const professionalRecordSource = readRequiredFile(sourcePaths[1]);
+const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[2]);
+legacyProfessionalEntitledProcedures =
+  parseLegacyProfessionalEntitledProcedures(legacyEntitlementPolicySource);
 const generated = generateMarkdown([
   ...parseGroups(nutritionSource),
   parseTopLevelRouter(

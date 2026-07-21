@@ -1,6 +1,6 @@
-ALTER TABLE `professionalPatientTrackingEvents` DROP FOREIGN KEY `professionalPatientTrackingEvents_actorUserId_users_id_fk`;
+ALTER TABLE `professionalPatientTrackingEvents` DROP FOREIGN KEY `professionalTrackingEvents_actor_fk`;
 --> statement-breakpoint
-ALTER TABLE `professionalPatientTrackings` DROP FOREIGN KEY `professionalPatientTrackings_lastTransitionByUserId_users_id_fk`;
+ALTER TABLE `professionalPatientTrackings` DROP FOREIGN KEY `professionalTrackings_actor_fk`;
 --> statement-breakpoint
 ALTER TABLE `professionalPatientTrackingEvents` MODIFY COLUMN `actorUserId` int;--> statement-breakpoint
 ALTER TABLE `professionalPatientTrackings` MODIFY COLUMN `lastTransitionByUserId` int;--> statement-breakpoint

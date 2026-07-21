@@ -10,6 +10,18 @@ const cancel = vi.fn().mockResolvedValue(undefined);
 const setData = vi.fn();
 const fetchPatientTimeZone = vi.fn().mockResolvedValue({ timeZone: "America/Sao_Paulo" });
 const mutate = vi.fn();
+const allResources = [
+  "professional_dashboard",
+  "professional_portfolio",
+  "professional_record",
+  "professional_goals",
+  "professional_operational_alerts",
+  "professional_messages",
+  "professional_reports",
+  "professional_ai_assistance",
+  "professional_settings",
+];
+const entitlementState = { allowed: true, enabledResources: [...allResources] };
 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ loading: false, user: { id: 1, name: "Nutricionista", professionalProfileActive: true }, refresh }) }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
@@ -26,6 +38,9 @@ vi.mock("@/lib/trpc", () => ({
       portfolio: { useQuery: () => ({ data: { items: [{ authorizationId: "access-1", patientUserId: 41, patientName: "Ana", patientEmail: "ana@example.com", authorizationStatus: "approved", trackingStatus: "active", requestedAt: Date.now(), lastFoodActivityAt: null, lastProfessionalInteractionAt: null, nextReviewAt: null, nextWeighingAt: null, pendingItems: 0 }], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 }, summary: { active: 1, paused: 0, ended: 0, notStarted: 0, pendingRequests: 0, activeWithRecentRecords: 0, withoutRecentActivity: 1, pendingReviews: 0, pendingWeighings: 0 }, generatedAt: Date.now() }, isLoading: false, isError: false, refetch }) },
     } },
     professionalRecord: {
+      settings: {
+        entitlements: { useQuery: () => ({ data: { allowed: entitlementState.allowed, enabledResources: entitlementState.enabledResources, planName: entitlementState.allowed ? "Acesso aberto" : "Sem acesso" }, isLoading: false, isError: false, refetch }) },
+      },
       operationalAlerts: {
         list: { useQuery: () => ({ data: [], isLoading: false, isError: false, refetch }) },
         close: { useMutation: () => ({ mutate, isPending: false }) },
@@ -55,11 +70,11 @@ vi.mock("./components/NutritionGoalReportInvalidator", () => ({ default: () => n
 vi.mock("./components/PatientGoalSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/PatientProfessionalGuidancesEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfessionalAnalyzeTabBridge", () => ({ default: () => null }));
+vi.mock("@/components/ProfessionalAiWorkspace", () => ({ default: () => <div>Assistência profissional por IA</div> }));
 vi.mock("./components/ProfessionalGoalExceptionSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfileWhatsappGreetingVisibility", () => ({ default: () => null }));
 
 function Fixture({ name }: { name: string }) { return <h1>{name}</h1>; }
-vi.mock("@/pages/ProfessionalReportsPage", () => ({ default: () => <Fixture name="Experiência profissional legada" /> }));
 vi.mock("@/pages/AdminPage", () => ({ default: () => <Fixture name="AdminPage" /> }));
 vi.mock("@/pages/ChannelsPage", () => ({ default: () => <Fixture name="ChannelsPage" /> }));
 vi.mock("@/pages/FoodsPage", () => ({ default: () => <Fixture name="FoodsPage" /> }));
@@ -70,6 +85,7 @@ vi.mock("@/pages/LogMealPage", () => ({ default: () => <Fixture name="LogMealPag
 vi.mock("@/pages/LoginPage", () => ({ default: () => <Fixture name="LoginPage" /> }));
 vi.mock("@/pages/NotFound", () => ({ default: () => <Fixture name="NotFound" /> }));
 vi.mock("@/pages/OnboardingPage", () => ({ default: () => <Fixture name="OnboardingPage" /> }));
+vi.mock("@/pages/ProfessionalSettingsPage", () => ({ default: () => <Fixture name="Configurações profissionais" /> }));
 vi.mock("@/pages/QuickEditExercisePage", () => ({ default: () => <Fixture name="QuickEditExercisePage" /> }));
 vi.mock("@/pages/QuickEditMealPage", () => ({ default: () => <Fixture name="QuickEditMealPage" /> }));
 vi.mock("@/pages/RegisterPage", () => ({ default: () => <Fixture name="RegisterPage" /> }));
@@ -79,11 +95,15 @@ vi.mock("@/pages/SyncedHealthDataPage", () => ({ default: () => <Fixture name="S
 vi.mock("@/pages/WhatsappOnboardingPage", () => ({ default: () => <Fixture name="WhatsappOnboardingPage" /> }));
 
 afterEach(cleanup);
-beforeEach(() => { refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); cancel.mockClear(); setData.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
+beforeEach(() => { entitlementState.allowed = true; entitlementState.enabledResources = [...allResources]; refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); cancel.mockClear(); setData.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
 
 describe("App professional navigation", () => {
   it("loads a professional deep link through the real router", async () => { const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); expect(screen.getAllByText("Contexto profissional").length).toBeGreaterThan(0); });
-  it("keeps the legacy route reachable and returns to the personal context", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); expect(await screen.findByRole("heading", { name: "Experiência profissional legada" })).toBeTruthy(); window.history.pushState({}, "", "/professional"); window.dispatchEvent(new PopStateEvent("popstate")); await screen.findByRole("heading", { name: "Início profissional" }); fireEvent.click(screen.getByRole("button", { name: "Minha alimentação" })); await waitFor(() => expect(window.location.pathname).toBe("/today")); expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy(); });
+  it("routes professional settings to the dedicated screen", async () => { window.history.replaceState({}, "", "/professional/settings"); const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Configurações profissionais" })).toBeTruthy(); });
+  it("blocks all workspace routes when the backend denies access", async () => { entitlementState.allowed = false; entitlementState.enabledResources = []; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Recurso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Relatórios profissionais" })).toBeNull(); });
+  it("blocks a report route when only another resource is enabled", async () => { entitlementState.enabledResources = ["professional_settings"]; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Recurso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Relatórios profissionais" })).toBeNull(); });
+  it("blocks settings when another professional resource is enabled", async () => { window.history.replaceState({}, "", "/professional/settings"); entitlementState.enabledResources = ["professional_reports"]; const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Recurso profissional indisponível" })).toBeTruthy(); expect(screen.queryByRole("heading", { name: "Configurações profissionais" })).toBeNull(); fireEvent.click(screen.getByRole("button", { name: "Voltar às configurações pessoais" })); await waitFor(() => expect(window.location.pathname).toBe("/settings")); });
+  it("redirects the retired legacy entry to the current professional reports", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); await waitFor(() => expect(window.location.pathname).toBe("/professional/reports")); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); });
   it("revalidates backend authorization before opening a patient context", async () => { window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); await waitFor(() => expect(fetchPatientTimeZone).toHaveBeenCalledWith({ patientId: 41, weekOffset: 0 })); await waitFor(() => expect(window.location.pathname).toBe("/professional/follow-up")); });
   it("does not open stale cached access when backend revalidation fails", async () => { fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked")); window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); expect(await screen.findByText("O acesso a este paciente não está mais disponível. A carteira foi atualizada.")).toBeTruthy(); expect(window.location.pathname).toBe("/professional/patients"); expect(refetch).toHaveBeenCalled(); });
 });

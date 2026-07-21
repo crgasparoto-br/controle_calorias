@@ -35,22 +35,25 @@ const stateLabels: Record<string, string> = {
   received: "Recebida",
 };
 
+type ProfessionalMessageType =
+  | "guidance"
+  | "reminder"
+  | "weigh_in_request"
+  | "record_request"
+  | "administrative"
+  | "follow_up_summary";
+
 export default function ProfessionalMessagesPanel() {
   const { selectedPatient } = useProfessionalWorkspace();
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [content, setContent] = useState("");
-  const [messageType, setMessageType] = useState<
-    | "guidance"
-    | "reminder"
-    | "weigh_in_request"
-    | "record_request"
-    | "administrative"
-    | "follow_up_summary"
-  >("guidance");
+  const [messageType, setMessageType] =
+    useState<ProfessionalMessageType>("guidance");
   const [origin, setOrigin] = useState<
     "professional" | "ai_suggested" | "automatic"
   >("professional");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   );
@@ -58,6 +61,11 @@ export default function ProfessionalMessagesPanel() {
     () => ({ patientId: selectedPatient?.patientId, pageSize: 20 }),
     [selectedPatient?.patientId]
   );
+  const settings = trpc.professionalRecord.settings.get.useQuery(undefined, {
+    retry: false,
+    staleTime: 30_000,
+  });
+  const templates = settings.data?.preferences.messageTemplates ?? [];
   const query = trpc.professionalRecord.messages.list.useQuery(input, {
     retry: false,
     refetchInterval: 30_000,
@@ -65,6 +73,7 @@ export default function ProfessionalMessagesPanel() {
   const create = trpc.professionalRecord.messages.create.useMutation({
     onSuccess: async () => {
       setContent("");
+      setSelectedTemplateId("");
       setIdempotencyKey(crypto.randomUUID());
       await utils.professionalRecord.messages.list.invalidate();
     },
@@ -82,6 +91,15 @@ export default function ProfessionalMessagesPanel() {
         action,
         idempotencyKey,
       });
+  };
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find(item => item.id === templateId);
+    if (!template) return;
+    setContent(template.content);
+    setMessageType(template.messageType as ProfessionalMessageType);
+    setOrigin("professional");
+    setIdempotencyKey(crypto.randomUUID());
   };
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -115,19 +133,38 @@ export default function ProfessionalMessagesPanel() {
               Nova mensagem para {selectedPatient.displayName}
             </CardTitle>
             <CardDescription>
-              Rascunhos automáticos e da IA nunca são enviados sem sua ação
-              explícita.
+              Modelos e sugestões apenas preenchem o rascunho. A entrega sempre
+              exige uma ação explícita.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
+            {templates.length > 0 ? (
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium">Modelo de mensagem</span>
+                <select
+                  aria-label="Modelo de mensagem"
+                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  value={selectedTemplateId}
+                  onChange={event => applyTemplate(event.target.value)}
+                >
+                  <option value="">Escrever sem modelo</option>
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <select
                 aria-label="Tipo da mensagem"
                 className="h-10 rounded-md border bg-background px-3 text-sm"
                 value={messageType}
-                onChange={e =>
-                  setMessageType(e.target.value as typeof messageType)
-                }
+                onChange={event => {
+                  setMessageType(event.target.value as ProfessionalMessageType);
+                  setSelectedTemplateId("");
+                }}
               >
                 {Object.entries(typeLabels)
                   .filter(([key]) => key !== "response")
@@ -141,7 +178,7 @@ export default function ProfessionalMessagesPanel() {
                 aria-label="Origem da mensagem"
                 className="h-10 rounded-md border bg-background px-3 text-sm"
                 value={origin}
-                onChange={e => setOrigin(e.target.value as typeof origin)}
+                onChange={event => setOrigin(event.target.value as typeof origin)}
               >
                 <option value="professional">Escrita pelo nutricionista</option>
                 <option value="ai_suggested">Sugestão da IA revisada</option>
@@ -152,7 +189,10 @@ export default function ProfessionalMessagesPanel() {
               aria-label="Conteúdo da mensagem"
               className="min-h-32 rounded-md border bg-background p-3"
               value={content}
-              onChange={e => setContent(e.target.value)}
+              onChange={event => {
+                setContent(event.target.value);
+                setSelectedTemplateId("");
+              }}
               placeholder="Escreva a orientação, lembrete ou solicitação..."
             />
             {create.isError && (

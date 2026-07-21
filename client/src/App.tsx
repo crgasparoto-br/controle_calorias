@@ -8,7 +8,11 @@ import NutritionGoalReportInvalidator from "./components/NutritionGoalReportInva
 import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbed";
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
+import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
+import ProfessionalEntitlementGate, {
+  type ProfessionalRouteEntitlement,
+} from "./components/ProfessionalEntitlementGate";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
@@ -25,7 +29,7 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
-const ProfessionalLegacyPage = lazy(() => import("@/pages/ProfessionalReportsPage"));
+const ProfessionalSettingsPage = lazy(() => import("@/pages/ProfessionalSettingsPage"));
 const ProfessionalWorkspacePage = lazy(() => import("@/pages/ProfessionalWorkspacePage"));
 const QuickEditExercisePage = lazy(() => import("@/pages/QuickEditExercisePage"));
 const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
@@ -37,6 +41,50 @@ const WhatsappOnboardingPage = lazy(() => import("@/pages/WhatsappOnboardingPage
 
 function PageLoadingFallback() {
   return <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground" role="status" aria-live="polite">Carregando tela...</div>;
+}
+
+function LegacyProfessionalRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => setLocation("/professional/reports"), [setLocation]);
+  return <PageLoadingFallback />;
+}
+
+export function professionalResourceForPath(
+  location: string
+): ProfessionalRouteEntitlement {
+  if (location.startsWith("/professional/patients")) {
+    return "professional_portfolio";
+  }
+  if (location.startsWith("/professional/follow-up")) {
+    return "professional_record";
+  }
+  if (location.startsWith("/professional/messages")) {
+    return "professional_messages";
+  }
+  if (location.startsWith("/professional/reports")) {
+    return "professional_reports";
+  }
+  if (location.startsWith("/professional/settings")) {
+    return "professional_settings";
+  }
+  return "professional_dashboard";
+}
+
+function ProfessionalWorkspaceRoute() {
+  const [location] = useLocation();
+  return (
+    <ProfessionalEntitlementGate resource={professionalResourceForPath(location)}>
+      <ProfessionalWorkspacePage />
+    </ProfessionalEntitlementGate>
+  );
+}
+
+function ProfessionalSettingsRoute() {
+  return (
+    <ProfessionalEntitlementGate resource="professional_settings">
+      <ProfessionalSettingsPage />
+    </ProfessionalEntitlementGate>
+  );
 }
 
 function Router() {
@@ -65,13 +113,13 @@ function Router() {
     <Route path="/channels" component={ChannelsPage} />
     <Route path="/health-integrations" component={HealthIntegrationsPage} />
     <Route path="/synced-health-data" component={SyncedHealthDataPage} />
-    <Route path="/professional/legacy" component={ProfessionalLegacyPage} />
-    <Route path="/professional/patients" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/follow-up" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/messages" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/reports" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/settings" component={ProfessionalWorkspacePage} />
-    <Route path="/professional" component={ProfessionalWorkspacePage} />
+    <Route path="/professional/legacy" component={LegacyProfessionalRedirect} />
+    <Route path="/professional/patients" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/follow-up" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/messages" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/reports" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/settings" component={ProfessionalSettingsRoute} />
+    <Route path="/professional" component={ProfessionalWorkspaceRoute} />
     <Route path="/admin" component={AdminPage} />
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
@@ -88,6 +136,7 @@ function App() {
     <ProfessionalGoalExceptionSuggestionsEmbed />
     <ProfessionalOperationalAlertsBridge />
     <PatientGoalSuggestionsEmbed />
+    <PatientProfessionalProfilesEmbed />
     <PatientProfessionalGuidancesEmbed />
     <PatientProfessionalMessagesEmbed />
     <Router />
