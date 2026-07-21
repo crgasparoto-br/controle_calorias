@@ -27,7 +27,7 @@ Alterações são serializadas por profissional. Se a gravação do evento de au
 
 O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional.
 
-Lembretes continuam sendo criados no contexto de cada paciente pela central de acompanhamento. Frequência de resumo automático não é exposta como configuração enquanto não existir um consumidor operacional. O backend rejeita valores de automação diferentes dos estados neutros para impedir configuração persistida sem efeito observável.
+Lembretes continuam sendo criados no contexto de cada paciente pela central de acompanhamento. Frequência de resumo automático não é exposta enquanto não existir um consumidor operacional. O contrato de entrada é estrito e contém somente controles efetivamente suportados. Dados antigos com chaves de automação obsoletas continuam legíveis e convergem para o contrato atual na próxima gravação, sem migration destrutiva.
 
 ## Estado ativo e proteção por recurso
 
