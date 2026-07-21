@@ -76,7 +76,7 @@ beforeEach(() => {
 });
 
 describe("professional settings service", () => {
-  it("persists validated identity and records an audit event without content", async () => {
+  it("records intent and completion without sensitive content", async () => {
     const result = await updateProfessionalIdentitySettings(10, {
       displayName: " Nutricionista Ana ",
       registrationNumber: " CRN 123 ",
@@ -94,21 +94,45 @@ describe("professional settings service", () => {
       contactEmail: "ana@example.com",
       patientFacingBio: "Atendimento individual.",
     });
-    expect(mocks.appendHistory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: expect.stringMatching(/^settings-/),
-        actorUserId: 10,
-        eventType: "settings_identity_updated",
-        entityType: "professional_settings",
-      })
-    );
-    expect(mocks.appendHistory.mock.calls[0]?.[0]).not.toHaveProperty(
-      "content"
-    );
+    expect(mocks.appendHistory).toHaveBeenCalledTimes(2);
+    expect(mocks.appendHistory.mock.calls[0]?.[0]).toMatchObject({
+      id: expect.stringMatching(/^settings-/),
+      actorUserId: 10,
+      eventType: "settings_identity_change_requested",
+      entityType: "professional_settings",
+    });
+    expect(mocks.appendHistory.mock.calls[1]?.[0]).toMatchObject({
+      id: expect.stringMatching(/^settings-/),
+      actorUserId: 10,
+      eventType: "settings_identity_updated",
+      entityType: "professional_settings",
+    });
+    for (const [event] of mocks.appendHistory.mock.calls) {
+      expect(event).not.toHaveProperty("content");
+    }
   });
 
-  it("restores preferences when the audit event cannot be persisted", async () => {
+  it("does not mutate preferences when the intent audit cannot be persisted", async () => {
     mocks.appendHistory.mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(
+      updateProfessionalPreferencesSettings(10, {
+        defaultReviewIntervalDays: 30,
+        messageTemplates: [],
+      })
+    ).rejects.toThrow("audit unavailable");
+
+    const snapshot = await getProfessionalSettingsSnapshot(10);
+    expect(snapshot.preferences).toEqual({
+      defaultReviewIntervalDays: null,
+      messageTemplates: [],
+    });
+  });
+
+  it("restores preferences when the completion audit cannot be persisted", async () => {
+    mocks.appendHistory
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("audit unavailable"));
 
     await expect(
       updateProfessionalPreferencesSettings(10, {
@@ -130,11 +154,13 @@ describe("professional settings service", () => {
     });
   });
 
-  it("restores the active profile when deactivation auditing fails", async () => {
+  it("restores the active profile when completion auditing fails", async () => {
     mocks.upsertProfile
       .mockResolvedValueOnce(canonicalProfile(false))
       .mockResolvedValueOnce(canonicalProfile(true));
-    mocks.appendHistory.mockRejectedValueOnce(new Error("audit unavailable"));
+    mocks.appendHistory
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("audit unavailable"));
 
     await expect(setProfessionalProfileActive(10, false)).rejects.toThrow(
       "audit unavailable"
@@ -151,16 +177,21 @@ describe("professional settings service", () => {
     });
   });
 
-  it("surfaces a consistency error when the audit and rollback both fail", async () => {
+  it("keeps an audit trail and surfaces consistency error when rollback fails", async () => {
     mocks.upsertProfile
       .mockResolvedValueOnce(canonicalProfile(false))
       .mockRejectedValueOnce(new Error("rollback unavailable"));
-    mocks.appendHistory.mockRejectedValueOnce(new Error("audit unavailable"));
+    mocks.appendHistory
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("completion audit unavailable"));
 
     await expect(
       setProfessionalProfileActive(10, false)
     ).rejects.toBeInstanceOf(ProfessionalSettingsConsistencyError);
 
+    expect(mocks.appendHistory.mock.calls[0]?.[0]).toMatchObject({
+      eventType: "settings_profile_deactivation_requested",
+    });
     expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
       "professional_settings_profile_compensation",
       expect.any(Error)
