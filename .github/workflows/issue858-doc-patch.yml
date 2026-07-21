@@ -1,9 +1,9 @@
 name: Issue 858 documentation patch
 
 on:
-  pull_request:
+  push:
     branches:
-      - develop
+      - feat/858-interactive-coverage
 
 permissions:
   contents: write
@@ -73,6 +73,7 @@ A suíte valida descoberta de tipos `PENDING_*_TYPE`, ausência de registros par
               regression.write_text(text)
 
           Path(".github/issue858-doc-trigger").unlink(missing_ok=True)
+          Path(".github/issue858-doc-trigger-2").unlink(missing_ok=True)
           Path(".github/workflows/issue858-doc-patch.yml").unlink()
           PY
       - name: Commit documentation
