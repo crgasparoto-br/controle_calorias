@@ -1,9 +1,9 @@
 name: Issue 858 debug
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/858-interactive-coverage
+      - develop
 
 permissions:
   contents: read
