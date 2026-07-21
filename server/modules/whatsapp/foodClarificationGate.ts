@@ -9,6 +9,7 @@ import {
   PENDING_FOOD_CLARIFICATION_TYPE,
 } from "./foodClarification";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
+import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import {
   createWhatsappIntentClarificationInteraction,
@@ -30,6 +31,7 @@ import {
   PENDING_PERIOD_REPORT_TYPE,
   WHATSAPP_PERIOD_REPORT_OPTIONS,
 } from "./periodReportClarification";
+import type { WhatsAppLogicalReply } from "./replyContract";
 import {
   isStandaloneWhatsappCancellationWord,
   isStandaloneWhatsappCommandWord,
@@ -46,18 +48,39 @@ const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 
 type PendingInteractionResult = {
   handled: true;
+  action: string;
+  reply: string;
+  eventType: string;
+  detail: string;
+  data?: Record<string, unknown>;
+  interactiveReply?: WhatsAppLogicalReply;
+};
+
+type ResolvedInteractionLike = {
+  handled?: boolean;
   action?: string;
   reply: string;
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
-  interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
+  interactiveReply?: WhatsAppLogicalReply;
 };
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+
+function normalizeResolvedInteraction(
+  value: ResolvedInteractionLike,
+  fallbackAction: string,
+): PendingInteractionResult {
+  return {
+    ...value,
+    handled: true,
+    action: value.action ?? fallbackAction,
+  };
+}
 
 function parseBareIndex(text: string) {
   const normalized = normalizeStandaloneWhatsappCommand(text);
@@ -109,7 +132,6 @@ function classifyPendingText(
 ): "resolve" | "invalid" | "new_command" {
   const raw = text?.trim() ?? "";
   const normalized = normalizeStandaloneWhatsappCommand(raw);
-
   if (isCompleteWhatsappCommand(raw)) return "new_command";
 
   if (pending.type === PENDING_DELETE_TYPE) {
@@ -144,10 +166,9 @@ function classifyPendingText(
 
   if (pending.type === PENDING_PROFESSIONAL_ACCESS_TYPE) {
     const normalizedDecision = normalized.toUpperCase();
-    if (/\b(?:AUTORIZAR|AUTORIZO|APROVAR|APROVO|ACEITAR|ACEITO|NEGAR|NEGO|RECUSAR|RECUSO)\b/.test(normalizedDecision)) {
-      return "resolve";
-    }
-    return "invalid";
+    return /\b(?:AUTORIZAR|AUTORIZO|APROVAR|APROVO|ACEITAR|ACEITO|NEGAR|NEGO|RECUSAR|RECUSO)\b/.test(normalizedDecision)
+      ? "resolve"
+      : "invalid";
   }
 
   return "invalid";
@@ -161,16 +182,18 @@ async function resolveRegisteredText(input: {
   userTimezone: string;
 }): Promise<PendingInteractionResult | null> {
   if (input.pending.type === PENDING_DELETE_TYPE) {
-    return executeWhatsappDeleteIntent(input.userId, {
+    const resolved = await executeWhatsappDeleteIntent(input.userId, {
       text: input.text,
       receivedAt: input.receivedAt,
       timeZone: input.userTimezone,
       entrypoint: "pendingInteractionGate",
     });
+    return resolved ? normalizeResolvedInteraction(resolved, "delete_intent_resolved") : null;
   }
 
   if (input.pending.type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
-    return resolveTextMealItemSelection(input.userId, input.text);
+    const resolved = await resolveTextMealItemSelection(input.userId, input.text);
+    return resolved ? normalizeResolvedInteraction(resolved, "meal_item_selection_resolved") : null;
   }
 
   if (input.pending.type === PENDING_CONFIRMATION_TYPE) {
@@ -186,10 +209,12 @@ async function resolveRegisteredText(input: {
       );
       if (claim.status !== "claimed") return null;
       const { completeWhatsappGenericConfirmationCallback } = await import("./webhookTextCommands");
-      return completeWhatsappGenericConfirmationCallback(input.userId, claim.pendingOperation, action);
+      const completed = await completeWhatsappGenericConfirmationCallback(input.userId, claim.pendingOperation, action);
+      return normalizeResolvedInteraction(completed, action === "cancel" ? "confirmation_cancelled" : "confirmation_resolved");
     }
     const message: WhatsAppWebhookMessage = { text: { body: input.text ?? "" } };
-    return handlePendingWhatsAppConfirmation(message, input.userId);
+    const completed = await handlePendingWhatsAppConfirmation(message, input.userId);
+    return completed ? normalizeResolvedInteraction(completed, "confirmation_resolved") : null;
   }
 
   if (input.pending.type === PENDING_PERIOD_REPORT_TYPE) {
@@ -202,16 +227,18 @@ async function resolveRegisteredText(input: {
       input.receivedAt,
     );
     if (claim.status !== "claimed") return null;
-    return completeWhatsappPeriodReportCallback(input.userId, action, input.receivedAt);
+    const completed = await completeWhatsappPeriodReportCallback(input.userId, action, input.receivedAt);
+    return normalizeResolvedInteraction(completed, action === "cancel" ? "period_report_cancelled" : "period_report");
   }
 
   if (input.pending.type === PENDING_INTENT_CLARIFICATION_TYPE) {
-    return resolveWhatsappIntentClarificationText({
+    const completed = await resolveWhatsappIntentClarificationText({
       userId: input.userId,
       pendingOperation: input.pending,
       text: input.text,
       receivedAt: input.receivedAt,
     });
+    return completed ? normalizeResolvedInteraction(completed, "intent_clarification_resolved") : null;
   }
 
   if (input.pending.type === PENDING_PROFESSIONAL_ACCESS_TYPE) {
@@ -226,7 +253,8 @@ async function resolveRegisteredText(input: {
       input.receivedAt,
     );
     if (claim.status !== "claimed") return null;
-    return service.completeWhatsAppProfessionalAccessCallback(input.userId, claim.pendingOperation, action);
+    const completed = await service.completeWhatsAppProfessionalAccessCallback(input.userId, claim.pendingOperation, action);
+    return normalizeResolvedInteraction(completed, "professional_access_resolved");
   }
 
   return null;
@@ -248,10 +276,6 @@ function buildUnregisteredPendingResult(pending: WhatsAppPendingOperationRecord)
   };
 }
 
-/**
- * Gate transversal mantido com o nome anterior por compatibilidade. Ele resolve
- * todas as pendências registradas e é chamado pelo webhook real e simulador.
- */
 export async function resolvePendingWhatsappFoodClarification(input: {
   userId: number;
   text?: string | null;
@@ -266,20 +290,26 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   };
 
   if (active?.type === PENDING_FOOD_CLARIFICATION_TYPE) {
-    return handleWhatsappFoodClarification(correlatedInput);
+    const foodResult = await handleWhatsappFoodClarification(correlatedInput);
+    const presented = await attachWhatsappFoodClarificationPresentation(input.userId, foodResult, input.receivedAt);
+    return presented ? normalizeResolvedInteraction(presented, "food_clarification_resolved") : null;
   }
 
   if (!active) {
     if (shouldCreateGenericIntentClarification(input.text)) {
-      return createWhatsappIntentClarificationInteraction({
+      const created = await createWhatsappIntentClarificationInteraction({
         userId: input.userId,
         originalText: input.text ?? "",
         receivedAt: input.receivedAt,
       });
+      return created ? normalizeResolvedInteraction(created, "clarification_needed") : null;
     }
-    return isStandaloneWhatsappCommandWord(input.text)
-      ? handleWhatsappFoodClarification(correlatedInput)
-      : null;
+    if (isStandaloneWhatsappCommandWord(input.text)) {
+      const foodResult = await handleWhatsappFoodClarification(correlatedInput);
+      const presented = await attachWhatsappFoodClarificationPresentation(input.userId, foodResult, input.receivedAt);
+      return presented ? normalizeResolvedInteraction(presented, "food_clarification_standalone_command_blocked") : null;
+    }
+    return null;
   }
 
   const interaction = findWhatsappRegisteredInteraction(active.type, active.target);
