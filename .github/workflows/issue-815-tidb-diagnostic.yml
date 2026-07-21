@@ -1,0 +1,63 @@
+name: Issue 815 TiDB diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - .github/workflows/issue-815-tidb-diagnostic.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cleanup/815-retire-professional-legacy
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start TiDB
+        run: |
+          docker run -d --name issue-815-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Apply schema
+        run: pnpm exec drizzle-kit push --force
+      - name: Run professional persistence integration
+        run: |
+          pnpm db:test:professionals > /tmp/issue-815-tidb.log 2>&1 || {
+            cat /tmp/issue-815-tidb.log
+            exit 1
+          }
+      - name: Persist diagnostic
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-tidb.log ]; then
+            cp /tmp/issue-815-tidb.log scripts/issue-815-tidb-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-tidb-error.txt
+            git commit -m "chore: registrar diagnóstico TiDB da issue #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
