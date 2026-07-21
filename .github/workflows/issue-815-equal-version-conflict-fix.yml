@@ -34,25 +34,18 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+          import textwrap
 
-          def replace_once(text, old, new, label):
-              if old not in text:
-                  raise SystemExit(f'{label} anchor not found')
-              return text.replace(old, new, 1)
+          def sub_once(text, pattern, replacement, label, flags=0):
+              result, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'{label} structural match count={count}')
+              return result
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-          text = replace_once(
-              text,
-              '''function sameGoal(left: unknown, right: unknown) {
-            return JSON.stringify(left) === JSON.stringify(right);
-          }
-
-          function authorizationStatusCovers(''',
-              '''function sameGoal(left: unknown, right: unknown) {
-            return JSON.stringify(left) === JSON.stringify(right);
-          }
-
+          helpers = textwrap.dedent('''
           function nullableInstantValue(value: Date | string | number | null) {
             return value === null ? null : new Date(value).getTime();
           }
@@ -96,69 +89,59 @@ jobs:
               respondedAt: suggestion.respondedAt,
             });
           }
+          ''').strip()
+          text = sub_once(
+              text,
+              r'(function sameGoal\(left: unknown, right: unknown\) \{.*?\n\})\n\n(function authorizationStatusCovers)',
+              lambda m: f'{m.group(1)}\n\n{helpers}\n\n{m.group(2)}',
+              'signature helpers',
+              re.S,
+          )
 
-          function authorizationStatusCovers(''',
-              'signature helper'
-          )
-          text = replace_once(
+          text = sub_once(
               text,
-              '''        if (!previous || previousVersion < normalizedVersion) {
-            expectedGoalSuggestions.set(normalized.id, normalized);
-          }''',
-              '''        if (!previous || previousVersion < normalizedVersion) {
-            expectedGoalSuggestions.set(normalized.id, normalized);
-          } else if (
-            previousVersion === normalizedVersion &&
-            legacyGoalSuggestionSignature(previous) !==
-              legacyGoalSuggestionSignature(normalized)
-          ) {
-            invalidPreferences += 1;
-          }''',
-              'goal conflict'
+              r'(?P<indent>\s*)if \(!previous \|\| previousVersion < normalizedVersion\) \{\s*expectedGoalSuggestions\.set\(normalized\.id, normalized\);\s*\}',
+              lambda m: textwrap.indent(textwrap.dedent('''
+              if (!previous || previousVersion < normalizedVersion) {
+                expectedGoalSuggestions.set(normalized.id, normalized);
+              } else if (
+                previousVersion === normalizedVersion &&
+                legacyGoalSuggestionSignature(previous) !==
+                  legacyGoalSuggestionSignature(normalized)
+              ) {
+                invalidPreferences += 1;
+              }
+              ''').strip(), m.group('indent')),
+              'goal conflict',
           )
-          text = replace_once(
+
+          text = sub_once(
               text,
-              '''      if (
-            !previous ||
-            legacyAccessToCanonical(previous).sourceUpdatedAt.getTime() <
-              legacyAccessToCanonical(access).sourceUpdatedAt.getTime()
-          ) {
-            expectedAuthorizations.set(access.id, access);
-          }''',
-              '''      const previousVersion = previous
-            ? legacyAccessToCanonical(previous).sourceUpdatedAt.getTime()
-            : -1;
-          const accessVersion =
-            legacyAccessToCanonical(access).sourceUpdatedAt.getTime();
-          if (!previous || previousVersion < accessVersion) {
-            expectedAuthorizations.set(access.id, access);
-          } else if (
-            previousVersion === accessVersion &&
-            legacyAuthorizationSignature(previous) !==
-              legacyAuthorizationSignature(access)
-          ) {
-            invalidPreferences += 1;
-          }''',
-              'authorization conflict'
+              r'(?P<indent>\s*)if \(\s*!previous \|\|\s*legacyAccessToCanonical\(previous\)\.sourceUpdatedAt\.getTime\(\) <\s*legacyAccessToCanonical\(access\)\.sourceUpdatedAt\.getTime\(\)\s*\) \{\s*expectedAuthorizations\.set\(access\.id, access\);\s*\}',
+              lambda m: textwrap.indent(textwrap.dedent('''
+              const previousVersion = previous
+                ? legacyAccessToCanonical(previous).sourceUpdatedAt.getTime()
+                : -1;
+              const accessVersion =
+                legacyAccessToCanonical(access).sourceUpdatedAt.getTime();
+              if (!previous || previousVersion < accessVersion) {
+                expectedAuthorizations.set(access.id, access);
+              } else if (
+                previousVersion === accessVersion &&
+                legacyAuthorizationSignature(previous) !==
+                  legacyAuthorizationSignature(access)
+              ) {
+                invalidPreferences += 1;
+              }
+              ''').strip(), m.group('indent')),
+              'authorization conflict',
+              re.S,
           )
           retirement_path.write_text(text)
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          test = replace_once(
-              test,
-              '''    await connection.query(
-            "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
-            [8067, "professional_profile_v1"]
-          );
-
-          await connection.query(
-            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",''',
-              '''    await connection.query(
-            "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
-            [8067, "professional_profile_v1"]
-          );
-
+          conflict_test = textwrap.dedent('''
           const sameVersionAccessConflict = {
             ...untouched,
             reason: "Conflito legado com a mesma versão",
@@ -218,10 +201,13 @@ jobs:
               "patient_professional_goal_suggestions_v1",
             ]
           );
-
-          await connection.query(
-            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",''',
-              'TiDB conflict test'
+          ''').strip()
+          test = sub_once(
+              test,
+              r'(?P<delete>\s*await connection\.query\(\s*"DELETE FROM userPreferences WHERE userId = \? AND preferenceKey = \?",\s*\[8067, "professional_profile_v1"\]\s*\);)(?P<after>\s*await connection\.query\(\s*"UPDATE professionalPatientAuthorizations SET reason = \?, sourceUpdatedAt = \? WHERE id = \?",)',
+              lambda m: f'{m.group("delete")}\n\n{textwrap.indent(conflict_test, "    ")}\n\n{m.group("after").lstrip()}',
+              'TiDB conflict test',
+              re.S,
           )
           test_path.write_text(test)
           PY
