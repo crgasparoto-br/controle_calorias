@@ -29,6 +29,7 @@ import {
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
+import { supersedeActiveWhatsappPendingOperations } from "./pendingOperationPrecedence";
 import {
   buildWhatsappRouterResult,
   evaluateWhatsappIntentRoute,
@@ -158,6 +159,21 @@ function logTemporalResolution(userId: number, context: NonNullable<ReturnType<t
   });
 }
 
+function buildPendingReplacementBlockedResult() {
+  return {
+    handled: true as const,
+    action: "clarification_needed",
+    reply: "Não consegui substituir a ação pendente com segurança. Nada foi alterado. Cancele a ação anterior e envie novamente o novo comando.",
+    eventType: "whatsapp.pending_operation_replacement_blocked",
+    detail: "Novo comando completo bloqueado porque uma pendência anterior não pôde ser marcada como substituída.",
+    data: {
+      fallbackBlocked: true,
+      fallbackBlockReason: "pending_replacement_failed",
+      pendingState: "blocked",
+    },
+  };
+}
+
 function normalizeContextReplyText(value?: string | null) {
   return value
     ?.normalize("NFD")
@@ -268,17 +284,21 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return contextResult;
   }
 
-  // Gate destrutivo compartilhado: deve rodar antes de resolução temporal,
-  // multi-action, acesso profissional e qualquer parser alimentar. O próprio
-  // executor distingue respostas curtas de pendências e novos comandos completos.
-  const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
-    text,
-    receivedAt,
-    timeZone: userTimezone,
-    entrypoint: "simulateWhatsappInbound",
-  }), { text, receivedAt });
-  if (deleteIntentResult) {
-    return deleteIntentResult;
+  // O coordenador de múltiplas ações é um ramo fail-closed próprio: só existe
+  // quando há duas ou mais ações explícitas e nunca executa domínio diretamente.
+  // Mensagens que não formam um comando composto seguem primeiro para o executor
+  // destrutivo canônico, inclusive respostas inválidas de pendências ativas.
+  const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
+  if (!multiActionPreview) {
+    const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
+      text,
+      receivedAt,
+      timeZone: userTimezone,
+      entrypoint: "simulateWhatsappInbound",
+    }), { text, receivedAt });
+    if (deleteIntentResult) {
+      return deleteIntentResult;
+    }
   }
 
   const temporalResolution = resolveWhatsappTemporalContext({
@@ -294,12 +314,19 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     logTemporalResolution(userId, temporalResolution.context);
   }
 
-  const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
-    text,
-    temporalContext: temporalResolution.context,
-  }), { text, receivedAt });
-  if (multiAction) {
-    return multiAction;
+  if (multiActionPreview) {
+    const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
+    if (!pendingWasReplaced) {
+      return logAndReturnInterpretedIntent(userId, buildPendingReplacementBlockedResult(), { text, receivedAt });
+    }
+
+    const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
+      text,
+      temporalContext: temporalResolution.context,
+    }), { text, receivedAt });
+    if (multiAction) {
+      return multiAction;
+    }
   }
 
   const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
