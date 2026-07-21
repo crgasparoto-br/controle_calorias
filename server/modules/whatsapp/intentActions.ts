@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
+import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
+import { parseReportPeriod } from "./intent/dateTime";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
   handleMealItemMultiAdjustment,
@@ -11,7 +12,6 @@ import {
   handleMealItemReplacement,
   handleQuantityCorrectionIntent,
 } from "./intent/gramsAdjustmentHandlers";
-import { handlePeriodReportIntent, handleSnackSuggestionIntent, handleWaterIntent } from "./intent/waterAndReportHandlers";
 import {
   parseCoffeeAdditionIntent,
   parseCoffeeLorCapsuleIntent,
@@ -24,16 +24,15 @@ import {
   parseSnackSuggestionIntent,
   parseWaterIntent,
 } from "./intent/parsers";
-import { parseReportPeriod } from "./intent/dateTime";
 import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
+import { handlePeriodReportIntent, handleSnackSuggestionIntent, handleWaterIntent } from "./intent/waterAndReportHandlers";
+import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
 function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappIntentResult {
-  if (result.action !== "meal_item_grams_adjusted") {
-    return result;
-  }
+  if (result.action !== "meal_item_grams_adjusted") return result;
   return {
     ...result,
     reply: result.reply.includes("recalculei os macros")
@@ -62,9 +61,7 @@ function resolveInboundCorrelationId(
 
 export async function executeWhatsappTextIntent(userId: number, input: WhatsappIntentInput): Promise<WhatsappIntentResult | null> {
   const text = input.text?.trim();
-  if (!text) {
-    return null;
-  }
+  if (!text) return null;
 
   const receivedAt = input.receivedAt ?? new Date();
   const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
@@ -75,9 +72,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     timeZone: userTimeZone,
     entrypoint: input.entrypoint ?? "executeWhatsappTextIntent",
   });
-  if (deleteIntent) {
-    return deleteIntent;
-  }
+  if (deleteIntent) return deleteIntent;
 
   const waterIntent = parseWaterIntent(text);
   if (waterIntent?.kind === "clarification") {
@@ -94,32 +89,17 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const quantityCorrection = parseQuantityCorrectionIntent(text, receivedAt);
-  if (quantityCorrection) {
-    return handleQuantityCorrectionIntent(userId, quantityCorrection);
-  }
+  if (quantityCorrection) return handleQuantityCorrectionIntent(userId, quantityCorrection);
 
   const gramsReplacement = parseMealItemGramsReplacement(text);
-  if (gramsReplacement) {
-    return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
-  }
+  if (gramsReplacement) return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
 
-  // Parsers alimentares especializados mantêm precedência para não transformar
-  // entradas já inequívocas, como "1 café lor", em pergunta genérica (#855).
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
-  if (coffeeCapsule) {
-    return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
-  }
+  if (coffeeCapsule) return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition) {
-    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
-  }
+  if (coffeeAddition) return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
 
-  // A clarificação persistente antecede o parser alimentar genérico. Assim uma
-  // contagem sem porção canônica segura preserva o alimento original e pede
-  // somente o dado ausente, enquanto frases completas com unidade continuam no
-  // pipeline normal. O ID externo vindo do lifecycle tem prioridade; wrappers
-  // sem lifecycle usam uma chave derivada estável.
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
     text,
@@ -128,13 +108,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     messageId: resolveInboundCorrelationId(userId, text, receivedAt, input.messageId),
   });
   if (foodClarification) {
-    return foodClarification;
+    return attachWhatsappFoodClarificationPresentation(userId, foodClarification, receivedAt);
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
-  if (foodAddition) {
-    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
-  }
+  if (foodAddition) return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
@@ -147,18 +125,12 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
-  if (foodReplacements) {
-    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
-  }
+  if (foodReplacements) return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
 
-  if (parseSnackSuggestionIntent(text)) {
-    return handleSnackSuggestionIntent();
-  }
+  if (parseSnackSuggestionIntent(text)) return handleSnackSuggestionIntent();
 
   const reportPeriod = parseReportPeriod(text, receivedAt, userTimeZone);
-  if (!reportPeriod) {
-    return null;
-  }
+  if (!reportPeriod) return null;
   if ("kind" in reportPeriod) {
     return {
       handled: true,
