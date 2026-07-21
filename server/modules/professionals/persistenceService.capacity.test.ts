@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getAuthorizationById: vi.fn(),
   transitionAuthorization: vi.fn(),
   withCapacityReservation: vi.fn(),
+  releaseCapacityReservation: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
@@ -30,6 +31,7 @@ vi.mock("../../repositories/professionalRepository", () => ({
 }));
 vi.mock("./entitlementService", () => ({
   withProfessionalCapacityReservation: mocks.withCapacityReservation,
+  releaseProfessionalCapacityReservation: mocks.releaseCapacityReservation,
 }));
 
 import { professionalRepository } from "./persistenceService";
@@ -51,6 +53,7 @@ beforeEach(() => {
   mocks.withCapacityReservation.mockImplementation(
     async (_input: unknown, operation: () => Promise<unknown>) => operation()
   );
+  mocks.releaseCapacityReservation.mockResolvedValue({ released: true });
 });
 
 describe("professional authorization capacity boundary", () => {
@@ -91,7 +94,7 @@ describe("professional authorization capacity boundary", () => {
     expect(mocks.transitionAuthorization).not.toHaveBeenCalled();
   });
 
-  it("does not involve capacity when rejecting or revoking a link", async () => {
+  it("does not involve capacity when rejecting a pending link", async () => {
     await professionalRepository.transitionAuthorization({
       authorizationId: "authorization-1",
       patientUserId: 20,
@@ -100,6 +103,57 @@ describe("professional authorization capacity boundary", () => {
     } as any);
 
     expect(mocks.withCapacityReservation).not.toHaveBeenCalled();
+    expect(mocks.releaseCapacityReservation).not.toHaveBeenCalled();
     expect(mocks.transitionAuthorization).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the central coverage after patient revocation", async () => {
+    mocks.getAuthorizationById.mockResolvedValueOnce({
+      ...pendingAuthorization,
+      status: "approved",
+    });
+    mocks.transitionAuthorization.mockResolvedValueOnce({
+      ...pendingAuthorization,
+      status: "revoked",
+    });
+
+    await expect(
+      professionalRepository.transitionAuthorization({
+        authorizationId: "authorization-1",
+        patientUserId: 20,
+        nextStatus: "revoked",
+        responseOrigin: "web",
+      } as any)
+    ).resolves.toMatchObject({ status: "revoked" });
+
+    expect(mocks.releaseCapacityReservation).toHaveBeenCalledWith({
+      professionalUserId: 10,
+      patientUserId: 20,
+      coverageKey: "professional-authorization:authorization-1",
+    });
+  });
+
+  it("does not undo or block revocation when central release must be retried", async () => {
+    mocks.getAuthorizationById.mockResolvedValueOnce({
+      ...pendingAuthorization,
+      status: "approved",
+    });
+    mocks.transitionAuthorization.mockResolvedValueOnce({
+      ...pendingAuthorization,
+      status: "revoked",
+    });
+    mocks.releaseCapacityReservation.mockResolvedValueOnce({
+      released: false,
+      reason: "unavailable",
+    });
+
+    await expect(
+      professionalRepository.transitionAuthorization({
+        authorizationId: "authorization-1",
+        patientUserId: 20,
+        nextStatus: "revoked",
+        responseOrigin: "web",
+      } as any)
+    ).resolves.toMatchObject({ status: "revoked" });
   });
 });
