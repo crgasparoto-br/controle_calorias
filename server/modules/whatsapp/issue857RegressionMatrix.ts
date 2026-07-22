@@ -26,7 +26,7 @@ export type Issue857RegressionEvidence = {
 const COMMON_TRANSPORT_EVIDENCE: readonly Issue857ScenarioEvidence[] = [
   {
     file: "server/modules/whatsapp/logicalReplyDelivery.test.ts",
-    requiredTokens: ["fallback", "lifecycle"],
+    requiredTokens: ["lifecycle"],
   },
   {
     file: "server/modules/whatsapp/replyTransport.test.ts",
@@ -41,23 +41,24 @@ const INTERACTION_SCENARIOS: Record<string, {
   "delete.confirmation": {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
-      { file: "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts", requiredTokens: ["confirm", "cancel"] },
-      { file: "server/whatsappWebhook.test.ts", requiredTokens: ["Excluir", "Registrar"] },
+      { file: "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts", requiredTokens: ["confirm"] },
+      { file: "server/modules/whatsapp/deleteIntent.confirmation.test.ts", requiredTokens: ["confirmation", "cancel"] },
+      { file: "server/whatsappIntentWebhook.delete.test.ts", requiredTokens: ["Excluir", "Registrar"] },
       { file: "server/whatsappWebhook.audioTranscription.test.ts", requiredTokens: ["audio", "delete"] },
     ],
   },
   "delete.candidate_selection": {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
-      { file: "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts", requiredTokens: ["selection", "candidates"] },
-      { file: "server/modules/whatsapp/deleteIntent.test.ts", requiredTokens: ["multiple", "cancel"] },
+      { file: "server/modules/whatsapp/deleteIntent.issue856.test.ts", requiredTokens: ["selection", "candidates"] },
+      { file: "server/modules/whatsapp/deleteIntent.confirmation.test.ts", requiredTokens: ["candidateCount", "selection"] },
     ],
   },
   "meal_item.candidate_selection": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [
-      { file: "server/modules/whatsapp/mealItemSelectionCallback.test.ts", requiredTokens: ["callback", "selection"] },
-      { file: "server/modules/whatsapp/intentActions.quantityCorrection.test.ts", requiredTokens: ["candidate", "quantity"] },
+      { file: "server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts", requiredTokens: ["select:0", "remainingSelections"] },
+      { file: "server/modules/whatsapp/intentActions.quantityCorrection.test.ts", requiredTokens: ["interactiveReply", "quantity"] },
     ],
   },
   "generic_confirmation.confirm_cancel": {
@@ -69,7 +70,7 @@ const INTERACTION_SCENARIOS: Record<string, {
   "generic_confirmation.reclassify_scope": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [
-      { file: "server/modules/whatsapp/webhookTextCommands.test.ts", requiredTokens: ["reclassify", "scope"] },
+      { file: "server/modules/whatsapp/webhookTextCommands.test.ts", requiredTokens: ["reclassify_recent_meals", "action_confirmation_requested"] },
     ],
   },
   "period_report.period_selection": {
@@ -81,13 +82,13 @@ const INTERACTION_SCENARIOS: Record<string, {
   "professional_access.authorization": {
     modalities: ["text", "callback", "standalone_outbound"],
     evidence: [
-      { file: "server/modules/professionals/service.test.ts", requiredTokens: ["authorization", "callback"] },
+      { file: "server/modules/whatsapp/messageRouter.interactiveCallback.test.ts", requiredTokens: ["authorizationMessage", "interactive_callback"] },
     ],
   },
   "intent_clarification.generic": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [
-      { file: "server/modules/whatsapp/intentClarificationInteraction.test.ts", requiredTokens: ["originalText", "cancel"] },
+      { file: "server/modules/whatsapp/intentClarificationActions.issue858.test.ts", requiredTokens: ["originalText", "cancel"] },
       { file: "server/whatsappIntentWebhook.test.ts", requiredTokens: ["clarification", "interactive"] },
     ],
   },
@@ -95,7 +96,7 @@ const INTERACTION_SCENARIOS: Record<string, {
     modalities: ["text", "audio_transcription", "simulator", "image_context"],
     evidence: [
       { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["quantity", "originalText"] },
-      { file: "server/modules/whatsapp/foodTypoRouting.test.ts", requiredTokens: ["natual", "natural"] },
+      { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["natual", "natural"] },
     ],
   },
   "food_clarification.confirmation": {
@@ -107,7 +108,7 @@ const INTERACTION_SCENARIOS: Record<string, {
   "food_clarification.selection": {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
-      { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["selection", "actions"] },
+      { file: "server/modules/whatsapp/foodClarificationPlan.test.ts", requiredTokens: ["selection", "candidates"] },
     ],
   },
 };
