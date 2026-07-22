@@ -1,4 +1,4 @@
-name: Branch source snapshot
+name: Apply account deletion test contract
 
 on:
   pull_request:
@@ -7,29 +7,43 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  apply:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
         with:
-          run_install: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Generate Drizzle metadata
-        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
-      - name: Pack source and generated metadata
-        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: branch-source-snapshot
-          path: /tmp/controle-calorias-source.tar.gz
-          retention-days: 1
+          ref: feat/869-billing-foundation
+          fetch-depth: 0
+      - name: Update account deletion expectation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("server/repositories/repositories.persistence.test.ts")
+          text = path.read_text()
+          import_line = 'import { billingEntitlements } from "../../drizzle/billing-schema";\n'
+          if import_line not in text:
+              text = text.replace(
+                  'import { describe, expect, it, vi } from "vitest";\n',
+                  'import { describe, expect, it, vi } from "vitest";\n' + import_line,
+                  1,
+              )
+          expected_line = "      billingEntitlements,\n"
+          if expected_line not in text:
+              text = text.replace(
+                  "      whatsappConnections,\n      foodCatalog,\n",
+                  "      whatsappConnections,\n      billingEntitlements,\n      foodCatalog,\n",
+                  1,
+              )
+          path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/repositories/repositories.persistence.test.ts
+          git commit -m "test(account): include billing grants in deletion contract"
+          git push origin HEAD:feat/869-billing-foundation
