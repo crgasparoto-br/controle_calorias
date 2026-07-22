@@ -1,17 +1,22 @@
+import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { Request, Response } from "express";
-import { createUserWaterLog, getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";
 import {
-  extractIndexedWhatsAppWebhookMessages,
-  normalizeWhatsAppIntentText,
-  resolveWhatsAppMessageOccurredAt,
-  type IndexedWhatsAppWebhookMessage,
-  type WhatsAppWebhookMessage,
-} from "./modules/whatsapp/webhookUtils";
+  createUserWaterLog,
+  getUserIdByWhatsappPhone,
+  listUserExercises,
+  logInferenceEvent,
+} from "./db";
+import { billingService } from "./modules/billing/service";
+import { buildWhatsAppAccessPendingReplyMessage } from "./modules/billing/whatsappAccessReply";
+import {
+  withWhatsappContextFlow,
+  type WhatsappContextFlow,
+} from "./modules/whatsapp/conversationContextRollout";
+import { buildWhatsAppCanonicalWaterReply } from "./modules/whatsapp/domainReplyFormatters";
 import {
   buildWhatsAppExerciseCaloriesByDateKey,
   runWithWhatsAppGoalProgressContext,
 } from "./modules/whatsapp/goalProgressContext";
-import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import {
   beginInboundMessage,
@@ -21,20 +26,24 @@ import {
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 import {
-  withWhatsappContextFlow,
-  type WhatsappContextFlow,
-} from "./modules/whatsapp/conversationContextRollout";
+  sendWhatsAppLogicalDomainReply,
+  sendWhatsAppStandaloneLogicalReply,
+} from "./modules/whatsapp/logicalReplyDelivery";
 import { textReply, withCtaUrl } from "./modules/whatsapp/replyContract";
-import { sendWhatsAppStandaloneLogicalReply } from "./modules/whatsapp/logicalReplyDelivery";
-import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
-import { buildWhatsAppCanonicalWaterReply } from "./modules/whatsapp/domainReplyFormatters";
 import {
   buildWhatsAppOnboardingLeadReplyMessage,
   buildWhatsAppWaterImageClarificationReplyMessage,
 } from "./modules/whatsapp/replyMessages";
-import { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
-import { getDateKeyInTimeZone } from "../shared/timeZone";
+import { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";
+import {
+  extractIndexedWhatsAppWebhookMessages,
+  normalizeWhatsAppIntentText,
+  resolveWhatsAppMessageOccurredAt,
+  type IndexedWhatsAppWebhookMessage,
+  type WhatsAppWebhookMessage,
+} from "./modules/whatsapp/webhookUtils";
+import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 
 const fallbackMessageDeduplicationCache = createMessageDeduplicationCache();
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -47,18 +56,28 @@ type ClaimedMessage = {
 
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
-  const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
+  const mlMatch = normalized.match(
+    /(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/
+  );
   if (mlMatch) return Math.round(Number(mlMatch[1].replace(",", ".")));
 
-  const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
-  if (literMatch) return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
+  const literMatch = normalized.match(
+    /(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/
+  );
+  if (literMatch) {
+    return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
+  }
 
   return null;
 }
 
 function mentionsWater(text?: string) {
   const normalized = normalizeWhatsAppIntentText(text || "");
-  return /\baguas?\b/.test(normalized) || /\bhidratacao\b/.test(normalized) || /\bwater\b/.test(normalized);
+  return (
+    /\baguas?\b/.test(normalized) ||
+    /\bhidratacao\b/.test(normalized) ||
+    /\bwater\b/.test(normalized)
+  );
 }
 
 function getImageCaption(message: WhatsAppWebhookMessage) {
@@ -72,14 +91,20 @@ function resolveMessageContentType(message: WhatsAppWebhookMessage) {
   return "text" as const;
 }
 
-function resolveBatchContextFlow(messages: IndexedWhatsAppWebhookMessage[]): WhatsappContextFlow {
-  const types = new Set(messages.map(item => resolveMessageContentType(item.message)));
+function resolveBatchContextFlow(
+  messages: IndexedWhatsAppWebhookMessage[]
+): WhatsappContextFlow {
+  const types = new Set(
+    messages.map(item => resolveMessageContentType(item.message))
+  );
   if (types.size > 1 || types.has("multimodal")) return "multimodal";
   const [type] = [...types];
   return type === "image" || type === "audio" ? type : "text";
 }
 
-async function claimIndexedMessage(item: IndexedWhatsAppWebhookMessage): Promise<ClaimedMessage | null | "duplicate"> {
+async function claimIndexedMessage(
+  item: IndexedWhatsAppWebhookMessage
+): Promise<ClaimedMessage | null | "duplicate"> {
   const message = item.message;
   if (!message.from) return null;
 
@@ -103,7 +128,7 @@ async function claimIndexedMessage(item: IndexedWhatsAppWebhookMessage): Promise
 
   if (!lifecycleHandle && locallySeen) return "duplicate";
 
-  if (!await claimMessageForProcessing(lifecycleHandle)) {
+  if (!(await claimMessageForProcessing(lifecycleHandle))) {
     logInferenceEvent({
       userId,
       origin: "whatsapp",
@@ -122,21 +147,27 @@ async function claimIndexedMessage(item: IndexedWhatsAppWebhookMessage): Promise
   return { item, userId, lifecycleHandle };
 }
 
-async function handleOnboardingLeadMessage(item: IndexedWhatsAppWebhookMessage) {
+async function handleOnboardingLeadMessage(
+  item: IndexedWhatsAppWebhookMessage
+) {
   const message = item.message;
   if (!message.from) return false;
 
   const userId = await getUserIdByWhatsappPhone(message.from);
   if (userId) return false;
 
-  const { createWhatsappOnboardingLead } = await import("./modules/onboarding/whatsappLeadService");
-  const onboarding = await createWhatsappOnboardingLead({ phoneNumber: message.from });
+  const { createWhatsappOnboardingLead } = await import(
+    "./modules/onboarding/whatsappLeadService"
+  );
+  const onboarding = await createWhatsappOnboardingLead({
+    phoneNumber: message.from,
+  });
   const { result: replyResult } = await sendWhatsAppStandaloneLogicalReply(
     message.from,
     withCtaUrl(textReply(buildWhatsAppOnboardingLeadReplyMessage()), {
       buttonText: "Finalizar cadastro",
       url: onboarding.url,
-    }),
+    })
   );
 
   if (!replyResult.primaryOk) {
@@ -152,7 +183,36 @@ async function handleOnboardingLeadMessage(item: IndexedWhatsAppWebhookMessage) 
   return true;
 }
 
-async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage, claim: ClaimedMessage | null) {
+async function handleBillingAccessPending(claim: ClaimedMessage | null) {
+  if (!claim?.item.message.from) return false;
+
+  const access = await billingService.getUserEntitlements(claim.userId);
+  if (access.allowed) return false;
+
+  const delivery = await sendWhatsAppLogicalDomainReply({
+    to: claim.item.message.from,
+    userId: claim.userId,
+    replyText: buildWhatsAppAccessPendingReplyMessage(),
+    lifecycleHandle: claim.lifecycleHandle,
+  });
+
+  logInferenceEvent({
+    userId: claim.userId,
+    origin: "whatsapp",
+    status: delivery.result.primaryOk ? "success" : "warning",
+    eventType: "whatsapp.access_pending",
+    detail: delivery.result.primaryOk
+      ? "Mensagem bloqueada antes do pipeline nutricional por ausência de elegibilidade comercial."
+      : "Mensagem bloqueada por ausência de elegibilidade; a orientação de ativação não pôde ser enviada.",
+  });
+
+  return true;
+}
+
+async function handleWaterImageMessage(
+  item: IndexedWhatsAppWebhookMessage,
+  claim: ClaimedMessage | null
+) {
   const message = item.message;
   if (!message.image?.id || message.audio?.id || !message.from) return false;
 
@@ -164,8 +224,16 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage, clai
   const captionMentionsWater = mentionsWater(caption);
 
   if (captionMentionsWater) {
-    if (!amountFromCaption || amountFromCaption <= 0 || amountFromCaption > MAX_WATER_LOG_AMOUNT_ML) {
-      await sendWaterImageClarification({ userId, sourcePhone: message.from, lifecycleHandle: claim?.lifecycleHandle ?? null });
+    if (
+      !amountFromCaption ||
+      amountFromCaption <= 0 ||
+      amountFromCaption > MAX_WATER_LOG_AMOUNT_ML
+    ) {
+      await sendWaterImageClarification({
+        userId,
+        sourcePhone: message.from,
+        lifecycleHandle: claim?.lifecycleHandle ?? null,
+      });
       return true;
     }
 
@@ -174,7 +242,8 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage, clai
       sourcePhone: message.from,
       amountMl: amountFromCaption,
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
-      detail: "Imagem de água com quantidade explícita na legenda registrada pelo WhatsApp.",
+      detail:
+        "Imagem de água com quantidade explícita na legenda registrada pelo WhatsApp.",
       lifecycleHandle: claim?.lifecycleHandle ?? null,
     });
     return true;
@@ -183,20 +252,37 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage, clai
   return false;
 }
 
-async function buildCanonicalWaterImageReply(userId: number, amountMl: number, occurredAt: Date) {
+async function buildCanonicalWaterImageReply(
+  userId: number,
+  amountMl: number,
+  occurredAt: Date
+) {
   const progress = await getWhatsAppWaterProgress(userId, occurredAt);
   return buildWhatsAppCanonicalWaterReply({
     amountMl,
     totalMl: progress.totalMl,
     goalMl: progress.goalMl,
-    occurredAtLabel: occurredAt.toLocaleString("pt-BR", { timeZone: progress.timeZone }),
-    totalLabel: progress.dateKey === new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone })
-      ? "Total de hoje"
-      : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
+    occurredAtLabel: occurredAt.toLocaleString("pt-BR", {
+      timeZone: progress.timeZone,
+    }),
+    totalLabel:
+      progress.dateKey ===
+      new Date().toLocaleDateString("en-CA", {
+        timeZone: progress.timeZone,
+      })
+        ? "Total de hoje"
+        : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
   });
 }
 
-async function registerWaterImage(input: { userId: number; sourcePhone: string; amountMl: number; occurredAt: Date; detail: string; lifecycleHandle: MessageLifecycleHandle }) {
+async function registerWaterImage(input: {
+  userId: number;
+  sourcePhone: string;
+  amountMl: number;
+  occurredAt: Date;
+  detail: string;
+  lifecycleHandle: MessageLifecycleHandle;
+}) {
   const created = await createUserWaterLog(input.userId, {
     amountMl: input.amountMl,
     occurredAt: input.occurredAt.toISOString(),
@@ -214,7 +300,11 @@ async function registerWaterImage(input: { userId: number; sourcePhone: string; 
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
     userId: input.userId,
-    replyText: await buildCanonicalWaterImageReply(input.userId, input.amountMl, input.occurredAt),
+    replyText: await buildCanonicalWaterImageReply(
+      input.userId,
+      input.amountMl,
+      input.occurredAt
+    ),
     lifecycleHandle: input.lifecycleHandle,
   });
   if (!delivery.result.primaryOk) {
@@ -228,13 +318,18 @@ async function registerWaterImage(input: { userId: number; sourcePhone: string; 
   }
 }
 
-async function sendWaterImageClarification(input: { userId: number; sourcePhone: string; lifecycleHandle: MessageLifecycleHandle }) {
+async function sendWaterImageClarification(input: {
+  userId: number;
+  sourcePhone: string;
+  lifecycleHandle: MessageLifecycleHandle;
+}) {
   logInferenceEvent({
     userId: input.userId,
     origin: "whatsapp",
     status: "warning",
     eventType: "whatsapp.image_water_clarification_needed",
-    detail: "Imagem de água recebida sem quantidade explícita para registro de hidratação.",
+    detail:
+      "Imagem de água recebida sem quantidade explícita para registro de hidratação.",
   });
 
   const delivery = await sendWhatsAppLogicalDomainReply({
@@ -254,7 +349,6 @@ async function sendWaterImageClarification(input: { userId: number; sourcePhone:
   }
 }
 
-
 function clonePayloadWithoutKeys(payload: any, handledKeys: Set<string>) {
   const cloned = structuredClone(payload);
   const entries = Array.isArray(cloned?.entry) ? cloned.entry : [];
@@ -264,16 +358,29 @@ function clonePayloadWithoutKeys(payload: any, handledKeys: Set<string>) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
       const filteredChanges = changes
         .map((change: any, changeIndex: number) => {
-          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
+          const messages = Array.isArray(change?.value?.messages)
+            ? change.value.messages
+            : [];
           const filteredMessages = messages.filter(
-            (_message: WhatsAppWebhookMessage, messageIndex: number) => !handledKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`),
+            (_message: WhatsAppWebhookMessage, messageIndex: number) =>
+              !handledKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`)
           );
-          return { ...change, value: { ...change.value, messages: filteredMessages } };
+          return {
+            ...change,
+            value: { ...change.value, messages: filteredMessages },
+          };
         })
-        .filter((change: any) => Array.isArray(change?.value?.messages) && change.value.messages.length > 0);
+        .filter(
+          (change: any) =>
+            Array.isArray(change?.value?.messages) &&
+            change.value.messages.length > 0
+        );
       return { ...entry, changes: filteredChanges };
     })
-    .filter((entry: any) => Array.isArray(entry?.changes) && entry.changes.length > 0);
+    .filter(
+      (entry: any) =>
+        Array.isArray(entry?.changes) && entry.changes.length > 0
+    );
 
   return cloned;
 }
@@ -282,7 +389,10 @@ export function __resetWhatsAppImageIdempotencyForTests() {
   fallbackMessageDeduplicationCache.clear();
 }
 
-async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, res: Response) {
+async function handleWhatsAppWebhookWithImageIdempotencyInternal(
+  req: Request,
+  res: Response
+) {
   const messages = extractIndexedWhatsAppWebhookMessages(req.body);
   const handledKeys = new Set<string>();
   const duplicateKeys = new Set<string>();
@@ -299,6 +409,10 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
       handledKeys.add(item.key);
       continue;
     }
+    if (await handleBillingAccessPending(claim)) {
+      handledKeys.add(item.key);
+      continue;
+    }
     if (await handleWaterImageMessage(item, claim)) {
       handledKeys.add(item.key);
     }
@@ -306,7 +420,10 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
 
   if (handledKeys.size > 0) {
     const remainingPayload = clonePayloadWithoutKeys(req.body, handledKeys);
-    if (!Array.isArray(remainingPayload?.entry) || remainingPayload.entry.length === 0) {
+    if (
+      !Array.isArray(remainingPayload?.entry) ||
+      remainingPayload.entry.length === 0
+    ) {
       return res.status(200).json({
         ok: true,
         processed: messages.length - duplicateKeys.size,
@@ -318,10 +435,14 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
 
   const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
   const flow = resolveBatchContextFlow(remainingMessages);
-  const goalProgressContext = await resolveGoalProgressContext(remainingMessages);
+  const goalProgressContext =
+    await resolveGoalProgressContext(remainingMessages);
   const result = await runWithWhatsAppGoalProgressContext(
     goalProgressContext,
-    () => withWhatsappContextFlow(flow, () => handleWhatsAppWebhookWithTextIntent(req, res)),
+    () =>
+      withWhatsappContextFlow(flow, () =>
+        handleWhatsAppWebhookWithTextIntent(req, res)
+      )
   );
 
   return result;
@@ -332,7 +453,9 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
  * deduplicadas por atividade externa (#784). Falhas não bloqueiam o fluxo:
  * o contexto vazio apenas omite o dado contextual.
  */
-async function resolveGoalProgressContext(messages: IndexedWhatsAppWebhookMessage[]) {
+async function resolveGoalProgressContext(
+  messages: IndexedWhatsAppWebhookMessage[]
+) {
   const sourcePhone = messages[0]?.message.from;
   if (!sourcePhone) return { exerciseCaloriesByDateKey: {} };
   const userId = await getUserIdByWhatsappPhone(sourcePhone);
@@ -343,7 +466,7 @@ async function resolveGoalProgressContext(messages: IndexedWhatsAppWebhookMessag
     return {
       exerciseCaloriesByDateKey: buildWhatsAppExerciseCaloriesByDateKey(
         exercises ?? [],
-        occurredAt => getDateKeyInTimeZone(occurredAt, timeZone),
+        occurredAt => getDateKeyInTimeZone(occurredAt, timeZone)
       ),
     };
   } catch {
@@ -351,6 +474,11 @@ async function resolveGoalProgressContext(messages: IndexedWhatsAppWebhookMessag
   }
 }
 
-export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, res: Response) {
-  return runWithMessageLifecycleRequestScope(() => handleWhatsAppWebhookWithImageIdempotencyInternal(req, res));
+export async function handleWhatsAppWebhookWithImageIdempotency(
+  req: Request,
+  res: Response
+) {
+  return runWithMessageLifecycleRequestScope(() =>
+    handleWhatsAppWebhookWithImageIdempotencyInternal(req, res)
+  );
 }
