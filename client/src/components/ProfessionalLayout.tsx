@@ -278,7 +278,7 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     document.title = `${routeTitle(location)} | Área Profissional`;
-    mainRef.current?.focus();
+    mainRef.current?.focus({ preventScroll: true });
   }, [location]);
 
   useEffect(
