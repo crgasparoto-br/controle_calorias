@@ -24,6 +24,10 @@ vi.mock("../meals/service", async () => {
 });
 
 const { createDrizzleWhatsAppPendingOperationRepository } = await import("../../repositories/whatsappPendingOperationRepository");
+const {
+  runWithWhatsappInboundCorrelationScope,
+  setCurrentWhatsappInboundExternalMessageId,
+} = await import("./inboundCorrelationContext");
 const { buildWhatsAppCallbackId } = await import("./interactiveCallback");
 const { executeWhatsappTextIntent } = await import("./intentActions");
 const {
@@ -51,7 +55,7 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
     listMealsMock.mockResolvedValue([]);
   });
 
-  it("executor textual direto, usado pelo áudio transcrito, resolve a pendência pelo gate antes dos parsers", async () => {
+  it("transcrição dentro do escopo persistente resolve a pendência pelo gate antes dos parsers", async () => {
     const userId = 85_801;
     const receivedAt = new Date("2026-07-22T01:00:00.000Z");
     const pending = await pendingRepository.createPendingOperation({
@@ -64,11 +68,13 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
     });
     expect(pending).toBeTruthy();
 
-    const result = await executeWhatsappTextIntent(userId, {
-      text: "ontem",
-      receivedAt,
-      userTimezone: "America/Sao_Paulo",
-      entrypoint: "audioTranscription",
+    const result = await runWithWhatsappInboundCorrelationScope(async () => {
+      setCurrentWhatsappInboundExternalMessageId("wamid-audio-858");
+      return executeWhatsappTextIntent(userId, {
+        text: "ontem",
+        receivedAt,
+        userTimezone: "America/Sao_Paulo",
+      });
     });
 
     expect(result).toEqual(expect.objectContaining({
