@@ -74,6 +74,8 @@ jobs:
             docs/design-docs/whatsapp-ingestion.md
 
       - name: Focused regression tests
+        id: focused
+        continue-on-error: true
         run: |
           pnpm exec vitest run \
             server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
@@ -81,7 +83,22 @@ jobs:
             server/modules/quickEdit/mealUpdateConfirmation.test.ts \
             server/modules/quickEdit/router.test.ts \
             server/whatsappWebhook.test.ts \
-            server/repositories/whatsappPendingOperationRepository.test.ts
+            server/repositories/whatsappPendingOperationRepository.test.ts \
+            > issue874-focused-tests.log 2>&1
+
+      - name: Upload focused test diagnostics
+        if: steps.focused.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue874-focused-test-diagnostics
+          path: issue874-focused-tests.log
+          retention-days: 2
+
+      - name: Stop after focused test failure
+        if: steps.focused.outcome == 'failure'
+        run: |
+          cat issue874-focused-tests.log
+          exit 1
 
       - name: TypeScript check
         run: pnpm check
