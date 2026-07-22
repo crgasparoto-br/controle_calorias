@@ -52,7 +52,7 @@ Os testes dos webhooks textual, de intenção e de áudio validam o resumo prim�
 - o workflow oficial da PR é a evidência do artefato construído para esse commit;
 - validação em ambiente publicado deve registrar explicitamente o SHA implantado antes do encerramento da épica.
 
-A épica não deve ser fechada com SHA implantado divergente do SHA aprovado pelo workflow.
+A épica não deve ser fechada com SHA implantado divergente do SHA aprovado pelo workflow. A evidência final deve identificar o mesmo commit em código, testes e artefato validado.
 
 ## Validações obrigatórias
 
