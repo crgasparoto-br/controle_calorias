@@ -15,14 +15,15 @@ Este diretório reúne a documentação canônica do Controle de Calorias. Use e
 
 Use `docs/product-specs/` para regras funcionais, critérios de aceite e comportamento esperado por domínio.
 
-| Área                                         | Documento                                   |
-| -------------------------------------------- | ------------------------------------------- |
-| Modelo do produto e separação dos fluxos     | `product-specs/product-experience-model.md` |
-| Registro de refeições                        | `product-specs/meal-registration.md`        |
-| Metas, Hoje, Registros e Relatórios          | `product-specs/goals-and-reports.md`        |
-| Privacidade, exportação e exclusão           | `product-specs/privacy-export-deletion.md`  |
-| Área Profissional, vínculos e acompanhamento | `product-specs/professionals.md`            |
-| Integrações de saúde / Strava                | `product-specs/health-integrations.md`      |
+| Área                                         | Documento                                          |
+| -------------------------------------------- | -------------------------------------------------- |
+| Modelo do produto e separação dos fluxos     | `product-specs/product-experience-model.md`        |
+| Decisões comerciais de billing               | `product-specs/billing-commercial-decisions.md`    |
+| Registro de refeições                        | `product-specs/meal-registration.md`               |
+| Metas, Hoje, Registros e Relatórios          | `product-specs/goals-and-reports.md`               |
+| Privacidade, exportação e exclusão           | `product-specs/privacy-export-deletion.md`         |
+| Área Profissional, vínculos e acompanhamento | `product-specs/professionals.md`                   |
+| Integrações de saúde / Strava                | `product-specs/health-integrations.md`             |
 
 `product-experience-model.md` é a fonte canônica para:
 
@@ -30,6 +31,8 @@ Use `docs/product-specs/` para regras funcionais, critérios de aceite e comport
 - coexistência entre Área do Paciente e Área Profissional;
 - preservação da experiência individual já desenvolvida;
 - classificação de issues entre experiência atual, plataforma compartilhada, programa profissional e billing.
+
+`billing-commercial-decisions.md` registra as decisões que precisam ser aprovadas antes de provider real, preços, cobrança ou ativação de `BILLING_ACCESS_MODE=enforced`. Itens marcados como **Em aberto** não podem ser convertidos em regra comercial definitiva.
 
 ## Design técnico
 
@@ -50,6 +53,7 @@ Exemplos principais:
 - `design-docs/custom-foods.md`
 - `design-docs/whatsapp-conversation-context.md`
 - `design-docs/whatsapp-ingestion.md`
+- `design-docs/whatsapp-onboarding.md`
 - `design-docs/professional-ai-assistance.md`
 - `design-docs/billing-foundation.md`
 
