@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getActivePendingOperationMock = vi.fn();
-const createPendingOperationMock = vi.fn();
-const handleWhatsappFoodClarificationMock = vi.fn();
+const getActivePendingOperationMock = vi.hoisted(() => vi.fn());
+const createPendingOperationMock = vi.hoisted(() => vi.fn());
+const supersedePendingOperationMock = vi.hoisted(() => vi.fn());
+const handleWhatsappFoodClarificationMock = vi.hoisted(() => vi.fn());
+const findWhatsappRegisteredInteractionMock = vi.hoisted(() => vi.fn());
+const rebuildWhatsappRegisteredInteractionMock = vi.hoisted(() => vi.fn());
+const resolveWhatsappRegisteredTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({
   getDb: vi.fn(),
@@ -13,17 +17,20 @@ vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({
   createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => ({
     getActivePendingOperation: getActivePendingOperationMock,
     createPendingOperation: createPendingOperationMock,
-    supersedePendingOperation: vi.fn(),
+    supersedePendingOperation: supersedePendingOperationMock,
     cancelPendingOperation: vi.fn(),
     claimPendingOperation: vi.fn(),
   })),
 }));
 
 vi.mock("./foodClarification", () => ({
-  PENDING_FOOD_CLARIFICATION_TYPE: "food_registration_clarification",
   handleWhatsappFoodClarification: handleWhatsappFoodClarificationMock,
-  isPendingFoodClarificationTarget: vi.fn(() => false),
-  isExpectedWhatsappFoodClarificationAction: vi.fn(() => false),
+}));
+
+vi.mock("./interactionRegistry", () => ({
+  findWhatsappRegisteredInteraction: findWhatsappRegisteredInteractionMock,
+  rebuildWhatsappRegisteredInteraction: rebuildWhatsappRegisteredInteractionMock,
+  resolveWhatsappRegisteredText: resolveWhatsappRegisteredTextMock,
 }));
 
 const { resolvePendingWhatsappFoodClarification } = await import("./foodClarificationGate");
@@ -32,7 +39,11 @@ describe("resolvePendingWhatsappFoodClarification", () => {
   beforeEach(() => {
     getActivePendingOperationMock.mockReset();
     createPendingOperationMock.mockReset();
+    supersedePendingOperationMock.mockReset();
     handleWhatsappFoodClarificationMock.mockReset();
+    findWhatsappRegisteredInteractionMock.mockReset();
+    rebuildWhatsappRegisteredInteractionMock.mockReset();
+    resolveWhatsappRegisteredTextMock.mockReset();
     getActivePendingOperationMock.mockResolvedValue(null);
     createPendingOperationMock.mockImplementation(async input => ({
       id: 99,
@@ -46,6 +57,7 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
+    supersedePendingOperationMock.mockResolvedValue({ superseded: true });
     handleWhatsappFoodClarificationMock.mockResolvedValue({
       handled: true,
       action: "food_clarification_requested",
@@ -55,8 +67,29 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     });
   });
 
-  it("resolve pendência alimentar ativa antes do restante do pipeline", async () => {
-    getActivePendingOperationMock.mockResolvedValue({ type: "food_registration_clarification" });
+  it("resolve pendência registrada pelo handler textual da entrada antes do restante do pipeline", async () => {
+    const active = {
+      id: 7,
+      userId: 42,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "quantity" },
+      state: "active",
+      version: 1,
+    };
+    const interaction = {
+      id: "food_clarification.quantity",
+      classifyText: vi.fn(() => "resolve"),
+    };
+    getActivePendingOperationMock.mockResolvedValue(active);
+    findWhatsappRegisteredInteractionMock.mockReturnValue(interaction);
+    resolveWhatsappRegisteredTextMock.mockResolvedValue({
+      handled: true,
+      action: "food_clarification_requested",
+      reply: "pergunta",
+      eventType: "whatsapp.food_clarification.requested",
+      detail: "teste",
+    });
 
     const result = await resolvePendingWhatsappFoodClarification({
       userId: 42,
@@ -64,8 +97,13 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(handleWhatsappFoodClarificationMock).toHaveBeenCalledOnce();
+    expect(interaction.classifyText).toHaveBeenCalledWith(active.target, "170 g");
+    expect(resolveWhatsappRegisteredTextMock).toHaveBeenCalledWith(
+      interaction,
+      expect.objectContaining({ pendingOperation: active, text: "170 g" }),
+    );
     expect(result).toEqual(expect.objectContaining({ action: "food_clarification_requested" }));
+    expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 
   it("não cria nova pendência antes dos parsers especializados", async () => {
@@ -108,6 +146,7 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       state: "active",
       version: 1,
     });
+    findWhatsappRegisteredInteractionMock.mockReturnValue(null);
 
     const result = await resolvePendingWhatsappFoodClarification({
       userId: 42,
@@ -117,8 +156,12 @@ describe("resolvePendingWhatsappFoodClarification", () => {
 
     expect(result).toEqual(expect.objectContaining({
       eventType: "whatsapp.interaction.unregistered_pending_blocked",
-      data: expect.objectContaining({ fallbackBlocked: true }),
+      data: expect.objectContaining({
+        fallbackBlocked: true,
+        interactionLifecycle: "blocked",
+      }),
     }));
+    expect(resolveWhatsappRegisteredTextMock).not.toHaveBeenCalled();
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 });
