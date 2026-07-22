@@ -18,7 +18,7 @@ function normalizeBillingTimestamp(value: Date) {
   return new Date(Math.floor(value.getTime() / 1_000) * 1_000);
 }
 
-export function createBillingAdminBepository(deps: BillingRepositoryDeps) {
+export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
   async function grantAdminOverride(input: GrantBillingOverrideInput) {
     const db = await requireDb(deps.getDb);
     const startsAt = normalizeBillingTimestamp(input.startsAt ?? new Date());
