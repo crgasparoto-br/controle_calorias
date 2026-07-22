@@ -153,3 +153,5 @@ jobs:
           git add -A
           git commit -m "fix: concluir pendencias auditadas da issue 874"
           git push origin HEAD:fix/874-whatsapp-correction-completion
+
+# TypeScript contract fixes staged.
