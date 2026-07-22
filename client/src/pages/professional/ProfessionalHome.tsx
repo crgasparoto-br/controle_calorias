@@ -20,6 +20,14 @@ import { ArrowRight, BellRing, UsersRound } from "lucide-react";
 import React from "react";
 import { useLocation } from "wouter";
 
+function formatPriorityDate(value: number | null | undefined) {
+  if (!value) return "Atualização não informada";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 function priorityDestination(item: any) {
   const signals = (item.signals ?? []) as Array<{ type?: string; key?: string }>;
   const kinds = signals.map(signal => signal.type ?? signal.key ?? "");
@@ -96,9 +104,14 @@ function PrioritiesPanel() {
                 .map((signal: any) => signal.label)
                 .join(", ")}
             </p>
-            {(item.signals ?? [])[0]?.reason ? (
-              <p className="mt-1 text-sm">{item.signals[0].reason}</p>
+            {(item.signals ?? [])[0]?.suggestedAction ? (
+              <p className="mt-1 text-sm">
+                Ação sugerida: {item.signals[0].suggestedAction}
+              </p>
             ) : null}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Atualizado em {formatPriorityDate(item.updatedAt)}
+            </p>
           </div>
           <Button
             variant="outline"
@@ -147,9 +160,17 @@ function PortfolioSummary() {
     ["Ativos", summary?.active ?? 0, "tracking=active"],
     ["Pausados", summary?.paused ?? 0, "tracking=paused"],
     ["Encerrados", summary?.ended ?? 0, "tracking=ended"],
-    ["Solicitações pendentes", summary?.pendingRequests ?? 0, "authorization=pending"],
+    [
+      "Solicitações pendentes",
+      summary?.pendingRequests ?? 0,
+      "authorization=pending",
+    ],
     ["Revisões pendentes", summary?.pendingReviews ?? 0, "review=overdue"],
-    ["Pesagens pendentes", summary?.pendingWeighings ?? 0, "authorization=approved"],
+    [
+      "Pesagens pendentes",
+      summary?.pendingWeighings ?? 0,
+      "authorization=approved",
+    ],
   ] as const;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
