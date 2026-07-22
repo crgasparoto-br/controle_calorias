@@ -1,4 +1,3 @@
-import React from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -24,6 +23,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   Apple,
   BarChart3,
+  CreditCard,
   Database,
   Goal,
   HeartPulse,
@@ -35,7 +35,7 @@ import {
   Stethoscope,
   UserRound,
 } from "lucide-react";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { useLocation } from "wouter";
 import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_calorie_control_2.png";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -68,9 +68,12 @@ export default function DashboardLayout({
         <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-card-foreground shadow-sm">
           <div className="space-y-3 text-center">
             <ProductIcon className="mx-auto h-16 w-16" />
-            <h1 className="text-2xl font-semibold tracking-tight">Entre para acessar sua jornada nutricional</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Entre para acessar sua jornada nutricional
+            </h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Faça login para registrar refeições, acompanhar metas calóricas, revisar sugestões e visualizar seu painel diário e semanal.
+              Faça login para registrar refeições, acompanhar metas calóricas,
+              revisar sugestões e visualizar seu painel diário e semanal.
             </p>
           </div>
           <Button
@@ -99,11 +102,17 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
 
   const isTodayRoute = location === "/" || location === "/today";
-  const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
+  const isRegisterRoute =
+    location === "/record" ||
+    location === "/log-meal" ||
+    location === "/registrar";
   const isRecordsRoute = location === "/meals";
   const isReportsRoute = location === "/reports";
-  const isSettingsRoute = location === "/settings" || location === "/onboarding";
-  const hasActiveProfessionalProfile = Boolean(user?.professionalProfileActive);
+  const isSettingsRoute =
+    location === "/settings" || location === "/onboarding";
+  const hasActiveProfessionalProfile = Boolean(
+    user?.professionalProfileActive
+  );
 
   const menuItems = useMemo(() => {
     const baseItems = [
@@ -113,19 +122,40 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
-      { icon: HeartPulse, label: "Integrações", path: "/health-integrations" },
-      { icon: Database, label: "Dados sincronizados", path: "/synced-health-data" },
+      {
+        icon: HeartPulse,
+        label: "Integrações",
+        path: "/health-integrations",
+      },
+      {
+        icon: Database,
+        label: "Dados sincronizados",
+        path: "/synced-health-data",
+      },
+      { icon: CreditCard, label: "Plano e acesso", path: "/billing" },
     ];
 
     if (hasActiveProfessionalProfile) {
-      baseItems.push({ icon: Stethoscope, label: "Área profissional", path: "/professional" });
+      baseItems.push({
+        icon: Stethoscope,
+        label: "Área profissional",
+        path: "/professional",
+      });
     }
 
     if (user?.role === "admin") {
-      baseItems.push({ icon: Shield, label: "Administração", path: "/admin" });
+      baseItems.push({
+        icon: Shield,
+        label: "Administração",
+        path: "/admin",
+      });
     }
 
-    baseItems.push({ icon: UserRound, label: "Configurações", path: "/settings" });
+    baseItems.push({
+      icon: UserRound,
+      label: "Configurações",
+      path: "/settings",
+    });
 
     return baseItems;
   }, [hasActiveProfessionalProfile, user?.role]);
@@ -148,13 +178,20 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border/70 bg-sidebar">
+      <Sidebar
+        collapsible="icon"
+        className="border-r border-sidebar-border/70 bg-sidebar"
+      >
         <SidebarHeader className="border-b border-sidebar-border/70 px-4 py-5">
           <div className="flex items-center gap-3">
             <ProductIcon />
             <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-              <p className="truncate text-sm font-medium text-sidebar-foreground/70">Controle de Calorias</p>
-              <h1 className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Nutrição inteligente</h1>
+              <p className="truncate text-sm font-medium text-sidebar-foreground/70">
+                Controle de Calorias
+              </p>
+              <h1 className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">
+                Nutrição inteligente
+              </h1>
             </div>
           </div>
         </SidebarHeader>
@@ -190,16 +227,29 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <DropdownMenuTrigger asChild>
               <button className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
                 <Avatar className="h-10 w-10 border border-sidebar-border bg-background">
-                  <AvatarFallback>{(user?.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback>
+                    {(user?.name || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                  <p className="truncate text-sm font-medium text-sidebar-foreground">{user?.name || "Usuário"}</p>
-                  <p className="truncate text-xs text-sidebar-foreground/70">{hasActiveProfessionalProfile ? "Conta pessoal + profissional" : user?.role === "admin" ? "Administrador" : "Conta pessoal"}</p>
+                  <p className="truncate text-sm font-medium text-sidebar-foreground">
+                    {user?.name || "Usuário"}
+                  </p>
+                  <p className="truncate text-xs text-sidebar-foreground/70">
+                    {hasActiveProfessionalProfile
+                      ? "Conta pessoal + profissional"
+                      : user?.role === "admin"
+                        ? "Administrador"
+                        : "Conta pessoal"}
+                  </p>
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                onClick={logout}
+                className="cursor-pointer text-destructive focus:text-destructive"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>
               </DropdownMenuItem>
@@ -214,7 +264,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Controle de Calorias</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                  Controle de Calorias
+                </p>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   {activeItem?.label || "Hoje"}
                 </h2>
