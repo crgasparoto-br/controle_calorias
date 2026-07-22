@@ -81,10 +81,13 @@ async function resolvePendingInteractionBeforeTextIntent(
   receivedAt: Date,
   userTimeZone: string,
 ): Promise<WhatsappIntentResult | null> {
+  const correlatedMessageId = input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId()?.trim() || null;
+  const requestScopedInbound = !input.entrypoint && Boolean(correlatedMessageId);
+
   // Webhook textual e simulador já executam o gate antes de chamar este executor.
-  // Apenas a transcrição de áudio entra diretamente aqui e precisa da proteção
-  // transversal antes dos parsers determinísticos e do fallback nutricional.
-  if (input.entrypoint !== "audioTranscription") return null;
+  // A transcrição de áudio chega diretamente aqui dentro do escopo persistente da
+  // mensagem; testes e consumidores explícitos podem usar o entrypoint nominal.
+  if (input.entrypoint !== "audioTranscription" && !requestScopedInbound) return null;
 
   const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
   const gate = await resolveWhatsAppPrecedenceGate({
@@ -92,7 +95,7 @@ async function resolvePendingInteractionBeforeTextIntent(
     text,
     receivedAt,
     userTimezone: userTimeZone,
-    messageId: input.messageId,
+    messageId: correlatedMessageId,
     pendingOnly: true,
   });
   if (gate.step === "continue_pipeline") return null;
