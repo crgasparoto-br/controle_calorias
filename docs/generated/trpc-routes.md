@@ -31,7 +31,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 7 | 5 | 2 | admin | Elegibilidade própria e administração comercial de billing |
+| `billing` | 8 | 5 | 3 | admin | Elegibilidade própria e administração comercial de billing |
 
 ## Procedures por grupo
 
@@ -282,6 +282,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 |---|---|---|
 | `me` | query | protected |
 | `subscriptionStatus` | query | protected |
+| `refreshOnboardingActivation` | mutation | protected |
 | `adminSearchUsers` | query | admin |
 | `adminListOverrides` | query | admin |
 | `adminGrantOverride` | mutation | admin |
