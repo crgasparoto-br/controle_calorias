@@ -36,8 +36,19 @@ async function main() {
     await setup.execute(
       `INSERT INTO whatsapp_onboarding_leads
         (phone_number, display_name, status, token_hash, token_expires_at)
-       VALUES (?, ?, 'pending_onboarding', ?, ?)`,
-      ["5511999999999", "Teste concorrente", "token-hash-1", expiresAt]
+       VALUES
+        (?, ?, 'pending_onboarding', ?, ?),
+        (?, ?, 'pending_onboarding', ?, ?)`,
+      [
+        "5511999999999",
+        "Teste concorrente",
+        "token-hash-1",
+        expiresAt,
+        "5511999999998",
+        "Teste recuperável",
+        "token-hash-2",
+        expiresAt,
+      ]
     );
   } finally {
     await setup.end();
@@ -128,12 +139,68 @@ async function main() {
       throw new Error("A successful activation retained a completion error.");
     }
 
+    const recoveryClaim = await first.execute<mysql.ResultSetHeader>(claimSql, [
+      now,
+      now,
+      "token-hash-2",
+      now,
+    ]);
+    if (recoveryClaim[0].affectedRows !== 1) {
+      throw new Error("The recoverable lead was not claimed.");
+    }
+
+    const recoveryAt = new Date();
+    await first.execute(
+      `UPDATE whatsapp_onboarding_leads
+       SET status = 'converting',
+           converted_user_id = COALESCE(converted_user_id, 456),
+           converted_at = COALESCE(converted_at, ?),
+           completion_error_code = 'PROFILE_WRITE_FAILED',
+           updated_at = ?
+       WHERE token_hash = 'token-hash-2'`,
+      [recoveryAt, recoveryAt]
+    );
+
+    const [recoveryRows] = await second.query<mysql.RowDataPacket[]>(
+      `SELECT status, converted_user_id, converted_at, completion_error_code,
+              token_used_at
+       FROM whatsapp_onboarding_leads
+       WHERE token_hash = 'token-hash-2'`
+    );
+    const recoveryRow = recoveryRows[0];
+    if (
+      !recoveryRow ||
+      recoveryRow.status !== "converting" ||
+      Number(recoveryRow.converted_user_id) !== 456 ||
+      !recoveryRow.converted_at ||
+      !recoveryRow.token_used_at ||
+      recoveryRow.completion_error_code !== "PROFILE_WRITE_FAILED"
+    ) {
+      throw new Error(
+        "A post-account failure did not preserve the converted user for recovery."
+      );
+    }
+
+    const resumed = await second.execute<mysql.ResultSetHeader>(
+      `UPDATE whatsapp_onboarding_leads
+       SET status = 'pending_activation', completion_error_code = NULL, updated_at = ?
+       WHERE token_hash = 'token-hash-2'
+         AND status = 'converting'
+         AND converted_user_id = 456`,
+      [new Date()]
+    );
+    if (resumed[0].affectedRows !== 1) {
+      throw new Error("The interrupted completion could not be resumed.");
+    }
+
     console.log(
       JSON.stringify({
         completionClaims: claimed,
         activationTransitions: activated,
         finalStatus: row.status,
         activationSource: row.activation_source,
+        recoveredUserId: Number(recoveryRow.converted_user_id),
+        resumedTransitions: resumed[0].affectedRows,
       })
     );
   } finally {
