@@ -123,6 +123,10 @@ export function parseIntentClarificationTextAction(text?: string | null): Intent
   return null;
 }
 
+function canResumeAsFoodRegistration(action: string) {
+  return action === "meal_item_added" || action.startsWith("food_clarification_");
+}
+
 export async function completeWhatsappIntentClarificationCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
@@ -149,13 +153,34 @@ export async function completeWhatsappIntentClarificationCallback(
     };
   }
   if (action === "register_food") {
+    const { executeWhatsappTextIntent } = await import("./intentActions");
+    const resumed = await executeWhatsappTextIntent(userId, {
+      text: target.originalText,
+      receivedAt,
+      entrypoint: "intentClarification.resume",
+    });
+    if (resumed && canResumeAsFoodRegistration(resumed.action)) {
+      return {
+        ...resumed,
+        detail: `${resumed.detail} Mensagem original retomada após a escolha Registrar alimento.`,
+        data: {
+          ...(resumed.data ?? {}),
+          originalTextPreserved: true,
+          originalTextResumed: true,
+        },
+      };
+    }
+
     return {
       handled: true as const,
       action: "intent_clarification_register_food",
       reply: "Certo! Me diga o alimento e a quantidade, por exemplo: 100 g de arroz ou 1 pão francês.",
       eventType: "whatsapp.intent_clarification.register_food",
-      detail: "Clarificação resolvida para pergunta aberta de alimento e quantidade; a palavra de comando não foi persistida.",
-      data: { originalTextPreserved: Boolean(target.originalText) },
+      detail: "A mensagem original não tinha dados suficientes; a clarificação foi convertida em pergunta aberta específica de alimento e quantidade.",
+      data: {
+        originalTextPreserved: Boolean(target.originalText),
+        originalTextResumed: false,
+      },
     };
   }
   if (action === "correct_meal") {
