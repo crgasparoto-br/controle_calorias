@@ -80,6 +80,7 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
 
   it("Registrar alimento retoma o texto original quando ele já contém dados suficientes para uma clarificação específica", async () => {
     const userId = 85_802;
+    const receivedAt = new Date("2026-07-22T01:00:00.000Z");
     const target = {
       contractVersion: 1 as const,
       interactionId: "intent_clarification.generic" as const,
@@ -92,7 +93,7 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
       userId,
       { target } as never,
       "register_food",
-      new Date("2026-07-22T01:00:00.000Z"),
+      receivedAt,
     );
 
     expect(result.eventType).toMatch(/^whatsapp\.food_clarification\./);
@@ -100,7 +101,7 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
       originalTextPreserved: true,
       originalTextResumed: true,
     }));
-    const active = await pendingRepository.getActivePendingOperation(userId);
+    const active = await pendingRepository.getActivePendingOperation(userId, receivedAt);
     expect(active?.type).toBe("food_registration_clarification");
   });
 
