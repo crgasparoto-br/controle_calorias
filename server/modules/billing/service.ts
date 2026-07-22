@@ -163,16 +163,42 @@ export function createBillingService(deps: {
     limit: number;
     accessReason?: BillingAccessReason;
   }): Promise<BillingAdminUserAccess[]> {
-    const users = await deps.repository.searchUsers(input.query, input.limit);
-    const rows = await Promise.all(
-      users.map(async user => ({
-        ...user,
-        access: await getUserEntitlements(user.id),
-      }))
-    );
-    return input.accessReason
-      ? rows.filter(row => row.access.reason === input.accessReason)
-      : rows;
+    const pageSize = input.accessReason ? Math.max(input.limit, 50) : input.limit;
+    const matches: BillingAdminUserAccess[] = [];
+    let offset = 0;
+
+    while (matches.length < input.limit) {
+      const users = await deps.repository.searchUsers(
+        input.query,
+        pageSize,
+        offset
+      );
+      if (!users.length) break;
+
+      const evaluated = await Promise.all(
+        users.map(async user => {
+          const [access, activeOverride] = await Promise.all([
+            getUserEntitlements(user.id),
+            deps.repository.getActiveAdminOverride(user.id, nowProvider()),
+          ]);
+          return { ...user, access, activeOverride };
+        })
+      );
+      matches.push(
+        ...evaluated.filter(
+          row => !input.accessReason || row.access.reason === input.accessReason
+        )
+      );
+
+      offset += users.length;
+      if (!input.accessReason || users.length < pageSize) break;
+    }
+
+    return matches.slice(0, input.limit);
+  }
+
+  function listAdminOverrides(userId: number, limit: number) {
+    return deps.repository.listAdminOverrides(userId, limit, nowProvider());
   }
 
   async function grantAdminOverride(input: GrantBillingOverrideInput) {
@@ -196,6 +222,7 @@ export function createBillingService(deps: {
     userCanUseSystem,
     getUserSubscriptionStatus,
     searchAdminUsers,
+    listAdminOverrides,
     grantAdminOverride,
     revokeAdminOverride,
     getAdminAnalytics,

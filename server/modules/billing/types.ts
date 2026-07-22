@@ -178,7 +178,11 @@ export type BillingRepository = {
     userId: number,
     now: Date
   ): Promise<BillingAdminOverride | null>;
-  listAdminOverrides(userId: number, limit: number): Promise<BillingAdminOverride[]>;
+  listAdminOverrides(
+    userId: number,
+    limit: number,
+    now: Date
+  ): Promise<BillingAdminOverride[]>;
   searchUsers(
     query: string,
     limit: number,

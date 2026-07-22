@@ -1,5 +1,6 @@
 import type { BillingRepository } from "../modules/billing/types";
 import { createBillingAccessRepository } from "./billingAccessRepository";
+import { createBillingAdminAnalyticsRepository } from "./billingAdminAnalyticsRepository";
 import { createBillingAdminRepository } from "./billingAdminRepository";
 import { createBillingCapacityRepository } from "./billingCapacityRepository";
 import type { BillingRepositoryDeps } from "./billingRepositorySupport";
@@ -13,5 +14,6 @@ export function createDrizzleBillingRepository(
     ...createBillingAccessRepository(deps),
     ...createBillingCapacityRepository(deps),
     ...createBillingAdminRepository(deps),
+    ...createBillingAdminAnalyticsRepository(deps),
   };
 }

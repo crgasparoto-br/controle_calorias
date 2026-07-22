@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import {
   billingAdminGrantOverrideSchema,
+  billingAdminListOverridesSchema,
   billingAdminRevokeOverrideSchema,
   billingAdminSearchUsersSchema,
 } from "./schemas";
@@ -31,6 +32,11 @@ export const billingRouter = router({
   adminSearchUsers: adminProcedure
     .input(billingAdminSearchUsersSchema)
     .query(({ input }) => billingService.searchAdminUsers(input)),
+  adminListOverrides: adminProcedure
+    .input(billingAdminListOverridesSchema)
+    .query(({ input }) =>
+      billingService.listAdminOverrides(input.userId, input.limit)
+    ),
   adminGrantOverride: adminProcedure
     .input(billingAdminGrantOverrideSchema)
     .mutation(async ({ ctx, input }) => {

@@ -16,6 +16,8 @@ const ids = {
   admin: 9184,
   plan: "billing-test-professional-plan",
   subscription: "billing-test-subscription",
+  futureSubscription: "billing-test-future-subscription",
+  staleEntitlement: "billing-test-stale-entitlement",
   authorizationA: "billing-test-authorization-a",
   authorizationB: "billing-test-authorization-b",
   providerEvent: "billing-test-provider-event",
@@ -59,8 +61,9 @@ async function main() {
       "DELETE FROM billingCapacityAllocations WHERE coverageKey IN (?, ?)",
       [coverageKey(ids.authorizationA), coverageKey(ids.authorizationB)]
     );
-    await pool.query("DELETE FROM billingSubscriptions WHERE id = ?", [
+    await pool.query("DELETE FROM billingSubscriptions WHERE id IN (?, ?)", [
       ids.subscription,
+      ids.futureSubscription,
     ]);
     await pool.query("DELETE FROM billingPlans WHERE id = ?", [ids.plan]);
     await pool.query(
@@ -88,6 +91,9 @@ async function main() {
       );
     }
 
+    const baselineWithoutAccess = (
+      await repository.getAdminAnalytics(new Date())
+    ).usersWithoutCommercialAccess;
     const now = new Date();
     for (const [authorizationId, patientUserId] of [
       [ids.authorizationA, ids.patientA],
@@ -142,6 +148,12 @@ async function main() {
         `${ids.professional}:${ids.plan}`,
       ]
     );
+    assert.equal(
+      (await repository.getAdminAnalytics(new Date()))
+        .usersWithoutCommercialAccess,
+      baselineWithoutAccess - 1,
+      "a current active subscription must reduce users without commercial access"
+    );
 
     const competing = await Promise.all([
       repository.reserveProfessionalCapacity({
@@ -188,6 +200,12 @@ async function main() {
       [ids.subscription]
     );
     assert.equal(Number(allocationRows[0]?.total), 1);
+    assert.equal(
+      (await repository.getAdminAnalytics(new Date()))
+        .usersWithoutCommercialAccess,
+      baselineWithoutAccess - 2,
+      "valid professional coverage must use the canonical sponsored eligibility"
+    );
 
     const candidates = await repository.listAccessCandidates(
       winnerPatient,
@@ -226,6 +244,65 @@ async function main() {
       ),
       false
     );
+    assert.equal(
+      (await repository.getAdminAnalytics(new Date()))
+        .usersWithoutCommercialAccess,
+      baselineWithoutAccess - 1,
+      "released coverage must no longer count as commercial access"
+    );
+
+    await pool.query(
+      `INSERT INTO billingSubscriptions (
+        id, provider, payerUserId, planId, externalSubscriptionId, status,
+        activeHolderPlanKey, currentPeriodStart, currentPeriodEnd,
+        createdAt, updatedAt
+      ) VALUES (?, 'manual', ?, ?, ?, 'active', NULL,
+        DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY),
+        NOW(), NOW())`,
+      [
+        ids.futureSubscription,
+        ids.patientB,
+        ids.plan,
+        "billing-integration-future-subscription-external",
+      ]
+    );
+    await pool.query(
+      `INSERT INTO billingEntitlements (
+        id, beneficiaryUserId, sourceType, sourceId, sponsorUserId, planId,
+        professionalAuthorizationId, state, activeGrantKey,
+        entitlementsJson, validFrom, validUntil, createdAt, updatedAt
+      ) VALUES (?, ?, 'professional_coverage', ?, ?, ?, ?, 'active', ?, ?,
+        DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY),
+        NOW(), NOW())`,
+      [
+        ids.staleEntitlement,
+        ids.patientB,
+        coverageKey(ids.authorizationB),
+        ids.professional,
+        ids.plan,
+        ids.authorizationB,
+        `professional_coverage:stale:${ids.authorizationB}`,
+        JSON.stringify(["system_access"]),
+      ]
+    );
+    assert.equal(
+      (await repository.listAccessCandidates(ids.patientB, new Date())).length,
+      0,
+      "future subscriptions and orphan sponsored grants must not create access"
+    );
+    const analyticsWithInvalidSources = await repository.getAdminAnalytics(
+      new Date()
+    );
+    assert.equal(
+      analyticsWithInvalidSources.usersWithoutCommercialAccess,
+      baselineWithoutAccess - 1,
+      "analytics must ignore the same future and orphan sources as eligibility"
+    );
+    assert.deepEqual(
+      analyticsWithInvalidSources.estimatedMonthlyRecurringRevenue,
+      [{ currency: "BRL", amountMinor: 19900, estimated: true }],
+      "future subscriptions must not inflate recurring revenue"
+    );
 
     const firstOverride = await repository.grantAdminOverride({
       userId: ids.patientA,
@@ -248,16 +325,49 @@ async function main() {
       "replacement must preserve override history"
     );
     assert.equal(overrideRows.find(row => row.state === "active")?.total, 1);
+    const activeOverride = await repository.getActiveAdminOverride(
+      ids.patientA,
+      new Date()
+    );
+    assert.equal(activeOverride?.id, secondOverride.id);
+    const overrideHistory = await repository.listAdminOverrides(
+      ids.patientA,
+      25,
+      new Date()
+    );
+    assert.deepEqual(
+      overrideHistory.map(item => item.id),
+      [secondOverride.id, firstOverride.id],
+      "override history must remain discoverable after the grant response is gone"
+    );
+    assert.equal(
+      (await repository.getAdminAnalytics(new Date()))
+        .usersWithoutCommercialAccess,
+      baselineWithoutAccess - 2,
+      "an active override must count as commercial access"
+    );
+    if (!activeOverride)
+      throw new Error("active override must be discoverable");
     await repository.revokeAdminOverride({
-      overrideId: secondOverride.id,
+      overrideId: activeOverride.id,
       revokedByUserId: ids.admin,
       reason: "Integração encerrada",
     });
     await repository.revokeAdminOverride({
-      overrideId: secondOverride.id,
+      overrideId: activeOverride.id,
       revokedByUserId: ids.admin,
       reason: "Repetição idempotente",
     });
+    assert.equal(
+      await repository.getActiveAdminOverride(ids.patientA, new Date()),
+      null
+    );
+    assert.equal(
+      (await repository.getAdminAnalytics(new Date()))
+        .usersWithoutCommercialAccess,
+      baselineWithoutAccess - 1,
+      "revoked overrides must immediately leave commercial access analytics"
+    );
 
     const recorded = await repository.recordProviderEvent({
       provider: "integration-test",
@@ -305,6 +415,8 @@ async function main() {
         event: "billing.persistence.integration.passed",
         concurrentReservations: competing,
         providerEventIdempotent: true,
+        durableOverrideLookup: true,
+        canonicalAdminAnalytics: true,
         auditTotals,
       })
     );

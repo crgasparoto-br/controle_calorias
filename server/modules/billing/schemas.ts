@@ -7,6 +7,11 @@ export const billingAdminSearchUsersSchema = z.object({
   accessReason: z.enum(BILLING_ACCESS_REASONS).optional(),
 });
 
+export const billingAdminListOverridesSchema = z.object({
+  userId: z.number().int().positive(),
+  limit: z.number().int().min(1).max(100).default(25),
+});
+
 export const billingAdminGrantOverrideSchema = z.object({
   userId: z.number().int().positive(),
   reason: z.string().trim().min(3).max(2_000),
@@ -21,6 +26,9 @@ export const billingAdminRevokeOverrideSchema = z.object({
 
 export type BillingAdminSearchUsersInput = z.infer<
   typeof billingAdminSearchUsersSchema
+>;
+export type BillingAdminListOverridesInput = z.infer<
+  typeof billingAdminListOverridesSchema
 >;
 export type BillingAdminGrantOverrideInput = z.infer<
   typeof billingAdminGrantOverrideSchema

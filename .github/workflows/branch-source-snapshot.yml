@@ -33,5 +33,3 @@ jobs:
           name: branch-source-snapshot
           path: /tmp/controle-calorias-source.tar.gz
           retention-days: 1
-
-# Temporary source capture for issue 869 follow-up.

@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createBillingService } from "./service";
-import type {
-  BillingEntitlementCandidate,
-  BillingRepository,
-} from "./types";
+import type { BillingEntitlementCandidate, BillingRepository } from "./types";
 
 const NOW = new Date("2026-07-22T12:00:00.000Z");
 
@@ -57,6 +54,8 @@ function repository(
       createdAt: NOW,
       updatedAt: NOW,
     })),
+    getActiveAdminOverride: vi.fn(async () => null),
+    listAdminOverrides: vi.fn(async () => []),
     searchUsers: vi.fn(async () => []),
     getAdminAnalytics: vi.fn(async () => ({
       plans: [],
@@ -241,6 +240,19 @@ describe("billing entitlement service", () => {
   });
 
   it("filters admin user search by effective access reason", async () => {
+    const activeOverride = {
+      id: "11111111-1111-4111-8111-111111111111",
+      userId: 20,
+      reason: "Suporte temporário",
+      startsAt: NOW,
+      endsAt: null,
+      state: "active" as const,
+      grantedByUserId: 1,
+      revokedByUserId: null,
+      revokedAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
     const repo = repository({
       searchUsers: vi.fn(async () => [
         { id: 10, name: "Ana", email: "ana@example.com", phoneNumber: null },
@@ -250,6 +262,9 @@ describe("billing entitlement service", () => {
         userId === 10
           ? [candidate("active_subscription")]
           : [candidate("admin_override")]
+      ),
+      getActiveAdminOverride: vi.fn(async userId =>
+        userId === 20 ? activeOverride : null
       ),
     });
     const service = createBillingService({
@@ -268,7 +283,70 @@ describe("billing entitlement service", () => {
       expect.objectContaining({
         id: 20,
         access: expect.objectContaining({ reason: "admin_override" }),
+        activeOverride,
       }),
     ]);
+  });
+
+  it("continues paginating until a filtered access match is found", async () => {
+    const users = Array.from({ length: 51 }, (_, index) => ({
+      id: index + 1,
+      name: `User ${String(index + 1).padStart(2, "0")}`,
+      email: `user-${index + 1}@example.com`,
+      phoneNumber: null,
+    }));
+    const searchUsers = vi.fn(
+      async (_query: string, limit: number, offset = 0) =>
+        users.slice(offset, offset + limit)
+    );
+    const repo = repository({
+      searchUsers,
+      listAccessCandidates: vi.fn(async userId =>
+        userId === 51 ? [candidate("admin_override")] : []
+      ),
+    });
+    const service = createBillingService({
+      repository: repo,
+      now: () => NOW,
+      accessMode: () => "enforced",
+    });
+
+    await expect(
+      service.searchAdminUsers({
+        query: "",
+        limit: 1,
+        accessReason: "admin_override",
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 51,
+        access: expect.objectContaining({ reason: "admin_override" }),
+      }),
+    ]);
+    expect(searchUsers).toHaveBeenNthCalledWith(1, "", 50, 0);
+    expect(searchUsers).toHaveBeenNthCalledWith(2, "", 50, 50);
+  });
+
+  it("loads override history with the same evaluation instant", async () => {
+    const history = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        userId: 10,
+        reason: "Suporte temporário",
+        startsAt: NOW,
+        endsAt: null,
+        state: "active" as const,
+        grantedByUserId: 1,
+        revokedByUserId: null,
+        revokedAt: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    ];
+    const repo = repository({ listAdminOverrides: vi.fn(async () => history) });
+    const service = createBillingService({ repository: repo, now: () => NOW });
+
+    await expect(service.listAdminOverrides(10, 25)).resolves.toEqual(history);
+    expect(repo.listAdminOverrides).toHaveBeenCalledWith(10, 25, NOW);
   });
 });

@@ -69,11 +69,15 @@ A definição comercial futura de “paciente ativo”, downgrade, tolerância e
 
 ## Administração
 
-As procedures `billing.adminSearchUsers`, `billing.adminGrantOverride`, `billing.adminRevokeOverride` e `billing.adminAnalytics` usam `adminProcedure`. A autoria é sempre obtida de `ctx.user.id`; o cliente não informa quem concedeu ou revogou.
+As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing.adminGrantOverride`, `billing.adminRevokeOverride` e `billing.adminAnalytics` usam `adminProcedure`. A autoria é sempre obtida de `ctx.user.id`; o cliente não informa quem concedeu ou revogou.
 
-A busca suporta nome, e-mail e telefone. A análise separa status de assinatura, overrides ativos, beneficiários cobertos, ocupação e receita recorrente estimada por moeda. Valores de moedas diferentes nunca são somados. Ciclo anual é dividido por 12 apenas para estimativa e permanece identificado como estimativa.
+A busca suporta nome, e-mail e telefone. Quando há filtro por motivo efetivo de acesso, o serviço percorre páginas estáveis de usuários até preencher o limite solicitado ou esgotar os resultados; o filtro nunca é aplicado somente depois do primeiro `LIMIT`. Cada resultado inclui o override ativo efetivo, quando existir, com o identificador necessário para uma revogação posterior.
 
-A interface administrativa completa será uma entrega posterior da épica. A proteção de backend já é obrigatória e não pode ser substituída por ocultação de menu.
+`adminListOverrides` recupera o histórico recente por usuário, incluindo identificador, motivo, vigência, autoria, revogação e estado efetivo. Assim, grant e revoke formam um fluxo durável mesmo após recarregar a aplicação ou transferir o atendimento para outro administrador.
+
+A análise separa status de assinatura, overrides ativos, beneficiários cobertos, ocupação e receita recorrente estimada por moeda. `usersWithoutCommercialAccess` usa as mesmas condições canônicas de assinatura própria, cobertura profissional, trial, acesso gratuito e override aplicadas na elegibilidade. Assinaturas futuras e coberturas sem assinatura, vaga ou autorização válidas não são contabilizadas como acesso. Valores de moedas diferentes nunca são somados. Ciclo anual é dividido por 12 apenas para estimativa e permanece identificado como estimativa.
+
+A interface administrativa completa será uma entrega posterior da épica. A proteção e a completude do fluxo de backend já são obrigatórias e não podem ser substituídas por ocultação de menu ou pela retenção temporária de IDs no cliente.
 
 ## Contrato para provider financeiro futuro
 
@@ -91,7 +95,7 @@ Ao integrar o primeiro provider real:
 ## Validação
 
 - testes unitários: precedência, validade, estados, fallback, sanitização, provider profissional e autorização administrativa;
-- teste TiDB: última vaga concorrente, retry de reserva, liberação repetida, cobertura derivada, histórico de override, evento duplicado e payload sanitizado;
+- teste TiDB: última vaga concorrente, retry de reserva, liberação repetida, cobertura derivada, histórico e recuperação durável de override, consistência entre analytics e elegibilidade, evento duplicado e payload sanitizado;
 - `pnpm agent:check`;
 - `pnpm build`;
 - `pnpm db:test:billing` e `pnpm db:check-integrity` quando houver banco.
