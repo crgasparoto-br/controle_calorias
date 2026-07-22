@@ -1,10 +1,14 @@
 name: Orchestrate issue 874 audit fixes
 
-# Triggered after all patch fragments were staged.
 on:
   push:
     branches:
       - fix/874-whatsapp-correction-completion
+    paths:
+      - .github/workflows/orchestrate-issue874-round2.yml
+  pull_request:
+    branches:
+      - develop
     paths:
       - .github/workflows/orchestrate-issue874-round2.yml
   workflow_dispatch:
