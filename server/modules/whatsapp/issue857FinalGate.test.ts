@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ISSUE_857_REGRESSION_MATRIX } from "./issue857RegressionMatrix";
 import { WHATSAPP_INTERACTION_REGISTRY } from "./interactionRegistry";
@@ -6,7 +8,6 @@ import { buildWhatsAppOutboundFallbackText, type WhatsAppOutboundMessage } from 
 import { buildWhatsAppFoodLines } from "./replyTemplates";
 
 const REMOVED_ESTIMATION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
-const REQUIRED_MODALITIES = ["text", "callback", "audio_transcription", "simulator", "image_context"] as const;
 const REQUIRED_CLOSED_BEHAVIORS = [
   "canonical_actions",
   "interactive_component",
@@ -22,6 +23,12 @@ function matrixByInteractionId() {
   return new Map(ISSUE_857_REGRESSION_MATRIX.map(entry => [entry.interactionId, entry]));
 }
 
+function readEvidenceFile(path: string) {
+  const absolutePath = resolve(process.cwd(), path);
+  expect(existsSync(absolutePath), `Missing evidence file ${path}`).toBe(true);
+  return readFileSync(absolutePath, "utf8").toLowerCase();
+}
+
 describe("issue #857 final interaction gate", () => {
   it("consome diretamente todo o inventário canônico sem interação ausente ou duplicada", () => {
     const registryIds = WHATSAPP_INTERACTION_REGISTRY.map(interaction => interaction.id);
@@ -33,7 +40,39 @@ describe("issue #857 final interaction gate", () => {
     expect(matrixIds).toEqual(registryIds);
   });
 
-  it("vincula cada interação aos entrypoints, modalidades, efeitos e evidências executadas pela suíte", () => {
+  it("distingue modalidades aplicáveis em vez de declarar cobertura universal", () => {
+    const matrix = matrixByInteractionId();
+
+    expect(matrix.get("professional_access.authorization")?.applicableModalities)
+      .toEqual(["text", "callback", "standalone_outbound"]);
+    expect(matrix.get("food_clarification.quantity")?.applicableModalities)
+      .not.toContain("callback");
+    expect(matrix.get("delete.confirmation")?.applicableModalities)
+      .toContain("image_context");
+
+    for (const entry of ISSUE_857_REGRESSION_MATRIX) {
+      expect(entry.applicableModalities.length).toBeGreaterThan(0);
+      expect(new Set(entry.applicableModalities).size).toBe(entry.applicableModalities.length);
+    }
+  });
+
+  it("exige arquivos de teste reais e marcadores discriminantes para cada interação", () => {
+    for (const entry of ISSUE_857_REGRESSION_MATRIX) {
+      expect(entry.scenarioEvidence.length).toBeGreaterThanOrEqual(3);
+
+      for (const evidence of entry.scenarioEvidence) {
+        const source = readEvidenceFile(evidence.file);
+        expect(source).toContain("describe(");
+        expect(source).toContain("it(");
+        for (const token of evidence.requiredTokens) {
+          expect(source, `${entry.interactionId} is missing token ${token} in ${evidence.file}`)
+            .toContain(token.toLowerCase());
+        }
+      }
+    }
+  });
+
+  it("vincula cada interação a contratos executáveis e efeitos explícitos", () => {
     const matrix = matrixByInteractionId();
 
     for (const interaction of WHATSAPP_INTERACTION_REGISTRY) {
@@ -42,14 +81,6 @@ describe("issue #857 final interaction gate", () => {
       expect(evidence?.pendingType).toBe(interaction.pendingType);
       expect(evidence?.classification).toBe(interaction.classification);
       expect(evidence?.entrypoints).toEqual(interaction.entrypoints);
-      expect(evidence?.modalities).toEqual(REQUIRED_MODALITIES);
-      expect(evidence?.evidenceFiles.length).toBeGreaterThanOrEqual(6);
-      expect(evidence?.evidenceFiles).toContain("server/whatsappWebhook.test.ts");
-      expect(evidence?.evidenceFiles).toContain("server/whatsappIntentWebhook.test.ts");
-      expect(evidence?.evidenceFiles).toContain("server/whatsappWebhook.audioTranscription.test.ts");
-      expect(evidence?.evidenceFiles).toContain("server/modules/whatsapp/logicalReplyDelivery.test.ts");
-      expect(evidence?.evidenceFiles).toContain("server/modules/whatsapp/replyTransport.test.ts");
-
       expect(interaction.allowedEffects.length).toBeGreaterThan(0);
       expect(interaction.forbiddenEffects.length).toBeGreaterThan(0);
       expect(interaction.staleBehavior).toBe("reply_unavailable_request_new_command");
