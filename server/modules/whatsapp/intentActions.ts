@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
@@ -130,6 +131,14 @@ function resolveInboundCorrelationId(
   return `derived:${digest}`;
 }
 
+function isLatestFoodCorrectionText(text: string) {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return /\b(?:ultimo|ultima)\s+(?:alimento|item|refeicao)\b/.test(normalized);
+}
+
 async function executeResumedFoodRegistration(
   userId: number,
   input: WhatsappIntentInput,
@@ -180,6 +189,24 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     userTimeZone,
   );
   if (pendingInteraction) return pendingInteraction;
+
+  if (isLatestFoodCorrectionText(text)) {
+    const contextualFoodReplacement = await executeWhatsappContextualFoodReplacementIntent(userId, {
+      text,
+      receivedAt,
+    });
+    if (contextualFoodReplacement) {
+      return {
+        handled: true,
+        action: contextualFoodReplacement.action,
+        reply: contextualFoodReplacement.reply,
+        eventType: contextualFoodReplacement.eventType,
+        detail: contextualFoodReplacement.detail,
+        ...(contextualFoodReplacement.data ? { data: contextualFoodReplacement.data } : {}),
+        ...(contextualFoodReplacement.interactiveReply ? { interactiveReply: contextualFoodReplacement.interactiveReply } : {}),
+      };
+    }
+  }
 
   const deleteIntent = await executeWhatsappDeleteIntent(userId, {
     text,

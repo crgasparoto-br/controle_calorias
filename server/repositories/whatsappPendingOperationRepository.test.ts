@@ -23,20 +23,31 @@ type Condition = EqCondition | LtCondition | AndCondition | OrderCondition;
  * exigido pela issue #766: apenas uma de duas atualizações concorrentes que
  * casam a mesma condição de estado+versão deve ter sucesso.
  */
-function createFakeDb() {
+function createFakeDb(
+  options: {
+    insertResult?: (id: number) => unknown;
+  } = {}
+) {
   let rows: Row[] = [];
   let nextId = 1;
 
   function matches(row: Row, condition?: Condition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "ne") return row[condition.col.name] !== condition.val;
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "ne")
+      return row[condition.col.name] !== condition.val;
     if (condition.__op === "lt") {
-      const value = row[condition.col.name] instanceof Date ? (row[condition.col.name] as Date).getTime() : row[condition.col.name];
-      const compareTo = condition.val instanceof Date ? condition.val.getTime() : condition.val;
+      const value =
+        row[condition.col.name] instanceof Date
+          ? (row[condition.col.name] as Date).getTime()
+          : row[condition.col.name];
+      const compareTo =
+        condition.val instanceof Date ? condition.val.getTime() : condition.val;
       return (value as number) < (compareTo as number);
     }
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
     return true;
   }
 
@@ -75,13 +86,15 @@ function createFakeDb() {
     return chain;
   }
 
-  return {
+  const db = {
     select: vi.fn(() => ({ from: vi.fn(() => createSelectChain()) })),
     insert: vi.fn(() => ({
       values: vi.fn((payload: Row) => {
         const id = nextId++;
         rows.push({ id, ...payload });
-        return Promise.resolve({ insertId: id });
+        return Promise.resolve(
+          options.insertResult ? options.insertResult(id) : { insertId: id }
+        );
       }),
     })),
     update: vi.fn(() => {
@@ -108,12 +121,17 @@ function createFakeDb() {
       }),
     })),
   };
+
+  return db;
 }
 
-function createRepository() {
-  const db = createFakeDb();
+function createRepository(options?: Parameters<typeof createFakeDb>[0]) {
+  const db = createFakeDb(options);
   const onWarning = vi.fn();
-  const repository = createDrizzleWhatsAppPendingOperationRepository({ getDb: async () => db, onWarning });
+  const repository = createDrizzleWhatsAppPendingOperationRepository({
+    getDb: async () => db,
+    onWarning,
+  });
   return { db, onWarning, repository };
 }
 
@@ -138,12 +156,111 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     expect(created?.version).toBe(1);
   });
 
+  it("rele a pendência criada quando o insert retorna insertId direto", async () => {
+    const { repository } = createRepository({
+      insertResult: id => ({ insertId: id }),
+    });
+
+    const created = await repository.createPendingOperation({
+      userId: 1,
+      type: "food_registration_clarification",
+      target: { kind: "food_registration_clarification" },
+      origin: "foodClarification",
+      ttlMs: 10 * 60 * 1000,
+    });
+
+    expect(created).toEqual(
+      expect.objectContaining({
+        userId: 1,
+        type: "food_registration_clarification",
+        origin: "foodClarification",
+        target: { kind: "food_registration_clarification" },
+        state: "active",
+        version: 1,
+      })
+    );
+  });
+
+  it("rele a pendência criada quando o insert retorna cabeçalho em array/tupla", async () => {
+    const { repository } = createRepository({
+      insertResult: id => [{ insertId: id, affectedRows: 1 }, []],
+    });
+
+    const created = await repository.createPendingOperation({
+      userId: 1,
+      type: "food_registration_clarification",
+      target: { kind: "food_registration_clarification" },
+      origin: "foodClarification",
+      ttlMs: 10 * 60 * 1000,
+    });
+
+    expect(created).toEqual(
+      expect.objectContaining({
+        userId: 1,
+        type: "food_registration_clarification",
+        origin: "foodClarification",
+        target: { kind: "food_registration_clarification" },
+        state: "active",
+        version: 1,
+      })
+    );
+  });
+
+  it.each([
+    ["sem insertId", {}],
+    ["insertId zero", { insertId: 0 }],
+    ["insertId NaN", { insertId: Number.NaN }],
+    ["insertId negativo", { insertId: -1 }],
+    ["insertId fracionário", { insertId: 1.5 }],
+    ["insertId inválido em tupla", [{ insertId: 0 }, []]],
+  ])(
+    "falha fechado sem releitura quando o retorno do insert é inválido: %s",
+    async (_case, insertResult) => {
+      const { db, onWarning, repository } = createRepository({
+        insertResult: () => insertResult,
+      });
+
+      const created = await repository.createPendingOperation({
+        userId: 1,
+        type: "food_registration_clarification",
+        target: { kind: "food_registration_clarification" },
+        origin: "foodClarification",
+        ttlMs: 10 * 60 * 1000,
+      });
+
+      expect(created).toBeNull();
+      expect(db.insert).toHaveBeenCalledTimes(1);
+      expect(db.select).not.toHaveBeenCalled();
+      expect(onWarning).toHaveBeenCalledWith(
+        "WhatsApp pending operation create returned invalid insert id",
+        expect.any(Error)
+      );
+      expect(
+        `${onWarning.mock.calls[0]?.[0]} ${onWarning.mock.calls[0]?.[1]?.message}`
+      ).not.toContain("food_registration_clarification");
+    }
+  );
+
   it("retorna a pendência ativa mais recente do usuário", async () => {
     const { repository } = createRepository();
     const now = new Date("2026-07-10T10:00:00Z");
 
-    await repository.createPendingOperation({ userId: 1, type: "delete", target: {}, origin: "a", ttlMs: 60_000, now });
-    const second = await repository.createPendingOperation({ userId: 1, type: "confirmation", target: {}, origin: "b", ttlMs: 60_000, now });
+    await repository.createPendingOperation({
+      userId: 1,
+      type: "delete",
+      target: {},
+      origin: "a",
+      ttlMs: 60_000,
+      now,
+    });
+    const second = await repository.createPendingOperation({
+      userId: 1,
+      type: "confirmation",
+      target: {},
+      origin: "b",
+      ttlMs: 60_000,
+      now,
+    });
 
     const active = await repository.getActivePendingOperation(1, now);
     expect(active?.id).toBe(second?.id);
@@ -153,7 +270,14 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     const { repository } = createRepository();
     const now = new Date("2026-07-10T10:00:00Z");
 
-    await repository.createPendingOperation({ userId: 1, type: "delete", target: {}, origin: "a", ttlMs: 1000, now });
+    await repository.createPendingOperation({
+      userId: 1,
+      type: "delete",
+      target: {},
+      origin: "a",
+      ttlMs: 1000,
+      now,
+    });
 
     const later = new Date(now.getTime() + 5000);
     const active = await repository.getActivePendingOperation(1, later);
@@ -172,8 +296,14 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     });
 
     const [first, second] = await Promise.all([
-      repository.claimPendingOperation({ id: created!.id, expectedVersion: created!.version }),
-      repository.claimPendingOperation({ id: created!.id, expectedVersion: created!.version }),
+      repository.claimPendingOperation({
+        id: created!.id,
+        expectedVersion: created!.version,
+      }),
+      repository.claimPendingOperation({
+        id: created!.id,
+        expectedVersion: created!.version,
+      }),
     ]);
 
     const claims = [first.claimed, second.claimed];
@@ -194,7 +324,10 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       ttlMs: 60_000,
     });
 
-    const result = await repository.claimPendingOperation({ id: created!.id, expectedVersion: created!.version + 1 });
+    const result = await repository.claimPendingOperation({
+      id: created!.id,
+      expectedVersion: created!.version + 1,
+    });
     expect(result.claimed).toBe(false);
   });
 
@@ -227,7 +360,9 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       ttlMs: 60_000,
     });
 
-    const { superseded } = await repository.supersedePendingOperation(created!.id);
+    const { superseded } = await repository.supersedePendingOperation(
+      created!.id
+    );
     expect(superseded).toBe(true);
 
     const active = await repository.getActivePendingOperation(1);
@@ -239,17 +374,27 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       const { repository } = createRepository();
 
       const created = await repository.createPendingOperation({
-        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+        userId: 1,
+        type: "delete",
+        target: {},
+        origin: "deleteIntent",
+        ttlMs: 60_000,
       });
       // cancelPendingOperation grava updatedAt com o relógio real — as janelas de
       // comparação abaixo usam Date.now() como base para permanecerem coerentes com isso.
       await repository.cancelPendingOperation(created!.id);
       const cancelledAt = Date.now();
 
-      const tooEarly = await repository.purgeInactiveOperations(30, new Date(cancelledAt + 10 * 24 * 60 * 60 * 1000));
+      const tooEarly = await repository.purgeInactiveOperations(
+        30,
+        new Date(cancelledAt + 10 * 24 * 60 * 60 * 1000)
+      );
       expect(tooEarly).toBe(0);
 
-      const purged = await repository.purgeInactiveOperations(30, new Date(cancelledAt + 31 * 24 * 60 * 60 * 1000));
+      const purged = await repository.purgeInactiveOperations(
+        30,
+        new Date(cancelledAt + 31 * 24 * 60 * 60 * 1000)
+      );
       expect(purged).toBe(1);
     });
 
@@ -257,10 +402,17 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       const { repository } = createRepository();
 
       await repository.createPendingOperation({
-        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+        userId: 1,
+        type: "delete",
+        target: {},
+        origin: "deleteIntent",
+        ttlMs: 60_000,
       });
 
-      const purged = await repository.purgeInactiveOperations(30, new Date(Date.now() + 60 * 24 * 60 * 60 * 1000));
+      const purged = await repository.purgeInactiveOperations(
+        30,
+        new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+      );
       expect(purged).toBe(0);
     });
   });
@@ -270,10 +422,18 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       const { repository } = createRepository();
 
       const opA = await repository.createPendingOperation({
-        userId: 1, type: "delete", target: { mealId: 1 }, origin: "deleteIntent", ttlMs: 60_000,
+        userId: 1,
+        type: "delete",
+        target: { mealId: 1 },
+        origin: "deleteIntent",
+        ttlMs: 60_000,
       });
       await repository.createPendingOperation({
-        userId: 2, type: "confirmation", target: { mealId: 2 }, origin: "webhookTextCommands", ttlMs: 60_000,
+        userId: 2,
+        type: "confirmation",
+        target: { mealId: 2 },
+        origin: "webhookTextCommands",
+        ttlMs: 60_000,
       });
 
       const activeForA = await repository.getActivePendingOperation(1);
@@ -289,13 +449,24 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       const { repository } = createRepository();
 
       const opA = await repository.createPendingOperation({
-        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+        userId: 1,
+        type: "delete",
+        target: {},
+        origin: "deleteIntent",
+        ttlMs: 60_000,
       });
       const opB = await repository.createPendingOperation({
-        userId: 2, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+        userId: 2,
+        type: "delete",
+        target: {},
+        origin: "deleteIntent",
+        ttlMs: 60_000,
       });
 
-      await repository.claimPendingOperation({ id: opA!.id, expectedVersion: opA!.version });
+      await repository.claimPendingOperation({
+        id: opA!.id,
+        expectedVersion: opA!.version,
+      });
 
       const stillActiveForB = await repository.getActivePendingOperation(2);
       expect(stillActiveForB?.id).toBe(opB!.id);

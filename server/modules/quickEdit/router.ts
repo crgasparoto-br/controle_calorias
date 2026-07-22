@@ -9,6 +9,7 @@ import {
   updateQuickEditExercise,
   updateQuickEditMeal,
 } from "./service";
+import { logInferenceEvent } from "../../db";
 import {
   quickEditExerciseUpdateSchema,
   quickEditMealDeleteSchema,
@@ -28,7 +29,16 @@ function toPublicQuickEditError(error: unknown) {
     });
   }
 
-  return error;
+  logInferenceEvent({
+    origin: "web",
+    status: "error",
+    eventType: "quick_edit.public_error_sanitized",
+    detail: "Falha técnica na edição rápida sanitizada antes de responder ao usuário.",
+  });
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível salvar a edição agora. Tente novamente em instantes.",
+  });
 }
 
 export const quickEditRouter = router({
