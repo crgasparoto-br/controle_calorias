@@ -27,7 +27,7 @@ jobs:
       - name: Generate Drizzle metadata
         run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
       - name: Pack source and generated metadata
-        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
+        run: tar --exclude=.git --exclude=node_modules -czf /tmp/controle-calorias-source.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: branch-source-snapshot
