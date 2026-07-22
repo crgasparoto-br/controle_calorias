@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const downstreamWebhookMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
+const getUserEntitlementsMock = vi.fn();
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const listUserExercisesMock = vi.fn();
 const logInferenceEventMock = vi.fn();
@@ -18,19 +19,30 @@ vi.mock("./db", () => ({
   logPersistenceWarning: vi.fn(),
 }));
 
+vi.mock("./modules/billing/service", () => ({
+  billingService: {
+    getUserEntitlements: getUserEntitlementsMock,
+  },
+}));
+
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
   claimMessageForProcessing: vi.fn(async () => true),
   markMessageProcessed: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
-  runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
+  runWithMessageLifecycleRequestScope: async (
+    operation: () => Promise<unknown>
+  ) => operation(),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   enrichInboundMessage: vi.fn(async () => true),
 }));
 
 vi.mock("./whatsappConfig", () => ({
   requireWhatsAppMediaConfig: async () => ({ accessToken: "token-test" }),
-  requireWhatsAppSendConfig: async () => ({ accessToken: "token-test", phoneNumberId: "phone-number-test" }),
+  requireWhatsAppSendConfig: async () => ({
+    accessToken: "token-test",
+    phoneNumberId: "phone-number-test",
+  }),
 }));
 
 vi.mock("./whatsappIntentWebhook", () => ({
@@ -41,7 +53,9 @@ const {
   __resetWhatsAppImageIdempotencyForTests,
   handleWhatsAppWebhookWithImageIdempotency,
 } = await import("./whatsappImageIdempotencyWebhook");
-const { getWhatsAppExerciseCaloriesForDateKey } = await import("./modules/whatsapp/goalProgressContext");
+const { getWhatsAppExerciseCaloriesForDateKey } = await import(
+  "./modules/whatsapp/goalProgressContext"
+);
 
 type MockResponse = {
   statusCode: number;
@@ -75,7 +89,9 @@ function createImageWebhookRequest(caption?: string) {
               value: {
                 messages: [
                   {
-                    id: caption ? "wamid-image-caption" : "wamid-image-1",
+                    id: caption
+                      ? "wamid-image-caption"
+                      : "wamid-image-1",
                     from: "5511999999999",
                     timestamp: "1780502400",
                     type: "image",
@@ -103,27 +119,47 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     sentBodies = [];
     downstreamWebhookMock.mockReset();
     createUserWaterLogMock.mockReset();
+    getUserEntitlementsMock.mockReset();
     getUserIdByWhatsappPhoneMock.mockReset();
     listUserExercisesMock.mockReset();
     logInferenceEventMock.mockReset();
+    getUserEntitlementsMock.mockResolvedValue({
+      allowed: true,
+      reason: "free_access",
+      entitlements: ["system_access"],
+      sourceAvailable: true,
+      evaluatedAt: new Date(),
+    });
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     listUserExercisesMock.mockResolvedValue([]);
     createUserWaterLogMock.mockResolvedValue({ id: 91 });
-    downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) => (
-      res.status(200).json({ ok: true, processed: 1 })
-    ));
-    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      if (payload?.text?.body) sentBodies.push(payload.text.body);
-      return { ok: true, json: async () => ({ url: "https://media.test/image", mime_type: "image/jpeg" }) } as Response;
-    }) as typeof fetch;
+    downstreamWebhookMock.mockImplementation(
+      async (_req, res: MockResponse) =>
+        res.status(200).json({ ok: true, processed: 1 })
+    );
+    global.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = init?.body ? JSON.parse(String(init.body)) : {};
+        if (payload?.text?.body) sentBodies.push(payload.text.body);
+        return {
+          ok: true,
+          json: async () => ({
+            url: "https://media.test/image",
+            mime_type: "image/jpeg",
+          }),
+        } as Response;
+      }
+    ) as typeof fetch;
   });
 
   it("delegates the first image delivery and absorbs duplicate image retries", async () => {
     const firstReq = createImageWebhookRequest();
     const firstRes = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(firstReq as never, firstRes as never);
+    await handleWhatsAppWebhookWithImageIdempotency(
+      firstReq as never,
+      firstRes as never
+    );
 
     expect(firstRes.statusCode).toBe(200);
     expect(firstRes.body).toEqual({ ok: true, processed: 1 });
@@ -132,23 +168,59 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const retryReq = createImageWebhookRequest();
     const retryRes = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(retryReq as never, retryRes as never);
+    await handleWhatsAppWebhookWithImageIdempotency(
+      retryReq as never,
+      retryRes as never
+    );
 
     expect(retryRes.statusCode).toBe(200);
-    expect(retryRes.body).toEqual({ ok: true, processed: 0, deduplicated: true });
+    expect(retryRes.body).toEqual({
+      ok: true,
+      processed: 0,
+      deduplicated: true,
+    });
     expect(downstreamWebhookMock).toHaveBeenCalledOnce();
+  });
+
+  it("blocks a pending user before water or nutrition effects", async () => {
+    getUserEntitlementsMock.mockResolvedValue({
+      allowed: false,
+      reason: "no_access",
+      entitlements: [],
+      sourceAvailable: true,
+      evaluatedAt: new Date(),
+    });
+
+    const req = createImageWebhookRequest("300 ml de água");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithImageIdempotency(
+      req as never,
+      res as never
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(downstreamWebhookMock).not.toHaveBeenCalled();
+    expect(sentBodies.at(-1)).toContain("Acesso aguardando ativação");
+    expect(sentBodies.at(-1)).toContain("Nenhuma refeição, água, exercício");
   });
 
   it("registra água quando imagem tem legenda com quantidade", async () => {
     const req = createImageWebhookRequest("300 ml de água");
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
+    await handleWhatsAppWebhookWithImageIdempotency(
+      req as never,
+      res as never
+    );
 
     expect(res.statusCode).toBe(200);
-    expect(createUserWaterLogMock).toHaveBeenCalledWith(42, expect.objectContaining({ amountMl: 300 }));
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ amountMl: 300 })
+    );
     expect(downstreamWebhookMock).not.toHaveBeenCalled();
-    // Formato canônico de água (#784): quantidade, total e meta com diferença.
     expect(sentBodies.at(-1)).toContain("💧 *Água registrada*");
     expect(sentBodies.at(-1)).toContain("*Quantidade:* 300 ml");
   });
@@ -157,11 +229,16 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const req = createImageWebhookRequest();
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
+    await handleWhatsAppWebhookWithImageIdempotency(
+      req as never,
+      res as never
+    );
 
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(sentBodies.some(body => body.includes("Identifiquei água na imagem"))).toBe(false);
+    expect(
+      sentBodies.some(body => body.includes("Identifiquei água na imagem"))
+    ).toBe(false);
     expect(downstreamWebhookMock).toHaveBeenCalledOnce();
   });
 
@@ -187,15 +264,22 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
         notes: "Exercício manual.",
       },
     ]);
-    downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) => {
-      observedExerciseCalories.push(getWhatsAppExerciseCaloriesForDateKey("2026-06-03"));
-      return res.status(200).json({ ok: true, processed: 1 });
-    });
+    downstreamWebhookMock.mockImplementation(
+      async (_req, res: MockResponse) => {
+        observedExerciseCalories.push(
+          getWhatsAppExerciseCaloriesForDateKey("2026-06-03")
+        );
+        return res.status(200).json({ ok: true, processed: 1 });
+      }
+    );
 
     const req = createImageWebhookRequest();
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
+    await handleWhatsAppWebhookWithImageIdempotency(
+      req as never,
+      res as never
+    );
 
     expect(observedExerciseCalories).toEqual([408]);
   });
