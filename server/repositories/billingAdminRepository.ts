@@ -14,10 +14,22 @@ import {
   type BillingRepositoryDeps,
 } from "./billingRepositorySupport";
 
-export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
+function normalizeBillingTimestamp(value: Date) {
+  return new Date(Math.floor(value.getTime() / 1_000) * 1_000);
+}
+
+export function createBillingAdminBepository(deps: BillingRepositoryDeps) {
   async function grantAdminOverride(input: GrantBillingOverrideInput) {
     const db = await requireDb(deps.getDb);
-    const startsAt = input.startsAt ?? new Date();
+    const startsAt = normalizeBillingTimestamp(input.startsAt ?? new Date());
+    const endsAt = input.endsAt
+      ? normalizeBillingTimestamp(input.endsAt)
+      : null;
+    if (endsAt && endsAt.getTime() <= startsAt.getTime()) {
+      throw new Error(
+        "A vigência final deve ser posterior ao início da liberação."
+      );
+    }
     const overrideId = crypto.randomUUID();
     return db.transaction(async tx => {
       await tx.execute(sql`
@@ -60,7 +72,7 @@ export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
           state, activeUserKey, grantedByUserId, createdAt, updatedAt
         ) VALUES (
           ${overrideId}, ${input.userId}, true, ${input.reason}, ${startsAt},
-          ${input.endsAt ?? null}, 'active', ${String(input.userId)},
+          ${endsAt}, 'active', ${String(input.userId)},
           ${input.grantedByUserId}, NOW(), NOW()
         )
       `);
@@ -73,7 +85,7 @@ export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
         reason: input.reason,
         metadata: {
           startsAt: startsAt.toISOString(),
-          endsAt: input.endsAt?.toISOString() ?? null,
+          endsAt: endsAt?.toISOString() ?? null,
         },
       });
       const [saved] = resultRows<Record<string, unknown>>(
