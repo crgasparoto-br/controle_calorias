@@ -58,7 +58,7 @@ for (const path of [
   "./components/PatientProfessionalProfilesEmbed",
   "./components/ProfileWhatsappGreetingVisibility",
 ]) {
-  vi.mock(path, () => ({ default: () => null }));
+  vi.doMock(path, () => ({ default: () => null }));
 }
 
 function Fixture({ name }: { name: string }) {
@@ -94,7 +94,7 @@ for (const [path, name] of [
   ["@/pages/SyncedHealthDataPage", "SyncedHealthDataPage"],
   ["@/pages/WhatsappOnboardingPage", "WhatsappOnboardingPage"],
 ] as const) {
-  vi.mock(path, () => ({ default: () => <Fixture name={name} /> }));
+  vi.doMock(path, () => ({ default: () => <Fixture name={name} /> }));
 }
 
 afterEach(cleanup);
