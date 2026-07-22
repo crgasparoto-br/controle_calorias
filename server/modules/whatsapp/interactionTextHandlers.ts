@@ -1,6 +1,12 @@
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
+import {
+  isCompleteWhatsappCommand,
+  isPendingFoodClarificationTarget,
+  parseFoodClarificationQuantityReply,
+  parseFoodClarificationSelectionReply,
+} from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import {
@@ -250,8 +256,23 @@ export async function resolveProfessionalAccessText(input: WhatsappInteractionTe
   return normalizeResolvedInteraction(completed, "professional_access_resolved");
 }
 
-export function classifyFoodClarificationText(): WhatsappInteractionTextClassification {
-  return "resolve";
+export function classifyFoodClarificationText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+  if (!isPendingFoodClarificationTarget(target)) return "invalid";
+  if (isStandaloneWhatsappCancellationWord(text)) return "resolve";
+
+  if (target.pendingKind === "quantity") {
+    if (parseFoodClarificationQuantityReply(text)) return "resolve";
+  } else if (target.pendingKind === "confirmation") {
+    if (isStandaloneWhatsappConfirmationWord(text)) return "resolve";
+  } else {
+    const selection = parseFoodClarificationSelectionReply(text, target.candidates.length);
+    if (selection !== null) return "resolve";
+  }
+
+  // Respostas incompletas continuam no resolvedor do domínio para produzir a
+  // orientação específica. Apenas um novo comando completo é incompatível com
+  // a pendência alimentar atual e deve substituí-la no gate central.
+  return isCompleteWhatsappCommand(text) ? "invalid" : "resolve";
 }
 
 export async function resolveFoodClarificationText(input: WhatsappInteractionTextInput) {
