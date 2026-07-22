@@ -31,18 +31,45 @@ function listTypeScriptFiles(root: string): string[] {
   });
 }
 
-function discoverPendingTypeConstants() {
-  const roots = [
+function reachableTypeScriptFiles() {
+  return [
     path.resolve(process.cwd(), "server/modules/whatsapp"),
     path.resolve(process.cwd(), "server/modules/professionals"),
-  ];
+  ].flatMap(listTypeScriptFiles);
+}
+
+function discoverPendingTypeConstants() {
   const values = new Set<string>();
-  const pattern = /export\s+const\s+PENDING_[A-Z0-9_]+_TYPE\s*=\s*["']([^"']+)["']/g;
-  for (const file of roots.flatMap(listTypeScriptFiles)) {
+  const names = new Set<string>();
+  const pattern = /export\s+const\s+(PENDING_[A-Z0-9_]+_TYPE)\s*=\s*["']([^"']+)["']/g;
+  for (const file of reachableTypeScriptFiles()) {
     const content = fs.readFileSync(file, "utf8");
-    for (const match of content.matchAll(pattern)) values.add(match[1]);
+    for (const match of content.matchAll(pattern)) {
+      names.add(match[1]);
+      values.add(match[2]);
+    }
   }
-  return [...values].sort();
+  return { names, values: [...values].sort() };
+}
+
+function discoverPendingCreationTypeReferences() {
+  const references: Array<{ file: string; expression: string }> = [];
+  for (const file of reachableTypeScriptFiles()) {
+    const content = fs.readFileSync(file, "utf8");
+    const callPattern = /\.createPendingOperation\s*\(/g;
+    for (const call of content.matchAll(callPattern)) {
+      const window = content.slice((call.index ?? 0) + call[0].length, (call.index ?? 0) + call[0].length + 1000);
+      const objectStart = window.indexOf("{");
+      const typeMatch = objectStart >= 0
+        ? /\btype:\s*([^,\n}]+)/.exec(window.slice(objectStart))
+        : null;
+      references.push({
+        file: path.relative(process.cwd(), file),
+        expression: typeMatch?.[1]?.trim() ?? "<missing-type>",
+      });
+    }
+  }
+  return references;
 }
 
 const deleteMeal = {
@@ -85,8 +112,18 @@ describe("registro executável transversal de interações", () => {
 
   it("todo tipo de pendência exportado nos módulos alcançáveis está registrado", () => {
     const discovered = discoverPendingTypeConstants();
-    expect(discovered.length).toBeGreaterThan(0);
-    expect(listWhatsappRegisteredPendingTypes().sort()).toEqual(discovered);
+    expect(discovered.values.length).toBeGreaterThan(0);
+    expect(listWhatsappRegisteredPendingTypes().sort()).toEqual(discovered.values);
+  });
+
+  it("toda criação alcançável usa constante PENDING_*_TYPE exportada e registrada", () => {
+    const discovered = discoverPendingTypeConstants();
+    const references = discoverPendingCreationTypeReferences();
+    expect(references.length).toBeGreaterThan(0);
+    for (const reference of references) {
+      expect(reference.expression, reference.file).toMatch(/^PENDING_[A-Z0-9_]+_TYPE$/);
+      expect(discovered.names.has(reference.expression), reference.file).toBe(true);
+    }
   });
 
   it("roteador, gate e registro não mantêm switch ou cadeia paralela por tipo de pendência", () => {
