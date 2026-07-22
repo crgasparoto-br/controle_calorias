@@ -8,7 +8,7 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
@@ -20,70 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
-      - name: Apply issue 857 legacy test alignment
-        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/857-whatsapp-regression-gate' }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace(path: str, old: str, new: str):
-              file = Path(path)
-              text = file.read_text()
-              if old not in text:
-                  raise SystemExit(f"Expected block not found in {path}")
-              file.write_text(text.replace(old, new, 1))
-
-          replace(
-              "server/whatsappWebhook.test.ts",
-              '''    expect(lastSentWhatsAppBody).toContain("*Almoço Registrado às 08:52hs.*");
-              expect(lastSentWhatsAppBody).toContain("• 🍚 arroz — 100g");
-              expect(lastSentWhatsAppBody).toContain("Total da refeição:");
-              expect(lastSentWhatsAppBody).toContain("*Meta:* 2.200 kcal");
-              expect(lastSentWhatsAppBody).toContain("*Exercícios:* 0 kcal");
-              expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal");
-              expect(lastSentWhatsAppBody).toContain("*Déficit:* 2.070 kcal (-94%)");
-              expect(lastSentWhatsAppBody).not.toContain("Meta estimada");
-              expect(lastSentWhatsAppBody).not.toContain("Meta ajustada");''',
-              '''    const primaryPayload = sentWhatsAppPayloads.find(payload => payload.type === "text");
-              const primaryBody = primaryPayload?.text?.body ?? "";
-              expect(primaryBody).toContain("*Almoço Registrado às 08:52hs.*");
-              expect(primaryBody).toContain("• 🍚 arroz — 100g");
-              expect(primaryBody).toContain("Total da refeição:");
-              expect(primaryBody).toContain("*Meta:* 2.200 kcal");
-              expect(primaryBody).toContain("*Exercícios:* 0 kcal");
-              expect(primaryBody).toContain("*Consumo:* 130 kcal");
-              expect(primaryBody).toContain("*Déficit:* 2.070 kcal (-94%)");
-              expect(primaryBody).not.toContain("Meta estimada");
-              expect(primaryBody).not.toContain("Meta ajustada");''',
-          )
-
-          replace(
-              "server/whatsappWebhook.audioTranscription.test.ts",
-              '    expect(outboundTextBodies().at(-1)).toContain("*Almoço Registrado");',
-              '    expect(outboundTextBodies().some(body => body.includes("*Almoço Registrado"))).toBe(true);',
-          )
-
-          replace(
-              "server/whatsappIntentWebhook.test.ts",
-              '    expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");',
-              '    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);',
-          )
-
-          Path(".github/workflows/issue-857-refresh-tests.yml").unlink(missing_ok=True)
-          PY
-          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "test(whatsapp): alinhar sequência física da issue 857"
-            git push origin HEAD:fix/857-whatsapp-regression-gate
-            exit 0
-          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

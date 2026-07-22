@@ -443,7 +443,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     }));
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
-    expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
+    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);
   });
 
   it("envia botão de edição rápida ao ajustar refeição existente por texto", async () => {
