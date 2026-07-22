@@ -1,0 +1,104 @@
+name: Orchestrate issue 874 audit fixes
+
+on:
+  push:
+    branches:
+      - fix/874-whatsapp-correction-completion
+    paths:
+      - .github/workflows/orchestrate-issue874-round2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: orchestrate-issue-874-round2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-validate-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/874-whatsapp-correction-completion
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Reconstruct and apply audited fixes
+        run: |
+          cat scripts/.issue874-round2.part* | base64 -d > /tmp/apply-issue874-round2.mjs
+          node --check /tmp/apply-issue874-round2.mjs
+          node /tmp/apply-issue874-round2.mjs
+
+      - name: Remove temporary patch fragments
+        run: git rm scripts/.issue874-round2.part*
+
+      - name: Format changed files
+        run: |
+          pnpm exec prettier --write \
+            server/modules/whatsapp/visualMealInferenceValidation.ts \
+            server/modules/whatsapp/foodQuantityClarification.ts \
+            server/modules/whatsapp/foodClarificationPersistence.ts \
+            server/modules/whatsapp/foodClarification.ts \
+            server/whatsappWebhook.ts \
+            server/modules/whatsapp/contextualFoodReplacementIntent.ts \
+            server/modules/whatsapp/intentActions.ts \
+            server/modules/quickEdit/mealUpdateConfirmation.ts \
+            server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
+            server/modules/whatsapp/foodQuantityClarification.test.ts \
+            server/whatsappWebhook.test.ts \
+            server/modules/quickEdit/mealUpdateConfirmation.test.ts \
+            scripts/test-quick-edit-meal-update-tidb.ts \
+            .github/workflows/whatsapp-context-tidb.yml \
+            docs/product-specs/whatsapp-flow.md \
+            docs/design-docs/whatsapp-ingestion.md
+
+      - name: Focused regression tests
+        run: |
+          pnpm exec vitest run \
+            server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
+            server/modules/whatsapp/foodQuantityClarification.test.ts \
+            server/modules/quickEdit/mealUpdateConfirmation.test.ts \
+            server/modules/quickEdit/router.test.ts \
+            server/whatsappWebhook.test.ts \
+            server/repositories/whatsappPendingOperationRepository.test.ts
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Full agent gate
+        run: pnpm agent:check
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Hygiene checks
+        run: |
+          git diff --check
+          if grep -R "issue874-round2\|orchestrate-issue-874-round2" server scripts docs --exclude-dir=node_modules; then
+            echo "Temporary implementation marker found"
+            exit 1
+          fi
+
+      - name: Commit validated fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: concluir pendencias auditadas da issue 874"
+          git push origin HEAD:fix/874-whatsapp-correction-completion
