@@ -1,0 +1,107 @@
+name: Apply issue 874 completion patch
+
+on:
+  push:
+    branches:
+      - fix/874-whatsapp-correction-completion
+    paths:
+      - scripts/.issue874.patch.gz.*
+      - .github/workflows/apply-issue874-patch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-874-completion-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/874-whatsapp-correction-completion
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild and verify patch
+        shell: bash
+        run: |
+          cat scripts/.issue874.patch.gz.* > /tmp/issue874.patch.mjs.gz.b64
+          test "$(sha256sum /tmp/issue874.patch.mjs.gz.b64 | cut -d' ' -f1)" = "3cfc830caba2afec710cd5a8ef048e72ed02b0a4b205880c652491693ce78ba5"
+          base64 --decode /tmp/issue874.patch.mjs.gz.b64 | gzip --decompress > scripts/apply-issue874-patch.mjs
+          test "$(sha256sum scripts/apply-issue874-patch.mjs | cut -d' ' -f1)" = "a9521ab6e8eff00f77e69798472ad022e22f06f021262f84726df4817ad0a1fd"
+          node --check scripts/apply-issue874-patch.mjs
+
+      - name: Apply patch
+        run: node scripts/apply-issue874-patch.mjs
+
+      - name: Remove transport fragments
+        run: rm -f scripts/.issue874.patch.gz.*
+
+      - name: Format changed files
+        run: |
+          pnpm exec prettier --write \
+            server/modules/whatsapp/issue874Clarification.ts \
+            server/modules/whatsapp/issue874Clarification.test.ts \
+            server/modules/whatsapp/contextualFoodReplacementIntent.ts \
+            server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
+            server/modules/whatsapp/foodClarificationGate.ts \
+            server/modules/whatsapp/foodClarificationPersistence.ts \
+            server/modules/whatsapp/visualMealInferenceValidation.ts \
+            server/modules/quickEdit/issue874Service.ts \
+            server/modules/quickEdit/issue874Service.test.ts \
+            server/modules/quickEdit/router.ts \
+            server/modules/quickEdit/router.test.ts \
+            server/whatsappWebhook.ts \
+            server/whatsappWebhook.test.ts \
+            docs/product-specs/whatsapp-flow.md
+
+      - name: Focused regression tests
+        run: |
+          pnpm exec vitest run \
+            server/modules/whatsapp/issue874Clarification.test.ts \
+            server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
+            server/modules/quickEdit/issue874Service.test.ts \
+            server/modules/quickEdit/router.test.ts \
+            server/whatsappWebhook.test.ts
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Full agent gate
+        run: pnpm agent:check
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Diff hygiene
+        run: git diff --check
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(whatsapp): complete issue 874 correction flows"
+          git push origin HEAD:fix/874-whatsapp-correction-completion
