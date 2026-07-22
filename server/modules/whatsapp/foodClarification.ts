@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import * as dbRuntime from "../../db";
 import * as nutritionRuntime from "../../nutritionEngine";
@@ -15,6 +14,7 @@ import {
   buildPendingFoodClarificationTarget,
   buildQuantityInstruction,
   buildSelectionInstruction,
+  getFoodClarificationInteractionId,
   hasSafeCanonicalPortion,
   isCompleteWhatsappCommand,
   isExpectedWhatsappFoodClarificationAction,
@@ -94,17 +94,27 @@ function unavailable(detail: string): WhatsappFoodClarificationResult {
   });
 }
 
+function canonicalizeFoodClarificationTarget(
+  target: PendingFoodClarificationTarget,
+): PendingFoodClarificationTarget {
+  return {
+    ...target,
+    interactionId: getFoodClarificationInteractionId(target.pendingKind),
+  };
+}
+
 async function recreatePendingAfterSafeFailure(
   deps: FoodClarificationDependencies,
   userId: number,
   target: PendingFoodClarificationTarget,
   occurredAt: Date,
 ) {
+  const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   return deps.repository.createPendingOperation({
     userId,
     type: PENDING_FOOD_CLARIFICATION_TYPE,
     origin: PENDING_FOOD_CLARIFICATION_ORIGIN,
-    target,
+    target: canonicalTarget,
     ttlMs: PENDING_FOOD_CLARIFICATION_TTL_MS,
     now: occurredAt,
   });
@@ -119,10 +129,11 @@ async function persistWithRecovery(
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string },
 ): Promise<WhatsappFoodClarificationResult> {
+  const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   const outcome = await persistResolvedFoodSafely(
     deps,
     userId,
-    target,
+    canonicalTarget,
     candidate,
     occurredAt,
     timeZone,
@@ -130,7 +141,7 @@ async function persistWithRecovery(
   );
   if (outcome.status !== "safe_to_retry") return outcome.result;
 
-  const recreated = await recreatePendingAfterSafeFailure(deps, userId, target, occurredAt);
+  const recreated = await recreatePendingAfterSafeFailure(deps, userId, canonicalTarget, occurredAt);
   if (!recreated) {
     return result({
       action: "food_clarification_blocked",
@@ -140,7 +151,7 @@ async function persistWithRecovery(
       eventType: "whatsapp.food_clarification.retry_restore_failed",
       detail: "Falha anterior à mutação não conseguiu recriar a pendência persistente.",
       data: {
-        interactionId: target.interactionId,
+        interactionId: canonicalTarget.interactionId,
         originalTextPreserved: true,
         retryRequiresFullMessage: true,
       },
@@ -150,7 +161,7 @@ async function persistWithRecovery(
   return result({
     action: "food_clarification_retryable_failure",
     reply: buildWhatsAppRecoverableErrorReplyMessage(
-      `Não consegui concluir o registro agora. Mantive ${target.normalizedCandidate} pendente para nova tentativa.`,
+      `Não consegui concluir o registro agora. Mantive ${canonicalTarget.normalizedCandidate} pendente para nova tentativa.`,
     ),
     eventType: "whatsapp.food_clarification.retryable_failure",
     detail: "Falha comprovadamente anterior à mutação recriou a pendência sem descartar o texto original.",
@@ -251,6 +262,7 @@ async function resolvePendingText(
   if (!candidate || !hasSafeCanonicalPortion(candidate)) {
     const quantityTarget: PendingFoodClarificationTarget = {
       ...target,
+      interactionId: getFoodClarificationInteractionId("quantity"),
       pendingKind: "quantity",
       classification: "open",
       selectedCandidateIndex: candidate ? selectedIndex : null,
@@ -321,11 +333,12 @@ async function createPending(
     });
   }
 
+  const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   const created = await deps.repository.createPendingOperation({
     userId,
     type: PENDING_FOOD_CLARIFICATION_TYPE,
     origin: PENDING_FOOD_CLARIFICATION_ORIGIN,
-    target,
+    target: canonicalTarget,
     ttlMs: PENDING_FOOD_CLARIFICATION_TTL_MS,
     now: occurredAt,
   });
@@ -342,10 +355,10 @@ async function createPending(
 
   return result({
     action: "food_clarification_requested",
-    reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
+    reply: buildWhatsAppClarificationReplyMessage(canonicalTarget.instructionText),
     eventType: "whatsapp.food_clarification.requested",
     detail: "Pergunta específica criada em whatsappPendingOperations com contrato consumível pela #858.",
-    data: buildFoodClarificationPendingData(created, target),
+    data: buildFoodClarificationPendingData(created, canonicalTarget),
   });
 }
 
@@ -411,7 +424,6 @@ export function createWhatsappFoodClarificationService(
 
     if (plan.kind === "register") {
       const target = buildPendingFoodClarificationTarget({
-        interactionId: randomUUID(),
         request,
         pendingKind: "confirmation",
         candidates: [plan.candidate],
@@ -433,7 +445,6 @@ export function createWhatsappFoodClarificationService(
 
     if (plan.kind === "confirmation") {
       return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-        interactionId: randomUUID(),
         request,
         pendingKind: "confirmation",
         candidates: [plan.candidate],
@@ -445,7 +456,6 @@ export function createWhatsappFoodClarificationService(
 
     if (plan.kind === "selection") {
       return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-        interactionId: randomUUID(),
         request,
         pendingKind: "selection",
         candidates: plan.candidates,
@@ -455,7 +465,6 @@ export function createWhatsappFoodClarificationService(
     }
 
     return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-      interactionId: randomUUID(),
       request,
       pendingKind: "quantity",
       candidates: plan.candidates,
@@ -494,6 +503,7 @@ export function createWhatsappFoodClarificationService(
     if (!candidate || !hasSafeCanonicalPortion(candidate)) {
       const quantityTarget: PendingFoodClarificationTarget = {
         ...target,
+        interactionId: getFoodClarificationInteractionId("quantity"),
         pendingKind: "quantity",
         classification: "open",
         selectedCandidateIndex: Number.isInteger(index) ? index : null,

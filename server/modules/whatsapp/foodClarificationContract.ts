@@ -21,6 +21,13 @@ export const PENDING_FOOD_CLARIFICATION_TTL_MS = 10 * 60 * 1000;
 
 export type FoodClarificationKind = "confirmation" | "quantity" | "selection";
 export type FoodClarificationClassification = "open" | "closed";
+export type FoodClarificationInteractionId = `food_clarification.${FoodClarificationKind}`;
+
+export function getFoodClarificationInteractionId(
+  kind: FoodClarificationKind,
+): FoodClarificationInteractionId {
+  return `food_clarification.${kind}`;
+}
 
 export type FoodClarificationCandidate = {
   name: string;
@@ -33,7 +40,7 @@ export type FoodClarificationCandidate = {
 
 export type PendingFoodClarificationTarget = {
   contractVersion: 1;
-  interactionId: string;
+  interactionId: FoodClarificationInteractionId;
   kind: "food_registration_clarification";
   classification: FoodClarificationClassification;
   pendingKind: FoodClarificationKind;
@@ -224,7 +231,8 @@ export function buildFoodClarificationActions(kind: FoodClarificationKind, candi
 }
 
 export function buildPendingFoodClarificationTarget(input: {
-  interactionId: string;
+  /** Mantido apenas para compatibilidade de chamadas antigas; o ID canônico é derivado do tipo. */
+  interactionId?: string;
   request: CountedFoodRequest;
   pendingKind: FoodClarificationKind;
   candidates: FoodClarificationCandidate[];
@@ -234,7 +242,7 @@ export function buildPendingFoodClarificationTarget(input: {
 }): PendingFoodClarificationTarget {
   return {
     contractVersion: 1,
-    interactionId: input.interactionId,
+    interactionId: getFoodClarificationInteractionId(input.pendingKind),
     kind: "food_registration_clarification",
     classification: input.pendingKind === "quantity" ? "open" : "closed",
     pendingKind: input.pendingKind,
@@ -273,7 +281,7 @@ export function buildFoodClarificationPendingData(
   target: PendingFoodClarificationTarget,
 ) {
   return {
-    interactionId: target.interactionId,
+    interactionId: getFoodClarificationInteractionId(target.pendingKind),
     classification: target.classification,
     pendingOperationId: pending.id,
     pendingType: pending.type,
