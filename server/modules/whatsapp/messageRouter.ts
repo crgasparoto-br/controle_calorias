@@ -42,7 +42,11 @@ function buildUnavailableInteractiveCallbackResult(reason = "invalid_or_unavaila
     reply: buildWhatsAppCallbackUnavailableReplyMessage(),
     eventType: "whatsapp.interactive_callback.unavailable",
     detail: `Callback bloqueado antes de qualquer classificador ou fallback. reason=${reason}`,
-    data: { callbackBlocked: true, callbackBlockReason: reason },
+    data: {
+      callbackBlocked: true,
+      callbackBlockReason: reason,
+      interactionLifecycle: "blocked",
+    },
   };
 }
 
@@ -70,6 +74,7 @@ async function resolveWhatsAppInteractiveCallback(
   });
   if (!completed) return buildUnavailableInteractiveCallbackResult("unregistered_dispatch");
   const completedResult = completed as WhatsAppInteractiveCallbackResult;
+  const lifecycle = claim.action === "cancel" ? "cancelled" : "consumed";
 
   return {
     ...completedResult,
@@ -79,7 +84,7 @@ async function resolveWhatsAppInteractiveCallback(
       classification: description?.interaction.classification ?? null,
       component: description?.component ?? null,
       actionCount: description?.actions.length ?? null,
-      lifecycle: "consumed",
+      lifecycle,
     })}`,
     data: {
       ...(completedResult.data ?? {}),
@@ -88,6 +93,7 @@ async function resolveWhatsAppInteractiveCallback(
       interactionId: description?.interaction.id ?? null,
       interactionComponent: description?.component ?? null,
       interactionActionCount: description?.actions.length ?? null,
+      interactionLifecycle: lifecycle,
       callbackBlocked: false,
     },
   };
@@ -101,6 +107,8 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   interactiveReplyId?: string | null;
   sourcePhone?: string | null;
   messageId?: string | null;
+  /** Executa somente o tratamento transversal de pendências textuais. */
+  pendingOnly?: boolean;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
     const result = await resolveWhatsAppInteractiveCallback(
@@ -113,7 +121,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     return { step: "interactive_callback", result };
   }
 
-  if (isWhatsappAiQuestionText(input.text)) {
+  if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
     const result = await executeWhatsappAiQuestionIntent(input.userId, {
       text: input.text,
       receivedAt: input.receivedAt,
@@ -122,13 +130,15 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     if (result) return { step: "ai_question", result };
   }
 
-  const deleteIntent = await executeWhatsappDeleteIntent(input.userId, {
-    text: input.text,
-    receivedAt: input.receivedAt,
-    timeZone: input.userTimezone,
-    entrypoint: "messageRouter.precedenceGate",
-  });
-  if (deleteIntent) return { step: "delete_intent", result: deleteIntent };
+  if (!input.pendingOnly) {
+    const deleteIntent = await executeWhatsappDeleteIntent(input.userId, {
+      text: input.text,
+      receivedAt: input.receivedAt,
+      timeZone: input.userTimezone,
+      entrypoint: "messageRouter.precedenceGate",
+    });
+    if (deleteIntent) return { step: "delete_intent", result: deleteIntent };
+  }
 
   const pendingInteraction = await resolvePendingWhatsappFoodClarification({
     userId: input.userId,
