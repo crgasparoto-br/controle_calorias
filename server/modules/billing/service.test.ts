@@ -217,6 +217,50 @@ describe("billing entitlement service", () => {
     await expect(service.getUserSubscriptionStatus(10)).resolves.toEqual({
       access: expect.objectContaining({ reason: "admin_override" }),
       subscription: ownSubscription,
+      professionalSubscription: null,
+    });
+  });
+
+  it("includes professional plan capacity from the canonical repository", async () => {
+    const professionalSubscription = {
+      id: "subscription-professional-1",
+      provider: "manual",
+      planId: "plan-professional",
+      planCode: "professional-monthly",
+      planName: "Profissional",
+      status: "active" as const,
+      billingCycle: "monthly" as const,
+      currency: "BRL",
+      unitAmount: 9990,
+      currentPeriodStart: NOW,
+      currentPeriodEnd: new Date("2026-08-22T12:00:00.000Z"),
+      cancelAtPeriodEnd: false,
+      capacityLimit: 25,
+      capacityUsed: 7,
+      entitlements: ["professional_dashboard", "professional_portfolio"],
+    };
+    const service = createBillingService({
+      repository: repository({
+        listAccessCandidates: vi.fn(async () => [
+          candidate("active_subscription", {
+            planCode: "professional-monthly",
+          }),
+        ]),
+        getOwnSubscription: vi.fn(async () => professionalSubscription),
+        getActiveProfessionalSubscription: vi.fn(
+          async () => professionalSubscription
+        ),
+      }),
+      now: () => NOW,
+      accessMode: () => "enforced",
+    });
+
+    await expect(service.getUserSubscriptionStatus(10)).resolves.toMatchObject({
+      professionalSubscription: {
+        planCode: "professional-monthly",
+        capacityLimit: 25,
+        capacityUsed: 7,
+      },
     });
   });
 
