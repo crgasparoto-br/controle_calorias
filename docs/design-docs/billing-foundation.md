@@ -2,9 +2,11 @@
 
 ## Objetivo e estado de rollout
 
-Esta fundação implementa a primeira entrega técnica da épica #145. Ela persiste planos, assinaturas, eventos normalizados, entitlements, cobertura profissional, capacidade e exceções administrativas sem escolher um provedor financeiro real, sem cadastrar preço comercial definitivo e sem bloquear recursos existentes.
+Esta fundação implementa as entregas técnicas provider-neutral da épica #145. Ela persiste planos, assinaturas, eventos normalizados, entitlements, cobertura profissional, capacidade e exceções administrativas sem escolher um provedor financeiro real nem cadastrar preço comercial definitivo.
 
 `BILLING_ACCESS_MODE=open_access` é o padrão. Nesse modo, ausência ou falha da persistência comercial mantém o acesso atual e registra apenas diagnóstico sanitizado. `BILLING_ACCESS_MODE=enforced` deve ser ativado somente depois de aprovadas a matriz de recursos pagos, a migração dos usuários atuais e as políticas comerciais bloqueantes da épica.
+
+As interfaces implementadas nesta etapa são consultivas e operacionais sobre o contrato provider-neutral. Elas não oferecem checkout, alteração de plano ou cancelamento enquanto o primeiro provedor e as regras comerciais não estiverem aprovados.
 
 ## Fronteiras do domínio
 
@@ -51,6 +53,29 @@ Dentro da mesma origem, vence a concessão com maior validade; empate é resolvi
 
 Cobertura profissional exige simultaneamente assinatura ativa do patrocinador, vaga ativa, entitlement ativo e autorização profissional-paciente aprovada. Assinatura não substitui consentimento clínico.
 
+## Aplicação progressiva no backend
+
+`registerBillingAccessPolicy` registra uma política central sobre todas as `protectedProcedure`. Quando a elegibilidade é negada, a procedure é bloqueada no backend com erro seguro e explicável.
+
+As procedures sob `billing.*` permanecem acessíveis para que o usuário autenticado consiga consultar sua situação e acompanhar a regularização. Procedures administrativas continuam usando `adminProcedure`, que valida `users.role = admin` independentemente da visibilidade da navegação.
+
+No modo `open_access`, a policy preserva o comportamento atual. No modo `enforced`, a ausência de uma origem válida bloqueia os recursos protegidos. A ativação de `enforced` continua proibida até que a matriz de recursos, a migração e o rollback estejam aprovados.
+
+## WhatsApp e onboarding
+
+O entrypoint do WhatsApp consulta o mesmo serviço de elegibilidade depois de identificar o usuário e antes de executar hidratação, refeição, exercício, confirmação ou qualquer outro pipeline nutricional.
+
+Quando o acesso está pendente:
+
+- a mensagem é removida do lote que seguiria para o pipeline;
+- nenhum efeito nutricional é persistido;
+- o usuário recebe orientação para consultar **Plano e acesso** no sistema web;
+- o evento operacional é registrado sem texto cru, telefone ou detalhes financeiros sensíveis.
+
+A conclusão do onboarding cria conta, perfil, consentimentos e vínculo do WhatsApp, consome o token e então reavalia a elegibilidade. A resposta retorna `eligibility` e `nextAction` de forma estruturada. A saudação operacional só é enviada quando `eligibility.allowed` é verdadeiro. Cadastro concluído sem elegibilidade permanece preservado e autenticado, mas segue para a página de situação comercial.
+
+Esta etapa ainda não introduz o estado persistente `pending_activation`, checkout ou recuperação de pagamento. Esses fluxos dependem da política comercial e do primeiro provider da épica.
+
 ## Capacidade profissional
 
 `configureBillingProfessionalEntitlementProvider` registra o provider canônico no contrato da Área Profissional. O módulo profissional consome recursos e capacidade, mas não consulta tabelas financeiras nem calcula limite.
@@ -67,6 +92,27 @@ Para planos com capacidade finita:
 
 A definição comercial futura de “paciente ativo”, downgrade, tolerância e inadimplência ainda pertence à épica #145. Esta fundação não codifica essas decisões como regra definitiva.
 
+## Interfaces provider-neutral
+
+A rota autenticada `/billing` apresenta:
+
+- origem efetiva do acesso;
+- vigência e disponibilidade da fonte comercial;
+- assinatura própria e estado normalizado, quando existir;
+- plano profissional, capacidade contratada, ocupada e disponível;
+- recursos profissionais retornados pelo backend;
+- orientação de próxima etapa sem prometer checkout inexistente.
+
+A rota `/admin/billing` é protegida no frontend pelo papel administrativo e no backend por `adminProcedure`. Ela permite:
+
+- pesquisa por nome, e-mail, telefone e origem efetiva;
+- concessão de override com motivo e vigência opcional;
+- recarga do histórico e revogação pelo identificador persistido;
+- indicadores por plano e estado;
+- receita recorrente apenas como estimativa separada por moeda.
+
+O frontend não mantém tabela comercial paralela, não calcula elegibilidade e não inventa preço, limite ou benefício.
+
 ## Administração
 
 As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing.adminGrantOverride`, `billing.adminRevokeOverride` e `billing.adminAnalytics` usam `adminProcedure`. A autoria é sempre obtida de `ctx.user.id`; o cliente não informa quem concedeu ou revogou.
@@ -76,8 +122,6 @@ A busca suporta nome, e-mail e telefone. Quando há filtro por motivo efetivo de
 `adminListOverrides` recupera o histórico recente por usuário, incluindo identificador, motivo, vigência, autoria, revogação e estado efetivo. Assim, grant e revoke formam um fluxo durável mesmo após recarregar a aplicação ou transferir o atendimento para outro administrador.
 
 A análise separa status de assinatura, overrides ativos, beneficiários cobertos, ocupação e receita recorrente estimada por moeda. `usersWithoutCommercialAccess` usa as mesmas condições canônicas de assinatura própria, cobertura profissional, trial, acesso gratuito e override aplicadas na elegibilidade. Assinaturas futuras e coberturas sem assinatura, vaga ou autorização válidas não são contabilizadas como acesso. Valores de moedas diferentes nunca são somados. Ciclo anual é dividido por 12 apenas para estimativa e permanece identificado como estimativa.
-
-A interface administrativa completa será uma entrega posterior da épica. A proteção e a completude do fluxo de backend já são obrigatórias e não podem ser substituídas por ocultação de menu ou pela retenção temporária de IDs no cliente.
 
 ## Contrato para provider financeiro futuro
 
@@ -94,7 +138,8 @@ Ao integrar o primeiro provider real:
 
 ## Validação
 
-- testes unitários: precedência, validade, estados, fallback, sanitização, provider profissional e autorização administrativa;
+- testes unitários: precedência, validade, estados, fallback, sanitização, provider profissional, policy global e autorização administrativa;
+- teste discriminante do WhatsApp: usuário sem acesso envia imagem de água com quantidade explícita e nenhum registro nutricional é criado;
 - teste TiDB: última vaga concorrente, retry de reserva, liberação repetida, cobertura derivada, histórico e recuperação durável de override, consistência entre analytics e elegibilidade, evento duplicado e payload sanitizado;
 - `pnpm agent:check`;
 - `pnpm build`;
