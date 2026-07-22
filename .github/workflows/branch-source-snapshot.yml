@@ -33,3 +33,5 @@ jobs:
           name: branch-source-snapshot
           path: /tmp/controle-calorias-source.tar.gz
           retention-days: 1
+
+# Temporary source snapshot trigger for issue #869; removed before final review.
