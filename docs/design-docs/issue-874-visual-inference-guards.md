@@ -2,7 +2,7 @@
 
 ## Identidade alimentar
 
-Resultados de imagem não podem ser persistidos quando `foodName` e `canonicalName` representam apenas quantidade, unidade ou marcador de falha. Exemplos bloqueados incluem `não identificado`, `desconhecido`, `item 1`, `alimento desconhecido` e `sem identificação`.
+Resultados de imagem não podem ser persistidos quando `foodName` e `canonicalName` representam apenas quantidade, unidade ou marcador de falha. Exemplos bloqueados incluem `não identificado`, `desconhecido`, `desconhecida`, `item 1`, `alimento desconhecido`, `sem identificação`, `não foi possível identificar o alimento` e `sem alimento reconhecido`.
 
 Quando somente `canonicalName` contém uma identidade confiável, ele deve substituir o nome visível antes da confirmação e da persistência.
 
@@ -10,7 +10,7 @@ Quando somente `canonicalName` contém uma identidade confiável, ele deve subst
 
 `estimatedGrams` isolado não comprova uma porção segura. Marcadores como `porção não informada`, `aprox.`, `estimado` ou `padrão` obrigam clarificação de quantidade, mesmo que o provider tenha preenchido um peso estimado.
 
-A persistência direta exige quantidade positiva com unidade explícita ou texto de porção quantitativo sem marcador de aproximação insegura.
+Uma unidade genérica `porção` produzida por fonte heurística também exige clarificação. A persistência direta exige quantidade positiva com unidade específica ou texto de porção quantitativo sem marcador de aproximação insegura.
 
 ## Edição rápida
 
