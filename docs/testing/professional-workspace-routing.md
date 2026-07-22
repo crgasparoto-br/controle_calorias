@@ -54,7 +54,7 @@ Validar visualmente nos cenários definidos pela issue de layout:
 - 1024 × 768: redução ordenada de colunas, sem controles comprimidos, sobreposição ou ações perdidas;
 - 390 × 844: navegação lateral recolhida, subnavegação horizontal rolável, formulários em uma coluna, sem corte ou rolagem horizontal.
 
-Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, textos extremos, estados locais de loading/erro/vazio e quebra legível de nomes, mensagens e erros longos.
+Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, textos extremos, estados locais de loading/erro/vazio e quebra legível de nomes, mensagens e erros longos. O foco programático da área principal deve usar `preventScroll` para não posicionar o título sob o cabeçalho fixo.
 
 ## Regressão manual mínima
 
