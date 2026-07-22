@@ -41,9 +41,27 @@ export function redactSensitiveValue(value: unknown): unknown {
   return value;
 }
 
+function extractDbCauseDetail(cause: unknown): string {
+  if (!cause || typeof cause !== "object") return "";
+  const { code, errno, sqlState, sqlMessage } = cause as {
+    code?: string;
+    errno?: number;
+    sqlState?: string;
+    sqlMessage?: string;
+  };
+  const parts = [
+    code && `code=${code}`,
+    errno !== undefined && `errno=${errno}`,
+    sqlState && `sqlState=${sqlState}`,
+    sqlMessage && `sqlMessage=${redactSensitiveText(sqlMessage)}`,
+  ].filter(Boolean);
+  return parts.length > 0 ? ` [${parts.join(" ")}]` : "";
+}
+
 export function safeLogDetail(value: unknown) {
   if (value instanceof Error) {
-    return `${value.name}: ${redactSensitiveText(value.message)}`;
+    const causeDetail = extractDbCauseDetail((value as { cause?: unknown }).cause);
+    return `${value.name}: ${redactSensitiveText(value.message)}${causeDetail}`;
   }
 
   if (typeof value === "string") {
