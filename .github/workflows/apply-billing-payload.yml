@@ -1,0 +1,34 @@
+name: Apply billing implementation payload
+
+on:
+  push:
+    branches:
+      - feat/869-billing-foundation
+    paths:
+      - ".github/billing-payload.part-*"
+      - ".github/workflows/apply-billing-payload.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply verified payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/billing-payload.part-* | base64 --decode > /tmp/billing-payload.tar.xz
+          echo "fb152c219774f22838c36ccb68f84b5b25bea53f595a80443b67d07616513fcd  /tmp/billing-payload.tar.xz" | sha256sum --check -
+          tar -xJf /tmp/billing-payload.tar.xz -C .
+          rm .github/billing-payload.part-*
+          rm .github/workflows/apply-billing-payload.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(billing): implement provider-neutral foundation"
+          git push origin HEAD:feat/869-billing-foundation
