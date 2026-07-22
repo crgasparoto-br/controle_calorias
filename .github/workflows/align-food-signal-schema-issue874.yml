@@ -1,5 +1,6 @@
 name: Align food signal schema for issue 874
 
+# Trigger schema alignment after the workflow is present on the PR branch.
 on:
   pull_request:
     branches:
