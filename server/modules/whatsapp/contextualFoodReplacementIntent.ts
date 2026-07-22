@@ -7,7 +7,7 @@ import {
   type MealBatchMutationChange,
 } from "./mealBatchMutation";
 import { resolveMealItemTarget } from "./mealItemTargetMatcher";
-import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
+import { replaceMealItemFood, scaleMealItemQuantity, toMealItemInputs } from "./intent/mealItemHelpers";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 
@@ -17,6 +17,7 @@ const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
 type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMeal = Meal & { items: MealItemInput[] };
 type FoodReplacementIntent = { fromFood: string; toFood: string };
+type LatestFoodCorrectionIntent = { toFood: string; quantity?: number; unit?: string };
 type ReplacementContext = "first" | "second" | "previous" | "latest" | null;
 type Candidate = { meal: MutableMeal; mealIndex: number; item: MealItemInput; itemIndex: number };
 
@@ -57,6 +58,29 @@ function parseReplacements(text: string) {
   const segments = text.split(/\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i);
   const replacements = segments.map(segment => parseReplacement(segment.trim())).filter((value): value is FoodReplacementIntent => Boolean(value));
   return replacements.length ? replacements : null;
+}
+
+function parseLatestFoodCorrection(text: string): LatestFoodCorrectionIntent | null {
+  const latestMatch = text.match(/\b(?:o|a)?\s*(?:[úu]ltimo|[úu]ltima)\s+(?:alimento|item|refei[cç][aã]o)\s+(?:é|e|era|deve ser|corrigir para|substituir por)\s+(.+)$/i)
+    ?? text.match(/\b(?:substituir|trocar|corrigir)\s+(?:o|a)?\s*(?:[úu]ltimo|[úu]ltima)\s+(?:alimento|item)\s+(?:por|para)\s+(.+)$/i);
+  if (!latestMatch) return null;
+
+  let target = cleanFood(latestMatch[1]
+    .replace(/\b(?:substituir|trocar|corrigir|corrija|troque)\b/gi, "")
+    .replace(/\b(?:o|a)?\s*(?:[úu]ltimo|[úu]ltima)\s+(?:alimento|item|refei[cç][aã]o)\b/gi, ""));
+  if (!target) return null;
+
+  const quantityMatch = target.match(/^(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|ml|m\s*l|l|litros?)\b\s*(.+)$/i);
+  if (!quantityMatch) {
+    return { toFood: target };
+  }
+
+  const quantity = Number(quantityMatch[1].replace(",", "."));
+  const unit = quantityMatch[2].replace(/\s+/g, "").toLowerCase();
+  target = cleanFood(quantityMatch[3]);
+  return target && Number.isFinite(quantity) && quantity > 0
+    ? { toFood: target, quantity, unit }
+    : null;
 }
 
 function parseContext(text: string): ReplacementContext {
@@ -119,7 +143,8 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   const text = input.text?.trim();
   if (!text) return null;
   const replacements = parseReplacements(text);
-  if (!replacements) return null;
+  const latestCorrection = replacements ? null : parseLatestFoodCorrection(text);
+  if (!replacements && !latestCorrection) return null;
 
   const meals = recentMeals(await listMeals(userId), input.receivedAt ?? new Date(), parseContext(text));
   if (!meals.length) {
@@ -127,11 +152,61 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   }
   const originalMeals = new Map(meals.map(meal => [meal.id, toBatchSnapshot(meal)]));
 
+  if (latestCorrection) {
+    const latestMeal = meals[0];
+    const itemIndex = latestMeal.items.length - 1;
+    if (itemIndex < 0) {
+      return { action: "clarification_needed", reply: "Não encontrei um alimento recente para corrigir. Me diga qual refeição devo ajustar.", eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de correção do último alimento sem item disponível." };
+    }
+
+    const previousItem = latestMeal.items[itemIndex];
+    const replacementItem = latestCorrection.quantity
+      ? scaleMealItemQuantity(replaceMealItemFood(previousItem, latestCorrection.toFood), latestCorrection.quantity, latestCorrection.unit ?? "g")
+      : replaceMealItemFood(previousItem, latestCorrection.toFood);
+    latestMeal.items = latestMeal.items.map((item, index) => index === itemIndex ? replacementItem : item);
+
+    let updatedMeals: Awaited<ReturnType<typeof updateMealsWithCompensation>>;
+    try {
+      updatedMeals = await updateMealsWithCompensation(userId, [{
+        before: originalMeals.get(latestMeal.id) ?? toBatchSnapshot(latestMeal),
+        after: toBatchSnapshot(latestMeal),
+      }]);
+    } catch (error) {
+      const failure = describeMealBatchMutationFailure(error);
+      return {
+        action: "clarification_needed",
+        reply: buildWhatsAppRecoverableErrorReplyMessage(failure.userMessage),
+        eventType: "whatsapp.intent.contextual_replacement_batch_failed",
+        detail: failure.detail,
+        data: { rollbackSucceeded: failure.rollbackSucceeded, affectedMealIds: [latestMeal.id] },
+      };
+    }
+
+    const canonicalReply = await composeWhatsAppMealActionReplies({
+      userId,
+      entries: updatedMeals.map(meal => ({
+        meal,
+        options: {
+          title: "Alimento substituído",
+          actionLines: [`${previousItem.foodName} → ${latestCorrection.toFood}`],
+        },
+      })),
+    });
+    return {
+      action: "meal_item_replaced",
+      reply: canonicalReply,
+      eventType: "whatsapp.intent.meal_item_replaced",
+      detail: "Último alimento substituído com estado atual recarregado.",
+      data: { mealId: updatedMeals[0]?.id, mealIds: updatedMeals.map(meal => meal.id) },
+    };
+  }
+
+  const explicitReplacements = replacements ?? [];
   const clearActions: Array<{ candidate: Candidate; replacement: FoodReplacementIntent }> = [];
   const ambiguousActions: Array<{ candidates: Candidate[]; replacement: FoodReplacementIntent }> = [];
   const notFound: string[] = [];
 
-  for (const replacement of replacements) {
+  for (const replacement of explicitReplacements) {
     const candidates = findCandidates(meals, replacement.fromFood);
     if (!candidates.length) notFound.push(replacement.fromFood);
     else if (candidates.length > 1) ambiguousActions.push({ candidates, replacement });
@@ -145,7 +220,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
       targetFood: current.replacement.fromFood,
       action: { kind: "replace_food", targetFood: current.replacement.toFood },
       contextLabel: "nas refeições recentes",
-      resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+      resultTitle: explicitReplacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
       candidates: current.candidates.map(selectionCandidate),
       companionActions,
       remainingSelections: remaining.map(entry => ({
