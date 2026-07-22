@@ -282,7 +282,7 @@ describe("whatsappWebhook audio transcription failures", () => {
       transcript: undefined,
     }));
     expect(outboundTextBodies().some(body => body.includes("Vou considerar o texto que você enviou"))).toBe(true);
-    expect(outboundTextBodies().at(-1)).toContain("*Almoço Registrado");
+    expect(outboundTextBodies().some(body => body.includes("*Almoço Registrado"))).toBe(true);
   });
 
   it("roteia exclusao transcrita pelo gate destrutivo antes da inferencia nutricional", async () => {

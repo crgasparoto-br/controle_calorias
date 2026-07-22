@@ -6,7 +6,7 @@ Este documento registra o contrato final da issue #783. A seção equivalente em
 
 Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os builders centrais de refeição e os mesmos mecanismos de seleção/confirmação persistida.
 
-- Itens `heuristic` e `hybrid` exibem individualmente `⚠️ Valores nutricionais estimados pela IA.`. Itens `catalog` não exibem o aviso.
+- Itens `heuristic` e `hybrid` preservam calorias e macros estimados nos blocos centrais sem exibir aviso visual individual. Itens `catalog` também seguem sem marcador adicional.
 - Candidatos ambíguos preservam `mealId`, rótulo da refeição, índice e nome do item.
 - Dois itens iguais ou semelhantes dentro da mesma refeição permanecem candidatos distintos; o primeiro não é escolhido silenciosamente.
 - Ambiguidades entre refeições diferentes usam a mesma lista interativa da #782.

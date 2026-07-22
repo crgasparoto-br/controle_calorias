@@ -1,5 +1,5 @@
 import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
-import { logicalReplyFromLegacyText, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
+import { logicalReplyFromLegacyText, withAuxiliaryImage, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import type { MessageLifecycleHandle } from "./messageLifecycle";
 
@@ -7,18 +7,35 @@ export type WhatsAppAuxiliaryImage =
   | { url: string; caption: string }
   | { buffer: Buffer; mimeType?: string; fileName?: string; caption: string };
 
-function canReplacePrimaryWithCta(reply: WhatsAppLogicalReply) {
+const QUICK_EDIT_CTA_BODY = "Precisa ajustar algum alimento?";
+
+function canAppendQuickEditCta(reply: WhatsAppLogicalReply) {
   return reply.messages[0]?.type === "text";
+}
+
+function withQuickEditCta(reply: WhatsAppLogicalReply, url: string): WhatsAppLogicalReply {
+  return {
+    ...reply,
+    messages: [
+      ...reply.messages,
+      {
+        type: "cta_url",
+        bodyText: QUICK_EDIT_CTA_BODY,
+        buttonText: "Editar refeição",
+        url,
+      },
+    ],
+  };
 }
 
 export async function buildWhatsAppLogicalReplyForDelivery(input: {
   userId: number; replyText: string; mealId?: number | null; logicalReply?: WhatsAppLogicalReply; auxiliaryImage?: WhatsAppAuxiliaryImage | null;
 }) {
   let reply = input.logicalReply ?? logicalReplyFromLegacyText(input.replyText);
-  if (input.mealId && canReplacePrimaryWithCta(reply)) {
+  if (input.mealId && canAppendQuickEditCta(reply)) {
     try {
       const link = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId });
-      if (link?.url) reply = withCtaUrl(reply, { buttonText: "Editar refeição", url: link.url });
+      if (link?.url) reply = withQuickEditCta(reply, link.url);
     } catch {
       // Quick edit is optional; the functional nutrition reply must still be delivered.
     }
