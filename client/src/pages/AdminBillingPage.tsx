@@ -1,4 +1,5 @@
 import BillingAdminPanel from "@/components/admin/BillingAdminPanel";
+import BillingAdminStatusOverview from "@/components/admin/BillingAdminStatusOverview";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export default function AdminBillingPage() {
             </Button>
           }
         />
+        <BillingAdminStatusOverview />
         <BillingAdminPanel />
       </div>
     </DashboardLayout>
