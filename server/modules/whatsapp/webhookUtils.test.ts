@@ -23,15 +23,12 @@ describe("sendWhatsAppInteractiveUrlButtonMessage", () => {
     });
   });
 
-  it("envia fallback textual com o link quando o botão interativo falha", async () => {
+  it("retorna a falha original para o transporte central aplicar o fallback", async () => {
     const payloads: any[] = [];
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
       payloads.push(payload);
-      if (payload.type === "interactive") {
-        return { ok: false, status: 400, statusText: "Bad Request", json: async () => ({}) } as Response;
-      }
-      return { ok: true, json: async () => ({}) } as Response;
+      return { ok: false, status: 400, statusText: "Bad Request", text: async () => "{}" } as Response;
     }) as typeof fetch;
 
     const result = await sendWhatsAppInteractiveUrlButtonMessage(
@@ -41,26 +38,13 @@ describe("sendWhatsAppInteractiveUrlButtonMessage", () => {
       "https://app.example.com/quick-edit/token-123",
     );
 
-    expect(result.ok).toBe(true);
-    expect(result.detail).toContain("fallback textual enviado com sucesso");
-    expect(payloads).toHaveLength(2);
+    expect(result.ok).toBe(false);
+    expect(result.detail).toContain("400 Bad Request");
+    expect(payloads).toHaveLength(1);
     expect(payloads[0]).toEqual(expect.objectContaining({
       messaging_product: "whatsapp",
       to: "5511999999999",
       type: "interactive",
-    }));
-    expect(payloads[1]).toEqual(expect.objectContaining({
-      messaging_product: "whatsapp",
-      to: "5511999999999",
-      type: "text",
-      text: expect.objectContaining({
-        preview_url: true,
-        body: [
-          "Almoço registrado.",
-          "",
-          "Editar refeição: https://app.example.com/quick-edit/token-123",
-        ].join("\n"),
-      }),
     }));
   });
 });
@@ -105,11 +89,12 @@ describe("sendWhatsAppInteractiveButtonsMessage", () => {
   });
 
   it("retorna falha sanitizada quando a Meta rejeita o envio", async () => {
-    global.fetch = vi.fn(async () => ({ ok: false, status: 400, statusText: "Bad Request", json: async () => ({}) } as Response)) as typeof fetch;
+    global.fetch = vi.fn(async () => ({ ok: false, status: 400, statusText: "Bad Request", text: async () => "{}" } as Response)) as typeof fetch;
 
     const result = await sendWhatsAppInteractiveButtonsMessage("5511999999999", "x", [{ id: "confirm", title: "Confirmar" }]);
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("400");
+    expect(result).toEqual(expect.objectContaining({ failureCategory: "provider", status: 400, statusText: "Bad Request" }));
   });
 });
 

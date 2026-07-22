@@ -216,4 +216,28 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
     expect(sentMessages.at(-1)).toContain("Encontrei o item Registrar em Almoço");
     expect(sentMessages.at(-1)).not.toContain("preciso da quantidade");
   });
+
+  it("quando a Meta rejeita o componente interativo da confirmação, o transporte central envia fallback textual utilizável pelo webhook real (issue #859)", async () => {
+    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const payload = init?.body ? JSON.parse(String(init.body)) : {};
+      if (payload?.type === "interactive") {
+        return { ok: false, status: 400, statusText: "Bad Request", text: async () => "{}" } as unknown as Response;
+      }
+      if (payload?.text?.body) sentMessages.push(payload.text.body);
+      return { ok: true, json: async () => ({}) } as Response;
+    }) as typeof fetch;
+
+    const req = createTextWebhookRequest("exclua refeição fotografada");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    // A pendência não é perdida: o usuário recebe uma versão textual utilizável da mesma decisão,
+    // sem IDs de callback, mesmo com o componente interativo rejeitado pela Meta.
+    expect(sentMessages.length).toBeGreaterThan(0);
+    const fallbackText = sentMessages.at(-1) ?? "";
+    expect(fallbackText).toContain("Responda com o número ou o texto da opção.");
+    expect(fallbackText).not.toMatch(/\bcancel:\d/);
+  });
 });

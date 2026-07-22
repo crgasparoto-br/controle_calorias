@@ -31,12 +31,14 @@ Todas as chamadas à Cloud API vivem em [server/modules/whatsapp/webhookUtils.ts
 | Função | Tipo físico | Observações |
 |---|---|---|
 | `sendWhatsAppTextMessage` | `text` | transporte padrão |
-| `sendWhatsAppInteractiveUrlButtonMessage` | `interactive` (cta_url) | CTA de edição rápida/onboarding/Strava; faz fallback para texto com URL anexada quando o envio interativo falha |
+| `sendWhatsAppInteractiveUrlButtonMessage` | `interactive` (cta_url) | Adapter do CTA de edição rápida/onboarding/Strava; devolve o resultado original para a política única de fallback do `replyTransport` |
 | `sendWhatsAppImageMessage` | `image` (por URL) | imagem anotada |
 | `sendWhatsAppImageBufferMessage` | upload `/media` + `image` | fallback da imagem anotada |
 | `markWhatsAppMessageAsRead` | status read | não é mensagem outbound |
 
 Onboarding, profissionais e Strava montam `WhatsAppLogicalReply` e chamam `replyTransport`. Chamadas à Cloud API ficam restritas a `webhookUtils.ts`, `replyTransport.ts` e ao adaptador separado de acknowledgement; `architecture:check` protege essa fronteira.
+
+`buttons`, `list` e `cta_url` compartilham a política central de fallback textual do `replyTransport`: uma tentativa degradada por posição, resultado original/fallback/efetivo discriminado e lifecycle gravado somente pelo sucesso efetivo da primária. A regressão cobre rejeição local/provedor, falha total, sanitização e continuidade de `texto -> CTA -> imagem` após falha do CTA auxiliar.
 
 `simulateWhatsappInbound` ([server/modules/whatsapp/service.ts](../../server/modules/whatsapp/service.ts), via tRPC) percorre a cadeia de intents e **retorna** `reply` para o chamador web — não envia pela Cloud API.
 
