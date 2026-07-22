@@ -51,6 +51,7 @@ const MAX_WATER_LOG_AMOUNT_ML = 10000;
 type ClaimedMessage = {
   item: IndexedWhatsAppWebhookMessage;
   userId: number;
+  accessAllowed: boolean;
   lifecycleHandle: MessageLifecycleHandle;
 };
 
@@ -111,6 +112,7 @@ async function claimIndexedMessage(
   const userId = await getUserIdByWhatsappPhone(message.from);
   if (!userId) return null;
 
+  const access = await billingService.getUserEntitlements(userId);
   const locallySeen = message.id
     ? fallbackMessageDeduplicationCache.wasAlreadyHandled(message.id)
     : false;
@@ -120,10 +122,10 @@ async function claimIndexedMessage(
     phoneNumber: message.from,
     externalMessageId: message.id,
     contentType: resolveMessageContentType(message),
-    text: message.text?.body ?? null,
-    captionText: message.image?.caption ?? null,
+    text: access.allowed ? (message.text?.body ?? null) : null,
+    captionText: access.allowed ? (message.image?.caption ?? null) : null,
     occurredAt: resolveWhatsAppMessageOccurredAt(message),
-    allowRawContentStorage: true,
+    allowRawContentStorage: access.allowed,
   });
 
   if (!lifecycleHandle && locallySeen) return "duplicate";
@@ -144,7 +146,12 @@ async function claimIndexedMessage(
   }
 
   if (message.id) fallbackMessageDeduplicationCache.markHandled(message.id);
-  return { item, userId, lifecycleHandle };
+  return {
+    item,
+    userId,
+    accessAllowed: access.allowed,
+    lifecycleHandle,
+  };
 }
 
 async function handleOnboardingLeadMessage(
@@ -184,10 +191,7 @@ async function handleOnboardingLeadMessage(
 }
 
 async function handleBillingAccessPending(claim: ClaimedMessage | null) {
-  if (!claim?.item.message.from) return false;
-
-  const access = await billingService.getUserEntitlements(claim.userId);
-  if (access.allowed) return false;
+  if (!claim?.item.message.from || claim.accessAllowed) return false;
 
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: claim.item.message.from,
