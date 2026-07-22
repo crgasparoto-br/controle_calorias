@@ -197,6 +197,7 @@ export const appRouter = router({
               user: await sessionUser(result.user),
               eligibility: result.eligibility,
               nextAction: result.nextAction,
+              resumed: result.resumed,
             };
           } catch (error) {
             if (
@@ -217,6 +218,26 @@ export const appRouter = router({
                 code: "NOT_FOUND",
                 message:
                   "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
+              });
+            }
+            if (
+              error instanceof Error &&
+              error.message === "ONBOARDING_COMPLETION_IN_PROGRESS"
+            ) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Este cadastro já está sendo concluído. Aguarde alguns instantes e tente novamente.",
+              });
+            }
+            if (
+              error instanceof Error &&
+              error.message === "ONBOARDING_RECOVERY_ACCOUNT_MISMATCH"
+            ) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Não foi possível retomar este cadastro com os dados informados. Entre na conta criada ou solicite suporte.",
               });
             }
             throw new TRPCError({
