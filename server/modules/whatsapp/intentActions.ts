@@ -31,6 +31,74 @@ import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
+const WHATSAPP_INTENT_ACTIONS = new Set<WhatsappIntentResult["action"]>([
+  "water_logged",
+  "meal_item_added",
+  "meal_item_grams_adjusted",
+  "meal_item_replaced",
+  "meal_suggestion",
+  "period_report",
+  "clarification_needed",
+  "meal_deleted",
+  "meal_item_deleted",
+  "delete_cancelled",
+  "food_clarification_requested",
+  "food_clarification_completed",
+  "food_clarification_reprompted",
+  "food_clarification_cancelled",
+  "food_clarification_unavailable",
+  "food_clarification_retryable_failure",
+  "food_clarification_blocked",
+  "food_clarification_standalone_command_blocked",
+]);
+
+function normalizePendingGateResult(result: {
+  action?: string;
+  reply: string;
+  eventType: string;
+  detail: string;
+  data?: Record<string, unknown>;
+  interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
+}): WhatsappIntentResult {
+  const action = result.action && WHATSAPP_INTENT_ACTIONS.has(result.action as WhatsappIntentResult["action"])
+    ? result.action as WhatsappIntentResult["action"]
+    : "clarification_needed";
+  return {
+    handled: true,
+    action,
+    reply: result.reply,
+    eventType: result.eventType,
+    detail: result.detail,
+    ...(result.data ? { data: result.data } : {}),
+    ...(result.interactiveReply ? { interactiveReply: result.interactiveReply } : {}),
+  };
+}
+
+async function resolvePendingInteractionBeforeTextIntent(
+  userId: number,
+  input: WhatsappIntentInput,
+  text: string,
+  receivedAt: Date,
+  userTimeZone: string,
+): Promise<WhatsappIntentResult | null> {
+  // A retomada da clarificação já consumiu a pendência atual e precisa executar
+  // apenas os parsers determinísticos sobre o texto original, sem recriar a
+  // mesma clarificação genérica.
+  if (input.entrypoint === "intentClarification.resume") return null;
+
+  const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
+  const gate = await resolveWhatsAppPrecedenceGate({
+    userId,
+    text,
+    receivedAt,
+    userTimezone: userTimeZone,
+    messageId: input.messageId,
+    pendingOnly: true,
+  });
+  if (gate.step === "continue_pipeline") return null;
+  return normalizePendingGateResult(gate.result);
+}
+
 function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappIntentResult {
   if (result.action !== "meal_item_grams_adjusted") return result;
   return {
@@ -65,6 +133,14 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const receivedAt = input.receivedAt ?? new Date();
   const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
+  const pendingInteraction = await resolvePendingInteractionBeforeTextIntent(
+    userId,
+    input,
+    text,
+    receivedAt,
+    userTimeZone,
+  );
+  if (pendingInteraction) return pendingInteraction;
 
   const deleteIntent = await executeWhatsappDeleteIntent(userId, {
     text,
