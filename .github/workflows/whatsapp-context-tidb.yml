@@ -107,7 +107,23 @@ jobs:
         run: pnpm exec tsx scripts/test-whatsapp-pending-operation-tidb.ts
 
       - name: Run quick edit meal update regression
-        run: pnpm exec tsx scripts/test-quick-edit-meal-update-tidb.ts
+        id: quick_edit_regression
+        continue-on-error: true
+        run: pnpm exec tsx scripts/test-quick-edit-meal-update-tidb.ts > /tmp/quick-edit-tidb.log 2>&1
+
+      - name: Upload quick edit TiDB diagnostics
+        if: steps.quick_edit_regression.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-edit-tidb-regression-log
+          path: /tmp/quick-edit-tidb.log
+          retention-days: 3
+
+      - name: Stop after quick edit TiDB failure
+        if: steps.quick_edit_regression.outcome == 'failure'
+        run: |
+          cat /tmp/quick-edit-tidb.log
+          exit 1
 
       - name: Run persistent context regression
         env:
