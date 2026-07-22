@@ -91,20 +91,18 @@ jobs:
           fi
           tail -n 80 /tmp/drizzle-push.log
 
-      - name: Apply historical food signal migration compatibility
+      - name: Verify canonical food signal tables
         run: |
           node --input-type=module <<'NODE'
-          import fs from "node:fs";
+          import assert from "node:assert/strict";
           import mysql from "mysql2/promise";
 
-          const sql = fs.readFileSync("drizzle/0002_global_food_catalog_user_signals.sql", "utf8");
-          const statements = sql
-            .split("--> statement-breakpoint")
-            .map(statement => statement.trim())
-            .filter(Boolean);
           const connection = await mysql.createConnection(process.env.DATABASE_URL);
           try {
-            for (const statement of statements) await connection.query(statement);
+            for (const table of ["user_food_favorites", "user_food_usage_stats"]) {
+              const [rows] = await connection.query("SHOW TABLES LIKE ?", [table]);
+              assert.equal(rows.length, 1, `${table} must be created by the canonical Drizzle schema`);
+            }
           } finally {
             await connection.end();
           }
