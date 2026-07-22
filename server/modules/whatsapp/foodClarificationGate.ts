@@ -78,6 +78,21 @@ function enrichResolvedTextInteraction(input: {
   const invalidResponseReason = lifecycle === "represented" || lifecycle === "blocked"
     ? input.result.eventType
     : null;
+  const telemetry = buildWhatsappInteractionTelemetry({
+    interactionId: input.interaction.id,
+    origin: input.interaction.origin,
+    classification: input.interaction.classification,
+    actions,
+    lifecycle,
+    invalidResponseReason,
+  });
+  const downstreamInteractionId = typeof input.result.data?.interactionId === "string"
+    ? input.result.data.interactionId
+    : null;
+  const transitionedToAnotherInteraction = Boolean(
+    downstreamInteractionId && downstreamInteractionId !== input.interaction.id,
+  );
+
   return {
     ...input.result,
     detail: `${input.result.detail} interaction=${JSON.stringify({
@@ -86,20 +101,27 @@ function enrichResolvedTextInteraction(input: {
       classification: input.interaction.classification,
       actionCount: actions.length,
       lifecycle,
+      transitionedToInteractionId: transitionedToAnotherInteraction ? downstreamInteractionId : null,
     })}`,
-    data: {
-      ...(input.result.data ?? {}),
-      pendingOperationId: input.pending.id,
-      pendingType: input.pending.type,
-      ...buildWhatsappInteractionTelemetry({
-        interactionId: input.interaction.id,
-        origin: input.interaction.origin,
-        classification: input.interaction.classification,
-        actions,
-        lifecycle,
-        invalidResponseReason,
-      }),
-    },
+    data: transitionedToAnotherInteraction
+      ? {
+          ...(input.result.data ?? {}),
+          sourcePendingOperationId: input.pending.id,
+          sourcePendingType: input.pending.type,
+          sourceInteractionId: telemetry.interactionId,
+          sourceInteractionOrigin: telemetry.interactionOrigin,
+          sourceInteractionClassification: telemetry.interactionClassification,
+          sourceInteractionComponent: telemetry.interactionComponent,
+          sourceInteractionActionCount: telemetry.interactionActionCount,
+          sourceInteractionLifecycle: telemetry.interactionLifecycle,
+          sourceInvalidResponseReason: telemetry.invalidResponseReason,
+        }
+      : {
+          ...(input.result.data ?? {}),
+          pendingOperationId: input.pending.id,
+          pendingType: input.pending.type,
+          ...telemetry,
+        },
   } satisfies PendingInteractionResult;
 }
 
