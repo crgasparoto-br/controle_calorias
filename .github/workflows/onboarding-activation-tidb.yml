@@ -45,7 +45,26 @@ jobs:
           exit 1
 
       - name: Validate migration and concurrent transitions
-        run: pnpm exec tsx scripts/test-whatsapp-onboarding-activation-tidb.ts
+        id: onboarding-test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/test-whatsapp-onboarding-activation-tidb.ts 2>&1 | tee onboarding-activation-test.log
+
+      - name: Preserve onboarding activation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onboarding-activation-test-${{ github.sha }}
+          path: onboarding-activation-test.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Fail on onboarding activation regression
+        if: steps.onboarding-test.outcome == 'failure'
+        run: |
+          echo "Onboarding activation integration failed. Inspect the uploaded diagnostic artifact."
+          exit 1
 
       - name: Show TiDB logs on failure
         if: failure()
