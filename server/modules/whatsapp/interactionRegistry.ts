@@ -10,7 +10,6 @@ import {
   type PendingDeleteOperation,
 } from "./deleteIntentContract";
 import {
-  isExpectedWhatsappFoodClarificationAction,
   isPendingFoodClarificationTarget,
   PENDING_FOOD_CLARIFICATION_TYPE,
   type PendingFoodClarificationTarget,
@@ -18,7 +17,6 @@ import {
 import {
   buildWhatsappIntentClarificationReply,
   completeWhatsappIntentClarificationCallback,
-  isExpectedWhatsappIntentClarificationAction,
   isPendingIntentClarification,
   PENDING_INTENT_CLARIFICATION_TYPE,
   type PendingIntentClarification,
@@ -39,7 +37,6 @@ import {
   buildWhatsappPeriodReportActions,
   buildWhatsappPeriodReportClarificationListReply,
   completeWhatsappPeriodReportCallback,
-  isExpectedWhatsappPeriodReportAction,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./periodReportClarification";
 import type { WhatsAppLogicalReply } from "./replyContract";
@@ -51,10 +48,33 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 2;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 3;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
+
+type WhatsappInteractionActionContext = {
+  timeZone?: string | null;
+};
+
+type WhatsappInteractionReplayInput = {
+  pendingOperation: WhatsAppPendingOperationRecord;
+  actions: WhatsappInteractionAction[];
+  timeZone: string;
+};
+
+type WhatsappInteractionReplayResult = {
+  reply: string;
+  interactiveReply?: WhatsAppLogicalReply;
+} | null;
+
+export type WhatsappInteractionCallbackInput = {
+  userId: number;
+  pendingOperation: WhatsAppPendingOperationRecord;
+  action: string;
+  receivedAt?: Date;
+  userTimezone?: string | null;
+};
 
 export type WhatsappRegisteredInteraction = {
   id: string;
@@ -68,7 +88,9 @@ export type WhatsappRegisteredInteraction = {
   allowedEffects: readonly string[];
   forbiddenEffects: readonly string[];
   matches: (target: unknown) => boolean;
-  actions: (target: unknown) => WhatsappInteractionAction[];
+  actions: (target: unknown, context?: WhatsappInteractionActionContext) => WhatsappInteractionAction[];
+  rebuild: (input: WhatsappInteractionReplayInput) => WhatsappInteractionReplayResult | Promise<WhatsappInteractionReplayResult>;
+  completeCallback: (input: WhatsappInteractionCallbackInput) => unknown | Promise<unknown>;
 };
 
 const NUTRITION_FORBIDDEN = ["nutrition_fallback", "meal_creation", "llm_reinterpretation"] as const;
@@ -78,6 +100,159 @@ function foodActions(target: unknown): WhatsappInteractionAction[] {
   return isPendingFoodClarificationTarget(target)
     ? target.actions.map(action => ({ ...action }))
     : [];
+}
+
+function rebuildDeleteConfirmation(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingDeleteOperation;
+  if (isPendingDeleteSelection(target)) return null;
+  const rebuilt = buildPendingResult(target, input.pendingOperation.id, input.timeZone);
+  return { reply: rebuilt.reply, interactiveReply: rebuilt.interactiveReply };
+}
+
+function rebuildDeleteSelection(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingDeleteOperation;
+  if (!isPendingDeleteSelection(target)) return null;
+  const reply = `Ainda preciso da sua escolha sobre "${target.targetLabel ?? target.targetFoodName ?? "o registro"}". Selecione uma opção ou envie CANCELAR.`;
+  return {
+    reply,
+    interactiveReply: buildWhatsappClosedDecisionReply({
+      bodyText: reply,
+      pendingOperationId: input.pendingOperation.id,
+      actions: input.actions,
+    }),
+  };
+}
+
+function rebuildMealItemSelection(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingMealItemSelection;
+  const reply = `Ainda preciso saber qual item devo usar para ${target.contextLabel}. Selecione uma opção ou envie CANCELAR.`;
+  return {
+    reply,
+    interactiveReply: buildWhatsappClosedDecisionReply({
+      bodyText: reply,
+      pendingOperationId: input.pendingOperation.id,
+      actions: input.actions,
+    }),
+  };
+}
+
+function rebuildGenericConfirmation(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingWhatsAppConfirmation;
+  const reply = target.decision === "reclassify_scope"
+    ? `Ainda preciso decidir o escopo de ${target.summary}. Escolha Só compatíveis, Todos recentes ou Cancelar.`
+    : `Ainda preciso da sua confirmação para ${target.summary}. Responda SIM ou CANCELAR.`;
+  return {
+    reply,
+    interactiveReply: buildWhatsappClosedDecisionReply({
+      bodyText: reply,
+      pendingOperationId: input.pendingOperation.id,
+      actions: input.actions,
+    }),
+  };
+}
+
+function rebuildPeriodReport(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const reply = "Ainda preciso saber o período do resumo. Escolha uma opção ou envie CANCELAR.";
+  return {
+    reply,
+    interactiveReply: buildWhatsappPeriodReportClarificationListReply(input.pendingOperation.id, reply),
+  };
+}
+
+async function rebuildProfessionalAccess(input: WhatsappInteractionReplayInput): Promise<WhatsappInteractionReplayResult> {
+  const target = input.pendingOperation.target as { accessId?: string };
+  if (!target.accessId) return null;
+  const persistence = await import("../professionals/persistenceService");
+  const service = await import("../professionals/service");
+  const authorization = await persistence.getCanonicalProfessionalAuthorization(target.accessId);
+  if (!authorization || authorization.patientUserId !== input.pendingOperation.userId || authorization.status !== "pending") return null;
+  const profile = await persistence.getCanonicalProfessionalProfile(authorization.professionalUserId);
+  if (!profile) return null;
+  const reply = service.buildProfessionalAccessAuthorizationMessage({
+    professionalDisplayName: profile.displayName,
+    reason: authorization.reason,
+    accessId: authorization.id,
+  });
+  return {
+    reply,
+    interactiveReply: buildWhatsappClosedDecisionReply({
+      bodyText: reply,
+      pendingOperationId: input.pendingOperation.id,
+      actions: input.actions,
+    }),
+  };
+}
+
+function rebuildIntentClarification(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingIntentClarification;
+  const reply = `Essa resposta não corresponde às opções. Sua mensagem original "${target.originalText}" continua guardada.`;
+  return {
+    reply,
+    interactiveReply: buildWhatsappIntentClarificationReply(input.pendingOperation.id, reply),
+  };
+}
+
+function rebuildFoodClarification(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingFoodClarificationTarget;
+  if (!isPendingFoodClarificationTarget(target)) return null;
+  const reply = target.instructionText;
+  return target.classification === "closed"
+    ? {
+        reply,
+        interactiveReply: buildWhatsappClosedDecisionReply({
+          bodyText: reply,
+          pendingOperationId: input.pendingOperation.id,
+          actions: input.actions,
+        }),
+      }
+    : { reply };
+}
+
+async function completeDeleteCallback(input: WhatsappInteractionCallbackInput) {
+  const { completeWhatsappDeleteInteractiveCallback } = await import("./deleteIntent");
+  return completeWhatsappDeleteInteractiveCallback(
+    input.userId,
+    input.pendingOperation,
+    input.action,
+    input.userTimezone ?? undefined,
+  );
+}
+
+function completeMealItemCallback(input: WhatsappInteractionCallbackInput) {
+  return completeMealItemSelectionInteractiveCallback(input.userId, input.pendingOperation, input.action);
+}
+
+function completeGenericConfirmation(input: WhatsappInteractionCallbackInput) {
+  return completeWhatsappGenericConfirmationCallback(input.userId, input.pendingOperation, input.action);
+}
+
+function completePeriodReport(input: WhatsappInteractionCallbackInput) {
+  return completeWhatsappPeriodReportCallback(input.userId, input.action, input.receivedAt);
+}
+
+async function completeFoodClarification(input: WhatsappInteractionCallbackInput) {
+  const { completeClaimedWhatsappFoodClarificationCallback } = await import("./foodClarification");
+  return completeClaimedWhatsappFoodClarificationCallback({
+    userId: input.userId,
+    pendingOperation: input.pendingOperation,
+    action: input.action,
+    receivedAt: input.receivedAt,
+    userTimezone: input.userTimezone,
+  });
+}
+
+function completeIntentClarification(input: WhatsappInteractionCallbackInput) {
+  return completeWhatsappIntentClarificationCallback(
+    input.userId,
+    input.pendingOperation,
+    input.action,
+    input.receivedAt,
+  );
+}
+
+async function completeProfessionalAccess(input: WhatsappInteractionCallbackInput) {
+  const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
+  return completeWhatsAppProfessionalAccessCallback(input.userId, input.pendingOperation, input.action);
 }
 
 export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteraction[] = [
@@ -94,6 +269,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "delete_without_confirmation"],
     matches: target => Boolean(target && typeof target === "object" && !isPendingDeleteSelection(target)),
     actions: () => buildDeleteConfirmationActions(),
+    rebuild: rebuildDeleteConfirmation,
+    completeCallback: completeDeleteCallback,
   },
   {
     id: "delete.candidate_selection",
@@ -107,9 +284,11 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     allowedEffects: ["select", "cancel"],
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "delete_before_confirmation"],
     matches: target => isPendingDeleteSelection(target),
-    actions: target => isPendingDeleteSelection(target)
-      ? buildDeleteSelectionActions(target.candidates, DEFAULT_APP_TIME_ZONE)
+    actions: (target, context) => isPendingDeleteSelection(target)
+      ? buildDeleteSelectionActions(target.candidates, context?.timeZone ?? DEFAULT_APP_TIME_ZONE)
       : [],
+    rebuild: rebuildDeleteSelection,
+    completeCallback: completeDeleteCallback,
   },
   {
     id: "meal_item.candidate_selection",
@@ -126,6 +305,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     actions: target => buildMealItemSelectionActions(
       ((target as { candidates?: PendingMealItemSelection["candidates"] } | null)?.candidates) ?? [],
     ),
+    rebuild: rebuildMealItemSelection,
+    completeCallback: completeMealItemCallback,
   },
   {
     id: "generic_confirmation.confirm_cancel",
@@ -140,6 +321,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object" && (target as { decision?: string }).decision !== "reclassify_scope"),
     actions: target => buildGenericConfirmationActions(target as PendingWhatsAppConfirmation),
+    rebuild: rebuildGenericConfirmation,
+    completeCallback: completeGenericConfirmation,
   },
   {
     id: "generic_confirmation.reclassify_scope",
@@ -154,6 +337,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object" && (target as { decision?: string }).decision === "reclassify_scope"),
     actions: target => buildGenericConfirmationActions(target as PendingWhatsAppConfirmation),
+    rebuild: rebuildGenericConfirmation,
+    completeCallback: completeGenericConfirmation,
   },
   {
     id: "period_report.period_selection",
@@ -168,6 +353,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object"),
     actions: () => buildWhatsappPeriodReportActions(),
+    rebuild: rebuildPeriodReport,
+    completeCallback: completePeriodReport,
   },
   {
     id: "professional_access.authorization",
@@ -182,6 +369,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => typeof (target as { accessId?: unknown } | null)?.accessId === "string",
     actions: () => buildProfessionalAccessActions(),
+    rebuild: rebuildProfessionalAccess,
+    completeCallback: completeProfessionalAccess,
   },
   {
     id: "intent_clarification.generic",
@@ -196,6 +385,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "persist_command_word_as_food"],
     matches: isPendingIntentClarification,
     actions: target => isPendingIntentClarification(target) ? target.actions.map(action => ({ ...action })) : [],
+    rebuild: rebuildIntentClarification,
+    completeCallback: completeIntentClarification,
   },
   {
     id: "food_clarification.quantity",
@@ -210,6 +401,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "quantity",
     actions: foodActions,
+    rebuild: rebuildFoodClarification,
+    completeCallback: completeFoodClarification,
   },
   {
     id: "food_clarification.confirmation",
@@ -224,6 +417,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "confirmation",
     actions: foodActions,
+    rebuild: rebuildFoodClarification,
+    completeCallback: completeFoodClarification,
   },
   {
     id: "food_clarification.selection",
@@ -238,6 +433,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "selection",
     actions: foodActions,
+    rebuild: rebuildFoodClarification,
+    completeCallback: completeFoodClarification,
   },
 ] as const;
 
@@ -256,11 +453,6 @@ export function isExpectedWhatsappRegisteredAction(
 ) {
   const interaction = findWhatsappRegisteredInteraction(type, pendingOperation.target);
   if (!interaction) return false;
-  if (type === PENDING_FOOD_CLARIFICATION_TYPE && isPendingFoodClarificationTarget(pendingOperation.target)) {
-    return isExpectedWhatsappFoodClarificationAction(pendingOperation.target, action);
-  }
-  if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
-  if (type === PENDING_INTENT_CLARIFICATION_TYPE) return isExpectedWhatsappIntentClarificationAction(action);
   return interaction.actions(pendingOperation.target).some(candidate => candidate.id === action);
 }
 
@@ -279,69 +471,14 @@ export async function rebuildWhatsappRegisteredInteraction(
   pendingOperation: WhatsAppPendingOperationRecord,
   options?: { timeZone?: string | null },
 ): Promise<{ reply: string; interactiveReply?: WhatsAppLogicalReply; telemetry: Record<string, unknown> } | null> {
-  const described = describeWhatsappRegisteredInteraction(pendingOperation);
-  if (!described) return null;
-  const { interaction } = described;
+  const interaction = findWhatsappRegisteredInteraction(pendingOperation.type, pendingOperation.target);
+  if (!interaction) return null;
   const timeZone = options?.timeZone ?? DEFAULT_APP_TIME_ZONE;
-  const actions = interaction.id === "delete.candidate_selection" && isPendingDeleteSelection(pendingOperation.target)
-    ? buildDeleteSelectionActions(pendingOperation.target.candidates, timeZone)
-    : described.actions;
-  let reply = "";
-  let interactiveReply: WhatsAppLogicalReply | undefined;
-
-  if (pendingOperation.type === PENDING_DELETE_TYPE) {
-    const target = pendingOperation.target as PendingDeleteOperation;
-    if (isPendingDeleteSelection(target)) {
-      reply = `Ainda preciso da sua escolha sobre "${target.targetLabel ?? target.targetFoodName ?? "o registro"}". Selecione uma opção ou envie CANCELAR.`;
-      interactiveReply = buildWhatsappClosedDecisionReply({ bodyText: reply, pendingOperationId: pendingOperation.id, actions });
-    } else {
-      const rebuilt = buildPendingResult(target, pendingOperation.id, timeZone);
-      reply = rebuilt.reply;
-      interactiveReply = rebuilt.interactiveReply;
-    }
-  } else if (pendingOperation.type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
-    const target = pendingOperation.target as PendingMealItemSelection;
-    reply = `Ainda preciso saber qual item devo usar para ${target.contextLabel}. Selecione uma opção ou envie CANCELAR.`;
-    interactiveReply = buildWhatsappClosedDecisionReply({ bodyText: reply, pendingOperationId: pendingOperation.id, actions });
-  } else if (pendingOperation.type === PENDING_CONFIRMATION_TYPE) {
-    const target = pendingOperation.target as PendingWhatsAppConfirmation;
-    reply = target.decision === "reclassify_scope"
-      ? `Ainda preciso decidir o escopo de ${target.summary}. Escolha Só compatíveis, Todos recentes ou Cancelar.`
-      : `Ainda preciso da sua confirmação para ${target.summary}. Responda SIM ou CANCELAR.`;
-    interactiveReply = buildWhatsappClosedDecisionReply({ bodyText: reply, pendingOperationId: pendingOperation.id, actions });
-  } else if (pendingOperation.type === PENDING_PERIOD_REPORT_TYPE) {
-    reply = "Ainda preciso saber o período do resumo. Escolha uma opção ou envie CANCELAR.";
-    interactiveReply = buildWhatsappPeriodReportClarificationListReply(pendingOperation.id, reply);
-  } else if (pendingOperation.type === PENDING_INTENT_CLARIFICATION_TYPE) {
-    const target = pendingOperation.target as PendingIntentClarification;
-    reply = `Essa resposta não corresponde às opções. Sua mensagem original "${target.originalText}" continua guardada.`;
-    interactiveReply = buildWhatsappIntentClarificationReply(pendingOperation.id, reply);
-  } else if (pendingOperation.type === PENDING_FOOD_CLARIFICATION_TYPE) {
-    const target = pendingOperation.target as PendingFoodClarificationTarget;
-    reply = target.instructionText;
-    if (interaction.classification === "closed") {
-      interactiveReply = buildWhatsappClosedDecisionReply({ bodyText: reply, pendingOperationId: pendingOperation.id, actions });
-    }
-  } else if (pendingOperation.type === PENDING_PROFESSIONAL_ACCESS_TYPE) {
-    const target = pendingOperation.target as { accessId?: string };
-    if (!target.accessId) return null;
-    const persistence = await import("../professionals/persistenceService");
-    const service = await import("../professionals/service");
-    const authorization = await persistence.getCanonicalProfessionalAuthorization(target.accessId);
-    if (!authorization || authorization.patientUserId !== pendingOperation.userId || authorization.status !== "pending") return null;
-    const profile = await persistence.getCanonicalProfessionalProfile(authorization.professionalUserId);
-    if (!profile) return null;
-    reply = service.buildProfessionalAccessAuthorizationMessage({
-      professionalDisplayName: profile.displayName,
-      reason: authorization.reason,
-      accessId: authorization.id,
-    });
-    interactiveReply = buildWhatsappClosedDecisionReply({ bodyText: reply, pendingOperationId: pendingOperation.id, actions });
-  }
-
+  const actions = interaction.actions(pendingOperation.target, { timeZone });
+  const rebuilt = await interaction.rebuild({ pendingOperation, actions, timeZone });
+  if (!rebuilt) return null;
   return {
-    reply,
-    interactiveReply,
+    ...rebuilt,
     telemetry: buildWhatsappInteractionTelemetry({
       interactionId: interaction.id,
       origin: interaction.origin,
@@ -353,42 +490,8 @@ export async function rebuildWhatsappRegisteredInteraction(
   };
 }
 
-export async function completeWhatsappRegisteredCallback(input: {
-  userId: number;
-  pendingOperation: WhatsAppPendingOperationRecord;
-  action: string;
-  receivedAt?: Date;
-  userTimezone?: string | null;
-}) {
-  const { pendingOperation, action } = input;
-  switch (pendingOperation.type) {
-    case PENDING_DELETE_TYPE: {
-      const { completeWhatsappDeleteInteractiveCallback } = await import("./deleteIntent");
-      return completeWhatsappDeleteInteractiveCallback(input.userId, pendingOperation, action, input.userTimezone ?? undefined);
-    }
-    case PENDING_MEAL_ITEM_SELECTION_TYPE:
-      return completeMealItemSelectionInteractiveCallback(input.userId, pendingOperation, action);
-    case PENDING_CONFIRMATION_TYPE:
-      return completeWhatsappGenericConfirmationCallback(input.userId, pendingOperation, action);
-    case PENDING_PERIOD_REPORT_TYPE:
-      return completeWhatsappPeriodReportCallback(input.userId, action, input.receivedAt);
-    case PENDING_FOOD_CLARIFICATION_TYPE: {
-      const { completeClaimedWhatsappFoodClarificationCallback } = await import("./foodClarification");
-      return completeClaimedWhatsappFoodClarificationCallback({
-        userId: input.userId,
-        pendingOperation,
-        action,
-        receivedAt: input.receivedAt,
-        userTimezone: input.userTimezone,
-      });
-    }
-    case PENDING_INTENT_CLARIFICATION_TYPE:
-      return completeWhatsappIntentClarificationCallback(input.userId, pendingOperation, action, input.receivedAt);
-    case PENDING_PROFESSIONAL_ACCESS_TYPE: {
-      const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
-      return completeWhatsAppProfessionalAccessCallback(input.userId, pendingOperation, action);
-    }
-    default:
-      return null;
-  }
+export async function completeWhatsappRegisteredCallback(input: WhatsappInteractionCallbackInput) {
+  const interaction = findWhatsappRegisteredInteraction(input.pendingOperation.type, input.pendingOperation.target);
+  if (!interaction) return null;
+  return interaction.completeCallback(input);
 }
