@@ -39,15 +39,17 @@ jobs:
         run: pnpm check
 
       - name: Tests
-        env:
-          NODE_OPTIONS: --max-old-space-size=6144
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
-            exit 1
-          fi
-          tail -n 80 /tmp/vitest.log
+          : > /tmp/vitest.log
+          for shard in 1/3 2/3 3/3; do
+            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
+            if ! pnpm test -- --shard="${shard}" >> /tmp/vitest.log 2>&1; then
+              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
+              tail -n 250 /tmp/vitest.log
+              exit 1
+            fi
+          done
+          tail -n 120 /tmp/vitest.log
 
       - name: Upload Vitest diagnostics
         if: failure()
@@ -125,7 +127,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (3 sequential shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"
@@ -147,7 +149,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (3 sequential shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"
