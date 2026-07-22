@@ -76,7 +76,7 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
-import { requestWhatsappImageFoodQuantityClarification } from "./modules/whatsapp/issue874Clarification";
+import { requestWhatsappImageFoodQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
 import {
   assertWhatsappImageMealItemsArePersistable,
   inspectWhatsappImageMealItemsPersistence,

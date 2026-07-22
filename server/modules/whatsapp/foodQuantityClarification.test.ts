@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createIssue874ClarificationService } from "./issue874Clarification";
+import { createFoodQuantityClarificationService } from "./foodQuantityClarification";
 import { createWhatsappFoodClarificationService } from "./foodClarification";
 import type { WhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 
@@ -105,7 +105,9 @@ describe("issue 874 persistent quantity clarification", () => {
   });
 
   it("combina alimento e quantidade em duas mensagens e confirma o estado corrigido", async () => {
-    const clarification = createIssue874ClarificationService({ repository });
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
     const requested = await clarification.requestLatestFoodCorrectionQuantity({
       userId: 42,
       mealId: 31,
@@ -158,7 +160,9 @@ describe("issue 874 persistent quantity clarification", () => {
   });
 
   it("cria pendência de quantidade para alimento identificado por imagem", async () => {
-    const clarification = createIssue874ClarificationService({ repository });
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
     const result = await clarification.requestImageFoodQuantity({
       userId: 77,
       foodName: "Banana prata",

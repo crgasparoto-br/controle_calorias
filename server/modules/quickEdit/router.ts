@@ -8,7 +8,7 @@ import {
   QuickEditTokenError,
   updateQuickEditExercise,
 } from "./service";
-import { updateQuickEditMealWithWhatsappConfirmation } from "./issue874Service";
+import { updateQuickEditMealWithWhatsappConfirmation } from "./mealUpdateConfirmation";
 import { logInferenceEvent } from "../../db";
 import {
   quickEditExerciseUpdateSchema,

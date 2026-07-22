@@ -17,7 +17,7 @@ import {
 } from "./intent/mealItemHelpers";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
-import { requestWhatsappLatestFoodCorrectionQuantity } from "./issue874Clarification";
+import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";
 
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;

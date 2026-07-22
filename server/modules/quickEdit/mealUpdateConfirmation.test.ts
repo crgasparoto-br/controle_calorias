@@ -44,7 +44,7 @@ vi.mock("../../../drizzle/schema", () => ({
 }));
 
 const { updateQuickEditMealWithWhatsappConfirmation } = await import(
-  "./issue874Service"
+  "./mealUpdateConfirmation"
 );
 
 const currentMeal = {
@@ -70,7 +70,7 @@ const currentMeal = {
   ],
 };
 
-describe("quick edit issue 874 completion", () => {
+describe("quick edit meal update confirmation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     limitMock.mockResolvedValue([{ userId: 123 }]);
@@ -160,6 +160,47 @@ describe("quick edit issue 874 completion", () => {
       text: "Refeição atualizada com 126 kcal.",
     });
     expect(result.items[0].calories).toBe(126);
+  });
+
+  it("recalcula no backend quando apenas a quantidade heurística muda", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      items: [
+        {
+          ...currentMeal.items[0],
+          quantity: 60,
+          estimatedGrams: 60,
+          portionText: "60 g",
+          calories: 252,
+          protein: 20,
+          carbs: 2,
+          fat: 18,
+        },
+      ],
+    });
+
+    const result = await updateQuickEditMealWithWhatsappConfirmation(
+      "x".repeat(32),
+      {
+        mealLabel: "Lanche",
+        dateTimeLocal: "2026-07-22T12:00",
+        items: [
+          {
+            ...currentMeal.items[0],
+            quantity: 60,
+            estimatedGrams: 60,
+            portionText: "60 g",
+            calories: 999,
+          },
+        ],
+      }
+    );
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "60 g de 30G" })
+    );
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({ calories: 252, estimatedGrams: 60 })
+    );
   });
 
   it("preserva a edição quando a entrega da confirmação falha", async () => {

@@ -16,7 +16,7 @@ import {
   scaleMealItemQuantity,
   toMealItemInputs,
 } from "./intent/mealItemHelpers";
-import type { Issue874FoodClarificationTarget } from "./issue874Clarification";
+import type { FoodQuantityClarificationTarget } from "./foodQuantityClarification";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 
@@ -89,7 +89,7 @@ async function captureMealState(
 async function persistResolvedCorrection(
   deps: FoodClarificationDependencies,
   userId: number,
-  target: Issue874FoodClarificationTarget,
+  target: FoodQuantityClarificationTarget,
   occurredAt: Date,
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string }
@@ -173,7 +173,7 @@ async function persistResolvedFood(
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappIntentResult> {
-  const issue874Target = target as Issue874FoodClarificationTarget;
+  const issue874Target = target as FoodQuantityClarificationTarget;
   if (issue874Target.resolutionContext?.mode === "replace_latest_item") {
     return persistResolvedCorrection(
       deps,

@@ -5,7 +5,7 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const requestLatestFoodCorrectionQuantityMock = vi.fn();
 
-vi.mock("./issue874Clarification", () => ({
+vi.mock("./foodQuantityClarification", () => ({
   requestWhatsappLatestFoodCorrectionQuantity:
     requestLatestFoodCorrectionQuantityMock,
 }));

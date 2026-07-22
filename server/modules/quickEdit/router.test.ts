@@ -8,7 +8,7 @@ vi.mock("../../db", () => ({
   logInferenceEvent: logInferenceEventMock,
 }));
 
-vi.mock("./issue874Service", () => ({
+vi.mock("./mealUpdateConfirmation", () => ({
   updateQuickEditMealWithWhatsappConfirmation: updateQuickEditMealMock,
 }));
 

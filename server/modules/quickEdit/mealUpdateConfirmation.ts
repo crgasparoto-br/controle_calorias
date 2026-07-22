@@ -52,6 +52,21 @@ function foodIdentityChanged(
   return !submittedIdentities.some(value => currentIdentities.has(value));
 }
 
+function nutritionInputChanged(
+  current: MealItemInput | undefined,
+  next: MealItemInput
+) {
+  if (!current) return true;
+  return (
+    foodIdentityChanged(current, next) ||
+    Number(current.quantity) !== Number(next.quantity) ||
+    normalizeText(current.unit ?? "") !== normalizeText(next.unit ?? "") ||
+    normalizeText(current.portionText ?? "") !==
+      normalizeText(next.portionText ?? "") ||
+    Number(current.estimatedGrams) !== Number(next.estimatedGrams)
+  );
+}
+
 function explicitFoodText(item: MealItemInput) {
   return `${item.quantity} ${item.unit} de ${item.foodName}`;
 }
@@ -69,7 +84,7 @@ async function recalculateChangedItems(input: {
   for (let index = 0; index < input.nextItems.length; index += 1) {
     const next = input.nextItems[index];
     const current = input.currentItems[index];
-    if (next.foodId || !foodIdentityChanged(current, next)) {
+    if (next.foodId || !nutritionInputChanged(current, next)) {
       recalculated.push(next);
       continue;
     }

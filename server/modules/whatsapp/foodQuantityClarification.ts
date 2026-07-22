@@ -21,7 +21,7 @@ import {
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "./replyMessages";
 
-export type Issue874MealItemCorrectionContext = {
+export type MealItemCorrectionContext = {
   mode: "replace_latest_item";
   mealId: number;
   itemIndex: number;
@@ -29,8 +29,8 @@ export type Issue874MealItemCorrectionContext = {
   replacementFoodName: string;
 };
 
-export type Issue874FoodClarificationTarget = PendingFoodClarificationTarget & {
-  resolutionContext?: Issue874MealItemCorrectionContext;
+export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
+  resolutionContext?: MealItemCorrectionContext;
 };
 
 type ClarificationDependencies = {
@@ -93,7 +93,7 @@ async function supersedeAllActive(
   return !(await repository.getActivePendingOperation(userId, occurredAt));
 }
 
-export function createIssue874ClarificationService(
+export function createFoodQuantityClarificationService(
   overrides: Partial<ClarificationDependencies> = {}
 ) {
   const deps: ClarificationDependencies = {
@@ -107,7 +107,7 @@ export function createIssue874ClarificationService(
     originalText: string;
     receivedAt?: Date;
     messageId?: string | null;
-    resolutionContext?: Issue874MealItemCorrectionContext;
+    resolutionContext?: MealItemCorrectionContext;
   }): Promise<WhatsappIntentResult> => {
     const occurredAt = input.receivedAt ?? new Date();
     const foodName = input.foodName.trim();
@@ -133,7 +133,7 @@ export function createIssue874ClarificationService(
         ),
         eventType: "whatsapp.food_clarification.pending_replacement_blocked",
         detail:
-          "Clarificação da issue 874 não substituiu a pendência anterior.",
+          "Clarificação de quantidade não substituiu a pendência anterior.",
       });
     }
 
@@ -146,7 +146,7 @@ export function createIssue874ClarificationService(
       instructionText: buildQuantityInstruction(foodName),
       messageId: input.messageId,
     });
-    const target: Issue874FoodClarificationTarget = {
+    const target: FoodQuantityClarificationTarget = {
       ...baseTarget,
       actions: buildFoodClarificationActions("quantity", [candidate]),
       ...(input.resolutionContext
@@ -170,7 +170,7 @@ export function createIssue874ClarificationService(
           "Não consegui guardar a pergunta de quantidade com segurança. Envie o alimento e a quantidade novamente."
         ),
         eventType: "whatsapp.food_clarification.persistence_unavailable",
-        detail: "Clarificação da issue 874 não foi persistida.",
+        detail: "Clarificação de quantidade não foi persistida.",
       });
     }
 
@@ -223,7 +223,7 @@ export function createIssue874ClarificationService(
   };
 }
 
-const defaultService = createIssue874ClarificationService();
+const defaultService = createFoodQuantityClarificationService();
 export const requestWhatsappImageFoodQuantityClarification =
   defaultService.requestImageFoodQuantity;
 export const requestWhatsappLatestFoodCorrectionQuantity =
