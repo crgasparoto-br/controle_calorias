@@ -47,11 +47,14 @@ Avaliação, orientação, anotação e mensagem devem pedir confirmação antes
 
 ## Verificação responsiva
 
-Validar visualmente pelo menos:
+Validar visualmente nos cenários definidos pela issue de layout:
 
-- 360 px: navegação lateral recolhida, subnavegação horizontal rolável, formulários em uma coluna, sem corte horizontal de conteúdo;
-- 768 px: filtros e cartões reorganizados em duas colunas quando houver espaço;
-- 1440 px: conteúdo fluido, painéis auxiliares laterais sem estreitar a área principal, sem `max-width` excessivamente restritivo.
+- 1440 × 900: conteúdo fluido, painéis auxiliares laterais e ausência de `max-width` global excessivamente restritivo;
+- 1366 × 768: título, contexto principal e ação prioritária no primeiro viewport;
+- 1024 × 768: redução ordenada de colunas, sem controles comprimidos, sobreposição ou ações perdidas;
+- 390 × 844: navegação lateral recolhida, subnavegação horizontal rolável, formulários em uma coluna, sem corte ou rolagem horizontal.
+
+Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, textos extremos, estados locais de loading/erro/vazio e quebra legível de nomes, mensagens e erros longos.
 
 ## Regressão manual mínima
 
