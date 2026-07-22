@@ -26,7 +26,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 
 - O número oficial é configuração de ambiente, nunca dado do usuário final.
 - O campo `from` identifica o contato do usuário final.
-- Tokens e IDs de operação não podem aparecer em logs crus.
+- Tokens e IDs de operação não podem aparecer em logs crus. Falhas de edição rápida registram somente etapa, categoria normalizada, usuário interno revalidado e refeição vinculada, sem SQL, parâmetros, token, telefone ou texto alimentar.
 - Links de edição rápida enviados no WhatsApp devem conter somente token opaco e não devem expor IDs internos de usuário/refeição.
 - Tokens de edição rápida devem ser armazenados como hash, vinculados a usuário e refeição, expirar inicialmente em 24 horas e falhar com resposta genérica quando inválidos ou expirados.
 - A tela pública de edição rápida só pode ler ou alterar a refeição associada ao token validado.
@@ -64,7 +64,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Contagens alimentares só podem virar unidade quando o candidato resolvido possui porção canônica exata e estável; uma referência nutricional genérica de `100 g` nunca é uma porção implícita.
-- Clarificações alimentares devem persistir texto original e candidato normalizado separadamente, expor classificação, tipo, ações/opções e instrução textual, e solicitar somente o dado ausente.
+- Clarificações alimentares devem persistir texto original e candidato normalizado separadamente, expor classificação, tipo, ações/opções e instrução textual, e solicitar somente o dado ausente. Quando uma imagem contiver múltiplos alimentos sem porção, a pendência preserva o conjunto completo e solicita as quantidades sequencialmente antes de persistir a refeição.
 - Respostas curtas só podem resolver pendências compatíveis; resposta incompatível não consome a pendência nem cria alimento.
 - Mensagem formada apenas por comando operacional ou número isolado, sem pendência compatível, nunca pode alcançar LLM, `processMealInput`, `processMealDraft` ou persistência nutricional. Frases completas, como `registrar 100 g de arroz`, continuam válidas.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
@@ -133,6 +133,7 @@ A epic #779 estende o contrato central para perguntas interativas com botões e 
 ### Retry após mutação
 
 O inbound só é concluído depois que uma resposta funcional primária é entregue e persistida. Se a mutação de domínio terminou mas o envio falhou, os vínculos `mealId`, `waterLogId` e `weightEntryId` permitem reconstruir a resposta a partir do estado persistido, sem repetir a mutação. A chave de idempotência da resposta outbound é derivada do inbound, garantindo no máximo uma resposta funcional armazenada por mensagem.
+
 - **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional e clarificação alimentar), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado recebe a mensagem central `⚠️ Registro não encontrado`.
 - **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa; autorização profissional exibe `Autorizar`/`Recusar`; clarificação alimentar fechada expõe ações canônicas e a aberta preserva a mesma instrução textual para resposta de quantidade.
 - **Transporte**: `server/modules/whatsapp/webhookUtils.ts` fornece botões/listas; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica.

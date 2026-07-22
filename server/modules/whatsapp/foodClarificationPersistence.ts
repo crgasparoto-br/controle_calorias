@@ -1,3 +1,4 @@
+import { calculateMealTotals } from "../../../shared/mealTotals";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type * as dbRuntime from "../../db";
 import { normalizeText } from "../../mealTextParsing";
@@ -11,12 +12,11 @@ import {
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import { toMealItemInputs } from "./intent/mealItemHelpers";
 import {
-  replaceMealItemFood,
-  scaleMealItemQuantity,
-  toMealItemInputs,
-} from "./intent/mealItemHelpers";
-import type { FoodQuantityClarificationTarget } from "./foodQuantityClarification";
+  createFoodQuantityClarificationService,
+  type FoodQuantityClarificationTarget,
+} from "./foodQuantityClarification";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 
@@ -28,6 +28,26 @@ export type FoodClarificationDependencies = {
   listMeals: typeof mealRuntime.listMeals;
   updateMeal: typeof mealRuntime.updateMeal;
   removeMeal: typeof mealRuntime.removeMeal;
+  createWhatsappMeal: (
+    userId: number,
+    input: {
+      detectedMealLabel: string;
+      sourceText: string;
+      transcript?: string;
+      reasoning: string;
+      confidence: number;
+      occurredAt: string;
+      items: MealDraftItem[];
+      media: Array<{
+        id: number;
+        mediaType: "image" | "audio";
+        storageKey: string;
+        storageUrl: string;
+        mimeType: string;
+        originalFileName?: string;
+      }>;
+    }
+  ) => Promise<ExistingMeal>;
 };
 
 export type ResolvedFoodPersistenceOutcome =
@@ -118,11 +138,28 @@ async function persistResolvedCorrection(
     throw new Error("O item original mudou antes da conclusão da correção.");
   }
 
-  const replacementItem = scaleMealItemQuantity(
-    replaceMealItemFood(currentItem, context.replacementFoodName),
-    explicitQuantity.quantity,
-    explicitQuantity.unit
-  );
+  const processed = await deps.processFood({
+    text: `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${context.replacementFoodName}`,
+    habits: await deps.getHabits(userId),
+    occurredAt,
+    timeZone,
+  });
+  const resolvedItem = processed.items[0];
+  if (!resolvedItem) {
+    throw new Error("A correção não produziu referência nutricional válida.");
+  }
+  const replacementItem: MealDraftItem = {
+    ...currentItem,
+    ...resolvedItem,
+    foodName: context.replacementFoodName.trim(),
+    canonicalName:
+      resolvedItem.canonicalName?.trim() || resolvedItem.foodName.trim(),
+    quantity: explicitQuantity.quantity,
+    unit: explicitQuantity.unit,
+    portionText:
+      resolvedItem.portionText ||
+      `${explicitQuantity.quantity} ${explicitQuantity.unit}`,
+  };
   const updated = await deps.updateMeal(userId, {
     mealId: currentMeal.id,
     mealLabel: currentMeal.mealLabel,
@@ -164,6 +201,126 @@ async function persistResolvedCorrection(
   };
 }
 
+async function persistResolvedImageMeal(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: FoodQuantityClarificationTarget,
+  candidate: FoodClarificationCandidate,
+  occurredAt: Date,
+  timeZone: string,
+  explicitQuantity?: { quantity: number; unit: string }
+): Promise<WhatsappIntentResult> {
+  const context = target.resolutionContext;
+  if (!context || context.mode !== "complete_image_meal" || !explicitQuantity) {
+    throw new Error("Contexto da imagem ou quantidade ausente.");
+  }
+
+  const processedItem = await deps.processFood({
+    text: `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`,
+    habits: await deps.getHabits(userId),
+    occurredAt: new Date(context.occurredAt),
+    timeZone,
+  });
+  const resolvedItem = processedItem.items[0];
+  if (!resolvedItem) {
+    throw new Error("A quantidade da imagem não produziu alimento válido.");
+  }
+
+  const items = context.items.map((item, index) =>
+    index === context.currentItemIndex
+      ? {
+          ...item,
+          ...resolvedItem,
+          foodName: candidate.name.trim(),
+          canonicalName:
+            resolvedItem.canonicalName?.trim() || resolvedItem.foodName.trim(),
+          quantity: explicitQuantity.quantity,
+          unit: explicitQuantity.unit,
+          portionText:
+            resolvedItem.portionText ||
+            `${explicitQuantity.quantity} ${explicitQuantity.unit}`,
+        }
+      : item
+  );
+  const remainingIndexes = context.pendingItemIndexes.filter(
+    index => index !== context.currentItemIndex
+  );
+
+  if (remainingIndexes.length) {
+    const nextIndex = remainingIndexes[0];
+    const clarification = createFoodQuantityClarificationService({
+      repository: deps.repository,
+    });
+    return clarification.requestImageMealQuantity({
+      userId,
+      detectedMealLabel: context.detectedMealLabel,
+      sourceText: context.sourceText,
+      transcript: context.transcript,
+      reasoning: context.reasoning,
+      confidence: context.confidence,
+      occurredAt: new Date(context.occurredAt),
+      items,
+      media: context.media,
+      pendingItemIndexes: remainingIndexes,
+      currentItemIndex: nextIndex,
+    });
+  }
+
+  const saved = await deps.createWhatsappMeal(userId, {
+    detectedMealLabel: context.detectedMealLabel,
+    sourceText: context.sourceText,
+    transcript: context.transcript,
+    reasoning: context.reasoning,
+    confidence: context.confidence,
+    occurredAt: context.occurredAt,
+    items,
+    media: context.media,
+  });
+  const consolidated = await consolidateWhatsAppMealAfterSave(
+    {
+      listUserMeals: deps.listMeals,
+      updateUserMeal: input =>
+        deps.updateMeal(input.userId, {
+          mealId: input.mealId,
+          mealLabel: input.mealLabel,
+          occurredAt: input.occurredAt,
+          notes: input.notes,
+          items: input.items,
+        }),
+      removeUserMeal: deps.removeMeal,
+    },
+    saved,
+    timeZone
+  );
+  const meal = consolidated.meal;
+  const reply = await composeWhatsAppMealActionReply({
+    userId,
+    meal,
+    timeZone,
+    options: {
+      title: "Refeição registrada",
+      actionLines: ["Completei as quantidades identificadas na imagem."],
+      mealResultState:
+        consolidated.action === "updated" ? "updated" : "registered",
+    },
+  });
+
+  return {
+    handled: true,
+    action: "food_clarification_completed",
+    reply,
+    eventType: "whatsapp.food_clarification.completed",
+    detail:
+      "Refeição da imagem concluída após clarificação sequencial e estado persistido recarregado.",
+    data: {
+      mealId: meal.id,
+      interactionId: target.interactionId,
+      resolvedItemCount: items.length,
+      totals: calculateMealTotals(items),
+    },
+  };
+}
+
 async function persistResolvedFood(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -179,6 +336,17 @@ async function persistResolvedFood(
       deps,
       userId,
       issue874Target,
+      occurredAt,
+      timeZone,
+      explicitQuantity
+    );
+  }
+  if (issue874Target.resolutionContext?.mode === "complete_image_meal") {
+    return persistResolvedImageMeal(
+      deps,
+      userId,
+      issue874Target,
+      candidate,
       occurredAt,
       timeZone,
       explicitQuantity

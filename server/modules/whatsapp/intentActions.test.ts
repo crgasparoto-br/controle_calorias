@@ -4,11 +4,17 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
+const processMealInputMock = vi.fn();
 
 vi.mock("../../db", () => ({
+  getHabitSnapshots: vi.fn(async () => []),
   getUserNutritionGoal: getUserNutritionGoalMock,
   getDb: vi.fn(),
   logPersistenceWarning: vi.fn(),
+}));
+
+vi.mock("../../nutritionEngine", () => ({
+  processMealInput: processMealInputMock,
 }));
 
 vi.mock("../meals/service", () => ({
@@ -88,6 +94,32 @@ describe("executeWhatsappTextIntent", () => {
     updateMealMock.mockReset();
     createWaterLogMock.mockReset();
     getUserNutritionGoalMock.mockReset();
+    processMealInputMock.mockReset();
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "30 g de queijo parmesão polenghi",
+      confidence: 0.95,
+      needsConfirmation: false,
+      reasoning: "Referência nutricional canônica resolvida.",
+      items: [
+        {
+          foodName: "Queijo parmesão Polenghi",
+          canonicalName: "Queijo parmesão Polenghi",
+          portionText: "30 g",
+          quantity: 30,
+          unit: "g",
+          servings: 1,
+          estimatedGrams: 30,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+          confidence: 0.95,
+          source: "catalog",
+        },
+      ],
+      totals: { calories: 126, protein: 10, carbs: 1, fat: 9 },
+    });
     createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 91,
       userId: 42,

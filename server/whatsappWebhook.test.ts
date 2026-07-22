@@ -498,6 +498,74 @@ describe("whatsappWebhook", () => {
     expect(createLocalMealPhotoOverlayMock).not.toHaveBeenCalled();
   });
 
+  it("normaliza o nome exibido quando apenas o canonicalName é confiável", async () => {
+    const userId = 2000103;
+    const phoneNumber = "5511777770103";
+    await upsertUserWhatsappConnection({
+      userId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: false,
+      reasoning: "Nome canônico confiável.",
+      items: [
+        {
+          foodName: "30G",
+          canonicalName: "Queijo parmesão Polenghi",
+          portionText: "30 g",
+          quantity: 30,
+          unit: "g",
+          servings: 1,
+          estimatedGrams: 30,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+          confidence: 0.9,
+          source: "catalog" as const,
+        },
+      ],
+      totals: { calories: 126, protein: 10, carbs: 1, fat: 9 },
+    });
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      id: "wamid.image874.visible-name",
+                      from: phoneNumber,
+                      type: "image",
+                      image: { id: "visible-name", mime_type: "image/jpeg" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await handleWhatsAppWebhook(req as never, createResponse() as never);
+    const meal = (await listUserMeals(userId)).find(
+      item => item.source === "whatsapp"
+    );
+    expect(meal?.items[0]?.foodName).toBe("Queijo parmesão Polenghi");
+    const sentTextBodies = sentWhatsAppPayloads
+      .map(payload => payload?.text?.body)
+      .filter((body): body is string => typeof body === "string")
+      .join("\n");
+    expect(sentTextBodies).toContain("Queijo parmesão Polenghi");
+    expect(sentTextBodies).not.toContain("30G —");
+  });
+
   it("mantém contexto quando imagem identifica alimento sem quantidade e conclui com 30g", async () => {
     const imageOnlyUserId = 2000102;
     const phoneNumber = "5511777770102";

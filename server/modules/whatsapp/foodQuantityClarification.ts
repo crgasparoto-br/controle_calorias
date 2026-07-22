@@ -1,4 +1,5 @@
 import { getDb, logPersistenceWarning } from "../../db";
+import type { MealDraftItem } from "../../nutritionEngine";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRepository,
@@ -29,8 +30,35 @@ export type MealItemCorrectionContext = {
   replacementFoodName: string;
 };
 
+export type ImageMealMediaReference = {
+  id: number;
+  mediaType: "image" | "audio";
+  storageKey: string;
+  storageUrl: string;
+  mimeType: string;
+  originalFileName?: string;
+};
+
+export type ImageMealQuantityContext = {
+  mode: "complete_image_meal";
+  detectedMealLabel: string;
+  sourceText: string;
+  transcript?: string;
+  reasoning: string;
+  confidence: number;
+  occurredAt: string;
+  items: MealDraftItem[];
+  media: ImageMealMediaReference[];
+  pendingItemIndexes: number[];
+  currentItemIndex: number;
+};
+
+export type FoodQuantityResolutionContext =
+  | MealItemCorrectionContext
+  | ImageMealQuantityContext;
+
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
-  resolutionContext?: MealItemCorrectionContext;
+  resolutionContext?: FoodQuantityResolutionContext;
 };
 
 type ClarificationDependencies = {
@@ -107,7 +135,8 @@ export function createFoodQuantityClarificationService(
     originalText: string;
     receivedAt?: Date;
     messageId?: string | null;
-    resolutionContext?: MealItemCorrectionContext;
+    resolutionContext?: FoodQuantityResolutionContext;
+    instructionText?: string;
   }): Promise<WhatsappIntentResult> => {
     const occurredAt = input.receivedAt ?? new Date();
     const foodName = input.foodName.trim();
@@ -143,7 +172,8 @@ export function createFoodQuantityClarificationService(
       pendingKind: "quantity",
       candidates: [candidate],
       selectedCandidateIndex: 0,
-      instructionText: buildQuantityInstruction(foodName),
+      instructionText:
+        input.instructionText ?? buildQuantityInstruction(foodName),
       messageId: input.messageId,
     });
     const target: FoodQuantityClarificationTarget = {
@@ -178,9 +208,12 @@ export function createFoodQuantityClarificationService(
       action: "food_clarification_requested",
       reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
       eventType: "whatsapp.food_clarification.requested",
-      detail: input.resolutionContext
-        ? "Correção do último alimento aguardando quantidade em pendência persistente."
-        : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
+      detail:
+        input.resolutionContext?.mode === "replace_latest_item"
+          ? "Correção do último alimento aguardando quantidade em pendência persistente."
+          : input.resolutionContext?.mode === "complete_image_meal"
+            ? "Refeição identificada por imagem aguardando quantidades em sequência persistente."
+            : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
       data: buildFoodClarificationPendingData(created, target),
     });
   };
@@ -197,6 +230,55 @@ export function createFoodQuantityClarificationService(
         ...input,
         originalText: `Imagem com ${input.foodName.trim()}`,
       }),
+    requestImageMealQuantity: (input: {
+      userId: number;
+      detectedMealLabel: string;
+      sourceText: string;
+      transcript?: string;
+      reasoning: string;
+      confidence: number;
+      occurredAt: Date;
+      items: MealDraftItem[];
+      media: ImageMealMediaReference[];
+      pendingItemIndexes: number[];
+      currentItemIndex?: number;
+      messageId?: string | null;
+    }) => {
+      const currentItemIndex =
+        input.currentItemIndex ?? input.pendingItemIndexes[0] ?? -1;
+      const item = input.items[currentItemIndex];
+      const foodName =
+        item?.foodName?.trim() || item?.canonicalName?.trim() || "";
+      const sequencePosition = Math.min(
+        currentItemIndex + 1,
+        input.items.length
+      );
+      const instructionText =
+        input.items.length > 1
+          ? `Identifiquei ${input.items.length} alimentos. Informe a quantidade de ${foodName} (${sequencePosition} de ${input.items.length}).`
+          : buildQuantityInstruction(foodName);
+      return createQuantityClarification({
+        userId: input.userId,
+        foodName,
+        originalText: input.sourceText || `Imagem com ${foodName}`,
+        receivedAt: input.occurredAt,
+        messageId: input.messageId,
+        resolutionContext: {
+          mode: "complete_image_meal",
+          detectedMealLabel: input.detectedMealLabel,
+          sourceText: input.sourceText,
+          transcript: input.transcript,
+          reasoning: input.reasoning,
+          confidence: input.confidence,
+          occurredAt: input.occurredAt.toISOString(),
+          items: input.items.map(candidate => ({ ...candidate })),
+          media: input.media.map(candidate => ({ ...candidate })),
+          pendingItemIndexes: [...input.pendingItemIndexes],
+          currentItemIndex,
+        },
+        instructionText,
+      });
+    },
     requestLatestFoodCorrectionQuantity: (input: {
       userId: number;
       mealId: number;
@@ -226,5 +308,7 @@ export function createFoodQuantityClarificationService(
 const defaultService = createFoodQuantityClarificationService();
 export const requestWhatsappImageFoodQuantityClarification =
   defaultService.requestImageFoodQuantity;
+export const requestWhatsappImageMealQuantityClarification =
+  defaultService.requestImageMealQuantity;
 export const requestWhatsappLatestFoodCorrectionQuantity =
   defaultService.requestLatestFoodCorrectionQuantity;

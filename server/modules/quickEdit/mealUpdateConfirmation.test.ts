@@ -203,6 +203,38 @@ describe("quick edit meal update confirmation", () => {
     );
   });
 
+  it("registra etapa e categoria seguras quando a persistência falha", async () => {
+    updateQuickEditMealMock.mockRejectedValueOnce(
+      Object.assign(
+        new Error("Failed query: UPDATE mealItems SET token=secret"),
+        {
+          code: "ER_BAD_FIELD_ERROR",
+        }
+      )
+    );
+    await expect(
+      updateQuickEditMealWithWhatsappConfirmation("x".repeat(32), {
+        mealLabel: "Lanche",
+        dateTimeLocal: "2026-07-22T12:00",
+        items: currentMeal.items,
+      })
+    ).rejects.toThrow();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 123,
+        eventType: "quick_edit.meal_update_failed",
+        detail: expect.stringContaining("stage=persist; category=database"),
+      })
+    );
+    const detail = logInferenceEventMock.mock.calls
+      .map(call => call[0]?.detail)
+      .filter(Boolean)
+      .join("\n");
+    expect(detail).not.toContain("UPDATE mealItems");
+    expect(detail).not.toContain("secret");
+    expect(detail).not.toContain("x".repeat(32));
+  });
+
   it("preserva a edição quando a entrega da confirmação falha", async () => {
     sendReplyMock.mockRejectedValueOnce(new Error("provider unavailable"));
     await expect(

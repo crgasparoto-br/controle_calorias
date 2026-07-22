@@ -46,8 +46,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Conversões entre massa e volume só devem acontecer quando houver densidade confiável para o alimento ou bebida; alimentos sólidos sem densidade não devem ser convertidos automaticamente para volume.
 - Quando uma medida for convertida, a resposta ao usuário deve deixar clara a medida interpretada, por exemplo usando a porção convertida na confirmação.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
-- Imagem com alimento identificado, mas sem porção segura, não cria refeição: abre clarificação persistente de quantidade e conclui somente após a resposta do usuário.
-- A correção `O último alimento é ...` sem quantidade abre uma pendência compatível; uma resposta posterior como `30g` conclui a substituição e envia o resumo recalculado.
+- Imagem com alimento identificado, mas sem porção segura, não cria refeição: abre clarificação persistente de quantidade, preserva todos os itens identificados e conclui as porções pendentes em sequência antes de persistir.
+- A correção `O último alimento é ...` sem quantidade abre uma pendência compatível; uma resposta posterior como `30g` conclui a substituição pelo processamento nutricional canônico e envia o resumo recalculado.
 - Ao salvar pelo link de edição rápida, alimentos alterados sem referência de catálogo são reprocessados pelo backend antes da persistência, e uma nova confirmação é enviada ao WhatsApp a partir do estado salvo.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.

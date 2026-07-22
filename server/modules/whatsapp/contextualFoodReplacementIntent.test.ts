@@ -4,6 +4,17 @@ import type { MealDraftItem } from "../../nutritionEngine";
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const requestLatestFoodCorrectionQuantityMock = vi.fn();
+const processMealInputMock = vi.fn();
+const getHabitSnapshotsMock = vi.fn();
+
+vi.mock("../../nutritionEngine", () => ({
+  processMealInput: processMealInputMock,
+}));
+vi.mock("../../db", () => ({
+  getDb: vi.fn(),
+  getHabitSnapshots: getHabitSnapshotsMock,
+  logPersistenceWarning: vi.fn(),
+}));
 
 vi.mock("./foodQuantityClarification", () => ({
   requestWhatsappLatestFoodCorrectionQuantity:
@@ -43,6 +54,32 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     requestLatestFoodCorrectionQuantityMock.mockReset();
+    processMealInputMock.mockReset();
+    getHabitSnapshotsMock.mockReset();
+    getHabitSnapshotsMock.mockResolvedValue([]);
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "30 g de queijo parmesão polenghi",
+      confidence: 0.95,
+      needsConfirmation: false,
+      reasoning: "Referência canônica resolvida.",
+      items: [
+        item({
+          foodName: "Queijo parmesão Polenghi",
+          canonicalName: "Queijo parmesão Polenghi",
+          portionText: "30 g",
+          quantity: 30,
+          unit: "g",
+          estimatedGrams: 30,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+          source: "catalog",
+        }),
+      ],
+      totals: { calories: 126, protein: 10, carbs: 1, fat: 9 },
+    });
     requestLatestFoodCorrectionQuantityMock.mockResolvedValue({
       handled: true,
       action: "food_clarification_requested",
@@ -275,6 +312,55 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
             unit: "g",
             estimatedGrams: 30,
             portionText: "30 g",
+          }),
+        ],
+      })
+    );
+  });
+
+  it("recalcula a correção completa do último alimento pelo fluxo canônico", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 33,
+        userId: 42,
+        source: "whatsapp",
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-07-22T15:00:00.000Z").getTime(),
+        items: [
+          item({
+            foodName: "30G",
+            canonicalName: "1 porção",
+            portionText: "100 g",
+            estimatedGrams: 100,
+          }),
+        ],
+      },
+    ]);
+
+    await executeWhatsappContextualFoodReplacementIntent(42, {
+      text: "O último alimento é 30g queijo parmesão polenghi, substituir",
+      receivedAt: new Date("2026-07-22T15:05:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "30 g de queijo parmesão polenghi",
+        timeZone: "America/Sao_Paulo",
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 33,
+        items: [
+          expect.objectContaining({
+            foodName: "queijo parmesão polenghi",
+            calories: 126,
+            protein: 10,
+            carbs: 1,
+            fat: 9,
+            source: "catalog",
           }),
         ],
       })

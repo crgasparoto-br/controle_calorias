@@ -1,3 +1,6 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { getHabitSnapshots } from "../../db";
+import { processMealInput } from "../../nutritionEngine";
 import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import {
@@ -219,9 +222,43 @@ function toBatchSnapshot(meal: MutableMeal) {
   };
 }
 
+async function resolveCanonicalLatestReplacement(input: {
+  userId: number;
+  currentItem: MealItemInput;
+  replacementFoodName: string;
+  quantity: number;
+  unit: string;
+  occurredAt: Date;
+  timeZone: string;
+}) {
+  const processed = await processMealInput({
+    text: `${input.quantity} ${input.unit} de ${input.replacementFoodName}`,
+    habits: await getHabitSnapshots(input.userId),
+    occurredAt: input.occurredAt,
+    timeZone: input.timeZone,
+  });
+  const resolved = processed.items[0];
+  if (!resolved) {
+    throw new Error("A correção não produziu referência nutricional válida.");
+  }
+  return {
+    ...input.currentItem,
+    ...resolved,
+    foodName: input.replacementFoodName.trim(),
+    canonicalName: resolved.canonicalName?.trim() || resolved.foodName.trim(),
+    quantity: input.quantity,
+    unit: input.unit,
+    portionText: resolved.portionText || `${input.quantity} ${input.unit}`,
+  } satisfies MealItemInput;
+}
+
 export async function executeWhatsappContextualFoodReplacementIntent(
   userId: number,
-  input: { text?: string | null; receivedAt?: Date }
+  input: {
+    text?: string | null;
+    receivedAt?: Date;
+    userTimezone?: string;
+  }
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
@@ -281,11 +318,15 @@ export async function executeWhatsappContextualFoodReplacementIntent(
       };
     }
 
-    const replacementItem = scaleMealItemQuantity(
-      replaceMealItemFood(previousItem, latestCorrection.toFood),
-      latestCorrection.quantity,
-      latestCorrection.unit ?? "g"
-    );
+    const replacementItem = await resolveCanonicalLatestReplacement({
+      userId,
+      currentItem: previousItem,
+      replacementFoodName: latestCorrection.toFood,
+      quantity: latestCorrection.quantity,
+      unit: latestCorrection.unit ?? "g",
+      occurredAt: input.receivedAt ?? new Date(),
+      timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+    });
     latestMeal.items = latestMeal.items.map((item, index) =>
       index === itemIndex ? replacementItem : item
     );

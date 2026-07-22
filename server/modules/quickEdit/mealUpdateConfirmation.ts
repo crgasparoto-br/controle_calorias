@@ -170,30 +170,89 @@ async function sendQuickEditWhatsappConfirmation(input: {
   }
 }
 
+type QuickEditUpdateStage =
+  | "load_current"
+  | "revalidate_owner"
+  | "recalculate"
+  | "persist";
+
+function classifyQuickEditUpdateError(error: unknown) {
+  const code = String(
+    (error as { code?: string; cause?: { code?: string } })?.code ??
+      (error as { cause?: { code?: string } })?.cause?.code ??
+      ""
+  ).toUpperCase();
+  if (code.startsWith("ER_") || code.includes("SQL")) return "database";
+  if (
+    error instanceof Error &&
+    /nutricional|alimento|referência/i.test(error.message)
+  ) {
+    return "nutrition";
+  }
+  if (
+    error instanceof Error &&
+    /token|link|proprietário/i.test(error.message)
+  ) {
+    return "authorization";
+  }
+  return "unexpected";
+}
+
+function logQuickEditUpdateFailure(input: {
+  error: unknown;
+  stage: QuickEditUpdateStage;
+  userId?: number;
+  mealId?: number;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "web",
+    status: "error",
+    eventType: "quick_edit.meal_update_failed",
+    detail: `Falha sanitizada na edição rápida. stage=${input.stage}; category=${classifyQuickEditUpdateError(input.error)}; mealId=${input.mealId ?? "unknown"}.`,
+  });
+}
+
 export async function updateQuickEditMealWithWhatsappConfirmation(
   token: string,
   input: QuickEditMealUpdateInput["meal"]
 ) {
-  const current = await getQuickEditMeal(token);
-  const userId = await resolveValidatedTokenOwner(token);
-  if (!userId) {
-    throw new Error(
-      "Não foi possível revalidar o proprietário do link de edição."
-    );
-  }
+  let stage: QuickEditUpdateStage = "load_current";
+  let current: Awaited<ReturnType<typeof getQuickEditMeal>> | undefined;
+  let userId: number | undefined;
+  try {
+    current = await getQuickEditMeal(token);
+    stage = "revalidate_owner";
+    userId = (await resolveValidatedTokenOwner(token)) ?? undefined;
+    if (!userId) {
+      throw new Error(
+        "Não foi possível revalidar o proprietário do link de edição."
+      );
+    }
 
-  const items = await recalculateChangedItems({
-    userId,
-    currentItems: (current.meal.items ?? []) as MealItemInput[],
-    nextItems: input.items as MealItemInput[],
-    occurredAt: new Date(current.meal.occurredAt),
-    timeZone: current.timeZone,
-  });
-  const meal = await updateQuickEditMeal(token, { ...input, items });
-  await sendQuickEditWhatsappConfirmation({
-    userId,
-    meal,
-    timeZone: current.timeZone,
-  });
-  return meal;
+    stage = "recalculate";
+    const items = await recalculateChangedItems({
+      userId,
+      currentItems: (current.meal.items ?? []) as MealItemInput[],
+      nextItems: input.items as MealItemInput[],
+      occurredAt: new Date(current.meal.occurredAt),
+      timeZone: current.timeZone,
+    });
+    stage = "persist";
+    const meal = await updateQuickEditMeal(token, { ...input, items });
+    await sendQuickEditWhatsappConfirmation({
+      userId,
+      meal,
+      timeZone: current.timeZone,
+    });
+    return meal;
+  } catch (error) {
+    logQuickEditUpdateFailure({
+      error,
+      stage,
+      userId,
+      mealId: current?.meal.id,
+    });
+    throw error;
+  }
 }

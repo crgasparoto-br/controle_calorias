@@ -76,10 +76,12 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
-import { requestWhatsappImageFoodQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
+import { requestWhatsappImageMealQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
 import {
   assertWhatsappImageMealItemsArePersistable,
+  getWhatsappImageMissingPortionIndexes,
   inspectWhatsappImageMealItemsPersistence,
+  normalizeWhatsappImageMealItemsForPersistence,
 } from "./modules/whatsapp/visualMealInferenceValidation";
 import {
   extractWhatsAppWebhookMessages,
@@ -790,8 +792,10 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           });
         }
 
-        processed.items = waterSplit.remainingItems;
-        processed.totals = calculateMealTotals(waterSplit.remainingItems);
+        processed.items = normalizeWhatsappImageMealItemsForPersistence(
+          waterSplit.remainingItems
+        );
+        processed.totals = calculateMealTotals(processed.items);
 
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {
@@ -843,19 +847,21 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         const imagePersistence = inspectWhatsappImageMealItemsPersistence(
           processed.items
         );
-        if (
-          imagePersistence.status === "missing_portion" &&
-          processed.items.length === 1
-        ) {
-          const item = imagePersistence.item;
+        if (imagePersistence.status === "missing_portion") {
           const clarification =
-            await requestWhatsappImageFoodQuantityClarification({
+            await requestWhatsappImageMealQuantityClarification({
               userId,
-              foodName:
-                item.foodName?.trim() || item.canonicalName?.trim() || "",
-              brandName: (item as typeof item & { brand?: string | null })
-                .brand,
-              receivedAt: occurredAt,
+              detectedMealLabel: processed.detectedMealLabel,
+              sourceText: processed.sourceText,
+              transcript: processed.transcript,
+              reasoning: processed.reasoning,
+              confidence: processed.confidence,
+              occurredAt,
+              items: processed.items,
+              media: prepared.media,
+              pendingItemIndexes: getWhatsappImageMissingPortionIndexes(
+                processed.items
+              ),
               messageId: message.id,
             });
           logInferenceEvent({
