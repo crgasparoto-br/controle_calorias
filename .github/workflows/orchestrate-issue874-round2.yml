@@ -1,11 +1,6 @@
 name: Orchestrate issue 874 audit fixes
 
 on:
-  push:
-    branches:
-      - fix/874-whatsapp-correction-completion
-    paths:
-      - .github/workflows/orchestrate-issue874-round2.yml
   pull_request:
     branches:
       - develop
@@ -17,8 +12,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: orchestrate-issue-874-round2-${{ github.ref }}
-  cancel-in-progress: false
+  group: orchestrate-issue-874-round2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apply-validate-commit:
