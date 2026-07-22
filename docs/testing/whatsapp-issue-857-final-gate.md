@@ -42,6 +42,8 @@ O gate `server/modules/whatsapp/issue857FinalGate.test.ts` valida:
 
 Os testes de `logicalReplyDelivery.test.ts` validam separadamente a ordem `texto -> CTA -> imagem`, o corpo curto do CTA, a ausência de repetição do resumo, o fallback quando o link não é gerado e a não interferência em listas interativas.
 
+Os testes dos webhooks textual, de intenção e de áudio validam o resumo primário sem depender da última mensagem física, preservando o CTA auxiliar e a paridade dos entrypoints publicados.
+
 ## Evidência de branch e artefato
 
 - branch de implementação: `fix/857-whatsapp-regression-gate`;
