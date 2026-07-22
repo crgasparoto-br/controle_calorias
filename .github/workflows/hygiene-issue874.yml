@@ -68,43 +68,35 @@ jobs:
           const fs = require('node:fs');
           const path = 'server/modules/quickEdit/mealUpdateConfirmation.ts';
           let source = fs.readFileSync(path, 'utf8');
-          const anchor = `function explicitFoodText(item: MealItemInput) {
-            return \`${'${item.quantity} ${item.unit} de ${item.foodName}'}\`;
-          }
-          `;
-          const replacement = `function nutritionInputChanged(
-            current: MealItemInput | undefined,
-            next: MealItemInput
-          ) {
-            if (!current) return true;
-            return (
-              foodIdentityChanged(current, next) ||
-              Number(current.quantity) !== Number(next.quantity) ||
-              normalizeText(current.unit ?? "") !== normalizeText(next.unit ?? "") ||
-              normalizeText(current.portionText ?? "") !==
-                normalizeText(next.portionText ?? "") ||
-              Number(current.estimatedGrams) !== Number(next.estimatedGrams)
-            );
-          }
+          const explicitPattern = /function explicitFoodText\(item: MealItemInput\) \{\s*return `\$\{item\.quantity\} \$\{item\.unit\} de \$\{item\.foodName\}`;\s*\}/m;
+          if (!explicitPattern.test(source)) throw new Error('nutrition anchor not found');
+          source = source.replace(
+            explicitPattern,
+            `function nutritionInputChanged(
+              current: MealItemInput | undefined,
+              next: MealItemInput
+            ) {
+              if (!current) return true;
+              return (
+                foodIdentityChanged(current, next) ||
+                Number(current.quantity) !== Number(next.quantity) ||
+                normalizeText(current.unit ?? "") !== normalizeText(next.unit ?? "") ||
+                normalizeText(current.portionText ?? "") !==
+                  normalizeText(next.portionText ?? "") ||
+                Number(current.estimatedGrams) !== Number(next.estimatedGrams)
+              );
+            }
 
-          function explicitFoodText(item: MealItemInput) {
-            return \`${'${item.quantity} ${item.unit} de ${item.foodName}'}\`;
-          }
-          `;
-          if (!source.includes(anchor)) throw new Error('nutrition anchor not found');
-          source = source.replace(anchor, replacement);
-          const condition = `    if (next.foodId || !foodIdentityChanged(current, next)) {
-              recalculated.push(next);
-              continue;
-            }
-          `;
-          const nextCondition = `    if (next.foodId || !nutritionInputChanged(current, next)) {
-              recalculated.push(next);
-              continue;
-            }
-          `;
-          if (!source.includes(condition)) throw new Error('recalculation condition not found');
-          source = source.replace(condition, nextCondition);
+            function explicitFoodText(item: MealItemInput) {
+              return \`${'${item.quantity} ${item.unit} de ${item.foodName}'}\`;
+            }`
+          );
+          const conditionPattern = /if \(next\.foodId \|\| !foodIdentityChanged\(current, next\)\) \{/;
+          if (!conditionPattern.test(source)) throw new Error('recalculation condition not found');
+          source = source.replace(
+            conditionPattern,
+            'if (next.foodId || !nutritionInputChanged(current, next)) {'
+          );
           fs.writeFileSync(path, source);
           NODE
 
@@ -115,8 +107,7 @@ jobs:
           const fs = require('node:fs');
           const path = 'server/modules/quickEdit/mealUpdateConfirmation.test.ts';
           let source = fs.readFileSync(path, 'utf8');
-          const anchor = `  it("preserva a edição quando a entrega da confirmação falha", async () => {
-          `;
+          const anchor = '  it("preserva a edição quando a entrega da confirmação falha", async () => {';
           const test = `  it("recalcula no backend quando apenas a quantidade heurística muda", async () => {
             processMealInputMock.mockResolvedValueOnce({
               items: [
@@ -209,3 +200,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "refactor: harden and name issue 874 flows by domain"
           git push origin HEAD:fix/874-whatsapp-correction-completion
+
+# Trigger after workflow creation.
