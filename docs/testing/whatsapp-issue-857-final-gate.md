@@ -66,7 +66,8 @@ A suíte completa executa os arquivos listados na matriz. Assim, o gate falha ta
 
 - branch de implementação: `fix/857-whatsapp-regression-gate`;
 - branch-base: `develop`;
-- o commit auditado é o `head_sha` registrado na PR;
+- commit funcional auditado antes desta atualização documental: `432e04797c89e5f11b2002f0b4a61152a9e2f24c`;
+- o commit final da PR deve ser obtido do `head_sha` e corresponder ao SHA executado pelo workflow;
 - em GitHub Actions, `GITHUB_SHA` identifica o artefato de código efetivamente executado pelo ambiente de verificação;
 - `GITHUB_RUN_ID` identifica a execução reproduzível e `GITHUB_WORKFLOW` identifica o gate oficial;
 - o teste final exige essas três evidências em CI e falha se o SHA não tiver formato de commit Git completo.
