@@ -71,10 +71,30 @@ jobs:
         run: git checkout -- drizzle
 
       - name: Validate billing persistence, concurrency, and idempotency
-        run: pnpm db:test:billing
+        id: billing-test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm db:test:billing 2>&1 | tee billing-test.log
+
+      - name: Preserve billing integration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-persistence-test-${{ github.sha }}
+          path: billing-test.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Validate referential integrity
+        if: steps.billing-test.outcome == 'success'
         run: pnpm db:check-integrity
+
+      - name: Fail on billing integration failure
+        if: steps.billing-test.outcome == 'failure'
+        run: |
+          echo "Billing persistence integration failed. Inspect the uploaded diagnostic artifact."
+          exit 1
 
       - name: Fail on Drizzle metadata drift
         if: steps.drizzle-drift.outcome == 'failure'
