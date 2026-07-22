@@ -81,10 +81,10 @@ async function resolvePendingInteractionBeforeTextIntent(
   receivedAt: Date,
   userTimeZone: string,
 ): Promise<WhatsappIntentResult | null> {
-  // A retomada da clarificação já consumiu a pendência atual e precisa executar
-  // apenas os parsers determinísticos sobre o texto original, sem recriar a
-  // mesma clarificação genérica.
-  if (input.entrypoint === "intentClarification.resume") return null;
+  // Webhook textual e simulador já executam o gate antes de chamar este executor.
+  // Apenas a transcrição de áudio entra diretamente aqui e precisa da proteção
+  // transversal antes dos parsers determinísticos e do fallback nutricional.
+  if (input.entrypoint !== "audioTranscription") return null;
 
   const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
   const gate = await resolveWhatsAppPrecedenceGate({
