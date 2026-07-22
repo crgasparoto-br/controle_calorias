@@ -146,6 +146,31 @@ describe("regressões discriminantes da auditoria da issue #858", () => {
       .toBe("food_registration_clarification");
   });
 
+  it("comando alimentar completo com ontem não é consumido como escolha de período", async () => {
+    const userId = 85_806;
+    const receivedAt = new Date("2026-07-22T01:00:00.000Z");
+    const pending = await pendingRepository.createPendingOperation({
+      userId,
+      type: PENDING_PERIOD_REPORT_TYPE,
+      origin: "periodReportClarification",
+      ttlMs: 60_000,
+      now: receivedAt,
+      target: { kind: "period_report" },
+    });
+    if (!pending) throw new Error("pendência não criada");
+
+    const result = await resolvePendingWhatsappFoodClarification({
+      userId,
+      text: "comi 100 g de arroz ontem",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "wamid-new-food-command-858",
+    });
+
+    expect(result).toBeNull();
+    expect((await pendingRepository.getPendingOperationById(pending.id))?.state).toBe("superseded");
+  });
+
   it("reclassificação Todos recentes usa somente os IDs persistidos, mesmo quando surge uma refeição mais nova", async () => {
     const userId = 85_803;
     const firstSnapshot = [
