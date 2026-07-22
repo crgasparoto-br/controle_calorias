@@ -1,0 +1,87 @@
+name: Billing persistence TiDB gate
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "server/modules/billing/**"
+      - "server/repositories/billingRepository.ts"
+      - "server/modules/professionals/entitlementService.ts"
+      - "server/routers.ts"
+      - "scripts/test-billing-persistence-tidb.ts"
+      - "scripts/check-referential-integrity.mjs"
+      - "package.json"
+      - ".github/workflows/billing-persistence-tidb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-persistence:
+    name: Billing persistence TiDB
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB
+        run: |
+          docker run -d --name billing-persistence-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 billing-persistence-tidb
+          exit 1
+
+      - name: Apply current repository schema
+        run: pnpm exec drizzle-kit push --force
+
+      - name: Inspect Drizzle metadata drift
+        id: drizzle-drift
+        continue-on-error: true
+        run: |
+          pnpm exec drizzle-kit generate
+          git diff --exit-code -- drizzle
+
+      - name: Preserve Drizzle drift diagnostics
+        if: steps.drizzle-drift.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-drizzle-drift-${{ github.sha }}
+          path: drizzle/
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Restore repository migrations after drift inspection
+        if: always()
+        run: git checkout -- drizzle
+
+      - name: Validate billing persistence, concurrency, and idempotency
+        run: pnpm db:test:billing
+
+      - name: Validate referential integrity
+        run: pnpm db:check-integrity
+
+      - name: Fail on Drizzle metadata drift
+        if: steps.drizzle-drift.outcome == 'failure'
+        run: |
+          echo "Drizzle metadata drift detected. Inspect the uploaded artifact before merging."
+          exit 1
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 billing-persistence-tidb
