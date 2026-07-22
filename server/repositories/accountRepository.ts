@@ -1,4 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
+import { billingEntitlements } from "../../drizzle/billing-schema";
 import {
   appSecrets,
   dailySummaries,
@@ -30,15 +31,24 @@ export type AccountRepository = {
   purgeUserData(userId: number): Promise<void>;
 };
 
-export function createDrizzleAccountRepository(deps: { getDb: DbProvider }): AccountRepository {
+export function createDrizzleAccountRepository(deps: {
+  getDb: DbProvider;
+}): AccountRepository {
   return {
     async purgeUserData(userId) {
       const db = await deps.getDb();
       if (!db) return;
 
-      const mealIdsForUser = db.select({ id: meals.id }).from(meals).where(eq(meals.userId, userId));
-      await db.delete(mealItems).where(inArray(mealItems.mealId, mealIdsForUser));
-      await db.delete(mealMedia).where(inArray(mealMedia.mealId, mealIdsForUser));
+      const mealIdsForUser = db
+        .select({ id: meals.id })
+        .from(meals)
+        .where(eq(meals.userId, userId));
+      await db
+        .delete(mealItems)
+        .where(inArray(mealItems.mealId, mealIdsForUser));
+      await db
+        .delete(mealMedia)
+        .where(inArray(mealMedia.mealId, mealIdsForUser));
       await db.delete(mealInferences).where(eq(mealInferences.userId, userId));
       await db.delete(inferenceLogs).where(eq(inferenceLogs.userId, userId));
       await db.delete(foodFavorites).where(eq(foodFavorites.userId, userId));
@@ -49,13 +59,32 @@ export function createDrizzleAccountRepository(deps: { getDb: DbProvider }): Acc
       await db.delete(waterLogs).where(eq(waterLogs.userId, userId));
       await db.delete(waterGoals).where(eq(waterGoals.userId, userId));
       await db.delete(weightEntries).where(eq(weightEntries.userId, userId));
-      await db.delete(userPreferences).where(eq(userPreferences.userId, userId));
-      await db.delete(userRestrictions).where(eq(userRestrictions.userId, userId));
+      await db
+        .delete(userPreferences)
+        .where(eq(userPreferences.userId, userId));
+      await db
+        .delete(userRestrictions)
+        .where(eq(userRestrictions.userId, userId));
       await db.delete(userBadges).where(eq(userBadges.userId, userId));
-      await db.delete(userGamificationSettings).where(eq(userGamificationSettings.userId, userId));
-      await db.delete(whatsappConnections).where(eq(whatsappConnections.userId, userId));
-      await db.update(foodCatalog).set({ createdByUserId: null }).where(eq(foodCatalog.createdByUserId, userId));
-      await db.update(appSecrets).set({ updatedByUserId: null }).where(eq(appSecrets.updatedByUserId, userId));
+      await db
+        .delete(userGamificationSettings)
+        .where(eq(userGamificationSettings.userId, userId));
+      await db
+        .delete(whatsappConnections)
+        .where(eq(whatsappConnections.userId, userId));
+      // Remove concessões patrocinadas antes de excluir o patrocinador. Os demais
+      // registros de billing ligados ao próprio titular usam cascades testados.
+      await db
+        .delete(billingEntitlements)
+        .where(eq(billingEntitlements.sponsorUserId, userId));
+      await db
+        .update(foodCatalog)
+        .set({ createdByUserId: null })
+        .where(eq(foodCatalog.createdByUserId, userId));
+      await db
+        .update(appSecrets)
+        .set({ updatedByUserId: null })
+        .where(eq(appSecrets.updatedByUserId, userId));
       await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
       await db.delete(meals).where(eq(meals.userId, userId));
       // Não apaga explicitamente whatsappConversations/whatsappConversationMessages/

@@ -58,6 +58,12 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Rollback desativa leitura persistente por fluxo e mantém escrita, schema, retenção e dados já gravados; não deve executar downgrade destrutivo.
 - Limpeza do histórico conversacional não pode remover refeições, itens, água, peso, exercícios ou outros dados nutricionais.
 
+## Billing e acesso comercial
+
+Billing persiste somente dados comerciais necessários: plano, estado normalizado, período, identificadores externos do provider, origem do entitlement, capacidade e trilha administrativa. O titular da cobrança e o beneficiário do acesso são entidades distintas. Cobertura profissional não cria assinatura em nome do paciente e não substitui consentimento para acesso aos dados de saúde.
+
+Payload bruto de pagamento não é persistido. O provider futuro deve normalizar o webhook e enviar apenas metadata allowlisted; cartão, CVV, token, segredo, endereço, e-mail, telefone ou objetos aninhados são descartados. Encerrar assinatura, cobertura ou override não apaga histórico nutricional ou clínico; exportação e exclusão seguem os contratos do titular e as obrigações legais aplicáveis à trilha comercial.
+
 ## Exportação e exclusão
 
 A especificação funcional está em `docs/product-specs/privacy-export-deletion.md`.

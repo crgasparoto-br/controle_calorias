@@ -5,6 +5,7 @@ const root = process.cwd();
 const sourcePaths = [
   path.join(root, "drizzle/schema.ts"),
   path.join(root, "drizzle/professional-schema.ts"),
+  path.join(root, "drizzle/billing-schema.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
@@ -12,7 +13,7 @@ const checkOnly = process.argv.includes("--check");
 type ColumnInfo = { propertyName: string; columnName: string };
 type TableInfo = { exportName: string; tableName: string; columns: ColumnInfo[] };
 
-const tableFragments = ["user", "profile", "professional", "authorization", "tracking", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
+const tableFragments = ["user", "profile", "professional", "billing", "subscription", "entitlement", "override", "authorization", "tracking", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
 const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured", "professional", "patient", "actor", "authorization"];
 
 function readRequiredFile(filePath: string) {
@@ -83,7 +84,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.",
+    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing-schema.ts`.",
     "",
     "## Tabelas",
     "",
@@ -113,6 +114,7 @@ function generateMarkdown(tables: TableInfo[]) {
   lines.push("- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.");
   lines.push("- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.");
   lines.push("- `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.");
+  lines.push("- Billing separa titular/pagador, beneficiário, patrocinador e origem do entitlement; coberturas profissionais não criam assinatura para o paciente.");
   return `${lines.join("\n")}\n`;
 }
 

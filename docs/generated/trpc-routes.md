@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
+Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts` e `server/modules/billing/router.ts`.
 
 ## Grupos
 
@@ -31,6 +31,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
+| `billing` | 6 | 4 | 2 | admin | Elegibilidade própria e administração comercial de billing |
 
 ## Procedures por grupo
 
@@ -274,6 +275,17 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `updatePreferences` | mutation | professional-entitled |
 | `setActive` | mutation | professional-entitled |
 | `patientVisible` | query | protected |
+
+### billing
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `me` | query | protected |
+| `subscriptionStatus` | query | protected |
+| `adminSearchUsers` | query | admin |
+| `adminGrantOverride` | mutation | admin |
+| `adminRevokeOverride` | mutation | admin |
+| `adminAnalytics` | query | admin |
 
 ## Regras para novas procedures
 

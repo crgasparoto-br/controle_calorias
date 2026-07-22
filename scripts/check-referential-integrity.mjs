@@ -115,6 +115,30 @@ const checks = [
     name: "inferenceLogs com userId inválido",
     sql: "SELECT COUNT(*) AS count FROM inferenceLogs l LEFT JOIN users u ON u.id = l.userId WHERE l.userId IS NOT NULL AND u.id IS NULL",
   },
+  {
+    name: "billingSubscriptions sem pagador ou plano",
+    sql: "SELECT COUNT(*) AS count FROM billingSubscriptions s LEFT JOIN users u ON u.id = s.payerUserId LEFT JOIN billingPlans p ON p.id = s.planId WHERE u.id IS NULL OR p.id IS NULL",
+  },
+  {
+    name: "billingProviderEvents com assinatura inválida",
+    sql: "SELECT COUNT(*) AS count FROM billingProviderEvents e LEFT JOIN billingSubscriptions s ON s.id = e.subscriptionId WHERE e.subscriptionId IS NOT NULL AND s.id IS NULL",
+  },
+  {
+    name: "billingEntitlements com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingEntitlements e LEFT JOIN users b ON b.id = e.beneficiaryUserId LEFT JOIN users sponsor ON sponsor.id = e.sponsorUserId LEFT JOIN billingPlans p ON p.id = e.planId LEFT JOIN professionalPatientAuthorizations a ON a.id = e.professionalAuthorizationId WHERE b.id IS NULL OR (e.sponsorUserId IS NOT NULL AND sponsor.id IS NULL) OR (e.planId IS NOT NULL AND p.id IS NULL) OR (e.professionalAuthorizationId IS NOT NULL AND a.id IS NULL)",
+  },
+  {
+    name: "billingCapacityAllocations com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingCapacityAllocations c LEFT JOIN billingSubscriptions s ON s.id = c.subscriptionId LEFT JOIN users professional ON professional.id = c.professionalUserId LEFT JOIN users patient ON patient.id = c.patientUserId LEFT JOIN professionalPatientAuthorizations a ON a.id = c.authorizationId WHERE s.id IS NULL OR professional.id IS NULL OR patient.id IS NULL OR (c.authorizationId IS NOT NULL AND a.id IS NULL)",
+  },
+  {
+    name: "billingAdminOverrides com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingAdminOverrides o LEFT JOIN users beneficiary ON beneficiary.id = o.userId LEFT JOIN users grantor ON grantor.id = o.grantedByUserId LEFT JOIN users revoker ON revoker.id = o.revokedByUserId WHERE beneficiary.id IS NULL OR (o.grantedByUserId IS NOT NULL AND grantor.id IS NULL) OR (o.revokedByUserId IS NOT NULL AND revoker.id IS NULL)",
+  },
+  {
+    name: "billingAccessAuditEvents com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingAccessAuditEvents e LEFT JOIN users subject ON subject.id = e.subjectUserId LEFT JOIN users actor ON actor.id = e.actorUserId WHERE subject.id IS NULL OR (e.actorUserId IS NOT NULL AND actor.id IS NULL)",
+  },
 ];
 
 const databaseUrl =
@@ -124,11 +148,13 @@ const databaseUrl =
   process.env.DB_URL;
 
 if (!databaseUrl) {
-  console.error([
-    "DATABASE_URL é obrigatório para verificar integridade referencial.",
-    "Defina DATABASE_URL no .env da raiz do projeto ou exporte a variável ao rodar o comando.",
-    "Também são aceitos aliases: MYSQL_URL, TIDB_DATABASE_URL ou DB_URL.",
-  ].join("\n"));
+  console.error(
+    [
+      "DATABASE_URL é obrigatório para verificar integridade referencial.",
+      "Defina DATABASE_URL no .env da raiz do projeto ou exporte a variável ao rodar o comando.",
+      "Também são aceitos aliases: MYSQL_URL, TIDB_DATABASE_URL ou DB_URL.",
+    ].join("\n")
+  );
   process.exit(1);
 }
 
@@ -155,7 +181,9 @@ function buildConnectionConfig(databaseUrl) {
   };
 }
 
-const connection = await mysql.createConnection(buildConnectionConfig(databaseUrl));
+const connection = await mysql.createConnection(
+  buildConnectionConfig(databaseUrl)
+);
 let hasIssues = false;
 
 try {

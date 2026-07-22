@@ -30,7 +30,11 @@ function buildDbCredentials() {
 }
 
 export default defineConfig({
-  schema: ["./drizzle/schema.ts", "./drizzle/professional-schema.ts"],
+  schema: [
+    "./drizzle/schema.ts",
+    "./drizzle/professional-schema.ts",
+    "./drizzle/billing-schema.ts",
+  ],
   out: "./drizzle",
   dialect: "mysql",
   dbCredentials: buildDbCredentials(),

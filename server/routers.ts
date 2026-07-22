@@ -7,6 +7,8 @@ import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { configureBillingProfessionalEntitlementProvider } from "./modules/billing/professionalProvider";
+import { billingRouter } from "./modules/billing/router";
 import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
 import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
@@ -23,6 +25,7 @@ import { professionalRecordRouter } from "./modules/professionals/recordRouter";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
 
+configureBillingProfessionalEntitlementProvider();
 registerLegacyProfessionalEntitlementPolicy();
 
 const registerSchema = z.object({
@@ -144,6 +147,7 @@ export const appRouter = router({
     }),
   }),
   nutrition: nutritionRouter,
+  billing: billingRouter,
   professionalRecord: professionalRecordRouter,
   quickEdit: quickEditRouter,
 });

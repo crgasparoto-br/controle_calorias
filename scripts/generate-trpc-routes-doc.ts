@@ -10,6 +10,7 @@ const sourcePaths = [
   path.join(root, "server/modules/professionals/aiRouter.ts"),
   path.join(root, "server/modules/professionals/settingsRouter.ts"),
   path.join(root, "server/modules/professionals/legacyEntitlementPolicy.ts"),
+  path.join(root, "server/modules/billing/router.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
 const checkOnly = process.argv.includes("--check");
@@ -51,6 +52,7 @@ const groupDescriptions: Record<string, string> = {
     "Alertas e solicitações operacionais profissionais",
   "professionalRecord.ai": "Assistência profissional por IA",
   "professionalRecord.settings": "Configurações profissionais e entitlements",
+  billing: "Elegibilidade própria e administração comercial de billing",
 };
 
 let legacyProfessionalEntitledProcedures = new Set<string>();
@@ -213,7 +215,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.",
+    "Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts` e `server/modules/billing/router.ts`.",
     "",
     "## Grupos",
     "",
@@ -272,6 +274,7 @@ const professionalOperationalAlertsSource = readRequiredFile(sourcePaths[3]);
 const professionalAiSource = readRequiredFile(sourcePaths[4]);
 const professionalSettingsSource = readRequiredFile(sourcePaths[5]);
 const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[6]);
+const billingSource = readRequiredFile(sourcePaths[7]);
 legacyProfessionalEntitledProcedures =
   parseLegacyProfessionalEntitledProcedures(legacyEntitlementPolicySource);
 const generated = generateMarkdown([
@@ -301,6 +304,7 @@ const generated = generateMarkdown([
     "professionalSettingsRouter",
     "professionalRecord.settings"
   ),
+  parseTopLevelRouter(billingSource, "billingRouter", "billing"),
 ]);
 
 if (checkOnly) {

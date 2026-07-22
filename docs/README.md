@@ -51,6 +51,7 @@ Exemplos principais:
 - `design-docs/whatsapp-conversation-context.md`
 - `design-docs/whatsapp-ingestion.md`
 - `design-docs/professional-ai-assistance.md`
+- `design-docs/billing-foundation.md`
 
 ## Testes e regressão
 

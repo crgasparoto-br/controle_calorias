@@ -2,38 +2,243 @@
   "version": "7",
   "dialect": "mysql",
   "entries": [
-    {"idx":0,"version":"7","when":1780777320000,"tag":"0000_global_food_catalog","breakpoints":true},
-    {"idx":1,"version":"7","when":1780778640000,"tag":"0001_meal_item_nutrition_snapshot","breakpoints":true},
-    {"idx":2,"version":"7","when":1780932300000,"tag":"0002_global_food_catalog_user_signals","breakpoints":true},
-    {"idx":3,"version":"7","when":1780945200000,"tag":"0003_quick_edit_tokens","breakpoints":true},
-    {"idx":4,"version":"7","when":1781740800000,"tag":"0004_align_meal_inferences_schema","breakpoints":true},
-    {"idx":5,"version":"7","when":1781744400000,"tag":"0005_habit_memories_indexes","breakpoints":true},
-    {"idx":6,"version":"5","when":1781748000000,"tag":"0006_silly_pepper_potts","breakpoints":true},
-    {"idx":7,"version":"5","when":1781751600000,"tag":"0007_reflective_alex_wilder","breakpoints":true},
-    {"idx":8,"version":"5","when":1781755200000,"tag":"0008_bright_aaron_stack","breakpoints":true},
-    {"idx":9,"version":"5","when":1781758800000,"tag":"0009_safe_dust","breakpoints":true},
-    {"idx":10,"version":"5","when":1781762400000,"tag":"0010_same_morbius","breakpoints":true},
-    {"idx":11,"version":"5","when":1781766000000,"tag":"0011_smooth_steve_rogers","breakpoints":true},
-    {"idx":13,"version":"5","when":1781773200000,"tag":"0013_boring_quentin_quire","breakpoints":true},
-    {"idx":15,"version":"5","when":1781780400000,"tag":"0015_great_firebird","breakpoints":true},
-    {"idx":16,"version":"5","when":1782139775720,"tag":"0016_warm_the_executioner","breakpoints":true},
-    {"idx":17,"version":"5","when":1783008000000,"tag":"0017_strava_external_exercise_reference","breakpoints":true},
-    {"idx":18,"version":"5","when":1783108504106,"tag":"0018_loud_human_robot","breakpoints":true},
-    {"idx":19,"version":"5","when":1783697481418,"tag":"0019_harsh_zaran","breakpoints":true},
-    {"idx":20,"version":"5","when":1783712367813,"tag":"0020_peaceful_sage","breakpoints":true},
-    {"idx":21,"version":"5","when":1783718624918,"tag":"0021_brown_gargoyle","breakpoints":true},
-    {"idx":22,"version":"5","when":1783721385939,"tag":"0022_noisy_gamora","breakpoints":true},
-    {"idx":23,"version":"5","when":1783724719666,"tag":"0023_nostalgic_sheva_callister","breakpoints":true},
-    {"idx":24,"version":"5","when":1784206800000,"tag":"0024_timezone_default","breakpoints":true},
-    {"idx":25,"version":"5","when":1784232000000,"tag":"0025_food_catalog_status","breakpoints":true},
-    {"idx":26,"version":"5","when":1784233800000,"tag":"0026_professional_persistence_foundation","breakpoints":true},
-    {"idx":27,"version":"5","when":1784305451913,"tag":"0027_professional_content_persistence","breakpoints":true},
-    {"idx":28,"version":"5","when":1784305741362,"tag":"0028_professional_actor_deletion_safety","breakpoints":true},
-    {"idx":29,"version":"5","when":1784345376929,"tag":"0029_professional_goal_decision_lock","breakpoints":true},
-    {"idx":30,"version":"5","when":1784485800000,"tag":"0030_professional_operational_schedule","breakpoints":true},
-    {"idx":31,"version":"5","when":1784495400000,"tag":"0031_professional_record_cycle","breakpoints":true},
-    {"idx":32,"version":"5","when":1784502000000,"tag":"0032_professional_official_goals","breakpoints":true},
-    {"idx":33,"version":"5","when":1784563200000,"tag":"0033_professional_operational_alerts","breakpoints":true},
-    {"idx":34,"version":"5","when":1784566800000,"tag":"0034_professional_communication","breakpoints":true}
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780777320000,
+      "tag": "0000_global_food_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780778640000,
+      "tag": "0001_meal_item_nutrition_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780932300000,
+      "tag": "0002_global_food_catalog_user_signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780945200000,
+      "tag": "0003_quick_edit_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781740800000,
+      "tag": "0004_align_meal_inferences_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781744400000,
+      "tag": "0005_habit_memories_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1781748000000,
+      "tag": "0006_silly_pepper_potts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1781751600000,
+      "tag": "0007_reflective_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1781755200000,
+      "tag": "0008_bright_aaron_stack",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1781758800000,
+      "tag": "0009_safe_dust",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1781762400000,
+      "tag": "0010_same_morbius",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1781766000000,
+      "tag": "0011_smooth_steve_rogers",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1781773200000,
+      "tag": "0013_boring_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1781780400000,
+      "tag": "0015_great_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1782139775720,
+      "tag": "0016_warm_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1783008000000,
+      "tag": "0017_strava_external_exercise_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1783108504106,
+      "tag": "0018_loud_human_robot",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1783697481418,
+      "tag": "0019_harsh_zaran",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1783712367813,
+      "tag": "0020_peaceful_sage",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1783718624918,
+      "tag": "0021_brown_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1783721385939,
+      "tag": "0022_noisy_gamora",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1783724719666,
+      "tag": "0023_nostalgic_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1784206800000,
+      "tag": "0024_timezone_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1784232000000,
+      "tag": "0025_food_catalog_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1784233800000,
+      "tag": "0026_professional_persistence_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1784305451913,
+      "tag": "0027_professional_content_persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1784305741362,
+      "tag": "0028_professional_actor_deletion_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1784345376929,
+      "tag": "0029_professional_goal_decision_lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1784485800000,
+      "tag": "0030_professional_operational_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1784495400000,
+      "tag": "0031_professional_record_cycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1784502000000,
+      "tag": "0032_professional_official_goals",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1784563200000,
+      "tag": "0033_professional_operational_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1784566800000,
+      "tag": "0034_professional_communication",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1784732197359,
+      "tag": "0035_billing_foundation",
+      "breakpoints": true
+    }
   ]
 }

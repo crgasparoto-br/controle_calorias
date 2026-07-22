@@ -21,6 +21,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate:professionals": "tsx scripts/migrate-professional-persistence.ts",
     "db:test:professionals": "tsx scripts/test-professional-persistence-tidb.ts && tsx scripts/test-professional-operational-alerts-tidb.ts",
+    "db:test:billing": "tsx scripts/test-billing-persistence-tidb.ts",
     "db:repair-meal-inferences": "node scripts/repair-meal-inferences-schema.mjs",
     "foods:seed:common-br": "tsx scripts/import-foods/seed_common_brazil_foods.ts",
     "foods:seed:industrializados-br": "tsx scripts/import-foods/seed_industrializados_brasil.ts",

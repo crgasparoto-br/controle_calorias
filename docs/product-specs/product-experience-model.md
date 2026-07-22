@@ -114,6 +114,8 @@ A decisão comercial aprovada é:
 
 Preços, limites de pacientes, definição de paciente ativo, trial, tolerância e matriz de entitlements continuam como decisões específicas de billing.
 
+A fundação provider-neutral da primeira entrega está documentada em `docs/design-docs/billing-foundation.md`. Ela mantém acesso aberto por padrão, diferencia pagador, beneficiário e patrocinador e não antecipa as decisões comerciais pendentes.
+
 ## Regras para issues existentes
 
 - Não ampliar uma issue corretiva para implementar funcionalidades da nova Área Profissional.
