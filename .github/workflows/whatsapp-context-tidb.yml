@@ -5,6 +5,9 @@ on:
     paths:
       - "drizzle/**"
       - "server/modules/whatsapp/**"
+      - "server/modules/quickEdit/**"
+      - "server/modules/meals/**"
+      - "scripts/test-quick-edit-meal-update-tidb.ts"
       - "server/repositories/whatsapp**"
       - "server/whatsapp*Webhook*.ts"
       - ".github/workflows/whatsapp-context-tidb.yml"
@@ -102,6 +105,9 @@ jobs:
 
       - name: Run pending operation insert id regression
         run: pnpm exec tsx scripts/test-whatsapp-pending-operation-tidb.ts
+
+      - name: Run quick edit meal update regression
+        run: pnpm exec tsx scripts/test-quick-edit-meal-update-tidb.ts
 
       - name: Run persistent context regression
         env:
