@@ -10,6 +10,7 @@ import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
+import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
@@ -687,6 +688,31 @@ function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmInten
   };
 }
 
+async function buildInteractiveClarification(
+  userId: number,
+  originalText: string,
+  intent: WhatsappInterpretedIntent,
+  receivedAt: Date,
+): Promise<WhatsappLlmIntentResult> {
+  const base = buildClarification(intent);
+  if (!base.reply.includes(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE)) return base;
+
+  const interaction = await createWhatsappIntentClarificationInteraction({
+    userId,
+    originalText,
+    bodyText: base.reply,
+    receivedAt,
+  });
+  if (!interaction) return base;
+
+  return {
+    ...base,
+    detail: `${base.detail} ${interaction.detail}`,
+    data: { ...base.data, ...interaction.data },
+    interactiveReply: interaction.interactiveReply,
+  };
+}
+
 function isPersistentIntent(intentName: WhatsappIntentName) {
   return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
 }
@@ -729,7 +755,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
       const clarificationFallbackReason = intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify
         ? interpretation.fallbackReason ?? "low_confidence"
         : interpretation.fallbackReason;
-      return finish(buildClarification(intent), clarificationFallbackReason);
+      return finish(await buildInteractiveClarification(userId, text, intent, receivedAt), clarificationFallbackReason);
     }
 
     if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
@@ -789,7 +815,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
         });
       case "ambiguous":
       case "unknown":
-        return finish(buildClarification(intent), interpretation.fallbackReason);
+        return finish(await buildInteractiveClarification(userId, text, intent, receivedAt), interpretation.fallbackReason);
       default:
         return finish(null, interpretation.fallbackReason ?? "unsupported_intent");
     }

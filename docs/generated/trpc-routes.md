@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fonte: `server/nutritionRouter.ts`.
+Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
 
 ## Grupos
 
@@ -12,7 +12,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
-| `professionals` | 17 | 8 | 9 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
+| `professionals` | 18 | 9 | 9 | professional-entitled | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
 | `whatsappPreferences` | 2 | 1 | 1 | protected | Grupo de procedures tRPC |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
@@ -26,6 +26,11 @@ Fonte: `server/nutritionRouter.ts`.
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
+| `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord.messages` | 4 | 2 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
+| `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
+| `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
+| `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
 
 ## Procedures por grupo
 
@@ -67,21 +72,22 @@ Fonte: `server/nutritionRouter.ts`.
 |---|---|---|
 | `profile` | query | protected |
 | `upsertProfile` | mutation | protected |
-| `requestAccess` | mutation | protected |
-| `myAccesses` | query | protected |
+| `requestAccess` | mutation | professional-entitled |
+| `myAccesses` | query | professional-entitled |
+| `portfolio` | query | professional-entitled |
 | `patientRequests` | query | protected |
 | `patientGoalSuggestions` | query | protected |
 | `approveAccess` | mutation | protected |
 | `revokeAccess` | mutation | protected |
+| `transitionTracking` | mutation | professional-entitled |
 | `respondGoalSuggestion` | mutation | protected |
-| `patientTimeZone` | query | protected |
-| `patientDashboard` | query | protected |
-| `patientPeriodBundle` | query | protected |
-| `addComment` | mutation | protected |
-| `suggestGoalAdjustment` | mutation | protected |
-| `suggestMealPlan` | mutation | protected |
-| `askPatientQuestion` | mutation | protected |
-| `history` | query | protected |
+| `patientTimeZone` | query | professional-entitled |
+| `patientDashboard` | query | professional-entitled |
+| `patientPeriodBundle` | query | professional-entitled |
+| `addComment` | mutation | professional-entitled |
+| `suggestGoalAdjustment` | mutation | professional-entitled |
+| `suggestMealPlan` | mutation | professional-entitled |
+| `history` | query | professional-entitled |
 
 ### onboarding
 
@@ -213,11 +219,68 @@ Fonte: `server/nutritionRouter.ts`.
 | `upsertConnection` | mutation | protected |
 | `simulateInbound` | mutation | protected |
 
+### professionalRecord
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `get` | query | professional-entitled |
+| `saveAssessment` | mutation | professional-entitled |
+| `createNote` | mutation | professional-entitled |
+| `createGuidance` | mutation | professional-entitled |
+| `transitionTracking` | mutation | professional-entitled |
+| `patientGuidances` | query | protected |
+| `professionalState` | query | professional-entitled |
+| `activate` | mutation | professional-entitled |
+| `retryNotification` | mutation | professional-entitled |
+| `patientState` | query | protected |
+| `requestReview` | mutation | protected |
+| `adoptAsPersonal` | mutation | protected |
+
+### professionalRecord.messages
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `list` | query | professional-entitled |
+| `create` | mutation | professional-entitled |
+| `retry` | mutation | professional-entitled |
+| `patientList` | query | protected |
+
+### professionalRecord.operationalAlerts
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `list` | query | professional-entitled |
+| `evaluate` | mutation | professional-entitled |
+| `close` | mutation | professional-entitled |
+| `createRequest` | mutation | professional-entitled |
+| `respondRequest` | mutation | protected |
+| `cancelRequest` | mutation | professional-entitled |
+| `registerReviewSignal` | mutation | professional-entitled |
+
+### professionalRecord.ai
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `priorities` | query | professional-entitled |
+| `generate` | mutation | professional-entitled |
+
+### professionalRecord.settings
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `get` | query | professional-entitled |
+| `entitlements` | query | protected |
+| `updateIdentity` | mutation | professional-entitled |
+| `updatePreferences` | mutation | professional-entitled |
+| `setActive` | mutation | professional-entitled |
+| `patientVisible` | query | protected |
+
 ## Regras para novas procedures
 
 - Use `protectedProcedure` por padrão.
+- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido.
+- Procedures profissionais legadas em `nutrition.professionals` devem constar no mapa central `LEGACY_PROFESSIONAL_RESOURCES`; o gerador lê esse mapa diretamente.
 - Use `adminProcedure` apenas para operação administrativa real.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
-

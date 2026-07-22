@@ -1,5 +1,13 @@
 # Confiabilidade
 
+## Mensagens profissionais
+
+- Persistir a mensagem lógica antes da entrega.
+- Claims e números de tentativa vivem no banco para suportar múltiplas instâncias.
+- Retry manual reutiliza o mesmo identificador lógico e cria apenas nova tentativa física.
+- Falha de canal mantém o conteúdo disponível na web com estado `failed` e detalhe sanitizado.
+- Respostas repetidas usam o identificador externo do inbound como chave idempotente.
+
 ## Objetivo
 
 Garantir que os fluxos críticos possam ser validados por humanos e agentes antes de deploy ou merge.
@@ -49,6 +57,9 @@ pnpm db:check-integrity
 - Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
 - Relatório semanal divergente do dashboard.
+- Meta profissional divergente entre Hoje, Metas, Relatórios, WhatsApp e prontuário.
+- Falha de notificação revertendo ou duplicando a ativação de uma meta profissional já persistida.
+- Falha ou inconsistência na resolução de meta profissional degradando silenciosamente para meta pessoal; consumidores da meta efetiva devem falhar de forma controlada para preservar a precedência clínica.
 - Integração do Strava limitada à primeira página de atividades recentes.
 - Atividade do Strava ignorada porque o resumo não inclui gasto calórico.
 - Treino de força do Strava ignorado porque a API não retornou calorias.
@@ -57,6 +68,14 @@ pnpm db:check-integrity
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
 - Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
 - Chave ou configuração de IA exposta no frontend.
+
+## Metas profissionais oficiais
+
+- Ativação e revisão usam transação para versão, encerramento da janela anterior, histórico, resolução de pedido e criação da entrega.
+- Concorrência usa versão esperada e chave ativa única por paciente; conflito nunca sobrescreve silenciosamente.
+- A notificação acontece depois do commit. Falha fica em `failed`/`skipped`, não reverte a meta e pode ser reclamada por uma única instância para retry.
+- O serviço de metas resolve a origem por paciente e data; relatórios continuam consultando o mesmo contrato diário usado por Hoje e WhatsApp.
+- Rollout exige aplicar `0032_professional_official_goals.sql` antes de liberar as novas procedures e interfaces.
 
 ## Guardrails para integração Strava
 

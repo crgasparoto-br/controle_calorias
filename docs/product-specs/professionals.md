@@ -54,23 +54,27 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - O estado de modo profissional ativo permanece consistente após recarregar a aplicação e iniciar uma nova sessão.
 - Solicitação, aprovação e revogação passam por procedimentos protegidos.
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
-- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
+- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento; a reconciliação legada usa a versão do próprio vínculo e nunca permite que uma cópia antiga reative uma autorização revogada.
 - Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
-- O histórico de transições de autorização e acompanhamento é lido das tabelas canônicas e permanece disponível após restart.
+- Transições de acompanhamento são gravadas em `professionalPatientTrackingEvents`; a linha do tempo exibida pela Área Profissional é lida de `professionalHistoryEvents`. Ambas preservam ator e data e sobrevivem a restart e múltiplas instâncias.
 - Dashboard profissional respeita vínculo aprovado.
-- Comentários não expõem dados de outras pessoas acompanhadas.
+- Comentários são persistidos em `professionalComments`, permanecem internos ao profissional que os criou e não expõem dados de outro vínculo.
 - Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.
 - Aprovações e revogações recebidas pela pessoa acompanhada ficam acessíveis em Configurações.
 - Dados autorizados incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
 - O profissional consegue registrar uma sugestão de ajuste de meta para pessoa autorizada.
-- Sugestões de meta registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- Sugestões de meta são persistidas, registram status e versão, permanecem disponíveis após restart e usam reserva persistente da decisão para impedir efeitos duplicados entre instâncias; retry do mesmo resultado é idempotente e estados finais não regridem.
 - A meta ativa da pessoa acompanhada não é alterada pela criação de uma sugestão profissional.
 - O profissional consegue registrar uma sugestão de refeição ou plano alimentar para pessoa autorizada.
-- Sugestões de refeição registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- Sugestões de refeição são persistidas, registram status e versão e permanecem disponíveis após restart e entre instâncias.
 - O diário de refeições da pessoa acompanhada não é alterado pela criação de uma sugestão profissional.
 - O profissional consegue fazer perguntas com IA sobre uma pessoa autorizada.
 - A resposta com IA apresenta contexto citado e aviso educacional.
 - Perguntas com IA sobre pessoa sem acesso aprovado são bloqueadas.
+- Histórico, comentários e sugestões retornam no máximo 100 itens por consulta pública atual, em ordem estável decrescente; o repository suporta cursor para evolução da interface sem carregar listas ilimitadas.
+- Conteúdo que existia somente em arrays de processo antes da migration `0027_professional_content_persistence.sql` não é recuperável; a única fonte legada migrável nesta etapa é `patient_professional_goal_suggestions_v1`.
+- Em produção, indisponibilidade do banco bloqueia novas leituras e mutações profissionais com erro sanitizado; não há fallback volátil como fonte de verdade.
+- A exclusão de uma conta não é bloqueada por referências de autoria: eventos preservam o histórico com ator nulo após a remoção do titular.
 - A interface deixa claro quando os dados exibidos pertencem à pessoa selecionada, e não à conta pessoal do profissional.
 
 ## Estrutura alvo da Área Profissional
@@ -98,6 +102,22 @@ Gestão da carteira com:
 - situação do acompanhamento;
 - próxima revisão;
 - indicadores resumidos de adesão.
+
+A carteira inicial consulta vínculos de forma paginada, com ordenação estável
+por nome, e-mail ou identificador do paciente, seguida pela data da solicitação
+e pelo identificador do vínculo. Busca, autorização, situação do acompanhamento
+e atividade alimentar podem ser combinadas sem carregar relatórios completos.
+Autorização e acompanhamento são sempre apresentados separadamente.
+
+Na primeira versão, “sem atividade recente” significa ausência de refeição
+confirmada nos três dias anteriores. Ausência de dado é apresentada como
+“não informado”, nunca como zero. Próxima revisão e pesagem só passam a compor
+a carteira quando suas entidades canônicas forem entregues pelas fases de
+prontuário e pendências.
+
+Solicitações pendentes permanecem visíveis, mas não permitem abrir dados do
+paciente. Autorizações recusadas ou revogadas podem ser localizadas para fins
+operacionais, sem conceder acesso ao contexto ou a dados pessoais adicionais.
 
 ### Prontuário de acompanhamento
 
@@ -138,6 +158,19 @@ Comunicação individual por web e WhatsApp, com origem explícita:
 - visão da carteira;
 - pacientes que precisam de revisão.
 
+A primeira versão da página de Relatórios separa a visão agregada da carteira
+do relatório individual. A visão agregada reutiliza a consulta paginada da
+carteira e as pendências operacionais, sem carregar bundles nutricionais para
+cada paciente. O período agregado é configurável em até 90 dias; refeições são
+limitadas por uma janela UTC indexável e classificadas no calendário local do
+timezone efetivo de cada paciente. O relatório individual exige seleção explícita de uma pessoa
+com autorização vigente e usa `patientPeriodBundle`, o timezone efetivo do
+paciente e os mesmos componentes e contratos canônicos de Relatórios da Área
+do Paciente. Mudanças de pessoa ou período usam chaves de consulta distintas;
+revogação remove o contexto profissional e impede novas leituras. Aderência,
+metas planejadas e frequência de registros são produzidas no bundle canônico
+do backend; o frontend profissional apenas adapta esses contratos para exibição.
+
 ### Configurações profissionais
 
 - dados e identificação profissional;
@@ -170,12 +203,12 @@ Estados iniciais aprovados:
 - **encerrado:** acompanhamento finalizado, sem novas intervenções;
 - revogação não é estado de acompanhamento, mas retirada da autorização.
 
-| Situação | Consultar histórico autorizado | Alterar metas | Enviar orientação | Gerar alertas |
-|---|---:|---:|---:|---:|
-| Ativo | Sim | Sim | Sim | Sim |
-| Pausado | Sim | Não | Apenas comunicação administrativa | Não |
-| Encerrado | Apenas histórico profissional necessário para auditoria | Não | Não | Não |
-| Autorização revogada | Não | Não | Não | Não |
+| Situação             |                          Consultar histórico autorizado | Alterar metas |                 Enviar orientação | Gerar alertas |
+| -------------------- | ------------------------------------------------------: | ------------: | --------------------------------: | ------------: |
+| Ativo                |                                                     Sim |           Sim |                               Sim |           Sim |
+| Pausado              |                                                     Sim |           Não | Apenas comunicação administrativa |           Não |
+| Encerrado            | Apenas histórico profissional necessário para auditoria |           Não |                               Não |           Não |
+| Autorização revogada |                                                     Não |           Não |                               Não |           Não |
 
 Pausa, retomada e encerramento devem registrar ator, data e motivo quando informado. O encerramento não apaga dados do paciente nem histórico auditável.
 
@@ -252,7 +285,17 @@ Ao encerrar ou revogar:
 - o paciente pode adotá-la como meta pessoal ou definir outra;
 - não existe controle permanente do profissional após o vínculo.
 
-A subissue de metas deve decidir explicitamente o comportamento operacional da meta durante pausa e impedir duas metas profissionais ativas concorrentes.
+### Comportamento implementado para metas oficiais
+
+- A meta profissional oficial é persistida em versões imutáveis quanto à autoria e ao início de vigência; uma revisão encerra a janela anterior e cria uma nova versão ligada por `supersedesGoalId`.
+- A chave única `activePatientKey` impede mais de um controle profissional oficial por paciente, inclusive entre profissionais e instâncias concorrentes. Um conflito exige recarregar ou encerrar explicitamente o controle anterior.
+- Somente perfil profissional ativo, autorização aprovada e acompanhamento `active` permitem ativar ou revisar. Em `paused`, a última versão continua operacional, mas novas versões ficam bloqueadas.
+- Encerramento do acompanhamento e revogação da autorização encerram a vigência e removem o controle na mesma transação da transição; o histórico não é promovido nem apagado.
+- Depois do encerramento ou revogação, o paciente pode copiar explicitamente uma versão histórica para a meta pessoal. Não há conversão automática.
+- Solicitações de revisão do paciente são persistentes e idempotentes por meta, não alteram valores e são resolvidas quando o profissional ativa nova versão.
+- A ativação cria uma entrega WhatsApp persistente com chave idempotente. Falha ou ausência de canal não reverte a meta; status, tentativas e erro sanitizado permanecem disponíveis para retry profissional.
+- A notificação contém autor, versão, valores e vigência, mas nunca a justificativa profissional privada.
+- Sugestões legadas continuam separadas e nenhuma delas é promovida automaticamente a meta oficial.
 
 ## Alertas iniciais
 
@@ -293,6 +336,17 @@ Regras:
 - orientação continua registrada mesmo se o WhatsApp falhar;
 - respostas a solicitações usam contexto, callback, botão, código ou referência sempre que possível;
 - transporte e formatação reutilizam a infraestrutura central da #779.
+
+### Contrato persistente de mensagens
+
+- Uma conversa canônica existe por autorização aprovada e mantém ordenação estável por data e identificador.
+- Cada mensagem lógica registra direção, tipo, autoria, origem, conteúdo, estado e chave idempotente; tentativas físicas de entrega ficam em registros separados.
+- Os estados visíveis são `draft`, `pending`, `sent`, `failed` e `received`. `draft` nunca é visível ao paciente.
+- Mensagens automáticas ficam obrigatoriamente como rascunho. Sugestões da IA só podem ser enviadas após ação explícita do nutricionista e continuam identificadas como sugestão revisada.
+- Retry cria nova tentativa física sobre a mesma mensagem lógica. A chave idempotente impede criação duplicada.
+- Durante acompanhamento pausado, somente mensagens administrativas podem ser enviadas. Encerramento e revogação bloqueiam novas mensagens; revogação também bloqueia a leitura profissional.
+- O WhatsApp só separa uma resposta do pipeline nutricional quando encontra exatamente um código válido; texto ambíguo segue o roteamento pessoal normal.
+- Falhas do provedor registram somente detalhe sanitizado e preservam o conteúdo no histórico web.
 
 ## Controles do nutricionista sobre a experiência do paciente
 
@@ -429,3 +483,7 @@ Não bloqueiam as fases iniciais:
 ## Timezone do paciente
 
 Consultas, filtros, agrupamentos e horários de dados clínico-nutricionais usam o timezone efetivo da pessoa acompanhada. O timezone do profissional é usado somente em datas operacionais do próprio vínculo. A interface não deve disparar consultas de período antes de conhecer o timezone do paciente selecionado.
+
+## Aposentadoria do legado profissional
+
+A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.

@@ -35,6 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import PatientOfficialGoalCard from "@/components/PatientOfficialGoalCard";
 
 type MacroInputMode = "grams" | "percent";
 type DurationType = "1_week" | "2_weeks" | "3_weeks" | "always";
@@ -422,6 +423,9 @@ export default function GoalsPage() {
     onError: error =>
       toast.error(error.message || SAFE_NUTRITION_MESSAGES.couldNotUpdateGoals),
   });
+  const professionalControlActive = Boolean(
+    goalQuery.data?.professionalControlActive
+  );
 
   const [startDate, setStartDate] = useState(
     () => goalQuery.data?.startDate ?? todayDateKey
@@ -832,6 +836,19 @@ export default function GoalsPage() {
           }
         />
 
+        <PatientOfficialGoalCard />
+
+        {professionalControlActive ? (
+          <div
+            role="status"
+            className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm"
+          >
+            A meta profissional oficial está vigente. Os valores pessoais
+            permanecem no histórico, mas não podem substituir o plano durante o
+            acompanhamento. Use “Solicitar revisão” no cartão acima.
+          </div>
+        ) : null}
+
         <div className="space-y-6">
           <Card className="border-0 shadow-sm">
             <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -848,7 +865,7 @@ export default function GoalsPage() {
               </div>
               <Button
                 className="shrink-0 rounded-full"
-                disabled={updateGoal.isPending}
+                disabled={updateGoal.isPending || professionalControlActive}
                 onClick={handleSave}
               >
                 <Save className="mr-2 h-4 w-4" />

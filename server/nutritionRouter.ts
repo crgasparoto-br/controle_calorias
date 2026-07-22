@@ -109,7 +109,10 @@ import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingMutationSchema } from "./modules/onboarding/schemas";
 import { sendOnboardingWelcomeWhatsapp } from "./modules/onboarding/webGreetingService";
-import { getAnnotatedImagePreference, setAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
+import {
+  getAnnotatedImagePreference,
+  setAnnotatedImagePreference,
+} from "./modules/whatsapp/annotatedImagePreference";
 import {
   listMealSchedules,
   suggestMealLabelForTime,
@@ -198,13 +201,13 @@ import {
   professionalCommentSchema,
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
-  professionalPatientQuestionSchema,
+  professionalPortfolioSchema,
   professionalProfileSchema,
+  professionalTrackingTransitionSchema,
   requestPatientAccessSchema,
 } from "./modules/professionals/schemas";
 import {
   addProfessionalComment,
-  answerProfessionalPatientQuestion,
   approvePatientAccess,
   getProfessionalPatientDashboard,
   getProfessionalPatientPeriodBundle,
@@ -212,16 +215,17 @@ import {
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
+  listProfessionalPortfolio,
   listProfessionalHistory,
   requestPatientAccess,
   revokePatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./modules/professionals/service";
 import {
   listPatientGoalSuggestions,
-  recordProfessionalGoalSuggestion,
   respondPatientGoalSuggestion,
 } from "./modules/professionals/goalSuggestionApprovals";
 
@@ -436,6 +440,11 @@ export const nutritionRouter = router({
     myAccesses: protectedProcedure.query(async ({ ctx }) =>
       listProfessionalAccesses(ctx.user.id)
     ),
+    portfolio: protectedProcedure
+      .input(professionalPortfolioSchema)
+      .query(async ({ ctx, input }) =>
+        listProfessionalPortfolio(ctx.user.id, input)
+      ),
     patientRequests: protectedProcedure.query(async ({ ctx }) =>
       listPatientAccessRequests(ctx.user.id)
     ),
@@ -451,6 +460,11 @@ export const nutritionRouter = router({
       .input(accessIdSchema)
       .mutation(async ({ ctx, input }) =>
         revokePatientAccess(ctx.user.id, input.accessId)
+      ),
+    transitionTracking: protectedProcedure
+      .input(professionalTrackingTransitionSchema)
+      .mutation(async ({ ctx, input }) =>
+        transitionPatientTracking(ctx.user.id, input)
       ),
     respondGoalSuggestion: protectedProcedure
       .input(goalSuggestionDecisionSchema)
@@ -497,19 +511,12 @@ export const nutritionRouter = router({
       ),
     suggestGoalAdjustment: protectedProcedure
       .input(professionalGoalSuggestionSchema)
-      .mutation(async ({ ctx, input }) => {
-        const suggestion = await suggestGoalAdjustment(ctx.user.id, input);
-        await recordProfessionalGoalSuggestion(suggestion);
-        return suggestion;
-      }),
+      .mutation(async ({ ctx, input }) =>
+        suggestGoalAdjustment(ctx.user.id, input)
+      ),
     suggestMealPlan: protectedProcedure
       .input(professionalMealSuggestionSchema)
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),
-    askPatientQuestion: protectedProcedure
-      .input(professionalPatientQuestionSchema)
-      .mutation(async ({ ctx, input }) =>
-        answerProfessionalPatientQuestion(ctx.user.id, input)
-      ),
     history: protectedProcedure.query(async ({ ctx }) =>
       listProfessionalHistory(ctx.user.id)
     ),

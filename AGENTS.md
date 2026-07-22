@@ -17,19 +17,19 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 
 ## Mapas rapidos
 
-| Mudanca | Leia primeiro |
-|---|---|
-| Posicionamento, areas do produto ou classificacao de issues | `docs/product-specs/product-experience-model.md` |
-| Registro de refeicao, rascunho ou confirmacao | `docs/product-specs/meal-registration.md`, `docs/design-docs/nutrition-engine.md` |
-| WhatsApp, webhook ou resposta conversacional | `docs/product-specs/whatsapp-flow.md`, `docs/design-docs/whatsapp-ingestion.md` |
-| Migracao da IA para OpenAI | `docs/exec-plans/active/migrate-ai-to-openai.md`, `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
-| Metas, dashboard ou relatorios do paciente | `docs/product-specs/goals-and-reports.md`, `docs/product-specs/product-experience-model.md` |
-| Area Profissional, pacientes, prontuario ou comunicacao profissional | `docs/product-specs/product-experience-model.md`, `docs/product-specs/professionals.md` |
-| Billing, planos, assinatura ou elegibilidade | `docs/product-specs/product-experience-model.md`, issue/epica de billing vigente |
-| Exportacao, exclusao, logs, midia ou IA | `docs/product-specs/privacy-export-deletion.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
-| Strava, OAuth ou integracoes de saude | `docs/product-specs/health-integrations.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
-| Schema, migrations ou persistencia | `docs/design-docs/database-persistence.md`, `docs/generated/db-schema.md` |
-| tRPC e contratos de API | `docs/generated/trpc-routes.md` |
+| Mudanca                                                              | Leia primeiro                                                                                                                        |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Posicionamento, areas do produto ou classificacao de issues          | `docs/product-specs/product-experience-model.md`                                                                                     |
+| Registro de refeicao, rascunho ou confirmacao                        | `docs/product-specs/meal-registration.md`, `docs/design-docs/nutrition-engine.md`                                                    |
+| WhatsApp, webhook ou resposta conversacional                         | `docs/product-specs/whatsapp-flow.md`, `docs/design-docs/whatsapp-ingestion.md`                                                      |
+| Migracao da IA para OpenAI                                           | `docs/exec-plans/active/migrate-ai-to-openai.md`, `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
+| Metas, dashboard ou relatorios do paciente                           | `docs/product-specs/goals-and-reports.md`, `docs/product-specs/product-experience-model.md`                                          |
+| Area Profissional, pacientes, prontuario ou comunicacao profissional | `docs/product-specs/product-experience-model.md`, `docs/product-specs/professionals.md`                                              |
+| Billing, planos, assinatura ou elegibilidade                         | `docs/product-specs/product-experience-model.md`, issue/epica de billing vigente                                                     |
+| Exportacao, exclusao, logs, midia ou IA                              | `docs/product-specs/privacy-export-deletion.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`                                          |
+| Strava, OAuth ou integracoes de saude                                | `docs/product-specs/health-integrations.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`                                              |
+| Schema, migrations ou persistencia                                   | `docs/design-docs/database-persistence.md`, `docs/generated/db-schema.md`                                                            |
+| tRPC e contratos de API                                              | `docs/generated/trpc-routes.md`                                                                                                      |
 
 ## Fronteiras das areas de experiencia
 
@@ -38,7 +38,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 - Profissional continua sendo uma capacidade adicional da mesma conta; nao criar um segundo tipo de identidade.
 - A Area Profissional nao pode usar impersonacao nem importar paginas pessoais para simular a conta do paciente.
 - Toda operacao profissional deve validar perfil, vinculo, consentimento, ator e paciente no backend.
-- A tela profissional atual com abas e uma linha de base a preservar durante a migracao, nao o desenho final do modulo.
+- A experiência profissional legada com abas foi aposentada na issue #815; não reintroduza a página, os adapters JSON, a migração lazy ou o dual-write removidos. URLs antigas devem permanecer apenas como redirecionamentos seguros para a Área Profissional atual.
 
 ## Classificacao de issues
 

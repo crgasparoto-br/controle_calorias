@@ -1,7 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { userPreferences } from "../../../drizzle/schema";
-import { getDb } from "../../db";
 import { updateNutritionGoal } from "../goals/service";
+import { professionalContentRepository } from "./contentPersistenceService";
 import { getProfessionalProfile } from "./service";
 import type {
   GoalSuggestionDecisionInput,
@@ -9,7 +7,7 @@ import type {
   ProfessionalGoalSuggestionStatus,
 } from "./schemas";
 
-type StoredGoalSuggestion = {
+type StoredGoalSuggestionInput = {
   id: string;
   professionalUserId: number;
   patientUserId: number;
@@ -21,121 +19,19 @@ type StoredGoalSuggestion = {
   respondedAt: number | null;
 };
 
-type StoredGoalSuggestionInput = StoredGoalSuggestion | {
-  id: string;
-  professionalUserId: number;
-  patientUserId: number;
-  rationale: string;
-  status: ProfessionalGoalSuggestionStatus;
-  goal: ProfessionalGoalSuggestionInput["goal"];
-  createdAt: number;
-  sentAt: number | null;
-  respondedAt: number | null;
-};
-
-const PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY = "patient_professional_goal_suggestions_v1";
-const goalSuggestionsMemory: StoredGoalSuggestion[] = [];
-
-function normalizeStoredGoalSuggestion(value: Partial<StoredGoalSuggestion>): StoredGoalSuggestion | null {
-  if (
-    typeof value.id !== "string" ||
-    typeof value.professionalUserId !== "number" ||
-    typeof value.patientUserId !== "number" ||
-    typeof value.rationale !== "string" ||
-    typeof value.createdAt !== "number" ||
-    !value.goal ||
-    !["draft", "sent", "accepted", "refused", "cancelled"].includes(String(value.status))
-  ) {
-    return null;
-  }
-
-  return {
-    id: value.id,
-    professionalUserId: value.professionalUserId,
-    patientUserId: value.patientUserId,
-    rationale: value.rationale,
-    status: value.status as ProfessionalGoalSuggestionStatus,
-    goal: value.goal,
-    createdAt: value.createdAt,
-    sentAt: typeof value.sentAt === "number" ? value.sentAt : null,
-    respondedAt: typeof value.respondedAt === "number" ? value.respondedAt : null,
-  };
-}
-
-function parseStoredGoalSuggestions(patientUserId: number, value: string) {
-  try {
-    const parsed = JSON.parse(value) as Array<Partial<StoredGoalSuggestion>>;
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .map(normalizeStoredGoalSuggestion)
-      .filter((suggestion): suggestion is StoredGoalSuggestion => Boolean(suggestion))
-      .filter(suggestion => suggestion.patientUserId === patientUserId);
-  } catch {
-    return [];
-  }
-}
-
-function mergeGoalSuggestion(current: StoredGoalSuggestion[], nextSuggestion: StoredGoalSuggestion) {
-  const next = current.filter(suggestion => suggestion.id !== nextSuggestion.id);
-  next.push(nextSuggestion);
-  return next.sort((a, b) => b.createdAt - a.createdAt);
-}
-
-async function loadPatientGoalSuggestions(patientUserId: number) {
-  const db = await getDb();
-  if (!db) {
-    return goalSuggestionsMemory.filter(suggestion => suggestion.patientUserId === patientUserId);
-  }
-
-  const rows = await db
-    .select()
-    .from(userPreferences)
-    .where(and(
-      eq(userPreferences.userId, patientUserId),
-      eq(userPreferences.preferenceKey, PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY),
-    ))
-    .limit(1);
-
-  const loaded = rows[0]?.preferenceValue
-    ? parseStoredGoalSuggestions(patientUserId, rows[0].preferenceValue)
-    : [];
-
-  loaded.forEach(suggestion => {
-    const index = goalSuggestionsMemory.findIndex(item => item.id === suggestion.id);
-    if (index >= 0) goalSuggestionsMemory[index] = suggestion;
-    else goalSuggestionsMemory.push(suggestion);
-  });
-
-  return loaded;
-}
-
-async function persistPatientGoalSuggestions(patientUserId: number, suggestions: StoredGoalSuggestion[]) {
-  const db = await getDb();
-  goalSuggestionsMemory.splice(
-    0,
-    goalSuggestionsMemory.length,
-    ...goalSuggestionsMemory.filter(suggestion => suggestion.patientUserId !== patientUserId),
-    ...suggestions,
-  );
-
-  if (!db) return;
-
-  await db.insert(userPreferences).values({
-    userId: patientUserId,
-    preferenceKey: PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY,
-    preferenceValue: JSON.stringify(suggestions),
-  }).onDuplicateKeyUpdate({
-    set: {
-      preferenceValue: JSON.stringify(suggestions),
-    },
-  });
-}
-
-async function withProfessionalProfiles(suggestions: StoredGoalSuggestion[]) {
+async function withProfessionalProfiles<
+  T extends { professionalUserId: number },
+>(suggestions: T[]) {
   const profileEntries = await Promise.all(
-    Array.from(new Set(suggestions.map(suggestion => suggestion.professionalUserId)))
-      .map(async professionalUserId => [professionalUserId, await getProfessionalProfile(professionalUserId)] as const),
+    Array.from(
+      new Set(suggestions.map(suggestion => suggestion.professionalUserId))
+    ).map(
+      async professionalUserId =>
+        [
+          professionalUserId,
+          await getProfessionalProfile(professionalUserId),
+        ] as const
+    )
   );
   const profileMap = new Map(profileEntries);
 
@@ -145,47 +41,73 @@ async function withProfessionalProfiles(suggestions: StoredGoalSuggestion[]) {
   }));
 }
 
-export async function recordProfessionalGoalSuggestion(suggestion: StoredGoalSuggestionInput) {
-  const stored = normalizeStoredGoalSuggestion(suggestion);
-  if (!stored) return suggestion;
-
-  const current = await loadPatientGoalSuggestions(stored.patientUserId);
-  const next = mergeGoalSuggestion(current, stored);
-  await persistPatientGoalSuggestions(stored.patientUserId, next);
-  return stored;
+/**
+ * Compatibilidade temporária para consumidores antigos que ainda registram a
+ * sugestão depois de criá-la. A inserção é idempotente pelo ID canônico e não
+ * gera um segundo evento de histórico.
+ */
+export async function recordProfessionalGoalSuggestion(
+  suggestion: StoredGoalSuggestionInput
+) {
+  return professionalContentRepository.createGoalSuggestion(suggestion, {
+    recordHistory: false,
+  });
 }
 
 export async function listPatientGoalSuggestions(patientUserId: number) {
-  const suggestions = await loadPatientGoalSuggestions(patientUserId);
-  return withProfessionalProfiles(suggestions.sort((a, b) => b.createdAt - a.createdAt));
+  const suggestions =
+    await professionalContentRepository.listGoalSuggestionsByPatient(
+      patientUserId,
+      { limit: 100 }
+    );
+  return withProfessionalProfiles(suggestions);
 }
 
-export async function respondPatientGoalSuggestion(patientUserId: number, input: GoalSuggestionDecisionInput) {
-  const current = await loadPatientGoalSuggestions(patientUserId);
-  const suggestion = current.find(item => item.id === input.suggestionId);
-  if (!suggestion || suggestion.patientUserId !== patientUserId) {
+export async function respondPatientGoalSuggestion(
+  patientUserId: number,
+  input: GoalSuggestionDecisionInput
+) {
+  const status: "accepted" | "refused" =
+    input.decision === "accepted" ? "accepted" : "refused";
+  const reservation =
+    await professionalContentRepository.reserveGoalSuggestionDecision(
+      patientUserId,
+      input.suggestionId
+    );
+
+  if (reservation.result === "not_found") {
     throw new Error("Sugestão de meta não encontrada.");
   }
-  if (suggestion.status !== "sent") {
-    throw new Error("Essa sugestão já foi respondida.");
+  if (reservation.result === "already_completed") {
+    if (reservation.suggestion.status !== status) {
+      throw new Error("Essa sugestão já foi respondida.");
+    }
+    return (await withProfessionalProfiles([reservation.suggestion]))[0];
+  }
+  if (reservation.result === "conflict") {
+    throw new Error(
+      "Essa sugestão está sendo processada por outra operação. Tente novamente."
+    );
   }
 
-  const now = Date.now();
-  const status: ProfessionalGoalSuggestionStatus = input.decision === "accepted" ? "accepted" : "refused";
-
-  if (status === "accepted") {
-    await updateNutritionGoal(patientUserId, suggestion.goal);
+  try {
+    if (status === "accepted") {
+      await updateNutritionGoal(patientUserId, reservation.suggestion.goal);
+    }
+    const updated =
+      await professionalContentRepository.completeGoalSuggestionDecision({
+        patientUserId,
+        suggestionId: input.suggestionId,
+        lockId: reservation.lockId,
+        nextStatus: status,
+      });
+    return (await withProfessionalProfiles([updated]))[0];
+  } catch (error) {
+    await professionalContentRepository.releaseGoalSuggestionDecision({
+      patientUserId,
+      suggestionId: input.suggestionId,
+      lockId: reservation.lockId,
+    });
+    throw error;
   }
-
-  const updated: StoredGoalSuggestion = {
-    ...suggestion,
-    status,
-    respondedAt: now,
-  };
-  await persistPatientGoalSuggestions(
-    patientUserId,
-    current.map(item => item.id === updated.id ? updated : item),
-  );
-
-  return (await withProfessionalProfiles([updated]))[0];
 }

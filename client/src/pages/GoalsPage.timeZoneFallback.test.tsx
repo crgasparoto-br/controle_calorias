@@ -45,6 +45,20 @@ vi.mock("@/lib/trpc", () => ({
         reports: { weekly: { invalidate: vi.fn() } },
       },
     }),
+    professionalRecord: {
+      officialGoal: {
+        patientState: {
+          useQuery: () => ({
+            data: null,
+            isLoading: false,
+            isError: false,
+            refetch: vi.fn(),
+          }),
+        },
+        requestReview: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        adoptAsPersonal: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+      },
+    },
     nutrition: {
       goals: {
         get: { useQuery: goalGetMock },

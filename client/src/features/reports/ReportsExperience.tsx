@@ -73,7 +73,7 @@ type MacroGoalDayWithDate = MacroGoalDay & { date: string };
 type MacroGoalKey = "goalProtein" | "goalCarbs" | "goalFat";
 type QueryLike = { data: unknown; isLoading: boolean; isError: boolean };
 
-export type ReportsExperienceProps = { context?: ReportsExperienceContext; viewerUserId?: number | null; subjectUserId?: number | null };
+export type ReportsExperienceProps = { context?: ReportsExperienceContext; viewerUserId?: number | null; subjectUserId?: number | null; onRangeChange?: (range: DateRange) => void };
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
@@ -96,7 +96,7 @@ function normalizeDisplayDay(day: unknown, fallbackGoal?: Record<string, unknown
 }
 
 function toTrendDay(day: ReportDay): TrendDay {
-  const adjustedGoalCalories = day.adjustedGoalCalories || day.goalCalories;
+  const adjustedGoalCalories = day.adjustedGoalCalories ?? day.goalCalories;
   return {
     date: day.date,
     label: day.label || formatChartDateLabel(day.date),
@@ -107,8 +107,8 @@ function toTrendDay(day: ReportDay): TrendDay {
     goalCalories: adjustedGoalCalories,
     baseGoalCalories: day.goalCalories,
     exerciseCalories: Math.round(day.exerciseCalories),
-    calorieDelta: Math.round(day.calories - adjustedGoalCalories),
-    adherencePercent: adjustedGoalCalories > 0 ? (day.calories / adjustedGoalCalories) * 100 : 0,
+    calorieDelta: day.calorieDelta ?? Math.round(day.calories - adjustedGoalCalories),
+    adherencePercent: day.adherencePercent ?? (adjustedGoalCalories > 0 ? (day.calories / adjustedGoalCalories) * 100 : 0),
   };
 }
 
@@ -424,7 +424,7 @@ function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedReg
   );
 }
 
-export function ReportsExperience({ context = "self", subjectUserId }: ReportsExperienceProps) {
+export function ReportsExperience({ context = "self", subjectUserId, onRangeChange }: ReportsExperienceProps) {
   const isProfessional = context === "professional";
   const selfTimeZone = useEffectiveUserTimeZone();
   const patientTimeZone = trpc.nutrition.professionals.patientTimeZone.useQuery(
@@ -458,6 +458,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
     return normalizeDateRange(rangeStart, rangeEnd);
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const activeRangeDayCount = React.useMemo(() => countDaysInRange(activeRange), [activeRange]);
+  React.useEffect(() => { onRangeChange?.(activeRange); }, [activeRange, onRangeChange]);
   const activeRangeLimitMessage = activeRangeDayCount > MAX_REPORT_RANGE_DAYS
     ? `Escolha um período de até ${MAX_REPORT_RANGE_DAYS} dias para carregar os relatórios.`
     : null;
@@ -505,11 +506,13 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   }, [bundleData, isProfessional, isWeek, useWeeklySummaryAsPrimary, weeklySummaryContract]);
   const dayCount = metricDays.length || countDaysInRange(activeRange);
   const trendData = React.useMemo(() => metricDays.map(toTrendDay), [metricDays]);
-  const adherence = calculateCalorieAdherence(trendData, dayCount);
+  const adherence = isProfessional && bundleData?.analytics?.adherence
+    ? bundleData.analytics.adherence
+    : calculateCalorieAdherence(trendData, dayCount);
   const diagnosis = buildDiagnosis(periodScope, adherence.adherencePercent, adherence.daysWithinRange, dayCount);
-  const totals = metricDays.length ? metricDays.reduce<Totals>((acc, day) => ({ calories: acc.calories + day.calories, protein: acc.protein + day.protein, carbs: acc.carbs + day.carbs, fat: acc.fat + day.fat }), { ...EMPTY_TOTALS }) : bundleData?.totals ?? EMPTY_TOTALS;
+  const totals = isProfessional && bundleData?.totals ? bundleData.totals : metricDays.length ? metricDays.reduce<Totals>((acc, day) => ({ calories: acc.calories + day.calories, protein: acc.protein + day.protein, carbs: acc.carbs + day.carbs, fat: acc.fat + day.fat }), { ...EMPTY_TOTALS }) : bundleData?.totals ?? EMPTY_TOTALS;
   const consumedMacros: MacroTotals = { protein: totals.protein, carbs: totals.carbs, fat: totals.fat };
-  const plannedMacros: MacroTotals = { protein: metricDays.reduce((total, day) => total + day.goalProtein, 0), carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0), fat: metricDays.reduce((total, day) => total + day.goalFat, 0) };
+  const plannedMacros: MacroTotals = isProfessional && bundleData?.analytics?.plannedMacros ? bundleData.analytics.plannedMacros : { protein: metricDays.reduce((total, day) => total + day.goalProtein, 0), carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0), fat: metricDays.reduce((total, day) => total + day.goalFat, 0) };
   const dailyMacros: MacroGoalDayWithDate[] = metricDays.map(day => ({ date: day.date, protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
   const qualityFromDays = React.useMemo(() => buildQualityFromDays(metricDays), [metricDays]);
   const supportWeight = isWeek && !isProfessional
@@ -518,12 +521,12 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const weightPoints = normalizeWeightPoints(supportWeight);
   const simpleQuality = bundleData?.quality ?? detailData?.quality ?? qualityFromDays.simpleQuality;
   const foodQuality = (bundleData?.quality?.foodQuality ?? detailData?.quality?.foodQuality ?? qualityFromDays.foodQuality) as FoodQualitySummary | undefined;
-  const waterConsumedMl = isWeek ? metricDays.reduce((total, day) => total + day.waterConsumedMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalConsumedMl);
-  const waterGoalMl = isWeek ? metricDays.reduce((total, day) => total + day.waterGoalMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalGoalMl);
-  const waterHitDays = isWeek ? metricDays.filter(day => day.waterGoalMl > 0 && day.waterConsumedMl >= day.waterGoalMl).length : numberValue(bundleData?.habitAnalytics?.water?.goalHitDays);
+  const waterConsumedMl = isWeek && !isProfessional ? metricDays.reduce((total, day) => total + day.waterConsumedMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalConsumedMl);
+  const waterGoalMl = isWeek && !isProfessional ? metricDays.reduce((total, day) => total + day.waterGoalMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalGoalMl);
+  const waterHitDays = isWeek && !isProfessional ? metricDays.filter(day => day.waterGoalMl > 0 && day.waterConsumedMl >= day.waterGoalMl).length : numberValue(bundleData?.habitAnalytics?.water?.goalHitDays);
   const lowestWaterDay = findExtreme(metricDays, day => day.waterConsumedMl, "min");
-  const exerciseActiveDays = isWeek ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue(bundleData?.habitAnalytics?.exercise?.activeDays);
-  const exerciseCalories = isWeek ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue(bundleData?.habitAnalytics?.exercise?.totalCalories);
+  const exerciseActiveDays = isWeek && !isProfessional ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue(bundleData?.habitAnalytics?.exercise?.activeDays);
+  const exerciseCalories = isWeek && !isProfessional ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue(bundleData?.habitAnalytics?.exercise?.totalCalories);
   const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
   const shouldShowDetailsPrompt = !isProfessional && isWeek && useWeeklySummaryAsPrimary && !showDetails;

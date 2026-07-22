@@ -84,7 +84,33 @@ vi.mock("./aiQuestionAssistant", () => ({
 
 const handlePendingWhatsAppConfirmationMock = vi.fn();
 vi.mock("./webhookTextCommands", () => ({
+  PENDING_CONFIRMATION_TYPE: "confirmation",
+  buildGenericConfirmationActions: vi.fn(() => [
+    { id: "confirm", label: "Confirmar", effect: "apply_action" },
+    { id: "cancel", label: "Cancelar", effect: "cancel_action" },
+  ]),
   handlePendingWhatsAppConfirmation: handlePendingWhatsAppConfirmationMock,
+  completeWhatsappGenericConfirmationCallback: vi.fn(),
+}));
+
+const executeWhatsappDeleteIntentMock = vi.fn();
+vi.mock("./deleteIntent", () => ({
+  PENDING_DELETE_TYPE: "delete",
+  executeWhatsappDeleteIntent: executeWhatsappDeleteIntentMock,
+  completeWhatsappDeleteInteractiveCallback: vi.fn(),
+}));
+
+vi.mock("./mealItemSelectionCallback", () => ({
+  PENDING_MEAL_ITEM_SELECTION_TYPE: "meal_item_selection",
+  buildMealItemSelectionActions: vi.fn(() => []),
+  completeMealItemSelectionInteractiveCallback: vi.fn(),
+}));
+
+vi.mock("./periodReportClarification", () => ({
+  PENDING_PERIOD_REPORT_TYPE: "period_report",
+  buildWhatsappPeriodReportActions: vi.fn(() => []),
+  buildWhatsappPeriodReportClarificationListReply: vi.fn(),
+  completeWhatsappPeriodReportCallback: vi.fn(),
 }));
 
 const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
@@ -95,21 +121,25 @@ const repository = createDrizzleWhatsAppPendingOperationRepository({
   onWarning: vi.fn(),
 });
 
+const deleteResult = {
+  handled: true as const,
+  action: "clarification_needed" as const,
+  reply: "Confirme a exclusão.",
+  eventType: "whatsapp.intent.delete_food_confirmation_requested",
+  detail: "gate destrutivo",
+  data: { fallbackBlocked: true },
+};
+
 describe("resolveWhatsAppPrecedenceGate", () => {
   beforeEach(() => {
     fakeDb.reset();
     executeWhatsappAiQuestionIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockResolvedValue(null);
     handlePendingWhatsAppConfirmationMock.mockReset();
   });
 
-  it("prioriza comando explícito `/` mesmo com pendência de confirmação ativa e não a toca (regra #6 da issue)", async () => {
-    const created = await repository.createPendingOperation({
-      userId: 1,
-      type: "confirmation",
-      origin: "webhookTextCommands",
-      target: { summary: "Lanche -> Café da manhã" },
-      ttlMs: 60_000,
-    });
+  it("prioriza comando explícito / e não consulta o executor destrutivo", async () => {
     executeWhatsappAiQuestionIntentMock.mockResolvedValue({
       handled: true,
       action: "ai_question_answered",
@@ -121,15 +151,34 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     const decision = await resolveWhatsAppPrecedenceGate({ userId: 1, text: "/quantas calorias hoje?" });
 
     expect(decision).toEqual(expect.objectContaining({ step: "ai_question" }));
-    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
-
-    const stillActive = await repository.getActivePendingOperation(1);
-    expect(stillActive?.id).toBe(created?.id);
+    expect(executeWhatsappDeleteIntentMock).not.toHaveBeenCalled();
   });
 
-  it("resolve pendência de confirmação genérica ativa antes de continuar o pipeline", async () => {
+  it("resolve exclusão antes da confirmação genérica e dos parsers alimentares", async () => {
+    executeWhatsappDeleteIntentMock.mockResolvedValue(deleteResult);
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 2, text: "Excluir o Registrar" });
+
+    expect(decision).toEqual({ step: "delete_intent", result: deleteResult });
+    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalledWith(2, expect.objectContaining({
+      text: "Excluir o Registrar",
+      entrypoint: "messageRouter.precedenceGate",
+    }));
+    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
+  });
+
+  it("resolve resposta curta de pendência destrutiva no mesmo gate", async () => {
+    executeWhatsappDeleteIntentMock.mockResolvedValue({ ...deleteResult, action: "meal_deleted", reply: "Excluído." });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 3, text: "sim" });
+
+    expect(decision).toEqual(expect.objectContaining({ step: "delete_intent" }));
+    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
+  });
+
+  it("resolve pendência de confirmação genérica quando o executor destrutivo não trata a mensagem", async () => {
     await repository.createPendingOperation({
-      userId: 2,
+      userId: 4,
       type: "confirmation",
       origin: "webhookTextCommands",
       target: { summary: "Lanche -> Café da manhã" },
@@ -142,51 +191,17 @@ describe("resolveWhatsAppPrecedenceGate", () => {
       detail: "detalhe",
     });
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 2, text: "sim" });
-
-    expect(decision).toEqual(expect.objectContaining({ step: "generic_confirmation" }));
-    expect(handlePendingWhatsAppConfirmationMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: { body: "sim" } }),
-      2,
-    );
-  });
-
-  it("segue para o pipeline normal quando não há `/` nem pendência de confirmação genérica", async () => {
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 3, text: "100g de arroz" });
-    expect(decision).toEqual({ step: "continue_pipeline" });
-    expect(executeWhatsappAiQuestionIntentMock).not.toHaveBeenCalled();
-    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
-  });
-
-  it("ignora pendências de outro tipo (ex.: delete) e segue para o pipeline normal", async () => {
-    await repository.createPendingOperation({
-      userId: 4,
-      type: "delete",
-      origin: "deleteIntent",
-      target: { mealId: 10 },
-      ttlMs: 60_000,
-    });
-
     const decision = await resolveWhatsAppPrecedenceGate({ userId: 4, text: "sim" });
 
-    expect(decision).toEqual({ step: "continue_pipeline" });
-    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
+    expect(decision).toEqual(expect.objectContaining({ step: "generic_confirmation" }));
+    expect(handlePendingWhatsAppConfirmationMock).toHaveBeenCalled();
   });
 
-  it("mensagem incompatível com a pendência de confirmação não a consome e segue o pipeline (regra #5 da issue)", async () => {
-    await repository.createPendingOperation({
-      userId: 5,
-      type: "confirmation",
-      origin: "webhookTextCommands",
-      target: { summary: "Lanche -> Café da manhã" },
-      ttlMs: 60_000,
-    });
-    handlePendingWhatsAppConfirmationMock.mockResolvedValue(null);
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 5, text: "na verdade quero registrar 200g de frango" });
+  it("segue para o pipeline quando nenhuma precedência trata a mensagem", async () => {
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 5, text: "100g de arroz" });
 
     expect(decision).toEqual({ step: "continue_pipeline" });
-    const stillActive = await repository.getActivePendingOperation(5);
-    expect(stillActive).not.toBeNull();
+    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalled();
+    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
   });
 });

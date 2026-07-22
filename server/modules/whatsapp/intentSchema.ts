@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 
 export const whatsappIntentNames = [
   "add_foods_to_meal",
@@ -32,8 +33,17 @@ export const whatsappIntentNames = [
 
 export const whatsappIntentNameSchema = z.enum(whatsappIntentNames);
 
+const whatsappIntentFoodNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .refine(value => !isStandaloneWhatsappCommandWord(value), {
+    message: "Comando operacional isolado não é um nome de alimento válido.",
+  });
+
 const whatsappIntentFoodItemSchema = z.object({
-  foodName: z.string().trim().min(1).max(160),
+  foodName: whatsappIntentFoodNameSchema,
   quantity: z.number().positive().max(5000).nullable().optional(),
   unit: z.string().trim().min(1).max(40).nullable().optional(),
   brand: z.string().trim().min(1).max(80).nullable().optional(),

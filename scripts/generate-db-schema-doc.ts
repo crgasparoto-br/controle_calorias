@@ -2,15 +2,18 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const sourcePath = path.join(root, "drizzle/schema.ts");
+const sourcePaths = [
+  path.join(root, "drizzle/schema.ts"),
+  path.join(root, "drizzle/professional-schema.ts"),
+];
 const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
 
 type ColumnInfo = { propertyName: string; columnName: string };
 type TableInfo = { exportName: string; tableName: string; columns: ColumnInfo[] };
 
-const tableFragments = ["user", "profile", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
-const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured"];
+const tableFragments = ["user", "profile", "professional", "authorization", "tracking", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
+const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured", "professional", "patient", "actor", "authorization"];
 
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath)) throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
@@ -42,13 +45,13 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
 function parseTables(source: string): TableInfo[] {
   const tables: TableInfo[] = [];
-  const tableRegex = /export const (\w+) = mysqlTable\("([^"]+)"/g;
+  const tableRegex = /export const (\w+) = mysqlTable\(\s*"([^"]+)"/g;
   for (const match of source.matchAll(tableRegex)) {
     const columnsStart = source.indexOf("{", match.index ?? 0);
     const columnsEnd = findMatchingBrace(source, columnsStart);
@@ -80,7 +83,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fonte: `drizzle/schema.ts`.",
+    "Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.",
     "",
     "## Tabelas",
     "",
@@ -109,14 +112,30 @@ function generateMarkdown(tables: TableInfo[]) {
   lines.push("- A maioria dos dados de domínio referencia `users.id`.");
   lines.push("- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.");
   lines.push("- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.");
-  lines.push("");
+  lines.push("- `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.");
   return `${lines.join("\n")}\n`;
 }
 
-const generated = generateMarkdown(parseTables(readRequiredFile(sourcePath)));
+function reportFirstDifference(current: string, expected: string) {
+  const currentLines = current.split("\n");
+  const expectedLines = expected.split("\n");
+  const limit = Math.max(currentLines.length, expectedLines.length);
+  for (let index = 0; index < limit; index += 1) {
+    if (currentLines[index] !== expectedLines[index]) {
+      console.error(`Primeira divergência na linha ${index + 1}.`);
+      console.error(`Atual: ${JSON.stringify(currentLines[index] ?? "<ausente>")}`);
+      console.error(`Esperado: ${JSON.stringify(expectedLines[index] ?? "<ausente>")}`);
+      return;
+    }
+  }
+}
+
+const source = sourcePaths.map(readRequiredFile).join("\n");
+const generated = generateMarkdown(parseTables(source));
 if (checkOnly) {
   const current = readRequiredFile(outputPath);
   if (current !== generated) {
+    reportFirstDifference(current, generated);
     console.error("docs/generated/db-schema.md está desatualizado. Rode `pnpm docs:generate:db` e commit as mudanças.");
     process.exit(1);
   }

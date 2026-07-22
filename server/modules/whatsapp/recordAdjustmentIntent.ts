@@ -1,6 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { listMeals } from "../meals/service";
-import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import { handleQuantityCorrectionIntent } from "./intent/gramsAdjustmentHandlers";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
@@ -28,8 +27,6 @@ type ExistingMealItem = NonNullable<ExistingMeal["items"]>[number];
 type AdjustmentIntent =
   | { kind: "quantity"; quantity: number; unit: string }
   | { kind: "replace_item"; sourceFood: string; targetFood: string }
-  | { kind: "remove_item"; targetFood: string }
-  | { kind: "remove_last_meal" }
   | { kind: "incomplete" };
 
 const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -45,14 +42,14 @@ function normalizeText(value: string) {
     .trim();
 }
 
+// Verbos destrutivos (remover/apagar/excluir) não são detectados aqui: o gate
+// destrutivo canônico (deleteIntent.ts) roda antes desta função no único
+// chamador (service.ts) e intercepta esses comandos primeiro (issue #856).
 function detectAdjustmentIntent(text: string): AdjustmentIntent | null {
   const trimmed = text.trim();
   const normalized = normalizeText(trimmed);
 
-  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:o\s+|a\s+)?(?:ultimo|ultima)$/.test(normalized)) {
-    return { kind: "remove_last_meal" };
-  }
-  if (/^(?:corrige|corrigir|altera|alterar|ajusta|ajustar|troca|trocar|remove|remover|apaga|apagar|exclui|excluir)\s+(?:isso|esse|essa|ultimo|ultima)$/.test(normalized)) {
+  if (/^(?:corrige|corrigir|altera|alterar|ajusta|ajustar|troca|trocar)\s+(?:isso|esse|essa|ultimo|ultima)$/.test(normalized)) {
     return { kind: "incomplete" };
   }
 
@@ -66,12 +63,6 @@ function detectAdjustmentIntent(text: string): AdjustmentIntent | null {
     return { kind: "replace_item", sourceFood: replaceMatch[1].trim(), targetFood: replaceMatch[2].trim() };
   }
 
-  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:a\s+)?(?:refeicao|refeição|ultima\s+refeicao|última\s+refeição|ultimo\s+lancamento|último\s+lançamento)$/iu.test(trimmed)) {
-    return { kind: "remove_last_meal" };
-  }
-
-  const removeItemMatch = /^(?:remove|remover|apaga|apagar|exclui|excluir)\s+(?:o\s+|a\s+|um\s+|uma\s+)?(.+)$/iu.exec(trimmed);
-  if (removeItemMatch?.[1]?.trim()) return { kind: "remove_item", targetFood: removeItemMatch[1].trim() };
   return null;
 }
 
@@ -108,10 +99,6 @@ export async function executeWhatsappRecordAdjustmentIntent(
   const intent = detectAdjustmentIntent(text);
   if (!intent) return null;
   if (intent.kind === "incomplete") return clarification("Comando de ajuste sem alvo suficiente.");
-
-  if (intent.kind === "remove_item" || intent.kind === "remove_last_meal") {
-    return executeWhatsappDeleteIntent(userId, { text, timeZone: input.userTimezone }) as Promise<WhatsappRecordAdjustmentResult | null>;
-  }
 
   if (intent.kind === "replace_item") {
     return handleFoodReplacementIntents(userId, [{ fromFood: intent.sourceFood, toFood: intent.targetFood }], input.userTimezone ?? DEFAULT_APP_TIME_ZONE);

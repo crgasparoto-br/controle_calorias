@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getAdminWhatsAppTokenStatusMock = vi.fn();
+const getDbMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
@@ -13,11 +14,14 @@ const executeWhatsappRecordAdjustmentIntentMock = vi.fn();
 const executeWhatsappGramsAdjustmentIntentMock = vi.fn();
 const executeWhatsappGramsIncrementIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
+const executeWhatsappDeleteIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
+  getDb: getDbMock,
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
   logInferenceEvent: logInferenceEventMock,
+  logPersistenceWarning: vi.fn(),
   upsertUserWhatsappConnection: upsertUserWhatsappConnectionMock,
 }));
 
@@ -61,6 +65,10 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+vi.mock("./deleteIntent", () => ({
+  executeWhatsappDeleteIntent: executeWhatsappDeleteIntentMock,
+}));
+
 const { clearWhatsappConversationContext } = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
 
@@ -68,6 +76,8 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
   beforeEach(() => {
     clearWhatsappConversationContext();
     getAdminWhatsAppTokenStatusMock.mockReset();
+    getDbMock.mockReset();
+    getDbMock.mockResolvedValue(null);
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
     upsertUserWhatsappConnectionMock.mockReset();
@@ -80,7 +90,9 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
     executeWhatsappGramsAdjustmentIntentMock.mockReset();
     executeWhatsappGramsIncrementIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockReset();
 
+    executeWhatsappDeleteIntentMock.mockResolvedValue(null);
     executeWhatsappDatedFoodAdditionIntentMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue({

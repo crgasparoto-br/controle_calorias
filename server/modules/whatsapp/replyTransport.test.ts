@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendWhatsAppTextMessageMock = vi.fn(async () => ({ ok: true, detail: "Resposta automática enviada com sucesso." }));
-const sendWhatsAppInteractiveUrlButtonMessageMock = vi.fn(async () => ({ ok: true, usedFallback: false, detail: "Mensagem interativa enviada com sucesso." }));
+const sendWhatsAppInteractiveUrlButtonMessageMock = vi.fn(async () => ({ ok: true, detail: "Mensagem interativa enviada com sucesso." }));
 const sendWhatsAppInteractiveButtonsMessageMock = vi.fn(async () => ({ ok: true, detail: "Botões enviados com sucesso." }));
 const sendWhatsAppInteractiveListMessageMock = vi.fn(async () => ({ ok: true, detail: "Lista enviada com sucesso." }));
 const sendWhatsAppImageMessageMock = vi.fn(async () => ({ ok: true, detail: "Imagem anotada enviada com sucesso." }));
@@ -21,9 +21,15 @@ vi.mock("./messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
 }));
 
+const getCurrentWhatsappInboundExternalMessageIdMock = vi.fn<() => string | null>(() => null);
+vi.mock("./inboundCorrelationContext", () => ({
+  getCurrentWhatsappInboundExternalMessageId: getCurrentWhatsappInboundExternalMessageIdMock,
+}));
+
 const {
   acknowledgementReply,
   buttonsReply,
+  listReply,
   sequencedTextReply,
   textReply,
   withAuxiliaryImage,
@@ -37,6 +43,8 @@ describe("replyTransport", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendWhatsAppTextMessageMock.mockResolvedValue({ ok: true, detail: "Resposta automática enviada com sucesso." });
+    sendWhatsAppInteractiveUrlButtonMessageMock.mockResolvedValue({ ok: true, detail: "Mensagem interativa enviada com sucesso." });
+    getCurrentWhatsappInboundExternalMessageIdMock.mockReturnValue(null);
     sendWhatsAppImageMessageMock.mockResolvedValue({ ok: true, detail: "Imagem anotada enviada com sucesso." });
   });
 
@@ -106,20 +114,25 @@ describe("replyTransport", () => {
   });
 
 
-  it("interrompe uma sequência na primeira falha para permitir retomada idempotente", async () => {
+  it("continua tentando auxiliares independentes mesmo após falha efetiva de um auxiliar anterior (issue #859)", async () => {
     sendWhatsAppTextMessageMock
       .mockResolvedValueOnce({ ok: true, detail: "primeira enviada" })
-      .mockResolvedValueOnce({ ok: false, detail: "segunda falhou" });
+      .mockResolvedValueOnce({ ok: false, detail: "segunda falhou" })
+      .mockResolvedValueOnce({ ok: true, detail: "terceira enviada" });
 
     const result = await sendWhatsAppLogicalReply(
       "5511999990000",
       sequencedTextReply(["primeira", "segunda", "terceira"]),
     );
 
-    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledTimes(2);
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalledWith("5511999990000", "terceira");
-    expect(result.sends).toHaveLength(2);
+    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledTimes(3);
+    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledWith("5511999990000", "terceira");
+    expect(result.sends).toHaveLength(3);
+    expect(result.sends[0].effectiveOk).toBe(true);
+    expect(result.sends[1].effectiveOk).toBe(false);
+    expect(result.sends[2].effectiveOk).toBe(true);
     expect(result.ok).toBe(false);
+    expect(result.primaryEffectiveOk).toBe(true);
   });
 
   it("CTA URL usa o transporte interativo dedicado e preserva o texto de gravação", async () => {
@@ -143,7 +156,24 @@ describe("replyTransport", () => {
     expect(result.recorded).toBe(true);
   });
 
-  it("rejeita botões inválidos por validação central antes de chamar o transporte, sem vazar detalhe técnico ao usuário", async () => {
+  it("CTA rejeitado pela Meta e fallback aceito reflete sucesso efetivo coerente com botões/lista", async () => {
+    sendWhatsAppInteractiveUrlButtonMessageMock.mockResolvedValueOnce({
+      ok: false,
+      detail: "Meta retornou 400 Bad Request: erro no envio da mensagem interativa.",
+    });
+    const reply = withCtaUrl(textReply("Refeição registrada."), { buttonText: "Editar refeição", url: "https://app.test/quick-edit/abc" });
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].usedFallback).toBe(true);
+    expect(result.sends[0].originalOk).toBe(false);
+    expect(result.sends[0].fallbackOk).toBe(true);
+    expect(result.sends[0].category).toBe("provider");
+    expect(result.sends[0].effectiveOk).toBe(true);
+    expect(result.recorded).toBe(true);
+  });
+
+  it("botões rejeitados por validação local com conteúdo suficiente geram fallback textual determinístico (issue #859)", async () => {
     const reply = buttonsReply("Confirma?", [
       { id: "1", title: "Um" },
       { id: "2", title: "Dois" },
@@ -154,11 +184,221 @@ describe("replyTransport", () => {
     const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
 
     expect(sendWhatsAppInteractiveButtonsMessageMock).not.toHaveBeenCalled();
-    expect(result.sends[0].ok).toBe(false);
-    expect(result.sends[0].detail).toContain("validação do contrato");
-    expect(result.recorded).toBe(false);
-    // Nenhuma informação foi enviada ao usuário: o transporte nunca foi acionado para essa mensagem.
+    expect(result.sends[0].originalOk).toBe(false);
+    expect(result.sends[0].category).toBe("validation");
+    expect(result.sends[0].usedFallback).toBe(true);
+    expect(result.sends[0].effectiveOk).toBe(true);
+    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledWith(
+      "5511999990000",
+      expect.stringContaining("1. Um"),
+    );
+    // IDs de callback nunca aparecem no texto do fallback.
+    expect(sendWhatsAppTextMessageMock.mock.calls[0][1]).not.toContain("\"1\"");
+    expect(result.recorded).toBe(true);
+  });
+
+  it("botões enviados com sucesso não acionam fallback (botão aceito)", async () => {
+    const reply = buttonsReply("Confirme a exclusão:", [
+      { id: "confirm", title: "Confirmar" },
+      { id: "cancel", title: "Cancelar" },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(sendWhatsAppInteractiveButtonsMessageMock).toHaveBeenCalledWith(
+      "5511999990000",
+      "Confirme a exclusão:",
+      [{ id: "confirm", title: "Confirmar" }, { id: "cancel", title: "Cancelar" }],
+    );
+    expect(result.sends[0].originalOk).toBe(true);
+    expect(result.sends[0].usedFallback).toBe(false);
+    expect(result.sends[0].effectiveOk).toBe(true);
     expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(result.recorded).toBe(true);
+  });
+
+  it("botão rejeitado pela Meta e fallback aceito produz sucesso efetivo e grava lifecycle uma única vez", async () => {
+    sendWhatsAppInteractiveButtonsMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 400 Bad Request no envio dos botões." });
+    const reply = buttonsReply("Confirme a exclusão:", [
+      { id: "confirm", title: "Confirmar" },
+      { id: "cancel", title: "Cancelar" },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].originalOk).toBe(false);
+    expect(result.sends[0].category).toBe("provider");
+    expect(result.sends[0].usedFallback).toBe(true);
+    expect(result.sends[0].fallbackOk).toBe(true);
+    expect(result.sends[0].effectiveOk).toBe(true);
+    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledTimes(1);
+    expect(recordOutboundReplyMock).toHaveBeenCalledTimes(1);
+    expect(result.recorded).toBe(true);
+  });
+
+  it("botão e fallback rejeitados não registram entrega funcional nem consomem a pendência", async () => {
+    sendWhatsAppInteractiveButtonsMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 400 Bad Request no envio dos botões." });
+    sendWhatsAppTextMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error." });
+    const reply = buttonsReply("Confirme a exclusão:", [
+      { id: "confirm", title: "Confirmar" },
+      { id: "cancel", title: "Cancelar" },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].effectiveOk).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.recorded).toBe(false);
+    expect(recordOutboundReplyMock).not.toHaveBeenCalled();
+  });
+
+  it("lista aceita não aciona fallback", async () => {
+    const reply = listReply("Escolha uma opção:", "Ver opções", [
+      { rows: [{ id: "select:1", title: "Arroz" }, { id: "cancel", title: "Cancelar" }] },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(sendWhatsAppInteractiveListMessageMock).toHaveBeenCalled();
+    expect(result.sends[0].usedFallback).toBe(false);
+    expect(result.sends[0].effectiveOk).toBe(true);
+  });
+
+  it("lista rejeitada pela Meta e fallback aceito preserva título e descrição, sem IDs", async () => {
+    sendWhatsAppInteractiveListMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 400 Bad Request no envio da lista." });
+    const reply = listReply("Escolha uma opção:", "Ver opções", [
+      { rows: [
+        { id: "select:1", title: "Arroz", description: "Almoço" },
+        { id: "select:2", title: "Arroz integral", description: "Jantar" },
+        { id: "cancel", title: "Cancelar" },
+      ] },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].usedFallback).toBe(true);
+    expect(result.sends[0].effectiveOk).toBe(true);
+    const fallbackBody = sendWhatsAppTextMessageMock.mock.calls[0][1];
+    expect(fallbackBody).toContain("1. Arroz — Almoço");
+    expect(fallbackBody).toContain("2. Arroz integral — Jantar");
+    expect(fallbackBody).toContain("3. Cancelar");
+    expect(fallbackBody).not.toContain("select:1");
+    expect(result.recorded).toBe(true);
+  });
+
+  it("lista e fallback rejeitados não registram entrega funcional", async () => {
+    sendWhatsAppInteractiveListMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 400 Bad Request no envio da lista." });
+    sendWhatsAppTextMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error." });
+    const reply = listReply("Escolha uma opção:", "Ver opções", [
+      { rows: [{ id: "select:1", title: "Arroz" }, { id: "cancel", title: "Cancelar" }] },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].effectiveOk).toBe(false);
+    expect(result.recorded).toBe(false);
+    expect(recordOutboundReplyMock).not.toHaveBeenCalled();
+  });
+
+  it("lista vazia não gera fallback inventado: falha efetiva sem opções", async () => {
+    const reply = listReply("Escolha uma opção:", "Ver opções", [{ rows: [] }]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(sendWhatsAppInteractiveListMessageMock).not.toHaveBeenCalled();
+    expect(result.sends[0].usedFallback).toBe(false);
+    expect(result.sends[0].effectiveOk).toBe(false);
+    expect(result.recorded).toBe(false);
+  });
+
+  it("falha de configuração (credenciais ausentes) é classificada e ainda tenta fallback quando aplicável", async () => {
+    sendWhatsAppInteractiveButtonsMessageMock.mockResolvedValueOnce({ ok: false, detail: "Credenciais do WhatsApp não configuradas para envio de botões." });
+    const reply = buttonsReply("Confirme a exclusão:", [
+      { id: "confirm", title: "Confirmar" },
+      { id: "cancel", title: "Cancelar" },
+    ]);
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.sends[0].category).toBe("config");
+    expect(result.sends[0].usedFallback).toBe(true);
+  });
+
+  it("sequência texto -> CTA (falha total) -> imagem: falha total do CTA não impede a tentativa da imagem auxiliar", async () => {
+    sendWhatsAppInteractiveUrlButtonMessageMock.mockResolvedValueOnce({
+      ok: false,
+      detail: "Meta retornou 400 Bad Request: no envio da mensagem interativa. Falha ao enviar fallback textual.",
+    });
+    sendWhatsAppTextMessageMock
+      .mockResolvedValueOnce({ ok: true, detail: "resumo enviado" })
+      .mockResolvedValueOnce({ ok: false, detail: "fallback falhou" });
+    const reply = {
+      kind: "functional" as const,
+      recordText: "Refeição registrada.",
+      messages: [
+        { type: "text" as const, body: "Refeição registrada." },
+        { type: "cta_url" as const, bodyText: "Precisa ajustar algum alimento?", buttonText: "Editar refeição", url: "https://app.test/quick-edit/abc" },
+        { type: "image_url" as const, url: "https://storage.test/annotated.png", caption: "Imagem anotada." },
+      ],
+    };
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.primaryEffectiveOk).toBe(true);
+    expect(result.recorded).toBe(true);
+    expect(result.sends[1]).toEqual(expect.objectContaining({
+      role: "auxiliary",
+      originalOk: false,
+      fallbackOk: false,
+      effectiveOk: false,
+      sequenceDecision: "continue",
+    }));
+    // Imagem auxiliar independente ainda deve ser tentada mesmo com falha total do CTA primário.
+    expect(sendWhatsAppImageMessageMock).toHaveBeenCalledWith(
+      "5511999990000",
+      "https://storage.test/annotated.png",
+      "Imagem anotada.",
+    );
+  });
+
+  it("falha efetiva da mensagem primária encerra a sequência", async () => {
+    sendWhatsAppTextMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500" });
+    const reply = withAuxiliaryImage(
+      textReply("Refeição registrada."),
+      { url: "https://storage.test/annotated.png", caption: "Imagem anotada." },
+    );
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.primaryEffectiveOk).toBe(false);
+    expect(result.recorded).toBe(false);
+    expect(result.sends).toHaveLength(1);
+    expect(result.sends[0].sequenceDecision).toBe("stop");
+    expect(sendWhatsAppImageMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("sanitiza URLs presentes no detalhe retornado pelo provedor", async () => {
+    sendWhatsAppInteractiveButtonsMessageMock.mockResolvedValueOnce({
+      ok: false,
+      detail: "Meta retornou 400 com https://app.test/quick-edit/token-secreto",
+    });
+    sendWhatsAppTextMessageMock.mockResolvedValueOnce({ ok: false, detail: "fallback falhou" });
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", buttonsReply("Confirma?", [
+      { id: "confirm", title: "Confirmar" },
+      { id: "cancel", title: "Cancelar" },
+    ]));
+
+    expect(result.sends[0].detail).toContain("[url_redacted]");
+    expect(result.sends[0].detail).not.toContain("token-secreto");
+  });
+
+  it("propaga o identificador de correlação do inbound para a observabilidade", async () => {
+    getCurrentWhatsappInboundExternalMessageIdMock.mockReturnValue("wamid.trace-859");
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", textReply("Resposta"));
+
+    expect(result.sends[0].traceId).toBe("wamid.trace-859");
   });
 
   it("sem handle de lifecycle não tenta gravar (uso fora do fluxo persistente, ex.: simulateWhatsappInbound)", async () => {

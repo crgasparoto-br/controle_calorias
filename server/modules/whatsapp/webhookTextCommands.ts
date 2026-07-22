@@ -1,7 +1,8 @@
 import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
-import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
-import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
+import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+import { buildWhatsappClosedDecisionReply, type WhatsappInteractionAction } from "./interactionPresentation";
+import type { WhatsAppLogicalReply } from "./replyContract";
 import { formatWhatsAppReplyTime } from "./replyFormatting";
 import {
   buildWhatsAppActionCancelledReplyMessage,
@@ -16,8 +17,9 @@ import {
   type WhatsAppWebhookMessage,
 } from "./webhookUtils";
 
-const CONFIRM_ACTION = "confirm";
-const CANCEL_ACTION = "cancel";
+export const CONFIRM_ACTION = "confirm";
+export const CONFIRM_ALL_ACTION = "confirm_all";
+export const CONFIRMATION_CANCEL_ACTION = "cancel";
 
 export type WhatsAppAction = {
   kind: "reclassify_recent_meals";
@@ -28,7 +30,9 @@ export type WhatsAppAction = {
 export type PendingWhatsAppConfirmation = {
   action: WhatsAppAction;
   mealIds: number[];
+  allMealIds?: number[];
   summary: string;
+  decision?: "reclassify_scope";
 };
 
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
@@ -43,37 +47,10 @@ const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_WEIGHT_LOG_KG = 25;
 const MAX_WEIGHT_LOG_KG = 350;
 const WATER_LOG_ALLOWED_WORDS = [
-  "agua",
-  "aguas",
-  "ml",
-  "m l",
-  "mililitro",
-  "mililitros",
-  "l",
-  "litro",
-  "litros",
-  "de",
-  "da",
-  "do",
-  "das",
-  "dos",
-  "e",
-  "mais",
-  "bebi",
-  "beber",
-  "tomei",
-  "tomar",
-  "consumi",
-  "registrar",
-  "registra",
-  "registre",
-  "registro",
-  "registrei",
-  "para",
-  "por",
-  "favor",
-  "hoje",
-  "agora",
+  "agua", "aguas", "ml", "m l", "mililitro", "mililitros", "l", "litro", "litros",
+  "de", "da", "do", "das", "dos", "e", "mais", "bebi", "beber", "tomei", "tomar",
+  "consumi", "registrar", "registra", "registre", "registro", "registrei", "para", "por",
+  "favor", "hoje", "agora",
 ];
 
 function canonicalMealLabel(label: string) {
@@ -96,29 +73,37 @@ function isCancellationMessage(message: WhatsAppWebhookMessage) {
   return ["nao", "não", "cancelar", "cancela", "parar", "desfazer"].includes(normalized);
 }
 
+export function parseReclassifyScopeMessage(message: WhatsAppWebhookMessage): typeof CONFIRM_ACTION | typeof CONFIRM_ALL_ACTION | null {
+  const normalized = normalizeWhatsAppIntentText(getWhatsAppMessageTextBody(message));
+  if (/^(apenas|somente|so)(\s|$)/.test(normalized) || normalized === "1") return CONFIRM_ACTION;
+  if (/^(todos|todas)(\s|$)/.test(normalized) || normalized === "2") return CONFIRM_ALL_ACTION;
+  return null;
+}
+
+export function buildGenericConfirmationActions(target?: Pick<PendingWhatsAppConfirmation, "decision">): WhatsappInteractionAction[] {
+  if (target?.decision === "reclassify_scope") {
+    return [
+      { id: CONFIRM_ACTION, label: "Só compatíveis", effect: "reclassify_matching" },
+      { id: CONFIRM_ALL_ACTION, label: "Todos recentes", effect: "reclassify_all" },
+      { id: CONFIRMATION_CANCEL_ACTION, label: "Cancelar", effect: "cancel_action" },
+    ];
+  }
+  return [
+    { id: CONFIRM_ACTION, label: "Confirmar", effect: "apply_action" },
+    { id: CONFIRMATION_CANCEL_ACTION, label: "Cancelar", effect: "cancel_action" },
+  ];
+}
+
 export function detectWhatsAppAction(message: WhatsAppWebhookMessage): WhatsAppAction | null {
   const text = getWhatsAppMessageTextBody(message);
-  if (!text || message.image?.id || message.audio?.id) {
-    return null;
-  }
-
+  if (!text || message.image?.id || message.audio?.id) return null;
   const normalized = normalizeWhatsAppIntentText(text);
   const match = normalized.match(/(?:mudar|trocar|alterar)\s+a?\s*refeicao\s+(.+?)\s+para\s+(.+)/i);
-  if (!match) {
-    return null;
-  }
-
+  if (!match) return null;
   const fromMealLabel = canonicalMealLabel(match[1] || "");
   const toMealLabel = canonicalMealLabel(match[2] || "");
-  if (!fromMealLabel || !toMealLabel || fromMealLabel === toMealLabel) {
-    return null;
-  }
-
-  return {
-    kind: "reclassify_recent_meals",
-    fromMealLabel,
-    toMealLabel,
-  };
+  if (!fromMealLabel || !toMealLabel || fromMealLabel === toMealLabel) return null;
+  return { kind: "reclassify_recent_meals", fromMealLabel, toMealLabel };
 }
 
 async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number) {
@@ -131,33 +116,57 @@ async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number
   return { recentMeals, matchingMeals };
 }
 
+async function resolvePersistedReclassificationTargets(
+  userId: number,
+  pending: PendingWhatsAppConfirmation,
+  scope: "matching" | "all",
+) {
+  const persistedIds = scope === "all" ? pending.allMealIds : pending.mealIds;
+  if (!persistedIds?.length) return null;
+  const uniqueIds = [...new Set(persistedIds)];
+  if (uniqueIds.length !== persistedIds.length) return null;
+
+  const currentMeals = (await listUserMeals(userId)).filter(meal => meal.source === "whatsapp");
+  const currentById = new Map(currentMeals.map(meal => [meal.id, meal] as const));
+  const selectedMeals = uniqueIds.map(id => currentById.get(id) ?? null);
+  if (selectedMeals.some(meal => !meal)) return null;
+
+  const resolvedMeals = selectedMeals.filter((meal): meal is NonNullable<typeof meal> => Boolean(meal));
+  if (scope === "matching" && resolvedMeals.some(
+    meal => canonicalMealLabel(meal.mealLabel) !== pending.action.fromMealLabel,
+  )) {
+    return null;
+  }
+  return resolvedMeals;
+}
+
 async function applyClaimedGenericConfirmation(
   userId: number,
   pending: PendingWhatsAppConfirmation,
+  scope: "matching" | "all" = "matching",
 ): Promise<{ handled: true; reply: string; eventType: string; detail: string }> {
-  // Revalida o alvo contra o estado atual do banco em vez de confiar cegamente no target persistido (issue #766).
-  const { matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
-  if (!matchingMeals.length) {
+  const selectedMeals = await resolvePersistedReclassificationTargets(userId, pending, scope);
+  if (!selectedMeals?.length) {
     return {
       handled: true,
       reply: buildWhatsAppClarificationReplyMessage("Os registros que essa confirmação alteraria não estão mais disponíveis. Envie o comando novamente se ainda quiser reclassificar refeições."),
       eventType: "whatsapp.action_confirmation_target_stale",
-      detail: `Confirmação consumida, mas alvo (${pending.summary}) não foi mais encontrado no estado atual.`,
+      detail: `Confirmação consumida, mas o conjunto persistido (${pending.summary}) não corresponde mais ao estado atual.`,
     };
   }
 
+  const selectedIds = selectedMeals.map(meal => meal.id);
   const updatedMeals = await relabelUserMeals({
     userId,
-    mealIds: matchingMeals.map(meal => meal.id),
+    mealIds: selectedIds,
     mealLabel: pending.action.toMealLabel,
     origin: "whatsapp",
   });
-
   return {
     handled: true,
     reply: buildWhatsAppActionConfirmedReplyMessage(`${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`),
     eventType: "whatsapp.action_applied",
-    detail: `Comando confirmado e executado com sucesso: ${pending.summary} em ${updatedMeals.length} registro(s).`,
+    detail: `Comando confirmado sobre os IDs persistidos com escopo ${scope}: ${pending.summary}; mealIds=${selectedIds.join(",")}.`,
   };
 }
 
@@ -166,7 +175,7 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
   if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) return null;
 
   if (isCancellationMessage(message)) {
-    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CANCEL_ACTION);
+    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRMATION_CANCEL_ACTION);
     if (claim.status !== "claimed") return null;
     const pending = claim.pendingOperation.target as PendingWhatsAppConfirmation;
     return {
@@ -177,25 +186,32 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     };
   }
 
+  const pending = pendingRow.target as PendingWhatsAppConfirmation;
+  if (pending.decision === "reclassify_scope") {
+    const scopeAction = parseReclassifyScopeMessage(message);
+    if (!scopeAction) return null;
+    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, scopeAction);
+    if (claim.status !== "claimed") return null;
+    return applyClaimedGenericConfirmation(
+      userId,
+      claim.pendingOperation.target as PendingWhatsAppConfirmation,
+      scopeAction === CONFIRM_ALL_ACTION ? "all" : "matching",
+    );
+  }
+
   if (!isConfirmationMessage(message)) return null;
   const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRM_ACTION);
   if (claim.status !== "claimed") return null;
   return applyClaimedGenericConfirmation(userId, claim.pendingOperation.target as PendingWhatsAppConfirmation);
 }
 
-/**
- * Resolve um callback de botão já reivindicado pelo gate central (issue #782):
- * `messageRouter.ts` já validou dono/estado/expiração e consumiu a versão via
- * `claimWhatsAppInteractiveCallback`, então esta função só decide o efeito.
- */
 export async function completeWhatsappGenericConfirmationCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
   action: string,
 ): Promise<{ handled: true; reply: string; eventType: string; detail: string; interactiveReply?: WhatsAppLogicalReply }> {
   const pending = pendingOperation.target as PendingWhatsAppConfirmation;
-
-  if (action === CANCEL_ACTION) {
+  if (action === CONFIRMATION_CANCEL_ACTION) {
     return {
       handled: true,
       reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
@@ -203,11 +219,10 @@ export async function completeWhatsappGenericConfirmationCallback(
       detail: `Confirmação cancelada para ${pending.summary} via botão.`,
     };
   }
-
-  if (action === CONFIRM_ACTION) {
-    return applyClaimedGenericConfirmation(userId, pending);
+  if (action === CONFIRM_ACTION) return applyClaimedGenericConfirmation(userId, pending, "matching");
+  if (action === CONFIRM_ALL_ACTION && pending.decision === "reclassify_scope") {
+    return applyClaimedGenericConfirmation(userId, pending, "all");
   }
-
   return {
     handled: true,
     reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
@@ -218,7 +233,6 @@ export async function completeWhatsappGenericConfirmationCallback(
 
 export async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
   const { recentMeals, matchingMeals } = await resolveMatchingRecentMeals(action, userId);
-
   if (!recentMeals.length || !matchingMeals.length) {
     return {
       handled: true,
@@ -228,49 +242,77 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
     };
   }
 
+  const summary = `${action.fromMealLabel} → ${action.toMealLabel}`;
   if (matchingMeals.length !== recentMeals.length) {
     const recentSummary = recentMeals
       .map(meal => `${meal.mealLabel} às ${formatWhatsAppReplyTime(new Date(meal.occurredAt))}`)
       .join(", ");
-
+    const target: PendingWhatsAppConfirmation = {
+      action,
+      mealIds: matchingMeals.map(meal => meal.id),
+      allMealIds: recentMeals.map(meal => meal.id),
+      summary,
+      decision: "reclassify_scope",
+    };
+    const created = await pendingOperationRepository.createPendingOperation({
+      userId,
+      type: PENDING_CONFIRMATION_TYPE,
+      origin: PENDING_CONFIRMATION_ORIGIN,
+      ttlMs: PENDING_CONFIRMATION_TTL_MS,
+      target,
+    });
+    const reply = buildWhatsAppClarificationReplyMessage(
+      `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os registros recentes para ${action.toMealLabel}?\n\nResponda APENAS, TODOS ou CANCELAR.`,
+    );
     return {
       handled: true,
-      reply: buildWhatsAppClarificationReplyMessage(`Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?`),
+      reply,
+      ...(created ? {
+        interactiveReply: buildWhatsappClosedDecisionReply({
+          bodyText: reply,
+          pendingOperationId: created.id,
+          actions: buildGenericConfirmationActions(target),
+        }),
+      } : {}),
       eventType: "whatsapp.action_clarification_needed",
-      detail: `Comando ambíguo de reclassificação para ${action.toMealLabel}. Registros recentes: ${recentSummary}.`,
+      detail: `Decisão fechada de escopo criada para ${action.toMealLabel}. Registros recentes: ${recentSummary}.`,
+      data: {
+        pendingOperationId: created?.id ?? null,
+        pendingType: PENDING_CONFIRMATION_TYPE,
+        interactionId: "generic_confirmation.reclassify_scope",
+        interactionActionCount: 3,
+        interactionComponent: "buttons",
+      },
     };
   }
 
-  const summary = `${action.fromMealLabel} → ${action.toMealLabel}`;
+  const target: PendingWhatsAppConfirmation = {
+    action,
+    mealIds: matchingMeals.map(meal => meal.id),
+    summary,
+  };
   const created = await pendingOperationRepository.createPendingOperation({
     userId,
     type: PENDING_CONFIRMATION_TYPE,
     origin: PENDING_CONFIRMATION_ORIGIN,
     ttlMs: PENDING_CONFIRMATION_TTL_MS,
-    target: {
-      action,
-      mealIds: matchingMeals.map(meal => meal.id),
-      summary,
-    } satisfies PendingWhatsAppConfirmation,
+    target,
   });
-
   const reply = buildWhatsAppActionConfirmationRequestReplyMessage({
     summary: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}.`,
     confirmInstruction: `Responda SIM para confirmar a mudança para ${action.toMealLabel}.`,
     cancelInstruction: "Responda CANCELAR para desistir.",
   });
-
   return {
     handled: true,
     reply,
-    ...(created
-      ? {
-          interactiveReply: buttonsReply(reply, [
-            { id: buildWhatsAppCallbackId(created.id, CONFIRM_ACTION), title: "Confirmar" },
-            { id: buildWhatsAppCallbackId(created.id, CANCEL_ACTION), title: "Cancelar" },
-          ]),
-        }
-      : {}),
+    ...(created ? {
+      interactiveReply: buildWhatsappClosedDecisionReply({
+        bodyText: reply,
+        pendingOperationId: created.id,
+        actions: buildGenericConfirmationActions(target),
+      }),
+    } : {}),
     eventType: "whatsapp.action_confirmation_requested",
     detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };
@@ -279,87 +321,49 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
   const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
-  if (mlMatch) {
-    return Math.round(Number(mlMatch[1].replace(",", ".")));
-  }
-
+  if (mlMatch) return Math.round(Number(mlMatch[1].replace(",", ".")));
   const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
-  if (literMatch) {
-    return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
-  }
-
+  if (literMatch) return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
   return null;
 }
 
 function isWaterOnlyText(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
-  if (!/\baguas?\b/.test(normalized)) {
-    return false;
-  }
-
+  if (!/\baguas?\b/.test(normalized)) return false;
   const remaining = normalized
     .replace(/\d+(?:[,.]\d+)?/g, " ")
     .replace(/[^a-z\s]/g, " ")
     .split(/\s+/)
     .filter(Boolean)
     .filter(word => !WATER_LOG_ALLOWED_WORDS.includes(word));
-
   return remaining.length === 0;
 }
 
 export function detectWaterLogFromMessage(message: WhatsAppWebhookMessage) {
   const text = getWhatsAppMessageTextBody(message);
-  if (!text || message.image?.id || message.audio?.id) {
-    return null;
-  }
-
-  if (!isWaterOnlyText(text)) {
-    return null;
-  }
-
+  if (!text || message.image?.id || message.audio?.id || !isWaterOnlyText(text)) return null;
   const amountMl = parseWaterAmountMl(text);
-  if (!amountMl || amountMl <= 0 || amountMl > MAX_WATER_LOG_AMOUNT_ML) {
-    return null;
-  }
-
+  if (!amountMl || amountMl <= 0 || amountMl > MAX_WATER_LOG_AMOUNT_ML) return null;
   return { amountMl };
 }
 
 function parseWeightKg(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
   const kgMatch = normalized.match(/(?:\bpeso\b|\bpesei\b|\bpesando\b|\bpeso atual\b)?\s*(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:kg|kgs|quilo|quilos)\b/);
-  if (kgMatch) {
-    return Number(kgMatch[1].replace(",", "."));
-  }
-
+  if (kgMatch) return Number(kgMatch[1].replace(",", "."));
   const numberBeforeWeightMatch = normalized.match(/\b(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:de\s*)?(?:peso|pesei|pesando|peso atual)\b/);
-  if (numberBeforeWeightMatch) {
-    return Number(numberBeforeWeightMatch[1].replace(",", "."));
-  }
-
+  if (numberBeforeWeightMatch) return Number(numberBeforeWeightMatch[1].replace(",", "."));
   const weightFirstMatch = normalized.match(/\b(?:peso|pesei|pesando|peso atual)\b[^\d]*(\d{2,3}(?:[,.]\d{1,2})?)\b/);
-  if (weightFirstMatch) {
-    return Number(weightFirstMatch[1].replace(",", "."));
-  }
-
+  if (weightFirstMatch) return Number(weightFirstMatch[1].replace(",", "."));
   return null;
 }
 
 export function detectWeightLogFromMessage(message: WhatsAppWebhookMessage) {
   const text = getWhatsAppMessageTextBody(message);
-  if (!text || message.image?.id || message.audio?.id) {
-    return null;
-  }
-
+  if (!text || message.image?.id || message.audio?.id) return null;
   const normalized = normalizeWhatsAppIntentText(text);
-  if (!/\b(peso|pesei|pesando|kg|kgs|quilo|quilos)\b/.test(normalized)) {
-    return null;
-  }
-
+  if (!/\b(peso|pesei|pesando|kg|kgs|quilo|quilos)\b/.test(normalized)) return null;
   const weightKg = parseWeightKg(text);
-  if (!weightKg || weightKg < MIN_WEIGHT_LOG_KG || weightKg > MAX_WEIGHT_LOG_KG) {
-    return null;
-  }
-
+  if (!weightKg || weightKg < MIN_WEIGHT_LOG_KG || weightKg > MAX_WEIGHT_LOG_KG) return null;
   return { weightKg };
 }

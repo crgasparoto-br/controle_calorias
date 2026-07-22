@@ -6,8 +6,15 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import NutritionGoalPreviewValidityBridge from "./components/NutritionGoalPreviewValidityBridge";
 import NutritionGoalReportInvalidator from "./components/NutritionGoalReportInvalidator";
 import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbed";
+import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
+import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
+import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
+import ProfessionalEntitlementGate, {
+  type ProfessionalRouteEntitlement,
+} from "./components/ProfessionalEntitlementGate";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
+import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
@@ -24,7 +31,12 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
-const ProfessionalPage = lazy(() => import("@/pages/ProfessionalReportsPage"));
+const ProfessionalSettingsPage = lazy(
+  () => import("@/pages/ProfessionalSettingsPage")
+);
+const ProfessionalWorkspacePage = lazy(
+  () => import("@/pages/ProfessionalWorkspacePage")
+);
 const QuickEditExercisePage = lazy(
   () => import("@/pages/QuickEditExercisePage")
 );
@@ -49,21 +61,60 @@ function PageLoadingFallback() {
   );
 }
 
+function RetiredProfessionalBookmarkRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => setLocation("/professional"), [setLocation]);
+  return <PageLoadingFallback />;
+}
+
+export function professionalResourceForPath(
+  location: string
+): ProfessionalRouteEntitlement {
+  if (location.startsWith("/professional/patients")) {
+    return "professional_portfolio";
+  }
+  if (location.startsWith("/professional/follow-up")) {
+    return "professional_record";
+  }
+  if (location.startsWith("/professional/messages")) {
+    return "professional_messages";
+  }
+  if (location.startsWith("/professional/reports")) {
+    return "professional_reports";
+  }
+  if (location.startsWith("/professional/settings")) {
+    return "professional_settings";
+  }
+  return "professional_dashboard";
+}
+
+function ProfessionalWorkspaceRoute() {
+  const [location] = useLocation();
+  return (
+    <ProfessionalEntitlementGate
+      resource={professionalResourceForPath(location)}
+    >
+      <ProfessionalWorkspacePage />
+    </ProfessionalEntitlementGate>
+  );
+}
+
+function ProfessionalSettingsRoute() {
+  return (
+    <ProfessionalEntitlementGate resource="professional_settings">
+      <ProfessionalSettingsPage />
+    </ProfessionalEntitlementGate>
+  );
+}
+
 function Router() {
   const [location] = useLocation();
-
   useEffect(() => {
-    if (location === "/" || location === "/today") {
+    if (location === "/" || location === "/today")
       trackEvent("daily_dashboard_viewed", { surface: "home" });
-    }
-    if (location === "/reports") {
+    if (location === "/reports")
       trackEvent("weekly_report_viewed", { report_type: "progress" });
-    }
-    // if (location === "/onboarding" || location === "/settings") {
-    //   trackEvent("settings_opened", { entry_point: "route" });
-    // }
   }, [location]);
-
   return (
     <Suspense fallback={<PageLoadingFallback />}>
       <Switch>
@@ -92,7 +143,31 @@ function Router() {
         <Route path="/channels" component={ChannelsPage} />
         <Route path="/health-integrations" component={HealthIntegrationsPage} />
         <Route path="/synced-health-data" component={SyncedHealthDataPage} />
-        <Route path="/professional" component={ProfessionalPage} />
+        <Route
+          path="/professional/legacy"
+          component={RetiredProfessionalBookmarkRedirect}
+        />
+        <Route
+          path="/professional/patients"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/follow-up"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/messages"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/reports"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/settings"
+          component={ProfessionalSettingsRoute}
+        />
+        <Route path="/professional" component={ProfessionalWorkspaceRoute} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
@@ -112,7 +187,11 @@ function App() {
           <NutritionGoalReportInvalidator />
           <ProfessionalAnalyzeTabBridge />
           <ProfessionalGoalExceptionSuggestionsEmbed />
+          <ProfessionalOperationalAlertsBridge />
           <PatientGoalSuggestionsEmbed />
+          <PatientProfessionalProfilesEmbed />
+          <PatientProfessionalGuidancesEmbed />
+          <PatientProfessionalMessagesEmbed />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

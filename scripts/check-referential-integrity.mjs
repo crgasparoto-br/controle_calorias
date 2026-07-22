@@ -11,6 +11,18 @@ const checks = [
     sql: "SELECT COUNT(*) AS count FROM nutritionGoals g LEFT JOIN users u ON u.id = g.userId WHERE u.id IS NULL",
   },
   {
+    name: "metas profissionais sem vínculo ou acompanhamento",
+    sql: "SELECT COUNT(*) AS count FROM professionalOfficialGoals g LEFT JOIN professionalPatientAuthorizations a ON a.id = g.authorizationId LEFT JOIN professionalPatientTrackings t ON t.id = g.trackingId WHERE a.id IS NULL OR t.id IS NULL",
+  },
+  {
+    name: "solicitações de revisão sem meta profissional",
+    sql: "SELECT COUNT(*) AS count FROM professionalGoalReviewRequests r LEFT JOIN professionalOfficialGoals g ON g.id = r.goalId WHERE g.id IS NULL",
+  },
+  {
+    name: "notificações sem meta profissional",
+    sql: "SELECT COUNT(*) AS count FROM professionalGoalNotifications n LEFT JOIN professionalOfficialGoals g ON g.id = n.goalId WHERE g.id IS NULL",
+  },
+  {
     name: "foodCatalog com brandId inválido",
     sql: "SELECT COUNT(*) AS count FROM foodCatalog f LEFT JOIN foodBrands b ON b.id = f.brandId WHERE f.brandId IS NOT NULL AND b.id IS NULL",
   },

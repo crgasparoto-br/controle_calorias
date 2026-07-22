@@ -216,8 +216,21 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       },
     });
     getUserNutritionGoalMock.mockResolvedValue({
+      defaultGoal: {
+        calories: 2200,
+        proteinGrams: 140,
+        carbsGrams: 250,
+        fatGrams: 70,
+        effectiveFrom: new Date("2026-01-01T00:00:00Z"),
+      },
+      exceptions: [],
+      days: [],
       today: {
         calories: 2200,
+        proteinGrams: 140,
+        carbsGrams: 250,
+        fatGrams: 70,
+        includeExerciseCalories: true,
       },
     });
     storagePutMock.mockImplementation(async (key: string, _buffer: Buffer, mimeType: string) => ({

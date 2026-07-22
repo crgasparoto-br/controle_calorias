@@ -118,7 +118,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     ];
 
     if (hasActiveProfessionalProfile) {
-      baseItems.push({ icon: Stethoscope, label: "Profissional", path: "/professional" });
+      baseItems.push({ icon: Stethoscope, label: "Área profissional", path: "/professional" });
     }
 
     if (user?.role === "admin") {

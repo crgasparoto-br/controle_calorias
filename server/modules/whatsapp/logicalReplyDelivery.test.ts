@@ -15,27 +15,29 @@ describe("logicalReplyDelivery", () => {
     sendMock.mockImplementation(async (_to, reply) => ({ ok: true, primaryOk: true, recorded: true, sends: reply.messages.map((message: unknown) => ({ message, ok: true, detail: "ok" })) }));
   });
 
-  it("compõe texto, CTA e imagem na mesma resposta lógica", async () => {
+  it("compõe texto, CTA curto e imagem na mesma resposta lógica", async () => {
     const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: "Refeição registrada", auxiliaryImage: { url: "https://img.test/a.png", caption: "Imagem anotada" } });
     expect(reply.messages).toEqual([
-      { type: "cta_url", bodyText: "Refeição registrada", buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
+      { type: "text", body: "Refeição registrada" },
+      { type: "cta_url", bodyText: "Precisa ajustar algum alimento?", buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
       { type: "image_url", url: "https://img.test/a.png", caption: "Imagem anotada" },
     ]);
-    expect(reply.recordText).toBe("Refeição registrada");
+    expect(reply.recordText).toBeUndefined();
   });
 
-  it("preserva o texto canônico recebido ao compor CTA e persistência", async () => {
+  it("preserva o resumo canônico como primário sem repeti-lo no CTA", async () => {
     const canonicalReply = "Refeição atualizada\n\n*Meta:* 2.000 kcal\n*Consumo:* 1.850 kcal\n*Déficit:* 150 kcal (-7%)";
 
     const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: canonicalReply });
 
     expect(reply.messages).toEqual([
-      { type: "cta_url", bodyText: canonicalReply, buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
+      { type: "text", body: canonicalReply },
+      { type: "cta_url", bodyText: "Precisa ajustar algum alimento?", buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
     ]);
-    expect(reply.recordText).toBe(canonicalReply);
+    expect(reply.messages[1]).not.toMatchObject({ bodyText: canonicalReply });
   });
 
-  it("não substitui lista por CTA", async () => {
+  it("não anexa CTA a uma decisão interativa", async () => {
     const logicalReply = listReply("Escolha", "Ver opções", [{ rows: [{ id: "opaque", title: "Arroz" }] }]);
     const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: "Escolha", logicalReply });
     expect(reply).toBe(logicalReply);

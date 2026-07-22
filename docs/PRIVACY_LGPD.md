@@ -1,19 +1,23 @@
 # Privacidade e LGPD
 
+## Comunicação profissional
+
+Mensagens de acompanhamento são dados pessoais potencialmente sensíveis. A finalidade é permitir orientação e acompanhamento individual autorizado. O conteúdo não pode ser enviado a analytics nem logs; eventos operacionais registram apenas estado, canal, identificadores internos e erro sanitizado. Revogação bloqueia novas leituras pelo profissional, sem apagar automaticamente o histórico auditável nem substituir o fluxo de exportação/exclusão do titular.
+
 Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudança em IA, WhatsApp, mídia, logs, analytics, exportação, exclusão, acesso profissional e integrações de saúde como mudança sensível.
 
 ## Dados pessoais e sensíveis
 
-| Categoria | Exemplos | Onde aparece |
-|---|---|---|
-| Identidade | Nome, e-mail, `openId`, telefone WhatsApp e nome exibido | `users`, `userProfiles`, `whatsappConnections` |
-| Saúde/nutrição | Idade, altura, peso, objetivo, restrições, refeições, macros, hidratação e exercícios | `userProfiles`, `weightEntries`, `meals`, `mealItems`, `waterLogs`, `exercises` |
-| Conteúdo bruto | Texto de refeição, transcrição, imagem, áudio, notas livres e mídia | `mealMedia`, `mealInferences`, fluxos de IA e WhatsApp |
-| Contexto conversacional | Mensagens sanitizadas, transcrições sanitizadas, referências opacas de mídia, resumos e vínculos de domínio | `whatsappConversations`, `whatsappConversationMessages`, `whatsappConversationSummaries`, `whatsappMessageDomainLinks` |
-| Integrações externas | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência | `appSecrets`, módulos de integrações de saúde |
-| IA | Prompt, contexto nutricional, reasoning, confidence, inferências e logs | `server/_core`, `server/modules/assistant`, `server/modules/meals` |
-| Operação | Tokens, IDs de canal, URLs de mídia, detalhes técnicos e logs de erro | `appSecrets`, logs operacionais e analytics |
-| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários e sugestões | módulo `professionals` |
+| Categoria                     | Exemplos                                                                                                                                        | Onde aparece                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Identidade                    | Nome, e-mail, `openId`, telefone WhatsApp e nome exibido                                                                                        | `users`, `userProfiles`, `whatsappConnections`                                                                         |
+| Saúde/nutrição                | Idade, altura, peso, objetivo, restrições, refeições, macros, hidratação e exercícios                                                           | `userProfiles`, `weightEntries`, `meals`, `mealItems`, `waterLogs`, `exercises`                                        |
+| Conteúdo bruto                | Texto de refeição, transcrição, imagem, áudio, notas livres e mídia                                                                             | `mealMedia`, `mealInferences`, fluxos de IA e WhatsApp                                                                 |
+| Contexto conversacional       | Mensagens sanitizadas, transcrições sanitizadas, referências opacas de mídia, resumos e vínculos de domínio                                     | `whatsappConversations`, `whatsappConversationMessages`, `whatsappConversationSummaries`, `whatsappMessageDomainLinks` |
+| Integrações externas          | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência | `appSecrets`, módulos de integrações de saúde                                                                          |
+| IA                            | Prompt, contexto nutricional, reasoning, confidence, inferências e logs                                                                         | `server/_core`, `server/modules/assistant`, `server/modules/meals`                                                     |
+| Operação                      | Tokens, IDs de canal, URLs de mídia, detalhes técnicos e logs de erro                                                                           | `appSecrets`, logs operacionais e analytics                                                                            |
+| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários, sugestões, metas oficiais, justificativas e pedidos de revisão                      | módulo `professionals`                                                                                                 |
 
 ## Princípios
 
@@ -40,6 +44,8 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Se um bucket tiver domínio público de leitura, trate a posse do caminho do objeto como acesso potencial à mídia. Não registre caminhos completos em logs desnecessários e configure lifecycle policy para limitar retenção.
 - A exclusão de conta remove os vínculos e linhas principais do produto. Objetos externos exigem rotina operacional ou lifecycle policy até existir deleção automatizada por chave.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
+- Justificativas de metas profissionais e motivos de revisão são dados nutricionais sensíveis: permanecem no banco e nas telas autorizadas, não entram em logs, analytics nem na notificação ao paciente quando a justificativa for privada.
+- Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
 
 ## Contexto persistente do WhatsApp
 

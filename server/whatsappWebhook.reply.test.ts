@@ -133,7 +133,24 @@ describe("whatsappWebhook detailed replies", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getUserDayMealTotalsMock.mockResolvedValue({ totals: { calories: 795 } });
-    getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
+    getUserNutritionGoalMock.mockResolvedValue({
+      defaultGoal: {
+        calories: 2200,
+        proteinGrams: 140,
+        carbsGrams: 250,
+        fatGrams: 70,
+        effectiveFrom: new Date("2026-01-01T00:00:00Z"),
+      },
+      exceptions: [],
+      days: [],
+      today: {
+        calories: 2200,
+        proteinGrams: 140,
+        carbsGrams: 250,
+        fatGrams: 70,
+        includeExerciseCalories: true,
+      },
+    });
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });

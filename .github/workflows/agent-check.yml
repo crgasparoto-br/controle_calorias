@@ -60,7 +60,22 @@ jobs:
         run: pnpm architecture:check
 
       - name: Documentation check
-        run: pnpm docs:check
+        run: |
+          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
+            echo "Documentation check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/docs-check.log
+            exit 1
+          fi
+          cat /tmp/docs-check.log
+
+      - name: Upload documentation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-docs-log
+          path: /tmp/docs-check.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Build
         run: pnpm build
@@ -70,6 +85,32 @@ jobs:
 
       - name: CI gate docs check
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+      - name: Create verification manifest
+        run: |
+          mkdir -p /tmp/issue-857-verification
+          cat > /tmp/issue-857-verification/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "issue": 857,
+            "repository": "${GITHUB_REPOSITORY}",
+            "commitSha": "${GITHUB_SHA}",
+            "runId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "event": "${GITHUB_EVENT_NAME}",
+            "ref": "${GITHUB_REF}",
+            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat /tmp/issue-857-verification/manifest.json
+
+      - name: Upload verification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-857-verification-${{ github.sha }}
+          path: /tmp/issue-857-verification/manifest.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Database integrity check
         if: ${{ env.DATABASE_URL != '' }}

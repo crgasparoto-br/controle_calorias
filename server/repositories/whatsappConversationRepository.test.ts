@@ -504,6 +504,28 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     expect(recovered[0].sanitizedText).toBe("sobrevive ao reinício");
   });
 
+  it("não duplica a resposta funcional registrada no retry do mesmo inbound", async () => {
+    const { repository } = createRepository();
+    const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+    const input = {
+      conversationId: conversation!.id,
+      userId: 1,
+      direction: "outbound" as const,
+      contentType: "text" as const,
+      text: "Resposta funcional",
+      respondsToMessageId: 123,
+      occurredAt: new Date("2026-07-10T12:00:00Z"),
+    };
+
+    const first = await repository.appendMessage(input);
+    const retry = await repository.appendMessage({ ...input, occurredAt: new Date("2026-07-10T12:01:00Z") });
+
+    expect(first?.wasNewInsert).toBe(true);
+    expect(retry?.wasNewInsert).toBe(false);
+    expect(retry?.message.id).toBe(first?.message.id);
+    expect(await repository.findRecentMessages(conversation!.id)).toHaveLength(1);
+  });
+
   it("retorna valores de fallback seguros quando não há banco disponível", async () => {
     const onWarning = vi.fn();
     const repository = createDrizzleWhatsAppConversationRepository({ getDb: async () => null, onWarning });
