@@ -91,6 +91,7 @@ export type BillingAdminUserRow = {
 
 export type BillingAdminUserAccess = BillingAdminUserRow & {
   access: UserEntitlementsResult;
+  activeOverride: BillingAdminOverride | null;
 };
 
 export type BillingPlanAnalytics = {
@@ -166,15 +167,22 @@ export type BillingRepository = {
   reserveProfessionalCapacity(
     input: ReserveBillingCapacityInput
   ): Promise<ReserveBillingCapacityResult>;
-  releaseProfessionalCapacity(
-    input: ReleaseBillingCapacityInput
-  ): Promise<void>;
+  releaseProfessionalCapacity(input: ReleaseBillingCapacityInput): Promise<void>;
   grantAdminOverride(
     input: GrantBillingOverrideInput
   ): Promise<BillingAdminOverride>;
   revokeAdminOverride(
     input: RevokeBillingOverrideInput
   ): Promise<BillingAdminOverride>;
-  searchUsers(query: string, limit: number): Promise<BillingAdminUserRow[]>;
+  getActiveAdminOverride(
+    userId: number,
+    now: Date
+  ): Promise<BillingAdminOverride | null>;
+  listAdminOverrides(userId: number, limit: number): Promise<BillingAdminOverride[]>;
+  searchUsers(
+    query: string,
+    limit: number,
+    offset?: number
+  ): Promise<BillingAdminUserRow[]>;
   getAdminAnalytics(now: Date): Promise<BillingAdminAnalytics>;
 };
