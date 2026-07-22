@@ -43,21 +43,22 @@ async function createPeriodPending(userId: number) {
   return pending;
 }
 
-describe("clarificação interativa de período (issues #782/#784)", () => {
+describe("clarificação interativa de período (issues #782/#784/#858)", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
     listMealsMock.mockResolvedValue([]);
   });
 
-  it("monta lista interativa com as opções de período vinculadas à pendência", async () => {
+  it("monta lista com quatro períodos e Cancelar vinculados à mesma pendência", async () => {
     const pending = await createPeriodPending(71_001);
     const reply = buildWhatsappPeriodReportClarificationListReply(pending.id, "Me diga o período.");
 
     const rows = listRows(reply);
-    // Decisão fechada com pendência inclui Cancelar (issue #858).
-    expect(rows.map(row => row.title)).toEqual([...WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => option.title), "Cancelar"]);
+    expect(rows.map(row => row.title)).toEqual([
+      ...WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => option.title),
+      "Cancelar",
+    ]);
     for (const row of rows) {
-      // ID opaco criptografado (v1.<iv>.<payload>.<tag>): não expõe a ação nem o id interno.
       expect(row.id).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
       expect(row.id).not.toContain("period:");
     }
@@ -75,6 +76,20 @@ describe("clarificação interativa de período (issues #782/#784)", () => {
     expect(result.result.eventType).toBe("whatsapp.intent.period_report");
     expect(result.result.reply).toContain("Resumo de hoje");
     expect(result.result.reply).not.toContain("Meta estimada");
+  });
+
+  it("Cancelar consome a pendência sem gerar resumo", async () => {
+    const userId = 71_007;
+    const pending = await createPeriodPending(userId);
+    const reply = buildWhatsappPeriodReportClarificationListReply(pending.id, "Me diga o período.");
+    const cancelRow = listRows(reply).find(row => row.title === "Cancelar");
+    if (!cancelRow) throw new Error("opção Cancelar não encontrada");
+
+    const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: cancelRow.id });
+    if (result.step !== "interactive_callback") throw new Error("callback não resolvido pelo gate");
+    expect(result.result.eventType).toBe("whatsapp.interactive_callback.period_report_cancelled");
+    expect(result.result.reply).toContain("Não montei o resumo");
+    expect(await pendingRepository.getActivePendingOperation(userId)).toBeNull();
   });
 
   it("reentrega/clique duplo na mesma seleção retorna indisponível sem repetir a resolução", async () => {

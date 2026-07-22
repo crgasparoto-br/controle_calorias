@@ -18,6 +18,7 @@ const professionalsService = await import("../professionals/service");
 
 type ButtonsMessage = { type: "buttons"; buttons: Array<{ id: string; title: string }> };
 type ListMessage = { type: "list"; sections: Array<{ rows: Array<{ id: string; title: string }> }> };
+type InteractiveMessage = ButtonsMessage | ListMessage;
 
 function extractButtonId(interactiveReply: unknown, title: string) {
   const message = (interactiveReply as { messages: ButtonsMessage[] }).messages[0];
@@ -26,9 +27,8 @@ function extractButtonId(interactiveReply: unknown, title: string) {
   return button.id;
 }
 
-function extractListRowId(interactiveReply: unknown, titleContains: string) {
-  // Regra central de componente (issue #858): até 3 ações usam botões; 4+ usam lista.
-  const message = (interactiveReply as { messages: Array<ButtonsMessage | ListMessage> }).messages[0];
+function extractOptionId(interactiveReply: unknown, titleContains: string) {
+  const message = (interactiveReply as { messages: InteractiveMessage[] }).messages[0];
   const options = message.type === "buttons"
     ? message.buttons
     : message.sections.flatMap(section => section.rows);
@@ -51,7 +51,7 @@ function baseMeal() {
   };
 }
 
-describe("messageRouter — resolução central de callbacks interativos (issue #782)", () => {
+describe("messageRouter — resolução central de callbacks interativos (issues #782/#858)", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
     removeMealMock.mockReset();
@@ -114,7 +114,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
     expect(removeMealMock).toHaveBeenCalledTimes(1);
   });
 
-  it("seleção ambígua por lista: escolher uma opção avança para confirmação por botões, não executa a exclusão direto", async () => {
+  it("seleção ambígua com dois candidatos usa botões e avança para confirmação sem excluir direto", async () => {
     const userId = 61_005;
     const meal = { ...baseMeal(), userId };
     listMealsMock.mockResolvedValue([meal]);
@@ -122,7 +122,8 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
 
     const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate" });
     expect(detection?.action).toBe("clarification_needed");
-    const selectSecondId = extractListRowId(detection!.interactiveReply, "Chocolate amargo");
+    expect(detection?.interactiveReply?.messages[0]?.type).toBe("buttons");
+    const selectSecondId = extractOptionId(detection!.interactiveReply, "Chocolate amargo");
 
     const selectionResult = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectSecondId });
     if (selectionResult.step !== "interactive_callback") throw new Error("unreachable");
@@ -138,20 +139,19 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
     expect(updateMealMock.mock.calls[0][1].items.map((item: { foodName: string }) => item.foodName)).toEqual(["Chocolate ao leite"]);
   });
 
-  it("ação incompatível com o alvo persistido (confirm sobre uma pendência de seleção) retorna registro não encontrado", async () => {
+  it("ação incompatível com o alvo persistido é bloqueada pelo gate antes do resolvedor", async () => {
     const userId = 61_006;
     listMealsMock.mockResolvedValue([{ ...baseMeal(), userId }]);
 
     const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate" });
-    const selectionButtonId = extractListRowId(detection!.interactiveReply, "Chocolate amargo");
-
-    // Reaproveita o mesmo pendingOperationId da seleção, mas com a ação "confirm" (que só é válida para uma pendência de exclusão direta, não de seleção).
+    const selectionButtonId = extractOptionId(detection!.interactiveReply, "Chocolate amargo");
     const parsed = (await import("./interactiveCallback")).parseWhatsAppCallbackId(selectionButtonId);
     const forgedConfirmId = buildWhatsAppCallbackId(parsed!.pendingOperationId, "confirm");
 
     const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: forgedConfirmId });
     if (result.step !== "interactive_callback") throw new Error("unreachable");
-    expect(result.result.eventType).toBe("whatsapp.intent.delete_callback_resource_not_found");
+    expect(result.result.eventType).toBe("whatsapp.interactive_callback.unavailable");
+    expect(result.result.data).toEqual(expect.objectContaining({ callbackBlocked: true }));
     expect(removeMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
   });
@@ -163,7 +163,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
     expect(result.result.reply).not.toContain("999999998");
   });
 
-  describe("seleção ambígua de item por lista (issue #783)", () => {
+  describe("seleção ambígua de item (issues #783/#858)", () => {
     function ambiguousMeal(userId: number) {
       return {
         id: 701,
@@ -178,7 +178,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
       };
     }
 
-    it("ajuste de gramas ambíguo: escolher uma opção por lista aplica a mutação sem pedir confirmação extra", async () => {
+    it("ajuste de gramas ambíguo com dois candidatos usa botões e aplica a opção escolhida", async () => {
       const userId = 61_201;
       const meal = ambiguousMeal(userId);
       listMealsMock.mockResolvedValue([meal]);
@@ -187,7 +187,8 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
       const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
       const detection = await executeWhatsappGramsAdjustmentIntent(userId, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
       expect(detection?.action).toBe("clarification_needed");
-      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+      expect(detection?.interactiveReply?.messages[0]?.type).toBe("buttons");
+      const selectFirstId = extractOptionId(detection!.interactiveReply, "Queijo Minas");
 
       const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectFirstId });
       if (result.step !== "interactive_callback") throw new Error("unreachable");
@@ -196,7 +197,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
       expect(updateMealMock.mock.calls[0][1].items[0]).toEqual(expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 60 }));
     });
 
-    it("substituição ambígua: cancelar por lista não altera a refeição", async () => {
+    it("substituição ambígua: cancelar pelo componente não altera a refeição", async () => {
       const userId = 61_202;
       const jantar = { id: 702, userId, mealLabel: "Jantar", occurredAt: "2026-06-23T18:10:00.000Z", notes: null, items: [{ foodName: "Queijo prato", canonicalName: "Queijo prato", portionText: "50 g", estimatedGrams: 50, servings: 1, calories: 150, protein: 10, carbs: 1, fat: 12, confidence: 0.9, source: "catalog" as const }] };
       const lanche = { id: 703, userId, mealLabel: "Lanche", occurredAt: "2026-06-23T18:00:00.000Z", notes: null, items: [{ foodName: "Queijo mussarela", canonicalName: "Queijo mussarela", portionText: "70 g", estimatedGrams: 70, servings: 1, calories: 210, protein: 15, carbs: 1, fat: 17, confidence: 0.9, source: "catalog" as const }] };
@@ -205,7 +206,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
       const { executeWhatsappContextualFoodReplacementIntent } = await import("./contextualFoodReplacementIntent");
       const detection = await executeWhatsappContextualFoodReplacementIntent(userId, { text: "não é queijo, é ricota", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
       expect(detection?.action).toBe("clarification_needed");
-      const cancelId = extractListRowId(detection!.interactiveReply, "Cancelar");
+      const cancelId = extractOptionId(detection!.interactiveReply, "Cancelar");
 
       const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: cancelId });
       if (result.step !== "interactive_callback") throw new Error("unreachable");
@@ -221,7 +222,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
 
       const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
       const detection = await executeWhatsappGramsAdjustmentIntent(userId, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
-      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+      const selectFirstId = extractOptionId(detection!.interactiveReply, "Queijo Minas");
 
       const first = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectFirstId });
       if (first.step !== "interactive_callback") throw new Error("unreachable");
@@ -242,7 +243,7 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
 
       const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
       const detection = await executeWhatsappGramsAdjustmentIntent(owner, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
-      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+      const selectFirstId = extractOptionId(detection!.interactiveReply, "Queijo Minas");
 
       const attackerAttempt = await resolveWhatsAppPrecedenceGate({ userId: attacker, interactiveReplyId: selectFirstId });
       if (attackerAttempt.step !== "interactive_callback") throw new Error("unreachable");

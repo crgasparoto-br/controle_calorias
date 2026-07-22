@@ -44,13 +44,16 @@ export type WhatsAppLogicalReply = {
 
 const MAX_INTERACTIVE_BUTTONS = 3;
 const MAX_BUTTON_TITLE_LENGTH = 20;
+const MAX_INTERACTIVE_BODY_LENGTH = 1024;
 const MAX_LIST_SECTIONS = 10;
 const MAX_LIST_ROWS_TOTAL = 10;
+const MAX_LIST_SECTION_TITLE_LENGTH = 24;
 const MAX_LIST_ROW_TITLE_LENGTH = 24;
 const MAX_LIST_ROW_DESCRIPTION_LENGTH = 72;
 const MAX_LIST_BUTTON_TEXT_LENGTH = 20;
 const MAX_CTA_BUTTON_TEXT_LENGTH = 20;
 const MAX_CTA_BODY_LENGTH = 1024;
+const MAX_CTA_URL_LENGTH = 2000;
 
 export type WhatsAppReplyValidationError = { field: string; detail: string };
 
@@ -61,6 +64,8 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
   if (message.type === "buttons") {
     if (!message.bodyText || !message.bodyText.trim()) {
       errors.push({ field: "bodyText", detail: "Mensagem de botões com corpo vazio ou inválido." });
+    } else if (message.bodyText.length > MAX_INTERACTIVE_BODY_LENGTH) {
+      errors.push({ field: "bodyText", detail: `Corpo da mensagem de botões excede ${MAX_INTERACTIVE_BODY_LENGTH} caracteres.` });
     }
     if (message.buttons.length === 0) {
       errors.push({ field: "buttons", detail: "Mensagem de botões sem nenhum botão." });
@@ -88,6 +93,8 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
   if (message.type === "list") {
     if (!message.bodyText || !message.bodyText.trim()) {
       errors.push({ field: "bodyText", detail: "Mensagem de lista com corpo vazio ou inválido." });
+    } else if (message.bodyText.length > MAX_INTERACTIVE_BODY_LENGTH) {
+      errors.push({ field: "bodyText", detail: `Corpo da lista excede ${MAX_INTERACTIVE_BODY_LENGTH} caracteres.` });
     }
     if (!message.buttonText || !message.buttonText.trim()) {
       errors.push({ field: "buttonText", detail: "Mensagem de lista sem texto do botão de abertura." });
@@ -109,6 +116,9 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
     }
     const seenIds = new Set<string>();
     for (const section of message.sections) {
+      if (section.title && section.title.length > MAX_LIST_SECTION_TITLE_LENGTH) {
+        errors.push({ field: "sections", detail: `Título de seção excede ${MAX_LIST_SECTION_TITLE_LENGTH} caracteres.` });
+      }
       for (const row of section.rows) {
         if (!row.id || !row.id.trim()) {
           errors.push({ field: "sections", detail: "Linha de lista sem identificador de ação." });
@@ -142,6 +152,8 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
     }
     if (!message.url || !/^https?:\/\//i.test(message.url)) {
       errors.push({ field: "url", detail: "Mensagem de CTA com URL ausente ou inválida." });
+    } else if (message.url.length > MAX_CTA_URL_LENGTH) {
+      errors.push({ field: "url", detail: `URL do CTA excede ${MAX_CTA_URL_LENGTH} caracteres.` });
     }
   }
 
@@ -159,7 +171,12 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
  */
 export function buildWhatsAppOutboundFallbackText(message: WhatsAppOutboundMessage): string | null {
   if (message.type === "cta_url") {
-    if (!message.bodyText?.trim() || !message.url?.trim()) return null;
+    if (
+      !message.bodyText?.trim()
+      || !message.buttonText?.trim()
+      || !/^https?:\/\//i.test(message.url)
+      || message.url.length > MAX_CTA_URL_LENGTH
+    ) return null;
     return [message.bodyText, "", `${message.buttonText}: ${message.url}`].join("\n");
   }
 

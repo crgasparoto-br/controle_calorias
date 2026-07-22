@@ -21,8 +21,8 @@ import {
 import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
-import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import {
   buildWhatsappDuplicateInboundResult,
   evaluateWhatsappInboundIdempotency,
@@ -30,6 +30,7 @@ import {
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
+import { supersedeActiveWhatsappPendingOperations } from "./pendingOperationPrecedence";
 import {
   buildWhatsappRouterResult,
   evaluateWhatsappIntentRoute,
@@ -159,6 +160,36 @@ function logTemporalResolution(userId: number, context: NonNullable<ReturnType<t
   });
 }
 
+function buildPendingReplacementBlockedResult() {
+  return {
+    handled: true as const,
+    action: "clarification_needed",
+    reply: "Não consegui substituir a ação pendente com segurança. Nada foi alterado. Cancele a ação anterior e envie novamente o novo comando.",
+    eventType: "whatsapp.pending_operation_replacement_blocked",
+    detail: "Novo comando completo bloqueado porque uma pendência anterior não pôde ser marcada como substituída.",
+    data: {
+      fallbackBlocked: true,
+      fallbackBlockReason: "pending_replacement_failed",
+      pendingState: "blocked",
+    },
+  };
+}
+
+function buildMultiActionValidationBlockedResult() {
+  return {
+    handled: true as const,
+    action: "clarification_needed",
+    reply: "Não consegui validar todas as ações do comando composto com segurança. Nada foi alterado; envie as ações separadamente.",
+    eventType: "whatsapp.multi_action.validation_blocked",
+    detail: "Comando composto reconhecido na pré-classificação, mas não confirmado na resolução final; fallback nutricional bloqueado.",
+    data: {
+      fallbackBlocked: true,
+      fallbackBlockReason: "multi_action_validation_failed",
+      pendingState: "blocked",
+    },
+  };
+}
+
 function normalizeContextReplyText(value?: string | null) {
   return value
     ?.normalize("NFD")
@@ -261,12 +292,44 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return aiQuestion;
   }
 
+  // O gate antecipado resolve apenas uma pendência alimentar já persistida ou
+  // bloqueia comando isolado. A criação de uma nova pendência ocorre mais tarde,
+  // no parser textual, depois dos parsers alimentares especializados.
+  const foodClarification = await logAndReturnInterpretedIntent(userId, await resolvePendingWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone,
+    messageId: input.messageId,
+  }), { text, receivedAt });
+  if (foodClarification) {
+    return foodClarification;
+  }
+
   const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
     text,
     receivedAt,
   }), { text, receivedAt });
   if (contextResult) {
     return contextResult;
+  }
+
+  const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
+  if (multiActionPreview) {
+    const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
+    if (!pendingWasReplaced) {
+      return logAndReturnInterpretedIntent(userId, buildPendingReplacementBlockedResult(), { text, receivedAt });
+    }
+  } else {
+    const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
+      text,
+      receivedAt,
+      timeZone: userTimezone,
+      entrypoint: "simulateWhatsappInbound",
+    }), { text, receivedAt });
+    if (deleteIntentResult) {
+      return deleteIntentResult;
+    }
   }
 
   const temporalResolution = resolveWhatsappTemporalContext({
@@ -282,27 +345,18 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     logTemporalResolution(userId, temporalResolution.context);
   }
 
-  const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
-    text,
-    temporalContext: temporalResolution.context,
-  }), { text, receivedAt });
-  if (multiAction) {
-    return multiAction;
+  if (multiActionPreview) {
+    const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
+      text,
+      temporalContext: temporalResolution.context,
+    }), { text, receivedAt });
+    return multiAction
+      ?? logAndReturnInterpretedIntent(userId, buildMultiActionValidationBlockedResult(), { text, receivedAt });
   }
 
   const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
   if (professionalAccessResponse) {
     return professionalAccessResponse;
-  }
-
-  const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
-    text,
-    timeZone: userTimezone,
-  }), { text, receivedAt });
-  if (deleteIntentResult) {
-    return temporalResolution.context
-      ? { ...deleteIntentResult, data: { ...deleteIntentResult.data, temporalContext: temporalResolution.context } }
-      : deleteIntentResult;
   }
 
   const route = evaluateWhatsappIntentRoute({
@@ -431,6 +485,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       text,
       receivedAt,
       userTimezone,
+      messageId: input.messageId,
     }), { text, receivedAt });
   if (interpreted) {
     return temporalResolution.context
@@ -439,7 +494,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId, userTimezone });
-  // WhatsappLlmNutritionFallback (handled: false) não é um resultado de intent tratado — ignorar aqui
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmRaw && "handled" in llmRaw && !llmRaw.handled ? null : llmRaw as Exclude<typeof llmRaw, { handled: false }>, { text, receivedAt });
   if (llmInterpreted) {
     return temporalResolution.context
@@ -463,23 +517,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   if (!route.shouldAllowNutritionFallback) {
     return logAndReturnRouterResult(userId, route);
-  }
-
-  if (isStandaloneWhatsappCommandWord(text)) {
-    // Rede de segurança final (issue #855): nenhum comando isolado deve
-    // alcançar processMealDraft, mesmo que uma heurística anterior tenha
-    // deixado passar.
-    return logAndReturnRouterResult(userId, {
-      action: "safe_clarification",
-      canonicalIntent: "mensagem_ambigua",
-      confidence: 0.85,
-      shouldAllowNutritionFallback: false,
-      reason: "Comando isolado sem pendência ativa bloqueado antes da persistência nutricional.",
-      reply: "Não encontrei uma operação pendente para continuar. Envie a mensagem completa, por exemplo: registrar 100 g de arroz.",
-      eventType: "whatsapp.router.mensagem_ambigua",
-      detail: "Comando isolado sem pendência ativa bloqueado antes da persistência nutricional.",
-      data: { pendingContextKind: null, calculation: null, possibleIntents: ["mensagem_ambigua", "adicionar_alimento"] },
-    });
   }
 
   const meal = await processMealDraft(userId, { source: "whatsapp", text }, userTimezone);

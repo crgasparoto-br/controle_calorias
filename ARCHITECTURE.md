@@ -6,15 +6,15 @@ A plataforma possui duas experiências de primeira classe — Área do Paciente 
 
 ## Stack principal
 
-| Camada | Tecnologia | Responsabilidade |
-|---|---|---|
-| Frontend | React + Vite + Tailwind | Fluxos web, dashboard, formulários e visualizações |
-| Backend | Express + tRPC | Contratos tipados, autenticação, orquestração e casos de uso |
-| Banco | MySQL/TiDB + Drizzle | Persistência relacional, migrações e integridade referencial |
-| IA principal | Provider OpenAI ou Gemini (selecionável) | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
-| IA legada remanescente | Forge restrito ao assistente educativo | Sugestões alimentares fora do fluxo principal de refeição |
-| Canal externo | WhatsApp Business Cloud API | Entrada e saída conversacional oficial |
-| Testes | Vitest | Cobertura de regras, routers e UI |
+| Camada                 | Tecnologia                               | Responsabilidade                                                          |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| Frontend               | React + Vite + Tailwind                  | Fluxos web, dashboard, formulários e visualizações                        |
+| Backend                | Express + tRPC                           | Contratos tipados, autenticação, orquestração e casos de uso              |
+| Banco                  | MySQL/TiDB + Drizzle                     | Persistência relacional, migrações e integridade referencial              |
+| IA principal           | Provider OpenAI ou Gemini (selecionável) | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
+| IA legada remanescente | Forge restrito ao assistente educativo   | Sugestões alimentares fora do fluxo principal de refeição                 |
+| Canal externo          | WhatsApp Business Cloud API              | Entrada e saída conversacional oficial                                    |
+| Testes                 | Vitest                                   | Cobertura de regras, routers e UI                                         |
 
 ## Fronteiras de camadas
 
@@ -166,3 +166,7 @@ pnpm agent:check
 ```
 
 `pnpm agent:check` é o gate recomendado para mudanças feitas com auxílio de agentes.
+
+## Aposentadoria do legado profissional
+
+A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.

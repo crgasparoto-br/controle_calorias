@@ -1,34 +1,36 @@
-/**
- * Clarificação genérica de intenção como decisão fechada (issue #858, épica #857).
- *
- * Quando o classificador não entende a mensagem, a pergunta "registrar,
- * corrigir ou consultar?" é uma decisão fechada: três ações objetivas mais
- * Cancelar (4 ações → lista, pela regra central). A pendência preserva a
- * mensagem original e escolher **Registrar alimento** nunca persiste a palavra
- * de comando como alimento (issue #855) — com dado ausente, cria a pergunta
- * aberta específica correspondente.
- */
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
-import { buildWhatsappClosedDecisionReply, type WhatsappClosedDecisionAction } from "./interactionInventory";
-import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
-import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
+import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+import {
+  buildWhatsappClosedDecisionReply,
+  buildWhatsappInteractionTelemetry,
+  type WhatsappInteractionAction,
+} from "./interactionPresentation";
 import type { WhatsAppLogicalReply } from "./replyContract";
+import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 
 export const PENDING_INTENT_CLARIFICATION_TYPE = "intent_clarification";
-const PENDING_INTENT_CLARIFICATION_ORIGIN = "intentClarificationInteraction";
+export const PENDING_INTENT_CLARIFICATION_ORIGIN = "intentClarificationInteraction";
 const PENDING_INTENT_CLARIFICATION_TTL_MS = 10 * 60 * 1000;
 
-export const INTENT_CLARIFICATION_ACTIONS = ["register_food", "correct_meal", "consult_records", "cancel"] as const;
-export type IntentClarificationAction = (typeof INTENT_CLARIFICATION_ACTIONS)[number];
+export const INTENT_CLARIFICATION_ACTIONS = [
+  { id: "register_food", label: "Registrar alimento", effect: "ask_food_and_quantity" },
+  { id: "correct_meal", label: "Corrigir refeição", effect: "ask_correction_details" },
+  { id: "consult_records", label: "Consultar registros", effect: "run_daily_summary" },
+  { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+] as const satisfies readonly WhatsappInteractionAction[];
+
+export type IntentClarificationAction = (typeof INTENT_CLARIFICATION_ACTIONS)[number]["id"];
 
 export type PendingIntentClarification = {
+  contractVersion: 1;
+  interactionId: "intent_clarification.generic";
   kind: "intent_clarification";
-  /** Mensagem original preservada; nunca persistida como alimento. */
   originalText: string;
+  actions: WhatsappInteractionAction[];
 };
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
@@ -36,18 +38,18 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   onWarning: logPersistenceWarning,
 });
 
-export function isExpectedWhatsappIntentClarificationAction(action: string) {
-  return (INTENT_CLARIFICATION_ACTIONS as readonly string[]).includes(action);
+export function isPendingIntentClarification(value: unknown): value is PendingIntentClarification {
+  if (!value || typeof value !== "object") return false;
+  const target = value as Partial<PendingIntentClarification>;
+  return target.contractVersion === 1
+    && target.interactionId === "intent_clarification.generic"
+    && target.kind === "intent_clarification"
+    && typeof target.originalText === "string"
+    && Array.isArray(target.actions);
 }
 
-/** Ações canônicas em ordem determinística (contagem inclui Cancelar → 4 → lista). */
-export function buildIntentClarificationActions(): WhatsappClosedDecisionAction[] {
-  return [
-    { action: "register_food", label: "Registrar alimento" },
-    { action: "correct_meal", label: "Corrigir refeição" },
-    { action: "consult_records", label: "Consultar registros" },
-    { action: "cancel", label: "Cancelar" },
-  ];
+export function isExpectedWhatsappIntentClarificationAction(action: string) {
+  return INTENT_CLARIFICATION_ACTIONS.some(candidate => candidate.id === action);
 }
 
 export function buildWhatsappIntentClarificationReply(
@@ -57,145 +59,174 @@ export function buildWhatsappIntentClarificationReply(
   return buildWhatsappClosedDecisionReply({
     bodyText,
     pendingOperationId,
-    actions: buildIntentClarificationActions(),
+    actions: [...INTENT_CLARIFICATION_ACTIONS],
     listButtonText: "Escolher opção",
   });
 }
 
-/**
- * Cria a pendência de clarificação genérica preservando a mensagem original e
- * devolve a lista interativa correspondente. Retorna `null` sem persistência
- * disponível — o texto original da resposta continua válido como fallback.
- */
-export async function createWhatsappIntentClarificationInteraction(
-  userId: number,
-  originalText: string,
-  bodyText: string,
-): Promise<WhatsAppLogicalReply | null> {
+export async function createWhatsappIntentClarificationInteraction(input: {
+  userId: number;
+  originalText: string;
+  bodyText?: string;
+  receivedAt?: Date;
+}) {
+  const target: PendingIntentClarification = {
+    contractVersion: 1,
+    interactionId: "intent_clarification.generic",
+    kind: "intent_clarification",
+    originalText: input.originalText.trim(),
+    actions: [...INTENT_CLARIFICATION_ACTIONS],
+  };
   const created = await pendingOperationRepository.createPendingOperation({
-    userId,
+    userId: input.userId,
     type: PENDING_INTENT_CLARIFICATION_TYPE,
     origin: PENDING_INTENT_CLARIFICATION_ORIGIN,
     ttlMs: PENDING_INTENT_CLARIFICATION_TTL_MS,
-    target: { kind: "intent_clarification", originalText } satisfies PendingIntentClarification,
+    now: input.receivedAt,
+    target,
   });
   if (!created) return null;
-  return buildWhatsappIntentClarificationReply(created.id, bodyText);
+
+  const reply = input.bodyText
+    ?? "Você quer registrar um alimento, corrigir uma refeição ou consultar seus registros?";
+  return {
+    handled: true as const,
+    action: "food_clarification_standalone_command_blocked",
+    reply,
+    eventType: "whatsapp.intent_clarification.requested",
+    detail: "Comando isolado bloqueado antes da inferência; clarificação genérica persistida como decisão fechada.",
+    data: {
+      pendingOperationId: created.id,
+      pendingType: created.type,
+      originalTextPreserved: true,
+      ...buildWhatsappInteractionTelemetry({
+        interactionId: target.interactionId,
+        origin: PENDING_INTENT_CLARIFICATION_ORIGIN,
+        classification: "closed",
+        actions: target.actions,
+        lifecycle: "created",
+      }),
+    },
+    interactiveReply: buildWhatsappIntentClarificationReply(created.id, reply),
+  };
 }
 
-/** Detecta o resultado de clarificação genérica produzido pelo router/LLM sem duplicar a mensagem. */
-export function isGenericIntentClarificationResult(result: { reply?: string | null } | null | undefined) {
-  return Boolean(result?.reply && result.reply.includes(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE));
-}
-
-function normalizeResponse(text: string) {
-  return normalizeWhatsAppShortCommandText(text);
-}
-
-/**
- * Resolução textual equivalente ao callback: número da opção ou cancelamento.
- * Retorna `null` quando o texto não é uma resposta à clarificação (mensagem
- * completa nova segue o fluxo normal sem consumir a pendência).
- */
 export function parseIntentClarificationTextAction(text?: string | null): IntentClarificationAction | null {
-  if (!text) return null;
-  const normalized = normalizeResponse(text);
+  const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
   if (!normalized) return null;
   if (["cancelar", "cancela", "cancele", "nao", "nenhuma", "0"].includes(normalized)) return "cancel";
   const numeric = normalized.match(/^(?:opcao\s*)?([1-3])$/);
-  if (numeric) return INTENT_CLARIFICATION_ACTIONS[Number(numeric[1]) - 1];
-  if (/^registrar?(\s+alimento)?$/.test(normalized) || normalized === "registre" || normalized === "registra") return "register_food";
-  if (/^corrigir(\s+refeicao)?$/.test(normalized) || normalized === "corrige" || normalized === "corrija") return "correct_meal";
-  if (/^consultar?(\s+registros)?$/.test(normalized) || normalized === "consulte" || normalized === "consulta") return "consult_records";
+  if (numeric) return INTENT_CLARIFICATION_ACTIONS[Number(numeric[1]) - 1].id;
+  if (/^registrar?(?:\s+alimento)?$/.test(normalized) || ["registre", "registra"].includes(normalized)) return "register_food";
+  if (/^corrigir(?:\s+refeicao)?$/.test(normalized) || ["corrige", "corrija"].includes(normalized)) return "correct_meal";
+  if (/^consultar?(?:\s+registros)?$/.test(normalized) || ["consulte", "consulta"].includes(normalized)) return "consult_records";
   return null;
 }
 
-export type IntentClarificationCompletion = {
-  handled: true;
-  action?: string;
-  reply: string;
-  eventType: string;
-  detail: string;
-  data?: Record<string, unknown>;
-};
+function canResumeAsFoodRegistration(action: string) {
+  return action === "meal_item_added" || action.startsWith("food_clarification_");
+}
 
-/**
- * Resolve a ação canônica já reivindicada pelo gate central. Nunca encaminha
- * ao parser, LLM ou fallback nutricional; nunca persiste a palavra de comando
- * como alimento.
- */
 export async function completeWhatsappIntentClarificationCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
   action: string,
   receivedAt?: Date,
-): Promise<IntentClarificationCompletion> {
-  const pending = pendingOperation.target as PendingIntentClarification;
-  const originalText = typeof pending?.originalText === "string" ? pending.originalText.trim() : "";
+) {
+  const target = pendingOperation.target;
+  if (!isPendingIntentClarification(target) || !isExpectedWhatsappIntentClarificationAction(action)) {
+    return {
+      handled: true as const,
+      reply: "Essa opção não está mais disponível. Envie uma nova mensagem completa.",
+      eventType: "whatsapp.intent_clarification.unavailable",
+      detail: "Ação ou contrato de clarificação genérica inválido.",
+    };
+  }
 
   if (action === "cancel") {
     return {
-      handled: true,
+      handled: true as const,
       action: "intent_clarification_cancelled",
-      reply: "Tudo certo. Não registrei nada. Quando quiser, é só mandar outra mensagem.",
+      reply: "Tudo certo. Não registrei nem alterei nada.",
       eventType: "whatsapp.intent_clarification.cancelled",
-      detail: "Clarificação genérica cancelada sem persistência.",
+      detail: "Clarificação genérica cancelada sem mutação.",
     };
   }
-
   if (action === "register_food") {
-    const lines = [
-      "Certo! Me diga o alimento e a quantidade, por exemplo: 100 g de arroz ou 1 pão francês.",
-    ];
-    if (originalText) {
-      lines.push(`Sua mensagem anterior foi "${originalText}". Se ela era um alimento, é só confirmar a quantidade.`);
-    }
-    return {
-      handled: true,
-      action: "intent_clarification_register_food",
-      reply: lines.join("\n\n"),
-      eventType: "whatsapp.intent_clarification.register_food",
-      detail: "Clarificação genérica resolvida para registro; pergunta aberta criada sem persistir comando como alimento.",
-      data: { originalTextPreserved: Boolean(originalText) },
-    };
-  }
-
-  if (action === "correct_meal") {
-    return {
-      handled: true,
-      action: "intent_clarification_correct_meal",
-      reply: "Certo! Me diga o que quer corrigir, por exemplo: troque o arroz por batata ou remova o queijo da última refeição.",
-      eventType: "whatsapp.intent_clarification.correct_meal",
-      detail: "Clarificação genérica resolvida para correção; pergunta aberta criada.",
-    };
-  }
-
-  if (action === "consult_records") {
     const { executeWhatsappTextIntent } = await import("./intentActions");
-    const result = await executeWhatsappTextIntent(userId, { text: "Resumo hoje", receivedAt });
-    if (result?.reply) {
+    const resumed = await executeWhatsappTextIntent(userId, {
+      text: target.originalText,
+      receivedAt,
+      entrypoint: "intentClarification.resume",
+    });
+    if (resumed && canResumeAsFoodRegistration(resumed.action)) {
       return {
-        handled: true,
-        action: "intent_clarification_consult_records",
-        reply: result.reply,
-        eventType: "whatsapp.intent_clarification.consult_records",
-        detail: "Clarificação genérica resolvida consultando registros pelo serviço existente de resumos.",
-        data: result.data,
+        ...resumed,
+        detail: `${resumed.detail} Mensagem original retomada após a escolha Registrar alimento.`,
+        data: {
+          ...(resumed.data ?? {}),
+          originalTextPreserved: true,
+          originalTextResumed: true,
+        },
       };
     }
+
     return {
-      handled: true,
-      action: "intent_clarification_consult_records",
-      reply: "Não consegui montar seu resumo agora. Envie \"resumo hoje\" para tentar de novo.",
-      eventType: "whatsapp.intent_clarification.consult_records_failed",
-      detail: "Consulta de registros indisponível ao resolver clarificação genérica.",
+      handled: true as const,
+      action: "intent_clarification_register_food",
+      reply: "Certo! Me diga o alimento e a quantidade, por exemplo: 100 g de arroz ou 1 pão francês.",
+      eventType: "whatsapp.intent_clarification.register_food",
+      detail: "A mensagem original não tinha dados suficientes; a clarificação foi convertida em pergunta aberta específica de alimento e quantidade.",
+      data: {
+        originalTextPreserved: Boolean(target.originalText),
+        originalTextResumed: false,
+      },
+    };
+  }
+  if (action === "correct_meal") {
+    return {
+      handled: true as const,
+      action: "intent_clarification_correct_meal",
+      reply: "Certo! Diga exatamente o que deseja corrigir, por exemplo: troque o arroz por batata ou remova o queijo da última refeição.",
+      eventType: "whatsapp.intent_clarification.correct_meal",
+      detail: "Clarificação resolvida para pergunta aberta de correção.",
     };
   }
 
+  const { executeWhatsappTextIntent } = await import("./intentActions");
+  const summary = await executeWhatsappTextIntent(userId, {
+    text: "Resumo hoje",
+    receivedAt,
+  });
   return {
-    handled: true,
-    reply: "Essa opção não está mais disponível. Me diga em uma frase o que você quer fazer.",
-    eventType: "whatsapp.intent_clarification.unknown_action",
-    detail: `Callback com ação desconhecida (${action}) para clarificação genérica.`,
+    handled: true as const,
+    action: "intent_clarification_consult_records",
+    reply: summary?.reply ?? "Não consegui montar o resumo agora. Envie \"resumo hoje\" para tentar novamente.",
+    eventType: summary?.eventType ?? "whatsapp.intent_clarification.consult_records_failed",
+    detail: summary?.detail ?? "Consulta de registros indisponível ao resolver a clarificação genérica.",
+    data: summary?.data,
   };
+}
+
+export async function resolveWhatsappIntentClarificationText(input: {
+  userId: number;
+  pendingOperation: WhatsAppPendingOperationRecord;
+  text?: string | null;
+  receivedAt?: Date;
+}) {
+  const action = parseIntentClarificationTextAction(input.text);
+  if (!action) return null;
+  const claim = await claimWhatsAppTextPendingOperation(
+    input.userId,
+    PENDING_INTENT_CLARIFICATION_TYPE,
+    action,
+    input.receivedAt,
+  );
+  if (claim.status !== "claimed") return null;
+  return completeWhatsappIntentClarificationCallback(
+    input.userId,
+    claim.pendingOperation,
+    action,
+    input.receivedAt,
+  );
 }

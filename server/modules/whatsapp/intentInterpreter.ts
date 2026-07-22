@@ -14,7 +14,6 @@ import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
 import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
 import { detectWhatsappDeleteIntent, toWhatsappDeleteInterpretedIntent } from "./deleteIntent";
-import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 import {
   buildSuspiciousWhatsAppContentReply,
   buildUntrustedWhatsAppUserContent,
@@ -317,7 +316,7 @@ export function classifyWhatsappMessageDeterministically(text: string): Whatsapp
     };
   }
 
-  if (/^[\p{L}\s-]{2,60}$/u.test(text) && !/\d/.test(text) && !isStandaloneWhatsappCommandWord(text)) {
+  if (/^[\p{L}\s-]{2,60}$/u.test(text) && !/\d/.test(text)) {
     return {
       intent: "add_foods_to_meal",
       confidence: 0.55,

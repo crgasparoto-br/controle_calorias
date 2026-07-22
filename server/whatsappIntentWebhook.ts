@@ -48,11 +48,6 @@ import {
   buildWhatsappPeriodReportClarificationListReply,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./modules/whatsapp/periodReportClarification";
-import {
-  createWhatsappIntentClarificationInteraction,
-  isGenericIntentClarificationResult,
-  PENDING_INTENT_CLARIFICATION_TYPE,
-} from "./modules/whatsapp/intentClarificationInteraction";
 import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
@@ -362,31 +357,15 @@ async function getPendingTextIntentContext(userId: number) {
 async function clearPendingTextIntentContext(userId: number) {
   const pending =
     await pendingOperationRepository.getActivePendingOperation(userId);
-  if (
-    pending &&
-    (pending.type === PENDING_PERIOD_REPORT_TYPE ||
-      pending.type === PENDING_INTENT_CLARIFICATION_TYPE)
-  ) {
+  if (pending && pending.type === PENDING_PERIOD_REPORT_TYPE) {
     await pendingOperationRepository.cancelPendingOperation(pending.id);
   }
 }
 
 async function rememberPendingTextIntentContext(
   userId: number,
-  result: TextIntentResult,
-  originalText?: string
+  result: TextIntentResult
 ) {
-  // Clarificação genérica é decisão fechada (issue #858): registrar alimento,
-  // corrigir refeição, consultar registros e Cancelar (4 ações → lista), com a
-  // mensagem original preservada na pendência e nunca persistida como alimento.
-  if (isGenericIntentClarificationResult(result)) {
-    await clearPendingTextIntentContext(userId);
-    return createWhatsappIntentClarificationInteraction(
-      userId,
-      originalText ?? "",
-      result.reply
-    );
-  }
   if (
     result.action === "clarification_needed" &&
     result.detail === "Pedido de relatório sem período explícito."
@@ -571,11 +550,13 @@ async function tryHandleTextIntent(
       userTimezone,
       interactiveReplyId,
       sourcePhone,
+      messageId: message.id,
     });
     if (precedenceGate.step !== "continue_pipeline") {
       markTextIntentMessageHandled(message.id);
-      // Reapresentação (issue #858) mantém a MESMA pendência ativa: nada é cancelado.
-      if (precedenceGate.step !== "pending_reprompt") {
+      const preservePendingAfterReplay =
+        precedenceGate.result.eventType === "whatsapp.interaction.pending_represented";
+      if (!preservePendingAfterReplay) {
         await clearPendingTextIntentContext(userId);
       }
       await sendAndLogTextReply({
@@ -995,8 +976,7 @@ async function tryHandleTextIntent(
     markTextIntentMessageHandled(message.id);
     const pendingInteractiveReply = await rememberPendingTextIntentContext(
       userId,
-      result,
-      text
+      result
     );
     await sendAndLogTextReply({
       userId,

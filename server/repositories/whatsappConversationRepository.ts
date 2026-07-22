@@ -98,6 +98,9 @@ function buildIdempotencyKey(input: AppendMessageInput): string {
   if (input.externalMessageId) {
     return `${channel}:${input.direction}:${input.externalMessageId}`;
   }
+  if (input.direction === "outbound" && input.respondsToMessageId) {
+    return `${channel}:outbound:${input.conversationId}:response:${input.respondsToMessageId}`;
+  }
   return `${channel}:${input.direction}:${input.conversationId}:${input.respondsToMessageId ?? "root"}:${crypto.randomUUID()}`;
 }
 

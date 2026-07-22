@@ -16,7 +16,6 @@ import {
   PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
   PROFESSIONAL_PROFILE_PREFERENCE_KEY,
   assertProfessionalTrackingTransition,
-  canonicalAuthorizationToLegacy,
   getAuthorizationActivePairKey,
   legacyAccessToCanonical,
   parseLegacyProfessionalAccesses,
@@ -120,7 +119,6 @@ export type ProfessionalRepository = {
   transitionTracking(
     input: TransitionProfessionalTrackingInput
   ): Promise<CanonicalProfessionalTracking>;
-  migrateLegacyUser(userId: number): Promise<ProfessionalLegacyMigrationResult>;
   migrateAllLegacyData(): Promise<ProfessionalLegacyMigrationResult>;
 };
 
@@ -159,15 +157,6 @@ function warning(
   code: string
 ) {
   deps.onWarning(scope, new Error(code));
-}
-
-function mergeLegacyAccesses(
-  current: LegacyProfessionalAccess[],
-  next: LegacyProfessionalAccess
-) {
-  return [...current.filter(item => item.id !== next.id), next].sort(
-    (a, b) => b.requestedAt - a.requestedAt
-  );
 }
 
 const fallbackProfiles = new Map<number, CanonicalProfessionalProfile>();
@@ -297,99 +286,6 @@ function buildTransitionedAuthorization(
     responseDecision: input.nextStatus,
     sourceUpdatedAt: now,
   };
-}
-
-async function readLegacyPreference(
-  db: any,
-  userId: number,
-  preferenceKey: string
-) {
-  const [row] = await db
-    .select()
-    .from(userPreferences)
-    .where(
-      and(
-        eq(userPreferences.userId, userId),
-        eq(userPreferences.preferenceKey, preferenceKey)
-      )
-    )
-    .limit(1);
-  return row ?? null;
-}
-
-async function writeLegacyProfile(
-  db: any,
-  profile: CanonicalProfessionalProfile
-) {
-  const legacy = {
-    userId: profile.userId,
-    displayName: profile.displayName,
-    registrationNumber: profile.registrationNumber,
-    active: profile.active,
-    createdAt: profile.createdAt.getTime(),
-    updatedAt: profile.sourceUpdatedAt.getTime(),
-  };
-  await db
-    .insert(userPreferences)
-    .values({
-      userId: profile.userId,
-      preferenceKey: PROFESSIONAL_PROFILE_PREFERENCE_KEY,
-      preferenceValue: JSON.stringify(legacy),
-    })
-    .onDuplicateKeyUpdate({
-      set: { preferenceValue: JSON.stringify(legacy) },
-    });
-}
-
-async function writeLegacyAuthorizationSide(
-  db: any,
-  ownerUserId: number,
-  preferenceKey: string,
-  authorization: CanonicalProfessionalAuthorization
-) {
-  const row = await readLegacyPreference(db, ownerUserId, preferenceKey);
-  const parsed = row?.preferenceValue
-    ? parseLegacyProfessionalAccesses(
-        ownerUserId,
-        preferenceKey,
-        row.preferenceValue
-      )
-    : { value: [] as LegacyProfessionalAccess[], issue: null };
-  const current = parsed.value ?? [];
-  const next = mergeLegacyAccesses(
-    current,
-    canonicalAuthorizationToLegacy(authorization)
-  );
-  await db
-    .insert(userPreferences)
-    .values({
-      userId: ownerUserId,
-      preferenceKey,
-      preferenceValue: JSON.stringify(next),
-    })
-    .onDuplicateKeyUpdate({
-      set: { preferenceValue: JSON.stringify(next) },
-    });
-}
-
-async function writeLegacyAuthorization(
-  db: any,
-  authorization: CanonicalProfessionalAuthorization
-) {
-  await db.transaction(async (tx: any) => {
-    await writeLegacyAuthorizationSide(
-      tx,
-      authorization.professionalUserId,
-      PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
-      authorization
-    );
-    await writeLegacyAuthorizationSide(
-      tx,
-      authorization.patientUserId,
-      PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
-      authorization
-    );
-  });
 }
 
 export function createDrizzleProfessionalRepository(deps: {
@@ -716,66 +612,9 @@ export function createDrizzleProfessionalRepository(deps: {
     return result;
   }
 
-  async function migrateLegacyUser(userId: number) {
-    const db = await getProfessionalPersistenceDb(deps.getDb);
-    if (!db) {
-      return {
-        scannedPreferences: 0,
-        migratedProfiles: 0,
-        migratedAuthorizations: 0,
-        invalidPreferences: 0,
-      };
-    }
-    const rows = await db
-      .select()
-      .from(userPreferences)
-      .where(
-        and(
-          eq(userPreferences.userId, userId),
-          inArray(userPreferences.preferenceKey, [
-            PROFESSIONAL_PROFILE_PREFERENCE_KEY,
-            PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
-            PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
-          ])
-        )
-      );
-    return migrateRows(rows);
-  }
-
-  async function migrateRelatedAuthorizations(
-    userId: number,
-    role: "professional" | "patient"
-  ) {
-    const db = await getProfessionalPersistenceDb(deps.getDb);
-    if (!db) return;
-    const oppositeKey =
-      role === "professional"
-        ? PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY
-        : PROFESSIONAL_ACCESSES_PREFERENCE_KEY;
-    const rows = await db
-      .select()
-      .from(userPreferences)
-      .where(eq(userPreferences.preferenceKey, oppositeKey));
-    for (const row of rows) {
-      const parsed = parseLegacyProfessionalAccesses(
-        row.userId,
-        row.preferenceKey,
-        row.preferenceValue
-      );
-      if (!parsed.value) continue;
-      const related = parsed.value.filter(access =>
-        role === "professional"
-          ? access.professionalUserId === userId
-          : access.patientUserId === userId
-      );
-      for (const access of related) await upsertLegacyAuthorization(access);
-    }
-  }
-
   async function getProfile(userId: number) {
     const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackProfiles.get(userId) ?? null;
-    await migrateLegacyUser(userId);
     const [row] = await db
       .select()
       .from(professionalProfiles)
@@ -814,15 +653,6 @@ export function createDrizzleProfessionalRepository(deps: {
     if (!row)
       throw new Error("Não foi possível persistir o perfil profissional.");
     const profile = toCanonicalProfile(row);
-    try {
-      await writeLegacyProfile(db, profile);
-    } catch {
-      warning(
-        deps,
-        "professional.persistence.legacy_profile_dual_write_failed",
-        "legacy_write_failed"
-      );
-    }
     return profile;
   }
 
@@ -833,8 +663,6 @@ export function createDrizzleProfessionalRepository(deps: {
         item => item.professionalUserId === professionalUserId
       );
     }
-    await migrateLegacyUser(professionalUserId);
-    await migrateRelatedAuthorizations(professionalUserId, "professional");
     const rows = await db
       .select()
       .from(professionalPatientAuthorizations)
@@ -854,8 +682,6 @@ export function createDrizzleProfessionalRepository(deps: {
         item => item.patientUserId === patientUserId
       );
     }
-    await migrateLegacyUser(patientUserId);
-    await migrateRelatedAuthorizations(patientUserId, "patient");
     const rows = await db
       .select()
       .from(professionalPatientAuthorizations)
@@ -892,12 +718,6 @@ export function createDrizzleProfessionalRepository(deps: {
         ) ?? null
       );
     }
-    await Promise.all([
-      migrateLegacyUser(professionalUserId),
-      migrateLegacyUser(patientUserId),
-      migrateRelatedAuthorizations(professionalUserId, "professional"),
-      migrateRelatedAuthorizations(patientUserId, "patient"),
-    ]);
     const [row] = await db
       .select()
       .from(professionalPatientAuthorizations)
@@ -924,15 +744,6 @@ export function createDrizzleProfessionalRepository(deps: {
       preserveNewerSource: false,
       actorUserId: input.patientUserId,
     });
-    try {
-      await writeLegacyAuthorization(db, authorization);
-    } catch {
-      warning(
-        deps,
-        "professional.persistence.legacy_authorization_dual_write_failed",
-        "legacy_write_failed"
-      );
-    }
     return authorization;
   }
 
@@ -1022,15 +833,6 @@ export function createDrizzleProfessionalRepository(deps: {
     if (!updated)
       throw new Error("Não foi possível carregar a autorização atualizada.");
     const authorization = toCanonicalAuthorization(updated);
-    try {
-      await writeLegacyAuthorization(db, authorization);
-    } catch {
-      warning(
-        deps,
-        "professional.persistence.legacy_authorization_dual_write_failed",
-        "legacy_write_failed"
-      );
-    }
     return authorization;
   }
 
@@ -1086,15 +888,6 @@ export function createDrizzleProfessionalRepository(deps: {
       .limit(1);
     if (!row) throw new Error("Solicitação de acesso não encontrada.");
     const authorization = toCanonicalAuthorization(row);
-    try {
-      await writeLegacyAuthorization(db, authorization);
-    } catch {
-      warning(
-        deps,
-        "professional.persistence.legacy_authorization_dual_write_failed",
-        "legacy_write_failed"
-      );
-    }
     return authorization;
   }
 
@@ -1271,7 +1064,6 @@ export function createDrizzleProfessionalRepository(deps: {
     updateAuthorizationMessage,
     getTrackingByAuthorization,
     transitionTracking,
-    migrateLegacyUser,
     migrateAllLegacyData,
   };
 }

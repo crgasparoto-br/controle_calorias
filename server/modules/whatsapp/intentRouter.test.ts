@@ -36,49 +36,6 @@ describe("evaluateWhatsappIntentRoute", () => {
     }));
   });
 
-  it("bloqueia comando isolado 'registrar' sem pendencia ativa (issue #855)", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "registrar" });
-
-    expect(route).toEqual(expect.objectContaining({
-      action: "safe_clarification",
-      canonicalIntent: "mensagem_ambigua",
-      shouldAllowNutritionFallback: false,
-    }));
-    expect(buildWhatsappRouterResult(route)).toEqual(expect.objectContaining({
-      action: "router_safe_response",
-      reply: expect.stringContaining("Não encontrei uma operação pendente"),
-    }));
-  });
-
-  it("nao bloqueia frase completa 'registrar 100 g de arroz' (issue #855)", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "registrar 100 g de arroz" });
-
-    expect(route).toEqual(expect.objectContaining({
-      action: "continue_pipeline",
-      shouldAllowNutritionFallback: true,
-    }));
-  });
-
-  it("'registrar' resolve pendencia de confirmacao (issue #855)", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "registrar", pendingContextKind: "confirmation" });
-
-    expect(route).toEqual(expect.objectContaining({
-      action: "route_to_pending_context",
-      canonicalIntent: "confirmacao_sim_nao",
-    }));
-    expect(route.data.pendingContextKind).toBe("confirmation");
-  });
-
-  it("'registrar' nao resolve pendencia de quantidade (issue #855)", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "registrar", pendingContextKind: "quantity" });
-
-    expect(route).toEqual(expect.objectContaining({
-      action: "safe_clarification",
-      canonicalIntent: "mensagem_ambigua",
-      shouldAllowNutritionFallback: false,
-    }));
-  });
-
   it("roteia numero isolado para contexto pendente quando disponivel", () => {
     const route = evaluateWhatsappIntentRoute({ text: "2", pendingContextKind: "selection" });
 

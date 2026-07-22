@@ -162,39 +162,55 @@ export const patientAdoptProfessionalGoalSchema = z.object({
   goalId: z.string().uuid(),
 });
 
-export const professionalPortfolioSchema = z.object({
-  search: z.string().trim().max(160).optional().default(""),
-  authorizationStatus: z
-    .enum(["all", "pending", "approved", "rejected", "revoked"])
-    .optional()
-    .default("all"),
-  trackingStatus: z
-    .enum(["all", "not_started", "active", "paused", "ended"])
-    .optional()
-    .default("all"),
-  activity: z
-    .enum(["all", "recent", "inactive", "unavailable"])
-    .optional()
-    .default("all"),
-  nextReview: z
-    .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
-    .optional()
-    .default("all"),
-  page: z.number().int().min(1).optional().default(1),
-  pageSize: z.number().int().min(10).max(50).optional().default(20),
-  reportStartDate: dateKeySchema.optional(),
-  reportEndDate: dateKeySchema.optional(),
-  includeHistoricalActivity: z.boolean().optional().default(true),
-}).refine(input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate), {
-  message: "Informe o início e o fim do período da carteira.",
-}).refine(input => !input.reportStartDate || !input.reportEndDate || input.reportStartDate <= input.reportEndDate, {
-  message: "O fim do período deve ser igual ou posterior ao início.",
-}).refine(input => {
-  if (!input.reportStartDate || !input.reportEndDate) return true;
-  const start = new Date(`${input.reportStartDate}T12:00:00Z`);
-  const end = new Date(`${input.reportEndDate}T12:00:00Z`);
-  return (end.getTime() - start.getTime()) / 86_400_000 + 1 <= 90;
-}, { message: "Escolha um período de até 90 dias." });
+export const professionalPortfolioSchema = z
+  .object({
+    search: z.string().trim().max(160).optional().default(""),
+    authorizationStatus: z
+      .enum(["all", "pending", "approved", "rejected", "revoked"])
+      .optional()
+      .default("all"),
+    trackingStatus: z
+      .enum(["all", "not_started", "active", "paused", "ended"])
+      .optional()
+      .default("all"),
+    activity: z
+      .enum(["all", "recent", "inactive", "unavailable"])
+      .optional()
+      .default("all"),
+    nextReview: z
+      .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+      .optional()
+      .default("all"),
+    page: z.number().int().min(1).optional().default(1),
+    pageSize: z.number().int().min(10).max(50).optional().default(20),
+    reportStartDate: dateKeySchema.optional(),
+    reportEndDate: dateKeySchema.optional(),
+    includeHistoricalActivity: z.boolean().optional().default(true),
+  })
+  .refine(
+    input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate),
+    {
+      message: "Informe o início e o fim do período da carteira.",
+    }
+  )
+  .refine(
+    input =>
+      !input.reportStartDate ||
+      !input.reportEndDate ||
+      input.reportStartDate <= input.reportEndDate,
+    {
+      message: "O fim do período deve ser igual ou posterior ao início.",
+    }
+  )
+  .refine(
+    input => {
+      if (!input.reportStartDate || !input.reportEndDate) return true;
+      const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+      const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+      return (end.getTime() - start.getTime()) / 86_400_000 + 1 <= 90;
+    },
+    { message: "Escolha um período de até 90 dias." }
+  );
 
 export const patientPeriodBundleSchema =
   boundedReportDateRangeSchema.safeExtend({
@@ -228,16 +244,6 @@ export const professionalMealSuggestionSchema = z.object({
   rationale: z.string().trim().min(3).max(1000),
   notes: z.string().trim().max(1000).optional(),
   status: professionalMealSuggestionStatusSchema.default("sent"),
-});
-export const professionalPatientQuestionSchema = z.object({
-  patientId: z.number().int().positive(),
-  question: z.string().trim().min(3).max(800),
-});
-export const professionalPatientAnswerSchema = z.object({
-  answer: z.string().trim().min(1).max(3000),
-  citedContext: z.array(z.string().trim().min(1).max(200)).max(8).default([]),
-  caution: z.string().trim().max(500).optional(),
-  educationalNotice: z.string().trim().min(1).max(500),
 });
 
 export type ProfessionalProfileInput = z.infer<
@@ -306,10 +312,4 @@ export type ProfessionalMealSuggestionInput = z.infer<
 >;
 export type ProfessionalMealSuggestionStatus = z.infer<
   typeof professionalMealSuggestionStatusSchema
->;
-export type ProfessionalPatientQuestionInput = z.infer<
-  typeof professionalPatientQuestionSchema
->;
-export type ProfessionalPatientAnswer = z.infer<
-  typeof professionalPatientAnswerSchema
 >;

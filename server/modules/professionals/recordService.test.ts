@@ -52,7 +52,7 @@ describe("professional record service", () => {
     const scopeExecute = vi.fn().mockResolvedValue([scopeRow()]);
     const txExecute = vi.fn().mockResolvedValueOnce([[{ nextVersion: 3 }]]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     getDb.mockResolvedValue({ execute: scopeExecute, transaction: (callback: (tx: { execute: typeof txExecute }) => unknown) => callback({ execute: txExecute }) });
-    await expect(saveProfessionalAssessment(10, { patientId: 20, objective: "Melhorar composição corporal", assessedAt: Date.now() })).resolves.toEqual({ id: expect.any(String) });
+    await expect(saveProfessionalAssessment(10, { patientId: 20, objective: "Melhorar composição corporal", assessedAt: Date.now() })).resolves.toEqual({ id: expect.any(String), nextReviewAt: null });
     expect(txExecute).toHaveBeenCalledTimes(4);
   });
 });

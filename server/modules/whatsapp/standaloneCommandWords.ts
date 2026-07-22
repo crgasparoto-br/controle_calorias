@@ -1,10 +1,9 @@
-import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
+import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 
 /**
- * Palavras que só fazem sentido como resposta a uma pendência ativa
- * (confirmação, seleção ou operação em andamento). Isoladas e sem
- * pendência compatível, nunca devem ser tratadas como nome de alimento
- * nem alcançar o pipeline nutricional (issue #855).
+ * Respostas que somente fazem sentido com uma interação ativa. A comparação
+ * usa a mensagem inteira para não bloquear comandos completos, como
+ * "registrar 100 g de arroz" ou "170 g de iogurte".
  */
 const STANDALONE_COMMAND_WORDS = new Set([
   "registrar",
@@ -29,18 +28,36 @@ const STANDALONE_COMMAND_WORDS = new Set([
   "certo",
 ]);
 
-function normalizeStandaloneCandidate(text: string) {
-  return normalizeWhatsAppShortCommandText(text);
+const ISOLATED_INDEX_OR_NUMBER = /^(?:opcao\s*)?\d+(?:[,.]\d+)?$/;
+const ISOLATED_QUANTITY = /^\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?)$/;
+
+function stripBoundaryPunctuation(value: string) {
+  return value
+    .replace(/^[^\p{L}\p{N}]+/gu, "")
+    .replace(/[^\p{L}\p{N}]+$/gu, "");
 }
 
-/**
- * Verdadeiro somente quando a mensagem inteira é uma dessas palavras
- * (sem alimento, quantidade ou qualquer outro conteúdo junto). Frases
- * completas como "registrar 100 g de arroz" não são afetadas.
- */
+export function normalizeStandaloneWhatsappCommand(text?: string | null) {
+  if (!text) return "";
+  const normalized = collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
+  return collapseWhitespace(stripBoundaryPunctuation(normalized));
+}
+
 export function isStandaloneWhatsappCommandWord(text?: string | null): boolean {
-  if (!text) return false;
-  const normalized = normalizeStandaloneCandidate(text);
-  if (!normalized) return false;
-  return STANDALONE_COMMAND_WORDS.has(normalized) || /^\d+$/.test(normalized);
+  const normalized = normalizeStandaloneWhatsappCommand(text);
+  return Boolean(normalized) && (
+    STANDALONE_COMMAND_WORDS.has(normalized)
+    || ISOLATED_INDEX_OR_NUMBER.test(normalized)
+    || ISOLATED_QUANTITY.test(normalized)
+  );
+}
+
+export function isStandaloneWhatsappConfirmationWord(text?: string | null): boolean {
+  const normalized = normalizeStandaloneWhatsappCommand(text);
+  return ["sim", "ok", "certo", "confirmar", "confirme", "confirma", "confirmo", "registrar", "registre", "registra"].includes(normalized);
+}
+
+export function isStandaloneWhatsappCancellationWord(text?: string | null): boolean {
+  const normalized = normalizeStandaloneWhatsappCommand(text);
+  return ["nao", "cancelar", "cancele", "cancela"].includes(normalized);
 }

@@ -1,19 +1,15 @@
 /**
- * Clarificação interativa de período para resumos (issues #782/#784).
- *
- * Quando o usuário pede um resumo sem período explícito, a pergunta usa lista
- * interativa vinculada à pendência persistida em `whatsappPendingOperations`.
- * O fallback textual ("resumo" → "ontem") continua resolvendo a mesma
- * pendência pelo mesmo serviço de intents (`executeWhatsappTextIntent`).
+ * Clarificação interativa de período para resumos.
+ * Quatro períodos mais Cancelar formam cinco ações e, portanto, usam lista.
  */
-import { buildWhatsAppCallbackId } from "./interactiveCallback";
-import { listReply, type WhatsAppLogicalReply } from "./replyContract";
+import { buildWhatsappClosedDecisionReply } from "./interactionPresentation";
+import type { WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "./replyMessages";
 import { executeWhatsappTextIntent } from "./intentActions";
 
 export const PENDING_PERIOD_REPORT_TYPE = "period_report_clarification";
-
 const PERIOD_ACTION_PREFIX = "period:";
+export const PERIOD_REPORT_CANCEL_ACTION = "cancel";
 
 export const WHATSAPP_PERIOD_REPORT_OPTIONS = [
   { action: `${PERIOD_ACTION_PREFIX}hoje`, title: "Hoje", intentText: "Resumo hoje" },
@@ -22,26 +18,32 @@ export const WHATSAPP_PERIOD_REPORT_OPTIONS = [
   { action: `${PERIOD_ACTION_PREFIX}mes`, title: "Este mês", intentText: "Resumo do mês" },
 ] as const;
 
-const CANCEL_ACTION = "cancel";
-
-export function isExpectedWhatsappPeriodReportAction(action: string) {
-  return action === CANCEL_ACTION || WHATSAPP_PERIOD_REPORT_OPTIONS.some(option => option.action === action);
+export function buildWhatsappPeriodReportActions() {
+  return [
+    ...WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => ({
+      id: option.action,
+      label: option.title,
+      effect: "run_report",
+    })),
+    { id: PERIOD_REPORT_CANCEL_ACTION, label: "Cancelar", effect: "cancel_report" },
+  ];
 }
 
-/** Decisão fechada com pendência inclui Cancelar (issue #858): 4 períodos + Cancelar = 5 ações → lista. */
+export function isExpectedWhatsappPeriodReportAction(action: string) {
+  return action === PERIOD_REPORT_CANCEL_ACTION
+    || WHATSAPP_PERIOD_REPORT_OPTIONS.some(option => option.action === action);
+}
+
 export function buildWhatsappPeriodReportClarificationListReply(
   pendingOperationId: number,
   bodyText: string,
 ): WhatsAppLogicalReply {
-  return listReply(bodyText, "Escolher período", [
-    {
-      rows: WHATSAPP_PERIOD_REPORT_OPTIONS.map(option => ({
-        id: buildWhatsAppCallbackId(pendingOperationId, option.action),
-        title: option.title,
-      })),
-    },
-    { rows: [{ id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" }] },
-  ]);
+  return buildWhatsappClosedDecisionReply({
+    bodyText,
+    pendingOperationId,
+    actions: buildWhatsappPeriodReportActions(),
+    listButtonText: "Escolher período",
+  });
 }
 
 export async function completeWhatsappPeriodReportCallback(
@@ -49,13 +51,13 @@ export async function completeWhatsappPeriodReportCallback(
   action: string,
   receivedAt?: Date,
 ): Promise<{ handled: true; action?: string; reply: string; eventType: string; detail: string; data?: Record<string, unknown> }> {
-  if (action === CANCEL_ACTION) {
+  if (action === PERIOD_REPORT_CANCEL_ACTION) {
     return {
       handled: true,
       action: "period_report_cancelled",
       reply: "Tudo certo. Não montei o resumo. Quando quiser, é só pedir de novo.",
       eventType: "whatsapp.interactive_callback.period_report_cancelled",
-      detail: "Clarificação de período cancelada pelo usuário sem gerar resumo.",
+      detail: "Clarificação de período cancelada sem gerar resumo.",
     };
   }
 

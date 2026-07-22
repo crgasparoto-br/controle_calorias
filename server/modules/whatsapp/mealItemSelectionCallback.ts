@@ -2,14 +2,14 @@ import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { scaleMealItem, scaleMealItemQuantity, replaceMealItemFood } from "./intent/mealItemHelpers";
-import { buildWhatsAppCallbackId } from "./interactiveCallback";
 import {
   describeMealBatchMutationFailure,
   updateMealsWithCompensation,
   type MealBatchMutationChange,
 } from "./mealBatchMutation";
-import { buildWhatsappClosedDecisionReply } from "./interactionInventory";
+import { buildWhatsappClosedDecisionReply, type WhatsappInteractionAction } from "./interactionPresentation";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import {
   buildWhatsAppCallbackResourceNotFoundReplyMessage,
@@ -90,25 +90,30 @@ function selectionVerb(action: MealItemSelectionAction) {
 
 function buildSelectionQuestion(pending: PendingMealItemSelection) {
   const options = pending.candidates.map((candidate, index) => `${index + 1}. ${candidate.itemName} em ${candidate.mealLabel}`).join("\n");
-  return `Encontrei mais de um item parecido com "${pending.targetFood ?? "esse alimento"}" ${pending.contextLabel}. Qual devo ${selectionVerb(pending.action)}?\n${options}\n\nResponda com o número ou ordinal, ou toque em uma opção.`;
+  return `Encontrei mais de um item parecido com "${pending.targetFood ?? "esse alimento"}" ${pending.contextLabel}. Qual devo ${selectionVerb(pending.action)}?\n${options}\n\nResponda com o número ou ordinal, ou toque em uma opção. Envie CANCELAR para desistir.`;
 }
 
-/**
- * Regra central de componente (issue #858): a contagem inclui Cancelar. Dois
- * candidatos + Cancelar usam três botões; três ou mais candidatos usam lista.
- */
-function buildSelectionListReply(bodyText: string, pendingOperationId: number, candidates: MealItemSelectionCandidate[]): WhatsAppLogicalReply {
+export function buildMealItemSelectionActions(candidates: MealItemSelectionCandidate[]): WhatsappInteractionAction[] {
+  return [
+    ...candidates.map((candidate, index) => ({
+      id: `${SELECT_ACTION_PREFIX}${index}`,
+      label: `${index + 1}. ${candidate.itemName}`,
+      description: candidate.mealLabel,
+      effect: "select_candidate",
+    })),
+    { id: CANCEL_ACTION, label: "Cancelar", effect: "cancel_selection" },
+  ];
+}
+
+export function buildMealItemSelectionReply(
+  bodyText: string,
+  pendingOperationId: number,
+  candidates: MealItemSelectionCandidate[],
+): WhatsAppLogicalReply {
   return buildWhatsappClosedDecisionReply({
     bodyText,
     pendingOperationId,
-    actions: [
-      ...candidates.map((candidate, index) => ({
-        action: `${SELECT_ACTION_PREFIX}${index}`,
-        label: `${index + 1}. ${candidate.itemName}`,
-        description: candidate.mealLabel,
-      })),
-      { action: CANCEL_ACTION, label: "Cancelar" },
-    ],
+    actions: buildMealItemSelectionActions(candidates),
   });
 }
 
@@ -135,10 +140,18 @@ export async function createPendingMealItemSelection(userId: number, pending: Pe
     handled: true,
     action: "clarification_needed",
     reply,
-    ...(created ? { interactiveReply: buildSelectionListReply(reply, created.id, pending.candidates) } : {}),
+    ...(created ? { interactiveReply: buildMealItemSelectionReply(reply, created.id, pending.candidates) } : {}),
     eventType: "whatsapp.intent.meal_item_selection_requested",
     detail: "Seleção ambígua persistida antes da mutação; nenhum dado foi alterado.",
-    data: { targetFood: pending.targetFood, candidateCount: pending.candidates.length, remainingSelectionCount: pending.remainingSelections?.length ?? 0 },
+    data: {
+      targetFood: pending.targetFood,
+      candidateCount: pending.candidates.length,
+      remainingSelectionCount: pending.remainingSelections?.length ?? 0,
+      pendingOperationId: created?.id ?? null,
+      interactionId: "meal_item.candidate_selection",
+      interactionActionCount: pending.candidates.length + 1,
+      interactionComponent: pending.candidates.length + 1 <= 3 ? "buttons" : "list",
+    },
   };
 }
 
@@ -259,20 +272,51 @@ export async function resolveTextMealItemSelection(userId: number, text?: string
   const pendingRow: WhatsAppPendingOperationRecord | null = await pendingOperationRepository.getActivePendingOperation(userId);
   if (!pendingRow || pendingRow.type !== PENDING_MEAL_ITEM_SELECTION_TYPE) return null;
   const pending = pendingRow.target as PendingMealItemSelection;
+
+  // Uma mensagem completa nova não é complemento da seleção anterior. A
+  // pendência é substituída e o roteador continua normalmente.
+  if (isCompleteWhatsappCommand(trimmed)) {
+    const superseded = await pendingOperationRepository.supersedePendingOperation(pendingRow.id);
+    return superseded.superseded ? null : clarificationResult(
+      "Não consegui substituir a seleção pendente com segurança. Envie CANCELAR e repita o novo comando.",
+      "whatsapp.intent.meal_item_selection_replacement_blocked",
+      "Novo comando completo bloqueado porque a seleção anterior não pôde ser substituída.",
+      { pendingOperationId: pendingRow.id, fallbackBlocked: true },
+    );
+  }
+
   const normalized = normalizeSelectionText(trimmed);
   if (isCancellationText(normalized)) {
     await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
     return buildCancellationResult();
   }
-  // Resposta inválida reapresenta as mesmas opções interativas sem consumir a pendência (issue #858).
+
   const representSameOptions = (reply: string, eventType: string, detail: string): MealItemSelectionResult => ({
-    ...clarificationResult(reply, eventType, detail, { candidateCount: pending.candidates.length, pendingOperationId: pendingRow.id }),
-    interactiveReply: buildSelectionListReply(reply, pendingRow.id, pending.candidates),
+    ...clarificationResult(reply, eventType, detail, {
+      candidateCount: pending.candidates.length,
+      pendingOperationId: pendingRow.id,
+      interactionId: "meal_item.candidate_selection",
+      fallbackBlocked: true,
+    }),
+    interactiveReply: buildMealItemSelectionReply(reply, pendingRow.id, pending.candidates),
   });
+
   const index = parseSelectionIndex(normalized);
-  if (index === null) return representSameOptions(`Escolha uma das opções de 1 a ${pending.candidates.length} ou responda CANCELAR.`, "whatsapp.intent.meal_item_selection_needed", "Pendência continua ativa; nenhuma mutação foi executada.");
+  if (index === null) {
+    return representSameOptions(
+      `Escolha uma das opções de 1 a ${pending.candidates.length} ou responda CANCELAR.`,
+      "whatsapp.intent.meal_item_selection_needed",
+      "Resposta incompatível reapresentou a mesma seleção sem consumir a pendência.",
+    );
+  }
   const selected = pending.candidates[index];
-  if (!selected) return representSameOptions(`A opção ${index + 1} não existe. Escolha um número entre 1 e ${pending.candidates.length}, ou responda CANCELAR.`, "whatsapp.intent.meal_item_selection_invalid", "Índice inexistente na seleção persistida; mesmas opções reapresentadas.");
+  if (!selected) {
+    return representSameOptions(
+      `A opção ${index + 1} não existe. Escolha um número entre 1 e ${pending.candidates.length}, ou responda CANCELAR.`,
+      "whatsapp.intent.meal_item_selection_invalid",
+      "Índice inexistente reapresentou a mesma seleção persistida.",
+    );
+  }
   await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
   return continueSelectionOrApply(userId, selected, pending);
 }

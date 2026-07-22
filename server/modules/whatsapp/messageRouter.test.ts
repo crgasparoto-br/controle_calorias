@@ -84,10 +84,33 @@ vi.mock("./aiQuestionAssistant", () => ({
 
 const handlePendingWhatsAppConfirmationMock = vi.fn();
 vi.mock("./webhookTextCommands", () => ({
+  PENDING_CONFIRMATION_TYPE: "confirmation",
+  buildGenericConfirmationActions: vi.fn(() => [
+    { id: "confirm", label: "Confirmar", effect: "apply_action" },
+    { id: "cancel", label: "Cancelar", effect: "cancel_action" },
+  ]),
   handlePendingWhatsAppConfirmation: handlePendingWhatsAppConfirmationMock,
   completeWhatsappGenericConfirmationCallback: vi.fn(),
-  PENDING_CONFIRMATION_TYPE: "confirmation",
-  CONFIRM_ALL_ACTION: "confirm_all",
+}));
+
+const executeWhatsappDeleteIntentMock = vi.fn();
+vi.mock("./deleteIntent", () => ({
+  PENDING_DELETE_TYPE: "delete",
+  executeWhatsappDeleteIntent: executeWhatsappDeleteIntentMock,
+  completeWhatsappDeleteInteractiveCallback: vi.fn(),
+}));
+
+vi.mock("./mealItemSelectionCallback", () => ({
+  PENDING_MEAL_ITEM_SELECTION_TYPE: "meal_item_selection",
+  buildMealItemSelectionActions: vi.fn(() => []),
+  completeMealItemSelectionInteractiveCallback: vi.fn(),
+}));
+
+vi.mock("./periodReportClarification", () => ({
+  PENDING_PERIOD_REPORT_TYPE: "period_report",
+  buildWhatsappPeriodReportActions: vi.fn(() => []),
+  buildWhatsappPeriodReportClarificationListReply: vi.fn(),
+  completeWhatsappPeriodReportCallback: vi.fn(),
 }));
 
 const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
@@ -98,21 +121,25 @@ const repository = createDrizzleWhatsAppPendingOperationRepository({
   onWarning: vi.fn(),
 });
 
+const deleteResult = {
+  handled: true as const,
+  action: "clarification_needed" as const,
+  reply: "Confirme a exclusão.",
+  eventType: "whatsapp.intent.delete_food_confirmation_requested",
+  detail: "gate destrutivo",
+  data: { fallbackBlocked: true },
+};
+
 describe("resolveWhatsAppPrecedenceGate", () => {
   beforeEach(() => {
     fakeDb.reset();
     executeWhatsappAiQuestionIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockResolvedValue(null);
     handlePendingWhatsAppConfirmationMock.mockReset();
   });
 
-  it("prioriza comando explícito `/` mesmo com pendência de confirmação ativa e não a toca (regra #6 da issue)", async () => {
-    const created = await repository.createPendingOperation({
-      userId: 1,
-      type: "confirmation",
-      origin: "webhookTextCommands",
-      target: { summary: "Lanche -> Café da manhã" },
-      ttlMs: 60_000,
-    });
+  it("prioriza comando explícito / e não consulta o executor destrutivo", async () => {
     executeWhatsappAiQuestionIntentMock.mockResolvedValue({
       handled: true,
       action: "ai_question_answered",
@@ -124,15 +151,34 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     const decision = await resolveWhatsAppPrecedenceGate({ userId: 1, text: "/quantas calorias hoje?" });
 
     expect(decision).toEqual(expect.objectContaining({ step: "ai_question" }));
-    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
-
-    const stillActive = await repository.getActivePendingOperation(1);
-    expect(stillActive?.id).toBe(created?.id);
+    expect(executeWhatsappDeleteIntentMock).not.toHaveBeenCalled();
   });
 
-  it("resolve pendência de confirmação genérica ativa antes de continuar o pipeline", async () => {
+  it("resolve exclusão antes da confirmação genérica e dos parsers alimentares", async () => {
+    executeWhatsappDeleteIntentMock.mockResolvedValue(deleteResult);
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 2, text: "Excluir o Registrar" });
+
+    expect(decision).toEqual({ step: "delete_intent", result: deleteResult });
+    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalledWith(2, expect.objectContaining({
+      text: "Excluir o Registrar",
+      entrypoint: "messageRouter.precedenceGate",
+    }));
+    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
+  });
+
+  it("resolve resposta curta de pendência destrutiva no mesmo gate", async () => {
+    executeWhatsappDeleteIntentMock.mockResolvedValue({ ...deleteResult, action: "meal_deleted", reply: "Excluído." });
+
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 3, text: "sim" });
+
+    expect(decision).toEqual(expect.objectContaining({ step: "delete_intent" }));
+    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
+  });
+
+  it("resolve pendência de confirmação genérica quando o executor destrutivo não trata a mensagem", async () => {
     await repository.createPendingOperation({
-      userId: 2,
+      userId: 4,
       type: "confirmation",
       origin: "webhookTextCommands",
       target: { summary: "Lanche -> Café da manhã" },
@@ -145,172 +191,17 @@ describe("resolveWhatsAppPrecedenceGate", () => {
       detail: "detalhe",
     });
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 2, text: "sim" });
-
-    expect(decision).toEqual(expect.objectContaining({ step: "generic_confirmation" }));
-    expect(handlePendingWhatsAppConfirmationMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: { body: "sim" } }),
-      2,
-    );
-  });
-
-  it("segue para o pipeline normal quando não há `/` nem pendência de confirmação genérica", async () => {
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 3, text: "100g de arroz" });
-    expect(decision).toEqual({ step: "continue_pipeline" });
-    expect(executeWhatsappAiQuestionIntentMock).not.toHaveBeenCalled();
-    expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
-  });
-
-  it("ignora pendências de outro tipo (ex.: delete) e segue para o pipeline normal", async () => {
-    await repository.createPendingOperation({
-      userId: 4,
-      type: "delete",
-      origin: "deleteIntent",
-      target: { mealId: 10 },
-      ttlMs: 60_000,
-    });
-
     const decision = await resolveWhatsAppPrecedenceGate({ userId: 4, text: "sim" });
 
+    expect(decision).toEqual(expect.objectContaining({ step: "generic_confirmation" }));
+    expect(handlePendingWhatsAppConfirmationMock).toHaveBeenCalled();
+  });
+
+  it("segue para o pipeline quando nenhuma precedência trata a mensagem", async () => {
+    const decision = await resolveWhatsAppPrecedenceGate({ userId: 5, text: "100g de arroz" });
+
     expect(decision).toEqual({ step: "continue_pipeline" });
+    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalled();
     expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
-  });
-
-  it("mensagem incompatível com a pendência de confirmação não a consome e segue o pipeline (regra #5 da issue)", async () => {
-    await repository.createPendingOperation({
-      userId: 5,
-      type: "confirmation",
-      origin: "webhookTextCommands",
-      target: { summary: "Lanche -> Café da manhã" },
-      ttlMs: 60_000,
-    });
-    handlePendingWhatsAppConfirmationMock.mockResolvedValue(null);
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 5, text: "na verdade quero registrar 200g de frango" });
-
-    expect(decision).toEqual({ step: "continue_pipeline" });
-    const stillActive = await repository.getActivePendingOperation(5);
-    expect(stillActive).not.toBeNull();
-  });
-});
-
-describe("reapresentação transversal e resolução textual (issue #858)", () => {
-  beforeEach(() => {
-    fakeDb.reset();
-    executeWhatsappAiQuestionIntentMock.mockReset();
-    handlePendingWhatsAppConfirmationMock.mockReset();
-  });
-
-  it("palavra de comando isolada durante pendência de exclusão reapresenta os mesmos botões sem consumir a pendência", async () => {
-    const created = await repository.createPendingOperation({
-      userId: 10,
-      type: "delete",
-      origin: "deleteIntent",
-      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 10, text: "registrar" });
-
-    expect(decision.step).toBe("pending_reprompt");
-    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
-    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "buttons" });
-    expect(decision.result.data).toMatchObject({ pendingType: "delete", fallbackBlocked: true });
-
-    const stillActive = await repository.getActivePendingOperation(10);
-    expect(stillActive?.id).toBe(created?.id);
-    expect(stillActive?.state).toBe("active");
-  });
-
-  it("índice fora da faixa durante seleção de exclusão reapresenta as mesmas opções", async () => {
-    await repository.createPendingOperation({
-      userId: 11,
-      type: "delete",
-      origin: "deleteIntent",
-      target: {
-        kind: "selection",
-        targetFoodName: "pão",
-        candidates: [
-          { kind: "delete_food_from_meal", mealId: 1, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString(), itemIndex: 0, itemName: "Pão francês" },
-          { kind: "delete_food_from_meal", mealId: 2, mealLabel: "Lanche", mealOccurredAt: new Date().toISOString(), itemIndex: 1, itemName: "Pão de queijo" },
-        ],
-      },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 11, text: "9" });
-
-    expect(decision.step).toBe("pending_reprompt");
-    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
-    // 2 candidatos + Cancelar = 3 botões (regra central de componente).
-    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "buttons" });
-    const stillActive = await repository.getActivePendingOperation(11);
-    expect(stillActive?.state).toBe("active");
-  });
-
-  it("resposta válida à pendência de exclusão segue para a cadeia existente (continue_pipeline)", async () => {
-    await repository.createPendingOperation({
-      userId: 12,
-      type: "delete",
-      origin: "deleteIntent",
-      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 12, text: "sim" });
-    expect(decision).toEqual({ step: "continue_pipeline" });
-  });
-
-  it("comando completo novo não consome a pendência e segue o pipeline", async () => {
-    const created = await repository.createPendingOperation({
-      userId: 13,
-      type: "delete",
-      origin: "deleteIntent",
-      target: { kind: "delete_meal", mealId: 7, mealLabel: "Almoço", mealOccurredAt: new Date().toISOString() },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 13, text: "registrar 100 g de arroz" });
-    expect(decision).toEqual({ step: "continue_pipeline" });
-    const stillActive = await repository.getActivePendingOperation(13);
-    expect(stillActive?.id).toBe(created?.id);
-  });
-
-  it("texto numérico resolve a clarificação genérica pela mesma ação canônica do callback", async () => {
-    await repository.createPendingOperation({
-      userId: 14,
-      type: "intent_clarification",
-      origin: "intentClarificationInteraction",
-      target: { kind: "intent_clarification", originalText: "registrar" },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 14, text: "2" });
-
-    expect(decision.step).toBe("pending_text_resolution");
-    if (decision.step !== "pending_text_resolution") throw new Error("unreachable");
-    expect(decision.result.eventType).toBe("whatsapp.intent_clarification.correct_meal");
-
-    const stillActive = await repository.getActivePendingOperation(14);
-    expect(stillActive).toBeNull();
-  });
-
-  it("resposta inválida à clarificação genérica reapresenta a lista sem criar nova pendência", async () => {
-    const created = await repository.createPendingOperation({
-      userId: 15,
-      type: "intent_clarification",
-      origin: "intentClarificationInteraction",
-      target: { kind: "intent_clarification", originalText: "editar" },
-      ttlMs: 60_000,
-    });
-
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 15, text: "7" });
-
-    expect(decision.step).toBe("pending_reprompt");
-    if (decision.step !== "pending_reprompt") throw new Error("unreachable");
-    expect(decision.result.interactiveReply?.messages[0]).toMatchObject({ type: "list" });
-
-    const stillActive = await repository.getActivePendingOperation(15);
-    expect(stillActive?.id).toBe(created?.id);
   });
 });

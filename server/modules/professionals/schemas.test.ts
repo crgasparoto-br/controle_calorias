@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
-  professionalPatientQuestionSchema,
   professionalProfileSchema,
   requestPatientAccessSchema,
   professionalPortfolioSchema,
@@ -28,15 +27,19 @@ describe("professional schemas", () => {
   });
 
   it("accepts patient access requests by email or phone contact", () => {
-    expect(requestPatientAccessSchema.parse({
-      patientContact: "paciente@example.com",
-      reason: "Acompanhamento semanal",
-    }).patientContact).toBe("paciente@example.com");
+    expect(
+      requestPatientAccessSchema.parse({
+        patientContact: "paciente@example.com",
+        reason: "Acompanhamento semanal",
+      }).patientContact
+    ).toBe("paciente@example.com");
 
-    expect(requestPatientAccessSchema.parse({
-      patientContact: "+55 (11) 99999-9999",
-      reason: "Acompanhamento semanal",
-    }).patientContact).toBe("+55 (11) 99999-9999");
+    expect(
+      requestPatientAccessSchema.parse({
+        patientContact: "+55 (11) 99999-9999",
+        reason: "Acompanhamento semanal",
+      }).patientContact
+    ).toBe("+55 (11) 99999-9999");
   });
 
   it("keeps the previous patientEmail field for compatibility", () => {
@@ -78,21 +81,24 @@ describe("professional schemas", () => {
     expect(result.status).toBe("sent");
   });
 
-  it("accepts professional AI questions for authorized patient context", () => {
-    const result = professionalPatientQuestionSchema.parse({
-      patientId: 2,
-      question: "O que merece atenção nos registros da semana?",
-    });
-
-    expect(result).toEqual({
-      patientId: 2,
-      question: "O que merece atenção nos registros da semana?",
-    });
-  });
-
   it("limits the configurable portfolio report period to 90 inclusive days", () => {
-    expect(professionalPortfolioSchema.parse({ reportStartDate: "2026-07-01", reportEndDate: "2026-07-20" })).toMatchObject({ reportStartDate: "2026-07-01", reportEndDate: "2026-07-20" });
-    expect(() => professionalPortfolioSchema.parse({ reportStartDate: "2026-01-01", reportEndDate: "2026-07-20" })).toThrow("Escolha um período de até 90 dias");
-    expect(() => professionalPortfolioSchema.parse({ reportStartDate: "2026-07-20" })).toThrow("Informe o início e o fim");
+    expect(
+      professionalPortfolioSchema.parse({
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toMatchObject({
+      reportStartDate: "2026-07-01",
+      reportEndDate: "2026-07-20",
+    });
+    expect(() =>
+      professionalPortfolioSchema.parse({
+        reportStartDate: "2026-01-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toThrow("Escolha um período de até 90 dias");
+    expect(() =>
+      professionalPortfolioSchema.parse({ reportStartDate: "2026-07-20" })
+    ).toThrow("Informe o início e o fim");
   });
 });

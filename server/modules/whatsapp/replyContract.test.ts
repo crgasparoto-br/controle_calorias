@@ -142,6 +142,19 @@ describe("replyContract", () => {
       buttonText: "Editar",
       url: "not-a-url",
     })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "url" })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "buttons",
+      bodyText: "x".repeat(1025),
+      buttons: [{ id: "a", title: "A" }],
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "bodyText" })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "list",
+      bodyText: "x",
+      buttonText: "Ver",
+      sections: [{ title: "x".repeat(25), rows: [{ id: "a", title: "A" }] }],
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "sections" })]));
   });
 
   it("deriva fallback textual determinístico de botões sem expor IDs de callback", () => {
@@ -187,6 +200,7 @@ describe("replyContract", () => {
   it("não gera fallback inventado quando não há opções suficientes (lista/botões vazios)", () => {
     expect(buildWhatsAppOutboundFallbackText({ type: "buttons", bodyText: "x", buttons: [] })).toBeNull();
     expect(buildWhatsAppOutboundFallbackText({ type: "list", bodyText: "x", buttonText: "Ver", sections: [{ rows: [] }] })).toBeNull();
+    expect(buildWhatsAppOutboundFallbackText({ type: "cta_url", bodyText: "x", buttonText: "Abrir", url: "javascript:alert(1)" })).toBeNull();
   });
 
   it("deriva fallback de CTA no mesmo formato já usado pelo adapter existente", () => {

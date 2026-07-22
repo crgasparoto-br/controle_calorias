@@ -11,9 +11,8 @@
  * falha (rejeição da Meta, rede, configuração ou validação local com
  * conteúdo suficiente), o transporte deriva um fallback textual da mesma
  * `WhatsAppOutboundMessage` (via `buildWhatsAppOutboundFallbackText`) e tenta
- * enviá-lo uma única vez, na mesma posição física da sequência. `cta_url` já
- * resolve o próprio fallback dentro do adapter (`webhookUtils.ts`); aqui o
- * resultado é apenas refletido de forma coerente com os demais tipos.
+ * enviá-lo uma única vez, na mesma posição física da sequência. A mesma
+ * política cobre `buttons`, `list` e `cta_url`.
  * Handlers não enviam fallback diretamente e não montam versões paralelas.
  */
 import { safeLogDetail } from "../../privacy";
@@ -24,6 +23,7 @@ import {
   sendWhatsAppInteractiveListMessage,
   sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
+  type WhatsAppProviderSendResult,
 } from "./webhookUtils";
 import {
   buildWhatsAppOutboundFallbackText,
@@ -33,6 +33,7 @@ import {
   type WhatsAppOutboundMessage,
 } from "./replyContract";
 import type { MessageLifecycleHandle } from "./messageLifecycle";
+import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 
 /** Papel físico da mensagem na resposta lógica: a primeira é sempre primária. */
 export type WhatsAppOutboundRole = "primary" | "auxiliary";
@@ -52,6 +53,10 @@ export type WhatsAppOutboundSendResult = {
   /** Sucesso efetivo desta posição: original OU fallback entregue. */
   effectiveOk: boolean;
   category: WhatsAppOutboundFailureCategory;
+  sequenceDecision: "continue" | "stop" | "complete";
+  providerStatus?: number;
+  providerStatusText?: string;
+  traceId?: string;
   /** Compatibilidade com o contrato anterior (issue #781): alias de `effectiveOk`. */
   ok: boolean;
   detail: string;
@@ -68,6 +73,12 @@ export type WhatsAppLogicalReplySendResult = {
   recorded: boolean;
 };
 
+const URL_IN_DETAIL_PATTERN = /https?:\/\/[^\s)\]}]+/gi;
+
+function sanitizeTransportDetail(detail: string) {
+  return safeLogDetail(detail.replace(URL_IN_DETAIL_PATTERN, "[url_redacted]"));
+}
+
 function classifyFailure(detail: string): WhatsAppOutboundFailureCategory {
   if (/credenciais|configura/i.test(detail)) return "config";
   if (/validação do contrato/i.test(detail)) return "validation";
@@ -75,7 +86,7 @@ function classifyFailure(detail: string): WhatsAppOutboundFailureCategory {
   return "network";
 }
 
-async function sendRawOutboundMessage(to: string, message: WhatsAppOutboundMessage): Promise<{ ok: boolean; detail: string }> {
+async function sendRawOutboundMessage(to: string, message: WhatsAppOutboundMessage): Promise<WhatsAppProviderSendResult> {
   switch (message.type) {
     case "text":
       return sendWhatsAppTextMessage(to, message.body);
@@ -96,17 +107,8 @@ async function sendRawOutboundMessage(to: string, message: WhatsAppOutboundMessa
   }
 }
 
-/** `cta_url` já possui fallback textual nativo dentro do próprio adapter (issue #781). */
-function transportHandlesOwnFallback(message: WhatsAppOutboundMessage) {
-  return message.type === "cta_url";
-}
-
-/**
- * Registra a observabilidade sanitizada da tentativa (issue #859) e devolve o
- * mesmo objeto como `WhatsAppOutboundSendResult`, evitando repetir a
- * montagem do resultado em cada ponto de saída de `sendOutboundMessageWithFallback`.
- */
-function finalizeSend(input: {
+/** Monta o resultado sanitizado comum a todos os caminhos de envio. */
+function buildSendResult(input: {
   message: WhatsAppOutboundMessage;
   role: WhatsAppOutboundRole;
   origin?: string;
@@ -116,21 +118,11 @@ function finalizeSend(input: {
   fallbackOk?: boolean;
   effectiveOk: boolean;
   detail: string;
-}): WhatsAppOutboundSendResult {
-  console.info(
-    "[WhatsAppReplyTransport]",
-    safeLogDetail({
-      type: input.message.type,
-      role: input.role,
-      origin: input.origin,
-      category: input.category,
-      originalOk: input.originalOk,
-      usedFallback: input.usedFallback,
-      fallbackOk: input.fallbackOk,
-      effectiveOk: input.effectiveOk,
-      detail: input.detail,
-    }),
-  );
+  providerStatus?: number;
+  providerStatusText?: string;
+  traceId?: string;
+}): Omit<WhatsAppOutboundSendResult, "sequenceDecision"> {
+  const detail = sanitizeTransportDetail(input.detail);
   return {
     message: input.message,
     role: input.role,
@@ -139,8 +131,11 @@ function finalizeSend(input: {
     fallbackOk: input.fallbackOk,
     effectiveOk: input.effectiveOk,
     category: input.category,
+    providerStatus: input.providerStatus,
+    providerStatusText: input.providerStatusText,
+    traceId: input.traceId,
     ok: input.effectiveOk,
-    detail: input.detail,
+    detail,
   };
 }
 
@@ -155,33 +150,34 @@ async function sendOutboundMessageWithFallback(
   message: WhatsAppOutboundMessage,
   role: WhatsAppOutboundRole,
   origin?: string,
-): Promise<WhatsAppOutboundSendResult> {
+  traceId?: string,
+): Promise<Omit<WhatsAppOutboundSendResult, "sequenceDecision">> {
   const validationErrors = validateWhatsAppOutboundMessage(message);
   const localValidationFailed = validationErrors.length > 0;
-  const original = localValidationFailed
+  const original: WhatsAppProviderSendResult = localValidationFailed
     ? { ok: false, detail: `Mensagem rejeitada por validação do contrato: ${validationErrors.map(error => error.detail).join(" ")}` }
     : await sendRawOutboundMessage(to, message);
 
-  if (original.ok || transportHandlesOwnFallback(message)) {
-    const usedFallback = transportHandlesOwnFallback(message) && /fallback textual/i.test(original.detail);
-    const category = original.ok ? "none" : classifyFailure(original.detail);
-    return finalizeSend({
+  if (original.ok) {
+    return buildSendResult({
       message,
       role,
       origin,
-      category,
-      originalOk: original.ok && !usedFallback,
-      usedFallback,
-      fallbackOk: usedFallback ? original.ok : undefined,
-      effectiveOk: original.ok,
+      category: "none",
+      originalOk: true,
+      usedFallback: false,
+      effectiveOk: true,
       detail: original.detail,
+      providerStatus: original.status,
+      providerStatusText: original.statusText,
+      traceId,
     });
   }
 
-  const category = classifyFailure(original.detail);
+  const category = original.failureCategory ?? classifyFailure(original.detail);
   const fallbackText = buildWhatsAppOutboundFallbackText(message);
   if (!fallbackText) {
-    return finalizeSend({
+    return buildSendResult({
       message,
       role,
       origin,
@@ -190,6 +186,9 @@ async function sendOutboundMessageWithFallback(
       usedFallback: false,
       effectiveOk: false,
       detail: original.detail,
+      providerStatus: original.status,
+      providerStatusText: original.statusText,
+      traceId,
     });
   }
 
@@ -197,7 +196,7 @@ async function sendOutboundMessageWithFallback(
   const detail = fallback.ok
     ? `Envio original falhou (${original.detail}); fallback textual entregue com sucesso.`
     : `Envio original falhou (${original.detail}); fallback textual também falhou (${fallback.detail}).`;
-  return finalizeSend({
+  return buildSendResult({
     message,
     role,
     origin,
@@ -207,6 +206,9 @@ async function sendOutboundMessageWithFallback(
     fallbackOk: fallback.ok,
     effectiveOk: fallback.ok,
     detail,
+    providerStatus: original.status,
+    providerStatusText: original.statusText,
+    traceId,
   });
 }
 
@@ -217,10 +219,9 @@ export type WhatsAppLogicalReplyLifecycleInput = {
 
 /**
  * Envia a resposta lógica completa. Todas as posições são tentadas de forma
- * independente (issue #859): a falha efetiva de uma mensagem auxiliar não
- * impede a tentativa de auxiliares posteriores independentes, e a falha
- * efetiva da mensagem primária não interrompe o envio de auxiliares — apenas
- * impede o registro da resposta funcional no lifecycle. Dependências reais
+ * independente (issue #859): a falha efetiva da mensagem primária encerra a
+ * sequência; depois do sucesso primário, a falha de uma mensagem auxiliar não
+ * impede a tentativa de auxiliares posteriores independentes. Dependências reais
  * entre mensagens devem ser declaradas no contrato/plano de entrega, não
  * inferidas pela posição. Nenhuma mutação de domínio é reexecutada aqui.
  */
@@ -228,13 +229,36 @@ export async function sendWhatsAppLogicalReply(
   to: string,
   reply: WhatsAppLogicalReply,
   lifecycle?: WhatsAppLogicalReplyLifecycleInput,
-  options?: { origin?: string },
+  options?: { origin?: string; traceId?: string },
 ): Promise<WhatsAppLogicalReplySendResult> {
   const sends: WhatsAppOutboundSendResult[] = [];
+  const traceId = options?.traceId ?? getCurrentWhatsappInboundExternalMessageId() ?? undefined;
   for (let index = 0; index < reply.messages.length; index++) {
     const role: WhatsAppOutboundRole = index === 0 ? "primary" : "auxiliary";
-    const result = await sendOutboundMessageWithFallback(to, reply.messages[index], role, options?.origin);
+    const baseResult = await sendOutboundMessageWithFallback(to, reply.messages[index], role, options?.origin, traceId);
+    const sequenceDecision = role === "primary" && !baseResult.effectiveOk
+      ? "stop"
+      : index === reply.messages.length - 1
+        ? "complete"
+        : "continue";
+    const result: WhatsAppOutboundSendResult = { ...baseResult, sequenceDecision };
     sends.push(result);
+    console.info("[WhatsAppReplyTransport]", safeLogDetail({
+      type: result.message.type,
+      role,
+      origin: options?.origin,
+      category: result.category,
+      originalOk: result.originalOk,
+      usedFallback: result.usedFallback,
+      fallbackOk: result.fallbackOk,
+      effectiveOk: result.effectiveOk,
+      providerStatus: result.providerStatus,
+      providerStatusText: result.providerStatusText,
+      traceId,
+      sequenceDecision,
+      detail: result.detail,
+    }));
+    if (role === "primary" && !result.effectiveOk) break;
   }
 
   const primaryEffectiveOk = sends.length > 0 && sends[0].effectiveOk;

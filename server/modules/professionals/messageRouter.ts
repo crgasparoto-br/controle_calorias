@@ -1,4 +1,5 @@
 import { protectedProcedure, router } from "../../_core/trpc";
+import { professionalMessagesProcedure } from "./entitledProcedure";
 import {
   patientProfessionalMessageListSchema,
   professionalMessageCreateSchema,
@@ -13,15 +14,15 @@ import {
 } from "./messageService";
 
 export const professionalMessageRouter = router({
-  list: protectedProcedure
+  list: professionalMessagesProcedure
     .input(professionalMessageListSchema)
     .query(({ ctx, input }) => listProfessionalMessages(ctx.user.id, input)),
-  create: protectedProcedure
+  create: professionalMessagesProcedure
     .input(professionalMessageCreateSchema)
     .mutation(({ ctx, input }) =>
       createProfessionalMessage(ctx.user.id, input)
     ),
-  retry: protectedProcedure
+  retry: professionalMessagesProcedure
     .input(professionalMessageRetrySchema)
     .mutation(({ ctx, input }) =>
       deliverProfessionalMessage(input.messageId, ctx.user.id)

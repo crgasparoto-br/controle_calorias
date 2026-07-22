@@ -1,5 +1,4 @@
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "../../whatsappConfig";
-import { buildWhatsAppOutboundFallbackText } from "./replyContract";
 
 export type WhatsAppWebhookMessage = {
   id?: string;
@@ -16,6 +15,15 @@ export type WhatsAppWebhookMessage = {
     button_reply?: { id?: string; title?: string };
     list_reply?: { id?: string; title?: string; description?: string };
   };
+};
+
+export type WhatsAppProviderSendResult = {
+  ok: boolean;
+  detail: string;
+  failureCategory?: "config" | "network" | "provider";
+  status?: number;
+  statusText?: string;
+  errorBody?: string;
 };
 
 export type ExtractedWhatsAppWebhookMessage = WhatsAppWebhookMessage & {
@@ -83,18 +91,6 @@ export function collapseWhitespace(value: string) {
 
 export function normalizeWhatsAppIntentText(value: string) {
   return stripDiacritics(value).toLowerCase().trim();
-}
-
-/**
- * Normalização usada para comparar respostas curtas de texto contra ações
- * canônicas (comando isolado, seleção numérica, cancelamento): minúsculas,
- * sem diacríticos, espaços colapsados. Compartilhada entre
- * `standaloneCommandWords.ts`, `intentClarificationInteraction.ts` e
- * `interactionReplay.ts` (issue #858) para evitar reimplementar a mesma
- * função de duas linhas em cada módulo.
- */
-export function normalizeWhatsAppShortCommandText(value: string) {
-  return collapseWhitespace(stripDiacritics(value.trim().toLowerCase()));
 }
 
 export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {
@@ -336,56 +332,19 @@ export function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-/**
- * Deriva o texto do fallback do CTA reutilizando o mesmo builder central do
- * transporte (issue #859), para que o CTA siga a política única de fallback
- * também aplicada a `buttons`/`list` — nenhuma versão paralela de texto.
- */
-function buildInteractiveUrlFallbackText(bodyText: string, buttonDisplayText: string, buttonUrl: string) {
-  return buildWhatsAppOutboundFallbackText({ type: "cta_url", bodyText, buttonText: buttonDisplayText, url: buttonUrl })!;
-}
-
-async function sendWhatsAppTextMessageWithConfig(config: { accessToken: string; phoneNumberId: string }, to: string, body: string) {
-  const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: {
-        preview_url: true,
-        body,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      detail: `Meta retornou ${response.status} ${response.statusText} no envio do fallback textual.`,
-    };
-  }
-
-  return { ok: true, detail: "Fallback textual enviado com sucesso." };
-}
-
 export async function sendWhatsAppInteractiveUrlButtonMessage(
   to: string,
   bodyText: string,
   buttonDisplayText: string,
   buttonUrl: string,
-) {
+): Promise<WhatsAppProviderSendResult> {
   let config;
   try {
     config = await requireWhatsAppSendConfig();
   } catch (error) {
     return {
       ok: false,
-      usedFallback: false,
+      failureCategory: "config",
       detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de mensagem interativa.",
     };
   }
@@ -417,52 +376,23 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
-      const fallback = await sendWhatsAppTextMessageWithConfig(
-        config,
-        to,
-        buildInteractiveUrlFallbackText(bodyText, buttonDisplayText, buttonUrl),
-      );
-      if (fallback.ok) {
-        return {
-          ok: true,
-          usedFallback: true,
-          detail: `Mensagem interativa não foi aceita (${response.status} ${response.statusText}: ${errorBody}); fallback textual enviado com sucesso.`,
-        };
-      }
       return {
         ok: false,
-        usedFallback: true,
-        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio da mensagem interativa. ${fallback.detail}`,
+        failureCategory: "provider",
+        status: response.status,
+        statusText: response.statusText,
+        errorBody,
+        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio da mensagem interativa.`,
       };
     }
 
-    return { ok: true, usedFallback: false, detail: "Mensagem interativa enviada com sucesso." };
+    return { ok: true, detail: "Mensagem interativa enviada com sucesso." };
   } catch (error) {
-    try {
-      const fallback = await sendWhatsAppTextMessageWithConfig(
-        config,
-        to,
-        buildInteractiveUrlFallbackText(bodyText, buttonDisplayText, buttonUrl),
-      );
-      if (fallback.ok) {
-        return {
-          ok: true,
-          usedFallback: true,
-          detail: `Mensagem interativa falhou (${error instanceof Error ? error.message : String(error)}); fallback textual enviado com sucesso.`,
-        };
-      }
-      return {
-        ok: false,
-        usedFallback: true,
-        detail: `${error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp."} ${fallback.detail}`,
-      };
-    } catch (fallbackError) {
-      return {
-        ok: false,
-        usedFallback: true,
-        detail: fallbackError instanceof Error ? fallbackError.message : "Falha desconhecida ao enviar fallback textual do WhatsApp.",
-      };
-    }
+    return {
+      ok: false,
+      failureCategory: "network",
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp.",
+    };
   }
 }
 
@@ -474,13 +404,14 @@ export async function sendWhatsAppInteractiveButtonsMessage(
   to: string,
   bodyText: string,
   buttons: WhatsAppInteractiveButtonSpec[],
-) {
+): Promise<WhatsAppProviderSendResult> {
   let config;
   try {
     config = await requireWhatsAppSendConfig();
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "config",
       detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de botões.",
     };
   }
@@ -510,9 +441,14 @@ export async function sendWhatsAppInteractiveButtonsMessage(
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio dos botões.`,
+        failureCategory: "provider",
+        status: response.status,
+        statusText: response.statusText,
+        errorBody,
+        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio dos botões.`,
       };
     }
 
@@ -520,6 +456,7 @@ export async function sendWhatsAppInteractiveButtonsMessage(
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "network",
       detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar botões do WhatsApp.",
     };
   }
@@ -530,13 +467,14 @@ export async function sendWhatsAppInteractiveListMessage(
   bodyText: string,
   buttonText: string,
   sections: WhatsAppInteractiveListSectionSpec[],
-) {
+): Promise<WhatsAppProviderSendResult> {
   let config;
   try {
     config = await requireWhatsAppSendConfig();
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "config",
       detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de lista.",
     };
   }
@@ -571,9 +509,14 @@ export async function sendWhatsAppInteractiveListMessage(
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da lista.`,
+        failureCategory: "provider",
+        status: response.status,
+        statusText: response.statusText,
+        errorBody,
+        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio da lista.`,
       };
     }
 
@@ -581,18 +524,20 @@ export async function sendWhatsAppInteractiveListMessage(
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "network",
       detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar lista do WhatsApp.",
     };
   }
 }
 
-export async function sendWhatsAppTextMessage(to: string, body: string) {
+export async function sendWhatsAppTextMessage(to: string, body: string): Promise<WhatsAppProviderSendResult> {
   let config;
   try {
     config = await requireWhatsAppSendConfig();
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "config",
       detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
     };
   }
@@ -616,9 +561,14 @@ export async function sendWhatsAppTextMessage(to: string, body: string) {
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.`,
+        failureCategory: "provider",
+        status: response.status,
+        statusText: response.statusText,
+        errorBody,
+        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio da resposta automática.`,
       };
     }
 
@@ -626,6 +576,7 @@ export async function sendWhatsAppTextMessage(to: string, body: string) {
   } catch (error) {
     return {
       ok: false,
+      failureCategory: "network",
       detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
     };
   }

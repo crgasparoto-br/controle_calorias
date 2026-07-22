@@ -110,18 +110,6 @@ describe("executeWhatsappLlmIntent", () => {
     }));
   });
 
-  it("bloqueia comando isolado 'registrar' sem pendência sem chamar a IA (issue #855)", async () => {
-    const result = await executeWhatsappLlmIntent(42, { text: "registrar", receivedAt: new Date("2026-06-12T12:00:00.000Z") });
-
-    expect(interpretWhatsappMessageWithDiagnosticsMock).not.toHaveBeenCalled();
-    expect(buildWhatsappIntentContextMock).not.toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "clarification_needed",
-      reply: expect.stringContaining(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),
-    }));
-  });
-
   it("responde com bloqueio seguro quando o guard impede instrucao maliciosa", async () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "deterministic",
