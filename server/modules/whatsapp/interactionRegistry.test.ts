@@ -62,7 +62,7 @@ const deleteSelection = {
 
 describe("registro executável transversal de interações", () => {
   it("é versionado, possui IDs únicos, metadados e handlers executáveis obrigatórios", () => {
-    expect(WHATSAPP_INTERACTION_REGISTRY_VERSION).toBeGreaterThanOrEqual(3);
+    expect(WHATSAPP_INTERACTION_REGISTRY_VERSION).toBeGreaterThanOrEqual(4);
     const ids = WHATSAPP_INTERACTION_REGISTRY.map(entry => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of WHATSAPP_INTERACTION_REGISTRY) {
@@ -76,6 +76,8 @@ describe("registro executável transversal de interações", () => {
       expect(entry.allowedEffects.length).toBeGreaterThan(0);
       expect(entry.forbiddenEffects.length).toBeGreaterThan(0);
       expect(entry.actions).toBeTypeOf("function");
+      expect(entry.classifyText).toBeTypeOf("function");
+      expect(entry.resolveText).toBeTypeOf("function");
       expect(entry.rebuild).toBeTypeOf("function");
       expect(entry.completeCallback).toBeTypeOf("function");
     }
@@ -87,9 +89,13 @@ describe("registro executável transversal de interações", () => {
     expect(listWhatsappRegisteredPendingTypes().sort()).toEqual(discovered);
   });
 
-  it("roteador e registro não mantêm switch ou cadeia paralela por tipo de pendência", () => {
+  it("roteador, gate e registro não mantêm switch ou cadeia paralela por tipo de pendência", () => {
     const router = fs.readFileSync(
       path.resolve(process.cwd(), "server/modules/whatsapp/messageRouter.ts"),
+      "utf8",
+    );
+    const gate = fs.readFileSync(
+      path.resolve(process.cwd(), "server/modules/whatsapp/foodClarificationGate.ts"),
       "utf8",
     );
     const registry = fs.readFileSync(
@@ -100,10 +106,15 @@ describe("registro executável transversal de interações", () => {
     expect(router).not.toMatch(/switch\s*\(.*pendingOperation\.type/);
     expect(router).toContain("listWhatsappRegisteredPendingTypes");
     expect(router).toContain("completeWhatsappRegisteredCallback");
+    expect(gate).not.toMatch(/active\.type\s*===/);
+    expect(gate).not.toMatch(/switch\s*\(.*active\.type/);
+    expect(gate).toContain("interaction.classifyText");
+    expect(gate).toContain("resolveWhatsappRegisteredText");
     expect(registry).not.toMatch(/switch\s*\(.*pendingOperation\.type/);
     expect(registry).not.toMatch(/pendingOperation\.type\s*===/);
     expect(registry).toContain("interaction.rebuild");
     expect(registry).toContain("interaction.completeCallback");
+    expect(registry).toContain("interaction.resolveText");
   });
 
   it("consome as ações estruturadas dos produtores sem mudar ordem ou significado", () => {
