@@ -4,12 +4,22 @@ const GENERIC_IMAGE_FOOD_NAMES = new Set([
   "alimento",
   "comida",
   "refeicao",
-  "refeição",
   "item",
   "prato",
   "porcao",
-  "porção",
+  "ingrediente",
+  "produto",
+  "desconhecido",
 ]);
+
+const GENERIC_IMAGE_IDENTITY_PATTERNS = [
+  /^(?:nao\s+)?identificad[oa]$/,
+  /^(?:nao\s+)?reconhecid[oa]$/,
+  /^(?:alimento|comida|refeicao|item|prato|porcao|ingrediente|produto)\s+(?:nao\s+)?(?:identificad[oa]|reconhecid[oa]|desconhecid[oa])$/,
+  /^item\s+\d+$/,
+  /^(?:objeto|imagem|foto)(?:\s+\d+)?$/,
+  /^sem\s+(?:identificacao|descricao|nome)$/,
+];
 
 function normalizeIdentity(value?: string | null) {
   return (value ?? "")
@@ -22,14 +32,21 @@ function normalizeIdentity(value?: string | null) {
 }
 
 function isOnlyQuantityOrUnit(value: string) {
-  return /^\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|porcao|porcoes?|porção|porções?|unidades?)?$/i.test(
+  return /^\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|porcao|porcoes?|unidades?)?$/i.test(
     value
+  );
+}
+
+function isGenericImageIdentity(value: string) {
+  return (
+    GENERIC_IMAGE_FOOD_NAMES.has(value) ||
+    GENERIC_IMAGE_IDENTITY_PATTERNS.some(pattern => pattern.test(value))
   );
 }
 
 function isReliableFoodIdentity(value?: string | null) {
   const normalized = normalizeIdentity(value);
-  if (!normalized || GENERIC_IMAGE_FOOD_NAMES.has(normalized)) return false;
+  if (!normalized || isGenericImageIdentity(normalized)) return false;
   if (isOnlyQuantityOrUnit(normalized)) return false;
   return /\p{L}/u.test(normalized);
 }
@@ -52,11 +69,18 @@ export function normalizeWhatsappImageMealItemsForPersistence(
   });
 }
 
+function hasUnsafeEstimatedPortionMarker(item: MealDraftItem) {
+  const portion = normalizeIdentity(item.portionText);
+  return /\b(?:nao\s+informad[oa]|sem\s+quantidade|aprox|aproximad[oa]|estimad[oa]|padrao)\b/.test(
+    portion
+  );
+}
+
 function hasSafePortion(item: MealDraftItem) {
+  if (hasUnsafeEstimatedPortionMarker(item)) return false;
   if (Number(item.quantity) > 0 && item.unit?.trim()) return true;
-  if (Number(item.estimatedGrams) > 0) return true;
-  return /\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|unidades?|fatias?|porcoes?|porções?)\b/i.test(
-    item.portionText ?? ""
+  return /\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|unidades?|fatias?|porcoes?)\b/i.test(
+    normalizeIdentity(item.portionText)
   );
 }
 
