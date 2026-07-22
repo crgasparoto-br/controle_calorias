@@ -15,19 +15,30 @@ Esta matriz complementa `whatsapp-response-contract-regression.md` com os cenár
 
 ## Matriz funcional
 
-| Interação | Ações/entrada | Resolução textual | Resposta inválida | Estado obsoleto/expirado |
-|---|---|---|---|---|
-| Exclusão — confirmação | Confirmar / Cancelar | SIM / CANCELAR | reapresenta os dois botões sem mutação | indisponível; solicitar novo comando |
-| Exclusão — seleção | candidatos / Cancelar | índice ou ordinal / CANCELAR | reapresenta mesmas opções e ordem | indisponível; não excluir |
-| Seleção para ajuste/substituição | candidatos / Cancelar | índice ou ordinal / CANCELAR | reapresenta mesma interação | revalidar refeição e item |
-| Confirmação genérica | Confirmar / Cancelar | SIM / CANCELAR | reapresenta sem consumir | revalidar alvo atual |
-| Reclassificação ambígua | Só compatíveis / Todos recentes / Cancelar | APENAS / TODOS / CANCELAR | `sim` não escolhe escopo | reconsultar registros recentes |
-| Período de resumo | Hoje / Ontem / Esta semana / Este mês / Cancelar | período / CANCELAR | reapresenta lista | não gerar resumo |
-| Autorização profissional | Autorizar / Recusar | AUTORIZAR / NEGAR | reapresenta após recarregar domínio | indisponível se solicitação não estiver pendente |
-| Clarificação genérica | Registrar / Corrigir / Consultar / Cancelar | número, rótulo ou CANCELAR | preserva mensagem original e reapresenta | não persistir comando isolado |
-| Alimento — quantidade | valor e unidade | quantidade compatível | repete pergunta específica | preservar alimento original |
-| Alimento — confirmação | Confirmar / Cancelar | confirmação/cancelamento | reapresenta sem criar alimento | indisponível; sem fallback de 100 g |
-| Alimento — seleção | candidatos / Cancelar | opção válida / CANCELAR | reapresenta mesma ordem | preservar candidato e qualificadores |
+| Interação | Resolução textual | Resposta inválida | Estado obsoleto/expirado |
+|---|---|---|---|
+| Exclusão — confirmação | SIM / CANCELAR | reapresenta sem mutação | indisponível; solicitar novo comando |
+| Exclusão — seleção | índice ou ordinal / CANCELAR | reapresenta mesma ordem | indisponível; não excluir |
+| Seleção para ajuste/substituição | índice ou ordinal / CANCELAR | reapresenta mesma interação | revalidar refeição e item |
+| Confirmação genérica | SIM / CANCELAR | reapresenta sem consumir | revalidar alvo persistido |
+| Reclassificação ambígua | APENAS / TODOS / CANCELAR | `sim` não escolhe escopo | validar exatamente `mealIds`/`allMealIds` |
+| Período de resumo | período / CANCELAR | reapresenta lista | não gerar resumo |
+| Autorização profissional | AUTORIZAR / NEGAR | reapresenta após recarregar domínio | indisponível se não estiver pendente |
+| Clarificação genérica | número, rótulo ou CANCELAR | preserva mensagem original | não persistir comando isolado |
+| Alimento — quantidade | quantidade compatível | repete pergunta específica | preservar alimento original |
+| Alimento — confirmação | confirmação/cancelamento | reapresenta sem criar alimento | sem fallback de 100 g |
+| Alimento — seleção | opção válida / CANCELAR | reapresenta mesma ordem | preservar candidato e qualificadores |
+
+## Cenários discriminantes da auditoria
+
+Os seguintes testes são obrigatórios porque diferenciam a implementação correta de uma solução apenas estrutural:
+
+1. uma transcrição de áudio dentro do escopo persistente da mensagem resolve uma pendência antes da inferência nutricional;
+2. escolher Registrar alimento retoma `originalText` quando ele contém dados suficientes e cria a clarificação específica quando necessário;
+3. uma refeição criada depois da pergunta não entra em “Todos recentes”; apenas `allMealIds` persistidos podem ser alterados;
+4. cancelar por callback produz `interactionLifecycle=cancelled`, enquanto confirmar produz `consumed`;
+5. cada entrada do registro possui `actions`, `classifyText`, `resolveText`, `rebuild` e `completeCallback` executáveis;
+6. o roteador, o gate e o registro não mantêm switch ou cadeia paralela por tipo de pendência.
 
 ## Segurança e idempotência
 
@@ -40,7 +51,7 @@ Os testes devem provar:
 - callback consumido, cancelado ou expirado responde indisponibilidade;
 - resposta inválida não cria nova pendência equivalente;
 - resposta inválida não alcança parser, LLM ou fallback nutricional;
-- novo comando completo incompatível substitui a pendência anterior e segue o roteador normal;
+- comando completo incompatível substitui a pendência anterior e segue o roteador normal;
 - ação desconhecida recuperável não altera o recurso.
 
 ## Paridade
@@ -50,7 +61,7 @@ A mesma regra deve ser validada em:
 1. webhook HTTP textual;
 2. callback `button_reply`;
 3. callback `list_reply`;
-4. áudio transcrito retornando ao pipeline textual;
+4. áudio transcrito no escopo persistente;
 5. `simulateWhatsappInbound`;
 6. envio independente de autorização profissional.
 
@@ -58,14 +69,14 @@ A mesma regra deve ser validada em:
 
 A implementação mantém testes para:
 
-- versão, unicidade e campos obrigatórios do registro;
+- versão, unicidade e handlers obrigatórios do registro;
 - descoberta automática de todos os `PENDING_*_TYPE` exportados;
-- ausência de lista ou switch paralelo no `messageRouter.ts`;
+- ausência de roteamento paralelo por tipo;
 - correspondência entre ações do registro e builders dos produtores;
 - cardinalidade 1, 2, 3, 4 e maior que 4;
 - contratos alimentares abertos e fechados da issue #855;
 - baixa confiança do LLM produzindo clarificação genérica interativa;
 - clarificação de segurança específica permanecendo textual;
-- preservação da pendência após reapresentação no webhook;
-- gate persistente do simulador antes da chamada nutricional;
+- preservação da pendência após reapresentação;
+- gate persistente do simulador e da transcrição antes da nutrição;
 - produtores principais sem uso direto de `buttonsReply` ou `listReply`.
