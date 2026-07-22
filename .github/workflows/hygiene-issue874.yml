@@ -6,6 +6,11 @@ on:
       - fix/874-whatsapp-correction-completion
     paths:
       - .github/workflows/hygiene-issue874.yml
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/hygiene-issue874.yml
   workflow_dispatch:
 
 permissions:
@@ -200,5 +205,3 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "refactor: harden and name issue 874 flows by domain"
           git push origin HEAD:fix/874-whatsapp-correction-completion
-
-# Trigger after workflow creation.
