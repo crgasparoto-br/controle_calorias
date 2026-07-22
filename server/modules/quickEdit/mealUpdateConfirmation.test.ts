@@ -162,6 +162,81 @@ describe("quick edit meal update confirmation", () => {
     expect(result.items[0].calories).toBe(126);
   });
 
+  it("substitui referências antigas quando o nome muda com IDs preservados pela tela", async () => {
+    const currentItem = {
+      ...currentMeal.items[0],
+      foodName: "Queijo prato",
+      canonicalName: "Queijo prato",
+      foodId: 10,
+      foodCatalogId: 10,
+      portionId: 100,
+      portionQuantity: 1,
+      calories: 105,
+      protein: 7,
+      carbs: 1,
+      fat: 8,
+      source: "catalog" as const,
+    };
+    getQuickEditMealMock.mockResolvedValueOnce({
+      meal: { ...currentMeal, items: [currentItem] },
+      timeZone: "America/Sao_Paulo",
+    });
+    processMealInputMock.mockResolvedValueOnce({
+      items: [
+        {
+          ...currentItem,
+          foodId: 20,
+          foodCatalogId: 20,
+          portionId: 200,
+          portionQuantity: 1,
+          foodName: "Queijo parmesão",
+          canonicalName: "Queijo parmesão",
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+        },
+      ],
+    });
+
+    await updateQuickEditMealWithWhatsappConfirmation("x".repeat(32), {
+      mealLabel: "Lanche",
+      dateTimeLocal: "2026-07-22T12:00",
+      items: [
+        {
+          ...currentItem,
+          foodName: "Queijo parmesão",
+          calories: 999,
+          protein: 999,
+          carbs: 999,
+          fat: 999,
+        },
+      ],
+    });
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "30 g de Queijo parmesão" })
+    );
+    expect(updateQuickEditMealMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            foodName: "Queijo parmesão",
+            canonicalName: "Queijo parmesão",
+            foodId: 20,
+            foodCatalogId: 20,
+            portionId: 200,
+            calories: 126,
+            protein: 10,
+            carbs: 1,
+            fat: 9,
+          }),
+        ],
+      })
+    );
+  });
+
   it("recalcula no backend quando apenas a quantidade heurística muda", async () => {
     processMealInputMock.mockResolvedValueOnce({
       items: [
