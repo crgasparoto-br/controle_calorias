@@ -1,7 +1,13 @@
 import crypto from "node:crypto";
 import { sql, type SQL } from "drizzle-orm";
 import { registerLocalUser } from "../../_core/localAuth";
-import { getDb, logInferenceEvent, normalizeWhatsAppPhoneNumber, upsertUserWhatsappConnection } from "../../db";
+import {
+  getDb,
+  logInferenceEvent,
+  normalizeWhatsAppPhoneNumber,
+  upsertUserWhatsappConnection,
+} from "../../db";
+import { billingService } from "../billing/service";
 import { completeOnboarding } from "./service";
 import type { OnboardingInput } from "./schemas";
 import type { WhatsappOnboardingConsents } from "./whatsappLeadSchemas";
@@ -9,9 +15,18 @@ import { sendOnboardingWelcomeWhatsapp } from "./webGreetingService";
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_BYTES = 32;
-const APP_BASE_URL = (process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+const APP_BASE_URL = (
+  process.env.APP_BASE_URL ||
+  process.env.PUBLIC_APP_URL ||
+  ""
+).replace(/\/$/, "");
 
-type LeadStatus = "lead_whatsapp" | "pending_onboarding" | "active" | "expired" | "canceled";
+type LeadStatus =
+  | "lead_whatsapp"
+  | "pending_onboarding"
+  | "active"
+  | "expired"
+  | "canceled";
 
 type WhatsappOnboardingLead = {
   id: number;
@@ -49,8 +64,18 @@ function buildOnboardingUrl(token: string) {
   return APP_BASE_URL ? `${APP_BASE_URL}${path}` : path;
 }
 
-function isLeadExpired(lead: Pick<WhatsappOnboardingLead, "tokenExpiresAt" | "tokenUsedAt" | "status">, now = new Date()) {
-  return lead.status === "expired" || Boolean(lead.tokenUsedAt) || lead.tokenExpiresAt.getTime() <= now.getTime();
+function isLeadExpired(
+  lead: Pick<
+    WhatsappOnboardingLead,
+    "tokenExpiresAt" | "tokenUsedAt" | "status"
+  >,
+  now = new Date()
+) {
+  return (
+    lead.status === "expired" ||
+    Boolean(lead.tokenUsedAt) ||
+    lead.tokenExpiresAt.getTime() <= now.getTime()
+  );
 }
 
 function publicLeadView(lead: WhatsappOnboardingLead) {
@@ -69,8 +94,10 @@ async function executeRaw<T = unknown>(query: SQL) {
 }
 
 function firstRow<T>(result: unknown): T | null {
-  const rows = Array.isArray(result) ? result[0] : (result as { rows?: unknown })?.rows;
-  return Array.isArray(rows) && rows.length ? rows[0] as T : null;
+  const rows = Array.isArray(result)
+    ? result[0]
+    : (result as { rows?: unknown })?.rows;
+  return Array.isArray(rows) && rows.length ? (rows[0] as T) : null;
 }
 
 function rowToLead(row: any): WhatsappOnboardingLead {
@@ -89,20 +116,29 @@ function rowToLead(row: any): WhatsappOnboardingLead {
 }
 
 async function findLeadByTokenHash(tokenHash: string) {
-  const result = await executeRaw(sql`select * from whatsapp_onboarding_leads where token_hash = ${tokenHash} limit 1`);
+  const result = await executeRaw(
+    sql`select * from whatsapp_onboarding_leads where token_hash = ${tokenHash} limit 1`
+  );
   if (!result) return memoryLeadsByTokenHash.get(tokenHash) ?? null;
   const row = firstRow<any>(result);
   return row ? rowToLead(row) : null;
 }
 
 async function findLeadByPhone(phoneNumber: string) {
-  const result = await executeRaw(sql`select * from whatsapp_onboarding_leads where phone_number = ${phoneNumber} limit 1`);
+  const result = await executeRaw(
+    sql`select * from whatsapp_onboarding_leads where phone_number = ${phoneNumber} limit 1`
+  );
   if (!result) return memoryLeadsByPhone.get(phoneNumber) ?? null;
   const row = firstRow<any>(result);
   return row ? rowToLead(row) : null;
 }
 
-async function upsertLead(input: { phoneNumber: string; displayName?: string | null; tokenHash: string; expiresAt: Date }) {
+async function upsertLead(input: {
+  phoneNumber: string;
+  displayName?: string | null;
+  tokenHash: string;
+  expiresAt: Date;
+}) {
   const existing = await findLeadByPhone(input.phoneNumber);
   const now = new Date();
   const displayName = input.displayName?.trim() || existing?.displayName || null;
@@ -132,10 +168,12 @@ async function upsertLead(input: { phoneNumber: string; displayName?: string | n
     return lead;
   }
 
-  const shouldRotateToken = isLeadExpired(existing, now) || existing.status === "active";
+  const shouldRotateToken =
+    isLeadExpired(existing, now) || existing.status === "active";
   const tokenHash = shouldRotateToken ? input.tokenHash : existing.tokenHash;
   const expiresAt = shouldRotateToken ? input.expiresAt : existing.tokenExpiresAt;
-  const status: LeadStatus = existing.status === "active" ? "active" : "pending_onboarding";
+  const status: LeadStatus =
+    existing.status === "active" ? "active" : "pending_onboarding";
 
   await executeRaw(sql`
     update whatsapp_onboarding_leads
@@ -143,13 +181,25 @@ async function upsertLead(input: { phoneNumber: string; displayName?: string | n
     where phone_number = ${input.phoneNumber}
   `);
 
-  const lead = { ...existing, displayName, status, tokenHash, tokenExpiresAt: expiresAt, tokenUsedAt: null, updatedAt: now, lastMessageAt: now };
+  const lead = {
+    ...existing,
+    displayName,
+    status,
+    tokenHash,
+    tokenExpiresAt: expiresAt,
+    tokenUsedAt: null,
+    updatedAt: now,
+    lastMessageAt: now,
+  };
   memoryLeadsByPhone.set(input.phoneNumber, lead);
   memoryLeadsByTokenHash.set(tokenHash, lead);
   return lead;
 }
 
-export async function createWhatsappOnboardingLead(input: { phoneNumber: string; displayName?: string | null }) {
+export async function createWhatsappOnboardingLead(input: {
+  phoneNumber: string;
+  displayName?: string | null;
+}) {
   const normalizedPhone = normalizeWhatsAppPhoneNumber(input.phoneNumber);
   if (normalizedPhone.length < 10 || normalizedPhone.length > 16) {
     throw new Error("INVALID_WHATSAPP_PHONE");
@@ -158,7 +208,12 @@ export async function createWhatsappOnboardingLead(input: { phoneNumber: string;
   const token = createToken();
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
-  const lead = await upsertLead({ phoneNumber: normalizedPhone, displayName: input.displayName, tokenHash, expiresAt });
+  const lead = await upsertLead({
+    phoneNumber: normalizedPhone,
+    displayName: input.displayName,
+    tokenHash,
+    expiresAt,
+  });
 
   logInferenceEvent({
     userId: null,
@@ -181,21 +236,34 @@ export async function getWhatsappOnboardingLeadByToken(token: string) {
     return null;
   }
 
-  await executeRaw(sql`update whatsapp_onboarding_leads set updated_at = ${new Date()} where id = ${lead.id}`);
+  await executeRaw(
+    sql`update whatsapp_onboarding_leads set updated_at = ${new Date()} where id = ${lead.id}`
+  );
   return publicLeadView(lead);
 }
 
-async function markLeadConverted(lead: WhatsappOnboardingLead, userId: number) {
+async function markLeadConverted(
+  lead: WhatsappOnboardingLead,
+  userId: number
+) {
   const now = new Date();
   await executeRaw(sql`
     update whatsapp_onboarding_leads
     set status = 'active', converted_user_id = ${userId}, converted_at = ${now}, token_used_at = ${now}, updated_at = ${now}
     where id = ${lead.id}
   `);
-  memoryLeadsByPhone.set(lead.phoneNumber, { ...lead, status: "active", tokenUsedAt: now, updatedAt: now });
+  memoryLeadsByPhone.set(lead.phoneNumber, {
+    ...lead,
+    status: "active",
+    tokenUsedAt: now,
+    updatedAt: now,
+  });
 }
 
-async function persistConsents(userId: number, consents: WhatsappOnboardingConsents) {
+async function persistConsents(
+  userId: number,
+  consents: WhatsappOnboardingConsents
+) {
   const now = new Date();
   const payload = JSON.stringify({
     version: "2026-06-10",
@@ -242,15 +310,30 @@ export async function completeWhatsappOnboarding(input: {
   await persistConsents(user.id, input.consents);
   await markLeadConverted(lead, user.id);
 
+  const eligibility = await billingService.getUserEntitlements(user.id);
+  const nextAction = eligibility.allowed
+    ? ("continue" as const)
+    : ("await_activation" as const);
+
   logInferenceEvent({
     userId: user.id,
     origin: "web",
-    status: "success",
-    eventType: "whatsapp.onboarding_completed",
-    detail: "Onboarding iniciado pelo WhatsApp concluído sem etapa de pagamento.",
+    status: eligibility.allowed ? "success" : "warning",
+    eventType: eligibility.allowed
+      ? "whatsapp.onboarding_completed"
+      : "whatsapp.onboarding_pending_activation",
+    detail: eligibility.allowed
+      ? "Onboarding iniciado pelo WhatsApp concluído com elegibilidade válida."
+      : "Cadastro concluído; uso nutricional aguarda elegibilidade comercial válida.",
   });
 
-  void sendOnboardingWelcomeWhatsapp(user.id);
+  if (eligibility.allowed) {
+    void sendOnboardingWelcomeWhatsapp(user.id);
+  }
 
-  return user;
+  return {
+    user,
+    eligibility,
+    nextAction,
+  };
 }
