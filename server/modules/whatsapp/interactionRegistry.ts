@@ -28,6 +28,25 @@ import {
   type WhatsappInteractionAction,
 } from "./interactionPresentation";
 import {
+  classifyDeleteText,
+  classifyFoodClarificationText,
+  classifyGenericConfirmationText,
+  classifyIntentClarificationText,
+  classifyMealItemSelectionText,
+  classifyPeriodReportText,
+  classifyProfessionalAccessText,
+  resolveDeleteText,
+  resolveFoodClarificationText,
+  resolveGenericConfirmationText,
+  resolveIntentClarificationText,
+  resolveMealItemSelectionText,
+  resolvePeriodReportText,
+  resolveProfessionalAccessText,
+  type WhatsappInteractionTextClassification,
+  type WhatsappInteractionTextInput,
+  type WhatsappInteractionTextResult,
+} from "./interactionTextHandlers";
+import {
   buildMealItemSelectionActions,
   completeMealItemSelectionInteractiveCallback,
   PENDING_MEAL_ITEM_SELECTION_TYPE,
@@ -48,7 +67,7 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 3;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 4;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -89,6 +108,8 @@ export type WhatsappRegisteredInteraction = {
   forbiddenEffects: readonly string[];
   matches: (target: unknown) => boolean;
   actions: (target: unknown, context?: WhatsappInteractionActionContext) => WhatsappInteractionAction[];
+  classifyText: (target: unknown, text?: string | null) => WhatsappInteractionTextClassification;
+  resolveText: (input: WhatsappInteractionTextInput) => WhatsappInteractionTextResult | null | Promise<WhatsappInteractionTextResult | null>;
   rebuild: (input: WhatsappInteractionReplayInput) => WhatsappInteractionReplayResult | Promise<WhatsappInteractionReplayResult>;
   completeCallback: (input: WhatsappInteractionCallbackInput) => unknown | Promise<unknown>;
 };
@@ -269,6 +290,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "delete_without_confirmation"],
     matches: target => Boolean(target && typeof target === "object" && !isPendingDeleteSelection(target)),
     actions: () => buildDeleteConfirmationActions(),
+    classifyText: classifyDeleteText,
+    resolveText: resolveDeleteText,
     rebuild: rebuildDeleteConfirmation,
     completeCallback: completeDeleteCallback,
   },
@@ -287,6 +310,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     actions: (target, context) => isPendingDeleteSelection(target)
       ? buildDeleteSelectionActions(target.candidates, context?.timeZone ?? DEFAULT_APP_TIME_ZONE)
       : [],
+    classifyText: classifyDeleteText,
+    resolveText: resolveDeleteText,
     rebuild: rebuildDeleteSelection,
     completeCallback: completeDeleteCallback,
   },
@@ -305,6 +330,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     actions: target => buildMealItemSelectionActions(
       ((target as { candidates?: PendingMealItemSelection["candidates"] } | null)?.candidates) ?? [],
     ),
+    classifyText: classifyMealItemSelectionText,
+    resolveText: resolveMealItemSelectionText,
     rebuild: rebuildMealItemSelection,
     completeCallback: completeMealItemCallback,
   },
@@ -321,6 +348,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object" && (target as { decision?: string }).decision !== "reclassify_scope"),
     actions: target => buildGenericConfirmationActions(target as PendingWhatsAppConfirmation),
+    classifyText: classifyGenericConfirmationText,
+    resolveText: resolveGenericConfirmationText,
     rebuild: rebuildGenericConfirmation,
     completeCallback: completeGenericConfirmation,
   },
@@ -337,6 +366,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object" && (target as { decision?: string }).decision === "reclassify_scope"),
     actions: target => buildGenericConfirmationActions(target as PendingWhatsAppConfirmation),
+    classifyText: classifyGenericConfirmationText,
+    resolveText: resolveGenericConfirmationText,
     rebuild: rebuildGenericConfirmation,
     completeCallback: completeGenericConfirmation,
   },
@@ -353,6 +384,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => Boolean(target && typeof target === "object"),
     actions: () => buildWhatsappPeriodReportActions(),
+    classifyText: classifyPeriodReportText,
+    resolveText: resolvePeriodReportText,
     rebuild: rebuildPeriodReport,
     completeCallback: completePeriodReport,
   },
@@ -369,6 +402,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => typeof (target as { accessId?: unknown } | null)?.accessId === "string",
     actions: () => buildProfessionalAccessActions(),
+    classifyText: classifyProfessionalAccessText,
+    resolveText: resolveProfessionalAccessText,
     rebuild: rebuildProfessionalAccess,
     completeCallback: completeProfessionalAccess,
   },
@@ -385,6 +420,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "persist_command_word_as_food"],
     matches: isPendingIntentClarification,
     actions: target => isPendingIntentClarification(target) ? target.actions.map(action => ({ ...action })) : [],
+    classifyText: classifyIntentClarificationText,
+    resolveText: resolveIntentClarificationText,
     rebuild: rebuildIntentClarification,
     completeCallback: completeIntentClarification,
   },
@@ -401,6 +438,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "quantity",
     actions: foodActions,
+    classifyText: classifyFoodClarificationText,
+    resolveText: resolveFoodClarificationText,
     rebuild: rebuildFoodClarification,
     completeCallback: completeFoodClarification,
   },
@@ -417,6 +456,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "confirmation",
     actions: foodActions,
+    classifyText: classifyFoodClarificationText,
+    resolveText: resolveFoodClarificationText,
     rebuild: rebuildFoodClarification,
     completeCallback: completeFoodClarification,
   },
@@ -433,6 +474,8 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "selection",
     actions: foodActions,
+    classifyText: classifyFoodClarificationText,
+    resolveText: resolveFoodClarificationText,
     rebuild: rebuildFoodClarification,
     completeCallback: completeFoodClarification,
   },
@@ -488,6 +531,13 @@ export async function rebuildWhatsappRegisteredInteraction(
       invalidResponseReason: "incompatible_text",
     }),
   };
+}
+
+export async function resolveWhatsappRegisteredText(
+  interaction: WhatsappRegisteredInteraction,
+  input: WhatsappInteractionTextInput,
+) {
+  return interaction.resolveText(input);
 }
 
 export async function completeWhatsappRegisteredCallback(input: WhatsappInteractionCallbackInput) {
