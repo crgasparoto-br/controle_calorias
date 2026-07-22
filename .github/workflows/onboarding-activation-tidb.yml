@@ -1,0 +1,52 @@
+name: Onboarding activation TiDB gate
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0016_whatsapp_onboarding_leads.sql"
+      - "drizzle/0036_whatsapp_onboarding_activation.sql"
+      - "server/modules/onboarding/**"
+      - "server/modules/billing/router.ts"
+      - "scripts/test-whatsapp-onboarding-activation-tidb.ts"
+      - ".github/workflows/onboarding-activation-tidb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  onboarding-activation:
+    name: Onboarding activation persistence
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB
+        run: |
+          docker run -d --name onboarding-activation-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 onboarding-activation-tidb
+          exit 1
+
+      - name: Validate migration and concurrent transitions
+        run: pnpm exec tsx scripts/test-whatsapp-onboarding-activation-tidb.ts
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 onboarding-activation-tidb
