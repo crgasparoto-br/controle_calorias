@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
+import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadService";
 import {
   billingAdminGrantOverrideSchema,
   billingAdminListOverridesSchema,
@@ -29,6 +30,9 @@ export const billingRouter = router({
   subscriptionStatus: protectedProcedure.query(({ ctx }) =>
     billingService.getUserSubscriptionStatus(ctx.user.id)
   ),
+  refreshOnboardingActivation: protectedProcedure.mutation(({ ctx }) =>
+    activateWhatsappOnboardingUser(ctx.user.id)
+  ),
   adminSearchUsers: adminProcedure
     .input(billingAdminSearchUsersSchema)
     .query(({ input }) => billingService.searchAdminUsers(input)),
@@ -41,10 +45,15 @@ export const billingRouter = router({
     .input(billingAdminGrantOverrideSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await billingService.grantAdminOverride({
+        const override = await billingService.grantAdminOverride({
           ...input,
           grantedByUserId: ctx.user.id,
         });
+        await activateWhatsappOnboardingUser(
+          input.userId,
+          "admin_override"
+        ).catch(() => undefined);
+        return override;
       } catch (error) {
         throw safeAdminMutationError(error);
       }
