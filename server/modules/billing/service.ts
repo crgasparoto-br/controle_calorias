@@ -182,13 +182,15 @@ export function createBillingService(deps: {
       );
       if (!users.length) break;
 
+      const evaluatedAt = nowProvider();
       const evaluated = await Promise.all(
         users.map(async user => {
-          const [access, activeOverride] = await Promise.all([
+          const [access, activeOverride, ownSubscription] = await Promise.all([
             getUserEntitlements(user.id),
-            deps.repository.getActiveAdminOverride(user.id, nowProvider()),
+            deps.repository.getActiveAdminOverride(user.id, evaluatedAt),
+            deps.repository.getOwnSubscription(user.id, evaluatedAt),
           ]);
-          return { ...user, access, activeOverride };
+          return { ...user, access, activeOverride, ownSubscription };
         })
       );
       matches.push(
