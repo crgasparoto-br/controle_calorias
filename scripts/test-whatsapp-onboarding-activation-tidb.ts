@@ -29,7 +29,7 @@ async function main() {
     await setup.query("DROP TABLE IF EXISTS whatsapp_onboarding_leads");
     await setup.query(await loadMigration("0016_whatsapp_onboarding_leads.sql"));
     await setup.query(
-      await loadMigration("0036_whatsapp_onboarding_activation.sql")
+      await loadMigration("0037_whatsapp_onboarding_activation.sql")
     );
 
     const expiresAt = new Date(Date.now() + 60_000);
