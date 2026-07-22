@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MealProcessingResult } from "../../nutritionEngine";
 import { buildWhatsAppMealReplyMessage } from "./replyMessages";
 
-const WARNING = "⚠️ Valores nutricionais estimados pela IA.";
+const REMOVED_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
 type Source = "heuristic" | "hybrid" | "catalog";
 
 function food(foodName: string, source: Source, calories = 147) {
@@ -44,35 +44,28 @@ function buildProcessedItems(sources: Source[]): MealProcessingResult {
   };
 }
 
-function warningCount(reply: string) {
-  return reply.split(WARNING).length - 1;
-}
-
 describe("buildWhatsAppMealReplyMessage estimated nutrition", () => {
-  it.each(["heuristic", "hybrid"] as const)("indica quando os macros do item usam origem %s", source => {
-    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems([source]));
+  it.each([
+    ["catalog"],
+    ["heuristic"],
+    ["hybrid"],
+    ["catalog", "hybrid", "heuristic"],
+    ["heuristic", "hybrid", "heuristic"],
+  ] as Source[][])("não exibe aviso visual para origens %j", sources => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(sources));
+
+    expect(reply).not.toContain(REMOVED_WARNING);
+    sources.forEach((_, index) => {
+      expect(reply).toContain(`Alimento ${index + 1}`);
+    });
+  });
+
+  it("preserva os itens estimados e seus totais nutricionais", () => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(["heuristic", "hybrid"]));
 
     expect(reply).toContain("Alimento 1");
-    expect(reply).toContain(WARNING);
-    expect(warningCount(reply)).toBe(1);
-  });
-
-  it("não marca item integralmente proveniente do catálogo", () => {
-    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(["catalog"]));
-    expect(reply).not.toContain(WARNING);
-  });
-
-  it("em refeição mista marca somente heuristic e hybrid", () => {
-    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(["catalog", "hybrid", "heuristic"]));
-
-    expect(warningCount(reply)).toBe(2);
-    expect(reply.indexOf("Alimento 1")).toBeLessThan(reply.indexOf("Alimento 2"));
-    expect(reply.indexOf("Alimento 2")).toBeLessThan(reply.indexOf(WARNING));
-    expect(reply.lastIndexOf(WARNING)).toBeGreaterThan(reply.indexOf("Alimento 3"));
-  });
-
-  it("exibe aviso individual para vários itens estimados", () => {
-    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(["heuristic", "hybrid", "heuristic"]));
-    expect(warningCount(reply)).toBe(3);
+    expect(reply).toContain("Alimento 2");
+    expect(reply).toContain("210 kcal");
+    expect(reply).not.toContain(REMOVED_WARNING);
   });
 });
