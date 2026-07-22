@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NutritionGoalPreviewValidityBridge from "./components/NutritionGoalPreviewValidityBridge";
@@ -21,6 +21,7 @@ import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreet
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
 
+const AdminBillingPage = lazy(() => import("@/pages/AdminBillingPage"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
 const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"));
@@ -72,12 +73,12 @@ function RetiredProfessionalBookmarkRedirect() {
   return <PageLoadingFallback />;
 }
 
-function AdminRoute() {
+function AdminAccessBoundary({ children }: { children: ReactNode }) {
   const { loading, user } = useAuth();
   const [, setLocation] = useLocation();
 
   if (loading) return <PageLoadingFallback />;
-  if (user?.role === "admin") return <AdminPage />;
+  if (user?.role === "admin") return <>{children}</>;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -92,6 +93,22 @@ function AdminRoute() {
         </Button>
       </div>
     </main>
+  );
+}
+
+function AdminRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminPage />
+    </AdminAccessBoundary>
+  );
+}
+
+function AdminBillingRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminBillingPage />
+    </AdminAccessBoundary>
   );
 }
 
@@ -196,6 +213,7 @@ function Router() {
           component={ProfessionalSettingsRoute}
         />
         <Route path="/professional" component={ProfessionalWorkspaceRoute} />
+        <Route path="/admin/billing" component={AdminBillingRoute} />
         <Route path="/admin" component={AdminRoute} />
         <Route path="/404" component={NotFound} />
         <Route path="/" component={Home} />
