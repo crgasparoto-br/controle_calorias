@@ -61,8 +61,8 @@ const deleteSelection = {
 };
 
 describe("registro executável transversal de interações", () => {
-  it("é versionado, possui IDs únicos e metadados obrigatórios", () => {
-    expect(WHATSAPP_INTERACTION_REGISTRY_VERSION).toBeGreaterThanOrEqual(2);
+  it("é versionado, possui IDs únicos, metadados e handlers executáveis obrigatórios", () => {
+    expect(WHATSAPP_INTERACTION_REGISTRY_VERSION).toBeGreaterThanOrEqual(3);
     const ids = WHATSAPP_INTERACTION_REGISTRY.map(entry => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of WHATSAPP_INTERACTION_REGISTRY) {
@@ -75,6 +75,9 @@ describe("registro executável transversal de interações", () => {
       expect(entry.staleBehavior).toBe("reply_unavailable_request_new_command");
       expect(entry.allowedEffects.length).toBeGreaterThan(0);
       expect(entry.forbiddenEffects.length).toBeGreaterThan(0);
+      expect(entry.actions).toBeTypeOf("function");
+      expect(entry.rebuild).toBeTypeOf("function");
+      expect(entry.completeCallback).toBeTypeOf("function");
     }
   });
 
@@ -84,21 +87,29 @@ describe("registro executável transversal de interações", () => {
     expect(listWhatsappRegisteredPendingTypes().sort()).toEqual(discovered);
   });
 
-  it("messageRouter não mantém lista ou switch paralelo de tipos de pendência", () => {
+  it("roteador e registro não mantêm switch ou cadeia paralela por tipo de pendência", () => {
     const router = fs.readFileSync(
       path.resolve(process.cwd(), "server/modules/whatsapp/messageRouter.ts"),
+      "utf8",
+    );
+    const registry = fs.readFileSync(
+      path.resolve(process.cwd(), "server/modules/whatsapp/interactionRegistry.ts"),
       "utf8",
     );
     expect(router).not.toMatch(/PENDING_[A-Z0-9_]+_TYPE/);
     expect(router).not.toMatch(/switch\s*\(.*pendingOperation\.type/);
     expect(router).toContain("listWhatsappRegisteredPendingTypes");
     expect(router).toContain("completeWhatsappRegisteredCallback");
+    expect(registry).not.toMatch(/switch\s*\(.*pendingOperation\.type/);
+    expect(registry).not.toMatch(/pendingOperation\.type\s*===/);
+    expect(registry).toContain("interaction.rebuild");
+    expect(registry).toContain("interaction.completeCallback");
   });
 
   it("consome as ações estruturadas dos produtores sem mudar ordem ou significado", () => {
     expect(findWhatsappRegisteredInteraction("delete", deleteMeal)?.actions(deleteMeal))
       .toEqual(buildDeleteConfirmationActions());
-    expect(findWhatsappRegisteredInteraction("delete", deleteSelection)?.actions(deleteSelection))
+    expect(findWhatsappRegisteredInteraction("delete", deleteSelection)?.actions(deleteSelection, { timeZone: "America/Sao_Paulo" }))
       .toEqual(buildDeleteSelectionActions(deleteSelection.candidates, "America/Sao_Paulo"));
 
     const mealSelection = {
