@@ -8,7 +8,7 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
@@ -20,29 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
-      - name: Apply residual issue 857 assertion alignment
-        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/857-whatsapp-regression-gate' }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path("server/whatsappIntentWebhook.test.ts")
-          text = path.read_text()
-          old = '    expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");'
-          new = '    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);'
-          if old not in text:
-              raise SystemExit("Residual assertion not found")
-          path.write_text(text.replace(old, new))
-          PY
-          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "test(whatsapp): corrigir expectativa residual do CTA auxiliar"
-          git push origin HEAD:fix/857-whatsapp-regression-gate
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

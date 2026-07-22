@@ -464,7 +464,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(lastPayload?.interactive?.type).toBe("cta_url");
     expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
     expect(lastPayload?.interactive?.action?.parameters?.url).toBe("https://app.example.com/quick-edit/token-test");
-    expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
+    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);
   });
 
   it("diminui gramas de alimento registrado em refeição anterior à última", async () => {
