@@ -7,6 +7,12 @@ on:
     paths:
       - scripts/.issue874.patch.gz.*
       - .github/workflows/apply-issue874-patch.yml
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - scripts/.issue874.patch.gz.*
+      - .github/workflows/apply-issue874-patch.yml
   workflow_dispatch:
 
 permissions:
@@ -105,5 +111,3 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "fix(whatsapp): complete issue 874 correction flows"
           git push origin HEAD:fix/874-whatsapp-correction-completion
-
-# Trigger after the workflow exists on the branch.
