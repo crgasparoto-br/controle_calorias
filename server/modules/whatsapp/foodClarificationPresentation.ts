@@ -15,6 +15,10 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   onWarning: logPersistenceWarning,
 });
 
+function stableFoodClarificationInteractionId(pendingKind: "quantity" | "confirmation" | "selection") {
+  return `food_clarification.${pendingKind}`;
+}
+
 /**
  * Liga o contrato estruturado da #855 ao componente transversal da #858.
  * Perguntas abertas permanecem textuais; confirmação e seleção usam o mesmo
@@ -39,7 +43,7 @@ export async function attachWhatsappFoodClarificationPresentation(
 
   const target = active.target;
   const telemetry = buildWhatsappInteractionTelemetry({
-    interactionId: target.interactionId,
+    interactionId: stableFoodClarificationInteractionId(target.pendingKind),
     origin: active.origin,
     classification: target.classification,
     actions: target.actions,
