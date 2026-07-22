@@ -20,6 +20,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import React from "react";
+import { toast } from "sonner";
 
 const ACCESS_LABELS: Record<string, string> = {
   active_subscription: "Assinatura própria ativa",
@@ -62,6 +63,26 @@ export default function BillingPage() {
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
+  const refreshActivation =
+    trpc.billing.refreshOnboardingActivation.useMutation({
+      onSuccess: async result => {
+        if (
+          result.status === "activated" ||
+          result.status === "already_active"
+        ) {
+          toast.success("Situação de acesso atualizada.");
+        } else if (result.status === "blocked") {
+          toast.info("A ativação ainda aguarda uma origem válida de acesso.");
+        } else if (result.status === "completion_in_progress") {
+          toast.info("A conclusão do cadastro ainda está em processamento.");
+        } else {
+          toast.info("Não há ativação pendente para esta conta.");
+        }
+        await status.refetch();
+      },
+      onError: error =>
+        toast.error(error.message || "Não foi possível reavaliar o acesso."),
+    });
 
   if (status.isLoading) {
     return (
@@ -117,7 +138,7 @@ export default function BillingPage() {
         <PageIntro
           eyebrow="Comercial e elegibilidade"
           title="Plano e acesso"
-          description="Consulte a origem efetiva do seu acesso, a situação normalizada da assinatura e, no perfil profissional, a capacidade contratada. Todas as informações vêm do backend comercial." 
+          description="Consulte a origem efetiva do seu acesso, a situação normalizada da assinatura e, no perfil profissional, a capacidade contratada. Todas as informações vêm do backend comercial."
         />
 
         <div className="grid gap-4 lg:grid-cols-3">
@@ -182,17 +203,34 @@ export default function BillingPage() {
                 Próxima etapa
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
               {access.allowed ? (
                 <p>
                   Seu acesso está válido. Você pode continuar usando os recursos
                   liberados normalmente.
                 </p>
               ) : (
-                <p>
-                  O cadastro está preservado, mas os recursos protegidos ficam
-                  bloqueados até existir uma origem válida de acesso.
-                </p>
+                <>
+                  <p>
+                    O cadastro está preservado, mas os recursos protegidos ficam
+                    bloqueados até existir uma origem válida de acesso.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={refreshActivation.isPending}
+                    onClick={() => refreshActivation.mutate()}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        refreshActivation.isPending ? "animate-spin" : ""
+                      }`}
+                    />
+                    {refreshActivation.isPending
+                      ? "Reavaliando acesso..."
+                      : "Reavaliar ativação"}
+                  </Button>
+                </>
               )}
               <p>
                 Checkout e alteração de plano serão exibidos somente após a
@@ -225,7 +263,10 @@ export default function BillingPage() {
                 <Detail
                   label="Situação"
                   value={STATUS_LABELS[subscription.status] ?? subscription.status}
-                  supporting={CYCLE_LABELS[subscription.billingCycle] ?? subscription.billingCycle}
+                  supporting={
+                    CYCLE_LABELS[subscription.billingCycle] ??
+                    subscription.billingCycle
+                  }
                 />
                 <Detail
                   label="Valor de referência"
