@@ -1,5 +1,6 @@
 name: Orchestrate issue 874 audit fixes
 
+# Triggered after all patch fragments were staged.
 on:
   push:
     branches:
