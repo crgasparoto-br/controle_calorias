@@ -80,13 +80,23 @@ jobs:
             docs/product-specs/whatsapp-flow.md
 
       - name: Focused regression tests
+        shell: bash
         run: |
+          set -o pipefail
           pnpm exec vitest run \
             server/modules/whatsapp/issue874Clarification.test.ts \
             server/modules/whatsapp/contextualFoodReplacementIntent.test.ts \
             server/modules/quickEdit/issue874Service.test.ts \
             server/modules/quickEdit/router.test.ts \
-            server/whatsappWebhook.test.ts
+            server/whatsappWebhook.test.ts 2>&1 | tee /tmp/issue874-focused-tests.log
+
+      - name: Upload focused diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue874-focused-test-diagnostics
+          path: /tmp/issue874-focused-tests.log
+          if-no-files-found: ignore
 
       - name: TypeScript check
         run: pnpm check
