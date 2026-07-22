@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { billingEntitlements } from "../../drizzle/billing-schema";
 import {
   appSecrets,
   dailySummaries,
@@ -338,6 +339,7 @@ describe("extracted repositories persistence contracts", () => {
       userBadges,
       userGamificationSettings,
       whatsappConnections,
+      billingEntitlements,
       foodCatalog,
       appSecrets,
       userProfiles,
