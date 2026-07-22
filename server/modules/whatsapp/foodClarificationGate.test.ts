@@ -79,6 +79,12 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     };
     const interaction = {
       id: "food_clarification.quantity",
+      origin: "foodClarification",
+      classification: "open",
+      actions: vi.fn(() => [
+        { id: "provide_quantity", label: "Informar quantidade", effect: "complete_original_food" },
+        { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+      ]),
       classifyText: vi.fn(() => "resolve"),
     };
     getActivePendingOperationMock.mockResolvedValue(active);
@@ -102,7 +108,13 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       interaction,
       expect.objectContaining({ pendingOperation: active, text: "170 g" }),
     );
-    expect(result).toEqual(expect.objectContaining({ action: "food_clarification_requested" }));
+    expect(result).toEqual(expect.objectContaining({
+      action: "food_clarification_requested",
+      data: expect.objectContaining({
+        interactionId: "food_clarification.quantity",
+        interactionLifecycle: "consumed",
+      }),
+    }));
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 
