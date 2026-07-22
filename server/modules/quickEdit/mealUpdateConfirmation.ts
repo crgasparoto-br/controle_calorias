@@ -85,7 +85,16 @@ async function recalculateChangedItems(input: {
     const current = input.currentItems[index];
     const identityChanged = foodIdentityChanged(current, next);
     const inputChanged = nutritionInputChanged(current, next);
-    if (!inputChanged || (next.foodId && !identityChanged)) {
+    const catalogIdentityChanged = Boolean(
+      next.foodId &&
+        (!current ||
+          next.foodId !== current.foodId ||
+          next.foodCatalogId !== current.foodCatalogId)
+    );
+    if (
+      !inputChanged ||
+      (next.foodId && (!identityChanged || catalogIdentityChanged))
+    ) {
       recalculated.push(next);
       continue;
     }
