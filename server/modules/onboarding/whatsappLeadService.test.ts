@@ -44,6 +44,7 @@ const profile = {
   birthDate: "1990-01-15",
   heightCm: 168,
   currentWeightKg: 67,
+  sex: "prefer_not_to_say" as const,
   objective: "melhorar_habitos" as const,
   activityLevel: "moderate" as const,
   trackingExperience: "beginner" as const,
@@ -51,6 +52,8 @@ const profile = {
   dietaryRestrictions: [],
   eatingRoutine: "misto" as const,
   mainDifficulty: "falta_de_planejamento" as const,
+  timezone: "America/Sao_Paulo",
+  ageYears: 36,
 };
 
 const consents = {
