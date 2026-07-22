@@ -1,6 +1,11 @@
 name: WhatsApp context TiDB gate
 
 on:
+  push:
+    branches:
+      - fix/874-whatsapp-correction-completion
+    paths:
+      - ".github/workflows/whatsapp-context-tidb.yml"
   pull_request:
     paths:
       - "drizzle/**"
