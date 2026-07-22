@@ -28,11 +28,14 @@ describe("paridade dos entrypoints da interação WhatsApp (#858)", () => {
     expect(nutritionCall).toBeGreaterThan(gateCall);
   });
 
-  it("áudio transcrito retorna ao mesmo pipeline textual do webhook", () => {
-    const webhook = source("server/whatsappIntentWebhook.ts");
-    expect(webhook).toContain("textOverrides");
-    expect(webhook).toContain("clonePayloadWithoutHandledMessages");
-    expect(webhook).toContain("handleWhatsAppWebhookWithAnnotatedImages");
+  it("áudio transcrito entra no executor textual protegido pelo gate request-scoped", () => {
+    const webhook = source("server/whatsappWebhook.ts");
+    const executor = source("server/modules/whatsapp/intentActions.ts");
+    expect(webhook).toContain("canInterpretAudioTranscriptIntent");
+    expect(webhook).toMatch(/executeWhatsappTextIntent\(userId,\s*\{\s*text:\s*prepared\.transcript/s);
+    expect(executor).toContain("requestScopedInbound");
+    expect(executor).toContain("resolveWhatsAppPrecedenceGate");
+    expect(executor).toContain("pendingOnly: true");
   });
 
   it("nenhum produtor principal usa buttonsReply/listReply diretamente", () => {
