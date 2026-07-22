@@ -1,7 +1,11 @@
 name: Align food signal schema for issue 874
 
-# Trigger schema alignment after the workflow is present on the PR branch.
 on:
+  push:
+    branches:
+      - fix/874-whatsapp-correction-completion
+    paths:
+      - .github/workflows/align-food-signal-schema-issue874.yml
   pull_request:
     branches:
       - develop
