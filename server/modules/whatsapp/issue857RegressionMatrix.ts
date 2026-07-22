@@ -1,93 +1,146 @@
 import { WHATSAPP_INTERACTION_REGISTRY } from "./interactionRegistry";
 
-export type Issue857RegressionModality = "text" | "callback" | "audio_transcription" | "simulator" | "image_context";
+export type Issue857RegressionModality =
+  | "text"
+  | "callback"
+  | "audio_transcription"
+  | "simulator"
+  | "image_context"
+  | "standalone_outbound";
+
+export type Issue857ScenarioEvidence = {
+  file: string;
+  requiredTokens: readonly string[];
+};
 
 export type Issue857RegressionEvidence = {
   interactionId: string;
   pendingType: string;
   classification: "open" | "closed";
   entrypoints: readonly string[];
-  modalities: readonly Issue857RegressionModality[];
+  applicableModalities: readonly Issue857RegressionModality[];
   requiredBehaviors: readonly string[];
-  evidenceFiles: readonly string[];
+  scenarioEvidence: readonly Issue857ScenarioEvidence[];
 };
 
-const SHARED_ENTRYPOINT_EVIDENCE = [
-  "server/whatsappWebhook.test.ts",
-  "server/whatsappIntentWebhook.test.ts",
-  "server/whatsappWebhook.audioTranscription.test.ts",
-] as const;
+const COMMON_TRANSPORT_EVIDENCE: readonly Issue857ScenarioEvidence[] = [
+  {
+    file: "server/modules/whatsapp/logicalReplyDelivery.test.ts",
+    requiredTokens: ["fallback", "lifecycle"],
+  },
+  {
+    file: "server/modules/whatsapp/replyTransport.test.ts",
+    requiredTokens: ["fallback", "effectiveOk"],
+  },
+];
 
-const SHARED_TRANSPORT_EVIDENCE = [
-  "server/modules/whatsapp/logicalReplyDelivery.test.ts",
-  "server/modules/whatsapp/replyTransport.test.ts",
-] as const;
-
-const INTERACTION_SPECIFIC_EVIDENCE: Record<string, readonly string[]> = {
-  "delete.confirmation": [
-    "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts",
-    "server/modules/whatsapp/deleteIntent.test.ts",
-  ],
-  "delete.candidate_selection": [
-    "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts",
-    "server/modules/whatsapp/deleteIntent.test.ts",
-  ],
-  "meal_item.candidate_selection": [
-    "server/modules/whatsapp/mealItemSelectionCallback.test.ts",
-    "server/modules/whatsapp/intentActions.quantityCorrection.test.ts",
-  ],
-  "generic_confirmation.confirm_cancel": [
-    "server/modules/whatsapp/webhookTextCommands.test.ts",
-  ],
-  "generic_confirmation.reclassify_scope": [
-    "server/modules/whatsapp/webhookTextCommands.test.ts",
-  ],
-  "period_report.period_selection": [
-    "server/modules/whatsapp/periodReportClarification.test.ts",
-  ],
-  "professional_access.authorization": [
-    "server/modules/professionals/service.test.ts",
-  ],
-  "intent_clarification.generic": [
-    "server/modules/whatsapp/intentClarificationInteraction.test.ts",
-  ],
-  "food_clarification.quantity": [
-    "server/modules/whatsapp/foodClarification.test.ts",
-  ],
-  "food_clarification.confirmation": [
-    "server/modules/whatsapp/foodClarification.test.ts",
-  ],
-  "food_clarification.selection": [
-    "server/modules/whatsapp/foodClarification.test.ts",
-  ],
+const INTERACTION_SCENARIOS: Record<string, {
+  modalities: readonly Issue857RegressionModality[];
+  evidence: readonly Issue857ScenarioEvidence[];
+}> = {
+  "delete.confirmation": {
+    modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts", requiredTokens: ["confirm", "cancel"] },
+      { file: "server/whatsappWebhook.test.ts", requiredTokens: ["Excluir", "Registrar"] },
+      { file: "server/whatsappWebhook.audioTranscription.test.ts", requiredTokens: ["audio", "delete"] },
+    ],
+  },
+  "delete.candidate_selection": {
+    modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/deleteIntent.canonicalProgress.test.ts", requiredTokens: ["selection", "candidates"] },
+      { file: "server/modules/whatsapp/deleteIntent.test.ts", requiredTokens: ["multiple", "cancel"] },
+    ],
+  },
+  "meal_item.candidate_selection": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/mealItemSelectionCallback.test.ts", requiredTokens: ["callback", "selection"] },
+      { file: "server/modules/whatsapp/intentActions.quantityCorrection.test.ts", requiredTokens: ["candidate", "quantity"] },
+    ],
+  },
+  "generic_confirmation.confirm_cancel": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/webhookTextCommands.test.ts", requiredTokens: ["confirm", "cancel"] },
+    ],
+  },
+  "generic_confirmation.reclassify_scope": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/webhookTextCommands.test.ts", requiredTokens: ["reclassify", "scope"] },
+    ],
+  },
+  "period_report.period_selection": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/periodReportClarification.test.ts", requiredTokens: ["period", "cancel"] },
+    ],
+  },
+  "professional_access.authorization": {
+    modalities: ["text", "callback", "standalone_outbound"],
+    evidence: [
+      { file: "server/modules/professionals/service.test.ts", requiredTokens: ["authorization", "callback"] },
+    ],
+  },
+  "intent_clarification.generic": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/intentClarificationInteraction.test.ts", requiredTokens: ["originalText", "cancel"] },
+      { file: "server/whatsappIntentWebhook.test.ts", requiredTokens: ["clarification", "interactive"] },
+    ],
+  },
+  "food_clarification.quantity": {
+    modalities: ["text", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["quantity", "originalText"] },
+      { file: "server/modules/whatsapp/foodTypoRouting.test.ts", requiredTokens: ["natual", "natural"] },
+    ],
+  },
+  "food_clarification.confirmation": {
+    modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["confirmation", "cancel"] },
+    ],
+  },
+  "food_clarification.selection": {
+    modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["selection", "actions"] },
+    ],
+  },
 };
 
-export const ISSUE_857_REGRESSION_MATRIX: readonly Issue857RegressionEvidence[] = WHATSAPP_INTERACTION_REGISTRY.map(interaction => ({
-  interactionId: interaction.id,
-  pendingType: interaction.pendingType,
-  classification: interaction.classification,
-  entrypoints: interaction.entrypoints,
-  modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
-  requiredBehaviors: interaction.classification === "closed"
-    ? [
-        "canonical_actions",
-        "interactive_component",
-        "invalid_response_representation",
-        "stale_without_recreation",
-        "callback_idempotency",
-        "cross_user_isolation",
-        "transport_fallback_success",
-        "transport_total_failure_without_delivery",
-      ]
-    : [
-        "preserve_original_context",
-        "request_only_missing_data",
-        "stale_without_recreation",
-        "command_word_not_persisted",
-      ],
-  evidenceFiles: [
-    ...SHARED_ENTRYPOINT_EVIDENCE,
-    ...SHARED_TRANSPORT_EVIDENCE,
-    ...(INTERACTION_SPECIFIC_EVIDENCE[interaction.id] ?? []),
-  ],
-}));
+export const ISSUE_857_REGRESSION_MATRIX: readonly Issue857RegressionEvidence[] = WHATSAPP_INTERACTION_REGISTRY.map(interaction => {
+  const scenario = INTERACTION_SCENARIOS[interaction.id];
+  if (!scenario) {
+    throw new Error(`Missing executable regression scenario for WhatsApp interaction ${interaction.id}`);
+  }
+
+  return {
+    interactionId: interaction.id,
+    pendingType: interaction.pendingType,
+    classification: interaction.classification,
+    entrypoints: interaction.entrypoints,
+    applicableModalities: scenario.modalities,
+    requiredBehaviors: interaction.classification === "closed"
+      ? [
+          "canonical_actions",
+          "interactive_component",
+          "invalid_response_representation",
+          "stale_without_recreation",
+          "callback_idempotency",
+          "cross_user_isolation",
+          "transport_fallback_success",
+          "transport_total_failure_without_delivery",
+        ]
+      : [
+          "preserve_original_context",
+          "request_only_missing_data",
+          "stale_without_recreation",
+          "command_word_not_persisted",
+        ],
+    scenarioEvidence: [...scenario.evidence, ...COMMON_TRANSPORT_EVIDENCE],
+  };
+});
