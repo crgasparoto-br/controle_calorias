@@ -149,6 +149,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         label: "Administração",
         path: "/admin",
       });
+      baseItems.push({
+        icon: CreditCard,
+        label: "Billing e acesso",
+        path: "/admin/billing",
+      });
     }
 
     baseItems.push({
