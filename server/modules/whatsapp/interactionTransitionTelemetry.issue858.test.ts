@@ -54,7 +54,7 @@ describe("telemetria de transição entre interações da issue #858", () => {
     expect(result?.data).toEqual(expect.objectContaining({
       pendingOperationId: downstream?.id,
       pendingType: "food_registration_clarification",
-      interactionId: "food_clarification.confirmation",
+      interactionId: "food_clarification.selection",
       interactionLifecycle: "created",
       sourcePendingOperationId: source.id,
       sourcePendingType: PENDING_INTENT_CLARIFICATION_TYPE,
