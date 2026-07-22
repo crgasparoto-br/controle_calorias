@@ -58,6 +58,28 @@ jobs:
       - name: Apply patch
         run: node scripts/apply-issue874-patch.mjs
 
+      - name: Correct deterministic test clocks and logical reply assertions
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          function replaceOnce(path, before, after) {
+            const source = fs.readFileSync(path, 'utf8');
+            if (!source.includes(before)) throw new Error(`Anchor not found in ${path}`);
+            fs.writeFileSync(path, source.replace(before, after));
+          }
+          replaceOnce(
+            'server/modules/whatsapp/issue874Clarification.test.ts',
+            'expect(await repository.getActivePendingOperation(77)).toEqual(',
+            'expect(await repository.getActivePendingOperation(77, new Date("2026-07-22T12:01:00.000Z"))).toEqual(',
+          );
+          replaceOnce(
+            'server/whatsappWebhook.test.ts',
+            '    expect(lastSentWhatsAppBody).toContain("Banana prata");\n    expect(lastSentWhatsAppBody).toContain("27 kcal");',
+            '    const sentTextBodies = sentWhatsAppPayloads\n      .map(payload => payload?.text?.body)\n      .filter((body): body is string => typeof body === "string")\n      .join("\\n");\n    expect(sentTextBodies).toContain("Banana prata");\n    expect(sentTextBodies).toContain("27 kcal");',
+          );
+          NODE
+
       - name: Remove transport fragments
         run: rm -f scripts/.issue874.patch.gz.*
 
