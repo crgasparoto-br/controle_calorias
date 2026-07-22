@@ -49,6 +49,7 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
+import { assertWhatsappImageMealItemsArePersistable } from "./modules/whatsapp/visualMealInferenceValidation";
 import {
   extractWhatsAppWebhookMessages,
   isWhatsAppMessageForConfiguredChannel,
@@ -683,6 +684,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         } else if (waterSplit.waterVolumeMl > 0) {
           responsePrefixBlocks.push(await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt, userTimezone));
         }
+
+        assertWhatsappImageMealItemsArePersistable(processed.items);
       }
 
       const processedForPersistence = {

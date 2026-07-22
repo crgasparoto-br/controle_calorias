@@ -318,6 +318,48 @@ describe("executeWhatsappTextIntent", () => {
     expect(result?.reply).toContain("45 kcal");
   });
 
+  it("interpreta correção do último alimento como substituição contextual", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 140,
+        userId: 42,
+        mealLabel: "Lanche",
+        source: "whatsapp",
+        occurredAt: new Date("2026-07-22T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [{ ...mayonnaiseItem, foodName: "30G", canonicalName: "1 porção", portionText: "30 g", estimatedGrams: 30 }],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 140,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "O último alimento é 30g queijo parmesão polenghi, substituir",
+      receivedAt: new Date("2026-07-22T18:05:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 140,
+      items: [
+        expect.objectContaining({
+          foodName: "queijo parmesão polenghi",
+          quantity: 30,
+          unit: "g",
+          estimatedGrams: 30,
+          portionText: "30 g",
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      eventType: "whatsapp.intent.meal_item_replaced",
+    }));
+    expect(result?.reply).toContain("queijo parmesão polenghi");
+  });
+
   it("usa o último item da última refeição quando o alimento não é citado", async () => {
     listMealsMock.mockResolvedValue([
       {

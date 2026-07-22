@@ -378,6 +378,66 @@ describe("whatsappWebhook", () => {
     expect(originalImageMedia?.storageUrl).not.toContain("image-media-id");
   });
 
+  it("não registra refeição quando imagem retorna item sem identidade alimentar confiável", async () => {
+    const imageOnlyUserId = 2000101;
+    const phoneNumber = "5511777770101";
+    await upsertUserWhatsappConnection({
+      userId: imageOnlyUserId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      confidence: 0.41,
+      needsConfirmation: true,
+      reasoning: "A imagem retornou apenas quantidade e macros heurísticos.",
+      items: [
+        {
+          foodName: "30G",
+          canonicalName: "1 porção",
+          portionText: "1 porção (aprox. 100g)",
+          quantity: 1,
+          unit: "porção",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 150,
+          protein: 6,
+          carbs: 15,
+          fat: 5,
+          confidence: 0.3,
+          source: "heuristic" as const,
+        },
+      ],
+      totals: { calories: 150, protein: 6, carbs: 15, fat: 5 },
+    });
+
+    const req = {
+      body: {
+        entry: [{
+          changes: [{
+            value: {
+              messages: [{
+                from: phoneNumber,
+                type: "image",
+                image: { id: "generic-image-id", mime_type: "image/jpeg" },
+              }],
+            },
+          }],
+        }],
+      },
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect((await listUserMeals(imageOnlyUserId)).filter(meal => meal.source === "whatsapp")).toHaveLength(0);
+    expect(lastSentWhatsAppBody).toContain("Não consegui identificar o alimento na imagem");
+    expect(lastSentWhatsAppBody).not.toContain("Failed query");
+    expect(createLocalMealPhotoOverlayMock).not.toHaveBeenCalled();
+  });
+
   it("registra warning explícito quando a resposta automática do WhatsApp falha", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

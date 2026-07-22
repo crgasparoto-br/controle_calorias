@@ -4,7 +4,10 @@ vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: vi.fn(async () => "Resposta canônica."),
 }));
 vi.mock("./mealConsolidationService", () => ({
-  consolidateWhatsAppMealAfterSave: vi.fn(async (_deps, meal) => ({ action: "created", meal })),
+  consolidateWhatsAppMealAfterSave: vi.fn(async (_deps, meal) => ({
+    action: "created",
+    meal,
+  })),
 }));
 
 import { createWhatsappFoodClarificationService } from "./foodClarification";
@@ -41,16 +44,24 @@ function createHarness() {
       return row;
     },
     async getActivePendingOperation(userId: number, now = new Date()) {
-      return [...rows.values()]
-        .filter(row => row.userId === userId && row.state === "active" && row.expiresAt.getTime() >= now.getTime())
-        .sort((left, right) => right.id - left.id)[0] ?? null;
+      return (
+        [...rows.values()]
+          .filter(
+            row =>
+              row.userId === userId &&
+              row.state === "active" &&
+              row.expiresAt.getTime() >= now.getTime()
+          )
+          .sort((left, right) => right.id - left.id)[0] ?? null
+      );
     },
     async getPendingOperationById(id: number) {
       return rows.get(id) ?? null;
     },
     async claimPendingOperation({ id, expectedVersion }: any) {
       const row = rows.get(id);
-      if (!row || row.state !== "active" || row.version !== expectedVersion) return { claimed: false };
+      if (!row || row.state !== "active" || row.version !== expectedVersion)
+        return { claimed: false };
       row.state = "consumed";
       row.version += 1;
       row.consumedAt = new Date();
@@ -81,22 +92,24 @@ function createHarness() {
     confidence: 0.95,
     needsConfirmation: false,
     reasoning: "teste",
-    items: [{
-      foodName: text,
-      canonicalName: text,
-      brand: null,
-      quantity: 170,
-      unit: "g",
-      portionText: "170 g",
-      servings: 1,
-      estimatedGrams: 170,
-      calories: 90,
-      protein: 8,
-      carbs: 10,
-      fat: 1,
-      confidence: 0.9,
-      source: "catalog" as const,
-    }],
+    items: [
+      {
+        foodName: text,
+        canonicalName: text,
+        brand: null,
+        quantity: 170,
+        unit: "g",
+        portionText: "170 g",
+        servings: 1,
+        estimatedGrams: 170,
+        calories: 90,
+        protein: 8,
+        carbs: 10,
+        fat: 1,
+        confidence: 0.9,
+        source: "catalog" as const,
+      },
+    ],
     totals: { calories: 90, protein: 8, carbs: 10, fat: 1 },
   }));
   const createMeal = vi.fn(async (userId: number, input: any) => {
@@ -110,8 +123,14 @@ function createHarness() {
     processFood: processFood as any,
     getHabits: vi.fn(async () => []) as any,
     createMeal: createMeal as any,
-    listMeals: vi.fn(async (userId: number) => meals.filter(meal => meal.userId === userId)) as any,
-    updateMeal: vi.fn(async (userId: number, input: any) => ({ id: input.mealId, userId, ...input })) as any,
+    listMeals: vi.fn(async (userId: number) =>
+      meals.filter(meal => meal.userId === userId)
+    ) as any,
+    updateMeal: vi.fn(async (userId: number, input: any) => ({
+      id: input.mealId,
+      userId,
+      ...input,
+    })) as any,
     removeMeal: vi.fn(async () => true) as any,
   });
 
@@ -130,7 +149,10 @@ function candidate(name: string): FoodClarificationCandidate {
 }
 
 function selectionTarget(): PendingFoodClarificationTarget {
-  const candidates = [candidate("Iogurte natural integral"), candidate("Iogurte natural desnatado")];
+  const candidates = [
+    candidate("Iogurte natural integral"),
+    candidate("Iogurte natural desnatado"),
+  ];
   return {
     contractVersion: 1,
     interactionId: getFoodClarificationInteractionId("selection"),
@@ -190,13 +212,20 @@ describe("food clarification regressions found by audit", () => {
     const quantityInteractionId = getFoodClarificationInteractionId("quantity");
     expect(selected?.action).toBe("food_clarification_reprompted");
     expect(selected?.reply).toContain("Iogurte natural desnatado");
-    expect(selected?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
+    expect(selected?.data).toEqual(
+      expect.objectContaining({ interactionId: quantityInteractionId })
+    );
 
-    const pending = await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000));
+    const pending = await repository.getActivePendingOperation(
+      42,
+      new Date(start.getTime() + 1000)
+    );
     expect(pending.target.interactionId).toBe(quantityInteractionId);
     expect(pending.target.pendingKind).toBe("quantity");
     expect(pending.target.selectedCandidateIndex).toBe(1);
-    expect(pending.target.instructionText).toBe(buildQuantityInstruction("Iogurte natural desnatado"));
+    expect(pending.target.instructionText).toBe(
+      buildQuantityInstruction("Iogurte natural desnatado")
+    );
 
     const completed = await service.handle({
       userId: 42,
@@ -205,11 +234,67 @@ describe("food clarification regressions found by audit", () => {
       userTimezone: "America/Sao_Paulo",
     });
     expect(completed?.action).toBe("food_clarification_completed");
-    expect(completed?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
-    expect(processFood).toHaveBeenCalledWith(expect.objectContaining({
-      text: "170 g de Iogurte natural desnatado",
-    }));
+    expect(completed?.data).toEqual(
+      expect.objectContaining({ interactionId: quantityInteractionId })
+    );
+    expect(processFood).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "170 g de Iogurte natural desnatado",
+      })
+    );
     expect(createMeal).toHaveBeenCalledTimes(1);
+  });
+
+  it("pergunta quantidade para iogurte genérico persistido com sucesso sem salvar refeição", async () => {
+    const { service, repository, processFood, createMeal } = createHarness();
+    const receivedAt = new Date("2026-07-22T12:00:00.000Z");
+
+    const response = await service.handle({
+      userId: 42,
+      text: "1 iogurte natural desnatado",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "wamid.issue873",
+    });
+
+    expect(response).toEqual(
+      expect.objectContaining({
+        action: "food_clarification_requested",
+        eventType: "whatsapp.food_clarification.requested",
+        reply: expect.stringMatching(
+          /iogurte natural desnatado|peso|volume|tamanho/i
+        ),
+        data: expect.objectContaining({
+          classification: "open",
+          pendingKind: "quantity",
+          normalizedCandidate: "iogurte natural desnatado",
+          inboundMessageId: "wamid.issue873",
+        }),
+      })
+    );
+    expect(response?.eventType).not.toBe(
+      "whatsapp.food_clarification.persistence_unavailable"
+    );
+
+    const pending = await repository.getActivePendingOperation(42, receivedAt);
+    expect(pending).toEqual(
+      expect.objectContaining({
+        userId: 42,
+        type: "food_registration_clarification",
+        origin: "foodClarification",
+        state: "active",
+        version: 1,
+      })
+    );
+    expect(pending.target).toEqual(
+      expect.objectContaining({
+        pendingKind: "quantity",
+        originalText: "1 iogurte natural desnatado",
+        normalizedCandidate: "iogurte natural desnatado",
+      })
+    );
+    expect(processFood).not.toHaveBeenCalled();
+    expect(createMeal).not.toHaveBeenCalled();
   });
 
   it("reconhece nova refeição completa sem exigir verbo operacional", async () => {
@@ -237,7 +322,12 @@ describe("food clarification regressions found by audit", () => {
     });
     expect(resolved).toBeNull();
     expect(processFood).not.toHaveBeenCalled();
-    expect(await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000))).toBeNull();
+    expect(
+      await repository.getActivePendingOperation(
+        42,
+        new Date(start.getTime() + 1000)
+      )
+    ).toBeNull();
   });
 
   it("restaura falha anterior à mutação com o interactionId canônico do pendingKind", async () => {
@@ -262,8 +352,13 @@ describe("food clarification regressions found by audit", () => {
     });
     const quantityInteractionId = getFoodClarificationInteractionId("quantity");
     expect(retryResult?.action).toBe("food_clarification_retryable_failure");
-    expect(retryResult?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
-    const restored = await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000));
+    expect(retryResult?.data).toEqual(
+      expect.objectContaining({ interactionId: quantityInteractionId })
+    );
+    const restored = await repository.getActivePendingOperation(
+      42,
+      new Date(start.getTime() + 1000)
+    );
     expect(restored.target.interactionId).toBe(quantityInteractionId);
     expect(restored.target.pendingKind).toBe("quantity");
   });
@@ -278,10 +373,12 @@ describe("food clarification regressions found by audit", () => {
         receivedAt: new Date("2026-07-21T20:00:00.000Z"),
         userTimezone: "America/Sao_Paulo",
       });
-      expect(blocked?.action).toBe("food_clarification_standalone_command_blocked");
+      expect(blocked?.action).toBe(
+        "food_clarification_standalone_command_blocked"
+      );
       expect(processFood).not.toHaveBeenCalled();
       expect(createMeal).not.toHaveBeenCalled();
-    },
+    }
   );
 
   it("aceita cancelamento textual com pontuação sem persistir", async () => {
