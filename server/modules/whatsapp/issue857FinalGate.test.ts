@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WHATSAPP_INTERACTION_REGISTRY } from "./interactionRegistry";
 import { selectWhatsappInteractionComponent } from "./interactionPresentation";
 import { buildWhatsAppOutboundFallbackText, type WhatsAppOutboundMessage } from "./replyContract";
+import { buildWhatsAppFoodLines } from "./replyTemplates";
 
 const REMOVED_ESTIMATION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
 
@@ -86,7 +87,21 @@ describe("issue #857 final interaction gate", () => {
     }
   });
 
-  it("mantém o aviso visual removido como comportamento proibido", () => {
-    expect(REMOVED_ESTIMATION_WARNING).toBe("⚠️ Valores nutricionais estimados pela IA.");
+  it("bloqueia regressão do aviso visual sem remover os dados nutricionais estimados", () => {
+    const lines = buildWhatsAppFoodLines({
+      foodName: "Alimento estimado",
+      canonicalName: "alimento estimado",
+      portionText: "1 porção",
+      estimatedGrams: 100,
+      calories: 120,
+      protein: 4,
+      carbs: 20,
+      fat: 3,
+      source: "heuristic",
+    });
+
+    expect(lines.join("\n")).toContain("Alimento estimado");
+    expect(lines.join("\n")).toContain("120 kcal");
+    expect(lines.join("\n")).not.toContain(REMOVED_ESTIMATION_WARNING);
   });
 });
