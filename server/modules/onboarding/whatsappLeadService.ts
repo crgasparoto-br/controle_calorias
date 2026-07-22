@@ -252,12 +252,14 @@ async function markLeadConverted(
     set status = 'active', converted_user_id = ${userId}, converted_at = ${now}, token_used_at = ${now}, updated_at = ${now}
     where id = ${lead.id}
   `);
-  memoryLeadsByPhone.set(lead.phoneNumber, {
+  const convertedLead: WhatsappOnboardingLead = {
     ...lead,
     status: "active",
     tokenUsedAt: now,
     updatedAt: now,
-  });
+  };
+  memoryLeadsByPhone.set(lead.phoneNumber, convertedLead);
+  memoryLeadsByTokenHash.set(lead.tokenHash, convertedLead);
 }
 
 async function persistConsents(
@@ -336,4 +338,10 @@ export async function completeWhatsappOnboarding(input: {
     eligibility,
     nextAction,
   };
+}
+
+export function __resetWhatsappOnboardingLeadsForTests() {
+  memoryLeadsByPhone.clear();
+  memoryLeadsByTokenHash.clear();
+  memoryLeadSequence = 1;
 }
