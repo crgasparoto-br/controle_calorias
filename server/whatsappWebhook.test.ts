@@ -1142,7 +1142,10 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
     expect(lastSentWhatsAppBody).toContain(
-      "Você quer que eu mova apenas os itens marcados como Lanche"
+      "Encontrei 1 registro(s) recente(s) marcados como Lanche"
+    );
+    expect(lastSentWhatsAppBody).toContain(
+      "Responda SIM para confirmar a mudança para Café da manhã"
     );
   });
 
