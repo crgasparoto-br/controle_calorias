@@ -49,4 +49,21 @@ describe("privacy redaction", () => {
     expect(detail).not.toContain("ana@example.com");
     expect(detail).not.toContain("secret-token");
   });
+
+  it("surfaces the underlying database error code/message from a wrapped query error", () => {
+    const dbError = new Error("Failed query: insert into `t` values (?, ?)\nparams: 1,2");
+    (dbError as unknown as { cause: unknown }).cause = {
+      code: "ER_DUP_ENTRY",
+      errno: 1062,
+      sqlState: "23000",
+      sqlMessage: "Duplicate entry 'whatsapp:outbound:1:response:2' for key 'idempotencyKey'",
+    };
+
+    const detail = safeLogDetail(dbError);
+
+    expect(detail).toContain("code=ER_DUP_ENTRY");
+    expect(detail).toContain("errno=1062");
+    expect(detail).toContain("sqlState=23000");
+    expect(detail).toContain("Duplicate entry");
+  });
 });
