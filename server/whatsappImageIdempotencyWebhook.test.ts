@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const beginInboundMessageMock = vi.fn(async () => null);
 const downstreamWebhookMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
 const getUserEntitlementsMock = vi.fn();
@@ -26,7 +27,7 @@ vi.mock("./modules/billing/service", () => ({
 }));
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
-  beginInboundMessage: vi.fn(async () => null),
+  beginInboundMessage: beginInboundMessageMock,
   claimMessageForProcessing: vi.fn(async () => true),
   markMessageProcessed: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
@@ -117,6 +118,8 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
   beforeEach(() => {
     __resetWhatsAppImageIdempotencyForTests();
     sentBodies = [];
+    beginInboundMessageMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue(null);
     downstreamWebhookMock.mockReset();
     createUserWaterLogMock.mockReset();
     getUserEntitlementsMock.mockReset();
@@ -202,6 +205,14 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(downstreamWebhookMock).not.toHaveBeenCalled();
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 42,
+        text: null,
+        captionText: null,
+        allowRawContentStorage: false,
+      })
+    );
     expect(sentBodies.at(-1)).toContain("Acesso aguardando ativação");
     expect(sentBodies.at(-1)).toContain("Nenhuma refeição, água, exercício");
   });
