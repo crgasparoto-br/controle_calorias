@@ -11,6 +11,7 @@ import { createWhatsappFoodClarificationService } from "./foodClarification";
 import {
   buildFoodClarificationActions,
   buildQuantityInstruction,
+  getFoodClarificationInteractionId,
   isCompleteWhatsappCommand,
   type FoodClarificationCandidate,
   type PendingFoodClarificationTarget,
@@ -132,7 +133,7 @@ function selectionTarget(): PendingFoodClarificationTarget {
   const candidates = [candidate("Iogurte natural integral"), candidate("Iogurte natural desnatado")];
   return {
     contractVersion: 1,
-    interactionId: "interaction-stable-855",
+    interactionId: getFoodClarificationInteractionId("selection"),
     kind: "food_registration_clarification",
     classification: "closed",
     pendingKind: "selection",
@@ -152,8 +153,22 @@ function selectionTarget(): PendingFoodClarificationTarget {
   };
 }
 
+function quantityTarget(): PendingFoodClarificationTarget {
+  const source = selectionTarget();
+  return {
+    ...source,
+    interactionId: getFoodClarificationInteractionId("quantity"),
+    pendingKind: "quantity",
+    classification: "open",
+    candidates: [],
+    selectedCandidateIndex: null,
+    actions: buildFoodClarificationActions("quantity", []),
+    instructionText: buildQuantityInstruction(source.normalizedCandidate),
+  };
+}
+
 describe("food clarification regressions found by audit", () => {
-  it("preserva candidato escolhido e interactionId até a persistência por quantidade", async () => {
+  it("preserva candidato escolhido e transiciona para o interactionId canônico de quantidade", async () => {
     const { service, repository, processFood, createMeal } = createHarness();
     const start = new Date("2026-07-21T20:00:00.000Z");
     const target = selectionTarget();
@@ -172,12 +187,14 @@ describe("food clarification regressions found by audit", () => {
       receivedAt: new Date(start.getTime() + 1000),
       userTimezone: "America/Sao_Paulo",
     });
+    const quantityInteractionId = getFoodClarificationInteractionId("quantity");
     expect(selected?.action).toBe("food_clarification_reprompted");
     expect(selected?.reply).toContain("Iogurte natural desnatado");
-    expect(selected?.data).toEqual(expect.objectContaining({ interactionId: target.interactionId }));
+    expect(selected?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
 
     const pending = await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000));
-    expect(pending.target.interactionId).toBe(target.interactionId);
+    expect(pending.target.interactionId).toBe(quantityInteractionId);
+    expect(pending.target.pendingKind).toBe("quantity");
     expect(pending.target.selectedCandidateIndex).toBe(1);
     expect(pending.target.instructionText).toBe(buildQuantityInstruction("Iogurte natural desnatado"));
 
@@ -188,7 +205,7 @@ describe("food clarification regressions found by audit", () => {
       userTimezone: "America/Sao_Paulo",
     });
     expect(completed?.action).toBe("food_clarification_completed");
-    expect(completed?.data).toEqual(expect.objectContaining({ interactionId: target.interactionId }));
+    expect(completed?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
     expect(processFood).toHaveBeenCalledWith(expect.objectContaining({
       text: "170 g de Iogurte natural desnatado",
     }));
@@ -198,7 +215,7 @@ describe("food clarification regressions found by audit", () => {
   it("reconhece nova refeição completa sem exigir verbo operacional", async () => {
     const { service, repository, processFood } = createHarness();
     const start = new Date("2026-07-21T20:00:00.000Z");
-    const target = { ...selectionTarget(), pendingKind: "quantity" as const, classification: "open" as const, candidates: [] };
+    const target = quantityTarget();
     await repository.createPendingOperation({
       userId: 42,
       type: "food_registration_clarification",
@@ -212,21 +229,21 @@ describe("food clarification regressions found by audit", () => {
     expect(isCompleteWhatsappCommand("1 banana")).toBe(true);
     expect(isCompleteWhatsappCommand("170 g")).toBe(false);
 
-    const result = await service.handle({
+    const resolved = await service.handle({
       userId: 42,
       text: "200 g de frango",
       receivedAt: new Date(start.getTime() + 1000),
       userTimezone: "America/Sao_Paulo",
     });
-    expect(result).toBeNull();
+    expect(resolved).toBeNull();
     expect(processFood).not.toHaveBeenCalled();
     expect(await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000))).toBeNull();
   });
 
-  it("mantém interactionId ao restaurar falha comprovadamente anterior à mutação", async () => {
+  it("restaura falha anterior à mutação com o interactionId canônico do pendingKind", async () => {
     const { service, repository, processFood } = createHarness();
     const start = new Date("2026-07-21T20:00:00.000Z");
-    const target = { ...selectionTarget(), pendingKind: "quantity" as const, classification: "open" as const, candidates: [] };
+    const target = quantityTarget();
     await repository.createPendingOperation({
       userId: 42,
       type: "food_registration_clarification",
@@ -237,29 +254,31 @@ describe("food clarification regressions found by audit", () => {
     });
     processFood.mockRejectedValueOnce(new Error("provider indisponível"));
 
-    const result = await service.handle({
+    const retryResult = await service.handle({
       userId: 42,
       text: "170 g",
       receivedAt: new Date(start.getTime() + 1000),
       userTimezone: "America/Sao_Paulo",
     });
-    expect(result?.action).toBe("food_clarification_retryable_failure");
-    expect(result?.data).toEqual(expect.objectContaining({ interactionId: target.interactionId }));
+    const quantityInteractionId = getFoodClarificationInteractionId("quantity");
+    expect(retryResult?.action).toBe("food_clarification_retryable_failure");
+    expect(retryResult?.data).toEqual(expect.objectContaining({ interactionId: quantityInteractionId }));
     const restored = await repository.getActivePendingOperation(42, new Date(start.getTime() + 1000));
-    expect(restored.target.interactionId).toBe(target.interactionId);
+    expect(restored.target.interactionId).toBe(quantityInteractionId);
+    expect(restored.target.pendingKind).toBe("quantity");
   });
 
   it.each(["registrar!", "confirmar.", "170 g.", "opção 2."])(
     "bloqueia resposta isolada com pontuação: %s",
     async text => {
       const { service, processFood, createMeal } = createHarness();
-      const result = await service.handle({
+      const blocked = await service.handle({
         userId: 42,
         text,
         receivedAt: new Date("2026-07-21T20:00:00.000Z"),
         userTimezone: "America/Sao_Paulo",
       });
-      expect(result?.action).toBe("food_clarification_standalone_command_blocked");
+      expect(blocked?.action).toBe("food_clarification_standalone_command_blocked");
       expect(processFood).not.toHaveBeenCalled();
       expect(createMeal).not.toHaveBeenCalled();
     },
@@ -276,13 +295,13 @@ describe("food clarification regressions found by audit", () => {
       ttlMs: 600_000,
       now: start,
     });
-    const result = await service.handle({
+    const cancelled = await service.handle({
       userId: 42,
       text: "cancelar.",
       receivedAt: new Date(start.getTime() + 1000),
       userTimezone: "America/Sao_Paulo",
     });
-    expect(result?.action).toBe("food_clarification_cancelled");
+    expect(cancelled?.action).toBe("food_clarification_cancelled");
     expect(processFood).not.toHaveBeenCalled();
   });
 });
