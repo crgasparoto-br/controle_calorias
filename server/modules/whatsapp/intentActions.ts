@@ -130,12 +130,48 @@ function resolveInboundCorrelationId(
   return `derived:${digest}`;
 }
 
+async function executeResumedFoodRegistration(
+  userId: number,
+  input: WhatsappIntentInput,
+  text: string,
+  receivedAt: Date,
+  userTimeZone: string,
+): Promise<WhatsappIntentResult | null> {
+  // A escolha explícita "Registrar alimento" não pode acionar exclusão, água,
+  // ajustes, relatórios ou qualquer outro domínio antes de validar o texto
+  // preservado. Somente parsers alimentares de criação são permitidos aqui.
+  const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
+  if (coffeeCapsule) return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
+
+  const coffeeAddition = parseCoffeeAdditionIntent(text);
+  if (coffeeAddition) return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
+
+  const foodClarification = await handleWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone: userTimeZone,
+    messageId: resolveInboundCorrelationId(userId, text, receivedAt, input.messageId),
+  });
+  if (foodClarification) {
+    return attachWhatsappFoodClarificationPresentation(userId, foodClarification, receivedAt);
+  }
+
+  const foodAddition = parseFoodAdditionIntent(text, receivedAt);
+  return foodAddition ? handleFoodAdditionIntent(userId, foodAddition, userTimeZone) : null;
+}
+
 export async function executeWhatsappTextIntent(userId: number, input: WhatsappIntentInput): Promise<WhatsappIntentResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
 
   const receivedAt = input.receivedAt ?? new Date();
   const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
+
+  if (input.entrypoint === "intentClarification.resume") {
+    return executeResumedFoodRegistration(userId, input, text, receivedAt, userTimeZone);
+  }
+
   const pendingInteraction = await resolvePendingInteractionBeforeTextIntent(
     userId,
     input,
