@@ -24,8 +24,8 @@ jobs:
           cat .github/billing-payload.part-* | base64 --decode > /tmp/billing-payload.tar.xz
           echo "fb152c219774f22838c36ccb68f84b5b25bea53f595a80443b67d07616513fcd  /tmp/billing-payload.tar.xz" | sha256sum --check -
           tar -xJf /tmp/billing-payload.tar.xz -C .
+          rm -f .github/workflows/billing-persistence-tidb.yml
           rm .github/billing-payload.part-*
-          rm .github/workflows/apply-billing-payload.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
