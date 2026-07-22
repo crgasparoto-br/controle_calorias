@@ -116,25 +116,49 @@ async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number
   return { recentMeals, matchingMeals };
 }
 
+async function resolvePersistedReclassificationTargets(
+  userId: number,
+  pending: PendingWhatsAppConfirmation,
+  scope: "matching" | "all",
+) {
+  const persistedIds = scope === "all" ? pending.allMealIds : pending.mealIds;
+  if (!persistedIds?.length) return null;
+  const uniqueIds = [...new Set(persistedIds)];
+  if (uniqueIds.length !== persistedIds.length) return null;
+
+  const currentMeals = (await listUserMeals(userId)).filter(meal => meal.source === "whatsapp");
+  const currentById = new Map(currentMeals.map(meal => [meal.id, meal] as const));
+  const selectedMeals = uniqueIds.map(id => currentById.get(id) ?? null);
+  if (selectedMeals.some(meal => !meal)) return null;
+
+  const resolvedMeals = selectedMeals.filter((meal): meal is NonNullable<typeof meal> => Boolean(meal));
+  if (scope === "matching" && resolvedMeals.some(
+    meal => canonicalMealLabel(meal.mealLabel) !== pending.action.fromMealLabel,
+  )) {
+    return null;
+  }
+  return resolvedMeals;
+}
+
 async function applyClaimedGenericConfirmation(
   userId: number,
   pending: PendingWhatsAppConfirmation,
   scope: "matching" | "all" = "matching",
 ): Promise<{ handled: true; reply: string; eventType: string; detail: string }> {
-  const { recentMeals, matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
-  const selectedMeals = scope === "all" ? recentMeals : matchingMeals;
-  if (!selectedMeals.length) {
+  const selectedMeals = await resolvePersistedReclassificationTargets(userId, pending, scope);
+  if (!selectedMeals?.length) {
     return {
       handled: true,
       reply: buildWhatsAppClarificationReplyMessage("Os registros que essa confirmação alteraria não estão mais disponíveis. Envie o comando novamente se ainda quiser reclassificar refeições."),
       eventType: "whatsapp.action_confirmation_target_stale",
-      detail: `Confirmação consumida, mas alvo (${pending.summary}) não foi mais encontrado no estado atual.`,
+      detail: `Confirmação consumida, mas o conjunto persistido (${pending.summary}) não corresponde mais ao estado atual.`,
     };
   }
 
+  const selectedIds = selectedMeals.map(meal => meal.id);
   const updatedMeals = await relabelUserMeals({
     userId,
-    mealIds: selectedMeals.map(meal => meal.id),
+    mealIds: selectedIds,
     mealLabel: pending.action.toMealLabel,
     origin: "whatsapp",
   });
@@ -142,7 +166,7 @@ async function applyClaimedGenericConfirmation(
     handled: true,
     reply: buildWhatsAppActionConfirmedReplyMessage(`${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`),
     eventType: "whatsapp.action_applied",
-    detail: `Comando confirmado e executado com escopo ${scope}: ${pending.summary} em ${updatedMeals.length} registro(s).`,
+    detail: `Comando confirmado sobre os IDs persistidos com escopo ${scope}: ${pending.summary}; mealIds=${selectedIds.join(",")}.`,
   };
 }
 
