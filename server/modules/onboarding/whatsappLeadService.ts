@@ -390,11 +390,14 @@ async function claimLeadForCompletion(tokenHash: string): Promise<CompletionClai
 
 async function persistClaimedUser(lead: WhatsappOnboardingLead, userId: number) {
   const now = new Date();
-  await executeRaw(sql`
+  const result = await executeRaw(sql`
     update whatsapp_onboarding_leads
     set converted_user_id = ${userId}, converted_at = coalesce(converted_at, ${now}), updated_at = ${now}
     where id = ${lead.id} and status = 'converting'
   `);
+  if (result && affectedRows(result) !== 1) {
+    throw new Error("ONBOARDING_LEAD_CLAIM_LOST");
+  }
   const updated: WhatsappOnboardingLead = {
     ...lead,
     convertedUserId: userId,
@@ -447,17 +450,26 @@ async function recordCompletionFailure(
   const status: LeadStatus = userId ? "converting" : "pending_onboarding";
   const tokenUsedAt = userId ? lead.tokenUsedAt : null;
 
-  await executeRaw(sql`
-    update whatsapp_onboarding_leads
-    set status = ${status}, token_used_at = ${tokenUsedAt}, completion_error_code = ${errorCode}, updated_at = ${now}
-    where id = ${lead.id}
-  `);
+  if (userId) {
+    await executeRaw(sql`
+      update whatsapp_onboarding_leads
+      set status = 'converting', token_used_at = ${tokenUsedAt}, converted_user_id = coalesce(converted_user_id, ${userId}), converted_at = coalesce(converted_at, ${now}), completion_error_code = ${errorCode}, updated_at = ${now}
+      where id = ${lead.id}
+    `);
+  } else {
+    await executeRaw(sql`
+      update whatsapp_onboarding_leads
+      set status = 'pending_onboarding', token_used_at = null, completion_error_code = ${errorCode}, updated_at = ${now}
+      where id = ${lead.id}
+    `);
+  }
 
   persistMemoryLead({
     ...lead,
     status,
     tokenUsedAt,
     convertedUserId: userId ?? lead.convertedUserId,
+    convertedAt: userId ? lead.convertedAt ?? now : lead.convertedAt,
     completionErrorCode: errorCode,
     updatedAt: now,
   });
