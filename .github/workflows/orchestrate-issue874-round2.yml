@@ -40,10 +40,28 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Reconstruct and apply audited fixes
+        id: apply
+        continue-on-error: true
         run: |
-          cat scripts/.issue874-round2.part* | base64 -d > /tmp/apply-issue874-round2.mjs
-          node --check /tmp/apply-issue874-round2.mjs
-          node /tmp/apply-issue874-round2.mjs
+          {
+            cat scripts/.issue874-round2.part* | base64 -d > /tmp/apply-issue874-round2.mjs
+            node --check /tmp/apply-issue874-round2.mjs
+            node /tmp/apply-issue874-round2.mjs
+          } > issue874-apply.log 2>&1
+
+      - name: Upload patch diagnostics
+        if: steps.apply.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue874-apply-diagnostics
+          path: issue874-apply.log
+          retention-days: 2
+
+      - name: Stop after patch failure
+        if: steps.apply.outcome == 'failure'
+        run: |
+          cat issue874-apply.log
+          exit 1
 
       - name: Remove temporary patch fragments
         run: git rm scripts/.issue874-round2.part*
@@ -119,5 +137,3 @@ jobs:
           git add -A
           git commit -m "fix: concluir pendencias auditadas da issue 874"
           git push origin HEAD:fix/874-whatsapp-correction-completion
-
-# Focused diagnostics corrections loaded.
