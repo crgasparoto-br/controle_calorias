@@ -89,27 +89,48 @@ async function resolveWhatsAppInteractiveCallback(
   if (!completed) return buildUnavailableInteractiveCallbackResult("unregistered_dispatch");
   const completedResult = completed as WhatsAppInteractiveCallbackResult;
   const lifecycle = claim.action === "cancel" ? "cancelled" : "consumed";
+  const sourceInteractionId = description?.interaction.id ?? null;
+  const downstreamInteractionId = typeof completedResult.data?.interactionId === "string"
+    ? completedResult.data.interactionId
+    : null;
+  const transitionedToAnotherInteraction = Boolean(
+    downstreamInteractionId && sourceInteractionId && downstreamInteractionId !== sourceInteractionId,
+  );
 
   return {
     ...completedResult,
     detail: `${completedResult.detail} interaction=${JSON.stringify({
-      interactionId: description?.interaction.id ?? null,
+      interactionId: sourceInteractionId,
       origin: description?.interaction.origin ?? claim.pendingOperation.origin,
       classification: description?.interaction.classification ?? null,
       component: description?.component ?? null,
       actionCount: description?.actions.length ?? null,
       lifecycle,
+      transitionedToInteractionId: transitionedToAnotherInteraction ? downstreamInteractionId : null,
     })}`,
-    data: {
-      ...(completedResult.data ?? {}),
-      pendingOperationId: claim.pendingOperation.id,
-      pendingType: claim.pendingOperation.type,
-      interactionId: description?.interaction.id ?? null,
-      interactionComponent: description?.component ?? null,
-      interactionActionCount: description?.actions.length ?? null,
-      interactionLifecycle: lifecycle,
-      callbackBlocked: false,
-    },
+    data: transitionedToAnotherInteraction
+      ? {
+          ...(completedResult.data ?? {}),
+          sourcePendingOperationId: claim.pendingOperation.id,
+          sourcePendingType: claim.pendingOperation.type,
+          sourceInteractionId,
+          sourceInteractionOrigin: description?.interaction.origin ?? claim.pendingOperation.origin,
+          sourceInteractionClassification: description?.interaction.classification ?? null,
+          sourceInteractionComponent: description?.component ?? null,
+          sourceInteractionActionCount: description?.actions.length ?? null,
+          sourceInteractionLifecycle: lifecycle,
+          callbackBlocked: false,
+        }
+      : {
+          ...(completedResult.data ?? {}),
+          pendingOperationId: claim.pendingOperation.id,
+          pendingType: claim.pendingOperation.type,
+          interactionId: sourceInteractionId,
+          interactionComponent: description?.component ?? null,
+          interactionActionCount: description?.actions.length ?? null,
+          interactionLifecycle: lifecycle,
+          callbackBlocked: false,
+        },
   };
 }
 
