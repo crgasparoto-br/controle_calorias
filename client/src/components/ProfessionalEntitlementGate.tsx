@@ -61,8 +61,8 @@ export default function ProfessionalEntitlementGate({
               Não foi possível verificar o acesso
             </CardTitle>
             <CardDescription>
-              Nenhuma operação profissional foi iniciada. Tente consultar o
-              backend novamente.
+              Nenhuma operação profissional foi iniciada. Verifique sua conexão e
+              tente novamente.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -90,17 +90,21 @@ export default function ProfessionalEntitlementGate({
               Recurso profissional indisponível
             </CardTitle>
             <CardDescription>
-              O contrato central de acesso não liberou este recurso. Seus
-              pacientes, prontuários e histórico foram preservados.
+              Este recurso não está disponível no seu acesso atual. Seus pacientes,
+              prontuários e histórico foram preservados.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Situação: {query.data?.planName ?? "Elegibilidade indisponível"}
+              Plano atual: {query.data?.planName ?? "Não informado"}
             </p>
             <Button
               onClick={() =>
-                setLocation(settingsDenied ? "/settings" : "/professional/settings")
+                setLocation(
+                  settingsDenied
+                    ? "/settings?tab=profissional"
+                    : "/professional/settings"
+                )
               }
             >
               <Settings className="h-4 w-4" />
