@@ -144,17 +144,24 @@ export function createBillingService(deps: {
 
   async function getUserSubscriptionStatus(userId: number) {
     const access = await getUserEntitlements(userId);
+    const evaluatedAt = nowProvider();
     try {
+      const [subscription, professionalSubscription] = await Promise.all([
+        deps.repository.getOwnSubscription(userId, evaluatedAt),
+        deps.repository.getActiveProfessionalSubscription(userId, evaluatedAt),
+      ]);
       return {
         access,
-        subscription: await deps.repository.getOwnSubscription(
-          userId,
-          nowProvider()
-        ),
+        subscription,
+        professionalSubscription,
       };
     } catch (error) {
       warning("billing_subscription_status", error);
-      return { access, subscription: null };
+      return {
+        access,
+        subscription: null,
+        professionalSubscription: null,
+      };
     }
   }
 
