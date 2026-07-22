@@ -96,14 +96,24 @@ function parseBareIndex(text: string) {
   return match ? Number(match[1]) - 1 : null;
 }
 
+function normalizePeriodLabel(value: string) {
+  return normalizeStandaloneWhatsappCommand(value)
+    .replace(/\b(?:de|da|do)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function parsePeriodAction(text: string) {
-  const normalized = normalizeStandaloneWhatsappCommand(text);
+  const normalized = normalizePeriodLabel(text);
   if (isStandaloneWhatsappCancellationWord(normalized)) return "cancel";
   return WHATSAPP_PERIOD_REPORT_OPTIONS.find(option => {
     const token = option.action.replace("period:", "");
-    return normalized === token
-      || normalized === option.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-      || normalized.includes(token);
+    const canonical = new Set([
+      normalizePeriodLabel(token),
+      normalizePeriodLabel(option.title),
+      normalizePeriodLabel(option.intentText),
+    ]);
+    return canonical.has(normalized);
   })?.action ?? null;
 }
 
