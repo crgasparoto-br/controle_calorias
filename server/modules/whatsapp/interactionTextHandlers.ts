@@ -22,9 +22,10 @@ import {
 } from "./standaloneCommandWords";
 import {
   completeWhatsappGenericConfirmationCallback,
+  handlePendingWhatsAppConfirmation,
   PENDING_CONFIRMATION_TYPE,
-  type PendingWhatsAppConfirmation,
 } from "./webhookTextCommands";
+import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 
@@ -163,7 +164,14 @@ export function classifyGenericConfirmationText(target: unknown, text?: string |
 }
 
 export async function resolveGenericConfirmationText(input: WhatsappInteractionTextInput) {
-  const action = parseGenericConfirmationAction(input.pendingOperation.target, input.text);
+  const target = input.pendingOperation.target as { decision?: string };
+  if (target.decision !== "reclassify_scope") {
+    const message: WhatsAppWebhookMessage = { text: { body: input.text ?? "" } };
+    const completed = await handlePendingWhatsAppConfirmation(message, input.userId);
+    return completed ? normalizeResolvedInteraction(completed, "confirmation_resolved") : null;
+  }
+
+  const action = parseScopeAction(input.text ?? "");
   if (!action) return null;
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
@@ -260,8 +268,4 @@ export async function resolveFoodClarificationText(input: WhatsappInteractionTex
     input.receivedAt,
   );
   return presented ? normalizeResolvedInteraction(presented, "food_clarification_resolved") : null;
-}
-
-export function assertPendingConfirmationTarget(value: unknown): value is PendingWhatsAppConfirmation {
-  return Boolean(value && typeof value === "object" && Array.isArray((value as PendingWhatsAppConfirmation).mealIds));
 }
