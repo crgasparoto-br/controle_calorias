@@ -6,6 +6,7 @@
  * gate no webhook real, no áudio transcrito e no simulador.
  */
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
@@ -50,6 +51,19 @@ function buildUnavailableInteractiveCallbackResult(reason = "invalid_or_unavaila
   };
 }
 
+function isExpectedInteractiveAction(
+  type: string,
+  action: string,
+  pendingOperation: WhatsAppPendingOperationRecord,
+) {
+  const description = describeWhatsappRegisteredInteraction(pendingOperation);
+  if (!description || description.interaction.pendingType !== type) return false;
+  // Perguntas abertas são respondidas por texto. Mesmo que o contrato lógico
+  // descreva a ação "provide_quantity", ela nunca é um callback de botão/lista.
+  if (description.interaction.classification === "open" && action !== "cancel") return false;
+  return isExpectedWhatsappRegisteredAction(type, action, pendingOperation);
+}
+
 async function resolveWhatsAppInteractiveCallback(
   userId: number,
   interactiveReplyId: string,
@@ -60,7 +74,7 @@ async function resolveWhatsAppInteractiveCallback(
   const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
     sourcePhone,
     expectedTypes: listWhatsappRegisteredPendingTypes(),
-    isExpectedAction: isExpectedWhatsappRegisteredAction,
+    isExpectedAction: isExpectedInteractiveAction,
   });
   if (claim.status !== "claimed") return buildUnavailableInteractiveCallbackResult(claim.status);
 
