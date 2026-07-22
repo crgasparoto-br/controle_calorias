@@ -14,11 +14,149 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  align-food-signal-schema:
+    name: Align historical food signal schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/874-whatsapp-correction-completion
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Add missing historical tables to canonical schema
+        id: schema_patch
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const path = "drizzle/schema.ts";
+          const content = fs.readFileSync(path, "utf8");
+          const marker = 'export const userFoodFavorites = mysqlTable("user_food_favorites"';
+          if (content.includes(marker)) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "changed=false\n");
+            process.exit(0);
+          }
+
+          const anchor = `\nexport const foodAliases = mysqlTable("food_aliases", {`;
+          if (!content.includes(anchor)) throw new Error("Schema anchor not found.");
+          const tables = `
+export const userFoodFavorites = mysqlTable("user_food_favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, table => ({
+  userFoodUnique: uniqueIndex("user_food_favorites_user_food_unique").on(table.userId, table.foodId),
+  userIdIdx: index("user_food_favorites_user_id_idx").on(table.userId),
+  foodIdIdx: index("user_food_favorites_food_id_idx").on(table.foodId),
+}));
+
+export const userFoodUsageStats = mysqlTable("user_food_usage_stats", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "cascade" }),
+  usageCount: int("usage_count").default(0).notNull(),
+  lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userFoodUnique: uniqueIndex("user_food_usage_stats_user_food_unique").on(table.userId, table.foodId),
+  userRecentIdx: index("user_food_usage_stats_user_recent_idx").on(table.userId, table.lastUsedAt),
+  foodIdIdx: index("user_food_usage_stats_food_id_idx").on(table.foodId),
+}));
+`;
+          fs.writeFileSync(path, content.replace(anchor, `\n${tables}${anchor}`));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, "changed=true\n");
+          NODE
+          pnpm exec prettier --write drizzle/schema.ts
+
+      - name: Align latest snapshot without creating duplicate DDL
+        if: steps.schema_patch.outputs.changed == 'true'
+        run: |
+          cp drizzle/meta/0035_snapshot.json /tmp/original-0035-snapshot.json
+          cp drizzle/meta/_journal.json /tmp/original-journal.json
+          find drizzle/meta -maxdepth 1 -name '*_snapshot.json' -printf '%f\n' | sort > /tmp/snapshots-before.txt
+          pnpm exec drizzle-kit generate --name issue874_schema_alignment > /tmp/schema-alignment-generate.log 2>&1
+          find drizzle/meta -maxdepth 1 -name '*_snapshot.json' -printf '%f\n' | sort > /tmp/snapshots-after.txt
+          comm -13 /tmp/snapshots-before.txt /tmp/snapshots-after.txt > /tmp/new-snapshots.txt
+          test "$(wc -l < /tmp/new-snapshots.txt)" -eq 1
+          new_snapshot="drizzle/meta/$(cat /tmp/new-snapshots.txt)"
+          new_sql="$(find drizzle -maxdepth 1 -type f -name '*issue874_schema_alignment.sql' -print -quit)"
+          test -n "$new_sql"
+          node --input-type=module "$new_snapshot" <<'NODE'
+          import fs from "node:fs";
+          const generatedPath = process.argv[2];
+          const original = JSON.parse(fs.readFileSync("/tmp/original-0035-snapshot.json", "utf8"));
+          const generated = JSON.parse(fs.readFileSync(generatedPath, "utf8"));
+          generated.prevId = original.prevId;
+          fs.writeFileSync("drizzle/meta/0035_snapshot.json", `${JSON.stringify(generated, null, 2)}\n`);
+          NODE
+          rm "$new_snapshot" "$new_sql"
+          cp /tmp/original-journal.json drizzle/meta/_journal.json
+          pnpm exec prettier --write drizzle/meta/0035_snapshot.json
+
+      - name: Regenerate database documentation
+        if: steps.schema_patch.outputs.changed == 'true'
+        run: pnpm docs:generate:db
+
+      - name: Prove schema generation is neutral
+        if: steps.schema_patch.outputs.changed == 'true'
+        run: |
+          cp drizzle/meta/_journal.json /tmp/verify-journal.json
+          find drizzle/meta -maxdepth 1 -name '*_snapshot.json' -printf '%f\n' | sort > /tmp/verify-before.txt
+          pnpm exec drizzle-kit generate --name issue874_schema_verify > /tmp/schema-verify.log 2>&1
+          find drizzle/meta -maxdepth 1 -name '*_snapshot.json' -printf '%f\n' | sort > /tmp/verify-after.txt
+          comm -13 /tmp/verify-before.txt /tmp/verify-after.txt > /tmp/verify-new.txt
+          if test -s /tmp/verify-new.txt || find drizzle -maxdepth 1 -type f -name '*issue874_schema_verify.sql' | grep -q .; then
+            cat /tmp/schema-verify.log
+            exit 1
+          fi
+          cmp -s drizzle/meta/_journal.json /tmp/verify-journal.json
+
+      - name: Validate schema alignment
+        if: steps.schema_patch.outputs.changed == 'true'
+        run: |
+          pnpm check
+          pnpm agent:check
+          pnpm build
+          git diff --check
+          grep -q 'user_food_favorites' drizzle/schema.ts
+          grep -q 'user_food_usage_stats' drizzle/schema.ts
+          grep -q 'user_food_favorites' drizzle/meta/0035_snapshot.json
+          grep -q 'user_food_usage_stats' drizzle/meta/0035_snapshot.json
+          grep -q 'user_food_favorites' docs/generated/db-schema.md
+          grep -q 'user_food_usage_stats' docs/generated/db-schema.md
+
+      - name: Commit validated schema alignment
+        if: steps.schema_patch.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add drizzle/schema.ts drizzle/meta/0035_snapshot.json docs/generated/db-schema.md
+          git commit -m "fix: alinhar schema dos sinais alimentares"
+          git push origin HEAD:fix/874-whatsapp-correction-completion
+
   tidb-context-regression:
     name: TiDB context regression
+    needs: align-food-signal-schema
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
@@ -26,8 +164,10 @@ jobs:
       WHATSAPP_CONTEXT_ROLLOUT_PERCENT: "100"
 
     steps:
-      - name: Checkout repository
+      - name: Checkout updated implementation branch
         uses: actions/checkout@v4
+        with:
+          ref: fix/874-whatsapp-correction-completion
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -59,10 +199,8 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import mysql from "mysql2/promise";
-
           const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
           let lastError;
-
           for (let attempt = 1; attempt <= 30; attempt += 1) {
             let connection;
             try {
@@ -79,7 +217,6 @@ jobs:
               await sleep(2000);
             }
           }
-
           throw lastError ?? new Error("TiDB não ficou pronto para DDL no tempo esperado.");
           NODE
 
