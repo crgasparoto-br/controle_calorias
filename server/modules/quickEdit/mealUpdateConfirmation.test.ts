@@ -237,6 +237,53 @@ describe("quick edit meal update confirmation", () => {
     );
   });
 
+  it("preserva a referência nova quando a tela já selecionou outro alimento do catálogo", async () => {
+    const currentItem = {
+      ...currentMeal.items[0],
+      foodName: "Queijo prato",
+      canonicalName: "Queijo prato",
+      foodId: 10,
+      foodCatalogId: 10,
+      source: "catalog" as const,
+    };
+    getQuickEditMealMock.mockResolvedValueOnce({
+      meal: { ...currentMeal, items: [currentItem] },
+      timeZone: "America/Sao_Paulo",
+    });
+
+    await updateQuickEditMealWithWhatsappConfirmation("x".repeat(32), {
+      mealLabel: "Lanche",
+      dateTimeLocal: "2026-07-22T12:00",
+      items: [
+        {
+          ...currentItem,
+          foodName: "Queijo parmesão",
+          canonicalName: "Queijo parmesão",
+          foodId: 20,
+          foodCatalogId: 20,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+        },
+      ],
+    });
+
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(updateQuickEditMealMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            foodName: "Queijo parmesão",
+            foodId: 20,
+            foodCatalogId: 20,
+          }),
+        ],
+      })
+    );
+  });
+
   it("recalcula no backend quando apenas a quantidade heurística muda", async () => {
     processMealInputMock.mockResolvedValueOnce({
       items: [
