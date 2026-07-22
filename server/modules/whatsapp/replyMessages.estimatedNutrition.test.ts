@@ -46,12 +46,12 @@ function buildProcessedItems(sources: Source[]): MealProcessingResult {
 
 describe("buildWhatsAppMealReplyMessage estimated nutrition", () => {
   it.each([
-    ["catalog"],
-    ["heuristic"],
-    ["hybrid"],
-    ["catalog", "hybrid", "heuristic"],
-    ["heuristic", "hybrid", "heuristic"],
-  ] as Source[][])("não exibe aviso visual para origens %j", sources => {
+    [["catalog"]],
+    [["heuristic"]],
+    [["hybrid"]],
+    [["catalog", "hybrid", "heuristic"]],
+    [["heuristic", "hybrid", "heuristic"]],
+  ] as Array<[Source[]]>)("não exibe aviso visual para origens %j", sources => {
     const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(sources));
 
     expect(reply).not.toContain(REMOVED_WARNING);
