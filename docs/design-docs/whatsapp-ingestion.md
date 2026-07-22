@@ -151,7 +151,7 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - **Entrega lógica única**: `logicalReplyDelivery.ts` compõe texto, CTA opaco e imagem auxiliar em uma única `WhatsAppLogicalReply`.
 - **CTA após callbacks**: resultados interativos preservam `data.mealId`; quando a refeição ainda existe, a resposta final mantém a edição rápida.
 - **Exclusão de alimento/refeição**: respostas usam o estado recarregado ou confirmação textual quando o recurso deixa de existir.
-- **Alimento estimado pela IA**: itens `heuristic` e `hybrid` recebem aviso individual; itens de catálogo não.
+- **Alimento estimado pela IA**: itens `heuristic` e `hybrid` continuam exibindo calorias e macros estimados nos blocos centrais, sem aviso visual individual; itens de catálogo seguem sem marcador adicional.
 
 ### Gate destrutivo antes do fallback nutricional (issue #856)
 
