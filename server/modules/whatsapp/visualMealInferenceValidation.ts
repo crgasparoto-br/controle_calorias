@@ -10,12 +10,19 @@ const GENERIC_IMAGE_FOOD_NAMES = new Set([
   "ingrediente",
   "produto",
   "desconhecido",
+  "desconhecida",
+  "indefinido",
+  "indefinida",
 ]);
 
 const GENERIC_IMAGE_IDENTITY_PATTERNS = [
   /^(?:nao\s+)?identificad[oa]$/,
   /^(?:nao\s+)?reconhecid[oa]$/,
-  /^(?:alimento|comida|refeicao|item|prato|porcao|ingrediente|produto)\s+(?:nao\s+)?(?:identificad[oa]|reconhecid[oa]|desconhecid[oa])$/,
+  /^desconhecid[oa]$/,
+  /^indefinid[oa]$/,
+  /^(?:alimento|comida|refeicao|item|prato|porcao|ingrediente|produto)\s+(?:nao\s+)?(?:identificad[oa]|reconhecid[oa]|desconhecid[oa]|indefinid[oa])$/,
+  /^(?:nao\s+foi\s+possivel\s+)?identificar\s+(?:o\s+|a\s+)?(?:alimento|comida|refeicao|item|prato|ingrediente|produto)$/,
+  /^sem\s+(?:alimento|comida|item|ingrediente|produto)\s+(?:identificad[oa]|reconhecid[oa])$/,
   /^item\s+\d+$/,
   /^(?:objeto|imagem|foto)(?:\s+\d+)?$/,
   /^sem\s+(?:identificacao|descricao|nome)$/,
@@ -76,8 +83,18 @@ function hasUnsafeEstimatedPortionMarker(item: MealDraftItem) {
   );
 }
 
+function hasGenericHeuristicPortion(item: MealDraftItem) {
+  const unit = normalizeIdentity(item.unit);
+  return item.source === "heuristic" && /^(?:porcao|porcoes)$/.test(unit);
+}
+
 function hasSafePortion(item: MealDraftItem) {
-  if (hasUnsafeEstimatedPortionMarker(item)) return false;
+  if (
+    hasUnsafeEstimatedPortionMarker(item) ||
+    hasGenericHeuristicPortion(item)
+  ) {
+    return false;
+  }
   if (Number(item.quantity) > 0 && item.unit?.trim()) return true;
   return /\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|unidades?|fatias?|porcoes?)\b/i.test(
     normalizeIdentity(item.portionText)
