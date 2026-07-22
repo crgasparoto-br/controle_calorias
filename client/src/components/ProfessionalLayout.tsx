@@ -347,7 +347,10 @@ export default function ProfessionalLayout({
             Ative e salve seu perfil profissional em Configurações antes de
             acessar este ambiente.
           </p>
-          <Button className="mt-6" onClick={() => setLocation("/settings?tab=profissional")}>
+          <Button
+            className="mt-6"
+            onClick={() => setLocation("/settings?tab=profissional")}
+          >
             Ir para Configurações
           </Button>
         </div>
@@ -357,7 +360,9 @@ export default function ProfessionalLayout({
 
   const patientAccessUnavailable = Boolean(routePatientId && accesses.isError);
   const patientContextLoading = Boolean(
-    routePatientId && (accesses.isLoading || !accesses.isSuccess)
+    routePatientId &&
+      !accesses.isError &&
+      (accesses.isLoading || !accesses.isSuccess)
   );
   const invalidPatientRoute = patientRoute.kind === "invalid";
   const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
@@ -476,7 +481,10 @@ export default function ProfessionalLayout({
                   description="O identificador informado não é válido. Nenhuma consulta de paciente foi realizada."
                 />
                 <div className="flex justify-center">
-                  <Button variant="outline" onClick={() => setLocation("/professional/patients")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocation("/professional/patients")}
+                  >
                     Voltar à carteira
                   </Button>
                 </div>
