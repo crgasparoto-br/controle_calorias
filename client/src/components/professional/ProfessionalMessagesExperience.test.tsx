@@ -155,14 +155,18 @@ describe("ProfessionalMessagesExperience", () => {
       screen.getByRole("button", { name: "Continuar edição" })
     );
     expect(
-      screen.getByRole("button", { name: "Enviar por WhatsApp" })
-    ).toBeDisabled();
+      screen
+        .getByRole("button", { name: "Enviar por WhatsApp" })
+        .hasAttribute("disabled")
+    ).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Origem da mensagem"), {
       target: { value: "professional" },
     });
     expect(
-      screen.getByRole("button", { name: "Enviar por WhatsApp" })
-    ).not.toBeDisabled();
+      screen
+        .getByRole("button", { name: "Enviar por WhatsApp" })
+        .hasAttribute("disabled")
+    ).toBe(false);
   });
 });
