@@ -39,6 +39,8 @@ jobs:
         run: pnpm check
 
       - name: Tests
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           if ! pnpm test > /tmp/vitest.log 2>&1; then
             echo "Vitest failed. Showing the final 250 log lines:"
