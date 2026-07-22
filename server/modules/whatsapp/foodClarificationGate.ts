@@ -117,7 +117,21 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   const interaction = findWhatsappRegisteredInteraction(active.type, active.target);
   if (!interaction) return buildUnregisteredPendingResult(active);
 
-  if (isCompleteWhatsappCommand(input.text?.trim() ?? "")) {
+  const classification = interaction.classifyText(active.target, input.text);
+  if (classification === "resolve") {
+    const resolved = await resolveWhatsappRegisteredText(interaction, {
+      userId: input.userId,
+      pendingOperation: active,
+      text: input.text,
+      receivedAt: input.receivedAt,
+      userTimezone: input.userTimezone,
+      messageId: correlatedMessageId,
+    });
+    if (resolved) return resolved;
+  } else if (isCompleteWhatsappCommand(input.text?.trim() ?? "")) {
+    // Somente um comando completo incompatível substitui a pendência. Rótulos
+    // textuais válidos da interação, como "Registrar alimento", são resolvidos
+    // acima pela própria entrada do registro.
     const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
     if (superseded.superseded) return null;
     return {
@@ -133,19 +147,6 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         interactionLifecycle: "blocked",
       },
     };
-  }
-
-  const classification = interaction.classifyText(active.target, input.text);
-  if (classification === "resolve") {
-    const resolved = await resolveWhatsappRegisteredText(interaction, {
-      userId: input.userId,
-      pendingOperation: active,
-      text: input.text,
-      receivedAt: input.receivedAt,
-      userTimezone: input.userTimezone,
-      messageId: correlatedMessageId,
-    });
-    if (resolved) return resolved;
   }
 
   const replay = await rebuildWhatsappRegisteredInteraction(active, { timeZone: input.userTimezone });
