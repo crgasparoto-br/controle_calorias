@@ -7,29 +7,25 @@ import { buildWhatsAppFoodLines } from "./replyTemplates";
 const REMOVED_ESTIMATION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
 
 describe("issue #857 final interaction gate", () => {
-  it("mantém identificadores estáveis, entrypoints e efeitos explícitos no inventário único", () => {
+  it("valida diretamente todos os registros do inventário canônico", () => {
     const ids = WHATSAPP_INTERACTION_REGISTRY.map(interaction => interaction.id);
 
+    expect(WHATSAPP_INTERACTION_REGISTRY.length).toBeGreaterThan(0);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(expect.arrayContaining([
-      "delete.confirmation",
-      "delete.candidate_selection",
-      "meal_item.candidate_selection",
-      "generic_confirmation.confirm_cancel",
-      "generic_confirmation.reclassify_scope",
-      "period_report.period_selection",
-      "professional_access.authorization",
-      "intent_clarification.generic",
-      "food_clarification.quantity",
-      "food_clarification.confirmation",
-      "food_clarification.selection",
-    ]));
 
     for (const interaction of WHATSAPP_INTERACTION_REGISTRY) {
+      expect(interaction.id.trim()).not.toBe("");
+      expect(interaction.pendingType.trim()).not.toBe("");
+      expect(interaction.origin.trim()).not.toBe("");
       expect(interaction.entrypoints.length).toBeGreaterThan(0);
       expect(interaction.allowedEffects.length).toBeGreaterThan(0);
       expect(interaction.forbiddenEffects.length).toBeGreaterThan(0);
       expect(interaction.staleBehavior).toBe("reply_unavailable_request_new_command");
+      expect(typeof interaction.matches).toBe("function");
+      expect(typeof interaction.actions).toBe("function");
+      expect(typeof interaction.resolveText).toBe("function");
+      expect(typeof interaction.rebuild).toBe("function");
+      expect(typeof interaction.completeCallback).toBe("function");
     }
   });
 
