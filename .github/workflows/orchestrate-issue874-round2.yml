@@ -133,7 +133,23 @@ jobs:
           exit 1
 
       - name: Full agent gate
-        run: pnpm agent:check
+        id: agent_gate
+        continue-on-error: true
+        run: pnpm agent:check > issue874-agent-check.log 2>&1
+
+      - name: Upload agent gate diagnostics
+        if: steps.agent_gate.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue874-agent-check-diagnostics
+          path: issue874-agent-check.log
+          retention-days: 2
+
+      - name: Stop after agent gate failure
+        if: steps.agent_gate.outcome == 'failure'
+        run: |
+          cat issue874-agent-check.log
+          exit 1
 
       - name: Production build
         run: pnpm build
@@ -153,5 +169,3 @@ jobs:
           git add -A
           git commit -m "fix: concluir pendencias auditadas da issue 874"
           git push origin HEAD:fix/874-whatsapp-correction-completion
-
-# TypeScript contract fixes staged.
