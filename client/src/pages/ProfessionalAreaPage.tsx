@@ -6,7 +6,7 @@ import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
 import React from "react";
 import { useLocation } from "wouter";
 import ProfessionalHome from "./professional/ProfessionalHome";
-import ProfessionalPatientWorkspace from "./professional/ProfessionalPatientWorkspace";
+import ProfessionalPatientRouteGuard from "./professional/ProfessionalPatientRouteGuard";
 import ProfessionalPatients from "./professional/ProfessionalPatients";
 
 export default function ProfessionalAreaPage() {
@@ -16,9 +16,9 @@ export default function ProfessionalAreaPage() {
 
   let content: React.ReactNode;
   if (patientRoute.kind === "patient") {
-    content = <ProfessionalPatientWorkspace />;
+    content = <ProfessionalPatientRouteGuard />;
   } else if (pathname === "/professional/patients") {
-    content = <ProfessionalPatients />;
+    content = <ProfessionalPatients key={location} />;
   } else if (pathname === "/professional/reports") {
     content = (
       <ProfessionalPage>
