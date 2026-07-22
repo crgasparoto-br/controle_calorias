@@ -2,6 +2,7 @@ import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
+  getFoodClarificationInteractionId,
   isPendingFoodClarificationTarget,
   PENDING_FOOD_CLARIFICATION_TYPE,
 } from "./foodClarificationContract";
@@ -14,10 +15,6 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   getDb,
   onWarning: logPersistenceWarning,
 });
-
-function stableFoodClarificationInteractionId(pendingKind: "quantity" | "confirmation" | "selection") {
-  return `food_clarification.${pendingKind}`;
-}
 
 /**
  * Liga o contrato estruturado da #855 ao componente transversal da #858.
@@ -43,7 +40,7 @@ export async function attachWhatsappFoodClarificationPresentation(
 
   const target = active.target;
   const telemetry = buildWhatsappInteractionTelemetry({
-    interactionId: stableFoodClarificationInteractionId(target.pendingKind),
+    interactionId: getFoodClarificationInteractionId(target.pendingKind),
     origin: active.origin,
     classification: target.classification,
     actions: target.actions,
