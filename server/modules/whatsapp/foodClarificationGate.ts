@@ -8,10 +8,12 @@ import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import { buildWhatsappInteractionTelemetry } from "./interactionPresentation";
 import {
   findWhatsappRegisteredInteraction,
   rebuildWhatsappRegisteredInteraction,
   resolveWhatsappRegisteredText,
+  type WhatsappRegisteredInteraction,
 } from "./interactionRegistry";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import {
@@ -39,6 +41,8 @@ type ResolvedInteractionLike = {
   interactiveReply?: WhatsAppLogicalReply;
 };
 
+type InteractionLifecycle = "represented" | "cancelled" | "consumed" | "blocked";
+
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -53,6 +57,50 @@ function normalizeResolvedInteraction(
     handled: true,
     action: value.action ?? fallbackAction,
   };
+}
+
+function inferTextInteractionLifecycle(result: PendingInteractionResult): InteractionLifecycle {
+  const marker = `${result.action} ${result.eventType}`.toLowerCase();
+  if (marker.includes("cancel")) return "cancelled";
+  if (/(reprompt|represented|clarification_needed|invalid_)/.test(marker)) return "represented";
+  if (/(blocked|unavailable|stale|not_found)/.test(marker)) return "blocked";
+  return "consumed";
+}
+
+function enrichResolvedTextInteraction(input: {
+  pending: WhatsAppPendingOperationRecord;
+  interaction: WhatsappRegisteredInteraction;
+  result: PendingInteractionResult;
+  timeZone: string;
+}) {
+  const actions = input.interaction.actions(input.pending.target, { timeZone: input.timeZone });
+  const lifecycle = inferTextInteractionLifecycle(input.result);
+  const invalidResponseReason = lifecycle === "represented" || lifecycle === "blocked"
+    ? input.result.eventType
+    : null;
+  return {
+    ...input.result,
+    detail: `${input.result.detail} interaction=${JSON.stringify({
+      interactionId: input.interaction.id,
+      origin: input.interaction.origin,
+      classification: input.interaction.classification,
+      actionCount: actions.length,
+      lifecycle,
+    })}`,
+    data: {
+      ...(input.result.data ?? {}),
+      pendingOperationId: input.pending.id,
+      pendingType: input.pending.type,
+      ...buildWhatsappInteractionTelemetry({
+        interactionId: input.interaction.id,
+        origin: input.interaction.origin,
+        classification: input.interaction.classification,
+        actions,
+        lifecycle,
+        invalidResponseReason,
+      }),
+    },
+  } satisfies PendingInteractionResult;
 }
 
 function shouldCreateGenericIntentClarification(text?: string | null) {
@@ -127,7 +175,14 @@ export async function resolvePendingWhatsappFoodClarification(input: {
       userTimezone: input.userTimezone,
       messageId: correlatedMessageId,
     });
-    if (resolved) return resolved;
+    if (resolved) {
+      return enrichResolvedTextInteraction({
+        pending: active,
+        interaction,
+        result: resolved,
+        timeZone: input.userTimezone,
+      });
+    }
   } else if (isCompleteWhatsappCommand(input.text?.trim() ?? "")) {
     // Somente um comando completo incompatível substitui a pendência. Rótulos
     // textuais válidos da interação, como "Registrar alimento", são resolvidos
