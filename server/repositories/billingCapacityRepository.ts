@@ -38,10 +38,9 @@ export function createBillingCapacityRepository(deps: BillingRepositoryDeps) {
             : { reserved: true as const, reservationId: String(existing.id) };
         }
 
-        const [subscription] = resultRows<Record<string, unknown>>(
+        const [candidateSubscription] = resultRows<Record<string, unknown>>(
           await tx.execute(sql`
-            SELECT s.id AS subscriptionId, s.currentPeriodEnd, p.id AS planId,
-              p.capacityLimit, p.entitlementsJson
+            SELECT s.id AS subscriptionId
             FROM billingSubscriptions s
             INNER JOIN billingPlans p ON p.id = s.planId
             WHERE s.payerUserId = ${input.professionalUserId}
@@ -51,6 +50,33 @@ export function createBillingCapacityRepository(deps: BillingRepositoryDeps) {
               AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > NOW())
             ORDER BY s.currentPeriodEnd DESC, s.createdAt DESC
             LIMIT 1
+          `)
+        );
+        if (!candidateSubscription) {
+          return { reserved: false as const, reason: "unavailable" as const };
+        }
+
+        const subscriptionId = String(candidateSubscription.subscriptionId);
+        // Serialize every capacity decision on the subscription row. TiDB's
+        // snapshot reads can otherwise let two concurrent transactions observe
+        // the same pre-insert allocation count.
+        await tx.execute(sql`
+          UPDATE billingSubscriptions
+          SET updatedAt = NOW(6)
+          WHERE id = ${subscriptionId}
+        `);
+
+        const [subscription] = resultRows<Record<string, unknown>>(
+          await tx.execute(sql`
+            SELECT s.id AS subscriptionId, s.currentPeriodEnd, p.id AS planId,
+              p.capacityLimit, p.entitlementsJson
+            FROM billingSubscriptions s
+            INNER JOIN billingPlans p ON p.id = s.planId
+            WHERE s.id = ${subscriptionId}
+              AND s.status = 'active'
+              AND (s.currentPeriodStart IS NULL OR s.currentPeriodStart <= NOW())
+              AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > NOW())
+            LIMIT 1
             FOR UPDATE
           `)
         );
@@ -58,16 +84,17 @@ export function createBillingCapacityRepository(deps: BillingRepositoryDeps) {
           return { reserved: false as const, reason: "unavailable" as const };
         }
 
-        const [usage] = resultRows<Record<string, unknown>>(
+        const activeAllocations = resultRows<Record<string, unknown>>(
           await tx.execute(sql`
-            SELECT COUNT(*) AS used
+            SELECT id
             FROM billingCapacityAllocations
-            WHERE subscriptionId = ${String(subscription.subscriptionId)}
+            WHERE subscriptionId = ${subscriptionId}
               AND state IN ('reserved', 'active')
+            FOR UPDATE
           `)
         );
         if (
-          numberValue(usage?.used) >= numberValue(subscription.capacityLimit)
+          activeAllocations.length >= numberValue(subscription.capacityLimit)
         ) {
           return {
             reserved: false as const,
