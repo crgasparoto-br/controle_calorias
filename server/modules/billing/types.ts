@@ -92,6 +92,7 @@ export type BillingAdminUserRow = {
 export type BillingAdminUserAccess = BillingAdminUserRow & {
   access: UserEntitlementsResult;
   activeOverride: BillingAdminOverride | null;
+  ownSubscription: BillingSubscriptionSummary | null;
 };
 
 export type BillingPlanAnalytics = {
