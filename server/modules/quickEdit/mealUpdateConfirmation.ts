@@ -41,15 +41,14 @@ function foodIdentityChanged(
 ) {
   if (!current) return true;
   const currentIdentities = new Set(
-    [identity(current.foodName), identity(current.canonicalName)].filter(
-      Boolean
-    )
+    [identity(current.foodName), identity(current.canonicalName)].filter(Boolean)
   );
   const submittedIdentities = [
     identity(next.foodName),
     identity(next.canonicalName),
   ].filter(Boolean);
-  return !submittedIdentities.some(value => currentIdentities.has(value));
+  if (!submittedIdentities.length) return currentIdentities.size > 0;
+  return submittedIdentities.some(value => !currentIdentities.has(value));
 }
 
 function nutritionInputChanged(
