@@ -100,6 +100,9 @@ jobs:
       - name: Validate referential integrity
         run: pnpm db:check-integrity
 
+      - name: Run pending operation insert id regression
+        run: pnpm exec tsx scripts/test-whatsapp-pending-operation-tidb.ts
+
       - name: Run persistent context regression
         env:
           DATABASE_URL: ""

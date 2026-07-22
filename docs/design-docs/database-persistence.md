@@ -69,7 +69,7 @@ A estratégia inicial contra duplicidade usa `foods_source_code_unique` para imp
 
 ## Snapshot nutricional de refeições
 
-A migration `0001_meal_item_nutrition_snapshot.sql` adiciona em `mealItems` os campos `foodId`, `grams`, macros calculados, `fiberG`, `sodiumMg` e `foodSnapshotJson`.
+A migration idempotente `0035_meal_item_nutrition_snapshot_repair.sql` garante em `mealItems` os campos `foodId`, `grams`, macros calculados, `fiberG`, `sodiumMg` e `foodSnapshotJson` mesmo em ambientes com histórico antigo de migrations.
 
 Quando um item é registrado com `foodId`, o backend calcula os nutrientes a partir dos valores por 100 g do catálogo e da gramagem consumida. O snapshot grava nome, fonte, versão, status e nutrientes usados no cálculo para preservar o histórico mesmo se o alimento global for corrigido, depreciado ou mesclado depois.
 

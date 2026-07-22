@@ -4,9 +4,15 @@ import { whatsappPendingOperations } from "../../drizzle/schema";
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
 
-export type WhatsAppPendingOperationRecord = typeof whatsappPendingOperations.$inferSelect;
+export type WhatsAppPendingOperationRecord =
+  typeof whatsappPendingOperations.$inferSelect;
 
-export type WhatsAppPendingOperationState = "active" | "consumed" | "cancelled" | "expired" | "superseded";
+export type WhatsAppPendingOperationState =
+  | "active"
+  | "consumed"
+  | "cancelled"
+  | "expired"
+  | "superseded";
 
 export type CreatePendingOperationInput = {
   userId: number;
@@ -23,11 +29,20 @@ export type ClaimPendingOperationInput = {
 };
 
 export type WhatsAppPendingOperationRepository = {
-  createPendingOperation(input: CreatePendingOperationInput): Promise<WhatsAppPendingOperationRecord | null>;
-  getActivePendingOperation(userId: number, now?: Date): Promise<WhatsAppPendingOperationRecord | null>;
+  createPendingOperation(
+    input: CreatePendingOperationInput
+  ): Promise<WhatsAppPendingOperationRecord | null>;
+  getActivePendingOperation(
+    userId: number,
+    now?: Date
+  ): Promise<WhatsAppPendingOperationRecord | null>;
   /** Busca pelo ID exato (issue #782): valida que um callback de botão/lista aponta para a pendência específica mostrada ao usuário, não apenas "a mais recente ativa". */
-  getPendingOperationById(id: number): Promise<WhatsAppPendingOperationRecord | null>;
-  claimPendingOperation(input: ClaimPendingOperationInput): Promise<{ claimed: boolean }>;
+  getPendingOperationById(
+    id: number
+  ): Promise<WhatsAppPendingOperationRecord | null>;
+  claimPendingOperation(
+    input: ClaimPendingOperationInput
+  ): Promise<{ claimed: boolean }>;
   cancelPendingOperation(id: number): Promise<{ cancelled: boolean }>;
   supersedePendingOperation(id: number): Promise<{ superseded: boolean }>;
   /** Retenção (issue #767): apaga pendências não ativas (consumidas/canceladas/expiradas/substituídas) além de `operationalDays`. */
@@ -36,19 +51,32 @@ export type WhatsAppPendingOperationRepository = {
 
 function getMysqlAffectedRows(result: unknown) {
   const candidate = Array.isArray(result) ? result[0] : result;
-  const affectedRows = Number((candidate as { affectedRows?: number })?.affectedRows ?? 0);
+  const affectedRows = Number(
+    (candidate as { affectedRows?: number })?.affectedRows ?? 0
+  );
   return Number.isFinite(affectedRows) ? affectedRows : 0;
+}
+
+function getMysqlInsertId(result: unknown) {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  const insertId = Number((candidate as { insertId?: number })?.insertId);
+  return Number.isInteger(insertId) && insertId > 0 ? insertId : null;
 }
 
 async function transitionFromActive(
   db: any,
   id: number,
-  nextState: Exclude<WhatsAppPendingOperationState, "active">,
+  nextState: Exclude<WhatsAppPendingOperationState, "active">
 ): Promise<boolean> {
   const result = await db
     .update(whatsappPendingOperations)
     .set({ state: nextState, updatedAt: new Date() })
-    .where(and(eq(whatsappPendingOperations.id, id), eq(whatsappPendingOperations.state, "active")));
+    .where(
+      and(
+        eq(whatsappPendingOperations.id, id),
+        eq(whatsappPendingOperations.state, "active")
+      )
+    );
   return getMysqlAffectedRows(result) > 0;
 }
 
@@ -80,7 +108,10 @@ function createFallbackStore() {
       fallbackStore.set(record.id, record);
       return record;
     },
-    getActive(userId: number, now: Date): WhatsAppPendingOperationRecord | null {
+    getActive(
+      userId: number,
+      now: Date
+    ): WhatsAppPendingOperationRecord | null {
       const candidates = [...fallbackStore.values()]
         .filter(row => row.userId === userId && row.state === "active")
         .sort((a, b) => b.id - a.id);
@@ -94,11 +125,19 @@ function createFallbackStore() {
     },
     claim(id: number, expectedVersion: number): boolean {
       const row = fallbackStore.get(id);
-      if (!row || row.state !== "active" || row.version !== expectedVersion) return false;
-      Object.assign(row, { state: "consumed", version: expectedVersion + 1, consumedAt: new Date() });
+      if (!row || row.state !== "active" || row.version !== expectedVersion)
+        return false;
+      Object.assign(row, {
+        state: "consumed",
+        version: expectedVersion + 1,
+        consumedAt: new Date(),
+      });
       return true;
     },
-    transition(id: number, nextState: Exclude<WhatsAppPendingOperationState, "active">): boolean {
+    transition(
+      id: number,
+      nextState: Exclude<WhatsAppPendingOperationState, "active">
+    ): boolean {
       const row = fallbackStore.get(id);
       if (!row || row.state !== "active") return false;
       Object.assign(row, { state: nextState });
@@ -108,7 +147,10 @@ function createFallbackStore() {
       const cutoff = now.getTime() - operationalDays * 24 * 60 * 60 * 1000;
       let purged = 0;
       for (const [id, row] of fallbackStore.entries()) {
-        if (row.state !== "active" && new Date(row.updatedAt).getTime() < cutoff) {
+        if (
+          row.state !== "active" &&
+          new Date(row.updatedAt).getTime() < cutoff
+        ) {
           fallbackStore.delete(id);
           purged++;
         }
@@ -141,7 +183,14 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
           version: 1,
           expiresAt: new Date(now.getTime() + input.ttlMs),
         });
-        const insertedId = Number((inserted as { insertId?: number }).insertId ?? 0);
+        const insertedId = getMysqlInsertId(inserted);
+        if (!insertedId) {
+          deps.onWarning(
+            "WhatsApp pending operation create returned invalid insert id",
+            new Error("Invalid insert id returned by database driver.")
+          );
+          return null;
+        }
 
         const [created] = await db
           .select()
@@ -164,7 +213,12 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
         const [row] = await db
           .select()
           .from(whatsappPendingOperations)
-          .where(and(eq(whatsappPendingOperations.userId, userId), eq(whatsappPendingOperations.state, "active")))
+          .where(
+            and(
+              eq(whatsappPendingOperations.userId, userId),
+              eq(whatsappPendingOperations.state, "active")
+            )
+          )
           .orderBy(desc(whatsappPendingOperations.id))
           .limit(1);
 
@@ -202,12 +256,19 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
       try {
         const result = await db
           .update(whatsappPendingOperations)
-          .set({ state: "consumed", version: expectedVersion + 1, consumedAt: new Date(), updatedAt: new Date() })
-          .where(and(
-            eq(whatsappPendingOperations.id, id),
-            eq(whatsappPendingOperations.state, "active"),
-            eq(whatsappPendingOperations.version, expectedVersion),
-          ));
+          .set({
+            state: "consumed",
+            version: expectedVersion + 1,
+            consumedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(whatsappPendingOperations.id, id),
+              eq(whatsappPendingOperations.state, "active"),
+              eq(whatsappPendingOperations.version, expectedVersion)
+            )
+          );
 
         return { claimed: getMysqlAffectedRows(result) > 0 };
       } catch (error) {
@@ -246,11 +307,18 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
       const db = await deps.getDb();
       if (!db) return fallback.purgeInactive(operationalDays, now);
 
-      const cutoff = new Date(now.getTime() - operationalDays * 24 * 60 * 60 * 1000);
+      const cutoff = new Date(
+        now.getTime() - operationalDays * 24 * 60 * 60 * 1000
+      );
       try {
         const result = await db
           .delete(whatsappPendingOperations)
-          .where(and(ne(whatsappPendingOperations.state, "active"), lt(whatsappPendingOperations.updatedAt, cutoff)));
+          .where(
+            and(
+              ne(whatsappPendingOperations.state, "active"),
+              lt(whatsappPendingOperations.updatedAt, cutoff)
+            )
+          );
         return getMysqlAffectedRows(result);
       } catch (error) {
         deps.onWarning("WhatsApp pending operation purge skipped", error);
