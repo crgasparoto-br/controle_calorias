@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "drizzle/0016_whatsapp_onboarding_leads.sql"
-      - "drizzle/0036_whatsapp_onboarding_activation.sql"
+      - "drizzle/0037_whatsapp_onboarding_activation.sql"
       - "server/modules/onboarding/**"
       - "server/modules/billing/router.ts"
       - "scripts/test-whatsapp-onboarding-activation-tidb.ts"
