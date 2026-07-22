@@ -9,10 +9,7 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
-import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalEntitlementGate from "./components/ProfessionalEntitlementGate";
-import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
-import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
@@ -32,11 +29,12 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const SettingsPageRouter = lazy(() => import("@/pages/SettingsPageRouter"));
 const ProfessionalSettingsPage = lazy(
   () => import("@/pages/ProfessionalSettingsPage")
 );
-const ProfessionalWorkspacePage = lazy(
-  () => import("@/pages/ProfessionalWorkspacePage")
+const ProfessionalAreaPage = lazy(
+  () => import("@/pages/ProfessionalAreaPage")
 );
 const QuickEditExercisePage = lazy(
   () => import("@/pages/QuickEditExercisePage")
@@ -82,7 +80,7 @@ function ProfessionalWorkspaceRoute() {
     <ProfessionalEntitlementGate
       resource={professionalResourceForPath(location)}
     >
-      <ProfessionalWorkspacePage />
+      <ProfessionalAreaPage />
     </ProfessionalEntitlementGate>
   );
 }
@@ -120,7 +118,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/settings" component={OnboardingPage} />
+        <Route path="/settings" component={SettingsPageRouter} />
         <Route path="/log-meal" component={LogMealPage} />
         <Route path="/record" component={LogMealPage} />
         <Route path="/registrar" component={LogMealPage} />
@@ -205,9 +203,6 @@ function App() {
           <ProfileWhatsappGreetingVisibility />
           <NutritionGoalPreviewValidityBridge />
           <NutritionGoalReportInvalidator />
-          <ProfessionalAnalyzeTabBridge />
-          <ProfessionalGoalExceptionSuggestionsEmbed />
-          <ProfessionalOperationalAlertsBridge />
           <PatientGoalSuggestionsEmbed />
           <PatientProfessionalProfilesEmbed />
           <PatientProfessionalGuidancesEmbed />

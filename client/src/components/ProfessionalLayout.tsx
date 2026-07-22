@@ -12,13 +12,13 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
 import {
   AlertTriangle,
   BarChart3,
   BriefcaseMedical,
   ChevronLeft,
-  FileClock,
   LayoutDashboard,
   MessageSquareText,
   RefreshCw,
@@ -32,7 +32,6 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -44,7 +43,6 @@ export type ProfessionalPatientContext = {
 
 type ProfessionalWorkspaceContextValue = {
   selectedPatient: ProfessionalPatientContext | null;
-  selectPatient: (patient: ProfessionalPatientContext | null) => void;
   clearPatient: () => void;
 };
 
@@ -70,7 +68,6 @@ export function useProfessionalWorkspace() {
 const professionalNavigation = [
   { label: "Início", path: "/professional", icon: LayoutDashboard },
   { label: "Pacientes", path: "/professional/patients", icon: UsersRound },
-  { label: "Acompanhamento", path: "/professional/follow-up", icon: FileClock },
   {
     label: "Mensagens",
     path: "/professional/messages",
@@ -80,15 +77,77 @@ const professionalNavigation = [
   { label: "Configurações", path: "/professional/settings", icon: Settings },
 ];
 
+function pathnameFromLocation(location: string) {
+  return location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+}
+
 function isActiveRoute(location: string, path: string) {
-  if (path === "/professional") return location === path;
-  return location === path || location.startsWith(`${path}/`);
+  const pathname = pathnameFromLocation(location);
+  if (path === "/professional") return pathname === path;
+  if (path === "/professional/patients") {
+    return pathname === path || pathname.startsWith(`${path}/`);
+  }
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 function routeTitle(location: string) {
+  const patientRoute = parseProfessionalPatientRoute(location);
+  if (patientRoute.kind === "patient") {
+    const titles = {
+      record: "Prontuário",
+      assessment: "Avaliação",
+      goals: "Metas",
+      guidance: "Orientações",
+      notes: "Anotações",
+      history: "Histórico",
+      reports: "Relatórios",
+      messages: "Mensagens",
+    } as const;
+    return titles[patientRoute.section];
+  }
+
   return (
     professionalNavigation.find(item => isActiveRoute(location, item.path))
       ?.label ?? "Área Profissional"
+  );
+}
+
+function patientDisplayName(access: PatientAccess) {
+  return (
+    access.patient?.name ??
+    access.patient?.email ??
+    `Paciente ${access.patientUserId}`
+  );
+}
+
+function ProtectedState({
+  description,
+  onRetry,
+  title,
+}: {
+  description: string;
+  onRetry?: () => void;
+  title: string;
+}) {
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-6">
+      <div
+        role="alert"
+        className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm"
+      >
+        <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+        <h1 className="mt-4 text-xl font-semibold">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+        {onRetry ? (
+          <Button className="mt-6" onClick={onRetry}>
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -101,9 +160,13 @@ export default function ProfessionalLayout({
   const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const mainRef = useRef<HTMLElement | null>(null);
-  const selectedPatientRef = useRef<ProfessionalPatientContext | null>(null);
-  const [selectedPatient, setSelectedPatient] =
-    useState<ProfessionalPatientContext | null>(null);
+  const previousPatientIdRef = useRef<number | null>(null);
+  const patientRoute = useMemo(
+    () => parseProfessionalPatientRoute(location),
+    [location]
+  );
+  const routePatientId =
+    patientRoute.kind === "patient" ? patientRoute.patientId : null;
 
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
     enabled: Boolean(user),
@@ -121,37 +184,55 @@ export default function ProfessionalLayout({
     refetchInterval: 30_000,
   });
 
-  const invalidatePatientData = useCallback(
-    async (patientId: number) => {
-      await Promise.all([
-        utils.nutrition.professionals.patientTimeZone.invalidate({ patientId }),
-        utils.nutrition.professionals.patientDashboard.invalidate({
-          patientId,
-        }),
-        utils.nutrition.professionals.patientPeriodBundle.invalidate(),
-      ]);
-    },
-    [utils]
-  );
+  const approvedAccess = useMemo(() => {
+    if (!routePatientId || !accesses.data) return null;
+    return (
+      ((accesses.data ?? []) as PatientAccess[]).find(
+        access =>
+          access.patientUserId === routePatientId && access.status === "approved"
+      ) ?? null
+    );
+  }, [accesses.data, routePatientId]);
+
+  const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
+    if (!approvedAccess || !routePatientId) return null;
+    return {
+      patientId: routePatientId,
+      displayName: patientDisplayName(approvedAccess),
+    };
+  }, [approvedAccess, routePatientId]);
+
+  const clearPatientQueries = useCallback(async () => {
+    await Promise.all([
+      utils.nutrition.professionals.patientTimeZone.cancel(),
+      utils.nutrition.professionals.patientDashboard.cancel(),
+      utils.nutrition.professionals.patientPeriodBundle.cancel(),
+      utils.nutrition.professionals.history.cancel(),
+      utils.professionalRecord.get.cancel(),
+      utils.professionalRecord.messages.list.cancel(),
+      utils.professionalRecord.operationalAlerts.list.cancel(),
+      utils.professionalRecord.ai.priorities.cancel(),
+    ]);
+    await Promise.all([
+      utils.nutrition.professionals.patientTimeZone.reset(),
+      utils.nutrition.professionals.patientDashboard.reset(),
+      utils.nutrition.professionals.patientPeriodBundle.reset(),
+      utils.nutrition.professionals.history.reset(),
+      utils.professionalRecord.get.reset(),
+      utils.professionalRecord.messages.list.reset(),
+      utils.professionalRecord.operationalAlerts.list.reset(),
+      utils.professionalRecord.ai.priorities.reset(),
+    ]);
+  }, [utils]);
 
   const clearPatient = useCallback(() => {
-    const current = selectedPatientRef.current;
-    selectedPatientRef.current = null;
-    setSelectedPatient(null);
-    if (current) void invalidatePatientData(current.patientId);
-  }, [invalidatePatientData]);
-
-  const selectPatient = useCallback(
-    (patient: ProfessionalPatientContext | null) => {
-      const previous = selectedPatientRef.current;
-      if (previous && previous.patientId !== patient?.patientId) {
-        void invalidatePatientData(previous.patientId);
-      }
-      selectedPatientRef.current = patient;
-      setSelectedPatient(patient);
-    },
-    [invalidatePatientData]
-  );
+    if (routePatientId ?? previousPatientIdRef.current) {
+      void clearPatientQueries();
+    }
+    if (patientRoute.kind !== "none") {
+      setLocation("/professional/patients");
+    }
+  }, [clearPatientQueries, patientRoute.kind, routePatientId, setLocation]);
 
   useEffect(() => {
     const refreshAccess = () => {
@@ -166,35 +247,34 @@ export default function ProfessionalLayout({
   }, [accesses, hasActiveProfile, profile, refreshAuth]);
 
   useEffect(() => {
-    if (!profile.isSuccess || !hasActiveProfile) {
-      if (selectedPatient) clearPatient();
-      return;
+    const previousPatientId = previousPatientIdRef.current;
+    if (previousPatientId && previousPatientId !== routePatientId) {
+      void clearPatientQueries();
     }
-    if (accesses.isError) {
-      if (selectedPatient) clearPatient();
-      return;
-    }
-    if (!accesses.isSuccess || !selectedPatient) return;
-
-    const approvedIds = new Set(
-      ((accesses.data ?? []) as PatientAccess[])
-        .filter(access => access.status === "approved")
-        .map(access => access.patientUserId)
-    );
-    if (!approvedIds.has(selectedPatient.patientId)) clearPatient();
-  }, [
-    accesses.data,
-    accesses.isError,
-    accesses.isSuccess,
-    clearPatient,
-    hasActiveProfile,
-    profile.isSuccess,
-    selectedPatient,
-  ]);
+    previousPatientIdRef.current = routePatientId;
+  }, [clearPatientQueries, routePatientId]);
 
   useEffect(() => {
-    selectedPatientRef.current = selectedPatient;
-  }, [selectedPatient]);
+    if (
+      !routePatientId ||
+      !accesses.isSuccess ||
+      approvedAccess ||
+      patientRoute.kind !== "patient"
+    ) {
+      return;
+    }
+
+    void clearPatientQueries().finally(() => {
+      setLocation("/professional/patients?notice=patient-access-unavailable");
+    });
+  }, [
+    accesses.isSuccess,
+    approvedAccess,
+    clearPatientQueries,
+    patientRoute.kind,
+    routePatientId,
+    setLocation,
+  ]);
 
   useEffect(() => {
     document.title = `${routeTitle(location)} | Área Profissional`;
@@ -203,16 +283,15 @@ export default function ProfessionalLayout({
 
   useEffect(
     () => () => {
-      const current = selectedPatientRef.current;
-      if (current) void invalidatePatientData(current.patientId);
-      selectedPatientRef.current = null;
+      if (previousPatientIdRef.current) void clearPatientQueries();
+      previousPatientIdRef.current = null;
     },
-    [invalidatePatientData]
+    [clearPatientQueries]
   );
 
   const contextValue = useMemo(
-    () => ({ selectedPatient, selectPatient, clearPatient }),
-    [clearPatient, selectPatient, selectedPatient]
+    () => ({ selectedPatient, clearPatient }),
+    [clearPatient, selectedPatient]
   );
 
   if (authLoading || (user && profile.isLoading)) {
@@ -244,8 +323,8 @@ export default function ProfessionalLayout({
             Não foi possível confirmar seu acesso
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Verifique sua conexão e tente novamente. Nenhum dado profissional
-            foi exibido.
+            Verifique sua conexão e tente novamente. Nenhum dado profissional foi
+            exibido.
           </p>
           <Button className="mt-6" onClick={() => void profile.refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -268,7 +347,7 @@ export default function ProfessionalLayout({
             Ative e salve seu perfil profissional em Configurações antes de
             acessar este ambiente.
           </p>
-          <Button className="mt-6" onClick={() => setLocation("/settings")}>
+          <Button className="mt-6" onClick={() => setLocation("/settings?tab=profissional")}>
             Ir para Configurações
           </Button>
         </div>
@@ -276,7 +355,14 @@ export default function ProfessionalLayout({
     );
   }
 
-  const patientAccessUnavailable = accesses.isError;
+  const patientAccessUnavailable = Boolean(routePatientId && accesses.isError);
+  const patientContextLoading = Boolean(
+    routePatientId && (accesses.isLoading || !accesses.isSuccess)
+  );
+  const invalidPatientRoute = patientRoute.kind === "invalid";
+  const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
+    "notice"
+  );
 
   return (
     <ProfessionalWorkspaceContext.Provider value={contextValue}>
@@ -335,7 +421,7 @@ export default function ProfessionalLayout({
               variant="ghost"
               className="w-full justify-start group-data-[collapsible=icon]:justify-center"
               onClick={() => {
-                clearPatient();
+                if (routePatientId) void clearPatientQueries();
                 setLocation("/today");
               }}
             >
@@ -374,7 +460,28 @@ export default function ProfessionalLayout({
             aria-label={routeTitle(location)}
             className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20 p-4 outline-none sm:p-6"
           >
-            {accesses.isLoading && selectedPatient ? (
+            {accessNotice === "patient-access-unavailable" ? (
+              <div
+                role="status"
+                className="mb-4 rounded-2xl border bg-card p-4 text-sm"
+              >
+                O acesso a esse paciente não está mais disponível. A carteira foi
+                atualizada e nenhum dado anterior permaneceu visível.
+              </div>
+            ) : null}
+            {invalidPatientRoute ? (
+              <div className="space-y-4">
+                <ProtectedState
+                  title="Endereço de paciente inválido"
+                  description="O identificador informado não é válido. Nenhuma consulta de paciente foi realizada."
+                />
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={() => setLocation("/professional/patients")}>
+                    Voltar à carteira
+                  </Button>
+                </div>
+              </div>
+            ) : patientContextLoading ? (
               <div
                 role="status"
                 className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
@@ -382,21 +489,17 @@ export default function ProfessionalLayout({
                 Confirmando autorização do paciente...
               </div>
             ) : patientAccessUnavailable ? (
-              <div role="alert" className="rounded-2xl border bg-card p-6">
-                <h1 className="font-semibold">
-                  Não foi possível confirmar a autorização do paciente
-                </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  O contexto foi protegido. Tente novamente antes de continuar o
-                  acompanhamento.
-                </p>
-                <Button
-                  className="mt-4"
-                  variant="outline"
-                  onClick={() => void accesses.refetch()}
-                >
-                  Tentar novamente
-                </Button>
+              <ProtectedState
+                title="Não foi possível confirmar a autorização do paciente"
+                description="O contexto foi protegido. Tente novamente antes de continuar o acompanhamento."
+                onRetry={() => void accesses.refetch()}
+              />
+            ) : routePatientId && !selectedPatient ? (
+              <div
+                role="status"
+                className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
+              >
+                Removendo o contexto indisponível...
               </div>
             ) : (
               children
