@@ -28,9 +28,12 @@ describe("visualMealInferenceValidation", () => {
   it.each([
     "não identificado",
     "desconhecido",
+    "desconhecida",
     "item 1",
     "alimento desconhecido",
     "sem identificação",
+    "não foi possível identificar o alimento",
+    "sem alimento reconhecido",
   ])("rejeita marcador genérico de identidade: %s", foodName => {
     const candidate = item({ foodName, canonicalName: foodName });
 
@@ -59,6 +62,20 @@ describe("visualMealInferenceValidation", () => {
       unit: "porção",
       portionText: "1 porção (aprox. 100g)",
       estimatedGrams: 100,
+    });
+
+    expect(inspectWhatsappImageMealItemsPersistence([candidate])).toEqual(
+      expect.objectContaining({ status: "missing_portion", itemIndex: 0 })
+    );
+  });
+
+  it("não aceita uma porção heurística genérica sem base canônica", () => {
+    const candidate = item({
+      quantity: 1,
+      unit: "porção",
+      portionText: "1 porção",
+      estimatedGrams: 100,
+      source: "heuristic",
     });
 
     expect(inspectWhatsappImageMealItemsPersistence([candidate])).toEqual(
