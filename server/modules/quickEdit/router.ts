@@ -7,8 +7,8 @@ import {
   QuickEditTemporalInputError,
   QuickEditTokenError,
   updateQuickEditExercise,
-  updateQuickEditMeal,
 } from "./service";
+import { updateQuickEditMealWithWhatsappConfirmation } from "./issue874Service";
 import { logInferenceEvent } from "../../db";
 import {
   quickEditExerciseUpdateSchema,
@@ -33,48 +33,63 @@ function toPublicQuickEditError(error: unknown) {
     origin: "web",
     status: "error",
     eventType: "quick_edit.public_error_sanitized",
-    detail: "Falha técnica na edição rápida sanitizada antes de responder ao usuário.",
+    detail:
+      "Falha técnica na edição rápida sanitizada antes de responder ao usuário.",
   });
   return new TRPCError({
     code: "INTERNAL_SERVER_ERROR",
-    message: "Não foi possível salvar a edição agora. Tente novamente em instantes.",
+    message:
+      "Não foi possível salvar a edição agora. Tente novamente em instantes.",
   });
 }
 
 export const quickEditRouter = router({
-  getMeal: publicProcedure.input(quickEditTokenSchema).query(async ({ input }) => {
-    try {
-      return await getQuickEditMeal(input.token);
-    } catch (error) {
-      throw toPublicQuickEditError(error);
-    }
-  }),
-  updateMeal: publicProcedure.input(quickEditMealUpdateSchema).mutation(async ({ input }) => {
-    try {
-      return await updateQuickEditMeal(input.token, input.meal);
-    } catch (error) {
-      throw toPublicQuickEditError(error);
-    }
-  }),
-  deleteMeal: publicProcedure.input(quickEditMealDeleteSchema).mutation(async ({ input }) => {
-    try {
-      return await deleteQuickEditMeal(input.token);
-    } catch (error) {
-      throw toPublicQuickEditError(error);
-    }
-  }),
-  getExercise: publicProcedure.input(quickEditTokenSchema).query(async ({ input }) => {
-    try {
-      return await getQuickEditExercise(input.token);
-    } catch (error) {
-      throw toPublicQuickEditError(error);
-    }
-  }),
-  updateExercise: publicProcedure.input(quickEditExerciseUpdateSchema).mutation(async ({ input }) => {
-    try {
-      return await updateQuickEditExercise(input.token, input.exercise);
-    } catch (error) {
-      throw toPublicQuickEditError(error);
-    }
-  }),
+  getMeal: publicProcedure
+    .input(quickEditTokenSchema)
+    .query(async ({ input }) => {
+      try {
+        return await getQuickEditMeal(input.token);
+      } catch (error) {
+        throw toPublicQuickEditError(error);
+      }
+    }),
+  updateMeal: publicProcedure
+    .input(quickEditMealUpdateSchema)
+    .mutation(async ({ input }) => {
+      try {
+        return await updateQuickEditMealWithWhatsappConfirmation(
+          input.token,
+          input.meal
+        );
+      } catch (error) {
+        throw toPublicQuickEditError(error);
+      }
+    }),
+  deleteMeal: publicProcedure
+    .input(quickEditMealDeleteSchema)
+    .mutation(async ({ input }) => {
+      try {
+        return await deleteQuickEditMeal(input.token);
+      } catch (error) {
+        throw toPublicQuickEditError(error);
+      }
+    }),
+  getExercise: publicProcedure
+    .input(quickEditTokenSchema)
+    .query(async ({ input }) => {
+      try {
+        return await getQuickEditExercise(input.token);
+      } catch (error) {
+        throw toPublicQuickEditError(error);
+      }
+    }),
+  updateExercise: publicProcedure
+    .input(quickEditExerciseUpdateSchema)
+    .mutation(async ({ input }) => {
+      try {
+        return await updateQuickEditExercise(input.token, input.exercise);
+      } catch (error) {
+        throw toPublicQuickEditError(error);
+      }
+    }),
 });

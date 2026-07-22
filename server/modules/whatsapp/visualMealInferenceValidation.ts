@@ -22,7 +22,9 @@ function normalizeIdentity(value?: string | null) {
 }
 
 function isOnlyQuantityOrUnit(value: string) {
-  return /^\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|porcao|porcoes?|porção|porções?|unidades?)?$/i.test(value);
+  return /^\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|porcao|porcoes?|porção|porções?|unidades?)?$/i.test(
+    value
+  );
 }
 
 function hasFoodIdentity(item: MealDraftItem) {
@@ -40,29 +42,42 @@ function hasFoodIdentity(item: MealDraftItem) {
 function hasSafePortion(item: MealDraftItem) {
   if (Number(item.quantity) > 0 && item.unit?.trim()) return true;
   if (Number(item.estimatedGrams) > 0) return true;
-  return /\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|unidades?|fatias?|porcoes?|porções?)\b/i
-    .test(item.portionText ?? "");
+  return /\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|ml|m\s*l|l|litros?|unidades?|fatias?|porcoes?|porções?)\b/i.test(
+    item.portionText ?? ""
+  );
 }
 
-export function assertWhatsappImageMealItemsArePersistable(items: MealDraftItem[]) {
-  if (!items.length) {
+export type WhatsappImageMealPersistenceInspection =
+  | { status: "persistable" }
+  | { status: "missing_identity" }
+  | { status: "missing_portion"; item: MealDraftItem };
+
+export function inspectWhatsappImageMealItemsPersistence(
+  items: MealDraftItem[]
+): WhatsappImageMealPersistenceInspection {
+  if (!items.length || items.some(item => !hasFoodIdentity(item))) {
+    return { status: "missing_identity" };
+  }
+  const item = items.find(candidate => !hasSafePortion(candidate));
+  return item ? { status: "missing_portion", item } : { status: "persistable" };
+}
+
+export function assertWhatsappImageMealItemsArePersistable(
+  items: MealDraftItem[]
+) {
+  const inspection = inspectWhatsappImageMealItemsPersistence(items);
+  if (inspection.status === "missing_identity") {
     throw new MealInferenceError(
-      "Não consegui identificar o alimento na imagem. Envie outra foto com o alimento mais visível ou descreva o que comeu e a quantidade.",
+      "Não consegui identificar o alimento na imagem. Envie outra foto com o alimento mais visível ou descreva o que comeu e a quantidade."
     );
   }
-
-  const itemWithoutIdentity = items.find(item => !hasFoodIdentity(item));
-  if (itemWithoutIdentity) {
+  if (inspection.status === "missing_portion") {
+    const foodName =
+      inspection.item.foodName?.trim() ||
+      inspection.item.canonicalName?.trim() ||
+      "esse alimento";
     throw new MealInferenceError(
-      "Não consegui identificar o alimento na imagem. Envie outra foto com o alimento mais visível ou descreva o que comeu e a quantidade.",
-    );
-  }
-
-  const itemWithoutPortion = items.find(item => !hasSafePortion(item));
-  if (itemWithoutPortion) {
-    const foodName = itemWithoutPortion.foodName?.trim() || itemWithoutPortion.canonicalName?.trim() || "esse alimento";
-    throw new MealInferenceError(
-      `Identifiquei ${foodName}, mas preciso da quantidade para registrar com segurança. Informe o peso, volume ou porção consumida.`,
+      `Identifiquei ${foodName}, mas preciso da quantidade para registrar com segurança. Informe o peso, volume ou porção consumida.`
     );
   }
 }

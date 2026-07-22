@@ -11,6 +11,12 @@ import {
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import {
+  replaceMealItemFood,
+  scaleMealItemQuantity,
+  toMealItemInputs,
+} from "./intent/mealItemHelpers";
+import type { Issue874FoodClarificationTarget } from "./issue874Clarification";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 
@@ -29,16 +35,21 @@ export type ResolvedFoodPersistenceOutcome =
   | { status: "safe_to_retry" }
   | { status: "verification_required"; result: WhatsappIntentResult };
 
-type ExistingMeal = Awaited<ReturnType<FoodClarificationDependencies["listMeals"]>>[number];
+type ExistingMeal = Awaited<
+  ReturnType<FoodClarificationDependencies["listMeals"]>
+>[number];
 
 function sameLogicalMeal(
   meal: { mealLabel: string; occurredAt: Date | number | string },
   mealLabel: string,
   occurredAt: Date,
-  timeZone: string,
+  timeZone: string
 ) {
-  return normalizeText(meal.mealLabel) === normalizeText(mealLabel)
-    && getDateKeyInTimeZone(new Date(meal.occurredAt), timeZone) === getDateKeyInTimeZone(occurredAt, timeZone);
+  return (
+    normalizeText(meal.mealLabel) === normalizeText(mealLabel) &&
+    getDateKeyInTimeZone(new Date(meal.occurredAt), timeZone) ===
+      getDateKeyInTimeZone(occurredAt, timeZone)
+  );
 }
 
 function normalizeFingerprintItem(item: MealDraftItem) {
@@ -52,22 +63,105 @@ function normalizeFingerprintItem(item: MealDraftItem) {
 }
 
 function mealStateFingerprint(meals: ExistingMeal[]) {
-  return JSON.stringify(meals
-    .map(meal => ({
-      id: meal.id,
-      mealLabel: meal.mealLabel,
-      occurredAt: new Date(meal.occurredAt).toISOString(),
-      items: (meal.items ?? []).map(normalizeFingerprintItem),
-    }))
-    .sort((left, right) => left.id - right.id));
+  return JSON.stringify(
+    meals
+      .map(meal => ({
+        id: meal.id,
+        mealLabel: meal.mealLabel,
+        occurredAt: new Date(meal.occurredAt).toISOString(),
+        items: (meal.items ?? []).map(normalizeFingerprintItem),
+      }))
+      .sort((left, right) => left.id - right.id)
+  );
 }
 
-async function captureMealState(deps: FoodClarificationDependencies, userId: number) {
+async function captureMealState(
+  deps: FoodClarificationDependencies,
+  userId: number
+) {
   try {
     return mealStateFingerprint(await deps.listMeals(userId));
   } catch {
     return null;
   }
+}
+
+async function persistResolvedCorrection(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: Issue874FoodClarificationTarget,
+  occurredAt: Date,
+  timeZone: string,
+  explicitQuantity?: { quantity: number; unit: string }
+): Promise<WhatsappIntentResult> {
+  const context = target.resolutionContext;
+  if (!context || context.mode !== "replace_latest_item" || !explicitQuantity) {
+    throw new Error("Contexto de correção ou quantidade ausente.");
+  }
+
+  const meals = await deps.listMeals(userId);
+  const currentMeal = meals.find(meal => meal.id === context.mealId);
+  const currentItems = toMealItemInputs(
+    currentMeal?.items as MealDraftItem[] | undefined
+  );
+  const currentItem = currentItems[context.itemIndex];
+  if (!currentMeal || !currentItem) {
+    throw new Error("A refeição ou o item original já não está disponível.");
+  }
+
+  const expected = normalizeText(context.originalFoodName);
+  const currentIdentities = [
+    currentItem.foodName,
+    currentItem.canonicalName,
+  ].map(value => normalizeText(value ?? ""));
+  if (!currentIdentities.includes(expected)) {
+    throw new Error("O item original mudou antes da conclusão da correção.");
+  }
+
+  const replacementItem = scaleMealItemQuantity(
+    replaceMealItemFood(currentItem, context.replacementFoodName),
+    explicitQuantity.quantity,
+    explicitQuantity.unit
+  );
+  const updated = await deps.updateMeal(userId, {
+    mealId: currentMeal.id,
+    mealLabel: currentMeal.mealLabel,
+    occurredAt: new Date(currentMeal.occurredAt).toISOString(),
+    notes: currentMeal.notes,
+    items: currentItems.map((item, index) =>
+      index === context.itemIndex ? replacementItem : item
+    ),
+  });
+  const reloaded =
+    (await deps.listMeals(userId)).find(meal => meal.id === currentMeal.id) ??
+    updated;
+  const reply = await composeWhatsAppMealActionReply({
+    userId,
+    meal: reloaded,
+    timeZone,
+    options: {
+      title: "Alimento substituído",
+      actionLines: [
+        `${context.originalFoodName} → ${context.replacementFoodName}`,
+        `Quantidade confirmada: ${explicitQuantity.quantity} ${explicitQuantity.unit}`,
+      ],
+      mealResultState: "updated",
+    },
+  });
+
+  return {
+    handled: true,
+    action: "meal_item_replaced",
+    reply,
+    eventType: "whatsapp.intent.meal_item_replaced",
+    detail:
+      "Correção em duas mensagens concluída com refeição recarregada do backend.",
+    data: {
+      mealId: reloaded.id,
+      interactionId: target.interactionId,
+      correctedItemIndex: context.itemIndex,
+    },
+  };
 }
 
 async function persistResolvedFood(
@@ -77,18 +171,37 @@ async function persistResolvedFood(
   candidate: FoodClarificationCandidate,
   occurredAt: Date,
   timeZone: string,
-  explicitQuantity?: { quantity: number; unit: string },
+  explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappIntentResult> {
+  const issue874Target = target as Issue874FoodClarificationTarget;
+  if (issue874Target.resolutionContext?.mode === "replace_latest_item") {
+    return persistResolvedCorrection(
+      deps,
+      userId,
+      issue874Target,
+      occurredAt,
+      timeZone,
+      explicitQuantity
+    );
+  }
+
   const processed = await deps.processFood({
-    text: buildFoodClarificationRegistrationText(target, candidate, explicitQuantity),
+    text: buildFoodClarificationRegistrationText(
+      target,
+      candidate,
+      explicitQuantity
+    ),
     habits: await deps.getHabits(userId),
     occurredAt,
     timeZone,
   });
-  if (!processed.items.length) throw new Error("A resolução não produziu alimento válido.");
+  if (!processed.items.length)
+    throw new Error("A resolução não produziu alimento válido.");
 
   const meals = await deps.listMeals(userId);
-  const existing = meals.find(meal => sameLogicalMeal(meal, processed.detectedMealLabel, occurredAt, timeZone));
+  const existing = meals.find(meal =>
+    sameLogicalMeal(meal, processed.detectedMealLabel, occurredAt, timeZone)
+  );
   const notes = target.originalText;
 
   const saved = existing
@@ -97,7 +210,10 @@ async function persistResolvedFood(
         mealLabel: existing.mealLabel,
         occurredAt: new Date(existing.occurredAt).toISOString(),
         notes: existing.notes || notes,
-        items: [...(existing.items ?? []), ...processed.items] as MealDraftItem[],
+        items: [
+          ...(existing.items ?? []),
+          ...processed.items,
+        ] as MealDraftItem[],
       })
     : await deps.createMeal(userId, {
         mealLabel: processed.detectedMealLabel || "Refeição",
@@ -108,17 +224,22 @@ async function persistResolvedFood(
 
   const consolidated = existing
     ? { action: "updated" as const, meal: saved }
-    : await consolidateWhatsAppMealAfterSave({
-        listUserMeals: deps.listMeals,
-        updateUserMeal: input => deps.updateMeal(input.userId, {
-          mealId: input.mealId,
-          mealLabel: input.mealLabel,
-          occurredAt: input.occurredAt,
-          notes: input.notes,
-          items: input.items,
-        }),
-        removeUserMeal: deps.removeMeal,
-      }, saved, timeZone);
+    : await consolidateWhatsAppMealAfterSave(
+        {
+          listUserMeals: deps.listMeals,
+          updateUserMeal: input =>
+            deps.updateMeal(input.userId, {
+              mealId: input.mealId,
+              mealLabel: input.mealLabel,
+              occurredAt: input.occurredAt,
+              notes: input.notes,
+              items: input.items,
+            }),
+          removeUserMeal: deps.removeMeal,
+        },
+        saved,
+        timeZone
+      );
 
   const meal = consolidated.meal;
   const reply = await composeWhatsAppMealActionReply({
@@ -126,9 +247,15 @@ async function persistResolvedFood(
     meal,
     timeZone,
     options: {
-      title: consolidated.action === "updated" ? "Alimento adicionado" : "Alimento registrado",
-      actionLines: [`Registrei ${target.normalizedCandidate} usando a quantidade resolvida para a mensagem original.`],
-      mealResultState: consolidated.action === "updated" ? "updated" : "registered",
+      title:
+        consolidated.action === "updated"
+          ? "Alimento adicionado"
+          : "Alimento registrado",
+      actionLines: [
+        `Registrei ${target.normalizedCandidate} usando a quantidade resolvida para a mensagem original.`,
+      ],
+      mealResultState:
+        consolidated.action === "updated" ? "updated" : "registered",
     },
   });
 
@@ -137,13 +264,17 @@ async function persistResolvedFood(
     action: "food_clarification_completed",
     reply,
     eventType: "whatsapp.food_clarification.completed",
-    detail: "Pendência alimentar resolvida com serviço canônico, consolidação e estado persistido recarregado.",
+    detail:
+      "Pendência alimentar resolvida com serviço canônico, consolidação e estado persistido recarregado.",
     data: {
       mealId: meal.id,
       interactionId: target.interactionId,
       originalTextPreserved: true,
       normalizedCandidate: target.normalizedCandidate,
-      resolvedQuantity: explicitQuantity ?? { count: target.count, servingLabel: candidate.servingLabel },
+      resolvedQuantity: explicitQuantity ?? {
+        count: target.count,
+        servingLabel: candidate.servingLabel,
+      },
     },
   };
 }
@@ -161,13 +292,21 @@ export async function persistResolvedFoodSafely(
   candidate: FoodClarificationCandidate,
   occurredAt: Date,
   timeZone: string,
-  explicitQuantity?: { quantity: number; unit: string },
+  explicitQuantity?: { quantity: number; unit: string }
 ): Promise<ResolvedFoodPersistenceOutcome> {
   const before = await captureMealState(deps, userId);
   try {
     return {
       status: "success",
-      result: await persistResolvedFood(deps, userId, target, candidate, occurredAt, timeZone, explicitQuantity),
+      result: await persistResolvedFood(
+        deps,
+        userId,
+        target,
+        candidate,
+        occurredAt,
+        timeZone,
+        explicitQuantity
+      ),
     };
   } catch {
     const after = await captureMealState(deps, userId);
@@ -181,10 +320,12 @@ export async function persistResolvedFoodSafely(
         handled: true,
         action: "food_clarification_unavailable",
         reply: buildWhatsAppRecoverableErrorReplyMessage(
-          `Não consegui confirmar o resumo final de ${target.normalizedCandidate}. Verifique seus registros antes de tentar novamente para evitar duplicidade.`,
+          `Não consegui confirmar o resumo final de ${target.normalizedCandidate}. Verifique seus registros antes de tentar novamente para evitar duplicidade.`
         ),
-        eventType: "whatsapp.food_clarification.persistence_verification_required",
-        detail: "Falha após possível mutação não recriou a pendência; o estado deve ser verificado antes de nova tentativa.",
+        eventType:
+          "whatsapp.food_clarification.persistence_verification_required",
+        detail:
+          "Falha após possível mutação não recriou a pendência; o estado deve ser verificado antes de nova tentativa.",
         data: {
           interactionId: target.interactionId,
           originalTextPreserved: true,

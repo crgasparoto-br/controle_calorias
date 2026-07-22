@@ -8,6 +8,10 @@ vi.mock("../../db", () => ({
   logInferenceEvent: logInferenceEventMock,
 }));
 
+vi.mock("./issue874Service", () => ({
+  updateQuickEditMealWithWhatsappConfirmation: updateQuickEditMealMock,
+}));
+
 vi.mock("./service", () => ({
   deleteQuickEditMeal: vi.fn(),
   getQuickEditExercise: vi.fn(),
@@ -26,37 +30,46 @@ describe("quickEdit router", () => {
   });
 
   it("não expõe erro técnico do banco ao salvar edição rápida", async () => {
-    updateQuickEditMealMock.mockRejectedValueOnce(new Error("Failed query: UPDATE mealItems SET foodSnapshotJson = ?"));
+    updateQuickEditMealMock.mockRejectedValueOnce(
+      new Error("Failed query: UPDATE mealItems SET foodSnapshotJson = ?")
+    );
     const caller = quickEditRouter.createCaller({ user: null } as never);
 
-    await expect(caller.updateMeal({
-      token: "x".repeat(32),
-      meal: {
-        mealLabel: "Jantar",
-        dateTimeLocal: "2026-07-22T12:00",
-        items: [{
-          foodName: "Queijo parmesão polenghi",
-          canonicalName: "Queijo parmesão polenghi",
-          portionText: "30 g",
-          quantity: 30,
-          unit: "g",
-          servings: 1,
-          estimatedGrams: 30,
-          calories: 120,
-          protein: 10,
-          carbs: 1,
-          fat: 8,
-          confidence: 0.8,
-          source: "heuristic",
-        }],
-      },
-    })).rejects.toMatchObject({
+    await expect(
+      caller.updateMeal({
+        token: "x".repeat(32),
+        meal: {
+          mealLabel: "Jantar",
+          dateTimeLocal: "2026-07-22T12:00",
+          items: [
+            {
+              foodName: "Queijo parmesão polenghi",
+              canonicalName: "Queijo parmesão polenghi",
+              portionText: "30 g",
+              quantity: 30,
+              unit: "g",
+              servings: 1,
+              estimatedGrams: 30,
+              calories: 120,
+              protein: 10,
+              carbs: 1,
+              fat: 8,
+              confidence: 0.8,
+              source: "heuristic",
+            },
+          ],
+        },
+      })
+    ).rejects.toMatchObject({
       code: "INTERNAL_SERVER_ERROR",
-      message: "Não foi possível salvar a edição agora. Tente novamente em instantes.",
+      message:
+        "Não foi possível salvar a edição agora. Tente novamente em instantes.",
     } satisfies Partial<TRPCError>);
 
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "quick_edit.public_error_sanitized",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "quick_edit.public_error_sanitized",
+      })
+    );
   });
 });

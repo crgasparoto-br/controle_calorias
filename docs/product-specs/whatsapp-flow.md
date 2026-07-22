@@ -46,6 +46,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Conversões entre massa e volume só devem acontecer quando houver densidade confiável para o alimento ou bebida; alimentos sólidos sem densidade não devem ser convertidos automaticamente para volume.
 - Quando uma medida for convertida, a resposta ao usuário deve deixar clara a medida interpretada, por exemplo usando a porção convertida na confirmação.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
+- Imagem com alimento identificado, mas sem porção segura, não cria refeição: abre clarificação persistente de quantidade e conclui somente após a resposta do usuário.
+- A correção `O último alimento é ...` sem quantidade abre uma pendência compatível; uma resposta posterior como `30g` conclui a substituição e envia o resumo recalculado.
+- Ao salvar pelo link de edição rápida, alimentos alterados sem referência de catálogo são reprocessados pelo backend antes da persistência, e uma nova confirmação é enviada ao WhatsApp a partir do estado salvo.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
 - Se a geração do link de edição rápida falhar, o registro da refeição e a resposta nutricional principal devem continuar funcionando.
@@ -67,11 +70,11 @@ Oferecer registro conversacional de refeições usando um único número oficial
 
 ## Entradas suportadas
 
-| Tipo | Comportamento esperado |
-|---|---|
-| Texto | Processar descrição livre da refeição ou responder intenções de texto, incluindo orientação alimentar |
-| Imagem | Analisar alimento visível e gerar apoio visual opcional quando disponível |
-| Áudio | Transcrever, processar e preservar apenas o necessário |
+| Tipo   | Comportamento esperado                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------- |
+| Texto  | Processar descrição livre da refeição ou responder intenções de texto, incluindo orientação alimentar |
+| Imagem | Analisar alimento visível e gerar apoio visual opcional quando disponível                             |
+| Áudio  | Transcrever, processar e preservar apenas o necessário                                                |
 
 ## Critérios de aceite
 
@@ -92,6 +95,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Correções como `Não é água é pão de cenoura` não devem cair no fluxo de água sem quantidade; devem gerar correção ou novo rascunho com o alimento informado.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
+- Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
+- Correção do último alimento em duas mensagens preserva contexto, substitui somente o item revalidado e confirma macros do estado recarregado.
+- Edição rápida bem-sucedida envia uma nova confirmação ao WhatsApp sem expor falhas de SQL quando a notificação não puder ser entregue.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
 - Somente usuários que habilitaram explicitamente a preferência recebem a imagem anotada; a escolha permanece isolada por usuário e não altera o onboarding inicial.
