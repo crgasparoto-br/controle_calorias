@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  activateWhatsappOnboardingUser: vi.fn(),
   getUserEntitlements: vi.fn(),
   getUserSubscriptionStatus: vi.fn(),
   searchAdminUsers: vi.fn(),
@@ -11,6 +12,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./service", () => ({ billingService: mocks }));
+vi.mock("../onboarding/whatsappLeadService", () => ({
+  activateWhatsappOnboardingUser: mocks.activateWhatsappOnboardingUser,
+}));
 
 import { billingRouter } from "./router";
 
@@ -31,6 +35,9 @@ beforeEach(() => {
   mocks.listAdminOverrides.mockResolvedValue([]);
   mocks.grantAdminOverride.mockResolvedValue({ id: "override" });
   mocks.revokeAdminOverride.mockResolvedValue({ id: "override" });
+  mocks.activateWhatsappOnboardingUser.mockResolvedValue({
+    status: "no_onboarding_lead",
+  });
 });
 
 describe("billing router administration", () => {
@@ -59,6 +66,7 @@ describe("billing router administration", () => {
     expect(mocks.getAdminAnalytics).not.toHaveBeenCalled();
     expect(mocks.listAdminOverrides).not.toHaveBeenCalled();
     expect(mocks.grantAdminOverride).not.toHaveBeenCalled();
+    expect(mocks.activateWhatsappOnboardingUser).not.toHaveBeenCalled();
   });
 
   it("takes grant and revoke authorship from the authenticated admin", async () => {
@@ -78,6 +86,10 @@ describe("billing router administration", () => {
       reason: "Acesso temporário aprovado",
       grantedByUserId: 314,
     });
+    expect(mocks.activateWhatsappOnboardingUser).toHaveBeenCalledWith(
+      99,
+      "admin_override"
+    );
     expect(mocks.revokeAdminOverride).toHaveBeenCalledWith({
       overrideId: "11111111-1111-4111-8111-111111111111",
       reason: "Período de suporte finalizado",
@@ -112,5 +124,13 @@ describe("billing router administration", () => {
       reason: "Período de suporte finalizado",
       revokedByUserId: 314,
     });
+  });
+
+  it("lets a pending user re-evaluate onboarding activation from billing", async () => {
+    const caller = billingRouter.createCaller(context("user", 502));
+
+    await caller.refreshOnboardingActivation();
+
+    expect(mocks.activateWhatsappOnboardingUser).toHaveBeenCalledWith(502);
   });
 });
