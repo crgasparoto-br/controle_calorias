@@ -85,6 +85,10 @@ vi.mock("./aiQuestionAssistant", () => ({
 const handlePendingWhatsAppConfirmationMock = vi.fn();
 vi.mock("./webhookTextCommands", () => ({
   PENDING_CONFIRMATION_TYPE: "confirmation",
+  buildGenericConfirmationActions: vi.fn(() => [
+    { id: "confirm", label: "Confirmar", effect: "apply_action" },
+    { id: "cancel", label: "Cancelar", effect: "cancel_action" },
+  ]),
   handlePendingWhatsAppConfirmation: handlePendingWhatsAppConfirmationMock,
   completeWhatsappGenericConfirmationCallback: vi.fn(),
 }));
@@ -98,12 +102,14 @@ vi.mock("./deleteIntent", () => ({
 
 vi.mock("./mealItemSelectionCallback", () => ({
   PENDING_MEAL_ITEM_SELECTION_TYPE: "meal_item_selection",
+  buildMealItemSelectionActions: vi.fn(() => []),
   completeMealItemSelectionInteractiveCallback: vi.fn(),
 }));
 
 vi.mock("./periodReportClarification", () => ({
   PENDING_PERIOD_REPORT_TYPE: "period_report",
-  isExpectedWhatsappPeriodReportAction: vi.fn(() => false),
+  buildWhatsappPeriodReportActions: vi.fn(() => []),
+  buildWhatsappPeriodReportClarificationListReply: vi.fn(),
   completeWhatsappPeriodReportCallback: vi.fn(),
 }));
 
