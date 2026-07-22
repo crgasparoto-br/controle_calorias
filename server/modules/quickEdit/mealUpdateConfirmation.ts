@@ -83,7 +83,9 @@ async function recalculateChangedItems(input: {
   for (let index = 0; index < input.nextItems.length; index += 1) {
     const next = input.nextItems[index];
     const current = input.currentItems[index];
-    if (next.foodId || !nutritionInputChanged(current, next)) {
+    const identityChanged = foodIdentityChanged(current, next);
+    const inputChanged = nutritionInputChanged(current, next);
+    if (!inputChanged || (next.foodId && !identityChanged)) {
       recalculated.push(next);
       continue;
     }
@@ -104,6 +106,10 @@ async function recalculateChangedItems(input: {
       ...resolved,
       foodName: next.foodName.trim(),
       canonicalName: resolved.canonicalName?.trim() || resolved.foodName.trim(),
+      foodId: resolved.foodId,
+      foodCatalogId: resolved.foodCatalogId ?? null,
+      portionId: resolved.portionId,
+      portionQuantity: resolved.portionQuantity,
       quantity: next.quantity,
       unit: next.unit,
       portionText: next.portionText,
