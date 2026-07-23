@@ -21,6 +21,15 @@ describe("professional patient access error classification", () => {
     ).toBe(false);
   });
 
+  it("does not revoke the patient when entitlement verification is temporarily unavailable", () => {
+    expect(
+      isProfessionalPatientAccessUnavailableError({
+        message: "Não foi possível verificar o acesso profissional neste momento.",
+        data: { code: "SERVICE_UNAVAILABLE" },
+      })
+    ).toBe(false);
+  });
+
   it("still recognizes a revoked patient authorization without a tRPC code", () => {
     expect(
       isProfessionalPatientAccessUnavailableError(
