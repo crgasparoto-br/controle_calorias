@@ -25,6 +25,9 @@ vi.mock("@/components/professional/ProfessionalAiAssistant", () => ({
     <div>IA contextual de {patient.displayName}</div>
   ),
 }));
+vi.mock("@/components/professional/ProfessionalReportRecoveryGate", () => ({
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
   default: ({ patientId }: { patientId?: number }) => (
     <div>{patientId ? `Pendências de ${patientId}` : "Pendências da carteira"}</div>
