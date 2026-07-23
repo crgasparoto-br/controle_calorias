@@ -53,7 +53,17 @@ export const professionalMessageRouter = router({
     .mutation(async ({ ctx, input }) => {
       try {
         await assertProfessionalMessageRetryAccess(ctx.user.id, input.messageId);
-        return await deliverProfessionalMessage(input.messageId, ctx.user.id);
+        const result = await deliverProfessionalMessage(
+          input.messageId,
+          ctx.user.id
+        );
+        if (result.status === "unchanged") {
+          await assertProfessionalMessageRetryAccess(
+            ctx.user.id,
+            input.messageId
+          );
+        }
+        return result;
       } catch (error) {
         if (error instanceof ProfessionalMessageAccessUnavailableError) {
           throw new TRPCError({
