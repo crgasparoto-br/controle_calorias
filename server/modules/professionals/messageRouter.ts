@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../../_core/trpc";
 import { professionalMessagesProcedure } from "./entitledProcedure";
 import {
@@ -12,6 +13,10 @@ import {
   listPatientProfessionalMessages,
   listProfessionalMessages,
 } from "./messageService";
+import {
+  assertProfessionalMessageRetryAccess,
+  ProfessionalMessageAccessUnavailableError,
+} from "./messageRetryAccess";
 import { getProfessionalSettingsSnapshot } from "./settingsService";
 import { listProfessionalAccesses } from "./service";
 
@@ -45,9 +50,20 @@ export const professionalMessageRouter = router({
     ),
   retry: professionalMessagesProcedure
     .input(professionalMessageRetrySchema)
-    .mutation(({ ctx, input }) =>
-      deliverProfessionalMessage(input.messageId, ctx.user.id)
-    ),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await assertProfessionalMessageRetryAccess(ctx.user.id, input.messageId);
+        return await deliverProfessionalMessage(input.messageId, ctx.user.id);
+      } catch (error) {
+        if (error instanceof ProfessionalMessageAccessUnavailableError) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    }),
   patientList: protectedProcedure
     .input(patientProfessionalMessageListSchema)
     .query(({ ctx, input }) =>
