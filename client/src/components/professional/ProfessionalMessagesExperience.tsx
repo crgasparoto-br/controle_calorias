@@ -29,6 +29,8 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
+const UNSAVED_MESSAGE = "Existe um rascunho não salvo. Deseja descartá-lo?";
+
 const messageTypeLabels: Record<string, string> = {
   guidance: "Orientação",
   reminder: "Lembrete",
@@ -59,6 +61,17 @@ type MessageItem = {
   lastError?: string | null;
   createdAt?: number | null;
 };
+type MessageTemplate = {
+  id: string;
+  title: string;
+  content: string;
+  messageType: string;
+};
+type RecipientAccess = {
+  patientUserId: number;
+  status: string;
+  patient?: { name?: string | null; email?: string | null } | null;
+};
 
 function formatDate(value: number | null | undefined) {
   return value
@@ -71,7 +84,7 @@ function formatDate(value: number | null | undefined) {
 
 export default function ProfessionalMessagesExperience() {
   const { selectedPatient } = useProfessionalWorkspace();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const patientId = selectedPatient?.patientId;
 
@@ -90,6 +103,7 @@ export default function ProfessionalMessagesExperience() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const dirtyRef = useRef(false);
+  const allowNavigationRef = useRef(false);
   dirtyRef.current = Boolean(content.trim());
 
   const clearComposer = () => {
@@ -105,6 +119,7 @@ export default function ProfessionalMessagesExperience() {
     setCursor(undefined);
     setItems([]);
     clearComposer();
+    allowNavigationRef.current = false;
   }, [patientId]);
 
   useEffect(() => {
@@ -114,38 +129,53 @@ export default function ProfessionalMessagesExperience() {
       event.returnValue = "";
     };
     const guardNavigation = (event: MouseEvent) => {
-      if (!dirtyRef.current) return;
+      if (!dirtyRef.current || allowNavigationRef.current) return;
       const target = event.target as HTMLElement | null;
       const navigation = target?.closest(
         "[data-professional-navigation], nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
       );
       if (!navigation) return;
-      if (!window.confirm("Existe um rascunho não salvo. Deseja descartá-lo?")) {
+      if (!window.confirm(UNSAVED_MESSAGE)) {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
+      } else {
+        allowNavigationRef.current = true;
+      }
+    };
+    const guardBack = () => {
+      if (!dirtyRef.current || allowNavigationRef.current) return;
+      if (!window.confirm(UNSAVED_MESSAGE)) {
+        window.history.pushState({ professionalMessageDraft: true }, "", location);
+      } else {
+        allowNavigationRef.current = true;
       }
     };
     window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("popstate", guardBack);
     document.addEventListener("click", guardNavigation, true);
     return () => {
       window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("popstate", guardBack);
       document.removeEventListener("click", guardNavigation, true);
     };
-  }, []);
+  }, [location]);
 
-  const settings = trpc.professionalRecord.settings.get.useQuery(undefined, {
-    retry: false,
-    staleTime: 30_000,
-  });
-  const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, {
-    retry: false,
-    enabled: !patientId,
-    staleTime: 30_000,
-  });
-  const record = trpc.professionalRecord.get.useQuery(
-    { patientId: patientId ?? 0, page: 1, pageSize: 20 },
-    { enabled: Boolean(patientId), retry: false, staleTime: 30_000 }
+  const templatesQuery = trpc.professionalRecord.messages.templates.useQuery(
+    undefined,
+    {
+      enabled: Boolean(patientId),
+      retry: false,
+      staleTime: 30_000,
+    }
+  );
+  const recipients = trpc.professionalRecord.messages.recipients.useQuery(
+    undefined,
+    {
+      enabled: !patientId,
+      retry: false,
+      staleTime: 30_000,
+    }
   );
   const messages = trpc.professionalRecord.messages.list.useQuery(
     { patientId, cursor, pageSize: 20 },
@@ -171,26 +201,26 @@ export default function ProfessionalMessagesExperience() {
     });
   }, [cursor, messages.data]);
 
-  const templates = settings.data?.preferences.messageTemplates ?? [];
+  const templates = (templatesQuery.data ?? []) as MessageTemplate[];
   const patientNames = useMemo(() => {
     const names = new Map<number, string>();
-    ((accesses.data ?? []) as Array<{
-      patientUserId: number;
-      patient?: { name?: string | null; email?: string | null } | null;
-    }>).forEach(access => {
-      names.set(
-        access.patientUserId,
-        access.patient?.name ??
-          access.patient?.email ??
-          "Paciente autorizado"
-      );
-    });
+    ((recipients.data ?? []) as RecipientAccess[])
+      .filter(access => access.status === "approved")
+      .forEach(access => {
+        names.set(
+          access.patientUserId,
+          access.patient?.name ??
+            access.patient?.email ??
+            `Paciente ${access.patientUserId}`
+        );
+      });
     return names;
-  }, [accesses.data]);
+  }, [recipients.data]);
 
   const create = trpc.professionalRecord.messages.create.useMutation({
     onSuccess: async () => {
       clearComposer();
+      allowNavigationRef.current = true;
       setCursor(undefined);
       setItems([]);
       await utils.professionalRecord.messages.list.invalidate();
@@ -238,23 +268,27 @@ export default function ProfessionalMessagesExperience() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const trackingStatus = record.data?.patient.trackingStatus ?? "not_started";
+  const trackingStatus = selectedPatient?.trackingStatus ?? "not_started";
   const ended = trackingStatus === "ended";
   const paused = trackingStatus === "paused";
   const canDeliver =
     !ended &&
     (!paused || messageType === "administrative") &&
     origin !== "automatic";
-  const visibleItems = items.filter(item => {
-    const patientName = patientNames.get(item.patientUserId) ?? "";
+  const visibleItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    const matchesSearch =
-      !normalizedSearch ||
-      patientName.toLowerCase().includes(normalizedSearch) ||
-      item.content.toLowerCase().includes(normalizedSearch);
-    return matchesSearch &&
-      (stateFilter === "all" || item.state === stateFilter);
-  });
+    return items.filter(item => {
+      const patientName = patientNames.get(item.patientUserId) ?? "";
+      const matchesSearch =
+        !normalizedSearch ||
+        patientName.toLowerCase().includes(normalizedSearch) ||
+        item.content.toLowerCase().includes(normalizedSearch);
+      return (
+        matchesSearch &&
+        (stateFilter === "all" || item.state === stateFilter)
+      );
+    });
+  }, [items, patientNames, search, stateFilter]);
 
   return (
     <div className="space-y-6">
@@ -318,6 +352,12 @@ export default function ProfessionalMessagesExperience() {
                     Cancelar revisão
                   </Button>
                 </div>
+              ) : null}
+              {templatesQuery.isError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  Os modelos não puderam ser carregados. Você ainda pode escrever
+                  uma mensagem do zero.
+                </p>
               ) : null}
               {templates.length ? (
                 <label className="grid gap-1 text-sm">
@@ -488,7 +528,7 @@ export default function ProfessionalMessagesExperience() {
             const patientName =
               selectedPatient?.displayName ??
               patientNames.get(item.patientUserId) ??
-              "Paciente autorizado";
+              `Paciente ${item.patientUserId}`;
             return (
               <article
                 key={item.id}
