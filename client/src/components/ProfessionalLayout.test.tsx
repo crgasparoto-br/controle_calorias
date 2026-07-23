@@ -44,6 +44,23 @@ const patientCaches = [
   aiPriorities,
   officialGoal,
 ];
+const stableTrpcUtils = {
+  nutrition: {
+    professionals: {
+      patientTimeZone,
+      patientDashboard,
+      patientPeriodBundle,
+    },
+  },
+  professionalRecord: {
+    context: contextCache,
+    get: professionalRecord,
+    messages: { list: messages },
+    operationalAlerts: { list: operationalAlerts },
+    ai: { priorities: aiPriorities },
+    officialGoal: { professionalState: officialGoal },
+  },
+};
 
 const queryClient = {
   removeQueries,
@@ -92,23 +109,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({
-      nutrition: {
-        professionals: {
-          patientTimeZone,
-          patientDashboard,
-          patientPeriodBundle,
-        },
-      },
-      professionalRecord: {
-        context: contextCache,
-        get: professionalRecord,
-        messages: { list: messages },
-        operationalAlerts: { list: operationalAlerts },
-        ai: { priorities: aiPriorities },
-        officialGoal: { professionalState: officialGoal },
-      },
-    }),
+    useUtils: () => stableTrpcUtils,
     nutrition: {
       professionals: {
         profile: { useQuery: () => profileState },
@@ -323,7 +324,7 @@ describe("ProfessionalLayout", () => {
         "/professional/patients?notice=patient-access-unavailable"
       )
     );
-    expect(screen.queryByText("Ana")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
     expect(removeQueries).toHaveBeenCalled();
   });
 
@@ -346,7 +347,7 @@ describe("ProfessionalLayout", () => {
         "/professional/patients?notice=patient-access-unavailable"
       )
     );
-    expect(screen.queryByText("Ana")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
   });
 
   it("keeps patient content protected on a temporary authorization failure", () => {
@@ -379,7 +380,7 @@ describe("ProfessionalLayout", () => {
     expect(refreshAuth).toHaveBeenCalledTimes(1);
     expect(profileRefetch).toHaveBeenCalledTimes(1);
     expect(contextRefetch).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText("Ana")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
   });
 
   it("clears patient caches before returning to the personal area", async () => {
@@ -391,7 +392,7 @@ describe("ProfessionalLayout", () => {
       screen.getByRole("button", { name: "Minha alimentação" })
     );
 
-    expect(screen.queryByText("Ana")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
     expect(setLocation).toHaveBeenCalledWith("/today");
     expect(removeQueries).toHaveBeenCalled();
   });
