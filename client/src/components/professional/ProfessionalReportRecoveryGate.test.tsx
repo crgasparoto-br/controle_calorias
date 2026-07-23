@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const timeZoneRefetch = vi.fn();
 const bundleRefetch = vi.fn();
+const bundleOptions = vi.fn();
 let timeZoneState: Record<string, unknown>;
 let bundleState: Record<string, unknown>;
 
@@ -17,7 +18,10 @@ vi.mock("@/lib/trpc", () => ({
           useQuery: () => timeZoneState,
         },
         patientPeriodBundle: {
-          useQuery: () => bundleState,
+          useQuery: (_input: unknown, options: unknown) => {
+            bundleOptions(options);
+            return bundleState;
+          },
         },
       },
     },
@@ -29,6 +33,7 @@ afterEach(cleanup);
 beforeEach(() => {
   timeZoneRefetch.mockReset();
   bundleRefetch.mockReset();
+  bundleOptions.mockReset();
   timeZoneState = {
     isSuccess: true,
     isError: false,
@@ -94,6 +99,30 @@ describe("ProfessionalReportRecoveryGate", () => {
     expect(bundleRefetch).toHaveBeenCalledTimes(1);
   });
 
+  it("leaves ranges above the canonical limit to the report validation", async () => {
+    bundleState = {
+      isError: true,
+      refetch: bundleRefetch,
+    };
+    const { default: Gate } = await import("./ProfessionalReportRecoveryGate");
+
+    render(
+      <Gate patientId={41} range={{ start: "2026-01-01", end: "2026-07-07" }}>
+        <div>validação do período</div>
+      </Gate>
+    );
+
+    expect(screen.getByText("validação do período")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Não foi possível carregar os relatórios autorizados",
+      })
+    ).toBeNull();
+    expect(bundleOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false })
+    );
+  });
+
   it("renders the report only after both recovery checks are healthy", async () => {
     const { default: Gate } = await import("./ProfessionalReportRecoveryGate");
 
@@ -107,5 +136,8 @@ describe("ProfessionalReportRecoveryGate", () => {
     expect(
       screen.queryByRole("button", { name: "Tentar novamente" })
     ).toBeNull();
+    expect(bundleOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true })
+    );
   });
 });
