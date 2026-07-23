@@ -9,14 +9,23 @@ import {
 } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
 
+type LegacyProfessionalResourceRequirement =
+  | ProfessionalEntitlementResource
+  | readonly ProfessionalEntitlementResource[];
+
 const LEGACY_PROFESSIONAL_RESOURCES: Readonly<
-  Record<string, ProfessionalEntitlementResource>
+  Record<string, LegacyProfessionalResourceRequirement>
 > = {
   "nutrition.professionals.requestAccess": "professional_portfolio",
   "nutrition.professionals.myAccesses": "professional_portfolio",
   "nutrition.professionals.portfolio": "professional_portfolio",
   "nutrition.professionals.transitionTracking": "professional_record",
-  "nutrition.professionals.patientTimeZone": "professional_portfolio",
+  "nutrition.professionals.patientTimeZone": [
+    "professional_portfolio",
+    "professional_record",
+    "professional_reports",
+    "professional_messages",
+  ],
   "nutrition.professionals.patientDashboard": "professional_dashboard",
   "nutrition.professionals.patientPeriodBundle": "professional_reports",
   "nutrition.professionals.addComment": "professional_record",
@@ -26,8 +35,14 @@ const LEGACY_PROFESSIONAL_RESOURCES: Readonly<
   "nutrition.professionals.history": "professional_record",
 };
 
+export function legacyProfessionalEntitlementResourcesForPath(path: string) {
+  const requirement = LEGACY_PROFESSIONAL_RESOURCES[path];
+  if (!requirement) return [];
+  return Array.isArray(requirement) ? [...requirement] : [requirement];
+}
+
 export function legacyProfessionalEntitlementResourceForPath(path: string) {
-  return LEGACY_PROFESSIONAL_RESOURCES[path] ?? null;
+  return legacyProfessionalEntitlementResourcesForPath(path)[0] ?? null;
 }
 
 type LegacyEntitlementPolicyDependencies = {
@@ -39,8 +54,8 @@ export function createLegacyProfessionalEntitlementPolicy(
   dependencies: LegacyEntitlementPolicyDependencies
 ): ProtectedProcedurePolicy {
   return async ({ path, ctx }) => {
-    const resource = legacyProfessionalEntitlementResourceForPath(path);
-    if (!resource) return;
+    const resources = legacyProfessionalEntitlementResourcesForPath(path);
+    if (!resources.length) return;
 
     const profile = await dependencies.getProfile(ctx.user.id);
     if (!profile?.active) {
@@ -50,17 +65,23 @@ export function createLegacyProfessionalEntitlementPolicy(
       return;
     }
 
-    try {
-      await dependencies.assertEntitlement(ctx.user.id, resource);
-    } catch (error) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Este recurso profissional não está disponível.",
-      });
+    let lastError: unknown;
+    for (const resource of resources) {
+      try {
+        await dependencies.assertEntitlement(ctx.user.id, resource);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
     }
+
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        lastError instanceof Error
+          ? lastError.message
+          : "Este recurso profissional não está disponível.",
+    });
   };
 }
 
