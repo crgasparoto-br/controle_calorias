@@ -1,3 +1,4 @@
+import { calculateMealTotals } from "../../../shared/mealTotals";
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import * as dbRuntime from "../../db";
 import * as nutritionRuntime from "../../nutritionEngine";
@@ -79,9 +80,44 @@ const defaultDependencies: FoodClarificationDependencies = {
   listMeals: userId => mealRuntime.listMeals(userId),
   updateMeal: (userId, input) => mealRuntime.updateMeal(userId, input),
   removeMeal: (userId, mealId) => mealRuntime.removeMeal(userId, mealId),
+  createWhatsappMeal: async (userId, input) => {
+    const processed = {
+      detectedMealLabel: input.detectedMealLabel,
+      sourceText: input.sourceText,
+      transcript: input.transcript,
+      reasoning: input.reasoning,
+      confidence: input.confidence,
+      needsConfirmation: false,
+      items: input.items,
+      totals: calculateMealTotals(input.items),
+    };
+    const draft = dbRuntime.createPendingMealInference(
+      userId,
+      "whatsapp",
+      processed,
+      input.media
+    );
+    const saved = await dbRuntime.confirmPendingMeal({
+      draftId: draft.draftId,
+      userId,
+      mealLabel: input.detectedMealLabel || "Refeição",
+      occurredAt: input.occurredAt,
+      notes: input.sourceText || undefined,
+      items: input.items,
+    });
+    const reloaded = (await mealRuntime.listMeals(userId)).find(
+      meal => meal.id === saved.id
+    );
+    if (!reloaded) {
+      throw new Error("A refeição criada não pôde ser recarregada.");
+    }
+    return reloaded;
+  },
 };
 
-function result(input: Omit<WhatsappFoodClarificationResult, "handled">): WhatsappFoodClarificationResult {
+function result(
+  input: Omit<WhatsappFoodClarificationResult, "handled">
+): WhatsappFoodClarificationResult {
   return { handled: true, ...input };
 }
 
@@ -95,7 +131,7 @@ function unavailable(detail: string): WhatsappFoodClarificationResult {
 }
 
 function canonicalizeFoodClarificationTarget(
-  target: PendingFoodClarificationTarget,
+  target: PendingFoodClarificationTarget
 ): PendingFoodClarificationTarget {
   return {
     ...target,
@@ -107,7 +143,7 @@ async function recreatePendingAfterSafeFailure(
   deps: FoodClarificationDependencies,
   userId: number,
   target: PendingFoodClarificationTarget,
-  occurredAt: Date,
+  occurredAt: Date
 ) {
   const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   return deps.repository.createPendingOperation({
@@ -127,7 +163,7 @@ async function persistWithRecovery(
   candidate: FoodClarificationCandidate,
   occurredAt: Date,
   timeZone: string,
-  explicitQuantity?: { quantity: number; unit: string },
+  explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappFoodClarificationResult> {
   const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   const outcome = await persistResolvedFoodSafely(
@@ -137,19 +173,25 @@ async function persistWithRecovery(
     candidate,
     occurredAt,
     timeZone,
-    explicitQuantity,
+    explicitQuantity
   );
   if (outcome.status !== "safe_to_retry") return outcome.result;
 
-  const recreated = await recreatePendingAfterSafeFailure(deps, userId, canonicalTarget, occurredAt);
+  const recreated = await recreatePendingAfterSafeFailure(
+    deps,
+    userId,
+    canonicalTarget,
+    occurredAt
+  );
   if (!recreated) {
     return result({
       action: "food_clarification_blocked",
       reply: buildWhatsAppRecoverableErrorReplyMessage(
-        "A gravação não foi iniciada, mas não consegui restaurar a pergunta pendente. Envie a mensagem alimentar completa novamente.",
+        "A gravação não foi iniciada, mas não consegui restaurar a pergunta pendente. Envie a mensagem alimentar completa novamente."
       ),
       eventType: "whatsapp.food_clarification.retry_restore_failed",
-      detail: "Falha anterior à mutação não conseguiu recriar a pendência persistente.",
+      detail:
+        "Falha anterior à mutação não conseguiu recriar a pendência persistente.",
       data: {
         interactionId: canonicalTarget.interactionId,
         originalTextPreserved: true,
@@ -161,11 +203,15 @@ async function persistWithRecovery(
   return result({
     action: "food_clarification_retryable_failure",
     reply: buildWhatsAppRecoverableErrorReplyMessage(
-      `Não consegui concluir o registro agora. Mantive ${canonicalTarget.normalizedCandidate} pendente para nova tentativa.`,
+      `Não consegui concluir o registro agora. Mantive ${canonicalTarget.normalizedCandidate} pendente para nova tentativa.`
     ),
     eventType: "whatsapp.food_clarification.retryable_failure",
-    detail: "Falha comprovadamente anterior à mutação recriou a pendência sem descartar o texto original.",
-    data: buildFoodClarificationPendingData(recreated, recreated.target as PendingFoodClarificationTarget),
+    detail:
+      "Falha comprovadamente anterior à mutação recriou a pendência sem descartar o texto original.",
+    data: buildFoodClarificationPendingData(
+      recreated,
+      recreated.target as PendingFoodClarificationTarget
+    ),
   });
 }
 
@@ -173,7 +219,7 @@ function reprompt(
   pending: WhatsAppPendingOperationRecord,
   target: PendingFoodClarificationTarget,
   eventType: string,
-  detail: string,
+  detail: string
 ) {
   return result({
     action: "food_clarification_reprompted",
@@ -191,14 +237,17 @@ async function resolvePendingText(
   target: PendingFoodClarificationTarget,
   text: string | null | undefined,
   occurredAt: Date,
-  timeZone: string,
+  timeZone: string
 ): Promise<WhatsappFoodClarificationResult | "new_command"> {
   if (isStandaloneWhatsappCancellationWord(text)) {
     const cancelled = await deps.repository.cancelPendingOperation(pending.id);
-    if (!cancelled.cancelled) return unavailable("A pendência alimentar já não estava ativa.");
+    if (!cancelled.cancelled)
+      return unavailable("A pendência alimentar já não estava ativa.");
     return result({
       action: "food_clarification_cancelled",
-      reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
+      reply: buildWhatsAppActionCancelledReplyMessage(
+        "Não registrei o alimento pendente."
+      ),
       eventType: "whatsapp.food_clarification.cancelled",
       detail: "Pendência alimentar cancelada sem mutação.",
       data: {
@@ -216,12 +265,16 @@ async function resolvePendingText(
         pending,
         target,
         "whatsapp.food_clarification.invalid_quantity_response",
-        "Resposta incompatível não consumiu a pendência aberta de quantidade.",
+        "Resposta incompatível não consumiu a pendência aberta de quantidade."
       );
     }
 
-    const claimed = await deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
-    if (!claimed.claimed) return unavailable("Claim atômico da quantidade falhou.");
+    const claimed = await deps.repository.claimPendingOperation({
+      id: pending.id,
+      expectedVersion: pending.version,
+    });
+    if (!claimed.claimed)
+      return unavailable("Claim atômico da quantidade falhou.");
     const candidate = target.candidates[target.selectedCandidateIndex ?? 0] ?? {
       name: target.normalizedCandidate,
       servingLabel: `${quantity.quantity} ${quantity.unit}`,
@@ -230,7 +283,15 @@ async function resolvePendingText(
       isBrandedProduct: false,
       matchKind: "exact" as const,
     };
-    return persistWithRecovery(deps, userId, target, candidate, occurredAt, timeZone, quantity);
+    return persistWithRecovery(
+      deps,
+      userId,
+      target,
+      candidate,
+      occurredAt,
+      timeZone,
+      quantity
+    );
   }
 
   let selectedIndex = target.selectedCandidateIndex ?? 0;
@@ -241,18 +302,21 @@ async function resolvePendingText(
         pending,
         target,
         "whatsapp.food_clarification.invalid_confirmation_response",
-        "Resposta incompatível não consumiu a confirmação alimentar.",
+        "Resposta incompatível não consumiu a confirmação alimentar."
       );
     }
   } else {
-    const selection = parseFoodClarificationSelectionReply(text, target.candidates.length);
+    const selection = parseFoodClarificationSelectionReply(
+      text,
+      target.candidates.length
+    );
     if (selection === null || selection < 0) {
       if (isCompleteWhatsappCommand(text)) return "new_command";
       return reprompt(
         pending,
         target,
         "whatsapp.food_clarification.invalid_selection_response",
-        "Opção inválida não consumiu a seleção alimentar.",
+        "Opção inválida não consumiu a seleção alimentar."
       );
     }
     selectedIndex = selection;
@@ -267,52 +331,76 @@ async function resolvePendingText(
       classification: "open",
       selectedCandidateIndex: candidate ? selectedIndex : null,
       actions: buildFoodClarificationActions("quantity", target.candidates),
-      instructionText: buildQuantityInstruction(candidate?.name ?? target.normalizedCandidate),
+      instructionText: buildQuantityInstruction(
+        candidate?.name ?? target.normalizedCandidate
+      ),
     };
-    const transitioned = await deps.repository.supersedePendingOperation(pending.id);
+    const transitioned = await deps.repository.supersedePendingOperation(
+      pending.id
+    );
     if (!transitioned.superseded) {
-      return unavailable("A seleção não pôde ser convertida em pergunta aberta de quantidade.");
+      return unavailable(
+        "A seleção não pôde ser convertida em pergunta aberta de quantidade."
+      );
     }
-    const recreated = await recreatePendingAfterSafeFailure(deps, userId, quantityTarget, occurredAt);
+    const recreated = await recreatePendingAfterSafeFailure(
+      deps,
+      userId,
+      quantityTarget,
+      occurredAt
+    );
     if (!recreated) {
       return result({
         action: "food_clarification_blocked",
         reply: buildWhatsAppRecoverableErrorReplyMessage(
-          "Não consegui manter a solicitação de quantidade. Envie novamente a mensagem alimentar completa.",
+          "Não consegui manter a solicitação de quantidade. Envie novamente a mensagem alimentar completa."
         ),
         eventType: "whatsapp.food_clarification.quantity_restore_failed",
-        detail: "Seleção sem porção segura não conseguiu criar a pendência aberta.",
+        detail:
+          "Seleção sem porção segura não conseguiu criar a pendência aberta.",
       });
     }
     return result({
       action: "food_clarification_reprompted",
-      reply: buildWhatsAppClarificationReplyMessage(quantityTarget.instructionText),
+      reply: buildWhatsAppClarificationReplyMessage(
+        quantityTarget.instructionText
+      ),
       eventType: "whatsapp.food_clarification.canonical_portion_missing",
-      detail: "Candidato selecionado não possui porção canônica segura; o sistema pediu quantidade explícita.",
+      detail:
+        "Candidato selecionado não possui porção canônica segura; o sistema pediu quantidade explícita.",
       data: buildFoodClarificationPendingData(recreated, quantityTarget),
     });
   }
 
-  const claimed = await deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
-  if (!claimed.claimed) return unavailable("Claim atômico da confirmação/seleção falhou.");
+  const claimed = await deps.repository.claimPendingOperation({
+    id: pending.id,
+    expectedVersion: pending.version,
+  });
+  if (!claimed.claimed)
+    return unavailable("Claim atômico da confirmação/seleção falhou.");
   return persistWithRecovery(
     deps,
     userId,
     { ...target, selectedCandidateIndex: selectedIndex },
     candidate,
     occurredAt,
-    timeZone,
+    timeZone
   );
 }
 
 async function supersedeActive(
   deps: FoodClarificationDependencies,
   userId: number,
-  occurredAt: Date,
+  occurredAt: Date
 ) {
-  const active = await deps.repository.getActivePendingOperation(userId, occurredAt);
+  const active = await deps.repository.getActivePendingOperation(
+    userId,
+    occurredAt
+  );
   if (!active) return true;
-  const transitioned = await deps.repository.supersedePendingOperation(active.id);
+  const transitioned = await deps.repository.supersedePendingOperation(
+    active.id
+  );
   return transitioned.superseded;
 }
 
@@ -320,13 +408,13 @@ async function createPending(
   deps: FoodClarificationDependencies,
   userId: number,
   target: PendingFoodClarificationTarget,
-  occurredAt: Date,
+  occurredAt: Date
 ): Promise<WhatsappFoodClarificationResult> {
-  if (!await supersedeActive(deps, userId, occurredAt)) {
+  if (!(await supersedeActive(deps, userId, occurredAt))) {
     return result({
       action: "food_clarification_blocked",
       reply: buildWhatsAppRecoverableErrorReplyMessage(
-        "Não consegui substituir a operação pendente com segurança. Cancele a anterior e envie o alimento novamente.",
+        "Não consegui substituir a operação pendente com segurança. Cancele a anterior e envie o alimento novamente."
       ),
       eventType: "whatsapp.food_clarification.pending_replacement_blocked",
       detail: "Uma operação anterior não pôde ser marcada como substituída.",
@@ -346,7 +434,7 @@ async function createPending(
     return result({
       action: "food_clarification_blocked",
       reply: buildWhatsAppRecoverableErrorReplyMessage(
-        "Não consegui guardar o contexto do alimento com segurança. Envie a mensagem completa novamente.",
+        "Não consegui guardar o contexto do alimento com segurança. Envie a mensagem completa novamente."
       ),
       eventType: "whatsapp.food_clarification.persistence_unavailable",
       detail: "Persistência indisponível; fallback nutricional bloqueado.",
@@ -355,15 +443,18 @@ async function createPending(
 
   return result({
     action: "food_clarification_requested",
-    reply: buildWhatsAppClarificationReplyMessage(canonicalTarget.instructionText),
+    reply: buildWhatsAppClarificationReplyMessage(
+      canonicalTarget.instructionText
+    ),
     eventType: "whatsapp.food_clarification.requested",
-    detail: "Pergunta específica criada em whatsappPendingOperations com contrato consumível pela #858.",
+    detail:
+      "Pergunta específica criada em whatsappPendingOperations com contrato consumível pela #858.",
     data: buildFoodClarificationPendingData(created, canonicalTarget),
   });
 }
 
 export function createWhatsappFoodClarificationService(
-  overrides: Partial<FoodClarificationDependencies> = {},
+  overrides: Partial<FoodClarificationDependencies> = {}
 ) {
   const deps = { ...defaultDependencies, ...overrides };
 
@@ -376,9 +467,15 @@ export function createWhatsappFoodClarificationService(
   }): Promise<WhatsappFoodClarificationResult | null> => {
     const occurredAt = input.receivedAt ?? new Date();
     const text = input.text?.trim() ?? "";
-    const active = await deps.repository.getActivePendingOperation(input.userId, occurredAt);
+    const active = await deps.repository.getActivePendingOperation(
+      input.userId,
+      occurredAt
+    );
 
-    if (active?.type === PENDING_FOOD_CLARIFICATION_TYPE && isPendingFoodClarificationTarget(active.target)) {
+    if (
+      active?.type === PENDING_FOOD_CLARIFICATION_TYPE &&
+      isPendingFoodClarificationTarget(active.target)
+    ) {
       const pendingResult = await resolvePendingText(
         deps,
         input.userId,
@@ -386,19 +483,22 @@ export function createWhatsappFoodClarificationService(
         active.target,
         text,
         occurredAt,
-        input.userTimezone,
+        input.userTimezone
       );
       if (pendingResult !== "new_command") return pendingResult;
 
-      const transitioned = await deps.repository.supersedePendingOperation(active.id);
+      const transitioned = await deps.repository.supersedePendingOperation(
+        active.id
+      );
       if (!transitioned.superseded) {
         return result({
           action: "food_clarification_blocked",
           reply: buildWhatsAppRecoverableErrorReplyMessage(
-            "Não consegui substituir a operação pendente com segurança. Cancele a anterior e tente novamente.",
+            "Não consegui substituir a operação pendente com segurança. Cancele a anterior e tente novamente."
           ),
           eventType: "whatsapp.food_clarification.pending_replacement_blocked",
-          detail: "Novo comando completo bloqueado porque a pendência alimentar não pôde ser substituída.",
+          detail:
+            "Novo comando completo bloqueado porque a pendência alimentar não pôde ser substituída.",
         });
       }
     } else if (active && isStandaloneWhatsappCommandWord(text)) {
@@ -409,17 +509,20 @@ export function createWhatsappFoodClarificationService(
       return result({
         action: "food_clarification_standalone_command_blocked",
         reply: buildWhatsAppClarificationReplyMessage(
-          "Não encontrei uma operação compatível pendente. Envie a mensagem completa, por exemplo: registrar 100 g de arroz.",
+          "Não encontrei uma operação compatível pendente. Envie a mensagem completa, por exemplo: registrar 100 g de arroz."
         ),
         eventType: "whatsapp.food_clarification.standalone_command_blocked",
-        detail: "Comando isolado bloqueado antes de parser, LLM e persistência nutricional.",
+        detail:
+          "Comando isolado bloqueado antes de parser, LLM e persistência nutricional.",
       });
     }
 
     const request = parseCountedFoodRequest(text);
     if (!request) return null;
 
-    const candidates = resolveFoodClarificationCandidates(request.normalizedCandidate);
+    const candidates = resolveFoodClarificationCandidates(
+      request.normalizedCandidate
+    );
     const plan = planFoodClarification(request, candidates);
 
     if (plan.kind === "register") {
@@ -437,41 +540,56 @@ export function createWhatsappFoodClarificationService(
         target,
         plan.candidate,
         occurredAt,
-        input.userTimezone,
+        input.userTimezone
       );
       if (outcome.status !== "safe_to_retry") return outcome.result;
       return createPending(deps, input.userId, target, occurredAt);
     }
 
     if (plan.kind === "confirmation") {
-      return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-        request,
-        pendingKind: "confirmation",
-        candidates: [plan.candidate],
-        selectedCandidateIndex: 0,
-        instructionText: buildConfirmationInstruction(plan.candidate.name),
-        messageId: input.messageId,
-      }), occurredAt);
+      return createPending(
+        deps,
+        input.userId,
+        buildPendingFoodClarificationTarget({
+          request,
+          pendingKind: "confirmation",
+          candidates: [plan.candidate],
+          selectedCandidateIndex: 0,
+          instructionText: buildConfirmationInstruction(plan.candidate.name),
+          messageId: input.messageId,
+        }),
+        occurredAt
+      );
     }
 
     if (plan.kind === "selection") {
-      return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-        request,
-        pendingKind: "selection",
-        candidates: plan.candidates,
-        instructionText: buildSelectionInstruction(plan.candidates),
-        messageId: input.messageId,
-      }), occurredAt);
+      return createPending(
+        deps,
+        input.userId,
+        buildPendingFoodClarificationTarget({
+          request,
+          pendingKind: "selection",
+          candidates: plan.candidates,
+          instructionText: buildSelectionInstruction(plan.candidates),
+          messageId: input.messageId,
+        }),
+        occurredAt
+      );
     }
 
-    return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
-      request,
-      pendingKind: "quantity",
-      candidates: plan.candidates,
-      selectedCandidateIndex: plan.candidates.length === 1 ? 0 : null,
-      instructionText: buildQuantityInstruction(request.normalizedCandidate),
-      messageId: input.messageId,
-    }), occurredAt);
+    return createPending(
+      deps,
+      input.userId,
+      buildPendingFoodClarificationTarget({
+        request,
+        pendingKind: "quantity",
+        candidates: plan.candidates,
+        selectedCandidateIndex: plan.candidates.length === 1 ? 0 : null,
+        instructionText: buildQuantityInstruction(request.normalizedCandidate),
+        messageId: input.messageId,
+      }),
+      occurredAt
+    );
   };
 
   const completeClaimedCallback = async (input: {
@@ -482,23 +600,30 @@ export function createWhatsappFoodClarificationService(
     userTimezone?: string | null;
   }): Promise<WhatsappFoodClarificationResult> => {
     const target = input.pendingOperation.target;
-    if (!isPendingFoodClarificationTarget(target)
-      || !isExpectedWhatsappFoodClarificationAction(target, input.action)) {
-      return unavailable("Callback não corresponde ao contrato alimentar persistido.");
+    if (
+      !isPendingFoodClarificationTarget(target) ||
+      !isExpectedWhatsappFoodClarificationAction(target, input.action)
+    ) {
+      return unavailable(
+        "Callback não corresponde ao contrato alimentar persistido."
+      );
     }
 
     if (input.action === "cancel") {
       return result({
         action: "food_clarification_cancelled",
-        reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
+        reply: buildWhatsAppActionCancelledReplyMessage(
+          "Não registrei o alimento pendente."
+        ),
         eventType: "whatsapp.food_clarification.cancelled",
         detail: "Callback cancelou a operação já reivindicada sem mutação.",
       });
     }
 
-    const index = input.action === "confirm"
-      ? target.selectedCandidateIndex ?? 0
-      : Number(input.action.match(/^select:(\d+)$/)?.[1] ?? Number.NaN);
+    const index =
+      input.action === "confirm"
+        ? (target.selectedCandidateIndex ?? 0)
+        : Number(input.action.match(/^select:(\d+)$/)?.[1] ?? Number.NaN);
     const candidate = target.candidates[index];
     if (!candidate || !hasSafeCanonicalPortion(candidate)) {
       const quantityTarget: PendingFoodClarificationTarget = {
@@ -508,27 +633,32 @@ export function createWhatsappFoodClarificationService(
         classification: "open",
         selectedCandidateIndex: Number.isInteger(index) ? index : null,
         actions: buildFoodClarificationActions("quantity", target.candidates),
-        instructionText: buildQuantityInstruction(candidate?.name ?? target.normalizedCandidate),
+        instructionText: buildQuantityInstruction(
+          candidate?.name ?? target.normalizedCandidate
+        ),
       };
       const recreated = await recreatePendingAfterSafeFailure(
         deps,
         input.userId,
         quantityTarget,
-        input.receivedAt ?? new Date(),
+        input.receivedAt ?? new Date()
       );
       if (!recreated) {
         return result({
           action: "food_clarification_blocked",
           reply: buildWhatsAppRecoverableErrorReplyMessage(
-            "Não consegui manter a solicitação de quantidade. Envie novamente a mensagem alimentar completa.",
+            "Não consegui manter a solicitação de quantidade. Envie novamente a mensagem alimentar completa."
           ),
           eventType: "whatsapp.food_clarification.quantity_restore_failed",
-          detail: "Callback sem porção segura não conseguiu recriar a pendência aberta.",
+          detail:
+            "Callback sem porção segura não conseguiu recriar a pendência aberta.",
         });
       }
       return result({
         action: "food_clarification_reprompted",
-        reply: buildWhatsAppClarificationReplyMessage(quantityTarget.instructionText),
+        reply: buildWhatsAppClarificationReplyMessage(
+          quantityTarget.instructionText
+        ),
         eventType: "whatsapp.food_clarification.canonical_portion_missing",
         detail: "Callback não inferiu unidade sem porção canônica segura.",
         data: buildFoodClarificationPendingData(recreated, quantityTarget),
@@ -541,7 +671,7 @@ export function createWhatsappFoodClarificationService(
       { ...target, selectedCandidateIndex: index },
       candidate,
       input.receivedAt ?? new Date(),
-      input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+      input.userTimezone ?? DEFAULT_APP_TIME_ZONE
     );
   };
 
@@ -550,4 +680,5 @@ export function createWhatsappFoodClarificationService(
 
 const defaultService = createWhatsappFoodClarificationService();
 export const handleWhatsappFoodClarification = defaultService.handle;
-export const completeClaimedWhatsappFoodClarificationCallback = defaultService.completeClaimedCallback;
+export const completeClaimedWhatsappFoodClarificationCallback =
+  defaultService.completeClaimedCallback;

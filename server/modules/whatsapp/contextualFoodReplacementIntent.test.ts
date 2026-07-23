@@ -3,15 +3,36 @@ import type { MealDraftItem } from "../../nutritionEngine";
 
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
+const requestLatestFoodCorrectionQuantityMock = vi.fn();
+const processMealInputMock = vi.fn();
+const getHabitSnapshotsMock = vi.fn();
+
+vi.mock("../../nutritionEngine", () => ({
+  processMealInput: processMealInputMock,
+}));
+vi.mock("../../db", () => ({
+  getDb: vi.fn(),
+  getHabitSnapshots: getHabitSnapshotsMock,
+  logPersistenceWarning: vi.fn(),
+}));
+
+vi.mock("./foodQuantityClarification", () => ({
+  requestWhatsappLatestFoodCorrectionQuantity:
+    requestLatestFoodCorrectionQuantityMock,
+}));
 
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
 }));
 
-const { executeWhatsappContextualFoodReplacementIntent } = await import("./contextualFoodReplacementIntent");
+const { executeWhatsappContextualFoodReplacementIntent } = await import(
+  "./contextualFoodReplacementIntent"
+);
 
-function item(input: Partial<MealDraftItem> & Pick<MealDraftItem, "foodName">): MealDraftItem {
+function item(
+  input: Partial<MealDraftItem> & Pick<MealDraftItem, "foodName">
+): MealDraftItem {
   return {
     foodName: input.foodName,
     canonicalName: input.foodName,
@@ -32,10 +53,48 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: input.mealId,
-      ...input,
-    }));
+    requestLatestFoodCorrectionQuantityMock.mockReset();
+    processMealInputMock.mockReset();
+    getHabitSnapshotsMock.mockReset();
+    getHabitSnapshotsMock.mockResolvedValue([]);
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "30 g de queijo parmesão polenghi",
+      confidence: 0.95,
+      needsConfirmation: false,
+      reasoning: "Referência canônica resolvida.",
+      items: [
+        item({
+          foodName: "Queijo parmesão Polenghi",
+          canonicalName: "Queijo parmesão Polenghi",
+          portionText: "30 g",
+          quantity: 30,
+          unit: "g",
+          estimatedGrams: 30,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+          source: "catalog",
+        }),
+      ],
+      totals: { calories: 126, protein: 10, carbs: 1, fat: 9 },
+    });
+    requestLatestFoodCorrectionQuantityMock.mockResolvedValue({
+      handled: true,
+      action: "food_clarification_requested",
+      reply: "Qual é o tamanho, peso ou volume de queijo parmesão polenghi?",
+      eventType: "whatsapp.food_clarification.requested",
+      detail:
+        "Correção do último alimento aguardando quantidade em pendência persistente.",
+      data: { pendingKind: "quantity" },
+    });
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: input.mealId,
+        ...input,
+      })
+    );
   });
 
   it("substitui alimento encontrado em refeição recente que não é a última e envia resumo", async () => {
@@ -55,7 +114,13 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
         mealLabel: "Lanche",
         occurredAt: new Date("2026-06-20T23:00:00.000Z").getTime(),
         notes: "Primeira imagem",
-        items: [item({ foodName: "Salsicha", portionText: "80 g", estimatedGrams: 80 })],
+        items: [
+          item({
+            foodName: "Salsicha",
+            portionText: "80 g",
+            estimatedGrams: 80,
+          }),
+        ],
       },
     ]);
 
@@ -65,24 +130,29 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     });
 
     expect(updateMealMock).toHaveBeenCalledOnce();
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 1,
-      mealLabel: "Lanche",
-      items: [
-        expect.objectContaining({
-          foodName: "calabresa acebolada",
-          canonicalName: "calabresa acebolada",
-          estimatedGrams: 80,
-          portionText: "80 g",
-          source: "heuristic",
-        }),
-      ],
-    }));
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_replaced",
-      eventType: "whatsapp.intent.meal_item_replaced",
-      data: expect.objectContaining({ mealId: 1 }),
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 1,
+        mealLabel: "Lanche",
+        items: [
+          expect.objectContaining({
+            foodName: "calabresa acebolada",
+            canonicalName: "calabresa acebolada",
+            estimatedGrams: 80,
+            portionText: "80 g",
+            source: "heuristic",
+          }),
+        ],
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_replaced",
+        eventType: "whatsapp.intent.meal_item_replaced",
+        data: expect.objectContaining({ mealId: 1 }),
+      })
+    );
     expect(result?.reply).toContain("Alimento substituído");
     expect(result?.reply).toContain("Salsicha → calabresa acebolada");
     expect(result?.reply).toContain("calabresa acebolada");
@@ -116,7 +186,10 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     });
 
     expect(updateMealMock).toHaveBeenCalledOnce();
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({ mealId: 11 }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ mealId: 11 })
+    );
     expect(result?.action).toBe("meal_item_replaced");
   });
 
@@ -146,14 +219,18 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     });
 
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      eventType: "whatsapp.intent.meal_item_selection_requested",
-      reply: expect.stringContaining("mais de um"),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.meal_item_selection_requested",
+        reply: expect.stringContaining("mais de um"),
+      })
+    );
     expect(result?.reply).toContain("Jantar");
     expect(result?.reply).toContain("Lanche");
-    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
+    expect(result?.interactiveReply).toEqual(
+      expect.objectContaining({ kind: "functional" })
+    );
   });
 
   it("substitui o último alimento quando o usuário diz 'o último alimento é ...'", async () => {
@@ -165,7 +242,12 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
         mealLabel: "Lanche",
         occurredAt: new Date("2026-07-22T15:00:00.000Z").getTime(),
         items: [
-          item({ foodName: "30G", canonicalName: "1 porção", portionText: "30 g", estimatedGrams: 30 }),
+          item({
+            foodName: "30G",
+            canonicalName: "1 porção",
+            portionText: "30 g",
+            estimatedGrams: 30,
+          }),
         ],
       },
     ]);
@@ -175,20 +257,24 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
       receivedAt: new Date("2026-07-22T15:05:00.000Z"),
     });
 
-    expect(updateMealMock).toHaveBeenCalledOnce();
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 31,
-      items: [
-        expect.objectContaining({
-          foodName: "queijo parmesão polenghi",
-          estimatedGrams: 30,
-          portionText: "30 g",
-        }),
-      ],
-    }));
-    expect(result?.action).toBe("meal_item_replaced");
-    expect(result?.reply).toContain("Alimento substituído");
-    expect(result?.reply).toContain("queijo parmesão polenghi");
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(requestLatestFoodCorrectionQuantityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 42,
+        mealId: 31,
+        itemIndex: 0,
+        originalFoodName: "30G",
+        replacementFoodName: "queijo parmesão polenghi",
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.food_clarification.requested",
+        data: expect.objectContaining({ pendingKind: "quantity" }),
+      })
+    );
+    expect(result?.reply).toMatch(/peso|volume|tamanho/i);
   });
 
   it("substitui o último alimento e aplica quantidade na mesma mensagem", async () => {
@@ -200,7 +286,12 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
         mealLabel: "Lanche",
         occurredAt: new Date("2026-07-22T15:00:00.000Z").getTime(),
         items: [
-          item({ foodName: "Alimento", canonicalName: "Alimento", portionText: "100 g", estimatedGrams: 100 }),
+          item({
+            foodName: "Alimento",
+            canonicalName: "Alimento",
+            portionText: "100 g",
+            estimatedGrams: 100,
+          }),
         ],
       },
     ]);
@@ -210,18 +301,70 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
       receivedAt: new Date("2026-07-22T15:05:00.000Z"),
     });
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 32,
-      items: [
-        expect.objectContaining({
-          foodName: "queijo parmesão polenghi",
-          quantity: 30,
-          unit: "g",
-          estimatedGrams: 30,
-          portionText: "30 g",
-        }),
-      ],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 32,
+        items: [
+          expect.objectContaining({
+            foodName: "queijo parmesão polenghi",
+            quantity: 30,
+            unit: "g",
+            estimatedGrams: 30,
+            portionText: "30 g",
+          }),
+        ],
+      })
+    );
+  });
+
+  it("recalcula a correção completa do último alimento pelo fluxo canônico", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 33,
+        userId: 42,
+        source: "whatsapp",
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-07-22T15:00:00.000Z").getTime(),
+        items: [
+          item({
+            foodName: "30G",
+            canonicalName: "1 porção",
+            portionText: "100 g",
+            estimatedGrams: 100,
+          }),
+        ],
+      },
+    ]);
+
+    await executeWhatsappContextualFoodReplacementIntent(42, {
+      text: "O último alimento é 30g queijo parmesão polenghi, substituir",
+      receivedAt: new Date("2026-07-22T15:05:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "30 g de queijo parmesão polenghi",
+        timeZone: "America/Sao_Paulo",
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 33,
+        items: [
+          expect.objectContaining({
+            foodName: "queijo parmesão polenghi",
+            calories: 126,
+            protein: 10,
+            carbs: 1,
+            fat: 9,
+            source: "catalog",
+          }),
+        ],
+      })
+    );
   });
 
   it("ignora textos que não são substituição de alimento", async () => {

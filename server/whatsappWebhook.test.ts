@@ -58,7 +58,10 @@ const createLocalMealPhotoOverlayMock = vi.fn(async () => ({
 }));
 
 vi.mock("./nutritionEngine", async () => {
-  const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
+  const actual =
+    await vi.importActual<typeof import("./nutritionEngine")>(
+      "./nutritionEngine"
+    );
   return {
     ...actual,
     processMealInput: processMealInputMock,
@@ -73,8 +76,11 @@ vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
-const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import("./whatsappWebhook");
-const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } = await import("./db");
+const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import(
+  "./whatsappWebhook"
+);
+const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } =
+  await import("./db");
 const { requireWhatsAppSendConfig } = await import("./whatsappConfig");
 
 type MockResponse = {
@@ -164,40 +170,49 @@ describe("whatsappWebhook", () => {
       },
     });
 
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+    global.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
 
-      if (url.includes("/messages")) {
-        const payload = init?.body ? JSON.parse(String(init.body)) : {};
-        lastSentWhatsAppUrl = url;
-        sentWhatsAppPayloads.push(payload);
-        lastSentWhatsAppBody = payload?.text?.body ?? payload?.interactive?.body?.text ?? null;
+        if (url.includes("/messages")) {
+          const payload = init?.body ? JSON.parse(String(init.body)) : {};
+          lastSentWhatsAppUrl = url;
+          sentWhatsAppPayloads.push(payload);
+          lastSentWhatsAppBody =
+            payload?.text?.body ?? payload?.interactive?.body?.text ?? null;
+          return {
+            ok: true,
+            json: async () => ({}),
+          } as Response;
+        }
+
+        if (url.includes("graph.facebook.com") && !url.includes("/messages")) {
+          return {
+            ok: true,
+            json: async () => ({
+              url: "https://media.test/file",
+              mime_type: url.includes("audio-media-id")
+                ? "audio/ogg"
+                : "image/jpeg",
+            }),
+          } as Response;
+        }
+
+        if (url === "https://media.test/file") {
+          return {
+            ok: true,
+            headers: { get: () => "image/jpeg" },
+            arrayBuffer: async () =>
+              new TextEncoder().encode("binary-media").buffer,
+          } as Response;
+        }
+
         return {
           ok: true,
           json: async () => ({}),
         } as Response;
       }
-
-      if (url.includes("graph.facebook.com") && !url.includes("/messages")) {
-        return {
-          ok: true,
-          json: async () => ({ url: "https://media.test/file", mime_type: url.includes("audio-media-id") ? "audio/ogg" : "image/jpeg" }),
-        } as Response;
-      }
-
-      if (url === "https://media.test/file") {
-        return {
-          ok: true,
-          headers: { get: () => ("image/jpeg") },
-          arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer,
-        } as Response;
-      }
-
-      return {
-        ok: true,
-        json: async () => ({}),
-      } as Response;
-    }) as typeof fetch;
+    ) as typeof fetch;
   });
 
   afterEach(() => {
@@ -251,7 +266,9 @@ describe("whatsappWebhook", () => {
   it("gera erro claro quando falta configuração obrigatória para envio pelo WhatsApp fixo", async () => {
     delete process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-    await expect(requireWhatsAppSendConfig()).rejects.toThrow("WHATSAPP_PHONE_NUMBER_ID");
+    await expect(requireWhatsAppSendConfig()).rejects.toThrow(
+      "WHATSAPP_PHONE_NUMBER_ID"
+    );
   });
 
   it("processa uma mensagem recebida pelo número fixo, identifica o usuário pelo telefone de origem e responde com o Phone Number ID oficial", async () => {
@@ -294,10 +311,14 @@ describe("whatsappWebhook", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    const savedMeals = (await listUserMeals(1)).filter(
+      meal => meal.source === "whatsapp"
+    );
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
-    const primaryPayload = sentWhatsAppPayloads.find(payload => payload.type === "text");
+    const primaryPayload = sentWhatsAppPayloads.find(
+      payload => payload.type === "text"
+    );
     const primaryBody = primaryPayload?.text?.body ?? "";
     expect(primaryBody).toContain("*Almoço Registrado às 08:52hs.*");
     expect(primaryBody).toContain("• 🍚 arroz — 100g");
@@ -310,8 +331,12 @@ describe("whatsappWebhook", () => {
     expect(primaryBody).not.toContain("Meta ajustada");
     const lastPayload = sentWhatsAppPayloads[sentWhatsAppPayloads.length - 1];
     expect(lastPayload?.interactive?.type).toBe("cta_url");
-    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
-    expect(lastPayload?.interactive?.action?.parameters?.url).toMatch(/^https:\/\/app\.example\.com\/quick-edit\/[A-Za-z0-9_-]+$/);
+    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe(
+      "Editar refeição"
+    );
+    expect(lastPayload?.interactive?.action?.parameters?.url).toMatch(
+      /^https:\/\/app\.example\.com\/quick-edit\/[A-Za-z0-9_-]+$/
+    );
   });
 
   it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {
@@ -357,23 +382,43 @@ describe("whatsappWebhook", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).toHaveBeenCalled();
-    expect(sentWhatsAppPayloads.some(payload => payload.type === "image" && payload.image?.link === "https://storage.test/generated/meal-support/annotated.png")).toBe(true);
-    const savedMeals = (await listUserMeals(mediaTestUserId)).filter((meal) => meal.source === "whatsapp");
+    expect(
+      sentWhatsAppPayloads.some(
+        payload =>
+          payload.type === "image" &&
+          payload.image?.link ===
+            "https://storage.test/generated/meal-support/annotated.png"
+      )
+    ).toBe(true);
+    const savedMeals = (await listUserMeals(mediaTestUserId)).filter(
+      meal => meal.source === "whatsapp"
+    );
     const savedMeal = savedMeals[0];
-    expect(savedMeal?.media).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        mediaType: "image",
-        storageKey: expect.stringMatching(/^whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/),
-        storageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/),
-        originalFileName: expect.stringMatching(/^image-[0-9a-f-]{36}\.jpg$/),
-      }),
-      expect.objectContaining({
-        mediaType: "image",
-        storageUrl: "https://storage.test/generated/meal-support/annotated.png",
-        originalFileName: "whatsapp-annotated-meal.png",
-      }),
-    ]));
-    const originalImageMedia = savedMeal?.media.find((media) => media.mediaType === "image" && media.storageKey.startsWith("whatsapp/image/"));
+    expect(savedMeal?.media).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          mediaType: "image",
+          storageKey: expect.stringMatching(
+            /^whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/
+          ),
+          storageUrl: expect.stringMatching(
+            /^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/
+          ),
+          originalFileName: expect.stringMatching(/^image-[0-9a-f-]{36}\.jpg$/),
+        }),
+        expect.objectContaining({
+          mediaType: "image",
+          storageUrl:
+            "https://storage.test/generated/meal-support/annotated.png",
+          originalFileName: "whatsapp-annotated-meal.png",
+        }),
+      ])
+    );
+    const originalImageMedia = savedMeal?.media.find(
+      media =>
+        media.mediaType === "image" &&
+        media.storageKey.startsWith("whatsapp/image/")
+    );
     expect(originalImageMedia?.storageUrl).not.toContain("5511777777777");
     expect(originalImageMedia?.storageUrl).not.toContain("image-media-id");
   });
@@ -414,17 +459,26 @@ describe("whatsappWebhook", () => {
 
     const req = {
       body: {
-        entry: [{
-          changes: [{
-            value: {
-              messages: [{
-                from: phoneNumber,
-                type: "image",
-                image: { id: "generic-image-id", mime_type: "image/jpeg" },
-              }],
-            },
-          }],
-        }],
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      from: phoneNumber,
+                      type: "image",
+                      image: {
+                        id: "generic-image-id",
+                        mime_type: "image/jpeg",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
       },
     };
     const res = createResponse();
@@ -432,10 +486,222 @@ describe("whatsappWebhook", () => {
     await handleWhatsAppWebhook(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
-    expect((await listUserMeals(imageOnlyUserId)).filter(meal => meal.source === "whatsapp")).toHaveLength(0);
-    expect(lastSentWhatsAppBody).toContain("Não consegui identificar o alimento na imagem");
+    expect(
+      (await listUserMeals(imageOnlyUserId)).filter(
+        meal => meal.source === "whatsapp"
+      )
+    ).toHaveLength(0);
+    expect(lastSentWhatsAppBody).toContain(
+      "Não consegui identificar o alimento na imagem"
+    );
     expect(lastSentWhatsAppBody).not.toContain("Failed query");
     expect(createLocalMealPhotoOverlayMock).not.toHaveBeenCalled();
+  });
+
+  it("normaliza o nome exibido quando apenas o canonicalName é confiável", async () => {
+    const userId = 2000103;
+    const phoneNumber = "5511777770103";
+    await upsertUserWhatsappConnection({
+      userId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: false,
+      reasoning: "Nome canônico confiável.",
+      items: [
+        {
+          foodName: "30G",
+          canonicalName: "Queijo parmesão Polenghi",
+          portionText: "30 g",
+          quantity: 30,
+          unit: "g",
+          servings: 1,
+          estimatedGrams: 30,
+          calories: 126,
+          protein: 10,
+          carbs: 1,
+          fat: 9,
+          confidence: 0.9,
+          source: "catalog" as const,
+        },
+      ],
+      totals: { calories: 126, protein: 10, carbs: 1, fat: 9 },
+    });
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      id: "wamid.image874.visible-name",
+                      from: phoneNumber,
+                      type: "image",
+                      image: { id: "visible-name", mime_type: "image/jpeg" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await handleWhatsAppWebhook(req as never, createResponse() as never);
+    const meal = (await listUserMeals(userId)).find(
+      item => item.source === "whatsapp"
+    );
+    expect(meal?.items[0]?.foodName).toBe("Queijo parmesão Polenghi");
+    const sentTextBodies = sentWhatsAppPayloads
+      .map(payload => payload?.text?.body)
+      .filter((body): body is string => typeof body === "string")
+      .join("\n");
+    expect(sentTextBodies).toContain("Queijo parmesão Polenghi");
+    expect(sentTextBodies).not.toContain("30G —");
+  });
+
+  it("mantém contexto quando imagem identifica alimento sem quantidade e conclui com 30g", async () => {
+    const imageOnlyUserId = 2000102;
+    const phoneNumber = "5511777770102";
+    await upsertUserWhatsappConnection({
+      userId: imageOnlyUserId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+    processMealInputMock
+      .mockResolvedValueOnce({
+        detectedMealLabel: "Lanche",
+        sourceText: "",
+        confidence: 0.82,
+        needsConfirmation: true,
+        reasoning: "Alimento identificado, mas porção ausente.",
+        items: [
+          {
+            foodName: "Banana prata",
+            canonicalName: "Banana prata",
+            portionText: "porção não informada",
+            servings: 1,
+            estimatedGrams: 0,
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            confidence: 0.82,
+            source: "heuristic" as const,
+          },
+        ],
+        totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      })
+      .mockResolvedValueOnce({
+        detectedMealLabel: "Lanche",
+        sourceText: "30 g de Banana prata",
+        confidence: 0.92,
+        needsConfirmation: false,
+        reasoning: "Quantidade explícita.",
+        items: [
+          {
+            foodName: "Banana prata",
+            canonicalName: "Banana prata",
+            portionText: "30 g",
+            quantity: 30,
+            unit: "g",
+            servings: 0.3,
+            estimatedGrams: 30,
+            calories: 27,
+            protein: 0.4,
+            carbs: 7,
+            fat: 0.1,
+            confidence: 0.92,
+            source: "catalog" as const,
+          },
+        ],
+        totals: { calories: 27, protein: 0.4, carbs: 7, fat: 0.1 },
+      });
+
+    const imageReq = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      id: "wamid.image874.quantity",
+                      from: phoneNumber,
+                      type: "image",
+                      image: {
+                        id: "identified-without-portion",
+                        mime_type: "image/jpeg",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await handleWhatsAppWebhook(imageReq as never, createResponse() as never);
+
+    expect(
+      (await listUserMeals(imageOnlyUserId)).filter(
+        meal => meal.source === "whatsapp"
+      )
+    ).toHaveLength(0);
+    expect(lastSentWhatsAppBody).toMatch(/Banana prata|peso|volume|tamanho/i);
+
+    const quantityReq = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      id: "wamid.image874.quantity.reply",
+                      from: phoneNumber,
+                      type: "text",
+                      text: { body: "30g" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await handleWhatsAppWebhook(
+      quantityReq as never,
+      createResponse() as never
+    );
+
+    const meals = (await listUserMeals(imageOnlyUserId)).filter(
+      meal => meal.source === "whatsapp"
+    );
+    expect(meals).toHaveLength(1);
+    expect(meals[0]?.items).toEqual([
+      expect.objectContaining({
+        foodName: "Banana prata",
+        estimatedGrams: 30,
+        calories: 27,
+      }),
+    ]);
+    const sentTextBodies = sentWhatsAppPayloads
+      .map(payload => payload?.text?.body)
+      .filter((body): body is string => typeof body === "string")
+      .join("\n");
+    expect(sentTextBodies).toContain("Banana prata");
+    expect(sentTextBodies).toContain("27 kcal");
   });
 
   it("registra warning explícito quando a resposta automática do WhatsApp falha", async () => {
@@ -493,7 +759,9 @@ describe("whatsappWebhook", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    const savedMeals = (await listUserMeals(1)).filter(
+      meal => meal.source === "whatsapp"
+    );
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppBody).toBeNull();
   });
@@ -612,13 +880,32 @@ describe("whatsappWebhook", () => {
     });
 
     const seedMessages = [
-      { from: phoneNumber, type: "image", image: { id: "clear-image-1", mime_type: "image/jpeg" }, timestamp: "1713708840" },
-      { from: phoneNumber, type: "image", image: { id: "clear-image-2", mime_type: "image/jpeg" }, timestamp: "1713708900" },
-      { from: phoneNumber, type: "image", image: { id: "clear-image-3", mime_type: "image/jpeg" }, timestamp: "1713708960" },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "clear-image-1", mime_type: "image/jpeg" },
+        timestamp: "1713708840",
+      },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "clear-image-2", mime_type: "image/jpeg" },
+        timestamp: "1713708900",
+      },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "clear-image-3", mime_type: "image/jpeg" },
+        timestamp: "1713708960",
+      },
     ];
 
     for (const payloadMessage of seedMessages) {
-      const req = { body: { entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }] } };
+      const req = {
+        body: {
+          entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }],
+        },
+      };
       const res = createResponse();
       await handleWhatsAppWebhook(req as never, res as never);
     }
@@ -651,14 +938,20 @@ describe("whatsappWebhook", () => {
 
     await handleWhatsAppWebhook(requestChange as never, firstResponse as never);
 
-    const mealsBeforeConfirmation = (await listUserMeals(userId)).filter((meal) => meal.source === "whatsapp").slice(0, 3);
+    const mealsBeforeConfirmation = (await listUserMeals(userId))
+      .filter(meal => meal.source === "whatsapp")
+      .slice(0, 3);
 
     expect(firstResponse.statusCode).toBe(200);
     expect(firstResponse.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
     expect(mealsBeforeConfirmation).toHaveLength(1);
-    expect(mealsBeforeConfirmation.every((meal) => meal.mealLabel === "Lanche")).toBe(true);
-    expect(lastSentWhatsAppBody).toContain("Responda SIM para confirmar a mudança para Café da manhã");
+    expect(
+      mealsBeforeConfirmation.every(meal => meal.mealLabel === "Lanche")
+    ).toBe(true);
+    expect(lastSentWhatsAppBody).toContain(
+      "Responda SIM para confirmar a mudança para Café da manhã"
+    );
 
     const confirmChange = {
       body: {
@@ -685,15 +978,24 @@ describe("whatsappWebhook", () => {
     };
     const secondResponse = createResponse();
 
-    await handleWhatsAppWebhook(confirmChange as never, secondResponse as never);
+    await handleWhatsAppWebhook(
+      confirmChange as never,
+      secondResponse as never
+    );
 
-    const updatedMeals = (await listUserMeals(userId)).filter((meal) => meal.source === "whatsapp").slice(0, 3);
+    const updatedMeals = (await listUserMeals(userId))
+      .filter(meal => meal.source === "whatsapp")
+      .slice(0, 3);
 
     expect(secondResponse.statusCode).toBe(200);
     expect(secondResponse.body).toEqual({ ok: true, processed: 1 });
     expect(updatedMeals).toHaveLength(1);
-    expect(updatedMeals.every((meal) => meal.mealLabel === "Café da manhã")).toBe(true);
-    expect(lastSentWhatsAppBody).toContain("1 registro(s) recente(s) foram alterados de Lanche para Café da manhã");
+    expect(updatedMeals.every(meal => meal.mealLabel === "Café da manhã")).toBe(
+      true
+    );
+    expect(lastSentWhatsAppBody).toContain(
+      "1 registro(s) recente(s) foram alterados de Lanche para Café da manhã"
+    );
   });
 
   it("pede esclarecimento quando o comando de mudança de refeição é ambíguo e não cria novo alimento", async () => {
@@ -778,13 +1080,32 @@ describe("whatsappWebhook", () => {
       });
 
     const seedMessages = [
-      { from: phoneNumber, type: "image", image: { id: "image-1", mime_type: "image/jpeg" }, timestamp: "1713708840" },
-      { from: phoneNumber, type: "image", image: { id: "image-2", mime_type: "image/jpeg" }, timestamp: "1713708900" },
-      { from: phoneNumber, type: "image", image: { id: "image-3", mime_type: "image/jpeg" }, timestamp: "1713708960" },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "image-1", mime_type: "image/jpeg" },
+        timestamp: "1713708840",
+      },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "image-2", mime_type: "image/jpeg" },
+        timestamp: "1713708900",
+      },
+      {
+        from: phoneNumber,
+        type: "image",
+        image: { id: "image-3", mime_type: "image/jpeg" },
+        timestamp: "1713708960",
+      },
     ];
 
     for (const payloadMessage of seedMessages) {
-      const req = { body: { entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }] } };
+      const req = {
+        body: {
+          entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }],
+        },
+      };
       const res = createResponse();
       await handleWhatsAppWebhook(req as never, res as never);
     }
@@ -820,8 +1141,12 @@ describe("whatsappWebhook", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(lastSentWhatsAppBody).toContain("Você quer que eu mova apenas os itens marcados como Lanche");
-
+    expect(lastSentWhatsAppBody).toContain(
+      "Encontrei 1 registro(s) recente(s) marcados como Lanche"
+    );
+    expect(lastSentWhatsAppBody).toContain(
+      "Responda SIM para confirmar a mudança para Café da manhã"
+    );
   });
 
   it("registra warning quando o número recebido não possui vínculo ativo com um usuário", async () => {
@@ -858,6 +1183,8 @@ describe("whatsappWebhook", () => {
     expect(processMealInputMock).not.toHaveBeenCalled();
     // Contrato #787: conta não identificada recebe mensagem de segurança central.
     expect(lastSentWhatsAppBody).toContain("Conta não identificada");
-    expect(lastSentWhatsAppBody).toContain("Verifique o telefone cadastrado no sistema web");
+    expect(lastSentWhatsAppBody).toContain(
+      "Verifique o telefone cadastrado no sistema web"
+    );
   });
 });
