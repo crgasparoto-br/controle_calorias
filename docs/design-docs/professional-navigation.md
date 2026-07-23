@@ -47,8 +47,9 @@ A ordenação da carteira é estável por identificação exibível, solicitaç�
 - APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e entitlement no backend; a proteção visual não substitui autorização.
 - Perfil e contexto do paciente são revalidados periodicamente e quando a janela recupera o foco.
 - Na troca de paciente, saída para **Minha alimentação**, perda de autorização, perda do perfil ou desmontagem do shell, consultas individuais são canceladas e removidas do cache antes de outro paciente ficar visível.
-- Erros de query ou mutation que informem revogação removem imediatamente o contexto e os dados visíveis e retornam com segurança à carteira.
+- Erros de query ou mutation que informem revogação removem imediatamente o contexto e os dados visíveis e retornam com segurança à carteira. O retry de uma mensagem confirma novamente a autorização e devolve `FORBIDDEN` quando o vínculo já não está aprovado, sem confundir uma tentativa concorrente já consumida com revogação.
 - Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
+- Falhas temporárias de timezone ou bundle no relatório individual mantêm os dados parciais ocultos e oferecem a ação **Tentar novamente** no próprio contexto do relatório.
 - ID malformado, zero ou número inseguro não dispara consulta com identificador artificial.
 
 ## Acessibilidade e responsividade
@@ -83,8 +84,10 @@ Os testes cobrem:
 - bloqueio de perfil inativo e falha temporária de validação;
 - revalidação ao recuperar foco;
 - troca entre pacientes com cancelamento e remoção dos dados anteriores;
+- remount equivalente a reload/nova aba, caller tRPC independente e navegação voltar/avançar derivada da URL;
 - navegação rápida voltar/avançar sem aplicar transição tardia;
-- revogação detectada por query e mutation com limpeza imediata;
+- revogação detectada por query e mutation com limpeza imediata, incluindo retry de mensagem após revogação;
+- retries explícitos para falhas de timezone e bundle do relatório individual;
 - limpeza do contexto ao voltar para a experiência pessoal;
 - redirects de `/professional/follow-up` e `/professional/legacy`;
 - navegação por teclado, rota ativa, título do documento e controle responsivo.
