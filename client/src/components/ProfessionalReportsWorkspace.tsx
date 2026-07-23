@@ -38,7 +38,7 @@ function AggregateReports() {
   const [endDate, setEndDate] = useState(() => dateKey(new Date()));
   const validRange =
     startDate <= endDate && daysBetween(startDate, endDate) <= 90;
-  const query = trpc.nutrition.professionals.portfolio.useQuery(
+  const query = trpc.professionalRecord.portfolioReport.useQuery(
     {
       search: "",
       authorizationStatus: "all",
