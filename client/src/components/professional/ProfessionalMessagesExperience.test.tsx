@@ -8,10 +8,15 @@ const createMutate = vi.fn();
 const retryMutate = vi.fn();
 const invalidateMessages = vi.fn().mockResolvedValue(undefined);
 let messages: any[] = [];
+let trackingStatus: "active" | "paused" | "ended" = "active";
 
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
-    selectedPatient: { patientId: 41, displayName: "Ana" },
+    selectedPatient: {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus,
+    },
     clearPatient: vi.fn(),
   }),
 }));
@@ -26,19 +31,13 @@ vi.mock("@/lib/trpc", () => ({
       },
     }),
     professionalRecord: {
-      settings: {
-        get: {
-          useQuery: () => ({
-            data: { preferences: { messageTemplates: [] } },
-          }),
-        },
-      },
-      get: {
-        useQuery: () => ({
-          data: { patient: { trackingStatus: "active" } },
-        }),
-      },
       messages: {
+        templates: {
+          useQuery: () => ({ data: [], isError: false }),
+        },
+        recipients: {
+          useQuery: () => ({ data: [], isError: false }),
+        },
         list: {
           useQuery: () => ({
             data: { items: messages, nextCursor: null },
@@ -65,13 +64,6 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
     },
-    nutrition: {
-      professionals: {
-        myAccesses: {
-          useQuery: () => ({ data: [], isLoading: false }),
-        },
-      },
-    },
   },
 }));
 
@@ -83,6 +75,7 @@ beforeEach(() => {
   invalidateMessages.mockClear();
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   messages = [];
+  trackingStatus = "active";
 });
 
 describe("ProfessionalMessagesExperience", () => {
@@ -168,5 +161,28 @@ describe("ProfessionalMessagesExperience", () => {
         .getByRole("button", { name: "Enviar por WhatsApp" })
         .hasAttribute("disabled")
     ).toBe(false);
+  });
+
+  it("blocks delivery while the tracking is ended without loading the record resource", async () => {
+    trackingStatus = "ended";
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Mensagem após encerramento" },
+    });
+
+    expect(
+      screen
+        .getByRole("button", { name: "Enviar por WhatsApp" })
+        .hasAttribute("disabled")
+    ).toBe(true);
+    expect(
+      screen.getByText(
+        "O acompanhamento foi encerrado e não aceita novas mensagens."
+      )
+    ).toBeTruthy();
   });
 });
