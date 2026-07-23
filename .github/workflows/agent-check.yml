@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
       - name: Checkout repository
