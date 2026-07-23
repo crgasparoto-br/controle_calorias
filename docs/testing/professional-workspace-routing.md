@@ -31,15 +31,19 @@
 
 A URL é a única fonte de verdade para o paciente ativo. Nenhum seletor global ou estado React pode manter um paciente diferente da rota.
 
+A consulta canônica `professionalRecord.context` recebe o `patientId` e o recurso exato da rota. Ela confirma perfil ativo, entitlement correspondente e autorização aprovada sem depender de `professional_portfolio` ou de uma consulta ao prontuário. Relatórios e mensagens não podem adquirir `professional_record` como requisito indireto; metas seguem o contrato da rota e usam `professional_record` em frontend e backend.
+
 ## Troca e revogação de paciente
 
 Ao trocar de paciente, sair da rota individual, perder autorização ou desativar a Área Profissional:
 
 1. cancelar consultas individuais em andamento;
-2. remover do cache prontuário, timezone, dashboards, relatórios, alertas, mensagens e dados de IA individuais;
+2. remover do cache prontuário, contexto, timezone, dashboards, relatórios, metas, alertas, mensagens e dados de IA individuais;
 3. impedir a renderização de dados antigos enquanto a nova autorização é confirmada;
 4. redirecionar para a carteira quando o acesso não estiver mais disponível;
 5. preservar vínculos e histórico persistidos ao desativar a área, mas bloquear novas operações.
+
+A limpeza é acionada tanto por refetch e foco quanto por erro de query ou mutation que informe revogação ou ausência do vínculo. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
 
 ## Proteção de rascunho
 
@@ -61,10 +65,12 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 1. Abrir diretamente cada rota individual e confirmar paciente e seção corretos.
 2. Trocar entre dois pacientes e confirmar que nenhum dado do anterior permanece visível.
 3. Revogar acesso com a tela aberta e confirmar limpeza e redirecionamento.
-4. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
-5. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
-6. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
-7. Criar rascunho, tentar navegar e conferir a confirmação de descarte.
-8. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
-9. Conferir que relatórios agregados não exigem paciente e que relatórios individuais usam o paciente da URL.
-10. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+4. Provocar revogação em uma query e em uma mutation e confirmar remoção imediata do conteúdo e do cache.
+5. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
+6. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
+7. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
+8. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
+9. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
+10. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
+11. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
+12. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
