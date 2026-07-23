@@ -50,13 +50,28 @@ function priorityDestination(item: any) {
   return professionalPatientPath(item.patientId);
 }
 
-function PrioritiesPanel() {
+function PrioritiesPanel({ enabled }: { enabled: boolean }) {
   const [, setLocation] = useLocation();
   const query = trpc.professionalRecord.ai.priorities.useQuery(
     { limit: 10 },
-    { retry: false, refetchOnWindowFocus: true, refetchInterval: 30_000 }
+    {
+      enabled,
+      retry: false,
+      refetchOnWindowFocus: true,
+      refetchInterval: enabled ? 30_000 : false,
+    }
   );
 
+  if (!enabled) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        icon="empty"
+        title="Prioridades assistidas indisponíveis"
+        description="A assistência por IA não está incluída no acesso profissional atual. As demais áreas autorizadas continuam disponíveis."
+      />
+    );
+  }
   if (query.isLoading) {
     return <ProfessionalLoadingState label="Carregando prioridades de hoje..." />;
   }
@@ -126,7 +141,7 @@ function PrioritiesPanel() {
   );
 }
 
-function PortfolioSummary() {
+function PortfolioSummary({ enabled }: { enabled: boolean }) {
   const [, setLocation] = useLocation();
   const query = trpc.nutrition.professionals.portfolio.useQuery(
     {
@@ -139,9 +154,24 @@ function PortfolioSummary() {
       pageSize: 10,
       includeHistoricalActivity: false,
     },
-    { retry: false, refetchOnWindowFocus: true, refetchInterval: 30_000 }
+    {
+      enabled,
+      retry: false,
+      refetchOnWindowFocus: true,
+      refetchInterval: enabled ? 30_000 : false,
+    }
   );
 
+  if (!enabled) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        icon="empty"
+        title="Resumo da carteira indisponível"
+        description="A gestão da carteira não está incluída no acesso profissional atual. O início profissional permanece protegido e utilizável."
+      />
+    );
+  }
   if (query.isLoading) {
     return <ProfessionalLoadingState label="Carregando resumo da carteira..." />;
   }
@@ -191,41 +221,78 @@ function PortfolioSummary() {
 
 export default function ProfessionalHome() {
   const [, setLocation] = useLocation();
+  const entitlements =
+    trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
+      retry: false,
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+    });
+
+  if (entitlements.isLoading) {
+    return (
+      <ProfessionalPage>
+        <ProfessionalLoadingState label="Carregando capacidades profissionais..." />
+      </ProfessionalPage>
+    );
+  }
+  if (entitlements.isError || !entitlements.data?.allowed) {
+    return (
+      <ProfessionalPage>
+        <ProfessionalAsyncState
+          title="Não foi possível confirmar as capacidades do início"
+          description="O conteúdo profissional permanece protegido. Tente novamente antes de continuar."
+          onRetry={() => void entitlements.refetch()}
+        />
+      </ProfessionalPage>
+    );
+  }
+
+  const hasAiAssistance = entitlements.data.enabledResources.includes(
+    "professional_ai_assistance"
+  );
+  const hasPortfolio = entitlements.data.enabledResources.includes(
+    "professional_portfolio"
+  );
+
   return (
     <ProfessionalPage>
       <ProfessionalPageHeader
         title="Prioridades de hoje"
         description="Comece pelos pacientes com pendências objetivas e depois consulte o resumo da carteira. A lista não cria critérios clínicos novos."
         actions={
-          <Button onClick={() => setLocation("/professional/patients")}>
-            <UsersRound className="h-4 w-4" />
-            Ver carteira
-          </Button>
+          hasPortfolio ? (
+            <Button onClick={() => setLocation("/professional/patients")}>
+              <UsersRound className="h-4 w-4" />
+              Ver carteira
+            </Button>
+          ) : undefined
         }
       />
       <ProfessionalSplitLayout
         aside={
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BellRing className="h-4 w-4" />
-                Como esta fila é formada
-              </CardTitle>
-              <CardDescription>
-                Usa somente alertas e solicitações operacionais já registrados no sistema.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Sem registros, pesagem pendente, revisão de meta, solicitação sem resposta ou registro marcado para revisão.
-            </CardContent>
-          </Card>
+          hasAiAssistance ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BellRing className="h-4 w-4" />
+                  Como esta fila é formada
+                </CardTitle>
+                <CardDescription>
+                  Usa somente alertas e solicitações operacionais já registrados no sistema.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Sem registros, pesagem pendente, revisão de meta, solicitação sem resposta ou registro marcado para revisão.
+              </CardContent>
+            </Card>
+          ) : null
         }
       >
         <section aria-labelledby="priority-list-title" className="space-y-3">
           <h2 id="priority-list-title" className="text-lg font-semibold">
             Pacientes que precisam de atenção operacional
           </h2>
-          <PrioritiesPanel />
+          <PrioritiesPanel enabled={hasAiAssistance} />
         </section>
       </ProfessionalSplitLayout>
       <section aria-labelledby="portfolio-summary-title" className="space-y-3">
@@ -237,7 +304,7 @@ export default function ProfessionalHome() {
             Indicadores compactos, sem carregar relatórios individuais.
           </p>
         </div>
-        <PortfolioSummary />
+        <PortfolioSummary enabled={hasPortfolio} />
       </section>
     </ProfessionalPage>
   );
