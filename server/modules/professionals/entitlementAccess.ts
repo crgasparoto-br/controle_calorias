@@ -4,7 +4,9 @@ import {
 } from "./entitlementService";
 
 export class ProfessionalResourceDeniedError extends Error {
-  constructor(message = "Este recurso não está disponível para o acesso profissional atual.") {
+  constructor(
+    message = "Este recurso não está disponível para o acesso profissional atual."
+  ) {
     super(message);
     this.name = "ProfessionalResourceDeniedError";
   }
@@ -17,6 +19,28 @@ export class ProfessionalEntitlementVerificationUnavailableError extends Error {
     super(message);
     this.name = "ProfessionalEntitlementVerificationUnavailableError";
   }
+}
+
+export function isProfessionalResourceDeniedError(error: unknown) {
+  return (
+    error instanceof ProfessionalResourceDeniedError ||
+    (error instanceof Error &&
+      [
+        "ProfessionalResourceDeniedError",
+        "ProfessionalEntitlementDeniedError",
+      ].includes(error.constructor.name))
+  );
+}
+
+export function isProfessionalEntitlementVerificationUnavailableError(
+  error: unknown
+) {
+  return (
+    error instanceof ProfessionalEntitlementVerificationUnavailableError ||
+    (error instanceof Error &&
+      error.constructor.name ===
+        "ProfessionalEntitlementVerificationUnavailableError")
+  );
 }
 
 export async function assertProfessionalResourceAccess(
