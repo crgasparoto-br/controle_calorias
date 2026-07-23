@@ -50,7 +50,7 @@ for (const [file, marker] of [
   ],
   [
     "client/src/App.professionalNavigation.test.tsx",
-    "does not substitute a neighboring entitlement for the route entitlement",
+    "redirects a patient route when only neighboring entitlements remain",
   ],
   [
     "client/src/components/ProfessionalLayout.test.tsx",
