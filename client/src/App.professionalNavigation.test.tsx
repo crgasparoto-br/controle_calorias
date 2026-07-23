@@ -133,6 +133,61 @@ describe("App professional navigation", () => {
     ).toBeTruthy();
   });
 
+  it("allows an individual report with only the reports entitlement", async () => {
+    entitlementState.enabledResources = ["professional_reports"];
+    window.history.replaceState({}, "", "/professional/patients/41/reports");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeNull();
+  });
+
+  it("allows an individual conversation with only the messages entitlement", async () => {
+    entitlementState.enabledResources = ["professional_messages"];
+    window.history.replaceState({}, "", "/professional/patients/41/messages");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeNull();
+  });
+
+  it("allows patient goals with the record entitlement", async () => {
+    entitlementState.enabledResources = ["professional_record"];
+    window.history.replaceState({}, "", "/professional/patients/41/goals");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+  });
+
+  it("does not substitute a neighboring entitlement for the route entitlement", async () => {
+    entitlementState.enabledResources = ["professional_record"];
+    window.history.replaceState({}, "", "/professional/patients/41/reports");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Recurso profissional indisponível",
+      })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeNull();
+  });
+
   it("routes professional settings to the dedicated screen", async () => {
     window.history.replaceState({}, "", "/professional/settings");
     const { default: App } = await import("./App");
