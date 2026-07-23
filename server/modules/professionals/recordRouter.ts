@@ -41,10 +41,9 @@ import { professionalSettingsRouter } from "./settingsRouter";
 import {
   professionalRecordProcedure,
   professionalReportsProcedure,
-  toProfessionalEntitlementTrpcError,
 } from "./entitledProcedure";
-import { ProfessionalEntitlementDeniedError } from "./entitlementService";
 import { professionalPatientContextSchema } from "./patientContextSchemas";
+import { professionalPatientContextRouterError } from "./patientContextRouterError";
 import { getProfessionalPatientContext } from "./patientContextService";
 
 export const professionalRecordRouter = router({
@@ -57,10 +56,7 @@ export const professionalRecordRouter = router({
       try {
         return await getProfessionalPatientContext(ctx.user.id, input);
       } catch (error) {
-        if (error instanceof ProfessionalEntitlementDeniedError) {
-          throw toProfessionalEntitlementTrpcError(input.resource, error);
-        }
-        throw error;
+        throw professionalPatientContextRouterError(input.resource, error);
       }
     }),
   portfolioReport: professionalReportsProcedure
