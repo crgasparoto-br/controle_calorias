@@ -4,7 +4,10 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const setLocation = vi.fn();
+const refetch = vi.fn();
 let location = "/professional/patients/41/reports";
+let allowed = true;
+let commercialState = "active";
 let enabledResources: string[] = ["professional_reports"];
 
 vi.mock("wouter", () => ({
@@ -18,13 +21,14 @@ vi.mock("@/lib/trpc", () => ({
         entitlements: {
           useQuery: () => ({
             data: {
-              allowed: true,
+              allowed,
+              commercialState,
               enabledResources,
               planName: "Plano profissional",
             },
             isLoading: false,
             isError: false,
-            refetch: vi.fn(),
+            refetch,
           }),
         },
       },
@@ -34,8 +38,11 @@ vi.mock("@/lib/trpc", () => ({
 
 beforeEach(() => {
   location = "/professional/patients/41/reports";
+  allowed = true;
+  commercialState = "active";
   enabledResources = ["professional_reports"];
   setLocation.mockClear();
+  refetch.mockClear();
 });
 
 afterEach(cleanup);
@@ -67,6 +74,26 @@ describe("ProfessionalEntitlementGate patient route revocation", () => {
         "/professional/patients?notice=patient-access-unavailable"
       )
     );
+  });
+
+  it("keeps provider outages protected and retryable without redirecting", async () => {
+    allowed = false;
+    commercialState = "unavailable";
+    enabledResources = [];
+    const { default: ProfessionalEntitlementGate } = await import(
+      "./ProfessionalEntitlementGate"
+    );
+    render(
+      <ProfessionalEntitlementGate resource="professional_reports">
+        <div>Relatório autorizado</div>
+      </ProfessionalEntitlementGate>
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Não foi possível verificar o acesso" })
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeTruthy();
+    expect(setLocation).not.toHaveBeenCalled();
   });
 
   it("keeps aggregate denials on the resource access screen", async () => {
