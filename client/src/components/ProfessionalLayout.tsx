@@ -89,13 +89,56 @@ const professionalPatientQueryPaths = new Set([
   "professionalRecord.officialGoal.professionalState",
 ]);
 
+const professionalPatientMutationPaths = new Set([
+  "professionalRecord.saveAssessment",
+  "professionalRecord.createNote",
+  "professionalRecord.createGuidance",
+  "professionalRecord.transitionTracking",
+  "professionalRecord.messages.create",
+  "professionalRecord.messages.retry",
+  "professionalRecord.officialGoal.activate",
+  "professionalRecord.officialGoal.retryNotification",
+  "professionalRecord.operationalAlerts.close",
+  "professionalRecord.operationalAlerts.evaluate",
+  "professionalRecord.ai.generate",
+]);
+
+function operationPath(operationKey: unknown) {
+  if (!Array.isArray(operationKey)) return null;
+  const candidate = Array.isArray(operationKey[0]) ? operationKey[0] : operationKey;
+  return candidate.every(item => typeof item === "string")
+    ? candidate.join(".")
+    : null;
+}
+
+function patientIdFromOperation(value: unknown, depth = 0): number | null {
+  if (depth > 5 || value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const patientId = patientIdFromOperation(item, depth + 1);
+      if (patientId !== null) return patientId;
+    }
+    return null;
+  }
+  if (typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.patientId === "number" &&
+    Number.isSafeInteger(record.patientId) &&
+    record.patientId > 0
+  ) {
+    return record.patientId;
+  }
+  for (const item of Object.values(record)) {
+    const patientId = patientIdFromOperation(item, depth + 1);
+    if (patientId !== null) return patientId;
+  }
+  return null;
+}
+
 export function isProfessionalPatientQueryKey(queryKey: readonly unknown[]) {
-  const path = queryKey[0];
-  return (
-    Array.isArray(path) &&
-    path.every(item => typeof item === "string") &&
-    professionalPatientQueryPaths.has(path.join("."))
-  );
+  const path = operationPath(queryKey);
+  return Boolean(path && professionalPatientQueryPaths.has(path));
 }
 
 function errorMessage(error: unknown) {
@@ -112,7 +155,27 @@ function errorMessage(error: unknown) {
   return "";
 }
 
+function errorCode(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const record = error as Record<string, unknown>;
+  const candidates = [record.data, record.shape];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const candidateRecord = candidate as Record<string, unknown>;
+    if (typeof candidateRecord.code === "string") return candidateRecord.code;
+    if (
+      candidateRecord.data &&
+      typeof candidateRecord.data === "object" &&
+      typeof (candidateRecord.data as Record<string, unknown>).code === "string"
+    ) {
+      return String((candidateRecord.data as Record<string, unknown>).code);
+    }
+  }
+  return null;
+}
+
 export function isProfessionalPatientAccessUnavailableError(error: unknown) {
+  if (errorCode(error) === "FORBIDDEN") return true;
   const message = errorMessage(error).toLocaleLowerCase("pt-BR");
   return [
     "o acesso a este paciente não está mais disponível",
@@ -199,6 +262,7 @@ export default function ProfessionalLayout({
   const previousPatientIdRef = useRef<number | null>(null);
   const transitionGenerationRef = useRef(0);
   const revocationInProgressRef = useRef(false);
+  const patientReadyAtRef = useRef(0);
   const [readyPatientId, setReadyPatientId] = useState<number | null>(null);
 
   const patientRoute = useMemo(
@@ -283,6 +347,7 @@ export default function ProfessionalLayout({
 
   const invalidatePatientContext = useCallback(() => {
     transitionGenerationRef.current += 1;
+    patientReadyAtRef.current = 0;
     setReadyPatientId(null);
   }, []);
 
@@ -315,18 +380,42 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     if (!routePatientId) return;
-    const handleError = (error: unknown) => {
-      if (isProfessionalPatientAccessUnavailableError(error)) {
-        revokePatientContext();
-      }
+    const queryTargetsCurrentPatient = (queryKey: readonly unknown[]) =>
+      isProfessionalPatientQueryKey(queryKey) &&
+      patientIdFromOperation(queryKey) === routePatientId;
+    const mutationTargetsCurrentPatient = (mutation: {
+      options?: { mutationKey?: unknown };
+      state?: { error?: unknown; submittedAt?: number; variables?: unknown };
+    }) => {
+      const variablePatientId = patientIdFromOperation(mutation.state?.variables);
+      if (variablePatientId !== null) return variablePatientId === routePatientId;
+      const path = operationPath(mutation.options?.mutationKey);
+      return Boolean(
+        path &&
+          professionalPatientMutationPaths.has(path) &&
+          patientReadyAtRef.current > 0 &&
+          Number(mutation.state?.submittedAt ?? 0) >= patientReadyAtRef.current
+      );
     };
     const unsubscribeQueries = queryClient.getQueryCache().subscribe(event => {
-      if (event.type === "updated") handleError(event.query.state.error);
+      if (
+        event.type === "updated" &&
+        queryTargetsCurrentPatient(event.query.queryKey) &&
+        isProfessionalPatientAccessUnavailableError(event.query.state.error)
+      ) {
+        revokePatientContext();
+      }
     });
     const unsubscribeMutations = queryClient
       .getMutationCache()
       .subscribe(event => {
-        if (event.type === "updated") handleError(event.mutation.state.error);
+        if (
+          event.type === "updated" &&
+          mutationTargetsCurrentPatient(event.mutation) &&
+          isProfessionalPatientAccessUnavailableError(event.mutation.state.error)
+        ) {
+          revokePatientContext();
+        }
       });
     return () => {
       unsubscribeQueries();
@@ -361,6 +450,7 @@ export default function ProfessionalLayout({
     transitionGenerationRef.current = generation;
     const previousPatientId = previousPatientIdRef.current;
     previousPatientIdRef.current = routePatientId;
+    patientReadyAtRef.current = 0;
     setReadyPatientId(null);
 
     if (!routePatientId) {
@@ -377,6 +467,7 @@ export default function ProfessionalLayout({
         transitionGenerationRef.current === generation &&
         previousPatientIdRef.current === routePatientId
       ) {
+        patientReadyAtRef.current = Date.now();
         setReadyPatientId(routePatientId);
       }
     };
@@ -425,6 +516,7 @@ export default function ProfessionalLayout({
   useEffect(
     () => () => {
       transitionGenerationRef.current += 1;
+      patientReadyAtRef.current = 0;
       if (previousPatientIdRef.current) void clearPatientQueries();
       previousPatientIdRef.current = null;
     },
