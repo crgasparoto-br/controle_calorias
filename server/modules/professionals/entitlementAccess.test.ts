@@ -1,19 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getProfessionalEntitlements = vi.fn();
+const mocks = vi.hoisted(() => ({
+  getProfessionalEntitlements: vi.fn(),
+}));
 
 vi.mock("./entitlementService", () => ({
-  getProfessionalEntitlements,
+  getProfessionalEntitlements: mocks.getProfessionalEntitlements,
 }));
 
 import {
   assertProfessionalResourceAccess,
+  isProfessionalEntitlementVerificationUnavailableError,
+  isProfessionalResourceDeniedError,
   ProfessionalEntitlementVerificationUnavailableError,
   ProfessionalResourceDeniedError,
 } from "./entitlementAccess";
 
 beforeEach(() => {
-  getProfessionalEntitlements.mockReset();
+  mocks.getProfessionalEntitlements.mockReset();
 });
 
 describe("assertProfessionalResourceAccess", () => {
@@ -23,7 +27,7 @@ describe("assertProfessionalResourceAccess", () => {
       commercialState: "active",
       enabledResources: ["professional_reports"],
     };
-    getProfessionalEntitlements.mockResolvedValue(snapshot);
+    mocks.getProfessionalEntitlements.mockResolvedValue(snapshot);
 
     await expect(
       assertProfessionalResourceAccess(7, "professional_reports")
@@ -31,7 +35,7 @@ describe("assertProfessionalResourceAccess", () => {
   });
 
   it("rejects a missing resource as an access denial", async () => {
-    getProfessionalEntitlements.mockResolvedValue({
+    mocks.getProfessionalEntitlements.mockResolvedValue({
       allowed: true,
       commercialState: "active",
       enabledResources: ["professional_record"],
@@ -43,7 +47,7 @@ describe("assertProfessionalResourceAccess", () => {
   });
 
   it("keeps provider outages separate from commercial denial", async () => {
-    getProfessionalEntitlements.mockResolvedValue({
+    mocks.getProfessionalEntitlements.mockResolvedValue({
       allowed: false,
       commercialState: "unavailable",
       enabledResources: [],
@@ -57,7 +61,7 @@ describe("assertProfessionalResourceAccess", () => {
   });
 
   it("treats a confirmed no-access snapshot as denial", async () => {
-    getProfessionalEntitlements.mockResolvedValue({
+    mocks.getProfessionalEntitlements.mockResolvedValue({
       allowed: false,
       commercialState: "no_access",
       enabledResources: [],
@@ -66,5 +70,30 @@ describe("assertProfessionalResourceAccess", () => {
     await expect(
       assertProfessionalResourceAccess(7, "professional_reports")
     ).rejects.toBeInstanceOf(ProfessionalResourceDeniedError);
+  });
+
+  it("recognizes canonical and compatible denial errors", () => {
+    expect(
+      isProfessionalResourceDeniedError(new ProfessionalResourceDeniedError())
+    ).toBe(true);
+    const compatible = new Error("legacy denial");
+    Object.defineProperty(compatible, "constructor", {
+      value: { name: "ProfessionalEntitlementDeniedError" },
+    });
+    expect(isProfessionalResourceDeniedError(compatible)).toBe(true);
+    expect(isProfessionalResourceDeniedError(new Error("temporary"))).toBe(false);
+  });
+
+  it("recognizes canonical verification outage errors", () => {
+    expect(
+      isProfessionalEntitlementVerificationUnavailableError(
+        new ProfessionalEntitlementVerificationUnavailableError()
+      )
+    ).toBe(true);
+    expect(
+      isProfessionalEntitlementVerificationUnavailableError(
+        new ProfessionalResourceDeniedError()
+      )
+    ).toBe(false);
   });
 });
