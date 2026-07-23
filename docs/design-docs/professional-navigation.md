@@ -28,6 +28,8 @@ Cada capacidade profissional usa composição própria e não importa páginas p
 
 `nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação mínima, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional. O painel consome agregados canônicos e não executa um relatório por paciente.
 
+A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e as prioridades assistidas são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_ai_assistance`, respectivamente, estão habilitados. A ausência desses recursos apresenta um estado local indisponível sem bloquear o início profissional.
+
 A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, e recebe somente o resumo necessário. Ela não devolve a lista da carteira nem exige `professional_portfolio` como dependência indireta.
 
 A ordenação da carteira é estável por identificação exibível, solicitação decrescente e ID do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros. Todas as consultas SQL, inclusive totais, incluem o profissional autenticado. Vínculo pendente, rejeitado ou revogado nunca habilita **Abrir paciente**.
@@ -73,6 +75,7 @@ Os testes cobrem:
 
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
+- início profissional com apenas `professional_dashboard`, sem iniciar consultas de carteira ou IA;
 - conversão da negação do entitlement principal em `FORBIDDEN`;
 - distinção entre revogação da rota e ausência de alertas ou IA opcionais;
 - uso do timezone por rota individual autorizada sem exigir entitlement de carteira;
