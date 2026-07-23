@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { assertProfessionalEntitlement } from "./entitlementService";
+import { assertProfessionalResourceAccess } from "./entitlementAccess";
 import type { ProfessionalPatientContextInput } from "./patientContextSchemas";
 import { getProfessionalProfile } from "./service";
 
@@ -20,7 +20,7 @@ export async function getProfessionalPatientContext(
     throw new Error("O contexto profissional não está disponível.");
   }
 
-  await assertProfessionalEntitlement(professionalUserId, input.resource);
+  await assertProfessionalResourceAccess(professionalUserId, input.resource);
 
   const db = await getDb();
   if (!db) {
