@@ -39,11 +39,19 @@ export default function ProfessionalEntitlementGate({
   const resourceEnabled = Boolean(
     query.data?.allowed && query.data.enabledResources.includes(resource)
   );
+  const verificationUnavailable = Boolean(
+    !query.isLoading &&
+      !query.isError &&
+      query.data &&
+      !query.data.allowed &&
+      query.data.commercialState === "unavailable"
+  );
   const patientRoute = parseProfessionalPatientRoute(location);
   const revokedPatientRoute = Boolean(
     !query.isLoading &&
       !query.isError &&
       query.data &&
+      !verificationUnavailable &&
       !resourceEnabled &&
       patientRoute.kind === "patient"
   );
@@ -64,7 +72,7 @@ export default function ProfessionalEntitlementGate({
     );
   }
 
-  if (query.isError) {
+  if (query.isError || verificationUnavailable) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-lg">
