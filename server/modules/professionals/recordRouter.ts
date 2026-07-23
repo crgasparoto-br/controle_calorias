@@ -56,9 +56,10 @@ export const professionalRecordRouter = router({
     ),
   portfolioReport: professionalReportsProcedure
     .input(professionalPortfolioSchema)
-    .query(({ ctx, input }) =>
-      listProfessionalPortfolio(ctx.user.id, input)
-    ),
+    .query(async ({ ctx, input }) => {
+      const result = await listProfessionalPortfolio(ctx.user.id, input);
+      return { summary: result.summary };
+    }),
   get: professionalRecordProcedure
     .input(professionalRecordSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),
