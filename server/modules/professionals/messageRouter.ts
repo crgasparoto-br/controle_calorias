@@ -26,6 +26,7 @@ export const professionalMessageRouter = router({
       .filter(access => access.status === "approved")
       .map(access => ({
         patientUserId: access.patientUserId,
+        status: "approved" as const,
         patient: access.patient
           ? {
               name: access.patient.name,
