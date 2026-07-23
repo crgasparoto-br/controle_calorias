@@ -211,6 +211,7 @@ export default function ProfessionalLayout({
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
     if (
       !approvedAccess ||
+      !routePatientId ||
       !patientAuthorizationValidated ||
       readyPatientId !== routePatientId
     ) {
