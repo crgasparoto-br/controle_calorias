@@ -13,12 +13,16 @@ import {
   listProfessionalMessages,
 } from "./messageService";
 import { getProfessionalSettingsSnapshot } from "./settingsService";
+import { listProfessionalAccesses } from "./service";
 
 export const professionalMessageRouter = router({
   templates: professionalMessagesProcedure.query(async ({ ctx }) => {
     const snapshot = await getProfessionalSettingsSnapshot(ctx.user.id);
     return snapshot.preferences.messageTemplates;
   }),
+  recipients: professionalMessagesProcedure.query(({ ctx }) =>
+    listProfessionalAccesses(ctx.user.id)
+  ),
   list: professionalMessagesProcedure
     .input(professionalMessageListSchema)
     .query(({ ctx, input }) => listProfessionalMessages(ctx.user.id, input)),
