@@ -72,6 +72,14 @@ function PatientFixture() {
   return <span>{selectedPatient?.displayName ?? "sem paciente"}</span>;
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
@@ -80,8 +88,8 @@ beforeEach(() => {
   refreshAuth.mockClear();
   profileRefetch.mockClear();
   accessesRefetch.mockClear();
-  cancelPatientData.mockClear();
-  resetPatientData.mockClear();
+  cancelPatientData.mockReset().mockResolvedValue(undefined);
+  resetPatientData.mockReset().mockResolvedValue(undefined);
   authState = {
     loading: false,
     user: { professionalProfileActive: true },
@@ -150,7 +158,7 @@ describe("ProfessionalLayout", () => {
     expect(accessesRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it("derives the selected patient exclusively from the URL", () => {
+  it("derives the selected patient exclusively from the URL", async () => {
     location = "/professional/patients/10/reports";
 
     render(
@@ -159,9 +167,72 @@ describe("ProfessionalLayout", () => {
       </ProfessionalLayout>
     );
 
-    expect(screen.getByText("Ana")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
     expect(screen.getByText("Paciente: Ana")).toBeTruthy();
     expect(document.title).toBe("Relatórios | Área Profissional");
+  });
+
+  it("hides the previous patient until every cache is cleared", async () => {
+    location = "/professional/patients/10";
+    const view = render(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+
+    const pendingReset = deferred();
+    resetPatientData.mockImplementation(() => pendingReset.promise);
+    location = "/professional/patients/20";
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
+    expect(
+      screen.getByText("Preparando o contexto seguro do paciente...")
+    ).toBeTruthy();
+
+    await waitFor(() => expect(cancelPatientData).toHaveBeenCalledTimes(8));
+    await waitFor(() => expect(resetPatientData).toHaveBeenCalledTimes(8));
+    pendingReset.resolve();
+
+    await waitFor(() => expect(screen.getByText("Paciente: Bruno")).toBeTruthy());
+  });
+
+  it("ignores completion from an obsolete patient transition", async () => {
+    location = "/professional/patients/10";
+    const view = render(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+
+    const firstTransition = deferred();
+    resetPatientData.mockImplementation(() => firstTransition.promise);
+    location = "/professional/patients/20";
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+
+    resetPatientData.mockResolvedValue(undefined);
+    location = "/professional/patients/10";
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    firstTransition.resolve();
+
+    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
   });
 
   it("clears visible patient data and redirects when authorization is revoked", async () => {
@@ -171,7 +242,7 @@ describe("ProfessionalLayout", () => {
         <PatientFixture />
       </ProfessionalLayout>
     );
-    expect(screen.getByText("Paciente: Ana")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
 
     accessesState = {
       ...accessesState,
@@ -183,12 +254,12 @@ describe("ProfessionalLayout", () => {
       </ProfessionalLayout>
     );
 
+    expect(screen.queryByText("Paciente: Ana")).toBeNull();
     await waitFor(() =>
       expect(setLocation).toHaveBeenCalledWith(
         "/professional/patients?notice=patient-access-unavailable"
       )
     );
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
     expect(cancelPatientData).toHaveBeenCalled();
     expect(resetPatientData).toHaveBeenCalled();
   });
@@ -221,11 +292,13 @@ describe("ProfessionalLayout", () => {
         <PatientFixture />
       </ProfessionalLayout>
     );
+    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
 
     await userEvent.click(
       screen.getByRole("button", { name: "Minha alimentação" })
     );
 
+    expect(screen.queryByText("Paciente: Ana")).toBeNull();
     expect(setLocation).toHaveBeenCalledWith("/today");
     expect(cancelPatientData).toHaveBeenCalled();
     expect(resetPatientData).toHaveBeenCalled();
