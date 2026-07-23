@@ -4,6 +4,7 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { handleWhatsappFoodClarification } from "./foodClarification";
+import { parseLatestFoodCorrection } from "./contextualFoodReplacementIntent";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
@@ -41,16 +42,21 @@ type ResolvedInteractionLike = {
   interactiveReply?: WhatsAppLogicalReply;
 };
 
-type InteractionLifecycle = "represented" | "cancelled" | "consumed" | "blocked";
+type InteractionLifecycle =
+  | "represented"
+  | "cancelled"
+  | "consumed"
+  | "blocked";
 
-const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
-  getDb,
-  onWarning: logPersistenceWarning,
-});
+const pendingOperationRepository =
+  createDrizzleWhatsAppPendingOperationRepository({
+    getDb,
+    onWarning: logPersistenceWarning,
+  });
 
 function normalizeResolvedInteraction(
   value: ResolvedInteractionLike,
-  fallbackAction: string,
+  fallbackAction: string
 ): PendingInteractionResult {
   return {
     ...value,
@@ -59,10 +65,13 @@ function normalizeResolvedInteraction(
   };
 }
 
-function inferTextInteractionLifecycle(result: PendingInteractionResult): InteractionLifecycle {
+function inferTextInteractionLifecycle(
+  result: PendingInteractionResult
+): InteractionLifecycle {
   const marker = `${result.action} ${result.eventType}`.toLowerCase();
   if (marker.includes("cancel")) return "cancelled";
-  if (/(reprompt|represented|clarification_needed|invalid_)/.test(marker)) return "represented";
+  if (/(reprompt|represented|clarification_needed|invalid_)/.test(marker))
+    return "represented";
   if (/(blocked|unavailable|stale|not_found)/.test(marker)) return "blocked";
   return "consumed";
 }
@@ -73,11 +82,14 @@ function enrichResolvedTextInteraction(input: {
   result: PendingInteractionResult;
   timeZone: string;
 }) {
-  const actions = input.interaction.actions(input.pending.target, { timeZone: input.timeZone });
+  const actions = input.interaction.actions(input.pending.target, {
+    timeZone: input.timeZone,
+  });
   const lifecycle = inferTextInteractionLifecycle(input.result);
-  const invalidResponseReason = lifecycle === "represented" || lifecycle === "blocked"
-    ? input.result.eventType
-    : null;
+  const invalidResponseReason =
+    lifecycle === "represented" || lifecycle === "blocked"
+      ? input.result.eventType
+      : null;
   const telemetry = buildWhatsappInteractionTelemetry({
     interactionId: input.interaction.id,
     origin: input.interaction.origin,
@@ -86,11 +98,12 @@ function enrichResolvedTextInteraction(input: {
     lifecycle,
     invalidResponseReason,
   });
-  const downstreamInteractionId = typeof input.result.data?.interactionId === "string"
-    ? input.result.data.interactionId
-    : null;
+  const downstreamInteractionId =
+    typeof input.result.data?.interactionId === "string"
+      ? input.result.data.interactionId
+      : null;
   const transitionedToAnotherInteraction = Boolean(
-    downstreamInteractionId && downstreamInteractionId !== input.interaction.id,
+    downstreamInteractionId && downstreamInteractionId !== input.interaction.id
   );
 
   return {
@@ -101,7 +114,9 @@ function enrichResolvedTextInteraction(input: {
       classification: input.interaction.classification,
       actionCount: actions.length,
       lifecycle,
-      transitionedToInteractionId: transitionedToAnotherInteraction ? downstreamInteractionId : null,
+      transitionedToInteractionId: transitionedToAnotherInteraction
+        ? downstreamInteractionId
+        : null,
     })}`,
     data: transitionedToAnotherInteraction
       ? {
@@ -127,15 +142,27 @@ function enrichResolvedTextInteraction(input: {
 
 function shouldCreateGenericIntentClarification(text?: string | null) {
   const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
-  return ["registrar", "registre", "registra", "corrigir", "corrija", "corrige", "consultar", "consulte", "consulta"]
-    .includes(normalized);
+  return [
+    "registrar",
+    "registre",
+    "registra",
+    "corrigir",
+    "corrija",
+    "corrige",
+    "consultar",
+    "consulte",
+    "consulta",
+  ].includes(normalized);
 }
 
-function buildUnregisteredPendingResult(pending: WhatsAppPendingOperationRecord): PendingInteractionResult {
+function buildUnregisteredPendingResult(
+  pending: WhatsAppPendingOperationRecord
+): PendingInteractionResult {
   return {
     handled: true,
     action: "clarification_needed",
-    reply: "Há uma operação pendente que não pode ser resolvida com segurança. Envie CANCELAR ou refaça o comando completo.",
+    reply:
+      "Há uma operação pendente que não pode ser resolvida com segurança. Envie CANCELAR ou refaça o comando completo.",
     eventType: "whatsapp.interaction.unregistered_pending_blocked",
     detail: `Tipo de pendência não registrado bloqueou o fallback. type=${pending.type}`,
     data: {
@@ -155,8 +182,33 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   userTimezone: string;
   messageId?: string | null;
 }): Promise<PendingInteractionResult | null> {
-  const active = await pendingOperationRepository.getActivePendingOperation(input.userId, input.receivedAt);
-  const correlatedMessageId = input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId();
+  const active = await pendingOperationRepository.getActivePendingOperation(
+    input.userId,
+    input.receivedAt
+  );
+  const correlatedMessageId =
+    input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId();
+
+  if (active && parseLatestFoodCorrection(input.text?.trim() ?? "")) {
+    const superseded =
+      await pendingOperationRepository.supersedePendingOperation(active.id);
+    if (superseded.superseded) return null;
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply:
+        "Não consegui substituir a operação pendente com segurança. Envie CANCELAR e repita a correção do último alimento.",
+      eventType: "whatsapp.interaction.pending_replacement_blocked",
+      detail:
+        "Correção clara do último alimento não conseguiu substituir a pendência incompatível.",
+      data: {
+        pendingOperationId: active.id,
+        pendingType: active.type,
+        fallbackBlocked: true,
+        interactionLifecycle: "blocked",
+      },
+    };
+  }
 
   if (!active) {
     if (shouldCreateGenericIntentClarification(input.text)) {
@@ -165,7 +217,9 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         originalText: input.text ?? "",
         receivedAt: input.receivedAt,
       });
-      return created ? normalizeResolvedInteraction(created, "clarification_needed") : null;
+      return created
+        ? normalizeResolvedInteraction(created, "clarification_needed")
+        : null;
     }
     if (isStandaloneWhatsappCommandWord(input.text)) {
       const foodResult = await handleWhatsappFoodClarification({
@@ -175,16 +229,22 @@ export async function resolvePendingWhatsappFoodClarification(input: {
       const presented = await attachWhatsappFoodClarificationPresentation(
         input.userId,
         foodResult,
-        input.receivedAt,
+        input.receivedAt
       );
       return presented
-        ? normalizeResolvedInteraction(presented, "food_clarification_standalone_command_blocked")
+        ? normalizeResolvedInteraction(
+            presented,
+            "food_clarification_standalone_command_blocked"
+          )
         : null;
     }
     return null;
   }
 
-  const interaction = findWhatsappRegisteredInteraction(active.type, active.target);
+  const interaction = findWhatsappRegisteredInteraction(
+    active.type,
+    active.target
+  );
   if (!interaction) return buildUnregisteredPendingResult(active);
 
   const classification = interaction.classifyText(active.target, input.text);
@@ -209,14 +269,17 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     // Somente um comando completo incompatível substitui a pendência. Rótulos
     // textuais válidos da interação, como "Registrar alimento", são resolvidos
     // acima pela própria entrada do registro.
-    const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
+    const superseded =
+      await pendingOperationRepository.supersedePendingOperation(active.id);
     if (superseded.superseded) return null;
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não consegui substituir a operação pendente com segurança. Cancele a ação anterior e envie o novo comando novamente.",
+      reply:
+        "Não consegui substituir a operação pendente com segurança. Cancele a ação anterior e envie o novo comando novamente.",
       eventType: "whatsapp.interaction.pending_replacement_blocked",
-      detail: "Novo comando completo bloqueado porque a pendência anterior não pôde ser marcada como substituída.",
+      detail:
+        "Novo comando completo bloqueado porque a pendência anterior não pôde ser marcada como substituída.",
       data: {
         pendingOperationId: active.id,
         pendingType: active.type,
@@ -226,7 +289,9 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     };
   }
 
-  const replay = await rebuildWhatsappRegisteredInteraction(active, { timeZone: input.userTimezone });
+  const replay = await rebuildWhatsappRegisteredInteraction(active, {
+    timeZone: input.userTimezone,
+  });
   if (!replay) return buildUnregisteredPendingResult(active);
   return {
     handled: true,

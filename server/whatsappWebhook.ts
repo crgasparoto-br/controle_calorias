@@ -1,6 +1,17 @@
 import { Request, Response } from "express";
 import type { GenerateImageResponse } from "./_core/imageGeneration";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
+import {
+  buildSavedMedia,
+  confirmPendingMeal,
+  createPendingMealInference,
+  createUserWaterLog,
+  getHabitSnapshots,
+  getUserIdByWhatsappPhone,
+  listUserMeals,
+  logInferenceEvent,
+  removeUserMeal,
+  updateUserMeal,
+} from "./db";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
@@ -13,7 +24,10 @@ import {
 } from "./modules/whatsapp/promptInjectionGuard";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
-import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp/replyFormatting";
+import {
+  formatWhatsAppMacro,
+  formatWhatsAppReplyTime,
+} from "./modules/whatsapp/replyFormatting";
 import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
@@ -25,15 +39,25 @@ import {
   buildWhatsAppCanonicalWaterReply as formatCanonicalWaterReply,
   buildWhatsAppCanonicalWeightReply as formatCanonicalWeightReply,
 } from "./modules/whatsapp/domainReplyFormatters";
-import { sendWhatsAppLogicalDomainReply, sendWhatsAppStandaloneReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
-import { composeWhatsAppDeferredReplyText, getWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import {
+  sendWhatsAppLogicalDomainReply,
+  sendWhatsAppStandaloneReply,
+  type WhatsAppAuxiliaryImage,
+} from "./modules/whatsapp/logicalReplyDelivery";
+import {
+  composeWhatsAppDeferredReplyText,
+  getWhatsAppDeferredLogicalReply,
+} from "./modules/whatsapp/deferredLogicalReply";
 import {
   startProcessingAcknowledgement,
   type ProcessingAcknowledgementCoordinator,
 } from "./modules/whatsapp/processingAcknowledgement";
 import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
-import { getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import {
+  getWhatsAppWaterProgress,
+  getWhatsAppWeightVariation,
+} from "./modules/whatsapp/userMeasurementReplyContext";
 import {
   detectWaterLogFromMessage,
   detectWeightLogFromMessage,
@@ -41,7 +65,10 @@ import {
   handlePendingWhatsAppConfirmation,
   handleWhatsAppAction,
 } from "./modules/whatsapp/webhookTextCommands";
-import { prepareMessageInput, type PreparedMessageInput } from "./modules/whatsapp/webhookMediaPipeline";
+import {
+  prepareMessageInput,
+  type PreparedMessageInput,
+} from "./modules/whatsapp/webhookMediaPipeline";
 import {
   buildWhatsAppAudioNotUnderstoodReplyMessage,
   buildWhatsAppAudioProcessingFailureReplyMessage,
@@ -49,7 +76,13 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
-import { assertWhatsappImageMealItemsArePersistable } from "./modules/whatsapp/visualMealInferenceValidation";
+import { requestWhatsappImageMealQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
+import {
+  assertWhatsappImageMealItemsArePersistable,
+  getWhatsappImageMissingPortionIndexes,
+  inspectWhatsappImageMealItemsPersistence,
+  normalizeWhatsappImageMealItemsForPersistence,
+} from "./modules/whatsapp/visualMealInferenceValidation";
 import {
   extractWhatsAppWebhookMessages,
   isWhatsAppMessageForConfiguredChannel,
@@ -57,7 +90,11 @@ import {
   resolveWhatsAppMessageOccurredAt,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { MealInferenceError, MealProcessingResult, processMealInput } from "./nutritionEngine";
+import {
+  MealInferenceError,
+  MealProcessingResult,
+  processMealInput,
+} from "./nutritionEngine";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
@@ -68,7 +105,9 @@ import {
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
-type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
+type WhatsAppTextIntentResult = NonNullable<
+  Awaited<ReturnType<typeof executeWhatsappTextIntent>>
+>;
 
 const whatsAppMessageDeduplicationCache = createMessageDeduplicationCache();
 
@@ -87,19 +126,37 @@ function formatWhatsAppOccurredAt(occurredAt: Date, timeZone: string) {
   });
 }
 
-async function buildCanonicalWaterReply(userId: number, amountMl: number, occurredAt: Date, timeZone: string) {
+async function buildCanonicalWaterReply(
+  userId: number,
+  amountMl: number,
+  occurredAt: Date,
+  timeZone: string
+) {
   const progress = await getWhatsAppWaterProgress(userId, occurredAt, timeZone);
   return formatCanonicalWaterReply({
     amountMl,
     totalMl: progress.totalMl,
     goalMl: progress.goalMl,
     occurredAtLabel: formatWhatsAppOccurredAt(occurredAt, progress.timeZone),
-    totalLabel: progress.dateKey === new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone }) ? "Total de hoje" : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
+    totalLabel:
+      progress.dateKey ===
+      new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone })
+        ? "Total de hoje"
+        : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
   });
 }
 
-async function buildCanonicalWeightReply(userId: number, weightKg: number, occurredAt: Date, timeZone: string) {
-  const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightKg);
+async function buildCanonicalWeightReply(
+  userId: number,
+  weightKg: number,
+  occurredAt: Date,
+  timeZone: string
+) {
+  const { variationKg } = await getWhatsAppWeightVariation(
+    userId,
+    occurredAt,
+    weightKg
+  );
   return formatCanonicalWeightReply({
     weightKg,
     variationKg,
@@ -107,7 +164,10 @@ async function buildCanonicalWeightReply(userId: number, weightKg: number, occur
   });
 }
 
-function buildProcessingFailureReply(message: WhatsAppWebhookMessage, error: unknown) {
+function buildProcessingFailureReply(
+  message: WhatsAppWebhookMessage,
+  error: unknown
+) {
   const notRecognized = error instanceof MealInferenceError;
   if (message.image?.id) {
     return notRecognized
@@ -121,37 +181,59 @@ function buildProcessingFailureReply(message: WhatsAppWebhookMessage, error: unk
   }
   // MealInferenceError carrega uma clarificação de domínio escrita para o
   // usuário (ex.: quantidade inválida); não descartar essa orientação.
-  if (notRecognized && error instanceof MealInferenceError && error.message.trim()) {
+  if (
+    notRecognized &&
+    error instanceof MealInferenceError &&
+    error.message.trim()
+  ) {
     return buildWhatsAppRecoverableErrorReplyMessage(error.message.trim());
   }
-  return buildWhatsAppRecoverableErrorReplyMessage("Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes.");
+  return buildWhatsAppRecoverableErrorReplyMessage(
+    "Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes."
+  );
 }
 
 function getVerifyToken() {
   return getWhatsAppChannelConfig().verifyToken;
 }
 
-function getPreparedTextModality(message: WhatsAppWebhookMessage): WhatsAppUserContentModality {
+function getPreparedTextModality(
+  message: WhatsAppWebhookMessage
+): WhatsAppUserContentModality {
   if (message.image?.id && message.audio?.id) return "multimodal";
   if (message.image?.id) return "image_caption";
   if (message.audio?.id) return "multimodal";
   return "text";
 }
 
-function inspectPreparedMessageSafety(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
+function inspectPreparedMessageSafety(
+  message: WhatsAppWebhookMessage,
+  prepared: PreparedMessageInput
+) {
   const checks: WhatsAppContentSafetyCheck[] = [];
   if (prepared.text?.trim()) {
-    checks.push(inspectWhatsAppUserContentSafety(prepared.text, getPreparedTextModality(message)));
+    checks.push(
+      inspectWhatsAppUserContentSafety(
+        prepared.text,
+        getPreparedTextModality(message)
+      )
+    );
   }
   if (prepared.transcript?.trim()) {
-    checks.push(inspectWhatsAppUserContentSafety(prepared.transcript, "audio_transcript"));
+    checks.push(
+      inspectWhatsAppUserContentSafety(prepared.transcript, "audio_transcript")
+    );
   }
   return checks.filter(check => !check.safe);
 }
 
 function buildSecurityGuardDetail(unsafeChecks: WhatsAppContentSafetyCheck[]) {
-  const categories = Array.from(new Set(unsafeChecks.flatMap(check => check.categories)));
-  const modalities = Array.from(new Set(unsafeChecks.map(check => check.modality)));
+  const categories = Array.from(
+    new Set(unsafeChecks.flatMap(check => check.categories))
+  );
+  const modalities = Array.from(
+    new Set(unsafeChecks.map(check => check.modality))
+  );
   return `Conteudo bloqueado por seguranca antes da inferencia nutricional: ${categories.join(", ") || "security_guard"}; modalidades: ${modalities.join(", ") || "desconhecida"}.`;
 }
 
@@ -217,14 +299,18 @@ async function sendInterpretedTextIntentReply(input: {
   logInferenceEvent({
     userId: input.userId,
     origin: "whatsapp",
-    status: input.interpreted.action === "clarification_needed" ? "warning" : "success",
+    status:
+      input.interpreted.action === "clarification_needed"
+        ? "warning"
+        : "success",
     eventType: input.interpreted.eventType,
     detail: input.interpreted.detail,
   });
 
-  const mealId = typeof input.interpreted.data?.mealId === "number"
-    ? input.interpreted.data.mealId
-    : null;
+  const mealId =
+    typeof input.interpreted.data?.mealId === "number"
+      ? input.interpreted.data.mealId
+      : null;
   const replyText = input.replyText ?? input.interpreted.reply;
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
@@ -249,8 +335,13 @@ async function sendInterpretedTextIntentReply(input: {
   await markMessageProcessed(input.lifecycleHandle);
 }
 
-function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
-  return Boolean(message.audio?.id && !message.image?.id && prepared.transcript?.trim());
+function canInterpretAudioTranscriptIntent(
+  message: WhatsAppWebhookMessage,
+  prepared: PreparedMessageInput
+) {
+  return Boolean(
+    message.audio?.id && !message.image?.id && prepared.transcript?.trim()
+  );
 }
 
 function isSupportedMessage(message: WhatsAppWebhookMessage) {
@@ -319,11 +410,12 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.unlinked_phone",
-        detail: "Mensagem recebida de telefone sem vínculo ativo com um usuário da plataforma.",
+        detail:
+          "Mensagem recebida de telefone sem vínculo ativo com um usuário da plataforma.",
       });
       const delivery = await sendWhatsAppStandaloneReply(
         sourcePhone,
-        buildWhatsAppUnlinkedAccountReplyMessage(),
+        buildWhatsAppUnlinkedAccountReplyMessage()
       );
       if (!delivery.result.primaryOk) {
         logInferenceEvent({
@@ -331,7 +423,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           origin: "whatsapp",
           status: "warning",
           eventType: "whatsapp.unlinked_phone_reply_failed",
-          detail: "Falha ao enviar orientação sanitizada para telefone sem vínculo.",
+          detail:
+            "Falha ao enviar orientação sanitizada para telefone sem vínculo.",
         });
       }
       continue;
@@ -353,13 +446,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       whatsappConnectionId: null,
       phoneNumber: sourcePhone,
       externalMessageId: message.id,
-      contentType: message.image?.id && message.audio?.id
-        ? "multimodal"
-        : message.image?.id
-          ? "image"
-          : message.audio?.id
-            ? "audio"
-            : "text",
+      contentType:
+        message.image?.id && message.audio?.id
+          ? "multimodal"
+          : message.image?.id
+            ? "image"
+            : message.audio?.id
+              ? "audio"
+              : "text",
       text: message.text?.body ?? null,
       captionText: message.image?.caption ?? null,
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
@@ -370,10 +464,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       await recordDomainLink(lifecycleHandle, link);
     }
     const responsePrefixBlocks = [...(deferredReply?.prefixBlocks ?? [])];
-    const composeFinalReply = (reply: string) => composeWhatsAppDeferredReplyText(
-      { prefixBlocks: responsePrefixBlocks, domainLinks: deferredReply?.domainLinks ?? [] },
-      reply,
-    );
+    const composeFinalReply = (reply: string) =>
+      composeWhatsAppDeferredReplyText(
+        {
+          prefixBlocks: responsePrefixBlocks,
+          domainLinks: deferredReply?.domainLinks ?? [],
+        },
+        reply
+      );
     let acknowledgement: ProcessingAcknowledgementCoordinator | null = null;
     const sendFinalText = async (reply: string) => {
       await acknowledgement?.beforeFinalReply();
@@ -387,7 +485,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       await markMessageProcessed(lifecycleHandle);
       return {
         ok: delivery.result.primaryOk,
-        detail: delivery.result.sends.find(send => !send.ok)?.detail ?? "Resposta funcional enviada.",
+        detail:
+          delivery.result.sends.find(send => !send.ok)?.detail ??
+          "Resposta funcional enviada.",
       };
     };
 
@@ -414,12 +514,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         logInferenceEvent({
           userId,
           origin: "whatsapp",
-          status: aiQuestionResult.action === "ai_question_answered" ? "success" : "warning",
+          status:
+            aiQuestionResult.action === "ai_question_answered"
+              ? "success"
+              : "warning",
           eventType: aiQuestionResult.eventType,
           detail: aiQuestionResult.detail,
         });
 
-        const replyResult = await sendFinalText( aiQuestionResult.reply);
+        const replyResult = await sendFinalText(aiQuestionResult.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
@@ -432,17 +535,25 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         continue;
       }
 
-      const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(message, userId);
+      const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(
+        message,
+        userId
+      );
       if (pendingConfirmationResult) {
         logInferenceEvent({
           userId,
           origin: "whatsapp",
-          status: pendingConfirmationResult.eventType === "whatsapp.action_cancelled" ? "warning" : "success",
+          status:
+            pendingConfirmationResult.eventType === "whatsapp.action_cancelled"
+              ? "warning"
+              : "success",
           eventType: pendingConfirmationResult.eventType,
           detail: pendingConfirmationResult.detail,
         });
 
-        const replyResult = await sendFinalText( pendingConfirmationResult.reply);
+        const replyResult = await sendFinalText(
+          pendingConfirmationResult.reply
+        );
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
@@ -461,12 +572,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         logInferenceEvent({
           userId,
           origin: "whatsapp",
-          status: actionResult.eventType === "whatsapp.action_clarification_needed" ? "warning" : "success",
+          status:
+            actionResult.eventType === "whatsapp.action_clarification_needed"
+              ? "warning"
+              : "success",
           eventType: actionResult.eventType,
           detail: actionResult.detail,
         });
 
-        const replyResult = await sendFinalText( actionResult.reply);
+        const replyResult = await sendFinalText(actionResult.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
@@ -482,13 +596,18 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       // Mídia usa acknowledgement cancelável apenas quando o processamento ultrapassa o limiar.
       if (message.image?.id || message.audio?.id) {
         acknowledgement = startProcessingAcknowledgement({
-          send: () => sendWhatsAppProcessingAcknowledgement(sourcePhone, buildProcessingAcknowledgement(message)),
-          onFailure: detail => logWhatsAppOperationWarning({
-            userId,
-            sourcePhone,
-            eventType: "whatsapp.processing_ack_failed",
-            detail,
-          }),
+          send: () =>
+            sendWhatsAppProcessingAcknowledgement(
+              sourcePhone,
+              buildProcessingAcknowledgement(message)
+            ),
+          onFailure: detail =>
+            logWhatsAppOperationWarning({
+              userId,
+              sourcePhone,
+              eventType: "whatsapp.processing_ack_failed",
+              detail,
+            }),
         });
       }
 
@@ -499,7 +618,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           amountMl: waterLog.amountMl,
           occurredAt: occurredAt.toISOString(),
         });
-        await recordDomainLink(lifecycleHandle, { waterLogId: createdWaterLog.id });
+        await recordDomainLink(lifecycleHandle, {
+          waterLogId: createdWaterLog.id,
+        });
 
         logInferenceEvent({
           userId,
@@ -509,7 +630,12 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: "Consumo de água registrado pelo WhatsApp.",
         });
 
-        const waterReply = await buildCanonicalWaterReply(userId, waterLog.amountMl, occurredAt, userTimezone);
+        const waterReply = await buildCanonicalWaterReply(
+          userId,
+          waterLog.amountMl,
+          occurredAt,
+          userTimezone
+        );
         const replyResult = await sendFinalText(waterReply);
         if (!replyResult.ok) {
           logInferenceEvent({
@@ -526,14 +652,21 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const weightLog = detectWeightLogFromMessage(message);
       if (weightLog) {
         const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-        const weightReply = await buildCanonicalWeightReply(userId, weightLog.weightKg, occurredAt, userTimezone);
+        const weightReply = await buildCanonicalWeightReply(
+          userId,
+          weightLog.weightKg,
+          occurredAt,
+          userTimezone
+        );
         const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
           weightKg: weightLog.weightKg,
           measuredAt: occurredAt,
           notes: "Peso atualizado pelo WhatsApp.",
         });
         if (persistedWeight.entry.id > 0) {
-          await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+          await recordDomainLink(lifecycleHandle, {
+            weightEntryId: persistedWeight.entry.id,
+          });
         }
 
         logInferenceEvent({
@@ -559,14 +692,17 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const prepared = await prepareMessageInput(message, sourcePhone);
       if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
-        const replyResult = await sendFinalText( prepared.audioTranscriptionFailure.reply);
+        const replyResult = await sendFinalText(
+          prepared.audioTranscriptionFailure.reply
+        );
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: "Falha ao enviar resposta de falha de transcrição pelo WhatsApp.",
+            detail:
+              "Falha ao enviar resposta de falha de transcrição pelo WhatsApp.",
           });
         }
         continue;
@@ -582,7 +718,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: buildSecurityGuardDetail(unsafeContent),
         });
 
-        const replyResult = await sendFinalText( buildSuspiciousWhatsAppContentReply());
+        const replyResult = await sendFinalText(
+          buildSuspiciousWhatsAppContentReply()
+        );
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
@@ -596,7 +734,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       if (prepared.audioTranscriptionFailure && prepared.text?.trim()) {
-        responsePrefixBlocks.push(prepared.audioTranscriptionFailure.partialTextReply);
+        responsePrefixBlocks.push(
+          prepared.audioTranscriptionFailure.partialTextReply
+        );
       }
 
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
@@ -638,23 +778,33 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             amountMl: waterSplit.waterVolumeMl,
             occurredAt: occurredAt.toISOString(),
           });
-          await recordDomainLink(lifecycleHandle, { waterLogId: createdWaterLog.id });
+          await recordDomainLink(lifecycleHandle, {
+            waterLogId: createdWaterLog.id,
+          });
 
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "success",
             eventType: "whatsapp.water_logged",
-            detail: "Consumo de água identificado em imagem e registrado pelo WhatsApp.",
+            detail:
+              "Consumo de água identificado em imagem e registrado pelo WhatsApp.",
           });
         }
 
-        processed.items = waterSplit.remainingItems;
-        processed.totals = calculateMealTotals(waterSplit.remainingItems);
+        processed.items = normalizeWhatsappImageMealItemsForPersistence(
+          waterSplit.remainingItems
+        );
+        processed.totals = calculateMealTotals(processed.items);
 
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {
-            const waterReply = await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt, userTimezone);
+            const waterReply = await buildCanonicalWaterReply(
+              userId,
+              waterSplit.waterVolumeMl,
+              occurredAt,
+              userTimezone
+            );
             const replyResult = await sendFinalText(waterReply);
             if (!replyResult.ok) {
               logInferenceEvent({
@@ -669,7 +819,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           }
 
           if (waterSplit.hasWaterWithoutVolume) {
-            const replyResult = await sendFinalText( buildWhatsAppWaterVolumeNeededReplyMessage());
+            const replyResult = await sendFinalText(
+              buildWhatsAppWaterVolumeNeededReplyMessage()
+            );
             if (!replyResult.ok) {
               logInferenceEvent({
                 userId,
@@ -682,7 +834,58 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             continue;
           }
         } else if (waterSplit.waterVolumeMl > 0) {
-          responsePrefixBlocks.push(await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt, userTimezone));
+          responsePrefixBlocks.push(
+            await buildCanonicalWaterReply(
+              userId,
+              waterSplit.waterVolumeMl,
+              occurredAt,
+              userTimezone
+            )
+          );
+        }
+
+        const imagePersistence = inspectWhatsappImageMealItemsPersistence(
+          processed.items
+        );
+        if (imagePersistence.status === "missing_portion") {
+          const clarification =
+            await requestWhatsappImageMealQuantityClarification({
+              userId,
+              detectedMealLabel: processed.detectedMealLabel,
+              sourceText: processed.sourceText,
+              transcript: processed.transcript,
+              reasoning: processed.reasoning,
+              confidence: processed.confidence,
+              occurredAt,
+              items: processed.items,
+              media: prepared.media,
+              pendingItemIndexes: getWhatsappImageMissingPortionIndexes(
+                processed.items
+              ),
+              messageId: message.id,
+            });
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status:
+              clarification.action === "food_clarification_requested"
+                ? "success"
+                : "warning",
+            eventType: clarification.eventType,
+            detail: clarification.detail,
+          });
+          const replyResult = await sendFinalText(clarification.reply);
+          if (!replyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail:
+                "Falha ao enviar clarificação de quantidade para alimento identificado por imagem.",
+            });
+          }
+          continue;
         }
 
         assertWhatsappImageMealItemsArePersistable(processed.items);
@@ -697,22 +900,28 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       if (message.image?.id) {
         try {
-          annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared.imageAnalysisUrl);
+          annotatedImage = await generateAnnotatedMealImage(
+            processedForPersistence,
+            prepared.imageAnalysisUrl
+          );
           if (annotatedImage?.url) {
-            mediaForPersistence.push(buildSavedMedia({
-              mediaType: "image",
-              storageKey: annotatedImage.storageKey ?? annotatedImage.url,
-              storageUrl: annotatedImage.url,
-              mimeType: annotatedImage.mimeType ?? "image/png",
-              originalFileName: "whatsapp-annotated-meal.png",
-            }));
+            mediaForPersistence.push(
+              buildSavedMedia({
+                mediaType: "image",
+                storageKey: annotatedImage.storageKey ?? annotatedImage.url,
+                storageUrl: annotatedImage.url,
+                mimeType: annotatedImage.mimeType ?? "image/png",
+                originalFileName: "whatsapp-annotated-meal.png",
+              })
+            );
           } else {
             logInferenceEvent({
               userId,
               origin: "whatsapp",
               status: "warning",
               eventType: "whatsapp.annotated_image_skipped",
-              detail: "Imagem anotada não vinculada à refeição; o registro nutricional foi preservado.",
+              detail:
+                "Imagem anotada não vinculada à refeição; o registro nutricional foi preservado.",
             });
           }
         } catch (annotationError) {
@@ -721,18 +930,25 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.annotated_image_skipped",
-            detail: "Falha ao gerar imagem anotada; o registro nutricional foi preservado.",
+            detail:
+              "Falha ao gerar imagem anotada; o registro nutricional foi preservado.",
           });
         }
       }
 
-      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, mediaForPersistence);
+      const draft = createPendingMealInference(
+        userId,
+        "whatsapp",
+        processedForPersistence,
+        mediaForPersistence
+      );
       const savedMeal = await confirmPendingMeal({
         draftId: draft.draftId,
         userId,
         mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
         occurredAt: occurredAt.toISOString(),
-        notes: prepared.text?.trim() || prepared.transcript?.trim() || undefined,
+        notes:
+          prepared.text?.trim() || prepared.transcript?.trim() || undefined,
         items: processedForPersistence.items,
       });
 
@@ -743,7 +959,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           removeUserMeal,
         },
         savedMeal,
-        userTimezone,
+        userTimezone
       );
 
       const replyMeal = consolidationResult.meal;
@@ -754,7 +970,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.message_processed",
-        detail: "Mensagem processada e refeição registrada automaticamente pelo WhatsApp.",
+        detail:
+          "Mensagem processada e refeição registrada automaticamente pelo WhatsApp.",
       });
 
       const persistedReplyInput: MealProcessingResult = {
@@ -763,22 +980,35 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         items: replyMeal.items ?? [],
         totals: calculateMealTotals(replyMeal.items ?? []),
       };
-      const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt, userTimezone);
-      const mealReplyText = consolidationResult.action === "updated"
-        ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
-            registeredAt: occurredAt,
-            goalProgress,
-            timeZone: userTimezone,
-          })
-        : buildWhatsAppMealReplyMessage(persistedReplyInput, {
-            registeredAt: occurredAt,
-            goalProgress,
-            timeZone: userTimezone,
-          });
+      const goalProgress = await getWhatsAppMealGoalProgress(
+        userId,
+        occurredAt,
+        userTimezone
+      );
+      const mealReplyText =
+        consolidationResult.action === "updated"
+          ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
+              registeredAt: occurredAt,
+              goalProgress,
+              timeZone: userTimezone,
+            })
+          : buildWhatsAppMealReplyMessage(persistedReplyInput, {
+              registeredAt: occurredAt,
+              goalProgress,
+              timeZone: userTimezone,
+            });
       const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
-        ? { url: annotatedImage.url, caption: "Imagem anotada com os alimentos identificados." }
+        ? {
+            url: annotatedImage.url,
+            caption: "Imagem anotada com os alimentos identificados.",
+          }
         : annotatedImage?.buffer
-          ? { buffer: annotatedImage.buffer, mimeType: annotatedImage.mimeType, fileName: "whatsapp-annotated-meal.png", caption: "Imagem anotada com os alimentos identificados." }
+          ? {
+              buffer: annotatedImage.buffer,
+              mimeType: annotatedImage.mimeType,
+              fileName: "whatsapp-annotated-meal.png",
+              caption: "Imagem anotada com os alimentos identificados.",
+            }
           : null;
       await acknowledgement?.beforeFinalReply();
       const delivery = await sendWhatsAppLogicalDomainReply({
@@ -794,7 +1024,10 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           userId,
           origin: "whatsapp",
           status: delivery.result.primaryOk ? "warning" : "error",
-          eventType: auxiliaryImage && delivery.result.primaryOk ? "whatsapp.annotated_image_reply_failed" : "whatsapp.reply_failed",
+          eventType:
+            auxiliaryImage && delivery.result.primaryOk
+              ? "whatsapp.annotated_image_reply_failed"
+              : "whatsapp.reply_failed",
           detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
         });
       }
@@ -805,11 +1038,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "error",
         eventType: "whatsapp.processing_error",
-        detail: error instanceof Error ? error.message : "Falha desconhecida ao processar webhook.",
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Falha desconhecida ao processar webhook.",
       });
 
       const reply = buildProcessingFailureReply(message, error);
-      const replyResult = await sendFinalText( reply);
+      const replyResult = await sendFinalText(reply);
       if (!replyResult.ok) {
         logInferenceEvent({
           userId,
