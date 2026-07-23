@@ -38,12 +38,15 @@ A ordenação da carteira é estável por identificação exibível, solicitaç�
 - O shell consulta o perfil profissional canônico antes de exibir o conteúdo e diferencia carregamento, sessão ausente, perfil inativo e falha de validação.
 - A URL é a única fonte de verdade do paciente e da seção ativa. `selectedPatient` é apenas projeção derivada da rota depois da revalidação.
 - `professionalRecord.context` recebe o `patientId` e o recurso exato da rota, revalidando perfil ativo, entitlement e autorização `approved`.
+- Negação do entitlement exato de `professionalRecord.context` é devolvida como tRPC `FORBIDDEN`, permitindo limpar o contexto e redirecionar imediatamente.
 - Prontuário, avaliação, metas, orientações, anotações e histórico usam `professional_record`; relatórios usam `professional_reports`; mensagens usam `professional_messages`.
+- A resolução canônica do timezone do paciente pode ser reutilizada por carteira, prontuário, relatórios ou mensagens quando a rota individual correspondente estiver autorizada; ela não exige `professional_portfolio` como dependência indireta.
+- Recursos complementares, como alertas operacionais e assistência de IA, continuam com entitlements próprios. A ausência deles é tratada como capacidade indisponível e não como revogação do vínculo ou do entitlement principal da rota.
 - APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e entitlement no backend; a proteção visual não substitui autorização.
 - Perfil e contexto do paciente são revalidados periodicamente e quando a janela recupera o foco.
 - Na troca de paciente, saída para **Minha alimentação**, perda de autorização, perda do perfil ou desmontagem do shell, consultas individuais são canceladas e removidas do cache antes de outro paciente ficar visível.
 - Erros de query ou mutation que informem revogação removem imediatamente o contexto e os dados visíveis e retornam com segurança à carteira.
-- Falha temporária mantém o contexto protegido, sem dados antigos, e oferece **Tentar novamente**.
+- Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
 - ID malformado, zero ou número inseguro não dispara consulta com identificador artificial.
 
 ## Acessibilidade e responsividade
@@ -70,6 +73,9 @@ Os testes cobrem:
 
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
+- conversão da negação do entitlement principal em `FORBIDDEN`;
+- distinção entre revogação da rota e ausência de alertas ou IA opcionais;
+- uso do timezone por rota individual autorizada sem exigir entitlement de carteira;
 - IDs válidos, malformados, zero e números inseguros;
 - bloqueio de perfil inativo e falha temporária de validação;
 - revalidação ao recuperar foco;
