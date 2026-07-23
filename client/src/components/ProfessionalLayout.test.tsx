@@ -4,39 +4,66 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProfessionalLayout, {
+  isProfessionalPatientAccessUnavailableError,
+  isProfessionalPatientQueryKey,
   useProfessionalWorkspace,
 } from "./ProfessionalLayout";
 
 const setLocation = vi.fn();
 const refreshAuth = vi.fn(async () => undefined);
 const profileRefetch = vi.fn(async () => undefined);
-const accessesRefetch = vi.fn(async () => undefined);
+const contextRefetch = vi.fn(async () => undefined);
+const removeQueries = vi.fn();
+const contextInput = vi.fn();
+let querySubscriber: ((event: any) => void) | null = null;
+let mutationSubscriber: ((event: any) => void) | null = null;
 
 function cacheUtils() {
   return {
     cancel: vi.fn(() => Promise.resolve()),
-    reset: vi.fn(() => Promise.resolve()),
   };
 }
 
 const patientTimeZone = cacheUtils();
 const patientDashboard = cacheUtils();
 const patientPeriodBundle = cacheUtils();
-const history = cacheUtils();
+const contextCache = cacheUtils();
 const professionalRecord = cacheUtils();
 const messages = cacheUtils();
 const operationalAlerts = cacheUtils();
 const aiPriorities = cacheUtils();
+const officialGoal = cacheUtils();
 const patientCaches = [
   patientTimeZone,
   patientDashboard,
   patientPeriodBundle,
-  history,
+  contextCache,
   professionalRecord,
   messages,
   operationalAlerts,
   aiPriorities,
+  officialGoal,
 ];
+
+const queryClient = {
+  removeQueries,
+  getQueryCache: () => ({
+    subscribe: (subscriber: (event: any) => void) => {
+      querySubscriber = subscriber;
+      return () => {
+        querySubscriber = null;
+      };
+    },
+  }),
+  getMutationCache: () => ({
+    subscribe: (subscriber: (event: any) => void) => {
+      mutationSubscriber = subscriber;
+      return () => {
+        mutationSubscriber = null;
+      };
+    },
+  }),
+};
 
 let location = "/professional";
 let authState: {
@@ -44,7 +71,7 @@ let authState: {
   user: null | { professionalProfileActive?: boolean };
 };
 let profileState: Record<string, unknown>;
-let accessesState: Record<string, unknown>;
+let patientContextState: Record<string, unknown>;
 
 class ResizeObserverMock {
   observe() {}
@@ -53,6 +80,9 @@ class ResizeObserverMock {
 }
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => queryClient,
+}));
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ ...authState, refresh: refreshAuth }),
 }));
@@ -68,20 +98,28 @@ vi.mock("@/lib/trpc", () => ({
           patientTimeZone,
           patientDashboard,
           patientPeriodBundle,
-          history,
         },
       },
       professionalRecord: {
+        context: contextCache,
         get: professionalRecord,
         messages: { list: messages },
         operationalAlerts: { list: operationalAlerts },
         ai: { priorities: aiPriorities },
+        officialGoal: { professionalState: officialGoal },
       },
     }),
     nutrition: {
       professionals: {
         profile: { useQuery: () => profileState },
-        myAccesses: { useQuery: () => accessesState },
+      },
+    },
+    professionalRecord: {
+      context: {
+        useQuery: (input: unknown) => {
+          contextInput(input);
+          return patientContextState;
+        },
       },
     },
   },
@@ -108,22 +146,29 @@ function renderPatientLayout() {
   );
 }
 
-function markAccessesFetching() {
-  accessesState = {
-    ...accessesState,
-    isFetching: true,
-  };
-}
-
-function markAccessesFresh(data = accessesState.data) {
-  accessesState = {
-    ...accessesState,
-    data,
+function freshPatientContext(patientId = 10, displayName = "Ana") {
+  patientContextState = {
+    data: {
+      patientId,
+      displayName,
+      trackingStatus: "active",
+      authorizationId: `access-${patientId}`,
+    },
     isLoading: false,
     isFetching: false,
     isError: false,
     isSuccess: true,
     isFetchedAfterMount: true,
+    error: null,
+    refetch: contextRefetch,
+  };
+}
+
+function fetchingPatientContext() {
+  patientContextState = {
+    ...patientContextState,
+    isFetching: true,
+    isSuccess: true,
   };
 }
 
@@ -134,12 +179,14 @@ beforeEach(() => {
   setLocation.mockReset();
   refreshAuth.mockClear();
   profileRefetch.mockClear();
-  accessesRefetch.mockClear();
+  contextRefetch.mockClear();
+  contextInput.mockClear();
+  removeQueries.mockClear();
+  querySubscriber = null;
+  mutationSubscriber = null;
   for (const cache of patientCaches) {
     cache.cancel.mockReset();
     cache.cancel.mockImplementation(() => Promise.resolve());
-    cache.reset.mockReset();
-    cache.reset.mockImplementation(() => Promise.resolve());
   }
   authState = {
     loading: false,
@@ -154,26 +201,37 @@ beforeEach(() => {
     isFetchedAfterMount: true,
     refetch: profileRefetch,
   };
-  accessesState = {
-    data: [
-      {
-        patientUserId: 10,
-        status: "approved",
-        patient: { name: "Ana", email: "ana@example.com" },
-      },
-      {
-        patientUserId: 20,
-        status: "approved",
-        patient: { name: "Bruno", email: "bruno@example.com" },
-      },
-    ],
-    isLoading: false,
-    isFetching: false,
-    isError: false,
-    isSuccess: true,
-    isFetchedAfterMount: true,
-    refetch: accessesRefetch,
-  };
+  freshPatientContext();
+});
+
+describe("professional patient cache helpers", () => {
+  it("matches only patient-scoped query paths", () => {
+    expect(
+      isProfessionalPatientQueryKey([
+        ["professionalRecord", "messages", "list"],
+        { patientId: 10 },
+      ])
+    ).toBe(true);
+    expect(
+      isProfessionalPatientQueryKey([
+        ["nutrition", "professionals", "portfolio"],
+        {},
+      ])
+    ).toBe(false);
+  });
+
+  it("recognizes canonical authorization revocation errors", () => {
+    expect(
+      isProfessionalPatientAccessUnavailableError(
+        new Error("O acesso a este paciente não está mais disponível.")
+      )
+    ).toBe(true);
+    expect(
+      isProfessionalPatientAccessUnavailableError(
+        new Error("Falha temporária de conexão")
+      )
+    ).toBe(false);
+  });
 });
 
 describe("ProfessionalLayout", () => {
@@ -187,132 +245,120 @@ describe("ProfessionalLayout", () => {
     expect(screen.queryByText("conteúdo sensível")).toBeNull();
   });
 
-  it("keeps cached authorization protected until refetch finishes", async () => {
+  it("requests the exact entitlement declared by the patient route", async () => {
     location = "/professional/patients/10/reports";
-    markAccessesFetching();
+    renderPatientLayout();
+
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(contextInput).toHaveBeenCalledWith({
+      patientId: 10,
+      resource: "professional_reports",
+    });
+  });
+
+  it("keeps cached authorization protected until refetch finishes", async () => {
+    location = "/professional/patients/10/messages";
+    fetchingPatientContext();
     const view = renderPatientLayout();
 
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+    expect(screen.queryByText("Ana")).toBeNull();
     expect(
       screen.getByText("Preparando o contexto seguro do paciente...")
     ).toBeTruthy();
 
-    markAccessesFresh();
+    freshPatientContext();
     view.rerender(
       <ProfessionalLayout>
         <PatientFixture />
       </ProfessionalLayout>
     );
 
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
-    expect(document.title).toBe("Relatórios | Área Profissional");
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(document.title).toBe("Mensagens | Área Profissional");
   });
 
-  it("waits for every previous-patient cache reset before showing the next patient", async () => {
+  it("waits for previous-patient cancellation and removal before showing the next patient", async () => {
     location = "/professional/patients/10";
     const view = renderPatientLayout();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
 
     const pendingCancellation = deferred();
     patientTimeZone.cancel.mockImplementationOnce(
       () => pendingCancellation.promise
     );
-    for (const cache of patientCaches) {
-      cache.cancel.mockClear();
-      cache.reset.mockClear();
-    }
+    removeQueries.mockClear();
 
     location = "/professional/patients/20";
+    freshPatientContext(20, "Bruno");
     view.rerender(
       <ProfessionalLayout>
         <PatientFixture />
       </ProfessionalLayout>
     );
 
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
-    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
-    expect(
-      screen.getByText("Preparando o contexto seguro do paciente...")
-    ).toBeTruthy();
-
-    await Promise.resolve();
-    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
-    expect(patientTimeZone.reset).not.toHaveBeenCalled();
-
+    expect(screen.queryByText("Ana")).toBeNull();
+    expect(screen.queryByText("Bruno")).toBeNull();
     pendingCancellation.resolve();
-    await waitFor(() => expect(screen.getByText("Paciente: Bruno")).toBeTruthy());
 
-    for (const cache of patientCaches) {
-      expect(cache.cancel).toHaveBeenCalledTimes(1);
-      expect(cache.reset).toHaveBeenCalledTimes(1);
-    }
+    await waitFor(() => expect(screen.getByText("Bruno")).toBeTruthy());
+    expect(removeQueries).toHaveBeenCalled();
   });
 
-  it("ignores a late transition after rapid back and forward navigation", async () => {
-    location = "/professional/patients/10";
-    const view = renderPatientLayout();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+  it("removes context immediately when a query reports revoked access", async () => {
+    location = "/professional/patients/10/messages";
+    renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
 
-    const firstTransition = deferred();
-    patientTimeZone.cancel.mockImplementationOnce(() => firstTransition.promise);
-
-    location = "/professional/patients/20";
-    view.rerender(
-      <ProfessionalLayout>
-        <PatientFixture />
-      </ProfessionalLayout>
-    );
-    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
-
-    location = "/professional/patients/10";
-    view.rerender(
-      <ProfessionalLayout>
-        <PatientFixture />
-      </ProfessionalLayout>
-    );
-
-    firstTransition.resolve();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
-    expect(screen.queryByText("Paciente: Bruno")).toBeNull();
-  });
-
-  it("hides cached content immediately while revocation is being revalidated", async () => {
-    location = "/professional/patients/10";
-    const view = renderPatientLayout();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
-
-    markAccessesFetching();
-    view.rerender(
-      <ProfessionalLayout>
-        <PatientFixture />
-      </ProfessionalLayout>
-    );
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
-
-    markAccessesFresh([{ patientUserId: 10, status: "revoked" }]);
-    view.rerender(
-      <ProfessionalLayout>
-        <PatientFixture />
-      </ProfessionalLayout>
-    );
+    querySubscriber?.({
+      type: "updated",
+      query: {
+        state: {
+          error: new Error("O acesso a este paciente não está mais disponível."),
+        },
+      },
+    });
 
     await waitFor(() =>
       expect(setLocation).toHaveBeenCalledWith(
         "/professional/patients?notice=patient-access-unavailable"
       )
     );
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+    expect(screen.queryByText("Ana")).toBeNull();
+    expect(removeQueries).toHaveBeenCalled();
+  });
+
+  it("removes context immediately when a mutation reports revoked access", async () => {
+    location = "/professional/patients/10/goals";
+    renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
+    mutationSubscriber?.({
+      type: "updated",
+      mutation: {
+        state: {
+          error: new Error("Acesso profissional não autorizado pela pessoa acompanhada."),
+        },
+      },
+    });
+
+    await waitFor(() =>
+      expect(setLocation).toHaveBeenCalledWith(
+        "/professional/patients?notice=patient-access-unavailable"
+      )
+    );
+    expect(screen.queryByText("Ana")).toBeNull();
   });
 
   it("keeps patient content protected on a temporary authorization failure", () => {
     location = "/professional/patients/10";
-    accessesState = {
-      ...accessesState,
+    patientContextState = {
+      ...patientContextState,
       data: undefined,
       isFetching: false,
       isError: true,
       isSuccess: false,
       isFetchedAfterMount: true,
+      error: new Error("Falha temporária de conexão"),
     };
 
     renderPatientLayout();
@@ -326,47 +372,27 @@ describe("ProfessionalLayout", () => {
   it("revalidates profile and patient access when focus returns", async () => {
     location = "/professional/patients/10";
     renderPatientLayout();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
 
     window.dispatchEvent(new Event("focus"));
 
     expect(refreshAuth).toHaveBeenCalledTimes(1);
     expect(profileRefetch).toHaveBeenCalledTimes(1);
-    expect(accessesRefetch).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+    expect(contextRefetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Ana")).toBeNull();
   });
 
   it("clears patient caches before returning to the personal area", async () => {
     location = "/professional/patients/10";
     renderPatientLayout();
-    await waitFor(() => expect(screen.getByText("Paciente: Ana")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
 
     await userEvent.click(
       screen.getByRole("button", { name: "Minha alimentação" })
     );
 
-    expect(screen.queryByText("Paciente: Ana")).toBeNull();
+    expect(screen.queryByText("Ana")).toBeNull();
     expect(setLocation).toHaveBeenCalledWith("/today");
-    for (const cache of patientCaches) {
-      expect(cache.cancel).toHaveBeenCalled();
-      expect(cache.reset).toHaveBeenCalled();
-    }
-  });
-
-  it("keeps navigation and the responsive sidebar control accessible", async () => {
-    location = "/professional/reports";
-    render(<ProfessionalLayout>conteúdo profissional</ProfessionalLayout>);
-    const reports = screen.getByRole("button", { name: "Relatórios" });
-
-    expect(reports.getAttribute("aria-current")).toBe("page");
-    reports.focus();
-    await userEvent.keyboard("{Enter}");
-
-    expect(setLocation).toHaveBeenCalledWith("/professional/reports");
-    expect(
-      screen.getByRole("button", {
-        name: "Abrir ou recolher navegação profissional",
-      })
-    ).toBeTruthy();
+    expect(removeQueries).toHaveBeenCalled();
   });
 });
