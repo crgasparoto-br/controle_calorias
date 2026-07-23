@@ -172,20 +172,21 @@ describe("App professional navigation", () => {
     ).toBeTruthy();
   });
 
-  it("does not substitute a neighboring entitlement for the route entitlement", async () => {
-    entitlementState.enabledResources = ["professional_record"];
+  it("redirects a patient route when only neighboring entitlements remain", async () => {
+    entitlementState.enabledResources = [
+      "professional_portfolio",
+      "professional_record",
+    ];
     window.history.replaceState({}, "", "/professional/patients/41/reports");
     const { default: App } = await import("./App");
     render(<App />);
 
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/professional/patients")
+    );
     expect(
-      await screen.findByRole("heading", {
-        name: "Recurso profissional indisponível",
-      })
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
     ).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Área Profissional canônica" })
-    ).toBeNull();
   });
 
   it("routes professional settings to the dedicated screen", async () => {
@@ -211,7 +212,7 @@ describe("App professional navigation", () => {
     ).toBeTruthy();
   });
 
-  it("blocks professional routes when the entitlement is unavailable", async () => {
+  it("blocks aggregate professional routes when the entitlement is unavailable", async () => {
     entitlementState.allowed = false;
     entitlementState.enabledResources = [];
     const { default: App } = await import("./App");
