@@ -2,9 +2,38 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../_core/trpc";
 import {
   assertProfessionalEntitlement,
+  ProfessionalEntitlementDeniedError,
   type ProfessionalEntitlementResource,
 } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
+
+const optionalProfessionalResources = new Set<ProfessionalEntitlementResource>([
+  "professional_operational_alerts",
+  "professional_ai_assistance",
+]);
+
+export function professionalEntitlementErrorCode(
+  resource: ProfessionalEntitlementResource,
+  error: unknown
+): "FORBIDDEN" | "PRECONDITION_FAILED" {
+  return error instanceof ProfessionalEntitlementDeniedError &&
+    optionalProfessionalResources.has(resource)
+    ? "PRECONDITION_FAILED"
+    : "FORBIDDEN";
+}
+
+export function toProfessionalEntitlementTrpcError(
+  resource: ProfessionalEntitlementResource,
+  error: unknown
+) {
+  return new TRPCError({
+    code: professionalEntitlementErrorCode(resource, error),
+    message:
+      error instanceof Error
+        ? error.message
+        : "Este recurso profissional não está disponível.",
+  });
+}
 
 export function professionalEntitledProcedure(
   resource: ProfessionalEntitlementResource
@@ -19,13 +48,7 @@ export function professionalEntitledProcedure(
       }
       await assertProfessionalEntitlement(ctx.user.id, resource);
     } catch (error) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Este recurso profissional não está disponível.",
-      });
+      throw toProfessionalEntitlementTrpcError(resource, error);
     }
     return next({ ctx });
   });
