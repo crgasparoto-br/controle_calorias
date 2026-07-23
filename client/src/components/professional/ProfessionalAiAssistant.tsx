@@ -1,3 +1,7 @@
+import {
+  ProfessionalAsyncState,
+  ProfessionalLoadingState,
+} from "@/components/professional/ProfessionalUi";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -58,6 +62,12 @@ export default function ProfessionalAiAssistant({
 }) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const entitlements =
+    trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
+      retry: false,
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+    });
   const [mode, setMode] = useState<AiMode>("summary");
   const [question, setQuestion] = useState("");
   const [draftType, setDraftType] =
@@ -86,7 +96,14 @@ export default function ProfessionalAiAssistant({
         draftType,
         question.trim(),
       ].join(":"),
-    [draftType, mode, patient.patientId, periodRange.end, periodRange.start, question]
+    [
+      draftType,
+      mode,
+      patient.patientId,
+      periodRange.end,
+      periodRange.start,
+      question,
+    ]
   );
   const result =
     resultState?.signature === signature ? resultState.data : null;
@@ -119,11 +136,51 @@ export default function ProfessionalAiAssistant({
     );
   };
 
+  if (entitlements.isLoading) {
+    return (
+      <ProfessionalLoadingState label="Verificando acesso à assistência por IA..." />
+    );
+  }
+  if (entitlements.isError) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        title="Não foi possível verificar a assistência por IA"
+        description="O relatório continua disponível. Tente verificar novamente somente esta capacidade."
+        onRetry={() => void entitlements.refetch()}
+      />
+    );
+  }
+
+  const enabledResources = entitlements.data?.enabledResources ?? [];
+  const aiEnabled = Boolean(
+    entitlements.data?.allowed &&
+      enabledResources.includes("professional_ai_assistance")
+  );
+  const messagesEnabled = Boolean(
+    entitlements.data?.allowed &&
+      enabledResources.includes("professional_messages")
+  );
+
+  if (!aiEnabled) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        icon="empty"
+        title="Assistência por IA indisponível"
+        description="Esta capacidade não está incluída no acesso profissional atual. O relatório autorizado permanece disponível."
+      />
+    );
+  }
+
   return (
     <section aria-labelledby="professional-ai-title" className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle id="professional-ai-title" className="flex items-center gap-2">
+          <CardTitle
+            id="professional-ai-title"
+            className="flex items-center gap-2"
+          >
             <Bot className="h-5 w-5" />
             Assistência por IA
           </CardTitle>
@@ -133,7 +190,8 @@ export default function ProfessionalAiAssistant({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="rounded-xl bg-muted p-3 text-sm">
-            Período analisado: <strong>{periodRange.start}</strong> a <strong>{periodRange.end}</strong>
+            Período analisado: <strong>{periodRange.start}</strong> a{" "}
+            <strong>{periodRange.end}</strong>
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
@@ -169,7 +227,9 @@ export default function ProfessionalAiAssistant({
           </div>
           {mode === "question" ? (
             <label className="grid gap-1 text-sm">
-              <span className="font-medium">Pergunta sobre os dados autorizados</span>
+              <span className="font-medium">
+                Pergunta sobre os dados autorizados
+              </span>
               <textarea
                 className="min-h-28 rounded-md border bg-background p-3"
                 value={question}
@@ -180,7 +240,9 @@ export default function ProfessionalAiAssistant({
             </label>
           ) : null}
           <Button
-            disabled={generate.isPending || (mode === "question" && !question.trim())}
+            disabled={
+              generate.isPending || (mode === "question" && !question.trim())
+            }
             onClick={requestAssistance}
           >
             <Sparkles className="h-4 w-4" />
@@ -207,7 +269,9 @@ export default function ProfessionalAiAssistant({
           </CardHeader>
           <CardContent className="space-y-5">
             <div>
-              <p className="whitespace-pre-wrap text-sm leading-6">{result.summary}</p>
+              <p className="whitespace-pre-wrap text-sm leading-6">
+                {result.summary}
+              </p>
               <SourceReferences
                 keys={result.summarySourceKeys}
                 sourceSignals={result.sourceSignals ?? []}
@@ -233,7 +297,9 @@ export default function ProfessionalAiAssistant({
                 <ul className="mt-2 list-disc space-y-2 pl-5 text-sm">
                   {(result.interpretations ?? []).map(
                     (interpretation: string, index: number) => (
-                      <li key={`${interpretation}-${index}`}>{interpretation}</li>
+                      <li key={`${interpretation}-${index}`}>
+                        {interpretation}
+                      </li>
                     )
                   )}
                 </ul>
@@ -247,22 +313,28 @@ export default function ProfessionalAiAssistant({
                   value={draftContent}
                   onChange={event => setDraftContent(event.target.value)}
                 />
-                <Button
-                  disabled={!draftContent.trim() || saveDraft.isPending}
-                  onClick={() =>
-                    saveDraft.mutate({
-                      patientId: patient.patientId,
-                      content: draftContent.trim(),
-                      messageType: result.draft.messageType,
-                      origin: "ai_suggested",
-                      action: "save_draft",
-                      idempotencyKey: crypto.randomUUID(),
-                    })
-                  }
-                >
-                  <Save className="h-4 w-4" />
-                  Salvar e abrir conversa
-                </Button>
+                {messagesEnabled ? (
+                  <Button
+                    disabled={!draftContent.trim() || saveDraft.isPending}
+                    onClick={() =>
+                      saveDraft.mutate({
+                        patientId: patient.patientId,
+                        content: draftContent.trim(),
+                        messageType: result.draft.messageType,
+                        origin: "ai_suggested",
+                        action: "save_draft",
+                        idempotencyKey: crypto.randomUUID(),
+                      })
+                    }
+                  >
+                    <Save className="h-4 w-4" />
+                    Salvar e abrir conversa
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Salvar este rascunho em uma conversa exige a capacidade de mensagens profissionais.
+                  </p>
+                )}
               </div>
             ) : null}
           </CardContent>
