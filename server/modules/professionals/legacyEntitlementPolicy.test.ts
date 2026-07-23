@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ProfessionalEntitlementVerificationUnavailableError } from "./entitlementAccess";
 import {
   createLegacyProfessionalEntitlementPolicy,
   legacyProfessionalEntitlementResourceForPath,
@@ -131,5 +132,25 @@ describe("legacy professional entitlement policy", () => {
       message: "Sem entitlement individual",
     });
     expect(assertEntitlement).toHaveBeenCalledTimes(4);
+  });
+
+  it("stops alternative checks and returns a recoverable error when verification is unavailable", async () => {
+    const assertEntitlement = vi
+      .fn()
+      .mockRejectedValue(
+        new ProfessionalEntitlementVerificationUnavailableError()
+      );
+    const policy = createLegacyProfessionalEntitlementPolicy({
+      getProfile: vi.fn().mockResolvedValue({ active: true }),
+      assertEntitlement,
+    } as any);
+
+    await expect(
+      policy({ path: "nutrition.professionals.patientTimeZone", ctx })
+    ).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Não foi possível verificar o acesso profissional neste momento.",
+    });
+    expect(assertEntitlement).toHaveBeenCalledTimes(1);
   });
 });
