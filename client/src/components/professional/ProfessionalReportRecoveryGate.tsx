@@ -1,3 +1,7 @@
+import {
+  MAX_REPORT_RANGE_DAYS,
+} from "@/features/reports/reportDataAdapter";
+import { countDaysInRange } from "@/lib/dateRanges";
 import { trpc } from "@/lib/trpc";
 import React from "react";
 import { ProfessionalAsyncState } from "./ProfessionalUi";
@@ -16,6 +20,8 @@ export default function ProfessionalReportRecoveryGate({
   patientId: number;
   range: ReportRange;
 }) {
+  const rangeWithinLimit =
+    countDaysInRange(range) <= MAX_REPORT_RANGE_DAYS;
   const patientTimeZone =
     trpc.nutrition.professionals.patientTimeZone.useQuery(
       { patientId },
@@ -32,7 +38,7 @@ export default function ProfessionalReportRecoveryGate({
         endDate: range.end,
       },
       {
-        enabled: patientTimeZone.isSuccess,
+        enabled: patientTimeZone.isSuccess && rangeWithinLimit,
         retry: false,
         refetchOnWindowFocus: true,
       }
@@ -49,7 +55,7 @@ export default function ProfessionalReportRecoveryGate({
     );
   }
 
-  if (reportBundle.isError) {
+  if (rangeWithinLimit && reportBundle.isError) {
     return (
       <ProfessionalAsyncState
         variant="panel"
