@@ -12,8 +12,12 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
+import {
+  parseProfessionalPatientRoute,
+  professionalPatientResourceForRoute,
+} from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BarChart3,
@@ -40,17 +44,12 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 export type ProfessionalPatientContext = {
   patientId: number;
   displayName: string;
+  trackingStatus: "not_started" | "active" | "paused" | "ended";
 };
 
 type ProfessionalWorkspaceContextValue = {
   selectedPatient: ProfessionalPatientContext | null;
   clearPatient: () => void;
-};
-
-type PatientAccess = {
-  patientUserId: number;
-  status: string;
-  patient?: { name?: string | null; email?: string | null } | null;
 };
 
 const ProfessionalWorkspaceContext =
@@ -77,6 +76,52 @@ const professionalNavigation = [
   { label: "Relatórios", path: "/professional/reports", icon: BarChart3 },
   { label: "Configurações", path: "/professional/settings", icon: Settings },
 ];
+
+const professionalPatientQueryPaths = new Set([
+  "nutrition.professionals.patientTimeZone",
+  "nutrition.professionals.patientDashboard",
+  "nutrition.professionals.patientPeriodBundle",
+  "professionalRecord.context",
+  "professionalRecord.get",
+  "professionalRecord.messages.list",
+  "professionalRecord.operationalAlerts.list",
+  "professionalRecord.ai.priorities",
+  "professionalRecord.officialGoal.professionalState",
+]);
+
+export function isProfessionalPatientQueryKey(queryKey: readonly unknown[]) {
+  const path = queryKey[0];
+  return (
+    Array.isArray(path) &&
+    path.every(item => typeof item === "string") &&
+    professionalPatientQueryPaths.has(path.join("."))
+  );
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return "";
+}
+
+export function isProfessionalPatientAccessUnavailableError(error: unknown) {
+  const message = errorMessage(error).toLocaleLowerCase("pt-BR");
+  return [
+    "o acesso a este paciente não está mais disponível",
+    "acesso profissional não autorizado",
+    "não autorizado pela pessoa acompanhada",
+    "autorização do paciente foi revogada",
+    "patient access unavailable",
+  ].some(fragment => message.includes(fragment));
+}
 
 function pathnameFromLocation(location: string) {
   return location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
@@ -107,14 +152,6 @@ function routeTitle(location: string) {
   return (
     professionalNavigation.find(item => isActiveRoute(location, item.path))
       ?.label ?? "Área Profissional"
-  );
-}
-
-function patientDisplayName(access: PatientAccess) {
-  return (
-    access.patient?.name ??
-    access.patient?.email ??
-    `Paciente ${access.patientUserId}`
   );
 }
 
@@ -157,9 +194,11 @@ export default function ProfessionalLayout({
   const { loading: authLoading, refresh: refreshAuth, user } = useAuth();
   const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const mainRef = useRef<HTMLElement | null>(null);
   const previousPatientIdRef = useRef<number | null>(null);
   const transitionGenerationRef = useRef(0);
+  const revocationInProgressRef = useRef(false);
   const [readyPatientId, setReadyPatientId] = useState<number | null>(null);
 
   const patientRoute = useMemo(
@@ -168,6 +207,7 @@ export default function ProfessionalLayout({
   );
   const routePatientId =
     patientRoute.kind === "patient" ? patientRoute.patientId : null;
+  const patientResource = professionalPatientResourceForRoute(patientRoute);
 
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
     enabled: Boolean(user),
@@ -179,8 +219,11 @@ export default function ProfessionalLayout({
   const hasActiveProfile = Boolean(
     user?.professionalProfileActive && profile.data?.active
   );
-  const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, {
-    enabled: hasActiveProfile,
+  const contextInput = routePatientId && patientResource
+    ? { patientId: routePatientId, resource: patientResource }
+    : { patientId: 1, resource: "professional_record" as const };
+  const patientContext = trpc.professionalRecord.context.useQuery(contextInput, {
+    enabled: Boolean(hasActiveProfile && routePatientId && patientResource),
     retry: false,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
@@ -190,40 +233,33 @@ export default function ProfessionalLayout({
   const profileValidated = Boolean(
     profile.isSuccess && profile.isFetchedAfterMount && !profile.isFetching
   );
-  const accessesValidated = Boolean(
-    accesses.isSuccess && accesses.isFetchedAfterMount && !accesses.isFetching
-  );
-
-  const approvedAccess = useMemo(() => {
-    if (!routePatientId || !accessesValidated || !accesses.data) return null;
-    return (
-      (accesses.data as PatientAccess[]).find(
-        access =>
-          access.patientUserId === routePatientId && access.status === "approved"
-      ) ?? null
-    );
-  }, [accesses.data, accessesValidated, routePatientId]);
-
-  const patientAuthorizationValidated = Boolean(
-    routePatientId && profileValidated && accessesValidated && approvedAccess
+  const patientContextValidated = Boolean(
+    routePatientId &&
+      patientContext.isSuccess &&
+      patientContext.isFetchedAfterMount &&
+      !patientContext.isFetching &&
+      patientContext.data?.patientId === routePatientId
   );
 
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
     if (
-      !approvedAccess ||
+      !hasActiveProfile ||
       !routePatientId ||
-      !patientAuthorizationValidated ||
-      readyPatientId !== routePatientId
+      !patientContextValidated ||
+      readyPatientId !== routePatientId ||
+      !patientContext.data
     ) {
       return null;
     }
     return {
-      patientId: routePatientId,
-      displayName: patientDisplayName(approvedAccess),
+      patientId: patientContext.data.patientId,
+      displayName: patientContext.data.displayName,
+      trackingStatus: patientContext.data.trackingStatus,
     };
   }, [
-    approvedAccess,
-    patientAuthorizationValidated,
+    hasActiveProfile,
+    patientContext.data,
+    patientContextValidated,
     readyPatientId,
     routePatientId,
   ]);
@@ -233,28 +269,33 @@ export default function ProfessionalLayout({
       utils.nutrition.professionals.patientTimeZone.cancel(),
       utils.nutrition.professionals.patientDashboard.cancel(),
       utils.nutrition.professionals.patientPeriodBundle.cancel(),
-      utils.nutrition.professionals.history.cancel(),
+      utils.professionalRecord.context.cancel(),
       utils.professionalRecord.get.cancel(),
       utils.professionalRecord.messages.list.cancel(),
       utils.professionalRecord.operationalAlerts.list.cancel(),
       utils.professionalRecord.ai.priorities.cancel(),
+      utils.professionalRecord.officialGoal.professionalState.cancel(),
     ]);
-    await Promise.all([
-      utils.nutrition.professionals.patientTimeZone.reset(),
-      utils.nutrition.professionals.patientDashboard.reset(),
-      utils.nutrition.professionals.patientPeriodBundle.reset(),
-      utils.nutrition.professionals.history.reset(),
-      utils.professionalRecord.get.reset(),
-      utils.professionalRecord.messages.list.reset(),
-      utils.professionalRecord.operationalAlerts.list.reset(),
-      utils.professionalRecord.ai.priorities.reset(),
-    ]);
-  }, [utils]);
+    queryClient.removeQueries({
+      predicate: query => isProfessionalPatientQueryKey(query.queryKey),
+    });
+  }, [queryClient, utils]);
 
   const invalidatePatientContext = useCallback(() => {
     transitionGenerationRef.current += 1;
     setReadyPatientId(null);
   }, []);
+
+  const revokePatientContext = useCallback(() => {
+    if (revocationInProgressRef.current) return;
+    revocationInProgressRef.current = true;
+    invalidatePatientContext();
+    void clearPatientQueries().finally(() => {
+      previousPatientIdRef.current = null;
+      setLocation("/professional/patients?notice=patient-access-unavailable");
+      revocationInProgressRef.current = false;
+    });
+  }, [clearPatientQueries, invalidatePatientContext, setLocation]);
 
   const clearPatient = useCallback(() => {
     invalidatePatientContext();
@@ -273,22 +314,46 @@ export default function ProfessionalLayout({
   ]);
 
   useEffect(() => {
+    if (!routePatientId) return;
+    const handleError = (error: unknown) => {
+      if (isProfessionalPatientAccessUnavailableError(error)) {
+        revokePatientContext();
+      }
+    };
+    const unsubscribeQueries = queryClient.getQueryCache().subscribe(event => {
+      if (event.type === "updated") handleError(event.query.state.error);
+    });
+    const unsubscribeMutations = queryClient
+      .getMutationCache()
+      .subscribe(event => {
+        if (event.type === "updated") handleError(event.mutation.state.error);
+      });
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [queryClient, revokePatientContext, routePatientId]);
+
+  useEffect(() => {
     const refreshAccess = () => {
       invalidatePatientContext();
       void Promise.all([
         refreshAuth(),
         profile.refetch(),
-        hasActiveProfile ? accesses.refetch() : Promise.resolve(),
+        routePatientId && hasActiveProfile
+          ? patientContext.refetch()
+          : Promise.resolve(),
       ]);
     };
     window.addEventListener("focus", refreshAccess);
     return () => window.removeEventListener("focus", refreshAccess);
   }, [
-    accesses,
     hasActiveProfile,
     invalidatePatientContext,
+    patientContext,
     profile,
     refreshAuth,
+    routePatientId,
   ]);
 
   useEffect(() => {
@@ -308,7 +373,7 @@ export default function ProfessionalLayout({
         await clearPatientQueries();
       }
       if (
-        patientAuthorizationValidated &&
+        patientContextValidated &&
         transitionGenerationRef.current === generation &&
         previousPatientIdRef.current === routePatientId
       ) {
@@ -319,34 +384,37 @@ export default function ProfessionalLayout({
     void preparePatientContext();
   }, [
     clearPatientQueries,
-    patientAuthorizationValidated,
+    patientContextValidated,
+    patientResource,
     routePatientId,
   ]);
 
   useEffect(() => {
     if (
-      !routePatientId ||
-      !profileValidated ||
-      !accessesValidated ||
-      approvedAccess ||
-      patientRoute.kind !== "patient"
+      routePatientId &&
+      patientContext.isError &&
+      isProfessionalPatientAccessUnavailableError(patientContext.error)
     ) {
-      return;
+      revokePatientContext();
     }
-
-    invalidatePatientContext();
-    void clearPatientQueries().finally(() => {
-      setLocation("/professional/patients?notice=patient-access-unavailable");
-    });
   }, [
-    accessesValidated,
-    approvedAccess,
+    patientContext.error,
+    patientContext.isError,
+    revokePatientContext,
+    routePatientId,
+  ]);
+
+  useEffect(() => {
+    if (routePatientId && profileValidated && !hasActiveProfile) {
+      invalidatePatientContext();
+      void clearPatientQueries();
+    }
+  }, [
     clearPatientQueries,
+    hasActiveProfile,
     invalidatePatientContext,
-    patientRoute.kind,
     profileValidated,
     routePatientId,
-    setLocation,
   ]);
 
   useEffect(() => {
@@ -432,14 +500,20 @@ export default function ProfessionalLayout({
     );
   }
 
+  const revokedPatientAccess = Boolean(
+    routePatientId &&
+      patientContext.isError &&
+      isProfessionalPatientAccessUnavailableError(patientContext.error)
+  );
   const patientAccessUnavailable = Boolean(
-    routePatientId && (accesses.isError || profile.isError)
+    routePatientId && patientContext.isError && !revokedPatientAccess
   );
   const patientContextLoading = Boolean(
     routePatientId &&
       !patientAccessUnavailable &&
+      !revokedPatientAccess &&
       (!profileValidated ||
-        !accessesValidated ||
+        !patientContextValidated ||
         readyPatientId !== routePatientId)
   );
   const invalidPatientRoute = patientRoute.kind === "invalid";
@@ -581,7 +655,7 @@ export default function ProfessionalLayout({
               <ProtectedState
                 title="Não foi possível confirmar a autorização do paciente"
                 description="O contexto foi protegido. Tente novamente antes de continuar o acompanhamento."
-                onRetry={() => void accesses.refetch()}
+                onRetry={() => void patientContext.refetch()}
               />
             ) : routePatientId && !selectedPatient ? (
               <div
