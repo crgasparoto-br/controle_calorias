@@ -173,6 +173,13 @@ function fetchingPatientContext() {
   };
 }
 
+function forbiddenError() {
+  return {
+    message: "Este recurso não está disponível para o acesso profissional atual.",
+    data: { code: "FORBIDDEN" },
+  };
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
@@ -221,12 +228,15 @@ describe("professional patient cache helpers", () => {
     ).toBe(false);
   });
 
-  it("recognizes canonical authorization revocation errors", () => {
+  it("recognizes canonical authorization and entitlement revocation errors", () => {
     expect(
       isProfessionalPatientAccessUnavailableError(
         new Error("O acesso a este paciente não está mais disponível.")
       )
     ).toBe(true);
+    expect(isProfessionalPatientAccessUnavailableError(forbiddenError())).toBe(
+      true
+    );
     expect(
       isProfessionalPatientAccessUnavailableError(
         new Error("Falha temporária de conexão")
@@ -313,9 +323,11 @@ describe("ProfessionalLayout", () => {
     querySubscriber?.({
       type: "updated",
       query: {
-        state: {
-          error: new Error("O acesso a este paciente não está mais disponível."),
-        },
+        queryKey: [
+          ["professionalRecord", "messages", "list"],
+          { input: { patientId: 10 }, type: "query" },
+        ],
+        state: { error: forbiddenError() },
       },
     });
 
@@ -336,8 +348,13 @@ describe("ProfessionalLayout", () => {
     mutationSubscriber?.({
       type: "updated",
       mutation: {
+        options: {
+          mutationKey: [["professionalRecord", "officialGoal", "activate"]],
+        },
         state: {
-          error: new Error("Acesso profissional não autorizado pela pessoa acompanhada."),
+          error: forbiddenError(),
+          submittedAt: Date.now() + 1,
+          variables: { patientId: 10 },
         },
       },
     });
@@ -348,6 +365,77 @@ describe("ProfessionalLayout", () => {
       )
     );
     await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
+  });
+
+  it("ignores late query and mutation errors from another patient", async () => {
+    location = "/professional/patients/10/messages";
+    renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
+    querySubscriber?.({
+      type: "updated",
+      query: {
+        queryKey: [
+          ["professionalRecord", "messages", "list"],
+          { input: { patientId: 20 }, type: "query" },
+        ],
+        state: { error: forbiddenError() },
+      },
+    });
+    mutationSubscriber?.({
+      type: "updated",
+      mutation: {
+        options: {
+          mutationKey: [["professionalRecord", "messages", "create"]],
+        },
+        state: {
+          error: forbiddenError(),
+          submittedAt: Date.now() + 1,
+          variables: { patientId: 20 },
+        },
+      },
+    });
+
+    await Promise.resolve();
+    expect(setLocation).not.toHaveBeenCalled();
+    expect(screen.getByText("Ana")).toBeTruthy();
+    expect(removeQueries).not.toHaveBeenCalled();
+  });
+
+  it("ignores an id-less mutation submitted before the current patient became ready", async () => {
+    location = "/professional/patients/10";
+    const view = renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
+    location = "/professional/patients/20";
+    freshPatientContext(20, "Bruno");
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    await waitFor(() => expect(screen.getByText("Bruno")).toBeTruthy());
+    setLocation.mockClear();
+    removeQueries.mockClear();
+
+    mutationSubscriber?.({
+      type: "updated",
+      mutation: {
+        options: {
+          mutationKey: [["professionalRecord", "transitionTracking"]],
+        },
+        state: {
+          error: forbiddenError(),
+          submittedAt: 1,
+          variables: { accessId: "access-10" },
+        },
+      },
+    });
+
+    await Promise.resolve();
+    expect(setLocation).not.toHaveBeenCalled();
+    expect(screen.getByText("Bruno")).toBeTruthy();
+    expect(removeQueries).not.toHaveBeenCalled();
   });
 
   it("keeps patient content protected on a temporary authorization failure", () => {
