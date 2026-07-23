@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../_core/trpc";
 import {
-  assertProfessionalEntitlement,
-  type ProfessionalEntitlementResource,
-} from "./entitlementService";
+  assertProfessionalResourceAccess,
+  ProfessionalEntitlementVerificationUnavailableError,
+  ProfessionalResourceDeniedError,
+} from "./entitlementAccess";
+import type { ProfessionalEntitlementResource } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
 
 const optionalProfessionalResources = new Set<ProfessionalEntitlementResource>([
@@ -13,15 +15,33 @@ const optionalProfessionalResources = new Set<ProfessionalEntitlementResource>([
 
 export function isProfessionalEntitlementDeniedError(error: unknown) {
   return (
-    error instanceof Error &&
-    error.constructor.name === "ProfessionalEntitlementDeniedError"
+    error instanceof ProfessionalResourceDeniedError ||
+    (error instanceof Error &&
+      [
+        "ProfessionalResourceDeniedError",
+        "ProfessionalEntitlementDeniedError",
+      ].includes(error.constructor.name))
+  );
+}
+
+export function isProfessionalEntitlementVerificationUnavailableError(
+  error: unknown
+) {
+  return (
+    error instanceof ProfessionalEntitlementVerificationUnavailableError ||
+    (error instanceof Error &&
+      error.constructor.name ===
+        "ProfessionalEntitlementVerificationUnavailableError")
   );
 }
 
 export function professionalEntitlementErrorCode(
   resource: ProfessionalEntitlementResource,
   error: unknown
-): "FORBIDDEN" | "PRECONDITION_FAILED" {
+): "FORBIDDEN" | "PRECONDITION_FAILED" | "SERVICE_UNAVAILABLE" {
+  if (isProfessionalEntitlementVerificationUnavailableError(error)) {
+    return "SERVICE_UNAVAILABLE";
+  }
   return isProfessionalEntitlementDeniedError(error) &&
     optionalProfessionalResources.has(resource)
     ? "PRECONDITION_FAILED"
@@ -52,7 +72,7 @@ export function professionalEntitledProcedure(
           "A Área Profissional está inativa. Reative o perfil para continuar."
         );
       }
-      await assertProfessionalEntitlement(ctx.user.id, resource);
+      await assertProfessionalResourceAccess(ctx.user.id, resource);
     } catch (error) {
       throw toProfessionalEntitlementTrpcError(resource, error);
     }
