@@ -58,11 +58,23 @@ for (const [file, marker] of [
   ],
   [
     "client/src/components/ProfessionalLayout.test.tsx",
+    "recognizes canonical authorization and entitlement revocation errors",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.test.tsx",
     "removes context immediately when a query reports revoked access",
   ],
   [
     "client/src/components/ProfessionalLayout.test.tsx",
     "removes context immediately when a mutation reports revoked access",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.test.tsx",
+    "ignores late query and mutation errors from another patient",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.test.tsx",
+    "ignores an id-less mutation submitted before the current patient became ready",
   ],
   [
     "client/src/components/ProfessionalLayout.historyNavigation.test.tsx",
