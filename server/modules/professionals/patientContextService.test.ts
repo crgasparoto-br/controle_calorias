@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  assertProfessionalEntitlement: vi.fn(),
+  assertProfessionalResourceAccess: vi.fn(),
   execute: vi.fn(),
   getDb: vi.fn(),
   getProfessionalProfile: vi.fn(),
@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../db", () => ({
   getDb: mocks.getDb,
 }));
-vi.mock("./entitlementService", () => ({
-  assertProfessionalEntitlement: mocks.assertProfessionalEntitlement,
+vi.mock("./entitlementAccess", () => ({
+  assertProfessionalResourceAccess: mocks.assertProfessionalResourceAccess,
 }));
 vi.mock("./service", () => ({
   getProfessionalProfile: mocks.getProfessionalProfile,
@@ -20,7 +20,7 @@ vi.mock("./service", () => ({
 import { getProfessionalPatientContext } from "./patientContextService";
 
 beforeEach(() => {
-  mocks.assertProfessionalEntitlement.mockReset();
+  mocks.assertProfessionalResourceAccess.mockReset();
   mocks.execute.mockReset();
   mocks.getDb.mockReset();
   mocks.getProfessionalProfile.mockReset();
@@ -46,7 +46,7 @@ describe("getProfessionalPatientContext", () => {
       resource: "professional_reports",
     });
 
-    expect(mocks.assertProfessionalEntitlement).toHaveBeenCalledWith(
+    expect(mocks.assertProfessionalResourceAccess).toHaveBeenCalledWith(
       7,
       "professional_reports"
     );
@@ -67,7 +67,7 @@ describe("getProfessionalPatientContext", () => {
         resource: "professional_messages",
       })
     ).rejects.toThrow("O contexto profissional não está disponível.");
-    expect(mocks.assertProfessionalEntitlement).not.toHaveBeenCalled();
+    expect(mocks.assertProfessionalResourceAccess).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
 
