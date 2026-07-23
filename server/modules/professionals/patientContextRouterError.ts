@@ -1,12 +1,14 @@
-import { ProfessionalEntitlementDeniedError } from "./entitlementService";
-import { toProfessionalEntitlementTrpcError } from "./entitledProcedure";
+import {
+  isProfessionalEntitlementDeniedError,
+  toProfessionalEntitlementTrpcError,
+} from "./entitledProcedure";
 import type { ProfessionalPatientContextInput } from "./patientContextSchemas";
 
 export function professionalPatientContextRouterError(
   resource: ProfessionalPatientContextInput["resource"],
   error: unknown
 ) {
-  return error instanceof ProfessionalEntitlementDeniedError
+  return isProfessionalEntitlementDeniedError(error)
     ? toProfessionalEntitlementTrpcError(resource, error)
     : error;
 }
