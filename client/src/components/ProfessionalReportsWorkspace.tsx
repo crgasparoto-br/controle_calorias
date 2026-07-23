@@ -1,6 +1,7 @@
 import ProfessionalOperationalAlertsPanel from "@/components/ProfessionalOperationalAlertsPanel";
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
 import ProfessionalAiAssistant from "@/components/professional/ProfessionalAiAssistant";
+import ProfessionalReportRecoveryGate from "@/components/professional/ProfessionalReportRecoveryGate";
 import {
   ProfessionalAsyncState,
   ProfessionalLoadingState,
@@ -209,21 +210,28 @@ function IndividualReport({
         title={`Análise de ${patient.displayName}`}
         description="O período, os alertas e a assistência usam o mesmo paciente autorizado e o timezone efetivo do dono dos dados."
       />
-      <ProfessionalSplitLayout
-        aside={
-          <ProfessionalOperationalAlertsPanel
-            patientId={patient.patientId}
-            periodRange={activeRange}
-          />
-        }
+      <ProfessionalReportRecoveryGate
+        patientId={patient.patientId}
+        range={activeRange}
       >
-        <ReportsExperience
-          context="professional"
-          subjectUserId={patient.patientId}
-          onRangeChange={setRange}
-        />
-      </ProfessionalSplitLayout>
-      <ProfessionalAiAssistant patient={patient} periodRange={activeRange} />
+        <>
+          <ProfessionalSplitLayout
+            aside={
+              <ProfessionalOperationalAlertsPanel
+                patientId={patient.patientId}
+                periodRange={activeRange}
+              />
+            }
+          >
+            <ReportsExperience
+              context="professional"
+              subjectUserId={patient.patientId}
+              onRangeChange={setRange}
+            />
+          </ProfessionalSplitLayout>
+          <ProfessionalAiAssistant patient={patient} periodRange={activeRange} />
+        </>
+      </ProfessionalReportRecoveryGate>
     </div>
   );
 }
