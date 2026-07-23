@@ -45,6 +45,28 @@ const caches = [
   priorities,
   officialGoal,
 ];
+const stableTrpcUtils = {
+  nutrition: {
+    professionals: {
+      patientTimeZone,
+      patientDashboard,
+      patientPeriodBundle,
+    },
+  },
+  professionalRecord: {
+    context: contextCache,
+    get: record,
+    messages: { list: messages },
+    operationalAlerts: { list: alerts },
+    ai: { priorities },
+    officialGoal: { professionalState: officialGoal },
+  },
+};
+const stableQueryClient = {
+  removeQueries,
+  getQueryCache: () => ({ subscribe: () => () => undefined }),
+  getMutationCache: () => ({ subscribe: () => () => undefined }),
+};
 
 class ResizeObserverMock {
   observe() {}
@@ -54,11 +76,7 @@ class ResizeObserverMock {
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({
-    removeQueries,
-    getQueryCache: () => ({ subscribe: () => () => undefined }),
-    getMutationCache: () => ({ subscribe: () => () => undefined }),
-  }),
+  useQueryClient: () => stableQueryClient,
 }));
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -73,23 +91,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({
-      nutrition: {
-        professionals: {
-          patientTimeZone,
-          patientDashboard,
-          patientPeriodBundle,
-        },
-      },
-      professionalRecord: {
-        context: contextCache,
-        get: record,
-        messages: { list: messages },
-        operationalAlerts: { list: alerts },
-        ai: { priorities },
-        officialGoal: { professionalState: officialGoal },
-      },
-    }),
+    useUtils: () => stableTrpcUtils,
     nutrition: {
       professionals: {
         profile: {
