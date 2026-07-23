@@ -33,6 +33,10 @@ A URL é a única fonte de verdade para o paciente ativo. Nenhum seletor global 
 
 A consulta canônica `professionalRecord.context` recebe o `patientId` e o recurso exato da rota. Ela confirma perfil ativo, entitlement correspondente e autorização aprovada sem depender de `professional_portfolio` ou de uma consulta ao prontuário. Relatórios e mensagens não podem adquirir `professional_record` como requisito indireto; metas seguem o contrato da rota e usam `professional_record` em frontend e backend.
 
+A resolução do timezone é um contrato compartilhado do paciente autorizado. Ela pode ser usada por carteira, prontuário, relatórios ou mensagens quando pelo menos um desses recursos estiver habilitado, sem criar dependência indireta de `professional_portfolio`.
+
+Recursos complementares, como alertas operacionais e assistência de IA, mantêm entitlements próprios. A ausência desses recursos produz `PRECONDITION_FAILED` e não deve ser confundida com perda do vínculo ou do entitlement principal da rota.
+
 ## Troca e revogação de paciente
 
 Ao trocar de paciente, sair da rota individual, perder autorização ou desativar a Área Profissional:
@@ -43,7 +47,9 @@ Ao trocar de paciente, sair da rota individual, perder autorização ou desativa
 4. redirecionar para a carteira quando o acesso não estiver mais disponível;
 5. preservar vínculos e histórico persistidos ao desativar a área, mas bloquear novas operações.
 
-A limpeza é acionada tanto por refetch e foco quanto por erro de query ou mutation que informe revogação, ausência do vínculo ou código tRPC `FORBIDDEN`. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+A limpeza é acionada por refetch, foco ou erro de query/mutation que informe revogação ou ausência do vínculo. A negação do entitlement exato de `professionalRecord.context` é convertida para tRPC `FORBIDDEN` e também limpa o contexto. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+
+Um `FORBIDDEN` não pode ser usado genericamente para inferir revogação quando pertence a uma capacidade complementar. Alertas ou IA ausentes não removem um paciente que continua autorizado para prontuário, relatórios ou mensagens.
 
 Eventos assíncronos precisam ser correlacionados ao paciente atual. Queries usam a chave tRPC e o `patientId` do input. Mutations usam o `patientId` das variáveis quando disponível; operações identificadas apenas por `accessId`, `goalId`, `messageId` ou `alertId` só podem revogar o contexto quando a chave da mutation é individual e a operação foi enviada depois da validação do paciente atualmente presente na URL. Uma resposta tardia do paciente anterior deve ser ignorada.
 
@@ -70,11 +76,13 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 4. Provocar revogação em uma query e em uma mutation e confirmar remoção imediata do conteúdo e do cache.
 5. Provocar uma resposta tardia do paciente anterior e confirmar que o paciente atual permanece aberto.
 6. Revogar o entitlement da rota e confirmar que o erro `FORBIDDEN` limpa o contexto atual.
-7. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
-8. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
-9. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
-10. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
-11. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
-12. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
-13. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
-14. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+7. Remover somente alertas operacionais ou IA e confirmar que o paciente e o conteúdo principal da rota permanecem abertos.
+8. Abrir relatório individual com somente `professional_reports` e confirmar que o timezone do paciente é resolvido sem exigir carteira.
+9. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
+10. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
+11. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
+12. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
+13. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
+14. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
+15. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
+16. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
