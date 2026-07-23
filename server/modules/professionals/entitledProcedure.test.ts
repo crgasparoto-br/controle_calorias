@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  ProfessionalEntitlementDeniedError,
-  type ProfessionalEntitlementResource,
-} from "./entitlementService";
+  ProfessionalEntitlementVerificationUnavailableError,
+  ProfessionalResourceDeniedError,
+} from "./entitlementAccess";
+import type { ProfessionalEntitlementResource } from "./entitlementService";
 import {
   professionalEntitlementErrorCode,
   toProfessionalEntitlementTrpcError,
@@ -26,7 +27,9 @@ describe("professional entitlement error mapping", () => {
   it.each(optionalResources)(
     "keeps a missing optional resource separate from patient access revocation: %s",
     resource => {
-      const error = new ProfessionalEntitlementDeniedError("Recurso opcional ausente");
+      const error = new ProfessionalResourceDeniedError(
+        "Recurso opcional ausente"
+      );
 
       expect(professionalEntitlementErrorCode(resource, error)).toBe(
         "PRECONDITION_FAILED"
@@ -41,12 +44,31 @@ describe("professional entitlement error mapping", () => {
   it.each(routeResources)(
     "maps a missing route entitlement to forbidden: %s",
     resource => {
-      const error = new ProfessionalEntitlementDeniedError("Acesso da rota revogado");
+      const error = new ProfessionalResourceDeniedError(
+        "Acesso da rota revogado"
+      );
 
       expect(professionalEntitlementErrorCode(resource, error)).toBe("FORBIDDEN");
       expect(toProfessionalEntitlementTrpcError(resource, error)).toMatchObject({
         code: "FORBIDDEN",
         message: "Acesso da rota revogado",
+      });
+    }
+  );
+
+  it.each([
+    "professional_reports",
+    "professional_ai_assistance",
+  ] as ProfessionalEntitlementResource[])(
+    "keeps provider outages recoverable for any resource: %s",
+    resource => {
+      const error = new ProfessionalEntitlementVerificationUnavailableError();
+
+      expect(professionalEntitlementErrorCode(resource, error)).toBe(
+        "SERVICE_UNAVAILABLE"
+      );
+      expect(toProfessionalEntitlementTrpcError(resource, error)).toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
       });
     }
   );
