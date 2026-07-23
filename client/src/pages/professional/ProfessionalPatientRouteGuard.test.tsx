@@ -1,69 +1,86 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const setLocation = vi.fn();
-let trackingStatus = "active";
-let route = "/professional/patients/41/reports";
+let route = "/professional/patients/41";
+let selectedPatient:
+  | {
+      patientId: number;
+      displayName: string;
+      trackingStatus: "active";
+    }
+  | null = {
+  patientId: 41,
+  displayName: "Ana",
+  trackingStatus: "active",
+};
 
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
-    selectedPatient: { patientId: 41, displayName: "Ana" },
+    selectedPatient,
     clearPatient: vi.fn(),
   }),
 }));
 vi.mock("wouter", () => ({
-  useLocation: () => [route, setLocation],
+  useLocation: () => [route, vi.fn()],
 }));
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    professionalRecord: {
-      get: {
-        useQuery: () => ({
-          data: { patient: { trackingStatus } },
-          isLoading: false,
-          isError: false,
-          refetch: vi.fn(),
-        }),
-      },
-    },
-  },
+vi.mock("@/components/ProfessionalReportsWorkspace", () => ({
+  default: () => <div>Relatório individual</div>,
+}));
+vi.mock("@/components/ProfessionalMessagesPanel", () => ({
+  default: () => <div>Mensagens individuais</div>,
 }));
 vi.mock("./ProfessionalPatientWorkspace", () => ({
-  default: () => <div>Workspace editável</div>,
+  default: () => <div>Workspace de prontuário</div>,
 }));
+
+beforeEach(() => {
+  route = "/professional/patients/41";
+  selectedPatient = {
+    patientId: 41,
+    displayName: "Ana",
+    trackingStatus: "active",
+  };
+});
 
 afterEach(cleanup);
 
-beforeEach(() => {
-  setLocation.mockReset();
-  trackingStatus = "active";
-  route = "/professional/patients/41/reports";
-});
-
 describe("ProfessionalPatientRouteGuard", () => {
-  it("redirects ended follow-ups to the audit history", async () => {
-    trackingStatus = "ended";
+  it("renders record sections through the professional record workspace", async () => {
+    route = "/professional/patients/41/goals";
     const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
     render(<Guard />);
 
-    await waitFor(() =>
-      expect(setLocation).toHaveBeenCalledWith(
-        "/professional/patients/41/history"
-      )
-    );
-    expect(screen.queryByText("Workspace editável")).toBeNull();
-    expect(
-      screen.getByText("Abrindo o histórico do acompanhamento encerrado...")
-    ).toBeTruthy();
+    expect(screen.getByText("Workspace de prontuário")).toBeTruthy();
+    expect(screen.queryByText("Relatório individual")).toBeNull();
+    expect(screen.queryByText("Mensagens individuais")).toBeNull();
   });
 
-  it("keeps active follow-ups in the requested patient route", async () => {
+  it("renders reports without loading the professional record workspace", async () => {
+    route = "/professional/patients/41/reports";
     const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
     render(<Guard />);
 
-    expect(screen.getByText("Workspace editável")).toBeTruthy();
-    expect(setLocation).not.toHaveBeenCalled();
+    expect(screen.getByText("Relatório individual")).toBeTruthy();
+    expect(screen.queryByText("Workspace de prontuário")).toBeNull();
+  });
+
+  it("renders messages without loading the professional record workspace", async () => {
+    route = "/professional/patients/41/messages";
+    const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
+    render(<Guard />);
+
+    expect(screen.getByText("Mensagens individuais")).toBeTruthy();
+    expect(screen.queryByText("Workspace de prontuário")).toBeNull();
+  });
+
+  it("keeps protected content hidden without a validated patient context", async () => {
+    selectedPatient = null;
+    const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
+    render(<Guard />);
+
+    expect(screen.getByText("Selecione um paciente")).toBeTruthy();
+    expect(screen.queryByText("Workspace de prontuário")).toBeNull();
   });
 });
