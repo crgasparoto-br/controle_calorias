@@ -31,6 +31,18 @@ describe("professionalResourceForPath", () => {
     ).toBe("professional_record");
   });
 
+  it("keeps the section entitlement for malformed patient ids", () => {
+    expect(
+      professionalResourceForPath("/professional/patients/abc/reports")
+    ).toBe("professional_reports");
+    expect(
+      professionalResourceForPath("/professional/patients/0/messages")
+    ).toBe("professional_messages");
+    expect(
+      professionalResourceForPath("/professional/patients/abc/goals")
+    ).toBe("professional_record");
+  });
+
   it("keeps aggregate and settings routes independent from patient context", () => {
     expect(professionalResourceForPath("/professional/reports")).toBe(
       "professional_reports"
@@ -55,10 +67,14 @@ describe("parseProfessionalPatientRoute", () => {
     expect(parseProfessionalPatientRoute("/professional/patients/abc")).toEqual({
       kind: "invalid",
       rawPatientId: "abc",
+      section: "record",
     });
-    expect(parseProfessionalPatientRoute("/professional/patients/0")).toEqual({
+    expect(
+      parseProfessionalPatientRoute("/professional/patients/0/messages")
+    ).toEqual({
       kind: "invalid",
       rawPatientId: "0",
+      section: "messages",
     });
     expect(
       parseProfessionalPatientRoute(
@@ -67,6 +83,7 @@ describe("parseProfessionalPatientRoute", () => {
     ).toEqual({
       kind: "invalid",
       rawPatientId: "999999999999999999999",
+      section: "record",
     });
   });
 
@@ -91,8 +108,8 @@ describe("professionalPatientResourceForRoute", () => {
     ).toBe("professional_reports");
     expect(
       professionalPatientResourceForRoute({
-        kind: "patient",
-        patientId: 7,
+        kind: "invalid",
+        rawPatientId: "abc",
         section: "messages",
       })
     ).toBe("professional_messages");
