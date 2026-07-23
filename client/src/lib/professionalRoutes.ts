@@ -23,6 +23,11 @@ export type ProfessionalPatientRoute =
       section: ProfessionalPatientSection;
     };
 
+export type ProfessionalPatientRouteEntitlement =
+  | "professional_record"
+  | "professional_reports"
+  | "professional_messages";
+
 function pathnameFromLocation(location: string) {
   const queryIndex = location.indexOf("?");
   const hashIndex = location.indexOf("#");
@@ -73,6 +78,15 @@ export function professionalPatientPath(
   return `/professional/patients/${patientId}${suffix}`;
 }
 
+export function professionalPatientResourceForRoute(
+  route: ProfessionalPatientRoute
+): ProfessionalPatientRouteEntitlement | null {
+  if (route.kind !== "patient") return null;
+  if (route.section === "reports") return "professional_reports";
+  if (route.section === "messages") return "professional_messages";
+  return "professional_record";
+}
+
 export function professionalResourceForPath(
   location: string
 ): ProfessionalRouteEntitlement {
@@ -82,23 +96,14 @@ export function professionalResourceForPath(
     return "professional_portfolio";
   }
 
-  const patientRoute = parseProfessionalPatientRoute(pathname);
-  if (patientRoute.kind !== "none") {
-    if (
-      patientRoute.kind === "patient" &&
-      patientRoute.section === "reports"
-    ) {
-      return "professional_reports";
-    }
-    if (
-      patientRoute.kind === "patient" &&
-      patientRoute.section === "messages"
-    ) {
-      return "professional_messages";
-    }
+  const patientResource = professionalPatientResourceForRoute(
+    parseProfessionalPatientRoute(pathname)
+  );
+  if (patientResource) return patientResource;
+
+  if (pathname.startsWith("/professional/patients/")) {
     return "professional_record";
   }
-
   if (pathname === "/professional/messages") {
     return "professional_messages";
   }
