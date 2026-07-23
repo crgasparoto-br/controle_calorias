@@ -46,15 +46,27 @@ for (const [file, marker] of [
   ["client/src/pages/nutritionPages.test.tsx", "renderiza as configurações"],
   [
     "client/src/App.professionalNavigation.test.tsx",
-    "redirects an old professional bookmark",
+    "redirects the retired follow-up bookmark to the portfolio",
   ],
   [
     "client/src/App.professionalNavigation.test.tsx",
-    "blocks an inactive professional profile",
+    "does not substitute a neighboring entitlement for the route entitlement",
   ],
   [
-    "client/src/App.professionalNavigation.test.tsx",
-    "does not open stale cached access",
+    "client/src/components/ProfessionalLayout.test.tsx",
+    "blocks inactive profiles without exposing professional content",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.test.tsx",
+    "removes context immediately when a query reports revoked access",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.test.tsx",
+    "removes context immediately when a mutation reports revoked access",
+  ],
+  [
+    "client/src/components/ProfessionalLayout.historyNavigation.test.tsx",
+    "ignores a late patient transition after rapid back and forward navigation",
   ],
   [
     "client/src/components/ProfessionalAiWorkspace.test.tsx",
@@ -62,7 +74,7 @@ for (const [file, marker] of [
   ],
   [
     "client/src/components/ProfessionalReportsWorkspace.test.tsx",
-    "mostra agregados sem carregar bundle individual antes da seleção",
+    "shows aggregate indicators through the reports resource",
   ],
 ] as const) {
   requireText(file, marker);
