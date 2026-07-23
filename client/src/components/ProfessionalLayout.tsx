@@ -85,9 +85,6 @@ function pathnameFromLocation(location: string) {
 function isActiveRoute(location: string, path: string) {
   const pathname = pathnameFromLocation(location);
   if (path === "/professional") return pathname === path;
-  if (path === "/professional/patients") {
-    return pathname === path || pathname.startsWith(`${path}/`);
-  }
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
@@ -164,6 +161,7 @@ export default function ProfessionalLayout({
   const previousPatientIdRef = useRef<number | null>(null);
   const transitionGenerationRef = useRef(0);
   const [readyPatientId, setReadyPatientId] = useState<number | null>(null);
+
   const patientRoute = useMemo(
     () => parseProfessionalPatientRoute(location),
     [location]
@@ -174,6 +172,7 @@ export default function ProfessionalLayout({
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
     enabled: Boolean(user),
     retry: false,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,
   });
@@ -183,24 +182,36 @@ export default function ProfessionalLayout({
   const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, {
     enabled: hasActiveProfile,
     retry: false,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,
   });
 
+  const profileValidated = Boolean(
+    profile.isSuccess && profile.isFetchedAfterMount && !profile.isFetching
+  );
+  const accessesValidated = Boolean(
+    accesses.isSuccess && accesses.isFetchedAfterMount && !accesses.isFetching
+  );
+
   const approvedAccess = useMemo(() => {
-    if (!routePatientId || !accesses.data) return null;
+    if (!routePatientId || !accessesValidated || !accesses.data) return null;
     return (
-      ((accesses.data ?? []) as PatientAccess[]).find(
+      (accesses.data as PatientAccess[]).find(
         access =>
           access.patientUserId === routePatientId && access.status === "approved"
       ) ?? null
     );
-  }, [accesses.data, routePatientId]);
+  }, [accesses.data, accessesValidated, routePatientId]);
+
+  const patientAuthorizationValidated = Boolean(
+    routePatientId && profileValidated && accessesValidated && approvedAccess
+  );
 
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
     if (
       !approvedAccess ||
-      !routePatientId ||
+      !patientAuthorizationValidated ||
       readyPatientId !== routePatientId
     ) {
       return null;
@@ -209,7 +220,12 @@ export default function ProfessionalLayout({
       patientId: routePatientId,
       displayName: patientDisplayName(approvedAccess),
     };
-  }, [approvedAccess, readyPatientId, routePatientId]);
+  }, [
+    approvedAccess,
+    patientAuthorizationValidated,
+    readyPatientId,
+    routePatientId,
+  ]);
 
   const clearPatientQueries = useCallback(async () => {
     await Promise.all([
@@ -234,19 +250,30 @@ export default function ProfessionalLayout({
     ]);
   }, [utils]);
 
-  const clearPatient = useCallback(() => {
+  const invalidatePatientContext = useCallback(() => {
     transitionGenerationRef.current += 1;
     setReadyPatientId(null);
+  }, []);
+
+  const clearPatient = useCallback(() => {
+    invalidatePatientContext();
     if (routePatientId ?? previousPatientIdRef.current) {
       void clearPatientQueries();
     }
     if (patientRoute.kind !== "none") {
       setLocation("/professional/patients");
     }
-  }, [clearPatientQueries, patientRoute.kind, routePatientId, setLocation]);
+  }, [
+    clearPatientQueries,
+    invalidatePatientContext,
+    patientRoute.kind,
+    routePatientId,
+    setLocation,
+  ]);
 
   useEffect(() => {
     const refreshAccess = () => {
+      invalidatePatientContext();
       void Promise.all([
         refreshAuth(),
         profile.refetch(),
@@ -255,31 +282,32 @@ export default function ProfessionalLayout({
     };
     window.addEventListener("focus", refreshAccess);
     return () => window.removeEventListener("focus", refreshAccess);
-  }, [accesses, hasActiveProfile, profile, refreshAuth]);
+  }, [
+    accesses,
+    hasActiveProfile,
+    invalidatePatientContext,
+    profile,
+    refreshAuth,
+  ]);
 
   useEffect(() => {
     const generation = transitionGenerationRef.current + 1;
     transitionGenerationRef.current = generation;
     const previousPatientId = previousPatientIdRef.current;
     previousPatientIdRef.current = routePatientId;
+    setReadyPatientId(null);
 
     if (!routePatientId) {
-      setReadyPatientId(null);
       if (previousPatientId) void clearPatientQueries();
       return;
     }
-
-    setReadyPatientId(currentPatientId =>
-      currentPatientId === routePatientId && previousPatientId === routePatientId
-        ? currentPatientId
-        : null
-    );
 
     const preparePatientContext = async () => {
       if (previousPatientId && previousPatientId !== routePatientId) {
         await clearPatientQueries();
       }
       if (
+        patientAuthorizationValidated &&
         transitionGenerationRef.current === generation &&
         previousPatientIdRef.current === routePatientId
       ) {
@@ -288,28 +316,34 @@ export default function ProfessionalLayout({
     };
 
     void preparePatientContext();
-  }, [clearPatientQueries, routePatientId]);
+  }, [
+    clearPatientQueries,
+    patientAuthorizationValidated,
+    routePatientId,
+  ]);
 
   useEffect(() => {
     if (
       !routePatientId ||
-      !accesses.isSuccess ||
+      !profileValidated ||
+      !accessesValidated ||
       approvedAccess ||
       patientRoute.kind !== "patient"
     ) {
       return;
     }
 
-    transitionGenerationRef.current += 1;
-    setReadyPatientId(null);
+    invalidatePatientContext();
     void clearPatientQueries().finally(() => {
       setLocation("/professional/patients?notice=patient-access-unavailable");
     });
   }, [
-    accesses.isSuccess,
+    accessesValidated,
     approvedAccess,
     clearPatientQueries,
+    invalidatePatientContext,
     patientRoute.kind,
+    profileValidated,
     routePatientId,
     setLocation,
   ]);
@@ -322,7 +356,6 @@ export default function ProfessionalLayout({
   useEffect(
     () => () => {
       transitionGenerationRef.current += 1;
-      setReadyPatientId(null);
       if (previousPatientIdRef.current) void clearPatientQueries();
       previousPatientIdRef.current = null;
     },
@@ -334,7 +367,7 @@ export default function ProfessionalLayout({
     [clearPatient, selectedPatient]
   );
 
-  if (authLoading || (user && profile.isLoading)) {
+  if (authLoading || (user && !profileValidated && !profile.isError)) {
     return <DashboardLayoutSkeleton />;
   }
 
@@ -398,14 +431,15 @@ export default function ProfessionalLayout({
     );
   }
 
-  const patientAccessUnavailable = Boolean(routePatientId && accesses.isError);
-  const patientContextTransitioning = Boolean(
-    routePatientId && readyPatientId !== routePatientId
+  const patientAccessUnavailable = Boolean(
+    routePatientId && (accesses.isError || profile.isError)
   );
   const patientContextLoading = Boolean(
     routePatientId &&
-      !accesses.isError &&
-      (accesses.isLoading || !accesses.isSuccess || patientContextTransitioning)
+      !patientAccessUnavailable &&
+      (!profileValidated ||
+        !accessesValidated ||
+        readyPatientId !== routePatientId)
   );
   const invalidPatientRoute = patientRoute.kind === "invalid";
   const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
@@ -469,8 +503,7 @@ export default function ProfessionalLayout({
               variant="ghost"
               className="w-full justify-start group-data-[collapsible=icon]:justify-center"
               onClick={() => {
-                transitionGenerationRef.current += 1;
-                setReadyPatientId(null);
+                invalidatePatientContext();
                 if (routePatientId) void clearPatientQueries();
                 setLocation("/today");
               }}
@@ -504,6 +537,7 @@ export default function ProfessionalLayout({
               </div>
             </div>
           </header>
+
           <main
             ref={mainRef}
             tabIndex={-1}
@@ -519,6 +553,7 @@ export default function ProfessionalLayout({
                 atualizada e nenhum dado anterior permaneceu visível.
               </div>
             ) : null}
+
             {invalidPatientRoute ? (
               <div className="space-y-4">
                 <ProtectedState
@@ -560,6 +595,6 @@ export default function ProfessionalLayout({
           </main>
         </SidebarInset>
       </SidebarProvider>
-    );
+    </ProfessionalWorkspaceContext.Provider>
   );
 }
