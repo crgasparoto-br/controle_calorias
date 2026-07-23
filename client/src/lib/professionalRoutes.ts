@@ -16,7 +16,11 @@ export type ProfessionalPatientSection =
 
 export type ProfessionalPatientRoute =
   | { kind: "none" }
-  | { kind: "invalid"; rawPatientId: string }
+  | {
+      kind: "invalid";
+      rawPatientId: string;
+      section: ProfessionalPatientSection;
+    }
   | {
       kind: "patient";
       patientId: number;
@@ -50,19 +54,21 @@ export function parseProfessionalPatientRoute(
   if (!match) return { kind: "none" };
 
   const rawPatientId = match[1];
+  const section =
+    (match[2] as ProfessionalPatientSection | undefined) ?? "record";
   if (!/^\d+$/.test(rawPatientId)) {
-    return { kind: "invalid", rawPatientId };
+    return { kind: "invalid", rawPatientId, section };
   }
 
   const patientId = Number(rawPatientId);
   if (!Number.isSafeInteger(patientId) || patientId <= 0) {
-    return { kind: "invalid", rawPatientId };
+    return { kind: "invalid", rawPatientId, section };
   }
 
   return {
     kind: "patient",
     patientId,
-    section: (match[2] as ProfessionalPatientSection | undefined) ?? "record",
+    section,
   };
 }
 
@@ -81,7 +87,7 @@ export function professionalPatientPath(
 export function professionalPatientResourceForRoute(
   route: ProfessionalPatientRoute
 ): ProfessionalPatientRouteEntitlement | null {
-  if (route.kind !== "patient") return null;
+  if (route.kind === "none") return null;
   if (route.section === "reports") return "professional_reports";
   if (route.section === "messages") return "professional_messages";
   return "professional_record";
@@ -101,9 +107,6 @@ export function professionalResourceForPath(
   );
   if (patientResource) return patientResource;
 
-  if (pathname.startsWith("/professional/patients/")) {
-    return "professional_record";
-  }
   if (pathname === "/professional/messages") {
     return "professional_messages";
   }
