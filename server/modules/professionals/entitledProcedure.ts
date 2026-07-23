@@ -2,7 +2,6 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../_core/trpc";
 import {
   assertProfessionalEntitlement,
-  ProfessionalEntitlementDeniedError,
   type ProfessionalEntitlementResource,
 } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
@@ -12,11 +11,18 @@ const optionalProfessionalResources = new Set<ProfessionalEntitlementResource>([
   "professional_ai_assistance",
 ]);
 
+export function isProfessionalEntitlementDeniedError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.constructor.name === "ProfessionalEntitlementDeniedError"
+  );
+}
+
 export function professionalEntitlementErrorCode(
   resource: ProfessionalEntitlementResource,
   error: unknown
 ): "FORBIDDEN" | "PRECONDITION_FAILED" {
-  return error instanceof ProfessionalEntitlementDeniedError &&
+  return isProfessionalEntitlementDeniedError(error) &&
     optionalProfessionalResources.has(resource)
     ? "PRECONDITION_FAILED"
     : "FORBIDDEN";
