@@ -9,7 +9,13 @@ const reportsExperience = vi.fn(
   )
 );
 const portfolioInput = vi.fn();
-let selectedPatient: { patientId: number; displayName: string } | null = null;
+let selectedPatient:
+  | {
+      patientId: number;
+      displayName: string;
+      trackingStatus: "active";
+    }
+  | null = null;
 
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({ selectedPatient, clearPatient: vi.fn() }),
@@ -30,36 +36,34 @@ vi.mock("@/features/reports/ReportsExperience", () => ({
 vi.mock("wouter", () => ({ useLocation: () => ["/professional/reports", vi.fn()] }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    nutrition: {
-      professionals: {
-        portfolio: {
-          useQuery: (input: unknown) => {
-            portfolioInput(input);
-            return {
-              data: {
-                items: [],
-                pagination: {
-                  page: 1,
-                  pageSize: 20,
-                  total: 0,
-                  totalPages: 1,
-                },
-                summary: {
-                  active: 1,
-                  paused: 2,
-                  ended: 3,
-                  notStarted: 4,
-                  activeWithRecentRecords: 8,
-                  withoutRecentActivity: 5,
-                  pendingReviews: 6,
-                  pendingWeighings: 7,
-                },
+    professionalRecord: {
+      portfolioReport: {
+        useQuery: (input: unknown) => {
+          portfolioInput(input);
+          return {
+            data: {
+              items: [],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                total: 0,
+                totalPages: 1,
               },
-              isLoading: false,
-              isError: false,
-              refetch: vi.fn(),
-            };
-          },
+              summary: {
+                active: 1,
+                paused: 2,
+                ended: 3,
+                notStarted: 4,
+                activeWithRecentRecords: 8,
+                withoutRecentActivity: 5,
+                pendingReviews: 6,
+                pendingWeighings: 7,
+              },
+            },
+            isLoading: false,
+            isError: false,
+            refetch: vi.fn(),
+          };
         },
       },
     },
@@ -75,7 +79,7 @@ beforeEach(() => {
 });
 
 describe("ProfessionalReportsWorkspace", () => {
-  it("shows aggregate indicators without loading an individual bundle", async () => {
+  it("shows aggregate indicators through the reports resource", async () => {
     const { default: ProfessionalReportsWorkspace } = await import(
       "./ProfessionalReportsWorkspace"
     );
@@ -87,10 +91,15 @@ describe("ProfessionalReportsWorkspace", () => {
     expect(screen.getByText("5")).toBeTruthy();
     expect(screen.getByText("Pendências da carteira")).toBeTruthy();
     expect(reportsExperience).not.toHaveBeenCalled();
+    expect(portfolioInput).toHaveBeenCalled();
   });
 
   it("uses only the patient provided by the URL-backed workspace context", async () => {
-    selectedPatient = { patientId: 41, displayName: "Ana" };
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "active",
+    };
     const { default: ProfessionalReportsWorkspace } = await import(
       "./ProfessionalReportsWorkspace"
     );
@@ -103,7 +112,11 @@ describe("ProfessionalReportsWorkspace", () => {
   });
 
   it("does not retain an individual report after patient context is cleared", async () => {
-    selectedPatient = { patientId: 41, displayName: "Ana" };
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "active",
+    };
     const { default: ProfessionalReportsWorkspace } = await import(
       "./ProfessionalReportsWorkspace"
     );
