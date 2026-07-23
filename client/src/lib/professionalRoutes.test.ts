@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseProfessionalPatientRoute,
   professionalPatientPath,
+  professionalPatientResourceForRoute,
   professionalResourceForPath,
 } from "./professionalRoutes";
 
@@ -24,6 +25,9 @@ describe("professionalResourceForPath", () => {
     ).toBe("professional_messages");
     expect(
       professionalResourceForPath("/professional/patients/42/assessment")
+    ).toBe("professional_record");
+    expect(
+      professionalResourceForPath("/professional/patients/42/goals")
     ).toBe("professional_record");
   });
 
@@ -73,6 +77,33 @@ describe("parseProfessionalPatientRoute", () => {
     expect(parseProfessionalPatientRoute("/professional/reports")).toEqual({
       kind: "none",
     });
+  });
+});
+
+describe("professionalPatientResourceForRoute", () => {
+  it("selects the exact entitlement for each patient section", () => {
+    expect(
+      professionalPatientResourceForRoute({
+        kind: "patient",
+        patientId: 7,
+        section: "reports",
+      })
+    ).toBe("professional_reports");
+    expect(
+      professionalPatientResourceForRoute({
+        kind: "patient",
+        patientId: 7,
+        section: "messages",
+      })
+    ).toBe("professional_messages");
+    expect(
+      professionalPatientResourceForRoute({
+        kind: "patient",
+        patientId: 7,
+        section: "goals",
+      })
+    ).toBe("professional_record");
+    expect(professionalPatientResourceForRoute({ kind: "none" })).toBeNull();
   });
 });
 
