@@ -6,9 +6,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
-import React, { type ReactNode } from "react";
+import React, { type ReactNode, useEffect } from "react";
 import { useLocation } from "wouter";
 
 export type ProfessionalRouteEntitlement =
@@ -26,7 +27,7 @@ export default function ProfessionalEntitlementGate({
   children: ReactNode;
   resource: ProfessionalRouteEntitlement;
 }) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const query = trpc.professionalRecord.settings.entitlements.useQuery(
     undefined,
     {
@@ -35,6 +36,22 @@ export default function ProfessionalEntitlementGate({
       staleTime: 30_000,
     }
   );
+  const resourceEnabled = Boolean(
+    query.data?.allowed && query.data.enabledResources.includes(resource)
+  );
+  const patientRoute = parseProfessionalPatientRoute(location);
+  const revokedPatientRoute = Boolean(
+    !query.isLoading &&
+      !query.isError &&
+      query.data &&
+      !resourceEnabled &&
+      patientRoute.kind === "patient"
+  );
+
+  useEffect(() => {
+    if (!revokedPatientRoute) return;
+    setLocation("/professional/patients?notice=patient-access-unavailable");
+  }, [revokedPatientRoute, setLocation]);
 
   if (query.isLoading) {
     return (
@@ -76,9 +93,16 @@ export default function ProfessionalEntitlementGate({
     );
   }
 
-  const resourceEnabled = Boolean(
-    query.data?.allowed && query.data.enabledResources.includes(resource)
-  );
+  if (revokedPatientRoute) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground"
+      >
+        Removendo o contexto indisponível...
+      </div>
+    );
+  }
 
   if (!resourceEnabled) {
     const settingsDenied = resource === "professional_settings";
