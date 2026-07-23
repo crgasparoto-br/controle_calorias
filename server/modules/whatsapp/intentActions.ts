@@ -4,7 +4,11 @@ import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
-import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
+import {
+  handleCoffeeAdditionIntent,
+  handleCoffeeLorCapsuleIntent,
+  handleFoodAdditionIntent,
+} from "./intent/foodAdditionHandlers";
 import { parseReportPeriod } from "./intent/dateTime";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -26,7 +30,11 @@ import {
   parseWaterIntent,
 } from "./intent/parsers";
 import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
-import { handlePeriodReportIntent, handleSnackSuggestionIntent, handleWaterIntent } from "./intent/waterAndReportHandlers";
+import {
+  handlePeriodReportIntent,
+  handleSnackSuggestionIntent,
+  handleWaterIntent,
+} from "./intent/waterAndReportHandlers";
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
@@ -61,9 +69,11 @@ function normalizePendingGateResult(result: {
   data?: Record<string, unknown>;
   interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
 }): WhatsappIntentResult {
-  const action = result.action && WHATSAPP_INTENT_ACTIONS.has(result.action as WhatsappIntentResult["action"])
-    ? result.action as WhatsappIntentResult["action"]
-    : "clarification_needed";
+  const action =
+    result.action &&
+    WHATSAPP_INTENT_ACTIONS.has(result.action as WhatsappIntentResult["action"])
+      ? (result.action as WhatsappIntentResult["action"])
+      : "clarification_needed";
   return {
     handled: true,
     action,
@@ -71,7 +81,9 @@ function normalizePendingGateResult(result: {
     eventType: result.eventType,
     detail: result.detail,
     ...(result.data ? { data: result.data } : {}),
-    ...(result.interactiveReply ? { interactiveReply: result.interactiveReply } : {}),
+    ...(result.interactiveReply
+      ? { interactiveReply: result.interactiveReply }
+      : {}),
   };
 }
 
@@ -80,15 +92,20 @@ async function resolvePendingInteractionBeforeTextIntent(
   input: WhatsappIntentInput,
   text: string,
   receivedAt: Date,
-  userTimeZone: string,
+  userTimeZone: string
 ): Promise<WhatsappIntentResult | null> {
-  const correlatedMessageId = input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId()?.trim() || null;
-  const requestScopedInbound = !input.entrypoint && Boolean(correlatedMessageId);
+  const correlatedMessageId =
+    input.messageId?.trim() ||
+    getCurrentWhatsappInboundExternalMessageId()?.trim() ||
+    null;
+  const requestScopedInbound =
+    !input.entrypoint && Boolean(correlatedMessageId);
 
   // Webhook textual e simulador já executam o gate antes de chamar este executor.
   // A transcrição de áudio chega diretamente aqui dentro do escopo persistente da
   // mensagem; testes e consumidores explícitos podem usar o entrypoint nominal.
-  if (input.entrypoint !== "audioTranscription" && !requestScopedInbound) return null;
+  if (input.entrypoint !== "audioTranscription" && !requestScopedInbound)
+    return null;
 
   const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
   const gate = await resolveWhatsAppPrecedenceGate({
@@ -103,7 +120,9 @@ async function resolvePendingInteractionBeforeTextIntent(
   return normalizePendingGateResult(gate.result);
 }
 
-function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappIntentResult {
+function withCanonicalGramsMetadata(
+  result: WhatsappIntentResult
+): WhatsappIntentResult {
   if (result.action !== "meal_item_grams_adjusted") return result;
   return {
     ...result,
@@ -120,9 +139,10 @@ function resolveInboundCorrelationId(
   userId: number,
   text: string,
   receivedAt: Date,
-  messageId?: string | null,
+  messageId?: string | null
 ) {
-  const externalMessageId = messageId?.trim() || getCurrentWhatsappInboundExternalMessageId()?.trim();
+  const externalMessageId =
+    messageId?.trim() || getCurrentWhatsappInboundExternalMessageId()?.trim();
   if (externalMessageId) return externalMessageId;
   const digest = createHash("sha256")
     .update(`${userId}|${receivedAt.toISOString()}|${text}`)
@@ -144,41 +164,76 @@ async function executeResumedFoodRegistration(
   input: WhatsappIntentInput,
   text: string,
   receivedAt: Date,
-  userTimeZone: string,
+  userTimeZone: string
 ): Promise<WhatsappIntentResult | null> {
   // A escolha explícita "Registrar alimento" não pode acionar exclusão, água,
   // ajustes, relatórios ou qualquer outro domínio antes de validar o texto
   // preservado. Somente parsers alimentares de criação são permitidos aqui.
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
-  if (coffeeCapsule) return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
+  if (coffeeCapsule)
+    return handleCoffeeLorCapsuleIntent(
+      userId,
+      text,
+      coffeeCapsule,
+      receivedAt,
+      userTimeZone
+    );
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition) return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
+  if (coffeeAddition)
+    return handleCoffeeAdditionIntent(
+      userId,
+      text,
+      coffeeAddition,
+      receivedAt,
+      userTimeZone
+    );
 
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
     text,
     receivedAt,
     userTimezone: userTimeZone,
-    messageId: resolveInboundCorrelationId(userId, text, receivedAt, input.messageId),
+    messageId: resolveInboundCorrelationId(
+      userId,
+      text,
+      receivedAt,
+      input.messageId
+    ),
   });
   if (foodClarification) {
-    return attachWhatsappFoodClarificationPresentation(userId, foodClarification, receivedAt);
+    return attachWhatsappFoodClarificationPresentation(
+      userId,
+      foodClarification,
+      receivedAt
+    );
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
-  return foodAddition ? handleFoodAdditionIntent(userId, foodAddition, userTimeZone) : null;
+  return foodAddition
+    ? handleFoodAdditionIntent(userId, foodAddition, userTimeZone)
+    : null;
 }
 
-export async function executeWhatsappTextIntent(userId: number, input: WhatsappIntentInput): Promise<WhatsappIntentResult | null> {
+export async function executeWhatsappTextIntent(
+  userId: number,
+  input: WhatsappIntentInput
+): Promise<WhatsappIntentResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
 
   const receivedAt = input.receivedAt ?? new Date();
-  const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
+  const userTimeZone =
+    input.userTimezone ?? (await getWhatsAppUserTimeZone(userId));
 
   if (input.entrypoint === "intentClarification.resume") {
-    return executeResumedFoodRegistration(userId, input, text, receivedAt, userTimeZone);
+    return executeResumedFoodRegistration(
+      userId,
+      input,
+      text,
+      receivedAt,
+      userTimeZone
+    );
   }
 
   const pendingInteraction = await resolvePendingInteractionBeforeTextIntent(
@@ -186,15 +241,17 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     input,
     text,
     receivedAt,
-    userTimeZone,
+    userTimeZone
   );
   if (pendingInteraction) return pendingInteraction;
 
   if (isLatestFoodCorrectionText(text)) {
-    const contextualFoodReplacement = await executeWhatsappContextualFoodReplacementIntent(userId, {
-      text,
-      receivedAt,
-    });
+    const contextualFoodReplacement =
+      await executeWhatsappContextualFoodReplacementIntent(userId, {
+        text,
+        receivedAt,
+        userTimezone: userTimeZone,
+      });
     if (contextualFoodReplacement) {
       return {
         handled: true,
@@ -202,8 +259,12 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
         reply: contextualFoodReplacement.reply,
         eventType: contextualFoodReplacement.eventType,
         detail: contextualFoodReplacement.detail,
-        ...(contextualFoodReplacement.data ? { data: contextualFoodReplacement.data } : {}),
-        ...(contextualFoodReplacement.interactiveReply ? { interactiveReply: contextualFoodReplacement.interactiveReply } : {}),
+        ...(contextualFoodReplacement.data
+          ? { data: contextualFoodReplacement.data }
+          : {}),
+        ...(contextualFoodReplacement.interactiveReply
+          ? { interactiveReply: contextualFoodReplacement.interactiveReply }
+          : {}),
       };
     }
   }
@@ -221,53 +282,96 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer registrar água, mas preciso da quantidade. Exemplo: 500 ml de água ontem."),
+      reply: buildWhatsAppClarificationReplyMessage(
+        "Entendi que você quer registrar água, mas preciso da quantidade. Exemplo: 500 ml de água ontem."
+      ),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de água sem quantidade explícita.",
     };
   }
   if (waterIntent?.kind === "water") {
-    return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl, userTimeZone);
+    return handleWaterIntent(
+      userId,
+      text,
+      receivedAt,
+      waterIntent.amountMl,
+      userTimeZone
+    );
   }
 
   const quantityCorrection = parseQuantityCorrectionIntent(text, receivedAt);
-  if (quantityCorrection) return handleQuantityCorrectionIntent(userId, quantityCorrection);
+  if (quantityCorrection)
+    return handleQuantityCorrectionIntent(userId, quantityCorrection);
 
   const gramsReplacement = parseMealItemGramsReplacement(text);
-  if (gramsReplacement) return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
+  if (gramsReplacement)
+    return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
 
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
-  if (coffeeCapsule) return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
+  if (coffeeCapsule)
+    return handleCoffeeLorCapsuleIntent(
+      userId,
+      text,
+      coffeeCapsule,
+      receivedAt,
+      userTimeZone
+    );
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition) return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
+  if (coffeeAddition)
+    return handleCoffeeAdditionIntent(
+      userId,
+      text,
+      coffeeAddition,
+      receivedAt,
+      userTimeZone
+    );
 
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
     text,
     receivedAt,
     userTimezone: userTimeZone,
-    messageId: resolveInboundCorrelationId(userId, text, receivedAt, input.messageId),
+    messageId: resolveInboundCorrelationId(
+      userId,
+      text,
+      receivedAt,
+      input.messageId
+    ),
   });
   if (foodClarification) {
-    return attachWhatsappFoodClarificationPresentation(userId, foodClarification, receivedAt);
+    return attachWhatsappFoodClarificationPresentation(
+      userId,
+      foodClarification,
+      receivedAt
+    );
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
-  if (foodAddition) return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
+  if (foodAddition)
+    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements, { timeZone: userTimeZone }));
+    return withCanonicalGramsMetadata(
+      await handleMealItemMultiIncrement(userId, gramsIncrements, {
+        timeZone: userTimeZone,
+      })
+    );
   }
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments, { timeZone: userTimeZone }));
+    return withCanonicalGramsMetadata(
+      await handleMealItemMultiAdjustment(userId, gramsAdjustments, {
+        timeZone: userTimeZone,
+      })
+    );
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
-  if (foodReplacements) return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
+  if (foodReplacements)
+    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
 
   if (parseSnackSuggestionIntent(text)) return handleSnackSuggestionIntent();
 
@@ -277,7 +381,9 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Posso montar um resumo. Me diga o período, por exemplo: hoje, ontem, semana, mês ou 01/06 a 03/06."),
+      reply: buildWhatsAppClarificationReplyMessage(
+        "Posso montar um resumo. Me diga o período, por exemplo: hoje, ontem, semana, mês ou 01/06 a 03/06."
+      ),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de relatório sem período explícito.",
     };
