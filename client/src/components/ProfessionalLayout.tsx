@@ -32,6 +32,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -161,6 +162,8 @@ export default function ProfessionalLayout({
   const utils = trpc.useUtils();
   const mainRef = useRef<HTMLElement | null>(null);
   const previousPatientIdRef = useRef<number | null>(null);
+  const transitionGenerationRef = useRef(0);
+  const [readyPatientId, setReadyPatientId] = useState<number | null>(null);
   const patientRoute = useMemo(
     () => parseProfessionalPatientRoute(location),
     [location]
@@ -195,12 +198,18 @@ export default function ProfessionalLayout({
   }, [accesses.data, routePatientId]);
 
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
-    if (!approvedAccess || !routePatientId) return null;
+    if (
+      !approvedAccess ||
+      !routePatientId ||
+      readyPatientId !== routePatientId
+    ) {
+      return null;
+    }
     return {
       patientId: routePatientId,
       displayName: patientDisplayName(approvedAccess),
     };
-  }, [approvedAccess, routePatientId]);
+  }, [approvedAccess, readyPatientId, routePatientId]);
 
   const clearPatientQueries = useCallback(async () => {
     await Promise.all([
@@ -226,6 +235,8 @@ export default function ProfessionalLayout({
   }, [utils]);
 
   const clearPatient = useCallback(() => {
+    transitionGenerationRef.current += 1;
+    setReadyPatientId(null);
     if (routePatientId ?? previousPatientIdRef.current) {
       void clearPatientQueries();
     }
@@ -247,11 +258,36 @@ export default function ProfessionalLayout({
   }, [accesses, hasActiveProfile, profile, refreshAuth]);
 
   useEffect(() => {
+    const generation = transitionGenerationRef.current + 1;
+    transitionGenerationRef.current = generation;
     const previousPatientId = previousPatientIdRef.current;
-    if (previousPatientId && previousPatientId !== routePatientId) {
-      void clearPatientQueries();
-    }
     previousPatientIdRef.current = routePatientId;
+
+    if (!routePatientId) {
+      setReadyPatientId(null);
+      if (previousPatientId) void clearPatientQueries();
+      return;
+    }
+
+    setReadyPatientId(currentPatientId =>
+      currentPatientId === routePatientId && previousPatientId === routePatientId
+        ? currentPatientId
+        : null
+    );
+
+    const preparePatientContext = async () => {
+      if (previousPatientId && previousPatientId !== routePatientId) {
+        await clearPatientQueries();
+      }
+      if (
+        transitionGenerationRef.current === generation &&
+        previousPatientIdRef.current === routePatientId
+      ) {
+        setReadyPatientId(routePatientId);
+      }
+    };
+
+    void preparePatientContext();
   }, [clearPatientQueries, routePatientId]);
 
   useEffect(() => {
@@ -264,6 +300,8 @@ export default function ProfessionalLayout({
       return;
     }
 
+    transitionGenerationRef.current += 1;
+    setReadyPatientId(null);
     void clearPatientQueries().finally(() => {
       setLocation("/professional/patients?notice=patient-access-unavailable");
     });
@@ -283,6 +321,8 @@ export default function ProfessionalLayout({
 
   useEffect(
     () => () => {
+      transitionGenerationRef.current += 1;
+      setReadyPatientId(null);
       if (previousPatientIdRef.current) void clearPatientQueries();
       previousPatientIdRef.current = null;
     },
@@ -359,10 +399,13 @@ export default function ProfessionalLayout({
   }
 
   const patientAccessUnavailable = Boolean(routePatientId && accesses.isError);
+  const patientContextTransitioning = Boolean(
+    routePatientId && readyPatientId !== routePatientId
+  );
   const patientContextLoading = Boolean(
     routePatientId &&
       !accesses.isError &&
-      (accesses.isLoading || !accesses.isSuccess)
+      (accesses.isLoading || !accesses.isSuccess || patientContextTransitioning)
   );
   const invalidPatientRoute = patientRoute.kind === "invalid";
   const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
@@ -426,6 +469,8 @@ export default function ProfessionalLayout({
               variant="ghost"
               className="w-full justify-start group-data-[collapsible=icon]:justify-center"
               onClick={() => {
+                transitionGenerationRef.current += 1;
+                setReadyPatientId(null);
                 if (routePatientId) void clearPatientQueries();
                 setLocation("/today");
               }}
@@ -494,7 +539,7 @@ export default function ProfessionalLayout({
                 role="status"
                 className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
               >
-                Confirmando autorização do paciente...
+                Preparando o contexto seguro do paciente...
               </div>
             ) : patientAccessUnavailable ? (
               <ProtectedState
@@ -515,6 +560,6 @@ export default function ProfessionalLayout({
           </main>
         </SidebarInset>
       </SidebarProvider>
-    </ProfessionalWorkspaceContext.Provider>
+    );
   );
 }
