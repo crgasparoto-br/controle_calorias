@@ -43,7 +43,9 @@ Ao trocar de paciente, sair da rota individual, perder autorização ou desativa
 4. redirecionar para a carteira quando o acesso não estiver mais disponível;
 5. preservar vínculos e histórico persistidos ao desativar a área, mas bloquear novas operações.
 
-A limpeza é acionada tanto por refetch e foco quanto por erro de query ou mutation que informe revogação ou ausência do vínculo. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+A limpeza é acionada tanto por refetch e foco quanto por erro de query ou mutation que informe revogação, ausência do vínculo ou código tRPC `FORBIDDEN`. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+
+Eventos assíncronos precisam ser correlacionados ao paciente atual. Queries usam a chave tRPC e o `patientId` do input. Mutations usam o `patientId` das variáveis quando disponível; operações identificadas apenas por `accessId`, `goalId`, `messageId` ou `alertId` só podem revogar o contexto quando a chave da mutation é individual e a operação foi enviada depois da validação do paciente atualmente presente na URL. Uma resposta tardia do paciente anterior deve ser ignorada.
 
 ## Proteção de rascunho
 
@@ -66,11 +68,13 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 2. Trocar entre dois pacientes e confirmar que nenhum dado do anterior permanece visível.
 3. Revogar acesso com a tela aberta e confirmar limpeza e redirecionamento.
 4. Provocar revogação em uma query e em uma mutation e confirmar remoção imediata do conteúdo e do cache.
-5. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
-6. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
-7. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
-8. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
-9. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
-10. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
-11. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
-12. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+5. Provocar uma resposta tardia do paciente anterior e confirmar que o paciente atual permanece aberto.
+6. Revogar o entitlement da rota e confirmar que o erro `FORBIDDEN` limpa o contexto atual.
+7. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
+8. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
+9. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
+10. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
+11. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
+12. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
+13. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
+14. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
