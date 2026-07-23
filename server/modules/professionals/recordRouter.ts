@@ -1,5 +1,5 @@
-import { protectedProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { protectedProcedure, router } from "../../_core/trpc";
 import {
   professionalAssessmentSchema,
   professionalGuidanceSchema,
@@ -10,6 +10,7 @@ import {
   professionalGoalNotificationRetrySchema,
   patientProfessionalGoalReviewSchema,
   patientAdoptProfessionalGoalSchema,
+  professionalPortfolioSchema,
 } from "./schemas";
 import {
   createProfessionalGuidance,
@@ -18,7 +19,10 @@ import {
   listPatientProfessionalGuidances,
   saveProfessionalAssessment,
 } from "./recordService";
-import { transitionPatientTracking } from "./service";
+import {
+  listProfessionalPortfolio,
+  transitionPatientTracking,
+} from "./service";
 import {
   activateProfessionalOfficialGoal,
   deliverProfessionalGoalNotification,
@@ -35,14 +39,26 @@ import { professionalMessageRouter } from "./messageRouter";
 import { professionalAiRouter } from "./aiRouter";
 import { professionalSettingsRouter } from "./settingsRouter";
 import {
-  professionalGoalsProcedure,
   professionalRecordProcedure,
+  professionalReportsProcedure,
 } from "./entitledProcedure";
+import { professionalPatientContextSchema } from "./patientContextSchemas";
+import { getProfessionalPatientContext } from "./patientContextService";
 
 export const professionalRecordRouter = router({
   messages: professionalMessageRouter,
   ai: professionalAiRouter,
   settings: professionalSettingsRouter,
+  context: protectedProcedure
+    .input(professionalPatientContextSchema)
+    .query(({ ctx, input }) =>
+      getProfessionalPatientContext(ctx.user.id, input)
+    ),
+  portfolioReport: professionalReportsProcedure
+    .input(professionalPortfolioSchema)
+    .query(({ ctx, input }) =>
+      listProfessionalPortfolio(ctx.user.id, input)
+    ),
   get: professionalRecordProcedure
     .input(professionalRecordSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),
@@ -69,12 +85,12 @@ export const professionalRecordRouter = router({
   ),
   operationalAlerts: professionalOperationalAlertsRouter,
   officialGoal: router({
-    professionalState: professionalGoalsProcedure
+    professionalState: professionalRecordProcedure
       .input(professionalRecordSchema.pick({ patientId: true }))
       .query(({ ctx, input }) =>
         getProfessionalOfficialGoalState(ctx.user.id, input.patientId)
       ),
-    activate: professionalGoalsProcedure
+    activate: professionalRecordProcedure
       .input(professionalOfficialGoalSchema)
       .mutation(async ({ ctx, input }) => {
         try {
@@ -86,7 +102,7 @@ export const professionalRecordRouter = router({
           throw error;
         }
       }),
-    retryNotification: professionalGoalsProcedure
+    retryNotification: professionalRecordProcedure
       .input(professionalGoalNotificationRetrySchema)
       .mutation(({ ctx, input }) =>
         deliverProfessionalGoalNotification(input.goalId, ctx.user.id)
