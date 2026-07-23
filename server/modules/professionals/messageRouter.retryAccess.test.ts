@@ -61,6 +61,19 @@ describe("professionalMessageRouter.retry", () => {
     expect(mocks.deliver).not.toHaveBeenCalled();
   });
 
+  it("detects revocation that happens between validation and delivery claim", async () => {
+    mocks.assertRetryAccess
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ProfessionalMessageAccessUnavailableError());
+
+    await expect(caller().retry({ messageId })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "O acesso a este paciente não está mais disponível.",
+    } satisfies Partial<TRPCError>);
+    expect(mocks.deliver).toHaveBeenCalledWith(messageId, 7);
+    expect(mocks.assertRetryAccess).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves unchanged delivery for an approved concurrent retry", async () => {
     mocks.assertRetryAccess.mockResolvedValue(undefined);
 
@@ -68,5 +81,6 @@ describe("professionalMessageRouter.retry", () => {
       status: "unchanged",
     });
     expect(mocks.deliver).toHaveBeenCalledWith(messageId, 7);
+    expect(mocks.assertRetryAccess).toHaveBeenCalledTimes(2);
   });
 });
