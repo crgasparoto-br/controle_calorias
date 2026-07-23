@@ -20,9 +20,20 @@ export const professionalMessageRouter = router({
     const snapshot = await getProfessionalSettingsSnapshot(ctx.user.id);
     return snapshot.preferences.messageTemplates;
   }),
-  recipients: professionalMessagesProcedure.query(({ ctx }) =>
-    listProfessionalAccesses(ctx.user.id)
-  ),
+  recipients: professionalMessagesProcedure.query(async ({ ctx }) => {
+    const accesses = await listProfessionalAccesses(ctx.user.id);
+    return accesses
+      .filter(access => access.status === "approved")
+      .map(access => ({
+        patientUserId: access.patientUserId,
+        patient: access.patient
+          ? {
+              name: access.patient.name,
+              email: access.patient.email,
+            }
+          : null,
+      }));
+  }),
   list: professionalMessagesProcedure
     .input(professionalMessageListSchema)
     .query(({ ctx, input }) => listProfessionalMessages(ctx.user.id, input)),
