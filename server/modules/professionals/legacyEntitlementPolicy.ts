@@ -3,7 +3,10 @@ import {
   registerProtectedProcedurePolicy,
   type ProtectedProcedurePolicy,
 } from "../../_core/procedurePolicy";
-import { assertProfessionalResourceAccess } from "./entitlementAccess";
+import {
+  assertProfessionalResourceAccess,
+  isProfessionalEntitlementVerificationUnavailableError,
+} from "./entitlementAccess";
 import type { ProfessionalEntitlementResource } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
 
@@ -70,23 +73,16 @@ export function createLegacyProfessionalEntitlementPolicy(
         return;
       } catch (error) {
         lastError = error;
-        if (
-          error instanceof Error &&
-          error.constructor.name ===
-            "ProfessionalEntitlementVerificationUnavailableError"
-        ) {
+        if (isProfessionalEntitlementVerificationUnavailableError(error)) {
           break;
         }
       }
     }
 
     throw new TRPCError({
-      code:
-        lastError instanceof Error &&
-        lastError.constructor.name ===
-          "ProfessionalEntitlementVerificationUnavailableError"
-          ? "SERVICE_UNAVAILABLE"
-          : "FORBIDDEN",
+      code: isProfessionalEntitlementVerificationUnavailableError(lastError)
+        ? "SERVICE_UNAVAILABLE"
+        : "FORBIDDEN",
       message:
         lastError instanceof Error
           ? lastError.message
