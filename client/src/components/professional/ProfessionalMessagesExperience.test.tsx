@@ -7,8 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const createMutate = vi.fn();
 const retryMutate = vi.fn();
 const invalidateMessages = vi.fn().mockResolvedValue(undefined);
-let messages: any[] = [];
+const refetchMessages = vi.fn();
+const emptyTemplates: never[] = [];
+const emptyRecipients: never[] = [];
+let messageResult: { items: any[]; nextCursor: null } = {
+  items: [],
+  nextCursor: null,
+};
 let trackingStatus: "active" | "paused" | "ended" = "active";
+
+function setMessages(items: any[]) {
+  messageResult = { items, nextCursor: null };
+}
 
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
@@ -33,18 +43,18 @@ vi.mock("@/lib/trpc", () => ({
     professionalRecord: {
       messages: {
         templates: {
-          useQuery: () => ({ data: [], isError: false }),
+          useQuery: () => ({ data: emptyTemplates, isError: false }),
         },
         recipients: {
-          useQuery: () => ({ data: [], isError: false }),
+          useQuery: () => ({ data: emptyRecipients, isError: false }),
         },
         list: {
           useQuery: () => ({
-            data: { items: messages, nextCursor: null },
+            data: messageResult,
             isLoading: false,
             isError: false,
             isFetching: false,
-            refetch: vi.fn(),
+            refetch: refetchMessages,
           }),
         },
         create: {
@@ -73,14 +83,15 @@ beforeEach(() => {
   createMutate.mockReset();
   retryMutate.mockReset();
   invalidateMessages.mockClear();
+  refetchMessages.mockReset();
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
-  messages = [];
+  setMessages([]);
   trackingStatus = "active";
 });
 
 describe("ProfessionalMessagesExperience", () => {
   it("continues an AI draft as a new explicit version", async () => {
-    messages = [
+    setMessages([
       {
         id: "draft-ai-1",
         patientUserId: 41,
@@ -91,7 +102,7 @@ describe("ProfessionalMessagesExperience", () => {
         state: "draft",
         createdAt: Date.now(),
       },
-    ];
+    ]);
     const { default: Experience } = await import(
       "./ProfessionalMessagesExperience"
     );
@@ -127,7 +138,7 @@ describe("ProfessionalMessagesExperience", () => {
   });
 
   it("requires review of automatic drafts before delivery", async () => {
-    messages = [
+    setMessages([
       {
         id: "draft-auto-1",
         patientUserId: 41,
@@ -138,7 +149,7 @@ describe("ProfessionalMessagesExperience", () => {
         state: "draft",
         createdAt: Date.now(),
       },
-    ];
+    ]);
     const { default: Experience } = await import(
       "./ProfessionalMessagesExperience"
     );
