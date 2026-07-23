@@ -7,7 +7,6 @@ let location = "/professional/patients/41/reports";
 const setLocation = vi.fn();
 const removeQueries = vi.fn();
 const contextInput = vi.fn();
-let querySubscriber: ((event: any) => void) | null = null;
 let mutationSubscriber: ((event: any) => void) | null = null;
 
 function cache() {
@@ -55,14 +54,7 @@ const trpcUtils = {
 
 const queryClient = {
   removeQueries,
-  getQueryCache: () => ({
-    subscribe: (subscriber: (event: any) => void) => {
-      querySubscriber = subscriber;
-      return () => {
-        querySubscriber = null;
-      };
-    },
-  }),
+  getQueryCache: () => ({ subscribe: () => () => undefined }),
   getMutationCache: () => ({
     subscribe: (subscriber: (event: any) => void) => {
       mutationSubscriber = subscriber;
@@ -161,7 +153,6 @@ beforeEach(() => {
   setLocation.mockReset();
   removeQueries.mockReset();
   contextInput.mockReset();
-  querySubscriber = null;
   mutationSubscriber = null;
   for (const item of caches) {
     item.cancel.mockReset();
