@@ -56,6 +56,8 @@ jobs:
           retention-days: 3
 
       - name: Tests
+        env:
+          NODE_ENV: test
         run: |
           : > /tmp/vitest.log
           # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
