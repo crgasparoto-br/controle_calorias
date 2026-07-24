@@ -23,7 +23,7 @@ import {
   Search,
   UserRoundPlus,
 } from "lucide-react";
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 
 type Filters = {
@@ -54,7 +54,7 @@ function validValue<T extends string>(
   return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
-function filtersFromLocation(location: string): Filters {
+export function filtersFromLocation(location: string): Filters {
   const params = new URLSearchParams(location.split("?")[1] ?? "");
   const page = Number(params.get("page"));
   return {
@@ -84,6 +84,40 @@ function filtersFromLocation(location: string): Filters {
   };
 }
 
+export function filtersToLocation(filters: Filters) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.authorizationStatus !== "all")
+    params.set("authorization", filters.authorizationStatus);
+  if (filters.trackingStatus !== "all")
+    params.set("tracking", filters.trackingStatus);
+  if (filters.activity !== "all") params.set("activity", filters.activity);
+  if (filters.nextReview !== "all") params.set("review", filters.nextReview);
+  if (filters.page > 1) params.set("page", String(filters.page));
+  const query = params.toString();
+  return `/professional/patients${query ? `?${query}` : ""}`;
+}
+
+export function requestAccessErrorMessage(error: unknown) {
+  const code = (error as { data?: { code?: string } } | null)?.data?.code;
+  if (code === "FORBIDDEN" || code === "NOT_FOUND" || code === "BAD_REQUEST") {
+    return "Não foi possível enviar a solicitação com os dados informados. Confira o contato ou tente novamente mais tarde.";
+  }
+  return "Não foi possível enviar a solicitação agora. Tente novamente em alguns instantes.";
+}
+
+function sameFilters(left: Filters, right: Filters) {
+  return (
+    left.search === right.search &&
+    left.authorizationStatus === right.authorizationStatus &&
+    left.trackingStatus === right.trackingStatus &&
+    left.activity === right.activity &&
+    left.nextReview === right.nextReview &&
+    left.page === right.page &&
+    left.pageSize === right.pageSize
+  );
+}
+
 function formatDate(value: number | null | undefined, fallback: string) {
   return value
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -93,6 +127,13 @@ function formatDate(value: number | null | undefined, fallback: string) {
     : fallback;
 }
 
+function unavailableActionLabel(status: Filters["authorizationStatus"]) {
+  if (status === "pending") return "Aguardando autorização";
+  if (status === "revoked") return "Acesso revogado";
+  if (status === "rejected") return "Solicitação recusada";
+  return "Acesso indisponível";
+}
+
 export default function ProfessionalPatients() {
   const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -100,7 +141,6 @@ export default function ProfessionalPatients() {
     filtersFromLocation(location)
   );
   const [searchInput, setSearchInput] = useState(filters.search);
-  const deferredSearch = useDeferredValue(searchInput);
   const [showRequest, setShowRequest] = useState(false);
   const [patientContact, setPatientContact] = useState("");
   const [reason, setReason] = useState("");
@@ -109,27 +149,28 @@ export default function ProfessionalPatients() {
   const [openError, setOpenError] = useState<string | null>(null);
 
   useEffect(() => {
-    setFilters(current =>
-      current.search === deferredSearch
-        ? current
-        : { ...current, search: deferredSearch, page: 1 }
-    );
-  }, [deferredSearch]);
+    const timer = window.setTimeout(() => {
+      setFilters(current =>
+        current.search === searchInput
+          ? current
+          : { ...current, search: searchInput, page: 1 }
+      );
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filters.search) params.set("search", filters.search);
-    if (filters.authorizationStatus !== "all")
-      params.set("authorization", filters.authorizationStatus);
-    if (filters.trackingStatus !== "all")
-      params.set("tracking", filters.trackingStatus);
-    if (filters.activity !== "all") params.set("activity", filters.activity);
-    if (filters.nextReview !== "all") params.set("review", filters.nextReview);
-    if (filters.page > 1) params.set("page", String(filters.page));
-    const query = params.toString();
-    const next = `/professional/patients${query ? `?${query}` : ""}`;
-    if (next !== location) window.history.replaceState({}, "", next);
-  }, [filters, location]);
+    const nextFilters = filtersFromLocation(location);
+    setFilters(current => (sameFilters(current, nextFilters) ? current : nextFilters));
+    setSearchInput(current =>
+      current === nextFilters.search ? current : nextFilters.search
+    );
+  }, [location]);
+
+  useEffect(() => {
+    const next = filtersToLocation(filters);
+    if (next !== location) setLocation(next, { replace: true });
+  }, [filters, location, setLocation]);
 
   const queryInput = useMemo(() => filters, [filters]);
   const portfolio = trpc.nutrition.professionals.portfolio.useQuery(queryInput, {
@@ -139,7 +180,9 @@ export default function ProfessionalPatients() {
   });
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
-      setRequestSuccess("Solicitação enviada. Ela ficará pendente até a autorização do paciente.");
+      setRequestSuccess(
+        "Solicitação enviada. Ela ficará pendente até a autorização do paciente."
+      );
       setPatientContact("");
       setReason("");
       await Promise.all([
@@ -217,6 +260,7 @@ export default function ProfessionalPatients() {
               }
               onClick={() => {
                 setRequestSuccess(null);
+                requestAccess.reset();
                 requestAccess.mutate({
                   patientContact: patientContact.trim(),
                   reason: reason.trim(),
@@ -226,20 +270,26 @@ export default function ProfessionalPatients() {
               {requestAccess.isPending ? "Enviando..." : "Enviar solicitação"}
             </Button>
             {requestSuccess ? (
-              <p role="status" className="text-sm text-emerald-700 lg:col-span-3 dark:text-emerald-300">
+              <p
+                role="status"
+                className="text-sm text-emerald-700 lg:col-span-3 dark:text-emerald-300"
+              >
                 {requestSuccess}
               </p>
             ) : null}
             {requestAccess.isError ? (
               <p role="alert" className="text-sm text-destructive lg:col-span-3">
-                {requestAccess.error.message}
+                {requestAccessErrorMessage(requestAccess.error)}
               </p>
             ) : null}
           </CardContent>
         </Card>
       ) : null}
 
-      <section aria-label="Filtros da carteira" className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(170px,1fr))]">
+      <section
+        aria-label="Filtros da carteira"
+        className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(170px,1fr))]"
+      >
         <label className="relative min-w-0">
           <span className="sr-only">Buscar paciente</span>
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -257,7 +307,8 @@ export default function ProfessionalPatients() {
           onChange={event =>
             setFilters(current => ({
               ...current,
-              authorizationStatus: event.target.value as Filters["authorizationStatus"],
+              authorizationStatus: event.target
+                .value as Filters["authorizationStatus"],
               page: 1,
             }))
           }
@@ -324,7 +375,10 @@ export default function ProfessionalPatients() {
       </section>
 
       {openError ? (
-        <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
+        >
           {openError}
         </p>
       ) : null}
@@ -347,7 +401,9 @@ export default function ProfessionalPatients() {
           {portfolio.data?.items.map((item: any) => {
             const accessible = item.authorizationStatus === "approved";
             const displayName =
-              item.patientName ?? item.patientEmail ?? `Paciente ${item.patientUserId}`;
+              item.patientName ??
+              (accessible ? item.patientEmail : null) ??
+              `Paciente ${item.patientUserId}`;
             return (
               <article
                 key={item.authorizationId}
@@ -356,7 +412,9 @@ export default function ProfessionalPatients() {
                 <div className="min-w-0">
                   <h2 className="break-words font-semibold">{displayName}</h2>
                   <p className="mt-1 break-words text-sm text-muted-foreground">
-                    {item.patientEmail ?? "Identificação disponível após autorização"}
+                    {accessible
+                      ? item.patientEmail ?? "Identificação não informada"
+                      : "Dados pessoais e clínicos disponíveis após autorização"}
                   </p>
                 </div>
                 <div className="min-w-0">
@@ -368,22 +426,32 @@ export default function ProfessionalPatients() {
                 </div>
                 <div className="min-w-0">
                   <p className="mb-1 text-xs text-muted-foreground">Acompanhamento</p>
-                  <ProfessionalStatusBadge
-                    kind="tracking"
-                    value={item.trackingStatus ?? "not_started"}
-                  />
+                  {accessible ? (
+                    <ProfessionalStatusBadge
+                      kind="tracking"
+                      value={item.trackingStatus ?? "not_started"}
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Disponível após autorização
+                    </p>
+                  )}
                 </div>
                 <dl className="min-w-0 space-y-2 text-sm">
                   <div>
                     <dt className="text-xs text-muted-foreground">Última atividade</dt>
                     <dd className="break-words font-medium">
-                      {formatDate(item.lastFoodActivityAt, "Não informado")}
+                      {accessible
+                        ? formatDate(item.lastFoodActivityAt, "Não informado")
+                        : "Disponível após autorização"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Próxima revisão</dt>
                     <dd className="break-words font-medium">
-                      {formatDate(item.nextReviewAt, "Sem revisão agendada")}
+                      {accessible
+                        ? formatDate(item.nextReviewAt, "Sem revisão agendada")
+                        : "Disponível após autorização"}
                     </dd>
                   </div>
                 </dl>
@@ -396,11 +464,7 @@ export default function ProfessionalPatients() {
                     ? "Validando..."
                     : accessible
                       ? "Abrir paciente"
-                      : item.authorizationStatus === "pending"
-                        ? "Aguardando autorização"
-                        : item.authorizationStatus === "revoked"
-                          ? "Acesso revogado"
-                          : "Acesso indisponível"}
+                      : unavailableActionLabel(item.authorizationStatus)}
                 </Button>
               </article>
             );
@@ -411,7 +475,8 @@ export default function ProfessionalPatients() {
       {portfolio.data && portfolio.data.pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Página {portfolio.data.pagination.page} de {portfolio.data.pagination.totalPages}
+            Página {portfolio.data.pagination.page} de{" "}
+            {portfolio.data.pagination.totalPages}
           </p>
           <div className="flex gap-2">
             <Button
