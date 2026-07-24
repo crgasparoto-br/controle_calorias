@@ -2,7 +2,6 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
-import { enforceProtectedProcedureInputPolicies } from "./procedureInputPolicy";
 import { enforceProtectedProcedurePolicies } from "./procedurePolicy";
 import { enforceProtectedProcedureResultPolicies } from "./procedureResultPolicy";
 
@@ -27,17 +26,12 @@ const requireUser = t.middleware(async opts => {
   await enforceProtectedProcedurePolicies({ path, ctx: authenticatedCtx });
 
   const rawInput = await getRawInput();
-  const input = await enforceProtectedProcedureInputPolicies({
-    path,
-    ctx: authenticatedCtx,
-    input: rawInput,
-  });
   const result = await next({ ctx: authenticatedCtx });
   return enforceProtectedProcedureResultPolicies({
     path,
     result,
     ctx: authenticatedCtx,
-    input,
+    input: rawInput,
   });
 });
 
