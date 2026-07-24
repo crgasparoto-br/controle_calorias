@@ -117,7 +117,47 @@ jobs:
           exit 1
 
       - name: Validate privacy-safe access receipts
-        run: pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts
+        run: |
+          log_file=/tmp/professional-access-receipts.log
+          setsid pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts >"$log_file" 2>&1 &
+          test_pid=$!
+          success_marker='"event":"professional.access_receipts.integration.passed"'
+
+          for attempt in $(seq 1 90); do
+            if grep -q "$success_marker" "$log_file"; then
+              cat "$log_file"
+              kill -TERM -- "-$test_pid" 2>/dev/null || true
+              sleep 2
+              kill -KILL -- "-$test_pid" 2>/dev/null || true
+              wait "$test_pid" 2>/dev/null || true
+              echo "Professional access receipt integration completed successfully."
+              exit 0
+            fi
+
+            if ! kill -0 "$test_pid" 2>/dev/null; then
+              set +e
+              wait "$test_pid"
+              test_status=$?
+              set -e
+              cat "$log_file"
+              if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
+                echo "Professional access receipt integration completed successfully."
+                exit 0
+              fi
+              echo "Professional access receipt integration exited before its success marker."
+              exit "${test_status:-1}"
+            fi
+
+            sleep 2
+          done
+
+          cat "$log_file"
+          kill -TERM -- "-$test_pid" 2>/dev/null || true
+          sleep 2
+          kill -KILL -- "-$test_pid" 2>/dev/null || true
+          wait "$test_pid" 2>/dev/null || true
+          echo "Professional access receipt integration timed out before its success marker."
+          exit 1
 
       - name: Validate backfill command idempotency
         run: |
