@@ -1,0 +1,24 @@
+name: Export service source 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/export-service-source-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: professional-service-source-${{ github.sha }}
+          path: server/modules/professionals/service.ts
+          if-no-files-found: error
+          retention-days: 1
