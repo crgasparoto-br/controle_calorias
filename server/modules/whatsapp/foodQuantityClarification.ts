@@ -53,9 +53,35 @@ export type ImageMealQuantityContext = {
   currentItemIndex: number;
 };
 
+export type CaloricComplementOperation =
+  | {
+      kind: "register";
+      occurredAt: string;
+    }
+  | {
+      kind: "add_to_meal";
+      mealId: number;
+      expectedMealLabel: string;
+      expectedOccurredAt: string;
+    }
+  | {
+      kind: "replace_item";
+      mealId: number;
+      itemIndex: number;
+      originalFoodName: string;
+    };
+
+export type CaloricComplementQuantityContext = {
+  mode: "complete_caloric_complement";
+  componentName: "açúcar";
+  originalFoodText: string;
+  operation: CaloricComplementOperation;
+};
+
 export type FoodQuantityResolutionContext =
   | MealItemCorrectionContext
-  | ImageMealQuantityContext;
+  | ImageMealQuantityContext
+  | CaloricComplementQuantityContext;
 
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
   resolutionContext?: FoodQuantityResolutionContext;
@@ -180,7 +206,10 @@ export function createFoodQuantityClarificationService(
       ...baseTarget,
       actions: buildFoodClarificationActions("quantity", [candidate]),
       ...(input.resolutionContext
-        ? { resolutionContext: input.resolutionContext }
+        ? {
+            resolutionContext: input.resolutionContext,
+            allowedDomainEffect: "complete_pending_food_operation_once" as const,
+          }
         : {}),
     };
 
@@ -213,7 +242,9 @@ export function createFoodQuantityClarificationService(
           ? "Correção do último alimento aguardando quantidade em pendência persistente."
           : input.resolutionContext?.mode === "complete_image_meal"
             ? "Refeição identificada por imagem aguardando quantidades em sequência persistente."
-            : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
+            : input.resolutionContext?.mode === "complete_caloric_complement"
+              ? "Operação alimentar aguardando quantidade do complemento calórico em pendência persistente."
+              : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
       data: buildFoodClarificationPendingData(created, target),
     });
   };
@@ -302,6 +333,28 @@ export function createFoodQuantityClarificationService(
           replacementFoodName: input.replacementFoodName,
         },
       }),
+    requestCaloricComplementQuantity: (input: {
+      userId: number;
+      originalFoodText: string;
+      operation: CaloricComplementOperation;
+      receivedAt?: Date;
+      messageId?: string | null;
+    }) =>
+      createQuantityClarification({
+        userId: input.userId,
+        foodName: "Café com açúcar",
+        originalText: input.originalFoodText,
+        receivedAt: input.receivedAt,
+        messageId: input.messageId,
+        resolutionContext: {
+          mode: "complete_caloric_complement",
+          componentName: "açúcar",
+          originalFoodText: input.originalFoodText,
+          operation: input.operation,
+        },
+        instructionText:
+          "Informe somente a quantidade de açúcar em gramas. Exemplo: 5 g. Não vou assumir uma quantidade padrão.",
+      }),
   };
 }
 
@@ -312,3 +365,5 @@ export const requestWhatsappImageMealQuantityClarification =
   defaultService.requestImageMealQuantity;
 export const requestWhatsappLatestFoodCorrectionQuantity =
   defaultService.requestLatestFoodCorrectionQuantity;
+export const requestWhatsappCaloricComplementQuantityClarification =
+  defaultService.requestCaloricComplementQuantity;
