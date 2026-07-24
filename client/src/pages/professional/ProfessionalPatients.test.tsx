@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -24,9 +31,20 @@ const {
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
-  ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
-  ProfessionalPageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
-    <header><h1>{title}</h1>{actions}</header>
+  ProfessionalPage: ({ children }: { children: React.ReactNode }) => (
+    <main>{children}</main>
+  ),
+  ProfessionalPageHeader: ({
+    title,
+    actions,
+  }: {
+    title: string;
+    actions?: React.ReactNode;
+  }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
   ),
   ProfessionalStatusBadge: ({ value }: { value: string }) => <span>{value}</span>,
   ProfessionalLoadingState: ({ label }: { label: string }) => <p>{label}</p>,
@@ -47,7 +65,9 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         portfolio: { useQuery: portfolioUseQuery },
         requestAccess: {
-          useMutation: (options: { onSuccess?: (result: { status: string }) => Promise<void> | void }) => ({
+          useMutation: (options: {
+            onSuccess?: (result: { status: string }) => Promise<void> | void;
+          }) => ({
             isPending: false,
             isError: false,
             error: null,
@@ -70,11 +90,20 @@ import ProfessionalPatients, {
   requestAccessSuccessState,
 } from "./ProfessionalPatients";
 
-function queryResult(page = 1) {
+function queryResult(
+  page = 1,
+  items: Array<Record<string, unknown>> = [],
+  totalPages = 3
+) {
   return {
     data: {
-      items: [],
-      pagination: { page, pageSize: 20, total: 60, totalPages: 3 },
+      items,
+      pagination: {
+        page,
+        pageSize: 20,
+        total: totalPages === 0 ? 0 : Math.max(items.length, 60),
+        totalPages,
+      },
     },
     isLoading: false,
     isError: false,
@@ -84,22 +113,27 @@ function queryResult(page = 1) {
 
 function submitRequest() {
   fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
-  fireEvent.change(screen.getByPlaceholderText("paciente@exemplo.com ou celular"), {
-    target: { value: "novo@paciente.com" },
-  });
-  fireEvent.change(screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional"), {
-    target: { value: "Iniciar acompanhamento" },
-  });
+  fireEvent.change(
+    screen.getByPlaceholderText("paciente@exemplo.com ou celular"),
+    { target: { value: "novo@paciente.com" } }
+  );
+  fireEvent.change(
+    screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional"),
+    { target: { value: "Iniciar acompanhamento" } }
+  );
   fireEvent.click(screen.getByRole("button", { name: "Enviar solicitação" }));
 }
 
 beforeEach(() => {
   window.history.replaceState({}, "", "/professional/patients?page=2");
-  portfolioUseQuery.mockImplementation((input: { page: number }) => queryResult(input.page));
+  portfolioUseQuery.mockImplementation((input: { page: number }) =>
+    queryResult(input.page)
+  );
   portfolioUseQuery.mockClear();
   refetch.mockClear();
   invalidate.mockClear();
   patientTimeZoneFetch.mockClear();
+  patientTimeZoneFetch.mockResolvedValue(undefined);
   requestAccessMutate.mockClear();
   requestAccessResult.current = { status: "pending" };
 });
@@ -262,6 +296,27 @@ describe("ProfessionalPatients filter interactions", () => {
       expect.any(Object)
     );
     expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status").textContent).toContain(
+      "A carteira foi atualizada para mostrar os acessos pendentes."
+    );
+  });
+
+  it("refreshes the portfolio when the pending filter is already active", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?authorization=pending"
+    );
+    render(<ProfessionalPatients />);
+
+    submitRequest();
+
+    await waitFor(() => {
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledTimes(1);
+    });
+    expect(window.location.search).toBe("?authorization=pending");
     expect(screen.getByRole("status").textContent).toContain(
       "A carteira foi atualizada para mostrar os acessos pendentes."
     );
@@ -293,6 +348,143 @@ describe("ProfessionalPatients filter interactions", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Este paciente já autorizou o acesso."
     );
+  });
+});
+
+describe("ProfessionalPatients request form", () => {
+  it("mirrors the canonical maximum lengths", () => {
+    render(<ProfessionalPatients />);
+    fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
+
+    expect(
+      screen
+        .getByPlaceholderText("paciente@exemplo.com ou celular")
+        .getAttribute("maxlength")
+    ).toBe("320");
+    expect(
+      screen
+        .getByPlaceholderText("Ex.: iniciar acompanhamento nutricional")
+        .getAttribute("maxlength")
+    ).toBe("500");
+  });
+});
+
+describe("ProfessionalPatients patient rows", () => {
+  const patientItems = [
+    {
+      authorizationId: "approved-1",
+      patientUserId: 41,
+      patientName: "Paciente Aprovado com Nome Muito Longo para Validação",
+      patientEmail: "approved@example.com",
+      authorizationStatus: "approved",
+      trackingStatus: "not_started",
+      lastFoodActivityAt: null,
+      nextReviewAt: null,
+    },
+    {
+      authorizationId: "pending-1",
+      patientUserId: 42,
+      patientName: "Paciente Pendente",
+      patientEmail: "must-not-render@example.com",
+      authorizationStatus: "pending",
+      trackingStatus: null,
+    },
+    {
+      authorizationId: "rejected-1",
+      patientUserId: 43,
+      patientName: "Paciente Recusado",
+      authorizationStatus: "rejected",
+      trackingStatus: null,
+    },
+    {
+      authorizationId: "revoked-1",
+      patientUserId: 44,
+      patientName: "Paciente Revogado",
+      authorizationStatus: "revoked",
+      trackingStatus: null,
+    },
+  ];
+
+  it("separates authorization and tracking and exposes safe fallback values", () => {
+    window.history.replaceState({}, "", "/professional/patients");
+    portfolioUseQuery.mockImplementation(() =>
+      queryResult(1, patientItems, 1)
+    );
+
+    render(<ProfessionalPatients />);
+
+    expect(screen.getByText("approved")).not.toBeNull();
+    expect(screen.getByText("not_started")).not.toBeNull();
+    expect(screen.getByText("Não informado")).not.toBeNull();
+    expect(
+      screen.getByText("Sem revisão agendada", { selector: "dd" })
+    ).not.toBeNull();
+    expect(screen.queryByText("must-not-render@example.com")).toBeNull();
+
+    expect(
+      (screen.getByRole("button", { name: "Abrir paciente" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Aguardando autorização",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Solicitação recusada",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Acesso revogado" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    expect(
+      screen.getAllByText("Dados pessoais e clínicos disponíveis após autorização")
+    ).toHaveLength(3);
+  });
+
+  it("validates an approved patient before navigating to the contextual route", async () => {
+    window.history.replaceState({}, "", "/professional/patients");
+    portfolioUseQuery.mockImplementation(() =>
+      queryResult(1, [patientItems[0]], 1)
+    );
+    render(<ProfessionalPatients />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir paciente" }));
+
+    await waitFor(() =>
+      expect(patientTimeZoneFetch).toHaveBeenCalledWith({
+        patientId: 41,
+        weekOffset: 0,
+      })
+    );
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/professional/patients/41")
+    );
+  });
+
+  it("keeps stale patient data closed when access validation fails", async () => {
+    window.history.replaceState({}, "", "/professional/patients");
+    patientTimeZoneFetch.mockRejectedValueOnce(new Error("FORBIDDEN"));
+    portfolioUseQuery.mockImplementation(() =>
+      queryResult(1, [patientItems[0]], 1)
+    );
+    render(<ProfessionalPatients />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir paciente" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain(
+        "O acesso a este paciente não está mais disponível."
+      );
+      expect(refetch).toHaveBeenCalledTimes(1);
+    });
+    expect(window.location.pathname).toBe("/professional/patients");
   });
 });
 
