@@ -32,7 +32,7 @@ const requireUser = t.middleware(async opts => {
     ctx: authenticatedCtx,
     input: rawInput,
   });
-  const result = await next({ ctx: authenticatedCtx, input });
+  const result = await next({ ctx: authenticatedCtx });
   return enforceProtectedProcedureResultPolicies({
     path,
     result,
