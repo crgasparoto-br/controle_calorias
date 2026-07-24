@@ -70,34 +70,7 @@ function priority(patientId: number) {
     alertCount: patientId % 3 === 0 ? 4 : 2,
     highestSeverity: severity,
     primarySignal,
-    signals: [
-      primarySignal,
-      {
-        ...primarySignal,
-        id: `secondary-${patientId}`,
-        type: "goal_review_due",
-        label: "Revisão de meta pendente",
-        severity: "attention",
-      },
-      ...(patientId % 3 === 0
-        ? [
-            {
-              ...primarySignal,
-              id: `third-${patientId}`,
-              type: "weigh_in_overdue",
-              label: "Pesagem pendente",
-              severity: "info",
-            },
-            {
-              ...primarySignal,
-              id: `fourth-${patientId}`,
-              type: "no_food_records",
-              label: "Sem registros alimentares",
-              severity: "info",
-            },
-          ]
-        : []),
-    ],
+    signals: [primarySignal],
     updatedAt: primarySignal.updatedAt,
   };
 }
@@ -135,6 +108,49 @@ function priorityQuery(input: { limit: number; offset?: number }) {
   };
 }
 
+const portfolioItems = [
+  {
+    authorizationId: "approved-1",
+    patientUserId: 1,
+    patientName: "Mariana de Almeida Vasconcelos e Silva",
+    patientEmail: "mariana@example.com",
+    authorizationStatus: "approved",
+    trackingStatus: "active",
+    lastFoodActivityAt: now - 3_600_000,
+    nextReviewAt: now + 2 * 86_400_000,
+  },
+  {
+    authorizationId: "pending-2",
+    patientUserId: 2,
+    patientName: "João Pereira",
+    patientEmail: null,
+    authorizationStatus: "pending",
+    trackingStatus: null,
+    lastFoodActivityAt: null,
+    nextReviewAt: null,
+  },
+  {
+    authorizationId: "rejected-3",
+    patientUserId: 3,
+    patientName: "Beatriz Fernandes",
+    patientEmail: null,
+    authorizationStatus: "rejected",
+    trackingStatus: null,
+    lastFoodActivityAt: null,
+    nextReviewAt: null,
+  },
+  {
+    authorizationId: "revoked-4",
+    patientUserId: 4,
+    patientName: "Carlos Henrique",
+    patientEmail: null,
+    authorizationStatus: "revoked",
+    trackingStatus: null,
+    lastFoodActivityAt: null,
+    nextReviewAt: null,
+  },
+];
+
 function portfolioQuery() {
   const state = visualState();
   if (state === "portfolio-error") {
@@ -156,12 +172,12 @@ function portfolioQuery() {
   const empty = state === "empty";
   return {
     data: {
-      items: empty ? [] : [{ patientUserId: 1 }],
+      items: empty ? [] : portfolioItems,
       pagination: {
         page: 1,
-        pageSize: 10,
-        total: empty ? 0 : 34,
-        totalPages: empty ? 0 : 4,
+        pageSize: 20,
+        total: empty ? 0 : portfolioItems.length,
+        totalPages: empty ? 0 : 1,
       },
       summary: {
         active: 24,
@@ -182,13 +198,24 @@ function cancellable() {
   return { cancel: resolved };
 }
 
+function mutation() {
+  return {
+    mutate: () => undefined,
+    reset: () => undefined,
+    isPending: false,
+    isError: false,
+    error: null,
+  };
+}
+
 export const trpc = {
   useUtils: () => ({
     nutrition: {
       professionals: {
-        patientTimeZone: cancellable(),
+        patientTimeZone: { ...cancellable(), fetch: resolved },
         patientDashboard: cancellable(),
         patientPeriodBundle: cancellable(),
+        myAccesses: { invalidate: resolved },
       },
     },
     professionalRecord: {
@@ -258,6 +285,9 @@ export const trpc = {
       },
       portfolio: {
         useQuery: () => portfolioQuery(),
+      },
+      requestAccess: {
+        useMutation: () => mutation(),
       },
     },
   },
