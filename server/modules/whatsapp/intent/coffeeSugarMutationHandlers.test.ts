@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getHabitSnapshots: vi.fn(async () => []),
@@ -81,9 +81,15 @@ function missingSugarError() {
 
 describe("mutações de café com açúcar no WhatsApp", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(occurredAt);
     vi.clearAllMocks();
     mocks.listMeals.mockResolvedValue([targetMeal]);
     mocks.processMealInput.mockRejectedValue(missingSugarError());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("abre pendência antes de adicionar à refeição", async () => {
