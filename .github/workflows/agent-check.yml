@@ -42,7 +42,7 @@ jobs:
             mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
             printf 'conflicts=%s\n' "${conflicts[*]}"
 
-            expected=("docs/RELIABILITY.md" "drizzle.config.ts")
+            expected=("drizzle.config.ts")
             if [[ "${conflicts[*]}" != "${expected[*]}" ]]; then
               echo "Unexpected merge conflicts: ${conflicts[*]}" >&2
               exit 1
@@ -93,39 +93,7 @@ jobs:
           });
           EOF
 
-            git checkout --ours docs/RELIABILITY.md
-
-            python - <<'PY'
-          from pathlib import Path
-
-          path = Path("docs/RELIABILITY.md")
-          text = path.read_text(encoding="utf-8")
-
-          flow_line = "- Elegibilidade, capacidade profissional e eventos idempotentes de billing.\n"
-          anchor = "- Migrações e integridade referencial.\n"
-          if flow_line not in text:
-              if anchor not in text:
-                  raise SystemExit("Reliability flow anchor not found")
-              text = text.replace(anchor, anchor + flow_line, 1)
-
-          billing_section = """
-          ## Guardrails de billing
-
-          - `BILLING_ACCESS_MODE` permanece `open_access` até aprovação explícita da migração comercial; em `enforced`, indisponibilidade da fonte falha fechada.
-          - Evento do provider é idempotente por `(provider, providerEventId)` e nunca depende do retorno do navegador para ativar acesso.
-          - Reserva de capacidade bloqueia a assinatura dentro da transação; concorrência pela última vaga deve produzir um vencedor e uma rejeição clara.
-          - Reserva, liberação e revogação são repetíveis sem duplicar vaga, entitlement ou auditoria.
-          - Falha após reserva comercial deve ser compensada; revogação iniciada pelo paciente não pode ser bloqueada por indisponibilidade comercial.
-          - O workflow `Billing persistence TiDB gate` valida migration, drift Drizzle, concorrência, idempotência, sanitização e integridade antes do merge.
-          """.strip()
-
-          if "## Guardrails de billing" not in text:
-              text = text.rstrip() + "\n\n" + billing_section + "\n"
-
-          path.write_text(text, encoding="utf-8")
-          PY
-
-            git add docs/RELIABILITY.md drizzle.config.ts
+            git add drizzle.config.ts
           fi
 
           unresolved="$(git diff --name-only --diff-filter=U)"
