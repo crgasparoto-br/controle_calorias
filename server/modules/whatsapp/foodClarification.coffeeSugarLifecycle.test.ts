@@ -93,7 +93,7 @@ function sweetenedCoffeeItem() {
     unit: "xícara",
     portionText: "1 xícara com 5 g de açúcar",
     servings: 1,
-    estimatedGrams: 55,
+    estimatedGrams: 205,
     calories: 22,
     protein: 0,
     carbs: 5,
@@ -163,7 +163,7 @@ describe("lifecycle persistente do açúcar", () => {
     vi.clearAllMocks();
   });
 
-  it("mantém resposta inválida, consome a válida e não duplica reentrega", async () => {
+  it("mantém resposta inválida, consome a válida e bloqueia reentrega sem duplicar", async () => {
     const harness = createHarness();
     const receivedAt = new Date("2026-07-24T12:00:00.000Z");
     await harness.quantityService.requestCaloricComplementQuantity({
@@ -198,6 +198,7 @@ describe("lifecycle persistente do açúcar", () => {
     expect(harness.createMeal).toHaveBeenCalledTimes(1);
     expect(harness.meals[0].items[0]).toEqual(expect.objectContaining({
       canonicalName: "Café com açúcar",
+      estimatedGrams: 205,
       calories: 22,
       carbs: 5,
     }));
@@ -208,11 +209,11 @@ describe("lifecycle persistente do açúcar", () => {
       receivedAt: new Date(receivedAt.getTime() + 3000),
       userTimezone: "America/Sao_Paulo",
     });
-    expect(replay).toBeNull();
+    expect(replay?.action).toBe("food_clarification_standalone_command_blocked");
     expect(harness.createMeal).toHaveBeenCalledTimes(1);
   });
 
-  it("não conclui uma pendência expirada", async () => {
+  it("bloqueia a retomada de uma pendência expirada sem criar refeição", async () => {
     const harness = createHarness();
     const receivedAt = new Date("2026-07-24T12:00:00.000Z");
     await harness.quantityService.requestCaloricComplementQuantity({
@@ -229,7 +230,7 @@ describe("lifecycle persistente do açúcar", () => {
       receivedAt: new Date(receivedAt.getTime() + 11 * 60 * 1000),
       userTimezone: "America/Sao_Paulo",
     });
-    expect(expired).toBeNull();
+    expect(expired?.action).toBe("food_clarification_standalone_command_blocked");
     expect(harness.createMeal).not.toHaveBeenCalled();
   });
 });
