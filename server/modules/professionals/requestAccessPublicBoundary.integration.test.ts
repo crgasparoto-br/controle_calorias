@@ -2,19 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TrpcContext } from "../../_core/context";
 import { appRouter } from "../../routers";
 import { _forTestOnly_clearProfessionalAccessRequestReceipts } from "./accessRequestReceiptRepository";
-import { upsertProfessionalProfile } from "./service";
+import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
+  upsertProfessionalProfile,
+} from "./service";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-const previousNodeEnv = process.env.NODE_ENV;
-
 beforeAll(() => {
-  process.env.NODE_ENV = "test";
+  _forTestOnly_setProfessionalSyntheticUserLookup(true);
 });
 
 afterAll(() => {
-  if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = previousNodeEnv;
+  _forTestOnly_setProfessionalSyntheticUserLookup(false);
 });
 
 beforeEach(() => {
