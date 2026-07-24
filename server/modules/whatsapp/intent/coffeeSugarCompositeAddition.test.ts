@@ -93,6 +93,7 @@ describe("adição composta com café adoçado", () => {
     expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
       userId: 7,
       originalFoodText: "1 unidade de Pão francês e 1 xícara de Café com açúcar",
+      originalText: "Adicionar pão e café com açúcar ao café da manhã",
       operation: expect.objectContaining({
         kind: "add_to_meal",
         mealId: 903,
