@@ -1,11 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TrpcContext } from "../../_core/context";
 import { appRouter } from "../../routers";
+import { _forTestOnly_clearProfessionalAccessRequestReceipts } from "./accessRequestReceiptRepository";
 import { upsertProfessionalProfile } from "./service";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createProfessionalContext(userId: number): TrpcContext {
+const previousNodeEnv = process.env.NODE_ENV;
+
+beforeAll(() => {
+  process.env.NODE_ENV = "test";
+});
+
+afterAll(() => {
+  if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = previousNodeEnv;
+});
+
+beforeEach(() => {
+  _forTestOnly_clearProfessionalAccessRequestReceipts();
+});
+
+function createContext(userId: number): TrpcContext {
   const user: AuthenticatedUser = {
     id: userId,
     openId: `user-${userId}`,
@@ -43,10 +59,8 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional de fronteira",
       active: true,
     });
+    const caller = appRouter.createCaller(createContext(professionalUserId));
 
-    const caller = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
     const existing = await caller.nutrition.professionals.requestAccess({
       patientContact: `user-${patientUserId}@example.com`,
       reason: "Acompanhamento com consentimento",
@@ -74,41 +88,29 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional de repetição",
       active: true,
     });
-    const caller = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
+    const caller = appRouter.createCaller(createContext(professionalUserId));
 
-    const firstExisting = await caller.nutrition.professionals.requestAccess({
-      patientContact: `user-${patientUserId}@example.com`,
-      reason: "Primeira tentativa existente",
-    });
-    const secondExisting = await caller.nutrition.professionals.requestAccess({
-      patientContact: `user-${patientUserId}@example.com`,
-      reason: "Segunda tentativa existente",
-    });
-    const firstMissing = await caller.nutrition.professionals.requestAccess({
-      patientContact: "repeated-missing@example.com",
-      reason: "Primeira tentativa ausente",
-    });
-    const secondMissing = await caller.nutrition.professionals.requestAccess({
-      patientContact: "repeated-missing@example.com",
-      reason: "Segunda tentativa ausente",
-    });
+    const results = [
+      await caller.nutrition.professionals.requestAccess({
+        patientContact: `user-${patientUserId}@example.com`,
+        reason: "Primeira tentativa existente",
+      }),
+      await caller.nutrition.professionals.requestAccess({
+        patientContact: `user-${patientUserId}@example.com`,
+        reason: "Segunda tentativa existente",
+      }),
+      await caller.nutrition.professionals.requestAccess({
+        patientContact: "repeated-missing@example.com",
+        reason: "Primeira tentativa ausente",
+      }),
+      await caller.nutrition.professionals.requestAccess({
+        patientContact: "repeated-missing@example.com",
+        reason: "Segunda tentativa ausente",
+      }),
+    ];
 
-    for (const result of [
-      firstExisting,
-      secondExisting,
-      firstMissing,
-      secondMissing,
-    ]) {
-      expectPendingReceipt(result);
-    }
-    expect(new Set([
-      firstExisting.id,
-      secondExisting.id,
-      firstMissing.id,
-      secondMissing.id,
-    ]).size).toBe(4);
+    results.forEach(expectPendingReceipt);
+    expect(new Set(results.map(result => result.id)).size).toBe(4);
 
     const accesses = await caller.nutrition.professionals.myAccesses();
     expect(accesses.filter(access => access.status === "pending")).toHaveLength(4);
@@ -122,9 +124,7 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional sem enumeração",
       active: true,
     });
-    const caller = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
+    const caller = appRouter.createCaller(createContext(professionalUserId));
 
     await caller.nutrition.professionals.requestAccess({
       patientContact: `user-${patientUserId}@example.com`,
@@ -176,15 +176,9 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional de consentimento",
       active: true,
     });
-    const professional = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
-    const patient = appRouter.createCaller(
-      createProfessionalContext(patientUserId)
-    );
-    const outsider = appRouter.createCaller(
-      createProfessionalContext(outsiderUserId)
-    );
+    const professional = appRouter.createCaller(createContext(professionalUserId));
+    const patient = appRouter.createCaller(createContext(patientUserId));
+    const outsider = appRouter.createCaller(createContext(outsiderUserId));
 
     const receipt = await professional.nutrition.professionals.requestAccess({
       patientContact: `user-${patientUserId}@example.com`,
@@ -216,9 +210,7 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional de validação",
       active: true,
     });
-    const caller = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
+    const caller = appRouter.createCaller(createContext(professionalUserId));
 
     await expect(
       caller.nutrition.professionals.requestAccess({
@@ -234,9 +226,7 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       displayName: "Profissional inativo",
       active: false,
     });
-    const caller = appRouter.createCaller(
-      createProfessionalContext(professionalUserId)
-    );
+    const caller = appRouter.createCaller(createContext(professionalUserId));
 
     await expect(
       caller.nutrition.professionals.requestAccess({
