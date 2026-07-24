@@ -12,13 +12,19 @@ vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: vi.fn(async () => null),
 }));
 
-function aiCoffeeItem(input: { calories: number; carbs: number; protein?: number; fat?: number }) {
+function aiCoffeeItem(input: {
+  calories: number;
+  carbs: number;
+  protein?: number;
+  fat?: number;
+  foodName?: string;
+}) {
   return {
     mealLabel: "Café da manhã",
     confidence: 0.91,
     reasoning: "Café adoçado informado explicitamente.",
     items: [{
-      foodName: "Café com açúcar",
+      foodName: input.foodName ?? "Café com açúcar",
       brand: null,
       quantity: 1,
       unit: "xícara",
@@ -132,6 +138,27 @@ describe("nutritionEngine coffee with sugar handling", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Café com Açúcar",
+      calories: 34,
+      carbs: 8,
+    }));
+    expect(result.items[0].canonicalName).not.toMatch(/sem açúcar/i);
+  });
+
+  it("não deixa o nome genérico da IA apagar o qualificador do texto", async () => {
+    createTextResponseMock.mockResolvedValueOnce({
+      outputText: JSON.stringify(aiCoffeeItem({
+        foodName: "Café",
+        calories: 34,
+        carbs: 8,
+      })),
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "1 xícara de café com açúcar",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
       calories: 34,
       carbs: 8,
     }));
