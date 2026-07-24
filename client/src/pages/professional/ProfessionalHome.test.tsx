@@ -10,12 +10,16 @@ const priorityRefetch = vi.fn().mockResolvedValue(undefined);
 const portfolioRefetch = vi.fn().mockResolvedValue(undefined);
 const setLocation = vi.fn();
 let currentLocation = "/professional";
+let currentSearch = "";
 let enabledResources: string[] = [];
 let priorityState: any;
 let portfolioState: any;
 
 vi.mock("wouter", () => ({
   useLocation: () => [currentLocation, setLocation],
+}));
+vi.mock("wouter/use-location", () => ({
+  useSearch: () => currentSearch,
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
@@ -147,6 +151,7 @@ function priority(patientId: number, type = "record_requires_review") {
 
 beforeEach(() => {
   currentLocation = "/professional";
+  currentSearch = "";
   enabledResources = ["professional_dashboard"];
   priorityState = { data: [], isLoading: false, isError: false };
   portfolioState = {
@@ -238,8 +243,8 @@ describe("ProfessionalHome", () => {
     expect(setLocation).toHaveBeenCalledWith("/professional?priorities=all");
   });
 
-  it("paginates the complete view beyond one hundred patients", async () => {
-    currentLocation = "/professional?priorities=all&page=3";
+  it("paginates the complete view beyond one hundred patients from the search subscription", async () => {
+    currentSearch = "priorities=all&page=3";
     enabledResources = [
       "professional_dashboard",
       "professional_operational_alerts",
@@ -251,6 +256,9 @@ describe("ProfessionalHome", () => {
     const { default: ProfessionalHome } = await import("./ProfessionalHome");
     render(<ProfessionalHome />);
 
+    expect(
+      screen.getByRole("heading", { name: "Todas as prioridades" })
+    ).toBeTruthy();
     expect(priorityInput).toHaveBeenCalledWith({ limit: 51, offset: 100 });
     expect(screen.getByText("Paciente 101")).toBeTruthy();
     expect(screen.getByText("Paciente 150")).toBeTruthy();
