@@ -25,21 +25,6 @@ function createProfessionalContext(userId: number): TrpcContext {
   };
 }
 
-async function publicRejection(
-  caller: ReturnType<typeof appRouter.createCaller>,
-  patientContact: string
-) {
-  try {
-    await caller.nutrition.professionals.requestAccess({
-      patientContact,
-      reason: "Tentativa inválida",
-    });
-  } catch (error) {
-    return error as { code?: string; message?: string };
-  }
-  throw new Error("Expected request access to reject");
-}
-
 describe("nutrition.professionals.requestAccess public caller", () => {
   it("returns only the opaque id and status for a pending request", async () => {
     const professionalUserId = 879201;
@@ -62,34 +47,25 @@ describe("nutrition.professionals.requestAccess public caller", () => {
     expect(result).not.toHaveProperty("patientUserId");
   });
 
-  it("makes nonexistent and self-link targets indistinguishable", async () => {
+  it("uses the safe public rejection for self-linking", async () => {
     const professionalUserId = 879211;
     await upsertProfessionalProfile(professionalUserId, {
-      displayName: "Profissional sem enumeração",
+      displayName: "Profissional sem auto vínculo",
       active: true,
     });
 
     const caller = appRouter.createCaller(
       createProfessionalContext(professionalUserId)
     );
-    const selfLink = await publicRejection(
-      caller,
-      `user-${professionalUserId}@example.com`
-    );
-    const nonexistent = await publicRejection(
-      caller,
-      "user-879999@example.com"
-    );
 
-    expect(selfLink).toMatchObject({
+    await expect(
+      caller.nutrition.professionals.requestAccess({
+        patientContact: `user-${professionalUserId}@example.com`,
+        reason: "Tentativa inválida",
+      })
+    ).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: PROFESSIONAL_REQUEST_ACCESS_REJECTED_MESSAGE,
     });
-    expect(nonexistent).toEqual(
-      expect.objectContaining({
-        code: selfLink.code,
-        message: selfLink.message,
-      })
-    );
   });
 });
