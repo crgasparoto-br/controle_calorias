@@ -32,7 +32,7 @@ function inferredSweetenedCoffee(calories: number, carbs: number): LlmItem {
 }
 
 describe("múltiplos cafés adoçados", () => {
-  it("não deixa uma única inferência satisfazer dois segmentos adoçados", () => {
+  it("exige cardinalidade exata entre inferências e segmentos adoçados", () => {
     const sourceText =
       "1 xícara de café com açúcar e 2 xícaras de café adoçado";
 
@@ -45,6 +45,15 @@ describe("múltiplos cafés adoçados", () => {
       [inferredSweetenedCoffee(34, 8), inferredSweetenedCoffee(52, 12)],
       sourceText,
     )).toBe(true);
+
+    expect(hasUsableSweetenedCoffeeInference(
+      [
+        inferredSweetenedCoffee(34, 8),
+        inferredSweetenedCoffee(52, 12),
+        inferredSweetenedCoffee(62, 15),
+      ],
+      sourceText,
+    )).toBe(false);
   });
 
   it("anexa as respostas em segmentos diferentes sem perder o progresso", () => {
