@@ -105,6 +105,13 @@ type AuthorizationSendResult = {
 
 type AccessOwner = "professional" | "patient";
 const BRAZIL_COUNTRY_CODE = "55";
+let syntheticUserLookupEnabledForTests = false;
+
+export function _forTestOnly_setProfessionalSyntheticUserLookup(
+  enabled: boolean
+) {
+  syntheticUserLookupEnabledForTests = enabled;
+}
 
 function pushHistory(
   event: Omit<AppendProfessionalHistoryInput, "id" | "occurredAt">
@@ -617,7 +624,7 @@ async function getUserSummaryByEmail(
   const db = await getDb();
   const normalizedEmail = email.trim().toLowerCase();
   if (!db) {
-    if (process.env.PROFESSIONAL_SYNTHETIC_USER_LOOKUP === "enabled") {
+    if (syntheticUserLookupEnabledForTests) {
       const syntheticUserId = /^user-(\d+)@example\.com$/.exec(
         normalizedEmail
       )?.[1];
