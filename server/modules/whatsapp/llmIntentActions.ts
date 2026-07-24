@@ -11,6 +11,7 @@ import { buildWhatsappIntentContext } from "./intentContext";
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import { createWhatsappMealIntentDecisionInteraction } from "./mealIntentDecisionInteraction";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
@@ -688,6 +689,13 @@ function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmInten
   };
 }
 
+function isMealConsumptionSuggestionAmbiguity(intent: WhatsappInterpretedIntent) {
+  return intent.intent === "ambiguous"
+    && intent.possibleIntents.length === 2
+    && intent.possibleIntents.includes("add_foods_to_meal")
+    && intent.possibleIntents.includes("meal_suggestion");
+}
+
 async function buildInteractiveClarification(
   userId: number,
   originalText: string,
@@ -695,6 +703,29 @@ async function buildInteractiveClarification(
   receivedAt: Date,
 ): Promise<WhatsappLlmIntentResult> {
   const base = buildClarification(intent);
+
+  if (isMealConsumptionSuggestionAmbiguity(intent)) {
+    const interaction = await createWhatsappMealIntentDecisionInteraction({
+      userId,
+      originalText,
+      receivedAt,
+      confidence: intent.confidence,
+      mealLabel: intent.meal?.label ?? null,
+    });
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: interaction.reply,
+      eventType: interaction.eventType,
+      detail: `${base.detail} ${interaction.detail}`,
+      data: { ...base.data, ...interaction.data },
+      toolTrace: base.toolTrace,
+      ...("interactiveReply" in interaction && interaction.interactiveReply
+        ? { interactiveReply: interaction.interactiveReply }
+        : {}),
+    };
+  }
+
   if (!base.reply.includes(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE)) return base;
 
   const interaction = await createWhatsappIntentClarificationInteraction({

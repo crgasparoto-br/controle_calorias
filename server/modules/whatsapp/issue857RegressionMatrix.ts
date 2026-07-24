@@ -85,6 +85,46 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/messageRouter.interactiveCallback.test.ts", requiredTokens: ["authorizationMessage", "interactive_callback"] },
     ],
   },
+  "meal_intent_decision.consume_or_suggest": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/mealIntentDecisionInteraction.test.ts",
+        requiredTokens: [
+          "Registrar alimento",
+          "interactive_callback",
+          "originalText",
+          "audioTranscription",
+          "simulador",
+        ],
+      },
+      {
+        file: "server/whatsappMealIntentDecisionWebhook.issue899.test.ts",
+        requiredTokens: [
+          "200 ml café com açúcar",
+          "clicar Registrar",
+          "responder Registrar por texto",
+        ],
+      },
+      {
+        file: "server/modules/whatsapp/foodAssistant.test.ts",
+        requiredTokens: ["segunda clarificação", "Nada foi registrado como consumo"],
+      },
+    ],
+  },
+  "meal_intent_decision.registration_details": {
+    modalities: ["text", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/confirmedMealRegistration.test.ts",
+        requiredTokens: [
+          "Qual foi a quantidade de açúcar?",
+          "substitui a clarificação complementar",
+          "continue_pipeline",
+        ],
+      },
+    ],
+  },
   "intent_clarification.generic": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [

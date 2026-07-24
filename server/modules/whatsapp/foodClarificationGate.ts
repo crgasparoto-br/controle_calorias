@@ -9,6 +9,10 @@ import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import {
+  parseMealIntentDecisionTextAction,
+  PENDING_MEAL_INTENT_DECISION_TYPE,
+} from "./mealIntentDecisionInteraction";
 import { buildWhatsappInteractionTelemetry } from "./interactionPresentation";
 import {
   findWhatsappRegisteredInteraction,
@@ -211,6 +215,32 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   }
 
   if (!active) {
+    const latest =
+      (await pendingOperationRepository.getLatestPendingOperation?.(
+        input.userId
+      )) ?? null;
+    if (
+      latest?.type === PENDING_MEAL_INTENT_DECISION_TYPE &&
+      parseMealIntentDecisionTextAction(input.text) &&
+      (latest.state !== "active" ||
+        new Date(latest.expiresAt).getTime() <
+          (input.receivedAt ?? new Date()).getTime())
+    ) {
+      return {
+        handled: true,
+        action: "clarification_needed",
+        reply:
+          "Essa escolha não está mais disponível. Envie novamente a descrição completa da refeição.",
+        eventType: "whatsapp.meal_intent_decision.unavailable",
+        detail:
+          "Alias textual de decisão expirada, consumida, cancelada ou substituída foi bloqueado antes da clarificação genérica.",
+        data: {
+          fallbackBlocked: true,
+          fallbackBlockReason: "stale_meal_intent_decision",
+          interactionLifecycle: "blocked",
+        },
+      };
+    }
     if (shouldCreateGenericIntentClarification(input.text)) {
       const created = await createWhatsappIntentClarificationInteraction({
         userId: input.userId,

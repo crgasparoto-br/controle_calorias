@@ -47,6 +47,26 @@ import {
   type WhatsappInteractionTextResult,
 } from "./interactionTextHandlers";
 import {
+  buildWhatsappMealIntentDecisionReply,
+  classifyMealIntentDecisionText,
+  completeWhatsappMealIntentDecisionCallback,
+  isPendingMealIntentDecision,
+  MEAL_INTENT_DECISION_PROMPT,
+  PENDING_MEAL_INTENT_DECISION_ORIGIN,
+  PENDING_MEAL_INTENT_DECISION_TYPE,
+  resolveWhatsappMealIntentDecisionText,
+  type PendingMealIntentDecision,
+} from "./mealIntentDecisionInteraction";
+import {
+  classifyMealIntentRegistrationDetailsText,
+  completeWhatsappMealIntentRegistrationDetailsCallback,
+  isPendingMealIntentRegistrationDetails,
+  PENDING_MEAL_INTENT_REGISTRATION_DETAILS_ORIGIN,
+  PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE,
+  rebuildWhatsappMealIntentRegistrationDetails,
+  resolveWhatsappMealIntentRegistrationDetailsText,
+} from "./mealIntentRegistrationDetailsInteraction";
+import {
   buildMealItemSelectionActions,
   completeMealItemSelectionInteractiveCallback,
   PENDING_MEAL_ITEM_SELECTION_TYPE,
@@ -67,7 +87,7 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 4;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 6;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -213,6 +233,22 @@ function rebuildIntentClarification(input: WhatsappInteractionReplayInput): What
   };
 }
 
+function rebuildMealIntentDecision(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as PendingMealIntentDecision;
+  if (!isPendingMealIntentDecision(target)) return null;
+  const reply = `${MEAL_INTENT_DECISION_PROMPT}\n\nSua descrição original continua guardada. Escolha uma opção ou envie CANCELAR.`;
+  return {
+    reply,
+    interactiveReply: buildWhatsappMealIntentDecisionReply(input.pendingOperation.id, reply),
+  };
+}
+
+function rebuildMealIntentRegistrationDetails(
+  input: WhatsappInteractionReplayInput,
+): WhatsappInteractionReplayResult {
+  return rebuildWhatsappMealIntentRegistrationDetails(input.pendingOperation);
+}
+
 function rebuildFoodClarification(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
   const target = input.pendingOperation.target as PendingFoodClarificationTarget;
   if (!isPendingFoodClarificationTarget(target)) return null;
@@ -269,6 +305,25 @@ function completeIntentClarification(input: WhatsappInteractionCallbackInput) {
     input.action,
     input.receivedAt,
   );
+}
+
+function completeMealIntentRegistrationDetails(
+  input: WhatsappInteractionCallbackInput,
+) {
+  return completeWhatsappMealIntentRegistrationDetailsCallback({
+    pendingOperation: input.pendingOperation,
+    action: input.action,
+  });
+}
+
+function completeMealIntentDecision(input: WhatsappInteractionCallbackInput) {
+  return completeWhatsappMealIntentDecisionCallback({
+    userId: input.userId,
+    pendingOperation: input.pendingOperation,
+    action: input.action,
+    receivedAt: input.receivedAt,
+    userTimezone: input.userTimezone,
+  });
 }
 
 async function completeProfessionalAccess(input: WhatsappInteractionCallbackInput) {
@@ -406,6 +461,46 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     resolveText: resolveProfessionalAccessText,
     rebuild: rebuildProfessionalAccess,
     completeCallback: completeProfessionalAccess,
+  },
+  {
+    id: "meal_intent_decision.consume_or_suggest",
+    pendingType: PENDING_MEAL_INTENT_DECISION_TYPE,
+    origin: PENDING_MEAL_INTENT_DECISION_ORIGIN,
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "closed",
+    reconstruction: "pending_target",
+    invalidResponse: "represent_same_actions",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: ["register_original_meal_once", "suggest_without_persistence", "cancel"],
+    forbiddenEffects: ["nutrition_fallback", "llm_reinterpretation", "persist_command_word_as_food", "suggestion_as_consumption"],
+    matches: isPendingMealIntentDecision,
+    actions: target => isPendingMealIntentDecision(target)
+      ? target.actions.map(action => ({ ...action }))
+      : [],
+    classifyText: classifyMealIntentDecisionText,
+    resolveText: resolveWhatsappMealIntentDecisionText,
+    rebuild: rebuildMealIntentDecision,
+    completeCallback: completeMealIntentDecision,
+  },
+  {
+    id: "meal_intent_decision.registration_details",
+    pendingType: PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE,
+    origin: PENDING_MEAL_INTENT_REGISTRATION_DETAILS_ORIGIN,
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "open",
+    reconstruction: "pending_target",
+    invalidResponse: "text_guidance",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: ["provide_details", "register_original_meal_once", "cancel"],
+    forbiddenEffects: ["llm_reinterpretation", "persist_command_word_as_food", "suggestion_as_consumption"],
+    matches: isPendingMealIntentRegistrationDetails,
+    actions: target => isPendingMealIntentRegistrationDetails(target)
+      ? target.actions.map(action => ({ ...action }))
+      : [],
+    classifyText: classifyMealIntentRegistrationDetailsText,
+    resolveText: resolveWhatsappMealIntentRegistrationDetailsText,
+    rebuild: rebuildMealIntentRegistrationDetails,
+    completeCallback: completeMealIntentRegistrationDetails,
   },
   {
     id: "intent_clarification.generic",
