@@ -50,6 +50,18 @@ replace_once(
     '    normalizedText: normalizeRegistrationDetailsText(input.originalText),',
 )
 
+replace_once(
+    'server/modules/whatsapp/llmIntentActions.ts',
+    '''      toolTrace: base.toolTrace,
+      interactiveReply: interaction.interactiveReply,
+''',
+    '''      toolTrace: base.toolTrace,
+      ...("interactiveReply" in interaction && interaction.interactiveReply
+        ? { interactiveReply: interaction.interactiveReply }
+        : {}),
+''',
+)
+
 this_file = ROOT / 'scripts/apply_issue_899_fixes_v2.py'
 if this_file.exists():
     this_file.unlink()
