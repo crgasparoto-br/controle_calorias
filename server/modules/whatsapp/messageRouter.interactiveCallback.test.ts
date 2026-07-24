@@ -63,7 +63,7 @@ describe("messageRouter — resolução central de callbacks interativos (issues
     listMealsMock.mockResolvedValue([{ ...baseMeal(), userId }]);
     removeMealMock.mockResolvedValue(undefined);
 
-    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir refeição" });
+    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir refeição", receivedAt: new Date("2026-06-23T22:30:00.000Z") });
     expect(detection?.interactiveReply).toBeTruthy();
     const confirmId = extractButtonId(detection!.interactiveReply, "Confirmar");
 
@@ -84,7 +84,7 @@ describe("messageRouter — resolução central de callbacks interativos (issues
     const userId = 61_002;
     listMealsMock.mockResolvedValue([{ ...baseMeal(), userId }]);
 
-    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir refeição" });
+    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir refeição", receivedAt: new Date("2026-06-23T22:30:00.000Z") });
     const cancelId = extractButtonId(detection!.interactiveReply, "Cancelar");
 
     const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: cancelId });
@@ -100,7 +100,7 @@ describe("messageRouter — resolução central de callbacks interativos (issues
     const attacker = 61_004;
     listMealsMock.mockResolvedValue([{ ...baseMeal(), userId: owner }]);
 
-    const detection = await executeWhatsappDeleteIntent(owner, { text: "excluir refeição" });
+    const detection = await executeWhatsappDeleteIntent(owner, { text: "excluir refeição", receivedAt: new Date("2026-06-23T22:30:00.000Z") });
     const confirmId = extractButtonId(detection!.interactiveReply, "Confirmar");
 
     const attackerAttempt = await resolveWhatsAppPrecedenceGate({ userId: attacker, interactiveReplyId: confirmId });
@@ -120,7 +120,7 @@ describe("messageRouter — resolução central de callbacks interativos (issues
     listMealsMock.mockResolvedValue([meal]);
     updateMealMock.mockResolvedValue({ ...meal, items: [meal.items[0]] });
 
-    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate" });
+    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate", receivedAt: new Date("2026-06-23T22:30:00.000Z") });
     expect(detection?.action).toBe("clarification_needed");
     expect(detection?.interactiveReply?.messages[0]?.type).toBe("buttons");
     const selectSecondId = extractOptionId(detection!.interactiveReply, "Chocolate amargo");
@@ -143,7 +143,7 @@ describe("messageRouter — resolução central de callbacks interativos (issues
     const userId = 61_006;
     listMealsMock.mockResolvedValue([{ ...baseMeal(), userId }]);
 
-    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate" });
+    const detection = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate", receivedAt: new Date("2026-06-23T22:30:00.000Z") });
     const selectionButtonId = extractOptionId(detection!.interactiveReply, "Chocolate amargo");
     const parsed = (await import("./interactiveCallback")).parseWhatsAppCallbackId(selectionButtonId);
     const forgedConfirmId = buildWhatsAppCallbackId(parsed!.pendingOperationId, "confirm");

@@ -77,7 +77,7 @@ function createRequest(id: string, text: string) {
 const meal = {
   id: 991,
   mealLabel: "Jantar",
-  occurredAt: "2026-07-11T22:00:00.000Z",
+  occurredAt: "2026-06-03T15:00:00.000Z",
   notes: null,
   items: [
     { foodName: "Chocolate ao leite", canonicalName: "Chocolate", portionText: "15 g", servings: 1, estimatedGrams: 15, calories: 80, protein: 1, carbs: 10, fat: 4, confidence: 0.9, source: "catalog" },

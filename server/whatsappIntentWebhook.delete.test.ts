@@ -141,7 +141,7 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
       {
         id: 10,
         mealLabel: "Almoço",
-        occurredAt: "2026-06-23T15:00:00.000Z",
+        occurredAt: "2026-06-03T15:00:00.000Z",
         items: [{ foodName: "Arroz", portionText: "100 g" }],
       },
     ]);
@@ -180,7 +180,7 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
     listMealsMock.mockResolvedValue([{
       id: 11,
       mealLabel: "Almoço",
-      occurredAt: "2026-06-23T15:00:00.000Z",
+      occurredAt: "2026-06-03T15:00:00.000Z",
       items: [{
         foodName: "Registrar",
         canonicalName: "Registrar",
