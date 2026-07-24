@@ -104,6 +104,19 @@ const INTERACTION_SCENARIOS: Record<string, {
       },
     ],
   },
+  "meal_intent_decision.registration_details": {
+    modalities: ["text", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/confirmedMealRegistration.test.ts",
+        requiredTokens: [
+          "Qual foi a quantidade de açúcar?",
+          "substitui a clarificação complementar",
+          "continue_pipeline",
+        ],
+      },
+    ],
+  },
   "intent_clarification.generic": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [
