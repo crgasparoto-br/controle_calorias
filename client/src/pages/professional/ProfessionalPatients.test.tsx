@@ -19,17 +19,8 @@ const {
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
   ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
-  ProfessionalPageHeader: ({
-    title,
-    actions,
-  }: {
-    title: string;
-    actions?: React.ReactNode;
-  }) => (
-    <header>
-      <h1>{title}</h1>
-      {actions}
-    </header>
+  ProfessionalPageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
+    <header><h1>{title}</h1>{actions}</header>
   ),
   ProfessionalStatusBadge: ({ value }: { value: string }) => <span>{value}</span>,
   ProfessionalLoadingState: ({ label }: { label: string }) => <p>{label}</p>,
@@ -104,7 +95,6 @@ describe("ProfessionalPatients URL contract", () => {
     const filters = filtersFromLocation(
       "/professional/patients?search=ana&authorization=approved&tracking=paused&activity=inactive&review=overdue&page=3"
     );
-
     expect(filters).toEqual({
       search: "ana",
       authorizationStatus: "approved",
@@ -139,12 +129,10 @@ describe("ProfessionalPatients URL contract", () => {
 describe("ProfessionalPatients filter interactions", () => {
   it("keeps a selected filter and writes it to the URL while resetting pagination", async () => {
     render(<ProfessionalPatients />);
-
     const authorization = screen.getByRole("combobox", {
       name: "Filtrar autorização",
     }) as HTMLSelectElement;
     fireEvent.change(authorization, { target: { value: "approved" } });
-
     await waitFor(() => {
       expect(authorization.value).toBe("approved");
       expect(window.location.search).toBe("?authorization=approved");
@@ -157,9 +145,7 @@ describe("ProfessionalPatients filter interactions", () => {
 
   it("updates pagination without being reverted by the previous URL", async () => {
     render(<ProfessionalPatients />);
-
     fireEvent.click(screen.getByRole("button", { name: /próxima/i }));
-
     await waitFor(() => {
       expect(window.location.search).toBe("?page=3");
     });
@@ -173,25 +159,21 @@ describe("ProfessionalPatients filter interactions", () => {
     vi.useFakeTimers();
     render(<ProfessionalPatients />);
     portfolioUseQuery.mockClear();
-
     const search = screen.getByPlaceholderText(
       "Nome, e-mail ou identificador"
     ) as HTMLInputElement;
     fireEvent.change(search, { target: { value: "a" } });
     fireEvent.change(search, { target: { value: "an" } });
     fireEvent.change(search, { target: { value: "ana" } });
-
     expect(window.location.search).toBe("?page=2");
     expect(
       portfolioUseQuery.mock.calls.some(
         ([input]) => input.search === "a" || input.search === "an"
       )
     ).toBe(false);
-
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
-
     expect(window.location.search).toBe("?search=ana");
     expect(portfolioUseQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: "ana", page: 1 }),
@@ -206,13 +188,11 @@ describe("ProfessionalPatients filter interactions", () => {
       "/professional/patients?authorization=approved&page=2"
     );
     render(<ProfessionalPatients />);
-
     expect(
       (screen.getByRole("combobox", {
         name: "Filtrar autorização",
       }) as HTMLSelectElement).value
     ).toBe("approved");
-
     act(() => {
       window.history.pushState(
         {},
@@ -221,7 +201,6 @@ describe("ProfessionalPatients filter interactions", () => {
       );
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-
     await waitFor(() =>
       expect(
         (screen.getByRole("combobox", {
@@ -238,7 +217,6 @@ describe("ProfessionalPatients filter interactions", () => {
       "/professional/patients?search=ana&authorization=approved&tracking=active&activity=recent&review=scheduled&page=3"
     );
     render(<ProfessionalPatients />);
-
     fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
     fireEvent.change(screen.getByPlaceholderText("paciente@exemplo.com ou celular"), {
       target: { value: "novo@paciente.com" },
@@ -247,7 +225,6 @@ describe("ProfessionalPatients filter interactions", () => {
       target: { value: "Iniciar acompanhamento" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Enviar solicitação" }));
-
     await waitFor(() => {
       expect(window.location.search).toBe("?authorization=pending");
       expect(
@@ -256,7 +233,6 @@ describe("ProfessionalPatients filter interactions", () => {
         }) as HTMLSelectElement).value
       ).toBe("pending");
     });
-
     expect(
       (screen.getByPlaceholderText(
         "Nome, e-mail ou identificador"
@@ -274,7 +250,7 @@ describe("ProfessionalPatients filter interactions", () => {
       expect.any(Object)
     );
     expect(invalidate).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByRole("status").textContent).toContain(
       "A carteira foi atualizada para mostrar os acessos pendentes."
     );
   });
