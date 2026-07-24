@@ -85,6 +85,19 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/messageRouter.interactiveCallback.test.ts", requiredTokens: ["authorizationMessage", "interactive_callback"] },
     ],
   },
+  "meal_intent_decision.consume_or_suggest": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/mealIntentDecisionInteraction.test.ts",
+        requiredTokens: ["Registrar alimento", "interactive_callback", "originalText"],
+      },
+      {
+        file: "server/modules/whatsapp/foodAssistant.test.ts",
+        requiredTokens: ["segunda clarificação", "Nada foi registrado como consumo"],
+      },
+    ],
+  },
   "intent_clarification.generic": {
     modalities: ["text", "callback", "audio_transcription", "simulator"],
     evidence: [
