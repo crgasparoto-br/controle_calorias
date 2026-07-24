@@ -66,6 +66,7 @@ Coverage lives in:
 - `server/coffeeSugarNutrition.discriminant.test.ts`;
 - `server/coffeeSugarNutrition.multipleSweetened.test.ts`;
 - `server/coffeeSugarNutrition.compositeComplements.test.ts`;
+- `server/coffeeSugarNutrition.adversarialComplements.test.ts`;
 - `server/coffeeSugarNutrition.units.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
@@ -81,7 +82,7 @@ Coverage lives in:
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
