@@ -54,30 +54,31 @@ async function main() {
 
   async function cleanup() {
     await connection.query(
-      "DELETE FROM professionalHistoryEvents WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalHistoryEvents` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalPatientTrackingEvents WHERE actorUserId IN (?, ?, ?)",
+      "DELETE FROM `professionalPatientTrackingEvents` WHERE `actorUserId` IN (?, ?, ?)",
       USER_IDS
     );
     await connection.query(
-      "DELETE FROM professionalPatientTrackings WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalPatientTrackings` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalPatientAuthorizations WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalPatientAuthorizations` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
-    await connection.query("DELETE FROM professionalProfiles WHERE userId = ?", [
-      PROFESSIONAL_USER_ID,
-    ]);
     await connection.query(
-      `DELETE FROM whatsappConnections WHERE userId IN (${USER_IDS.map(() => "?").join(",")})`,
+      "DELETE FROM `professionalProfiles` WHERE `userId` = ?",
+      [PROFESSIONAL_USER_ID]
+    );
+    await connection.query(
+      `DELETE FROM \`whatsappConnections\` WHERE \`userId\` IN (${USER_IDS.map(() => "?").join(",")})`,
       USER_IDS
     );
     await connection.query(
-      `DELETE FROM users WHERE id IN (${USER_IDS.map(() => "?").join(",")})`,
+      `DELETE FROM \`users\` WHERE \`id\` IN (${USER_IDS.map(() => "?").join(",")})`,
       USER_IDS
     );
   }
@@ -86,7 +87,7 @@ async function main() {
     await cleanup();
     for (const userId of USER_IDS) {
       await connection.query(
-        "INSERT INTO users (id, openId, name, email, role) VALUES (?, ?, ?, ?, 'user')",
+        "INSERT INTO `users` (`id`, `openId`, `name`, `email`, `role`) VALUES (?, ?, ?, ?, 'user')",
         [
           userId,
           `professional-boundary-${userId}`,
@@ -96,7 +97,7 @@ async function main() {
       );
     }
     await connection.query(
-      "INSERT INTO whatsappConnections (userId, phoneNumber, displayName, status) VALUES (?, ?, ?, 'disabled'), (?, ?, ?, 'disabled')",
+      "INSERT INTO `whatsappConnections` (`userId`, `phoneNumber`, `displayName`, `status`) VALUES (?, ?, ?, 'disabled'), (?, ?, ?, 'disabled')",
       [
         PROFESSIONAL_USER_ID,
         PROFESSIONAL_PHONE,
@@ -153,7 +154,7 @@ async function main() {
     );
 
     const [authorizationRows] = await connection.query<mysql.RowDataPacket[]>(
-      "SELECT id, patientUserId, status FROM professionalPatientAuthorizations WHERE professionalUserId = ?",
+      "SELECT `id`, `patientUserId`, `status` FROM `professionalPatientAuthorizations` WHERE `professionalUserId` = ?",
       [PROFESSIONAL_USER_ID]
     );
     assert.equal(authorizationRows.length, 1);
@@ -218,9 +219,9 @@ async function main() {
     );
 
     const [publicReceiptRows] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT patientUserId, entityId
-       FROM professionalHistoryEvents
-       WHERE professionalUserId = ? AND eventType = 'access_request_received'`,
+      `SELECT \`patientUserId\`, \`entityId\`
+       FROM \`professionalHistoryEvents\`
+       WHERE \`professionalUserId\` = ? AND \`eventType\` = 'access_request_received'`,
       [PROFESSIONAL_USER_ID]
     );
     assert.equal(publicReceiptRows.length, 4);
