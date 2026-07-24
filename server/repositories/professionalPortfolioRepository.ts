@@ -145,97 +145,105 @@ export function createProfessionalPortfolioRepository(
     try {
       const historicalActivityJoin = input.includeHistoricalActivity
         ? sql`LEFT JOIN (
-            SELECT scopedMeals.`userId`, MAX(scopedMeals.`occurredAt`) AS `lastFoodActivityAt`
-            FROM `meals` scopedMeals
-            INNER JOIN `professionalPatientAuthorizations` scopedAccess
-              ON scopedAccess.`patientUserId` = scopedMeals.`userId`
-              AND scopedAccess.`professionalUserId` = ${professionalUserId}
-              AND scopedAccess.`status` = 'approved'
-            WHERE scopedMeals.`status` = 'confirmed'
-            GROUP BY scopedMeals.`userId`
-          ) m ON m.`userId` = a.`patientUserId``
+            SELECT scopedMeals.\`userId\`, MAX(scopedMeals.\`occurredAt\`) AS \`lastFoodActivityAt\`
+            FROM \`meals\` scopedMeals
+            INNER JOIN \`professionalPatientAuthorizations\` scopedAccess
+              ON scopedAccess.\`patientUserId\` = scopedMeals.\`userId\`
+              AND scopedAccess.\`professionalUserId\` = ${professionalUserId}
+              AND scopedAccess.\`status\` = 'approved'
+            WHERE scopedMeals.\`status\` = 'confirmed'
+            GROUP BY scopedMeals.\`userId\`
+          ) m ON m.\`userId\` = a.\`patientUserId\`
+        `
         : sql`LEFT JOIN (
-            SELECT NULL AS `userId`, NULL AS `lastFoodActivityAt`
-          ) m ON 1 = 0`;
+            SELECT NULL AS \`userId\`, NULL AS \`lastFoodActivityAt\`
+          ) m ON 1 = 0
+        `;
       const periodRecordsJoin = sql`LEFT JOIN (
-          SELECT periodMeals.`userId`, COUNT(*) AS `periodRecordCount`
-          FROM `meals` periodMeals
-          INNER JOIN `professionalPatientAuthorizations` periodAccess
-            ON periodAccess.`patientUserId` = periodMeals.`userId`
-            AND periodAccess.`professionalUserId` = ${professionalUserId}
-            AND periodAccess.`status` = 'approved'
-          LEFT JOIN `userProfiles` periodProfile ON periodProfile.`userId` = periodMeals.`userId`
-          WHERE periodMeals.`status` = 'confirmed'
-            AND periodMeals.`occurredAt` >= ${reportCoarseStart}
-            AND periodMeals.`occurredAt` <= ${reportCoarseEnd}
-            AND DATE_FORMAT(CONVERT_TZ(periodMeals.`occurredAt`, '+00:00', COALESCE(periodProfile.`timezone`, ${DEFAULT_APP_TIME_ZONE})), '%Y-%m-%d')
+          SELECT periodMeals.\`userId\`, COUNT(*) AS \`periodRecordCount\`
+          FROM \`meals\` periodMeals
+          INNER JOIN \`professionalPatientAuthorizations\` periodAccess
+            ON periodAccess.\`patientUserId\` = periodMeals.\`userId\`
+            AND periodAccess.\`professionalUserId\` = ${professionalUserId}
+            AND periodAccess.\`status\` = 'approved'
+          LEFT JOIN \`userProfiles\` periodProfile ON periodProfile.\`userId\` = periodMeals.\`userId\`
+          WHERE periodMeals.\`status\` = 'confirmed'
+            AND periodMeals.\`occurredAt\` >= ${reportCoarseStart}
+            AND periodMeals.\`occurredAt\` <= ${reportCoarseEnd}
+            AND DATE_FORMAT(CONVERT_TZ(periodMeals.\`occurredAt\`, '+00:00', COALESCE(periodProfile.\`timezone\`, ${DEFAULT_APP_TIME_ZONE})), '%Y-%m-%d')
               BETWEEN ${reportStartDate} AND ${reportEndDate}
-          GROUP BY periodMeals.`userId`
-        ) pm ON pm.`userId` = a.`patientUserId``;
+          GROUP BY periodMeals.\`userId\`
+        ) pm ON pm.\`userId\` = a.\`patientUserId\`
+      `;
       const filters = sql`
-        a.`professionalUserId` = ${professionalUserId}
-        AND a.`status` <> 'pending'
-        AND (${input.authorizationStatus} = 'all' OR a.`status` = ${input.authorizationStatus})
+        a.\`professionalUserId\` = ${professionalUserId}
+        AND a.\`status\` <> 'pending'
+        AND (${input.authorizationStatus} = 'all' OR a.\`status\` = ${input.authorizationStatus})
         AND (${input.trackingStatus} = 'all'
-          OR (a.`status` = 'approved' AND ${input.trackingStatus} = 'not_started' AND t.`id` IS NULL)
-          OR (a.`status` = 'approved' AND t.`status` = ${input.trackingStatus}))
-        AND (${input.search} = '' OR (a.`status` = 'approved' AND (
-          LOWER(COALESCE(u.`name`, '')) LIKE ${search}
-          OR LOWER(COALESCE(u.`email`, '')) LIKE ${search}
-          OR CAST(u.`id` AS CHAR) = ${input.search}
+          OR (a.\`status\` = 'approved' AND ${input.trackingStatus} = 'not_started' AND t.\`id\` IS NULL)
+          OR (a.\`status\` = 'approved' AND t.\`status\` = ${input.trackingStatus}))
+        AND (${input.search} = '' OR (a.\`status\` = 'approved' AND (
+          LOWER(COALESCE(u.\`name\`, '')) LIKE ${search}
+          OR LOWER(COALESCE(u.\`email\`, '')) LIKE ${search}
+          OR CAST(u.\`id\` AS CHAR) = ${input.search}
         )))
         AND (${input.activity} = 'all'
-          OR (a.`status` = 'approved' AND ${input.activity} = 'recent' AND m.`lastFoodActivityAt` >= ${inactiveBefore})
-          OR (a.`status` = 'approved' AND ${input.activity} = 'inactive' AND (m.`lastFoodActivityAt` < ${inactiveBefore} OR m.`lastFoodActivityAt` IS NULL))
-          OR (a.`status` = 'approved' AND ${input.activity} = 'unavailable' AND m.`lastFoodActivityAt` IS NULL))
+          OR (a.\`status\` = 'approved' AND ${input.activity} = 'recent' AND m.\`lastFoodActivityAt\` >= ${inactiveBefore})
+          OR (a.\`status\` = 'approved' AND ${input.activity} = 'inactive' AND (m.\`lastFoodActivityAt\` < ${inactiveBefore} OR m.\`lastFoodActivityAt\` IS NULL))
+          OR (a.\`status\` = 'approved' AND ${input.activity} = 'unavailable' AND m.\`lastFoodActivityAt\` IS NULL))
         AND (${input.nextReview} = 'all'
-          OR (a.`status` = 'approved' AND ${input.nextReview} = 'scheduled' AND t.`nextReviewAt` IS NOT NULL)
-          OR (a.`status` = 'approved' AND ${input.nextReview} = 'due_soon' AND t.`nextReviewAt` >= ${now} AND t.`nextReviewAt` <= ${dueSoonUntil})
-          OR (a.`status` = 'approved' AND ${input.nextReview} = 'overdue' AND t.`nextReviewAt` < ${now})
-          OR (a.`status` = 'approved' AND ${input.nextReview} = 'unavailable' AND t.`nextReviewAt` IS NULL))`;
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'scheduled' AND t.\`nextReviewAt\` IS NOT NULL)
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'due_soon' AND t.\`nextReviewAt\` >= ${now} AND t.\`nextReviewAt\` <= ${dueSoonUntil})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'overdue' AND t.\`nextReviewAt\` < ${now})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'unavailable' AND t.\`nextReviewAt\` IS NULL))
+      `;
       const baseFrom = sql`
-        FROM `professionalPatientAuthorizations` a
-        INNER JOIN `users` u ON u.`id` = a.`patientUserId`
-        LEFT JOIN `professionalPatientTrackings` t ON t.`authorizationId` = a.`id`
+        FROM \`professionalPatientAuthorizations\` a
+        INNER JOIN \`users\` u ON u.\`id\` = a.\`patientUserId\`
+        LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
         ${historicalActivityJoin}
         LEFT JOIN (
-          SELECT `professionalUserId`, `patientUserId`, MAX(`occurredAt`) AS `lastProfessionalInteractionAt`
-          FROM `professionalHistoryEvents` GROUP BY `professionalUserId`, `patientUserId`
-        ) h ON h.`professionalUserId` = a.`professionalUserId` AND h.`patientUserId` = a.`patientUserId`
+          SELECT \`professionalUserId\`, \`patientUserId\`, MAX(\`occurredAt\`) AS \`lastProfessionalInteractionAt\`
+          FROM \`professionalHistoryEvents\`
+          GROUP BY \`professionalUserId\`, \`patientUserId\`
+        ) h ON h.\`professionalUserId\` = a.\`professionalUserId\` AND h.\`patientUserId\` = a.\`patientUserId\`
         ${periodRecordsJoin}
-        WHERE ${filters}`;
+        WHERE ${filters}
+      `;
 
       const [itemsResult, countResult, summaryResult] = await Promise.all([
         db.execute(sql`
-          SELECT a.`id` AS `authorizationId`, a.`patientUserId`, u.`name` AS `patientName`,
-            CASE WHEN a.`status` = 'approved' THEN u.`email` ELSE NULL END AS `patientEmail`,
-            a.`status` AS `authorizationStatus`,
-            CASE WHEN a.`status` = 'approved' THEN t.`status` ELSE NULL END AS `trackingStatus`,
-            a.`requestedAt`,
-            CASE WHEN a.`status` = 'approved' THEN t.`nextReviewAt` ELSE NULL END AS `nextReviewAt`,
-            CASE WHEN a.`status` = 'approved' THEN t.`nextWeighingAt` ELSE NULL END AS `nextWeighingAt`,
-            CASE WHEN a.`status` = 'approved' THEN m.`lastFoodActivityAt` ELSE NULL END AS `lastFoodActivityAt`,
-            CASE WHEN a.`status` = 'approved' THEN h.`lastProfessionalInteractionAt` ELSE NULL END AS `lastProfessionalInteractionAt`,
-            CASE WHEN a.`status` = 'approved' THEN pm.`periodRecordCount` ELSE 0 END AS `periodRecordCount`
+          SELECT a.\`id\` AS \`authorizationId\`, a.\`patientUserId\`, u.\`name\` AS \`patientName\`,
+            CASE WHEN a.\`status\` = 'approved' THEN u.\`email\` ELSE NULL END AS \`patientEmail\`,
+            a.\`status\` AS \`authorizationStatus\`,
+            CASE WHEN a.\`status\` = 'approved' THEN t.\`status\` ELSE NULL END AS \`trackingStatus\`,
+            a.\`requestedAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN t.\`nextReviewAt\` ELSE NULL END AS \`nextReviewAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN t.\`nextWeighingAt\` ELSE NULL END AS \`nextWeighingAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN m.\`lastFoodActivityAt\` ELSE NULL END AS \`lastFoodActivityAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN h.\`lastProfessionalInteractionAt\` ELSE NULL END AS \`lastProfessionalInteractionAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN pm.\`periodRecordCount\` ELSE 0 END AS \`periodRecordCount\`
           ${baseFrom}
-          ORDER BY COALESCE(u.`name`, u.`email`, CAST(u.`id` AS CHAR)) ASC, a.`requestedAt` DESC, a.`id` ASC
-          LIMIT ${input.pageSize} OFFSET ${offset}`),
-        db.execute(sql`SELECT COUNT(*) AS `total` ${baseFrom}`),
+          ORDER BY COALESCE(u.\`name\`, u.\`email\`, CAST(u.\`id\` AS CHAR)) ASC, a.\`requestedAt\` DESC, a.\`id\` ASC
+          LIMIT ${input.pageSize} OFFSET ${offset}
+        `),
+        db.execute(sql`SELECT COUNT(*) AS \`total\` ${baseFrom}`),
         db.execute(sql`
           SELECT
-            SUM(CASE WHEN t.`status` = 'active' AND a.`status` = 'approved' THEN 1 ELSE 0 END) AS `active`,
-            SUM(CASE WHEN t.`status` = 'paused' AND a.`status` = 'approved' THEN 1 ELSE 0 END) AS `paused`,
-            SUM(CASE WHEN t.`status` = 'ended' AND a.`status` = 'approved' THEN 1 ELSE 0 END) AS `ended`,
-            SUM(CASE WHEN t.`id` IS NULL AND a.`status` = 'approved' THEN 1 ELSE 0 END) AS `notStarted`,
-            SUM(CASE WHEN a.`status` = 'pending' THEN 1 ELSE 0 END) AS `pendingRequests`,
-            SUM(CASE WHEN a.`status` = 'approved' AND t.`status` = 'active' AND COALESCE(pm.`periodRecordCount`, 0) > 0 THEN 1 ELSE 0 END) AS `activeWithRecentRecords`,
-            SUM(CASE WHEN a.`status` = 'approved' AND COALESCE(pm.`periodRecordCount`, 0) = 0 THEN 1 ELSE 0 END) AS `withoutRecentActivity`,
-            SUM(CASE WHEN a.`status` = 'approved' AND t.`nextReviewAt` IS NOT NULL AND t.`nextReviewAt` <= ${now} THEN 1 ELSE 0 END) AS `pendingReviews`,
-            SUM(CASE WHEN a.`status` = 'approved' AND t.`nextWeighingAt` IS NOT NULL AND t.`nextWeighingAt` <= ${now} THEN 1 ELSE 0 END) AS `pendingWeighings`
-          FROM `professionalPatientAuthorizations` a
-          LEFT JOIN `professionalPatientTrackings` t ON t.`authorizationId` = a.`id`
+            SUM(CASE WHEN t.\`status\` = 'active' AND a.\`status\` = 'approved' THEN 1 ELSE 0 END) AS \`active\`,
+            SUM(CASE WHEN t.\`status\` = 'paused' AND a.\`status\` = 'approved' THEN 1 ELSE 0 END) AS \`paused\`,
+            SUM(CASE WHEN t.\`status\` = 'ended' AND a.\`status\` = 'approved' THEN 1 ELSE 0 END) AS \`ended\`,
+            SUM(CASE WHEN t.\`id\` IS NULL AND a.\`status\` = 'approved' THEN 1 ELSE 0 END) AS \`notStarted\`,
+            SUM(CASE WHEN a.\`status\` = 'pending' THEN 1 ELSE 0 END) AS \`pendingRequests\`,
+            SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0 THEN 1 ELSE 0 END) AS \`activeWithRecentRecords\`,
+            SUM(CASE WHEN a.\`status\` = 'approved' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0 THEN 1 ELSE 0 END) AS \`withoutRecentActivity\`,
+            SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`nextReviewAt\` IS NOT NULL AND t.\`nextReviewAt\` <= ${now} THEN 1 ELSE 0 END) AS \`pendingReviews\`,
+            SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`nextWeighingAt\` IS NOT NULL AND t.\`nextWeighingAt\` <= ${now} THEN 1 ELSE 0 END) AS \`pendingWeighings\`
+          FROM \`professionalPatientAuthorizations\` a
+          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
           ${periodRecordsJoin}
-          WHERE a.`professionalUserId` = ${professionalUserId}`),
+          WHERE a.\`professionalUserId\` = ${professionalUserId}
+        `),
       ]);
 
       const total = asNumber(rowsFromResult(countResult)[0]?.total);
