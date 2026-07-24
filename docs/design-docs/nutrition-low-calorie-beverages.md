@@ -35,6 +35,8 @@ The final candidate is checked by a shared semantic guard after every catalog so
 
 - An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
 - The deterministic base-coffee-plus-sugar calculation is used only when sugar is the sole caloric complement in the source segment. A preparation that also names milk, honey, cream, condensed milk or another caloric complement keeps a coherent complete-preparation estimate or falls back from the complete segment; it is never flattened to sugar-only nutrition.
+- Coordinated complements joined by `e` remain part of the same beverage preparation when the beverage already introduces a complement with `com`. Therefore, `café com leite e açúcar` and `café com leite e 5 g de açúcar` are processed as one preparation rather than as a coffee item plus a detached sugar item.
+- The coordination rule is conservative: a neighboring food such as `café com leite e bolo com 10 g de açúcar` remains split into separate food segments, so sugar from the cake cannot be associated with the coffee.
 - The base coffee portion is read from the canonical `cafe-sem-acucar` reference instead of being repeated in a coffee-specific constant. With the current catalog, one cup equals 200 ml and 2 kcal.
 - Consequently, one cup and 200 ml are equivalent inputs for the same preparation; adding 5 g of sugar produces approximately 205 g, 22 kcal and 5 g of carbohydrates.
 - A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent. When the source includes an explicit sugar amount, the estimate must cover at least the calories and carbohydrates implied by that amount.
@@ -60,14 +62,18 @@ Coverage lives in:
 
 - `server/nutritionEngine.lowCalorieBeverages.test.ts`;
 - `server/catalogMatching.semanticCompatibility.test.ts`;
+- `server/foodSemanticCompatibility.coordinatedSugar.test.ts`;
+- `server/mealTextParsing.coordinatedBeverageComplements.test.ts`;
 - `server/nutritionEngine.coffeeSugar.test.ts`;
 - `server/nutritionEngine.coffeeSugarComposite.test.ts`;
 - `server/nutritionEngine.coffeeSugarComplements.test.ts`;
+- `server/nutritionEngine.coffeeSugarCoordination.test.ts`;
 - `server/coffeeSugarNutrition.discriminant.test.ts`;
 - `server/coffeeSugarNutrition.multipleSweetened.test.ts`;
 - `server/coffeeSugarNutrition.compositeComplements.test.ts`;
 - `server/coffeeSugarNutrition.adversarialComplements.test.ts`;
 - `server/coffeeSugarNutrition.units.test.ts`;
+- `server/modules/whatsapp/coffeeSugarIntent.coordinated.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
 - `server/modules/whatsapp/foodClarificationContract.coffeeSugar.test.ts`;
@@ -78,11 +84,12 @@ Coverage lives in:
 - `server/modules/whatsapp/foodCaloricComplementCompensation.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarCompositeAddition.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarMutationHandlers.test.ts`;
+- `server/modules/whatsapp/intent/coffeeSugarCoordinatedMutationHandlers.test.ts`;
 - `server/modules/whatsapp/intentActions.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
