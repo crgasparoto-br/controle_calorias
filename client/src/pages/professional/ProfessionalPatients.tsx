@@ -26,18 +26,52 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 
+const PATIENT_CONTACT_MAX_LENGTH = 320;
+const ACCESS_REASON_MAX_LENGTH = 500;
+
+type AuthorizationStatus =
+  | "all"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "revoked";
+type TrackingStatus =
+  | "all"
+  | "not_started"
+  | "active"
+  | "paused"
+  | "ended";
+type ActivityFilter = "all" | "recent" | "inactive" | "unavailable";
+type ReviewFilter =
+  | "all"
+  | "scheduled"
+  | "due_soon"
+  | "overdue"
+  | "unavailable";
+
 type Filters = {
   search: string;
-  authorizationStatus: "all" | "pending" | "approved" | "rejected" | "revoked";
-  trackingStatus: "all" | "not_started" | "active" | "paused" | "ended";
-  activity: "all" | "recent" | "inactive" | "unavailable";
-  nextReview: "all" | "scheduled" | "due_soon" | "overdue" | "unavailable";
+  authorizationStatus: AuthorizationStatus;
+  trackingStatus: TrackingStatus;
+  activity: ActivityFilter;
+  nextReview: ReviewFilter;
   page: number;
   pageSize: number;
 };
 
 type RequestAccessResult = {
-  status: "pending" | "approved" | "rejected" | "revoked";
+  status: Exclude<AuthorizationStatus, "all">;
+};
+
+type PortfolioItem = {
+  authorizationId: string;
+  patientUserId: number;
+  patientName?: string | null;
+  patientEmail?: string | null;
+  authorizationStatus: Exclude<AuthorizationStatus, "all">;
+  trackingStatus?: Exclude<TrackingStatus, "all"> | null;
+  lastFoodActivityAt?: number | null;
+  nextReviewAt?: number | null;
 };
 
 function validValue<T extends string>(
@@ -81,10 +115,12 @@ export function filtersFromLocation(location: string): Filters {
 export function filtersToLocation(filters: Filters) {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.authorizationStatus !== "all")
+  if (filters.authorizationStatus !== "all") {
     params.set("authorization", filters.authorizationStatus);
-  if (filters.trackingStatus !== "all")
+  }
+  if (filters.trackingStatus !== "all") {
     params.set("tracking", filters.trackingStatus);
+  }
   if (filters.activity !== "all") params.set("activity", filters.activity);
   if (filters.nextReview !== "all") params.set("review", filters.nextReview);
   if (filters.page > 1) params.set("page", String(filters.page));
@@ -130,11 +166,101 @@ function formatDate(value: number | null | undefined, fallback: string) {
     : fallback;
 }
 
-function unavailableActionLabel(status: Filters["authorizationStatus"]) {
+function unavailableActionLabel(
+  status: Exclude<AuthorizationStatus, "all">
+) {
   if (status === "pending") return "Aguardando autorização";
   if (status === "revoked") return "Acesso revogado";
   if (status === "rejected") return "Solicitação recusada";
   return "Acesso indisponível";
+}
+
+function PatientCard({
+  item,
+  openingPatientId,
+  onOpen,
+}: {
+  item: PortfolioItem;
+  openingPatientId: number | null;
+  onOpen: (item: PortfolioItem) => void;
+}) {
+  const accessible = item.authorizationStatus === "approved";
+  const displayName =
+    item.patientName ??
+    (accessible ? item.patientEmail : null) ??
+    `Paciente ${item.patientUserId}`;
+
+  return (
+    <article
+      data-professional-patient-card
+      className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_minmax(130px,.7fr)_minmax(140px,.75fr)_minmax(180px,1fr)_auto] xl:items-center"
+    >
+      <div className="min-w-0 md:col-span-2 xl:col-span-1">
+        <h2 className="break-words font-semibold">{displayName}</h2>
+        <p className="mt-1 break-words text-sm text-muted-foreground">
+          {accessible
+            ? item.patientEmail ?? "Identificação não informada"
+            : "Dados pessoais e clínicos disponíveis após autorização"}
+        </p>
+      </div>
+
+      <div className="min-w-0">
+        <p className="mb-1 text-xs text-muted-foreground">Autorização</p>
+        <ProfessionalStatusBadge
+          kind="authorization"
+          value={item.authorizationStatus}
+        />
+      </div>
+
+      <div className="min-w-0">
+        <p className="mb-1 text-xs text-muted-foreground">Acompanhamento</p>
+        {accessible ? (
+          <ProfessionalStatusBadge
+            kind="tracking"
+            value={item.trackingStatus ?? "not_started"}
+          />
+        ) : (
+          <p className="text-sm font-medium text-muted-foreground">
+            Disponível após autorização
+          </p>
+        )}
+      </div>
+
+      <dl className="grid min-w-0 gap-3 text-sm md:col-span-2 md:grid-cols-2 xl:col-span-1 xl:grid-cols-1 xl:gap-2">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">Última atividade</dt>
+          <dd className="break-words font-medium">
+            {accessible
+              ? formatDate(item.lastFoodActivityAt, "Não informado")
+              : "Disponível após autorização"}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">Próxima revisão</dt>
+          <dd className="break-words font-medium">
+            {accessible
+              ? formatDate(item.nextReviewAt, "Sem revisão agendada")
+              : "Disponível após autorização"}
+          </dd>
+        </div>
+      </dl>
+
+      <Button
+        type="button"
+        data-patient-action
+        className="w-full md:col-span-2 xl:col-span-1 xl:w-auto xl:justify-self-end"
+        variant={accessible ? "default" : "outline"}
+        disabled={!accessible || openingPatientId !== null}
+        onClick={() => onOpen(item)}
+      >
+        {openingPatientId === item.patientUserId
+          ? "Validando..."
+          : accessible
+            ? "Abrir paciente"
+            : unavailableActionLabel(item.authorizationStatus)}
+      </Button>
+    </article>
+  );
 }
 
 export default function ProfessionalPatients() {
@@ -181,6 +307,7 @@ export default function ProfessionalPatients() {
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,
   });
+
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async result => {
       const success = requestAccessSuccessState(result);
@@ -188,15 +315,18 @@ export default function ProfessionalPatients() {
       setPatientContact("");
       setReason("");
       setSearchInput("");
+      await Promise.all([
+        utils.nutrition.professionals.myAccesses.invalidate(),
+        utils.nutrition.professionals.portfolio.invalidate(),
+      ]);
       setLocation(
         `/professional/patients?authorization=${success.authorizationStatus}`,
         { replace: true }
       );
-      await utils.nutrition.professionals.myAccesses.invalidate();
     },
   });
 
-  const openPatient = async (item: any) => {
+  const openPatient = async (item: PortfolioItem) => {
     setOpenError(null);
     setOpeningPatientId(item.patientUserId);
     try {
@@ -221,7 +351,11 @@ export default function ProfessionalPatients() {
         title="Pacientes"
         description="Localize vínculos, acompanhe autorização e situação do acompanhamento e abra o workspace individual com segurança."
         actions={
-          <Button onClick={() => setShowRequest(value => !value)}>
+          <Button
+            type="button"
+            onClick={() => setShowRequest(value => !value)}
+            aria-expanded={showRequest}
+          >
             <UserRoundPlus className="h-4 w-4" />
             Solicitar acesso
           </Button>
@@ -236,27 +370,31 @@ export default function ProfessionalPatients() {
               Adicionar paciente
             </CardTitle>
             <CardDescription>
-              Informe o e-mail ou celular já cadastrado. A existência e a elegibilidade são validadas com segurança pelo sistema.
+              Informe o e-mail ou celular já cadastrado. A existência e a
+              elegibilidade são validadas com segurança pelo sistema.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">
-            <label className="grid gap-1 text-sm">
+          <CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] xl:items-end">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-medium">E-mail ou celular</span>
               <Input
                 value={patientContact}
+                maxLength={PATIENT_CONTACT_MAX_LENGTH}
                 onChange={event => setPatientContact(event.target.value)}
                 placeholder="paciente@exemplo.com ou celular"
               />
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-medium">Motivo da solicitação</span>
               <Input
                 value={reason}
+                maxLength={ACCESS_REASON_MAX_LENGTH}
                 onChange={event => setReason(event.target.value)}
                 placeholder="Ex.: iniciar acompanhamento nutricional"
               />
             </label>
             <Button
+              type="button"
               disabled={
                 patientContact.trim().length < 3 ||
                 reason.trim().length < 3 ||
@@ -276,13 +414,16 @@ export default function ProfessionalPatients() {
             {requestSuccess ? (
               <p
                 role="status"
-                className="text-sm text-emerald-700 lg:col-span-3 dark:text-emerald-300"
+                className="text-sm text-emerald-700 xl:col-span-3 dark:text-emerald-300"
               >
                 {requestSuccess}
               </p>
             ) : null}
             {requestAccess.isError ? (
-              <p role="alert" className="text-sm text-destructive lg:col-span-3">
+              <p
+                role="alert"
+                className="text-sm text-destructive xl:col-span-3"
+              >
                 {requestAccessErrorMessage(requestAccess.error)}
               </p>
             ) : null}
@@ -292,7 +433,7 @@ export default function ProfessionalPatients() {
 
       <section
         aria-label="Filtros da carteira"
-        className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(170px,1fr))]"
+        className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(150px,1fr))]"
       >
         <label className="relative min-w-0">
           <span className="sr-only">Buscar paciente</span>
@@ -310,8 +451,7 @@ export default function ProfessionalPatients() {
           value={filters.authorizationStatus}
           onChange={event =>
             updateFilters({
-              authorizationStatus: event.target
-                .value as Filters["authorizationStatus"],
+              authorizationStatus: event.target.value as AuthorizationStatus,
               page: 1,
             })
           }
@@ -328,7 +468,7 @@ export default function ProfessionalPatients() {
           value={filters.trackingStatus}
           onChange={event =>
             updateFilters({
-              trackingStatus: event.target.value as Filters["trackingStatus"],
+              trackingStatus: event.target.value as TrackingStatus,
               page: 1,
             })
           }
@@ -345,7 +485,7 @@ export default function ProfessionalPatients() {
           value={filters.activity}
           onChange={event =>
             updateFilters({
-              activity: event.target.value as Filters["activity"],
+              activity: event.target.value as ActivityFilter,
               page: 1,
             })
           }
@@ -361,7 +501,7 @@ export default function ProfessionalPatients() {
           value={filters.nextReview}
           onChange={event =>
             updateFilters({
-              nextReview: event.target.value as Filters["nextReview"],
+              nextReview: event.target.value as ReviewFilter,
               page: 1,
             })
           }
@@ -382,6 +522,7 @@ export default function ProfessionalPatients() {
           {openError}
         </p>
       ) : null}
+
       {portfolio.isLoading ? (
         <ProfessionalLoadingState label="Carregando carteira profissional..." />
       ) : portfolio.isError ? (
@@ -398,87 +539,26 @@ export default function ProfessionalPatients() {
         />
       ) : (
         <div className="grid gap-3">
-          {portfolio.data?.items.map((item: any) => {
-            const accessible = item.authorizationStatus === "approved";
-            const displayName =
-              item.patientName ??
-              (accessible ? item.patientEmail : null) ??
-              `Paciente ${item.patientUserId}`;
-            return (
-              <article
-                key={item.authorizationId}
-                className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm lg:grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(150px,.8fr)_minmax(200px,1fr)_auto] lg:items-center"
-              >
-                <div className="min-w-0">
-                  <h2 className="break-words font-semibold">{displayName}</h2>
-                  <p className="mt-1 break-words text-sm text-muted-foreground">
-                    {accessible
-                      ? item.patientEmail ?? "Identificação não informada"
-                      : "Dados pessoais e clínicos disponíveis após autorização"}
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <p className="mb-1 text-xs text-muted-foreground">Autorização</p>
-                  <ProfessionalStatusBadge
-                    kind="authorization"
-                    value={item.authorizationStatus}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="mb-1 text-xs text-muted-foreground">Acompanhamento</p>
-                  {accessible ? (
-                    <ProfessionalStatusBadge
-                      kind="tracking"
-                      value={item.trackingStatus ?? "not_started"}
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Disponível após autorização
-                    </p>
-                  )}
-                </div>
-                <dl className="min-w-0 space-y-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Última atividade</dt>
-                    <dd className="break-words font-medium">
-                      {accessible
-                        ? formatDate(item.lastFoodActivityAt, "Não informado")
-                        : "Disponível após autorização"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Próxima revisão</dt>
-                    <dd className="break-words font-medium">
-                      {accessible
-                        ? formatDate(item.nextReviewAt, "Sem revisão agendada")
-                        : "Disponível após autorização"}
-                    </dd>
-                  </div>
-                </dl>
-                <Button
-                  variant={accessible ? "default" : "outline"}
-                  disabled={!accessible || openingPatientId !== null}
-                  onClick={() => void openPatient(item)}
-                >
-                  {openingPatientId === item.patientUserId
-                    ? "Validando..."
-                    : accessible
-                      ? "Abrir paciente"
-                      : unavailableActionLabel(item.authorizationStatus)}
-                </Button>
-              </article>
-            );
-          })}
+          {portfolio.data?.items.map((item: PortfolioItem) => (
+            <PatientCard
+              key={item.authorizationId}
+              item={item}
+              openingPatientId={openingPatientId}
+              onOpen={itemToOpen => void openPatient(itemToOpen)}
+            />
+          ))}
         </div>
       )}
 
       {portfolio.data && portfolio.data.pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Página {portfolio.data.pagination.page} de {portfolio.data.pagination.totalPages}
+            Página {portfolio.data.pagination.page} de{" "}
+            {portfolio.data.pagination.totalPages}
           </p>
           <div className="flex gap-2">
             <Button
+              type="button"
               variant="outline"
               disabled={filters.page <= 1}
               onClick={() => updateFilters({ page: filters.page - 1 })}
@@ -487,6 +567,7 @@ export default function ProfessionalPatients() {
               Anterior
             </Button>
             <Button
+              type="button"
               variant="outline"
               disabled={filters.page >= portfolio.data.pagination.totalPages}
               onClick={() => updateFilters({ page: filters.page + 1 })}
