@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import { normalizeSweetenedCoffeeDraftItems } from "./coffeeSugarNutrition";
+import type { MealDraftItem } from "./nutritionEngineTypes";
+
+function item(input: {
+  foodName: string;
+  canonicalName: string;
+  calories: number;
+  carbs: number;
+}): MealDraftItem {
+  return {
+    foodName: input.foodName,
+    canonicalName: input.canonicalName,
+    brand: null,
+    quantity: 1,
+    unit: "xícara",
+    portionText: "1 xícara",
+    servings: 1,
+    estimatedGrams: 200,
+    calories: input.calories,
+    protein: 0,
+    carbs: input.carbs,
+    fat: 0,
+    confidence: 0.9,
+    source: "heuristic",
+  };
+}
+
+describe("normalização discriminante de café adoçado", () => {
+  it("não converte o café sem açúcar quando os dois cafés coexistem", () => {
+    const result = normalizeSweetenedCoffeeDraftItems(
+      [
+        item({
+          foodName: "Café com açúcar",
+          canonicalName: "Café com açúcar",
+          calories: 34,
+          carbs: 8,
+        }),
+        item({
+          foodName: "Café sem açúcar",
+          canonicalName: "Café Sem Açúcar",
+          calories: 2,
+          carbs: 0,
+        }),
+      ],
+      "1 xícara de café com açúcar e 1 xícara de café sem açúcar",
+    );
+
+    expect(result[0]).toEqual(expect.objectContaining({
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      calories: 34,
+      carbs: 8,
+    }));
+    expect(result[1]).toEqual(expect.objectContaining({
+      foodName: "Café sem açúcar",
+      canonicalName: "Café Sem Açúcar",
+      calories: 2,
+      carbs: 0,
+    }));
+  });
+
+  it("restaura o qualificador quando a IA retorna um único café genérico", () => {
+    const result = normalizeSweetenedCoffeeDraftItems(
+      [
+        item({
+          foodName: "Café",
+          canonicalName: "Café",
+          calories: 34,
+          carbs: 8,
+        }),
+      ],
+      "1 xícara de café com açúcar",
+    );
+
+    expect(result[0]).toEqual(expect.objectContaining({
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      calories: 34,
+      carbs: 8,
+    }));
+  });
+});
