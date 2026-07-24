@@ -17,6 +17,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
 
     steps:
       - name: Checkout repository
