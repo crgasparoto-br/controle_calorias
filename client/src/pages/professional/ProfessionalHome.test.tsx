@@ -18,7 +18,7 @@ let portfolioState: any;
 vi.mock("wouter", () => ({
   useLocation: () => [currentLocation, setLocation],
 }));
-vi.mock("wouter/use-location", () => ({
+vi.mock("wouter/use-browser-location", () => ({
   useSearch: () => currentSearch,
 }));
 
