@@ -163,7 +163,7 @@ describe("lifecycle persistente do açúcar", () => {
     vi.clearAllMocks();
   });
 
-  it("mantém resposta inválida, consome a válida e bloqueia reentrega sem duplicar", async () => {
+  it("mantém respostas incompatíveis, consome a válida e bloqueia reentrega sem duplicar", async () => {
     const harness = createHarness();
     const receivedAt = new Date("2026-07-24T12:00:00.000Z");
     await harness.quantityService.requestCaloricComplementQuantity({
@@ -182,15 +182,33 @@ describe("lifecycle persistente do açúcar", () => {
     });
     expect(invalid?.action).toBe("food_clarification_reprompted");
     expect(harness.createMeal).not.toHaveBeenCalled();
-    expect(await harness.repository.getActivePendingOperation(
+    const activeBeforeUnit = await harness.repository.getActivePendingOperation(
       903,
       new Date(receivedAt.getTime() + 1000),
-    )).not.toBeNull();
+    );
+    expect(activeBeforeUnit).not.toBeNull();
+
+    const invalidUnit = await harness.clarificationService.handle({
+      userId: 903,
+      text: "5 ml",
+      receivedAt: new Date(receivedAt.getTime() + 2000),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(invalidUnit?.action).toBe("food_clarification_reprompted");
+    expect(invalidUnit?.eventType).toBe("whatsapp.food_clarification.invalid_component_unit");
+    expect(harness.createMeal).not.toHaveBeenCalled();
+    const activeAfterUnit = await harness.repository.getActivePendingOperation(
+      903,
+      new Date(receivedAt.getTime() + 2000),
+    );
+    expect(activeAfterUnit?.id).toBe(activeBeforeUnit?.id);
+    expect(activeAfterUnit?.state).toBe("active");
+    expect(activeAfterUnit?.version).toBe(1);
 
     const completed = await harness.clarificationService.handle({
       userId: 903,
       text: "5 g",
-      receivedAt: new Date(receivedAt.getTime() + 2000),
+      receivedAt: new Date(receivedAt.getTime() + 3000),
       userTimezone: "America/Sao_Paulo",
     });
     expect(completed?.action).toBe("food_clarification_completed");
@@ -206,7 +224,7 @@ describe("lifecycle persistente do açúcar", () => {
     const replay = await harness.clarificationService.handle({
       userId: 903,
       text: "5 g",
-      receivedAt: new Date(receivedAt.getTime() + 3000),
+      receivedAt: new Date(receivedAt.getTime() + 4000),
       userTimezone: "America/Sao_Paulo",
     });
     expect(replay?.action).toBe("food_clarification_standalone_command_blocked");
