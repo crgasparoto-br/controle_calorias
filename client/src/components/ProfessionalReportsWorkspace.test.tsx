@@ -36,7 +36,9 @@ vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
 vi.mock("@/features/reports/ReportsExperience", () => ({
   default: reportsExperience,
 }));
-vi.mock("wouter", () => ({ useLocation: () => ["/professional/reports", vi.fn()] }));
+vi.mock("wouter", () => ({
+  useLocation: () => ["/professional/reports", vi.fn()],
+}));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     professionalRecord: {
@@ -82,7 +84,7 @@ beforeEach(() => {
 });
 
 describe("ProfessionalReportsWorkspace", () => {
-  it("shows aggregate indicators through the reports resource", async () => {
+  it("shows aggregate indicators without duplicating the global priority list", async () => {
     const { default: ProfessionalReportsWorkspace } = await import(
       "./ProfessionalReportsWorkspace"
     );
@@ -92,7 +94,10 @@ describe("ProfessionalReportsWorkspace", () => {
       screen.getByRole("heading", { name: "Relatórios da carteira" })
     ).toBeTruthy();
     expect(screen.getByText("5")).toBeTruthy();
-    expect(screen.getByText("Pendências da carteira")).toBeTruthy();
+    expect(screen.queryByText("Pendências da carteira")).toBeNull();
+    expect(
+      screen.getByText(/prioridades globais ficam centralizadas no Início/)
+    ).toBeTruthy();
     expect(reportsExperience).not.toHaveBeenCalled();
     expect(portfolioInput).toHaveBeenCalled();
   });
