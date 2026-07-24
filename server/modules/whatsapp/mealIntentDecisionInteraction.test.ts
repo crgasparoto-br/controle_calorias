@@ -334,3 +334,37 @@ describe("mealIntentDecisionInteraction", () => {
     ).toBe("whatsapp.interactive_callback.unavailable");
   });
 });
+
+describe("mealIntentDecisionInteraction isolation", () => {
+  it("mantém decisões iguais isoladas por usuário", async () => {
+    const receivedAt = new Date("2026-07-24T22:10:00.000Z");
+    await createWhatsappMealIntentDecisionInteraction({
+      userId: 899301,
+      originalText: "jantar com arroz e feijão",
+      receivedAt,
+    });
+    await createWhatsappMealIntentDecisionInteraction({
+      userId: 899302,
+      originalText: "jantar com arroz e feijão",
+      receivedAt,
+    });
+
+    const first = await resolveWhatsAppPrecedenceGate({
+      userId: 899301,
+      text: "Cancelar",
+      receivedAt: new Date(receivedAt.getTime() + 1000),
+      userTimezone: "America/Sao_Paulo",
+    });
+    const second = await resolveWhatsAppPrecedenceGate({
+      userId: 899302,
+      text: "talvez",
+      receivedAt: new Date(receivedAt.getTime() + 1000),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(first.step).toBe("pending_interaction");
+    expect(second.step).toBe("pending_interaction");
+    if (second.step !== "pending_interaction") throw new Error("unreachable");
+    expect(second.result.eventType).toBe("whatsapp.interaction.pending_represented");
+  });
+});

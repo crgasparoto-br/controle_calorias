@@ -13,7 +13,7 @@ describe("executeWhatsAppFoodAssistantIntent", () => {
       handled: true,
       action: "food_assistant",
       eventType: "whatsapp.intent.food_assistant",
-      data: { context: "dinner" },
+      data: expect.objectContaining({ context: "dinner" }),
       reply: expect.stringContaining("Sugestão alimentar"),
     }));
     expect(result?.reply).toContain("Nada foi registrado como consumo");
@@ -25,7 +25,7 @@ describe("executeWhatsAppFoodAssistantIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "food_assistant",
-      data: { context: "snack" },
+      data: expect.objectContaining({ context: "snack" }),
       reply: expect.stringContaining("Iogurte natural com fruta"),
     }));
   });
@@ -61,7 +61,8 @@ describe("executeWhatsAppFoodAssistantIntent", () => {
       "jantar com arroz, feijão e frango"
     );
 
-    expect(result.data).toEqual({ context: "dinner" });
+    expect(result.data).toEqual({ context: "dinner", originalTextUsed: true });
+    expect(result.reply).toContain("arroz, feijão e frango");
     expect(result.reply).toContain("Nada foi registrado como consumo");
   });
 

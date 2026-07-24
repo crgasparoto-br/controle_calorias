@@ -50,7 +50,7 @@ function resolveMealContext(normalized: string): AssistantMealContext {
   return "general";
 }
 
-function buildAssistantReply(context: AssistantMealContext) {
+function buildAssistantReply(context: AssistantMealContext, originalText?: string | null) {
   const optionsByContext: Record<AssistantMealContext, string[]> = {
     breakfast: [
       "• Iogurte natural com banana e aveia",
@@ -94,9 +94,13 @@ function buildAssistantReply(context: AssistantMealContext) {
     ],
   };
 
+  const preservedContext = originalText?.trim()
+    ? `Considerei como base os alimentos e o contexto da sua mensagem: ${originalText.trim()}.`
+    : null;
   return [
     "Sugestão alimentar:",
     "",
+    ...(preservedContext ? [preservedContext, ""] : []),
     "Posso te ajudar com uma escolha prática. Algumas boas opções:",
     ...optionsByContext[context],
     "",
@@ -112,10 +116,10 @@ export function executeConfirmedWhatsAppFoodSuggestion(text?: string | null): Wh
   return {
     handled: true,
     action: "food_assistant",
-    reply: buildAssistantReply(context),
+    reply: buildAssistantReply(context, text),
     eventType: "whatsapp.intent.food_assistant",
-    detail: "Orientação alimentar confirmada e respondida pelo WhatsApp sem criar refeição por fallback.",
-    data: { context },
+    detail: "Orientação alimentar confirmada usou o contexto original e respondeu sem criar refeição por fallback.",
+    data: { context, originalTextUsed: Boolean(normalized) },
   };
 }
 

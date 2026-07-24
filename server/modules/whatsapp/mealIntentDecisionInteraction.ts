@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
@@ -10,6 +11,8 @@ import {
   buildWhatsappInteractionTelemetry,
   type WhatsappInteractionAction,
 } from "./interactionPresentation";
+import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
+import { createWhatsappMealIntentRegistrationDetailsInteraction } from "./mealIntentRegistrationDetailsInteraction";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 
@@ -238,14 +241,6 @@ export function classifyMealIntentDecisionText(
   return parseMealIntentDecisionTextAction(text) ? "resolve" : "invalid";
 }
 
-function isRegistrationContinuation(action?: string) {
-  return Boolean(
-    action === "meal_item_added" ||
-      action?.startsWith("food_clarification_") ||
-      action?.startsWith("llm_intent_add_foods_to_meal")
-  );
-}
-
 export async function completeWhatsappMealIntentDecisionCallback(input: {
   userId: number;
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">;
@@ -301,20 +296,20 @@ export async function completeWhatsappMealIntentDecisionCallback(input: {
     };
   }
 
-  const { executeWhatsappTextIntent } = await import("./intentActions");
-  const resumed = await executeWhatsappTextIntent(input.userId, {
-    text: target.originalText,
-    receivedAt: input.receivedAt,
-    userTimezone: input.userTimezone,
-    messageId: target.inboundMessageId,
-    entrypoint: "intentClarification.resume",
+  const outcome = await executeConfirmedWhatsAppMealRegistration({
+    userId: input.userId,
+    registrationText: target.originalText,
+    originalText: target.originalText,
+    occurredAt: input.receivedAt ?? new Date(),
+    userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
   });
-  if (resumed && isRegistrationContinuation(resumed.action)) {
+
+  if (outcome.status === "registered") {
     return {
-      ...resumed,
-      detail: `${resumed.detail} Texto original retomado em modo confirmado após a escolha Registrar.`,
+      ...outcome.result,
+      detail: `${outcome.result.detail} Texto original retomado após a escolha Registrar.`,
       data: {
-        ...(resumed.data ?? {}),
+        ...(outcome.result.data ?? {}),
         originalTextPreserved: true,
         originalTextResumed: true,
         ambiguityReclassified: false,
@@ -322,17 +317,66 @@ export async function completeWhatsappMealIntentDecisionCallback(input: {
     };
   }
 
+  if (outcome.status === "details_needed") {
+    const details = await createWhatsappMealIntentRegistrationDetailsInteraction({
+      userId: input.userId,
+      originalText: target.originalText,
+      registrationText: target.originalText,
+      inboundMessageId: target.inboundMessageId,
+      prompt: outcome.prompt,
+      receivedAt: input.receivedAt,
+    });
+    return details ?? {
+      handled: true as const,
+      action: "clarification_needed" as const,
+      reply:
+        "Não consegui manter a solicitação de detalhes com segurança. Nada foi registrado. Envie novamente a descrição completa da refeição.",
+      eventType: "whatsapp.meal_intent_decision.registration_details_restore_failed",
+      detail: "Clarificação alimentar específica não pôde ser persistida.",
+      data: { retryRequiresFullMessage: true, originalTextPreserved: true },
+    };
+  }
+
+  if (outcome.status === "safe_to_retry") {
+    const recreated = await pendingOperationRepository.createPendingOperation({
+      userId: input.userId,
+      type: PENDING_MEAL_INTENT_DECISION_TYPE,
+      origin: PENDING_MEAL_INTENT_DECISION_ORIGIN,
+      target,
+      ttlMs: PENDING_MEAL_INTENT_DECISION_TTL_MS,
+      now: input.receivedAt,
+    });
+    if (recreated) {
+      return {
+        handled: true as const,
+        action: "clarification_needed" as const,
+        reply: outcome.prompt,
+        eventType: "whatsapp.meal_intent_decision.registration_retry_restored",
+        detail: outcome.detail,
+        data: {
+          pendingOperationId: recreated.id,
+          pendingType: recreated.type,
+          originalTextPreserved: true,
+          interactionId: MEAL_INTENT_DECISION_INTERACTION_ID,
+          interactionLifecycle: "created",
+        },
+        interactiveReply: buildWhatsappMealIntentDecisionReply(
+          recreated.id,
+          outcome.prompt,
+        ),
+      };
+    }
+  }
+
   return {
     handled: true as const,
-    action: "meal_intent_decision_registration_details_needed",
-    reply:
-      "Entendi que foi consumo. Para registrar corretamente, informe a quantidade de cada alimento, por exemplo: 100 g de arroz e 1 filé de frango.",
-    eventType: "whatsapp.meal_intent_decision.registration_details_needed",
-    detail:
-      "Escolha Registrar retomou somente o pipeline alimentar confirmado, mas faltaram dados específicos para concluir.",
+    action: "clarification_needed" as const,
+    reply: outcome.prompt,
+    eventType: "whatsapp.meal_intent_decision.registration_blocked_after_mutation",
+    detail: outcome.detail,
     data: {
+      retryBlocked: outcome.status === "blocked_after_possible_mutation",
       originalTextPreserved: true,
-      originalTextResumed: true,
       ambiguityReclassified: false,
     },
   };

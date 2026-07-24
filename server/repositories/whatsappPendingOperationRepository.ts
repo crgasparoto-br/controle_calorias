@@ -36,6 +36,9 @@ export type WhatsAppPendingOperationRepository = {
     userId: number,
     now?: Date
   ): Promise<WhatsAppPendingOperationRecord | null>;
+  getLatestPendingOperation(
+    userId: number
+  ): Promise<WhatsAppPendingOperationRecord | null>;
   /** Busca pelo ID exato (issue #782): valida que um callback de botão/lista aponta para a pendência específica mostrada ao usuário, não apenas "a mais recente ativa". */
   getPendingOperationById(
     id: number
@@ -119,6 +122,11 @@ function createFallbackStore() {
       if (!latest) return null;
       if (new Date(latest.expiresAt).getTime() < now.getTime()) return null;
       return latest;
+    },
+    getLatest(userId: number): WhatsAppPendingOperationRecord | null {
+      return [...fallbackStore.values()]
+        .filter(row => row.userId === userId)
+        .sort((a, b) => b.id - a.id)[0] ?? null;
     },
     getById(id: number): WhatsAppPendingOperationRecord | null {
       return fallbackStore.get(id) ?? null;
@@ -228,6 +236,24 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
         return row;
       } catch (error) {
         deps.onWarning("WhatsApp pending operation read skipped", error);
+        return null;
+      }
+    },
+
+    async getLatestPendingOperation(userId) {
+      const db = await deps.getDb();
+      if (!db) return fallback.getLatest(userId);
+
+      try {
+        const [row] = await db
+          .select()
+          .from(whatsappPendingOperations)
+          .where(eq(whatsappPendingOperations.userId, userId))
+          .orderBy(desc(whatsappPendingOperations.id))
+          .limit(1);
+        return row ?? null;
+      } catch (error) {
+        deps.onWarning("WhatsApp pending operation latest read skipped", error);
         return null;
       }
     },

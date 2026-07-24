@@ -87,3 +87,13 @@ Resposta curta incompatível não consome a pendência. A interação é reconst
 | Registro incompleto | `Registrar` sem quantidade suficiente | pergunta alimentar específica, nunca esclarecimento genérico |
 
 A cobertura principal está em `server/modules/whatsapp/mealIntentDecisionInteraction.test.ts`; o fallback de sugestão sem produtor duplicado é coberto em `foodAssistant.test.ts`.
+
+## Continuidade após confirmar consumo
+
+A ação **Registrar** chama diretamente o pipeline nutricional canônico com o texto original, sem reenviar o rótulo do botão e sem nova classificação consumo x sugestão. O registro usa o mesmo processamento, persistência, consolidação, recarga e formatter do webhook nutricional.
+
+Quando o domínio solicitar um dado alimentar adicional antes de qualquer mutação, a decisão fechada transita para `meal_intent_decision.registration_details`, uma interação aberta persistente. Ela guarda separadamente o texto original e o texto de trabalho, aceita somente o detalhe complementar ou cancelamento e combina uma resposta curta de quantidade ao contexto preservado.
+
+Falha comprovadamente anterior à mutação restaura uma pendência recuperável. Falha depois do início possível da persistência bloqueia retry cego e orienta o usuário a consultar os registros, evitando duplicidade.
+
+Resultados ambíguos produzidos pelo interpretador estruturado também delegam a `createWhatsappMealIntentDecisionInteraction`; nenhum produtor pode enviar a pergunta consumo x sugestão como texto desacoplado da persistência.
