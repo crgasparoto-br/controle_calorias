@@ -10,6 +10,7 @@ const ACCESS_REQUEST_RECEIPT_ENTITY = "request_access_receipt";
 const UNRESOLVED_RECEIPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RECEIPTS = 50;
 const MAX_SCANNED_RECEIPTS = 200;
+const IN_MEMORY_RECEIPT_STORAGE = "memory";
 
 export type ProfessionalAccessRequestReceipt = {
   id: string;
@@ -73,7 +74,8 @@ export function createProfessionalAccessRequestReceiptRepository(
 
   async function getReceiptDb() {
     if (
-      (process.env.NODE_ENV === "test" || process.env.VITEST === "true") &&
+      process.env.PROFESSIONAL_ACCESS_RECEIPT_STORAGE ===
+        IN_MEMORY_RECEIPT_STORAGE &&
       !dependencies.useDatabaseInTests
     ) {
       return null;
