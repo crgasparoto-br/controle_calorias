@@ -90,6 +90,7 @@ async function resolveAdditionItems(input: {
           result: await requestWhatsappCaloricComplementQuantityClarification({
             userId: input.userId,
             originalFoodText: completeFoodText,
+            originalText: input.context?.originalText,
             operation: {
               kind: "add_to_meal",
               mealId: input.targetMeal.id,
