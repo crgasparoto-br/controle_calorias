@@ -97,7 +97,15 @@ const DESTRUCTIVE_OR_QUERY_COMMAND = /\b(?:excluir|remover|apagar|deletar|trocar
 const COMPLETE_COMMAND_SIGNAL = /\b(?:registrar|registre|registra|adicionar|adicione|adiciona|incluir|inclua|comi|bebi|tomei|excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
 const COUNTABLE_SERVING = /\b(?:unidades?|unid|und|fatias?|pedacos?|x[ií]caras?|copos?|colheres?|doses?|scoops?|latas?|garrafas?|long\s*necks?|por[cç][oõ]es|por[cç][aã]o)\b/i;
 const EXPLICIT_MASS_OR_VOLUME = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
-const QUANTITY_ONLY_REPLY = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s*$/i;
+const HOUSEHOLD_QUANTITY_UNIT = "colheres? de cha|colheres? de sopa|saches?|pacotes?";
+const QUANTITY_ONLY_REPLY = new RegExp(
+  `^\\s*\\d+(?:[,.]\\d+)?\\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|${HOUSEHOLD_QUANTITY_UNIT})\\s*$`,
+  "i",
+);
+const HOUSEHOLD_QUANTITY_ONLY_REPLY = new RegExp(
+  `^\\s*(\\d+(?:[,.]\\d+)?)\\s*(${HOUSEHOLD_QUANTITY_UNIT})\\s*$`,
+  "i",
+);
 const COMPLETE_EXPLICIT_FOOD = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s+(?:de\s+)?[\p{L}][\p{L}\p{N}\s'’-]*$/iu;
 
 function normalizeCandidate(value: string) {
@@ -266,11 +274,20 @@ export function isPendingFoodClarificationTarget(value: unknown): value is Pendi
     && target.kind === "food_registration_clarification"
     && ["confirmation", "quantity", "selection"].includes(target.pendingKind ?? "")
     && typeof target.originalText === "string"
+    && typeof target.sanitizedOriginalText === "string"
+    && typeof target.originalCandidate === "string"
     && typeof target.normalizedCandidate === "string"
+    && typeof target.normalizationChanged === "boolean"
     && typeof target.count === "number"
+    && Array.isArray(target.qualifiers)
     && Array.isArray(target.candidates)
     && Array.isArray(target.actions)
-    && typeof target.instructionText === "string";
+    && typeof target.instructionText === "string"
+    && (target.inboundMessageId === null || typeof target.inboundMessageId === "string")
+    && [
+      "register_original_food_once",
+      "complete_pending_food_operation_once",
+    ].includes(target.allowedDomainEffect ?? "");
 }
 
 export function buildFoodClarificationPendingData(
@@ -292,6 +309,7 @@ export function buildFoodClarificationPendingData(
     normalizedCandidate: target.normalizedCandidate,
     normalizationChanged: target.normalizationChanged,
     inboundMessageId: target.inboundMessageId,
+    allowedDomainEffect: target.allowedDomainEffect,
   };
 }
 
@@ -318,9 +336,17 @@ export function buildFoodClarificationRegistrationText(
 export function parseFoodClarificationQuantityReply(text?: string | null) {
   const raw = normalizeStandaloneWhatsappCommand(text);
   if (!QUANTITY_ONLY_REPLY.test(raw)) return null;
+
   const quantities = extractExplicitQuantities(raw);
-  return quantities.length === 1
-    ? { quantity: quantities[0].quantity, unit: quantities[0].unit }
+  if (quantities.length === 1) {
+    return { quantity: quantities[0].quantity, unit: quantities[0].unit };
+  }
+
+  const household = raw.match(HOUSEHOLD_QUANTITY_ONLY_REPLY);
+  if (!household) return null;
+  const quantity = Number(household[1].replace(",", "."));
+  return Number.isFinite(quantity) && quantity > 0
+    ? { quantity, unit: household[2] }
     : null;
 }
 
