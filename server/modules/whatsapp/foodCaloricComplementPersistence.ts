@@ -2,48 +2,16 @@ import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { appendSugarQuantityToCoffeeText } from "../../coffeeSugarNutrition";
 import { normalizeText } from "../../mealTextParsing";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
-import type { MealItemInput } from "../meals/schemas";
 import type { CaloricComplementQuantityContext } from "./foodQuantityClarification";
+import type { FoodClarificationDependencies } from "./foodClarificationPersistence";
+import type { WhatsappIntentResult } from "./intent/types";
+import { toMealItemInputs } from "./intent/mealItemHelpers";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
-import { toMealItemInputs } from "./intent/mealItemHelpers";
-import type { WhatsappIntentResult } from "./intent/types";
 
-export type CaloricComplementPersistenceDependencies = {
-  processFood: (input: {
-    text: string;
-    habits: Awaited<ReturnType<CaloricComplementPersistenceDependencies["getHabits"]>>;
-    occurredAt: Date;
-    timeZone: string;
-  }) => Promise<{
-    detectedMealLabel: string;
-    items: MealDraftItem[];
-  }>;
-  getHabits: (userId: number) => Promise<unknown[]>;
-  createMeal: (userId: number, input: {
-    mealLabel: string;
-    occurredAt: string;
-    notes?: string | null;
-    items: MealDraftItem[];
-  }) => Promise<ExistingMeal>;
-  listMeals: (userId: number) => Promise<ExistingMeal[]>;
-  updateMeal: (userId: number, input: {
-    mealId: number;
-    mealLabel: string;
-    occurredAt: string;
-    notes?: string | null;
-    items: MealItemInput[];
-  }) => Promise<ExistingMeal>;
-  removeMeal: (userId: number, mealId: number) => Promise<unknown>;
-};
-
-type ExistingMeal = {
-  id: number;
-  mealLabel: string;
-  occurredAt: Date | string | number;
-  notes?: string | null;
-  items?: MealDraftItem[] | MealItemInput[] | null;
-};
+type ExistingMeal = Awaited<
+  ReturnType<FoodClarificationDependencies["listMeals"]>
+>[number];
 
 function sameLogicalMeal(
   meal: ExistingMeal,
@@ -68,50 +36,51 @@ function assertCoherentSweetenedCoffee(item: MealDraftItem | undefined) {
 }
 
 async function processResolvedFood(
-  deps: CaloricComplementPersistenceDependencies,
+  deps: FoodClarificationDependencies,
   userId: number,
   context: CaloricComplementQuantityContext,
   explicitQuantity: { quantity: number; unit: string },
   occurredAt: Date,
   timeZone: string,
 ) {
-  const registrationText = appendSugarQuantityToCoffeeText(
-    context.originalFoodText,
-    explicitQuantity.quantity,
-    explicitQuantity.unit,
-  );
   const processed = await deps.processFood({
-    text: registrationText,
+    text: appendSugarQuantityToCoffeeText(
+      context.originalFoodText,
+      explicitQuantity.quantity,
+      explicitQuantity.unit,
+    ),
     habits: await deps.getHabits(userId),
     occurredAt,
     timeZone,
   });
-  const resolvedItem = assertCoherentSweetenedCoffee(processed.items[0]);
-  return { processed, resolvedItem };
+  return {
+    processed,
+    resolvedItem: assertCoherentSweetenedCoffee(processed.items[0]),
+  };
 }
 
-async function buildReply(
-  userId: number,
-  meal: ExistingMeal,
-  timeZone: string,
-  title: string,
-  actionLine: string,
-  state: "registered" | "updated",
-) {
+async function buildReply(input: {
+  userId: number;
+  meal: ExistingMeal;
+  timeZone: string;
+  title: string;
+  actionLine: string;
+  state: "registered" | "updated";
+}) {
   return composeWhatsAppMealActionReply({
-    userId,
-    meal,
-    timeZone,
+    userId: input.userId,
+    meal: input.meal,
+    timeZone: input.timeZone,
     options: {
-      title,
-      actionLines: [actionLine],
-      mealResultState: state,
+      title: input.title,
+      actionLines: [input.actionLine],
+      mealResultState: input.state,
     },
   });
 }
 
 export async function persistResolvedCaloricComplement(
-  deps: CaloricComplementPersistenceDependencies,
+  deps: FoodClarificationDependencies,
   userId: number,
   context: CaloricComplementQuantityContext,
   explicitQuantity: { quantity: number; unit: string } | undefined,
@@ -166,32 +135,37 @@ export async function persistResolvedCaloricComplement(
       : await consolidateWhatsAppMealAfterSave(
           {
             listUserMeals: deps.listMeals,
-            updateUserMeal: input => deps.updateMeal(input.userId, {
-              mealId: input.mealId,
-              mealLabel: input.mealLabel,
-              occurredAt: input.occurredAt,
-              notes: input.notes,
-              items: input.items,
-            }),
+            updateUserMeal: input =>
+              deps.updateMeal(input.userId, {
+                mealId: input.mealId,
+                mealLabel: input.mealLabel,
+                occurredAt: input.occurredAt,
+                notes: input.notes,
+                items: input.items,
+              }),
             removeUserMeal: deps.removeMeal,
           },
           saved,
           timeZone,
         );
-    const reloaded = (await deps.listMeals(userId)).find(meal => meal.id === consolidated.meal.id)
-      ?? consolidated.meal;
+    const reloaded =
+      (await deps.listMeals(userId)).find(
+        meal => meal.id === consolidated.meal.id,
+      ) ?? consolidated.meal;
 
     return {
       handled: true,
       action: "food_clarification_completed",
-      reply: await buildReply(
+      reply: await buildReply({
         userId,
-        reloaded,
+        meal: reloaded,
         timeZone,
-        consolidated.action === "updated" ? "Alimento adicionado" : "Refeição registrada",
-        `Registrei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
-        consolidated.action === "updated" ? "updated" : "registered",
-      ),
+        title: consolidated.action === "updated"
+          ? "Alimento adicionado"
+          : "Refeição registrada",
+        actionLine: `Registrei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+        state: consolidated.action === "updated" ? "updated" : "registered",
+      }),
       eventType: "whatsapp.food_clarification.completed",
       detail: "Registro de café com açúcar concluído após clarificação persistente e recarga do estado.",
       data: { mealId: reloaded.id, component: context.componentName },
@@ -204,8 +178,10 @@ export async function persistResolvedCaloricComplement(
 
   if (context.operation.kind === "add_to_meal") {
     if (
-      normalizeText(currentMeal.mealLabel) !== normalizeText(context.operation.expectedMealLabel)
-      || new Date(currentMeal.occurredAt).toISOString() !== context.operation.expectedOccurredAt
+      normalizeText(currentMeal.mealLabel)
+        !== normalizeText(context.operation.expectedMealLabel)
+      || new Date(currentMeal.occurredAt).toISOString()
+        !== context.operation.expectedOccurredAt
     ) {
       throw new Error("A refeição-alvo mudou antes da conclusão da adição.");
     }
@@ -219,27 +195,31 @@ export async function persistResolvedCaloricComplement(
         resolvedItem,
       ],
     });
-    const reloaded = (await deps.listMeals(userId)).find(meal => meal.id === currentMeal.id);
+    const reloaded = (await deps.listMeals(userId)).find(
+      meal => meal.id === currentMeal.id,
+    );
     if (!reloaded) throw new Error("A refeição atualizada não pôde ser recarregada.");
 
     return {
       handled: true,
       action: "food_clarification_completed",
-      reply: await buildReply(
+      reply: await buildReply({
         userId,
-        reloaded,
+        meal: reloaded,
         timeZone,
-        "Alimento adicionado",
-        `Adicionei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
-        "updated",
-      ),
+        title: "Alimento adicionado",
+        actionLine: `Adicionei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+        state: "updated",
+      }),
       eventType: "whatsapp.food_clarification.completed",
       detail: "Adição de café com açúcar concluída após revalidação da refeição-alvo.",
       data: { mealId: reloaded.id, component: context.componentName },
     };
   }
 
-  const items = toMealItemInputs(currentMeal.items as MealDraftItem[] | undefined);
+  const items = toMealItemInputs(
+    currentMeal.items as MealDraftItem[] | undefined,
+  );
   const currentItem = items[context.operation.itemIndex];
   if (!currentItem) throw new Error("O item-alvo já não está disponível.");
   const expectedName = normalizeText(context.operation.originalFoodName);
@@ -258,20 +238,22 @@ export async function persistResolvedCaloricComplement(
       index === context.operation.itemIndex ? resolvedItem : item,
     ),
   });
-  const reloaded = (await deps.listMeals(userId)).find(meal => meal.id === currentMeal.id);
+  const reloaded = (await deps.listMeals(userId)).find(
+    meal => meal.id === currentMeal.id,
+  );
   if (!reloaded) throw new Error("A refeição corrigida não pôde ser recarregada.");
 
   return {
     handled: true,
     action: "food_clarification_completed",
-    reply: await buildReply(
+    reply: await buildReply({
       userId,
-      reloaded,
+      meal: reloaded,
       timeZone,
-      "Alimento substituído",
-      `${context.operation.originalFoodName} → ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
-      "updated",
-    ),
+      title: "Alimento substituído",
+      actionLine: `${context.operation.originalFoodName} → ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+      state: "updated",
+    }),
     eventType: "whatsapp.food_clarification.completed",
     detail: "Substituição por café com açúcar concluída após revalidação do item-alvo.",
     data: {
