@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { enforceProtectedProcedurePolicies } from "./procedurePolicy";
+import { enforceProtectedProcedureResultPolicies } from "./procedureResultPolicy";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -24,7 +25,8 @@ const requireUser = t.middleware(async opts => {
   };
   await enforceProtectedProcedurePolicies({ path, ctx: authenticatedCtx });
 
-  return next({ ctx: authenticatedCtx });
+  const result = await next({ ctx: authenticatedCtx });
+  return enforceProtectedProcedureResultPolicies({ path, result });
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
