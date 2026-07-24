@@ -49,6 +49,26 @@ capture() {
   test -s "$OUTPUT_DIR/$name.png"
 }
 
+assert_dom() {
+  local name="$1"
+  local url="$2"
+  shift 2
+  local output="$OUTPUT_DIR/$name.html"
+  "$CHROME_BIN" \
+    --headless=new \
+    --no-sandbox \
+    --disable-gpu \
+    --virtual-time-budget=1800 \
+    --dump-dom \
+    "$url" > "$output"
+  for expected in "$@"; do
+    if ! grep -Fq "$expected" "$output"; then
+      echo "Expected DOM content was not rendered for $name: $expected"
+      exit 1
+    fi
+  done
+}
+
 BASE_URL="http://127.0.0.1:${PORT}/professional"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
@@ -62,6 +82,18 @@ capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL?state=priority-e
 capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL?state=portfolio-error"
 capture "portfolio-error-mobile-390x1200" "390,1200" "$BASE_URL?state=portfolio-error"
 
+assert_dom \
+  "complete-page-3" \
+  "$BASE_URL?priorities=all&page=3" \
+  "Todas as prioridades" \
+  "Página 3" \
+  "Paciente com nome extenso para validação visual número 101"
+assert_dom \
+  "sidebar-collapsed" \
+  "$BASE_URL?sidebar=collapsed" \
+  'data-state="collapsed"' \
+  'data-collapsible="icon"'
+
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
 route=/professional
 commit=${GITHUB_SHA:-local}
@@ -69,6 +101,7 @@ scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,side
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage and ProfessionalLayout with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
+assertions=complete page 3 content and collapsed sidebar DOM state
 EOF
 
 ls -lh "$OUTPUT_DIR"
