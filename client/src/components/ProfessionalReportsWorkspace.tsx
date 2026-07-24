@@ -90,7 +90,7 @@ function AggregateReports() {
     <div className="space-y-6">
       <ProfessionalPageHeader
         title="Relatórios da carteira"
-        description="Visão agregada sem seleção de paciente e sem carregar bundles nutricionais individuais."
+        description="Visão agregada sem seleção de paciente e sem carregar bundles nutricionais individuais. As prioridades globais ficam centralizadas no Início."
       />
       <section className="grid gap-4 rounded-2xl border bg-card p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
         <label className="grid gap-1 text-sm">
@@ -118,7 +118,10 @@ function AggregateReports() {
           {validRange ? `${daysBetween(startDate, endDate)} dias` : "Até 90 dias"}
         </div>
         {!validRange ? (
-          <p role="alert" className="text-sm text-destructive md:col-span-2 lg:col-span-3">
+          <p
+            role="alert"
+            className="text-sm text-destructive md:col-span-2 lg:col-span-3"
+          >
             Escolha um período válido de até 90 dias.
           </p>
         ) : null}
@@ -140,7 +143,9 @@ function AggregateReports() {
                 <CardHeader className="pb-2">
                   <CardDescription>{label}</CardDescription>
                   <CardTitle className="text-3xl">
-                    {value === null || value === undefined ? "Não informado" : value}
+                    {value === null || value === undefined
+                      ? "Não informado"
+                      : value}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -175,7 +180,9 @@ function AggregateReports() {
                 <div key={String(label)} className="rounded-xl border p-3">
                   <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-1 text-2xl font-semibold">
-                    {value === null || value === undefined ? "Não informado" : value}
+                    {value === null || value === undefined
+                      ? "Não informado"
+                      : value}
                   </p>
                 </div>
               ))}
@@ -183,8 +190,6 @@ function AggregateReports() {
           </Card>
         </>
       ) : null}
-
-      <ProfessionalOperationalAlertsPanel />
     </div>
   );
 }
