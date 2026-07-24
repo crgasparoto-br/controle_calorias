@@ -1,10 +1,19 @@
 import { roundNutritionValue } from "../shared/mealTotals";
+import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { isCoffeeWithAddedSugar } from "./foodSemanticCompatibility";
-import { formatFoodNameTitleCase, normalizeForMatching } from "./mealTextParsing";
+import { normalizeForMatching } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
-const COFFEE_CALORIES_PER_CUP = 2;
-const COFFEE_ML_PER_CUP = 50;
+const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(
+  food => food.slug === "cafe-sem-acucar",
+);
+
+if (!UNSWEETENED_COFFEE_REFERENCE) {
+  throw new Error("A referência canônica de café sem açúcar não está disponível.");
+}
+
+const COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
+const COFFEE_ML_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
 const SUGAR_CALORIES_PER_GRAM = 4;
 
 type ExplicitSugarQuantity = {
@@ -135,9 +144,7 @@ export function normalizeSweetenedCoffeeDraftItems(
     if (!/\bcafe\b/.test(identity)) return item;
     return {
       ...item,
-      foodName: isCoffeeWithAddedSugar(item.foodName)
-        ? item.foodName
-        : "Café com açúcar",
+      foodName: "Café com açúcar",
       canonicalName: "Café com açúcar",
     };
   });
@@ -152,17 +159,9 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
   const portionUnit = coffee.unit === "xícara" && coffee.quantity !== 1
     ? "xícaras"
     : coffee.unit;
-  const foodName = formatFoodNameTitleCase(
-    sourceText
-      .replace(
-        /^.*?\b\d+(?:[,.]\d+)?\s*(?:xícaras?|ml|mililitros?|l|litros?)\s+(?:de\s+)?/iu,
-        "",
-      )
-      .trim() || "Café com açúcar",
-  );
 
   return {
-    foodName,
+    foodName: "Café com açúcar",
     canonicalName: "Café com açúcar",
     quantity: coffee.quantity,
     unit: coffee.unit,
