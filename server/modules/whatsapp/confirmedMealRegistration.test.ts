@@ -74,7 +74,7 @@ describe("issue #899 orchestration regressions", () => {
     expect(result.result.data).toEqual(expect.objectContaining({ mealId: 89901 }));
   });
 
-  it("distingue falta de dado antes da mutação de falha após mutação possível", async () => {
+  it("distingue falta de dado, falha recuperável e falha após mutação possível", async () => {
     const detailsService = createConfirmedMealRegistrationService({
       processMeal: vi.fn(async () => {
         throw new MealInferenceError("Qual foi a quantidade de açúcar?");
@@ -91,6 +91,24 @@ describe("issue #899 orchestration regressions", () => {
     expect(details).toEqual(expect.objectContaining({
       status: "details_needed",
       prompt: "Qual foi a quantidade de açúcar?",
+    }));
+
+    const retryableService = createConfirmedMealRegistrationService({
+      processMeal: vi.fn(async () => {
+        throw new Error("temporary provider timeout");
+      }),
+      getHabits: vi.fn(async () => []),
+    });
+    const retryable = await retryableService({
+      userId: 899,
+      registrationText: "200 ml café com açúcar",
+      originalText: "200 ml café com açúcar",
+      occurredAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(retryable).toEqual(expect.objectContaining({
+      status: "safe_to_retry",
+      prompt: expect.stringContaining("continua guardada"),
     }));
 
     const blockedService = createConfirmedMealRegistrationService({
