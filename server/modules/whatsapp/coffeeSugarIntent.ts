@@ -8,7 +8,7 @@ function looksLikeAmbiguousMealIntentDecision(normalized: string) {
   if (/\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre)\b/.test(normalized)) {
     return false;
   }
-  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
+  return /\b(?:cafe da manha|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
 }
 
 export function isCoffeeSugarRegistrationText(text: string) {
