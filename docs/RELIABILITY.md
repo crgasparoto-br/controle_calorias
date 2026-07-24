@@ -50,12 +50,21 @@ pnpm db:check-integrity
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
 - Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
 
+## Pendências multietapas do WhatsApp
+
+- Persistir a operação pendente antes de emitir pergunta, botão ou solicitação cuja resposta dependa do contexto salvo.
+- Memória do processo pode apoiar somente testes ou desenvolvimento não produtivo explicitamente habilitado; nunca representa durabilidade entre reinícios ou instâncias.
+- Em produção, banco ausente, conexão indisponível ou erro do provider deve fazer criação, leitura, claim e transições falharem fechado, com diagnóstico sanitizado.
+- Falha de persistência não pode produzir pergunta órfã, mutação de domínio, evento de sucesso nem resposta funcional que pressuponha estado recuperável.
+- Testes discriminantes devem chamar o repository real em ambiente de produção equivalente e cobrir dependência indisponível, reinício e segunda instância quando a continuidade exigir durabilidade.
+
 ## Incidentes comuns a prevenir
 
 - Migração não aplicada em produção.
 - Divergência entre rascunho e confirmação.
 - Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
+- Pergunta de clarificação enviada sem estado durável recuperável após reinício ou em outra instância.
 - Relatório semanal divergente do dashboard.
 - Meta profissional divergente entre Hoje, Metas, Relatórios, WhatsApp e prontuário.
 - Falha de notificação revertendo ou duplicando a ativação de uma meta profissional já persistida.
