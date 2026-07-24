@@ -22,22 +22,27 @@ jobs:
       - name: Merge validated billing foundation
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          exec > >(tee /tmp/sync-870.log) 2>&1
+          trap 'status=$?; echo "exit_status=${status}"; git status --short || true; git diff --name-only --diff-filter=U || true; exit ${status}' EXIT
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin develop
-          git fetch origin 2460c9a06b13dccc54184a3a308d6953003707e1
+          git fetch origin develop feat/869-billing-foundation
+
+          source_sha="2460c9a06b13dccc54184a3a308d6953003707e1"
+          git cat-file -e "${source_sha}^{commit}"
 
           set +e
-          git merge --no-ff --no-commit 2460c9a06b13dccc54184a3a308d6953003707e1
+          git merge --no-ff --no-commit "${source_sha}"
           merge_status=$?
           set -e
 
-          if [[ "$merge_status" -ne 0 ]]; then
+          if [[ "${merge_status}" -ne 0 ]]; then
             mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
-            expected=("docs/RELIABILITY.md" "drizzle.config.ts")
+            printf 'conflicts=%s\n' "${conflicts[*]}"
 
+            expected=("docs/RELIABILITY.md" "drizzle.config.ts")
             if [[ "${conflicts[*]}" != "${expected[*]}" ]]; then
               echo "Unexpected merge conflicts: ${conflicts[*]}" >&2
               exit 1
@@ -123,9 +128,10 @@ jobs:
             git add docs/RELIABILITY.md drizzle.config.ts
           fi
 
-          if git diff --name-only --diff-filter=U | grep -q .; then
-            echo "Unresolved merge conflicts remain" >&2
-            git diff --name-only --diff-filter=U >&2
+          unresolved="$(git diff --name-only --diff-filter=U)"
+          if [[ -n "${unresolved}" ]]; then
+            echo "Unresolved merge conflicts remain:" >&2
+            printf '%s\n' "${unresolved}" >&2
             exit 1
           fi
 
@@ -135,3 +141,12 @@ jobs:
           git diff --check --cached
           git commit -m "chore: synchronize billing foundation with develop"
           git push origin HEAD:sync/870-rebuild-on-develop
+
+      - name: Upload synchronization diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-870-diagnostics-${{ github.sha }}
+          path: /tmp/sync-870.log
+          if-no-files-found: warn
+          retention-days: 3
