@@ -10,7 +10,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
-    "test": "NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory vitest run",
+    "test": "NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory PROFESSIONAL_SYNTHETIC_USER_LOOKUP=enabled vitest run",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
