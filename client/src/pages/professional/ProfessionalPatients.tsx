@@ -1,3 +1,4 @@
+import { isProfessionalPatientAccessUnavailableError } from "@/components/ProfessionalLayout";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -364,12 +365,19 @@ export default function ProfessionalPatients() {
     setOpenError(null);
     setOpeningPatientId(item.patientUserId);
     try {
-      await utils.nutrition.professionals.patientTimeZone.fetch({
+      await utils.professionalRecord.context.fetch({
         patientId: item.patientUserId,
-        weekOffset: 0,
+        resource: "professional_record",
       });
       setLocation(professionalPatientPath(item.patientUserId));
-    } catch {
+    } catch (error) {
+      if (!isProfessionalPatientAccessUnavailableError(error)) {
+        setOpenError(
+          "Não foi possível validar o acesso agora. Tente novamente em alguns instantes."
+        );
+        return;
+      }
+
       setBlockedPatientIds(current => {
         const next = new Set(current);
         next.add(item.patientUserId);
