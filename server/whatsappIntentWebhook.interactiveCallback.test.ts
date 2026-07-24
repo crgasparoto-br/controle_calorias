@@ -133,7 +133,7 @@ describe("webhook real: reconhece button_reply e resolve o callback central (iss
       id: 900,
       userId: 71_001,
       mealLabel: "Almoço",
-      occurredAt: "2026-06-23T15:00:00.000Z",
+      occurredAt: "2026-06-03T15:00:00.000Z",
       source: "whatsapp",
       items: [{ foodName: "Arroz", portionText: "100 g" }],
     }]);
@@ -161,7 +161,7 @@ describe("webhook real: reconhece button_reply e resolve o callback central (iss
       id: 901,
       userId: 71_001,
       mealLabel: "Jantar",
-      occurredAt: "2026-06-23T22:00:00.000Z",
+      occurredAt: "2026-06-03T22:00:00.000Z",
       source: "whatsapp",
       items: [{ foodName: "Peixe", portionText: "150 g" }],
     }]);
