@@ -49,7 +49,7 @@ function sugarUnitToGrams(quantity: number, unit: string) {
 export function extractExplicitSugarQuantity(value: string): ExplicitSugarQuantity | null {
   const normalized = normalizeForMatching(value);
   const match = normalized.match(
-    /\b(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres de cha|colheres? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
+    /\b(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
   );
   if (!match) return null;
 
