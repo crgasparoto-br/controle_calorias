@@ -1,4 +1,8 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { getHabitSnapshots } from "../../../db";
+import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
+import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
@@ -11,10 +15,106 @@ import {
   findMealByLabel,
   formatAddedItemsList,
   formatTotalsLine,
+  toMealItemInputs,
 } from "./mealItemHelpers";
 import type { CoffeeAdditionIntent, CoffeeLorCapsuleIntent, ExistingMeal, FoodAdditionIntent, WhatsappIntentResult } from "./types";
 
-export async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIntent, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
+type AdditionExecutionContext = {
+  originalText?: string;
+  receivedAt?: Date;
+  messageId?: string | null;
+};
+
+type FoodAdditionItem = FoodAdditionIntent["items"][number];
+
+function buildAdditionFoodText(item: FoodAdditionItem) {
+  return item.quantity
+    ? `${item.quantity} ${item.unit} de ${item.foodName}`
+    : item.foodName;
+}
+
+function buildCompleteAdditionFoodText(items: FoodAdditionItem[]) {
+  return items.map(buildAdditionFoodText).join(" e ");
+}
+
+function findResolvedSweetenedCoffee(items: MealItemInput[]) {
+  const matches = items.filter(item =>
+    isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
+  );
+  return matches.length === 1 ? matches[0] : null;
+}
+
+async function resolveAdditionItems(input: {
+  userId: number;
+  addition: FoodAdditionIntent;
+  targetMeal: ExistingMeal;
+  timeZone: string;
+  context?: AdditionExecutionContext;
+}): Promise<
+  | { kind: "items"; items: MealItemInput[] }
+  | { kind: "clarification"; result: WhatsappIntentResult }
+> {
+  const resolvedItems = input.addition.items.map(item =>
+    buildFoodAdditionItem(item.foodName, item.quantity, item.unit)
+  );
+  const coffeeIndexes = input.addition.items
+    .map((item, index) => isCoffeeWithAddedSugar(item.foodName) ? index : -1)
+    .filter(index => index >= 0);
+  if (!coffeeIndexes.length) return { kind: "items", items: resolvedItems };
+
+  const receivedAt = input.context?.receivedAt ?? input.addition.date;
+  const habits = await getHabitSnapshots(input.userId);
+  const completeFoodText = buildCompleteAdditionFoodText(input.addition.items);
+
+  for (const coffeeIndex of coffeeIndexes) {
+    const originalFoodText = buildAdditionFoodText(input.addition.items[coffeeIndex]);
+    try {
+      const processed = await processMealInput({
+        text: originalFoodText,
+        habits,
+        occurredAt: receivedAt,
+        timeZone: input.timeZone,
+      });
+      const resolvedCoffee = findResolvedSweetenedCoffee(
+        toMealItemInputs(processed.items),
+      );
+      if (!resolvedCoffee) throw new MealInferenceError();
+      resolvedItems[coffeeIndex] = resolvedCoffee;
+    } catch (error) {
+      if (
+        error instanceof MealInferenceError
+        && error.code === "food_component_quantity_required"
+      ) {
+        return {
+          kind: "clarification",
+          result: await requestWhatsappCaloricComplementQuantityClarification({
+            userId: input.userId,
+            originalFoodText: completeFoodText,
+            originalText: input.context?.originalText,
+            operation: {
+              kind: "add_to_meal",
+              mealId: input.targetMeal.id,
+              expectedMealLabel: input.targetMeal.mealLabel,
+              expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+            },
+            receivedAt,
+            messageId: input.context?.messageId,
+          }),
+        };
+      }
+      throw error;
+    }
+  }
+
+  return { kind: "items", items: resolvedItems };
+}
+
+export async function handleFoodAdditionIntent(
+  userId: number,
+  addition: FoodAdditionIntent,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+  context?: AdditionExecutionContext,
+): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
   const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date, timeZone);
   if (!targetMeal) {
@@ -27,7 +127,16 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
     };
   }
 
-  const addedItems = addition.items.map(item => buildFoodAdditionItem(item.foodName, item.quantity, item.unit));
+  const resolution = await resolveAdditionItems({
+    userId,
+    addition,
+    targetMeal,
+    timeZone,
+    context,
+  });
+  if (resolution.kind === "clarification") return resolution.result;
+  const addedItems = resolution.items;
+
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,

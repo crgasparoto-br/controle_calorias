@@ -33,6 +33,7 @@
 | `professionalGoalReviewRequests`      | Solicitações idempotentes de revisão feitas pelo paciente                  |
 | `professionalGoalNotifications`       | Estado e tentativas de notificação da ativação pelo WhatsApp               |
 | `whatsappConnections`                 | Vínculo telefone do usuário ↔ usuário interno                              |
+| `whatsappPendingOperations`           | Estado durável de interações multietapas antes de qualquer outbound         |
 | `inferenceLogs`                       | Logs seguros de inferência                                                 |
 | `appSecrets`                          | Segredos operacionais criptografados                                       |
 | `professionalConversations`           | Conversa canônica por autorização profissional                             |
@@ -55,6 +56,8 @@
 - `userProfiles.timezone` usa `America/Sao_Paulo` como default persistido; `UTC` e qualquer IANA válido já salvo são preservados.
 - Decisões de data lógica devem consumir o contrato de `docs/design-docs/timezone.md`; não criar fallback local nem limites fixos em meia-noite UTC.
 - Mensagens profissionais não reutilizam payload bruto do WhatsApp. Cada retry acrescenta uma tentativa sanitizada sem duplicar a mensagem lógica.
+- Uma operação pendente do WhatsApp deve ser persistida em `whatsappPendingOperations` antes de enviar pergunta, botão ou solicitação que dependa desse contexto. Falha de criação impede o outbound e qualquer mutação de domínio.
+- `server/repositories/whatsappPendingOperationRepository.ts` pode usar memória do processo somente em testes ou desenvolvimento não produtivo com `ALLOW_MEMORY_PERSISTENCE=true`. Em produção, banco ausente ou falhando retorna resultados fail-closed para criação, leitura, claim e transições; memória local nunca é tratada como persistência durável.
 
 ## Catálogo global de alimentos
 
@@ -135,6 +138,8 @@ A migration `0032_professional_official_goals.sql` cria o modelo versionado da i
 - Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
+- `server/repositories/whatsappPendingOperationRepository.productionFallback.test.ts` cobre indisponibilidade do banco em produção, reinício/segunda instância, exceção do provider e preservação do fallback apenas em teste.
+- `server/modules/whatsapp/foodQuantityClarification.persistenceFailure.test.ts` chama o adapter real e comprova que indisponibilidade impede a pergunta funcional.
 - O workflow `Professional persistence TiDB gate` executa `pnpm db:push`, verifica estabilidade dos metadados Drizzle e cobre backfill, vínculo assimétrico, concorrência, transação de aprovação, leitura por outra instância, revogação imediata, persistência de comentários/sugestões/histórico, decisão idempotente de sugestão e aposentadoria segura das quatro preferências.
 
 ## Aposentadoria do legado profissional

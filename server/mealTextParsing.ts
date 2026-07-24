@@ -27,6 +27,8 @@ const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
   "por",
 ]);
 
+const COORDINATED_BEVERAGE_COMPLEMENT_START = /^(?:(?:\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)\s+(?:de\s+)?)?(?:acucar|leite(?:\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\b/i;
+
 type QuantityExpressionErrorCode =
   | "invalid_syntax"
   | "too_many_operators"
@@ -118,9 +120,36 @@ export function buildPortionText(quantity: number, unit: string) {
   return `${formatQuantityForPortion(quantity)} ${unit}`;
 }
 
+function shouldPreserveCoordinatedBeverageComplement(left: string, right: string) {
+  const normalizedLeft = normalizeText(left).replace(/-/g, " ").replace(/\s+/g, " ");
+  const normalizedRight = normalizeText(right).replace(/-/g, " ").replace(/\s+/g, " ");
+  return /\b(?:cafe|cha)\b/.test(normalizedLeft)
+    && /\bcom\b/.test(normalizedLeft)
+    && COORDINATED_BEVERAGE_COMPLEMENT_START.test(normalizedRight);
+}
+
+function splitFoodConjunctions(value: string) {
+  const parts = value.split(/\be\b/gi).map(part => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return parts;
+
+  const segments: string[] = [];
+  let current = parts[0];
+  for (const next of parts.slice(1)) {
+    if (shouldPreserveCoordinatedBeverageComplement(current, next)) {
+      current = `${current} e ${next}`;
+      continue;
+    }
+    segments.push(current);
+    current = next;
+  }
+  segments.push(current);
+  return segments;
+}
+
 export function splitFoodTextSegments(sourceText: string) {
   return sourceText
-    .split(/,|;|\be\b|\+(?!\s*\d)|\n/gi)
+    .split(/,|;|\+(?!\s*\d)|\n/gi)
+    .flatMap(splitFoodConjunctions)
     .map(value => value.trim())
     .filter(Boolean);
 }

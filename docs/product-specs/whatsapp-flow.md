@@ -48,6 +48,11 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
 - Imagem com alimento identificado, mas sem porção segura, não cria refeição: abre clarificação persistente de quantidade, preserva todos os itens identificados e conclui as porções pendentes em sequência antes de persistir.
 - A correção `O último alimento é ...` sem quantidade abre uma pendência compatível; uma resposta posterior como `30g` conclui a substituição pelo processamento nutricional canônico e envia o resumo recalculado.
+- Preparações com complemento calórico explícito, como `café com açúcar`, não podem usar referência incompatível de ausência do ingrediente.
+- Quando a quantidade do açúcar estiver ausente e não houver estimativa nutricional utilizável, registro, adição e substituição abrem a interação canônica `food_clarification.quantity` antes de qualquer mutação.
+- Essa pendência preserva texto original e sanitizado, quantidade/unidade já reconhecida para o café, componente ausente, operação pendente, referência segura à refeição/item quando aplicável, usuário, inbound correlacionado, versão, TTL e ações permitidas.
+- A resposta de quantidade reivindica a pendência atomicamente, revalida o alvo e conclui no máximo uma mutação. Reentrega, retry, callback ou áudio transcrito não podem duplicar café, açúcar, item, refeição ou resposta funcional.
+- Falha ao persistir a pendência impede a pergunta; falha após possível mutação exige verificação do estado e não recria automaticamente a operação.
 - Ao salvar pelo link de edição rápida, alimentos alterados sem referência de catálogo são reprocessados pelo backend antes da persistência, e uma nova confirmação é enviada ao WhatsApp a partir do estado salvo.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
@@ -97,6 +102,10 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
 - Correção do último alimento em duas mensagens preserva contexto, substitui somente o item revalidado e confirma macros do estado recarregado.
+- Café com açúcar nunca usa slug, nome canônico ou composição de `cafe-sem-acucar`.
+- Quantidade explícita de açúcar participa dos totais uma única vez; sem quantidade e sem estimativa utilizável, nenhuma refeição ou item é alterado antes da clarificação persistente.
+- Registro, adição e substituição preservam o contexto da operação, retomam somente a pendência ativa e respondem com macros do estado recarregado.
+- Resposta inválida mantém a pendência; pendência expirada, consumida ou reentregue não pode produzir nova mutação silenciosa.
 - Edição rápida bem-sucedida envia uma nova confirmação ao WhatsApp sem expor falhas de SQL quando a notificação não puder ser entregue.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
