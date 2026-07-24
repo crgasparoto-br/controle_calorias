@@ -2,7 +2,7 @@
 
 ## Context
 
-Subissue #402 covers beverage messages such as `3 xícaras de café sem açúcar`, where the nutrition engine should not create a meaningful calorie load for drinks that are explicitly plain, black, natural or unsweetened.
+Subissue #402 covers beverage messages such as `3 xícaras de café sem açúcar`, where the nutrition engine should not create a meaningful calorie load for drinks that are explicitly plain, black, natural or unsweetened. Issue #903 extends this contract by preventing qualified low-calorie references from being selected for contradictory or generic preparations.
 
 ## Current scope
 
@@ -29,15 +29,27 @@ Examples:
 
 Messages with caloric complements continue through the regular heuristic or catalog flow. For example, `1 xícara de café com leite` is not matched to `Café sem açúcar`, so it remains reviewable with a non-zero nutrition estimate.
 
+The final candidate is checked by a shared semantic guard after every catalog source. The guard also applies to persisted entries, personal aliases, TACO, semantic search and WhatsApp lookups. The canonical name has precedence, so a bare alias cannot make `Café sem açúcar` compatible with `café` or `café com açúcar`.
+
+## Sweetened coffee quantity
+
+- An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
+- A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent.
+- Without an explicit amount or usable estimate, the nutrition engine requests only the sugar quantity.
+- On WhatsApp, registration, addition and replacement use the existing persistent `food_clarification.quantity` lifecycle. No meal or item is changed before the user replies.
+- The pending operation stores the original text, inbound message correlation and the exact operation target; completion revalidates the target, consumes the pending operation atomically and replies from the reloaded state.
+
 ## Validation
 
-Coverage lives in `server/nutritionEngine.lowCalorieBeverages.test.ts` and checks:
+Coverage lives in:
 
-- coffee without sugar by xícara;
-- tea without added sugar by copo;
-- sparkling water by ml;
-- a control case where coffee with milk is not treated as zero calorie.
+- `server/nutritionEngine.lowCalorieBeverages.test.ts`;
+- `server/catalogMatching.semanticCompatibility.test.ts`;
+- `server/nutritionEngine.coffeeSugar.test.ts`;
+- `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`.
+
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification and persistent operation context.
 
 ## Known limits
 
-This change does not introduce a generic beverage parser or external nutritional lookup. It adds safe references for the explicit low-calorie beverages requested in #402 while preserving conservative behavior for ambiguous drinks.
+The semantic guard is intentionally conservative. When a qualified preparation cannot be matched safely, the system keeps it for inference or clarification rather than degrading it to a contradictory low-calorie reference.
