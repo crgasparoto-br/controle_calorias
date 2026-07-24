@@ -34,7 +34,7 @@ function buildProfile(value: string): FoodSemanticProfile {
       ? "tea"
       : null;
   const sugarFree = /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
-  const sugarAdded = /\b(?:com\s+acucar|adocad[oa]s?|acucarad[oa]s?)\b/.test(normalized);
+  const sugarAdded = /\b(?:com(?:\s+\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres? de sopa|saches?|pacotes?)\s+(?:de\s+)?)?acucar|adocad[oa]s?|acucarad[oa]s?)\b/.test(normalized);
   const plain = Boolean(family) && /\b(?:puro|pura|preto|preta|natural)\b/.test(normalized);
   const complements = new Set<string>();
 
