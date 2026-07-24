@@ -55,8 +55,10 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Solicitação, aprovação e revogação passam por procedimentos protegidos.
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
 - Antes do consentimento, a resposta à solicitação não confirma se o e-mail ou celular pertence a uma conta. Pessoa existente, inexistente e auto-vínculo recebem o mesmo comprovante opaco `pending`; input inválido, perfil inativo, entitlement ausente e indisponibilidade não são reconhecidos como solicitação aceita.
+- Cada tentativa aceita pela fronteira pública gera um comprovante opaco próprio, independentemente de o alvo ter sido resolvido. A idempotência é aplicada ao vínculo canônico, não à quantidade de comprovantes, evitando diferenças observáveis em reenvios.
 - Na visão do profissional, vínculo pendente é representado por comprovante genérico sem nome, e-mail, telefone, `patientUserId`, objeto de paciente ou detalhe de entrega. Recusados e revogados permanecem localizáveis apenas pelo estado administrativo e identificador opaco.
-- `requestAccess`, `myAccesses`, `portfolio` e `history` aplicam a mesma fronteira de minimização. Busca identificável por nome, e-mail ou ID só alcança vínculos aprovados.
+- `requestAccess`, `myAccesses`, `portfolio`, totais e `history` aplicam a mesma fronteira de minimização. Busca identificável por nome, e-mail ou ID só alcança vínculos aprovados.
+- O próprio paciente pode usar o comprovante recebido pelo fluxo para aprovar ou revogar; a resolução interna só ocorre quando a autorização associada pertence ao usuário autenticado. Terceiros e comprovantes não resolvidos permanecem com o erro seguro canônico.
 - Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento; a reconciliação legada usa a versão do próprio vínculo e nunca permite que uma cópia antiga reative uma autorização revogada.
 - Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
 - Transições de acompanhamento são gravadas em `professionalPatientTrackingEvents`; a linha do tempo exibida pela Área Profissional é lida de `professionalHistoryEvents`. Ambas preservam ator e data e sobrevivem a restart e múltiplas instâncias.
@@ -108,7 +110,7 @@ Gestão da carteira com:
 
 A carteira inicial consulta vínculos identificáveis de forma paginada, com ordenação estável por nome, e-mail ou identificador do paciente, seguida pela data da solicitação e pelo identificador do vínculo. Busca, autorização, situação do acompanhamento e atividade alimentar podem ser combinadas sem carregar relatórios completos. Autorização e acompanhamento são sempre apresentados separadamente.
 
-Vínculos pendentes não participam da paginação identificável. Eles aparecem em uma lista de comprovantes opacos, com o rótulo **Solicitação aguardando confirmação**, e são deduplicados pelo vínculo canônico quando aplicável. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela.
+Vínculos pendentes não participam da paginação identificável. Cada tentativa aparece como um comprovante opaco com o rótulo **Solicitação aguardando confirmação**, inclusive quando várias tentativas apontam para o mesmo vínculo canônico. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela, e o vínculo real continua único.
 
 Na primeira versão, “sem atividade recente” significa ausência de refeição confirmada nos três dias anteriores. Ausência de dado é apresentada como “não informado”, nunca como zero. Próxima revisão e pesagem só passam a compor a carteira quando suas entidades canônicas forem entregues pelas fases de prontuário e pendências.
 
