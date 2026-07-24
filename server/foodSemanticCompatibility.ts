@@ -17,6 +17,7 @@ const COMPLEMENT_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
 ];
 
 const EXPLICIT_SUGAR_UNIT = "(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)";
+const ADDED_SUGAR_CONNECTOR = "(?:com|e)";
 
 function normalizeSemanticText(value: string) {
   return value
@@ -37,7 +38,7 @@ function buildProfile(value: string): FoodSemanticProfile {
       : null;
   const sugarFree = /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
   const sugarAdded = new RegExp(
-    `\\b(?:com\\s+acucar|com\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
+    `\\b(?:${ADDED_SUGAR_CONNECTOR}\\s+acucar|${ADDED_SUGAR_CONNECTOR}\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
   ).test(normalized);
   const plain = Boolean(family) && /\b(?:puro|pura|preto|preta|natural)\b/.test(normalized);
   const complements = new Set<string>();
