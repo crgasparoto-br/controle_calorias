@@ -73,7 +73,7 @@ export function createProfessionalAccessRequestReceiptRepository(
 
   async function getReceiptDb() {
     if (
-      process.env.NODE_ENV === "test" &&
+      (process.env.NODE_ENV === "test" || process.env.VITEST === "true") &&
       !dependencies.useDatabaseInTests
     ) {
       return null;
