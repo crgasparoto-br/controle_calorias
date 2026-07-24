@@ -9,7 +9,10 @@ import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
-import { parseMealIntentDecisionTextAction, PENDING_MEAL_INTENT_DECISION_TYPE } from "./mealIntentDecisionInteraction";
+import {
+  parseMealIntentDecisionTextAction,
+  PENDING_MEAL_INTENT_DECISION_TYPE,
+} from "./mealIntentDecisionInteraction";
 import { buildWhatsappInteractionTelemetry } from "./interactionPresentation";
 import {
   findWhatsappRegisteredInteraction,
@@ -212,9 +215,10 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   }
 
   if (!active) {
-    const latest = await pendingOperationRepository.getLatestPendingOperation(
-      input.userId
-    );
+    const latest =
+      (await pendingOperationRepository.getLatestPendingOperation?.(
+        input.userId
+      )) ?? null;
     if (
       latest?.type === PENDING_MEAL_INTENT_DECISION_TYPE &&
       parseMealIntentDecisionTextAction(input.text) &&
