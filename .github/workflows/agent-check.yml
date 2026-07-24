@@ -1,156 +1,49 @@
-name: Agent-first gate
+name: Export exact PR 870 repository
 
 on:
   pull_request:
-  push:
     branches:
-      - main
       - develop
 
 permissions:
   contents: read
 
 jobs:
-  agent-check:
-    name: Agent-first gate
+  export-exact-repository:
+    if: github.event.pull_request.head.ref == 'audit/870-exact-sha-export'
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
     steps:
-      - name: Checkout repository
+      - name: Checkout exact validated SHA
         uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
         with:
-          run_install: false
+          ref: 7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e
+          fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: TypeScript check
-        run: pnpm check
-
-      - name: Tests
+      - name: Verify exact repository state
+        shell: bash
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
-            exit 1
-          fi
-          tail -n 80 /tmp/vitest.log
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e"
+          git cat-file -e cbc7ad98f78cd4b95e336efe009b57a7d5cc2b22^{commit}
+          test -z "$(git status --porcelain)"
+          git fsck --no-dangling
 
-      - name: Upload Vitest diagnostics
-        if: failure()
+      - name: Package exact repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git gc --prune=now
+          mkdir -p /tmp/issue-870-exact
+          cp -a . /tmp/issue-870-exact/repository
+          tar -C /tmp/issue-870-exact -czf /tmp/controle-calorias-870-exact.tgz repository
+          sha256sum /tmp/controle-calorias-870-exact.tgz | tee /tmp/controle-calorias-870-exact.sha256
+
+      - name: Upload exact repository
         uses: actions/upload-artifact@v4
         with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Architecture check
-        run: pnpm architecture:check
-
-      - name: Documentation check
-        run: |
-          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
-            echo "Documentation check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/docs-check.log
-            exit 1
-          fi
-          cat /tmp/docs-check.log
-
-      - name: Upload documentation diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-docs-log
-          path: /tmp/docs-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Build
-        run: pnpm build
-
-      - name: Agent check
-        run: pnpm agent:check
-
-      - name: CI gate docs check
-        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
-
-      - name: Create verification manifest
-        run: |
-          mkdir -p /tmp/issue-857-verification
-          cat > /tmp/issue-857-verification/manifest.json <<EOF
-          {
-            "schemaVersion": 1,
-            "issue": 857,
-            "repository": "${GITHUB_REPOSITORY}",
-            "commitSha": "${GITHUB_SHA}",
-            "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "event": "${GITHUB_EVENT_NAME}",
-            "ref": "${GITHUB_REF}",
-            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
-          cat /tmp/issue-857-verification/manifest.json
-
-      - name: Upload verification manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-857-verification-${{ github.sha }}
-          path: /tmp/issue-857-verification/manifest.json
+          name: issue-870-exact-repository-7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e
+          path: |
+            /tmp/controle-calorias-870-exact.tgz
+            /tmp/controle-calorias-870-exact.sha256
           if-no-files-found: error
-          retention-days: 30
-
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
-        run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+          retention-days: 3
