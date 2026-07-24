@@ -35,10 +35,16 @@ describe("registro de café com complementos coordenados", () => {
     });
   });
 
-  it("classifica a preparação coordenada como registro de café adoçado", () => {
+  it("classifica consumo explícito da preparação coordenada", () => {
+    expect(isCoffeeSugarRegistrationText(
+      "tomei 1 xícara de café com leite e açúcar",
+    )).toBe(true);
+  });
+
+  it("mantém texto neutro no fluxo de decisão consumo ou sugestão", () => {
     expect(isCoffeeSugarRegistrationText(
       "1 xícara de café com leite e açúcar",
-    )).toBe(true);
+    )).toBe(false);
   });
 
   it("não intercepta uma descrição iniciada pelo nome da refeição", () => {
@@ -49,9 +55,10 @@ describe("registro de café com complementos coordenados", () => {
 
   it("preserva o texto original ao abrir a clarificação persistente", async () => {
     const receivedAt = new Date("2026-07-24T12:00:00.000Z");
+    const text = "tomei 1 xícara de café com leite e açúcar";
     const result = await handleCoffeeSugarRegistrationIntent({
       userId: 903,
-      text: "1 xícara de café com leite e açúcar",
+      text,
       receivedAt,
       userTimezone: "America/Sao_Paulo",
       messageId: "wamid-coordinated-registration",
@@ -59,11 +66,11 @@ describe("registro de café com complementos coordenados", () => {
 
     expect(result.action).toBe("food_clarification_requested");
     expect(mocks.register).toHaveBeenCalledWith(expect.objectContaining({
-      registrationText: "1 xícara de café com leite e açúcar",
-      originalText: "1 xícara de café com leite e açúcar",
+      registrationText: text,
+      originalText: text,
     }));
     expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
-      originalFoodText: "1 xícara de café com leite e açúcar",
+      originalFoodText: text,
       operation: expect.objectContaining({ kind: "register" }),
       messageId: "wamid-coordinated-registration",
     }));
