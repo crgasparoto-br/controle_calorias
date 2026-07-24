@@ -1,5 +1,6 @@
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { appendSugarQuantityToCoffeeText } from "../../coffeeSugarNutrition";
+import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import { normalizeText } from "../../mealTextParsing";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type { CaloricComplementQuantityContext } from "./foodQuantityClarification";
@@ -35,6 +36,16 @@ function assertCoherentSweetenedCoffee(item: MealDraftItem | undefined) {
   return item;
 }
 
+function findResolvedSweetenedCoffee(items: MealDraftItem[]) {
+  const matches = items.filter(item =>
+    isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName}`)
+  );
+  if (matches.length !== 1) {
+    throw new Error("A clarificação de açúcar não identificou um único café adoçado.");
+  }
+  return assertCoherentSweetenedCoffee(matches[0]);
+}
+
 async function processResolvedFood(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -53,10 +64,25 @@ async function processResolvedFood(
     occurredAt,
     timeZone,
   });
+  const resolvedItems = toMealItemInputs(processed.items);
   return {
     processed,
-    resolvedItem: assertCoherentSweetenedCoffee(processed.items[0]),
+    resolvedItems,
+    resolvedItem: findResolvedSweetenedCoffee(processed.items),
   };
+}
+
+function buildCompletedActionLine(input: {
+  action: "register" | "add";
+  itemCount: number;
+  resolvedItem: MealDraftItem;
+  explicitQuantity: { quantity: number; unit: string };
+}) {
+  const verb = input.action === "register" ? "Registrei" : "Adicionei";
+  if (input.itemCount === 1) {
+    return `${verb} ${input.resolvedItem.foodName} com ${input.explicitQuantity.quantity} ${input.explicitQuantity.unit} de açúcar.`;
+  }
+  return `${verb} ${input.itemCount} alimentos, incluindo ${input.resolvedItem.foodName} com ${input.explicitQuantity.quantity} ${input.explicitQuantity.unit} de açúcar.`;
 }
 
 async function buildReply(input: {
@@ -95,7 +121,7 @@ export async function persistResolvedCaloricComplement(
   const operationOccurredAt = operation.kind === "register"
     ? new Date(operation.occurredAt)
     : receivedAt;
-  const { processed, resolvedItem } = await processResolvedFood(
+  const { processed, resolvedItems, resolvedItem } = await processResolvedFood(
     deps,
     userId,
     context,
@@ -122,14 +148,14 @@ export async function persistResolvedCaloricComplement(
           notes: existing.notes || context.originalFoodText,
           items: [
             ...toMealItemInputs(existing.items as MealDraftItem[] | undefined),
-            resolvedItem,
+            ...resolvedItems,
           ],
         })
       : await deps.createMeal(userId, {
           mealLabel: processed.detectedMealLabel || "Refeição",
           occurredAt: operationOccurredAt.toISOString(),
           notes: context.originalFoodText,
-          items: [resolvedItem],
+          items: resolvedItems,
         });
     const consolidated = existing
       ? { action: "updated" as const, meal: saved }
@@ -164,14 +190,23 @@ export async function persistResolvedCaloricComplement(
         meal: reloaded,
         timeZone,
         title: consolidated.action === "updated"
-          ? "Alimento adicionado"
+          ? resolvedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados"
           : "Refeição registrada",
-        actionLine: `Registrei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+        actionLine: buildCompletedActionLine({
+          action: "register",
+          itemCount: resolvedItems.length,
+          resolvedItem,
+          explicitQuantity,
+        }),
         state: consolidated.action === "updated" ? "updated" : "registered",
       }),
       eventType: "whatsapp.food_clarification.completed",
-      detail: "Registro de café com açúcar concluído após clarificação persistente e recarga do estado.",
-      data: { mealId: reloaded.id, component: context.componentName },
+      detail: "Registro do lote alimentar com café adoçado concluído após clarificação persistente e recarga do estado.",
+      data: {
+        mealId: reloaded.id,
+        component: context.componentName,
+        resolvedItemCount: resolvedItems.length,
+      },
     };
   }
 
@@ -195,7 +230,7 @@ export async function persistResolvedCaloricComplement(
       notes: currentMeal.notes,
       items: [
         ...toMealItemInputs(currentMeal.items as MealDraftItem[] | undefined),
-        resolvedItem,
+        ...resolvedItems,
       ],
     });
     const reloaded = (await deps.listMeals(userId)).find(
@@ -210,13 +245,22 @@ export async function persistResolvedCaloricComplement(
         userId,
         meal: reloaded,
         timeZone,
-        title: "Alimento adicionado",
-        actionLine: `Adicionei ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+        title: resolvedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+        actionLine: buildCompletedActionLine({
+          action: "add",
+          itemCount: resolvedItems.length,
+          resolvedItem,
+          explicitQuantity,
+        }),
         state: "updated",
       }),
       eventType: "whatsapp.food_clarification.completed",
-      detail: "Adição de café com açúcar concluída após revalidação da refeição-alvo.",
-      data: { mealId: reloaded.id, component: context.componentName },
+      detail: "Adição do lote alimentar com café adoçado concluída após revalidação da refeição-alvo.",
+      data: {
+        mealId: reloaded.id,
+        component: context.componentName,
+        resolvedItemCount: resolvedItems.length,
+      },
     };
   }
 
