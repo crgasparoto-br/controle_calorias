@@ -4,7 +4,10 @@ import type { OperationalAlert } from "./aiContext";
 
 function alert(
   overrides: Partial<OperationalAlert> &
-    Pick<OperationalAlert, "id" | "patientUserId" | "patientName" | "type" | "severity">
+    Pick<
+      OperationalAlert,
+      "id" | "patientUserId" | "patientName" | "type" | "severity"
+    >
 ): OperationalAlert {
   return {
     authorizationId: `authorization-${overrides.patientUserId}`,
@@ -138,5 +141,30 @@ describe("buildProfessionalPriorities", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].patientId).toBe(10);
+  });
+
+  it("paginates the complete deterministic ordering beyond the first one hundred patients", () => {
+    const alerts = Array.from({ length: 151 }, (_, index) => {
+      const patientId = index + 1;
+      return alert({
+        id: `alert-${patientId}`,
+        patientUserId: patientId,
+        patientName: `Paciente ${patientId}`,
+        type: "no_food_records",
+        severity: "attention",
+        period: { start: patientId, end: patientId },
+      });
+    });
+
+    const thirdPageWithLookahead = buildProfessionalPriorities(
+      alerts,
+      51,
+      100
+    );
+
+    expect(thirdPageWithLookahead).toHaveLength(51);
+    expect(thirdPageWithLookahead[0].patientId).toBe(101);
+    expect(thirdPageWithLookahead[49].patientId).toBe(150);
+    expect(thirdPageWithLookahead[50].patientId).toBe(151);
   });
 });
