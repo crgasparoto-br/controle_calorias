@@ -37,7 +37,10 @@ describe("deleteIntent seleção persistente", () => {
 
   it("executa excluir chocolate -> o segundo -> sim uma única vez", async () => {
     const userId = 876543;
-    const ambiguous = await executeWhatsappDeleteIntent(userId, { text: "excluir chocolate" });
+    const ambiguous = await executeWhatsappDeleteIntent(userId, {
+      text: "excluir chocolate",
+      receivedAt: new Date("2026-07-11T22:30:00.000Z"),
+    });
     expect(ambiguous?.action).toBe("clarification_needed");
     expect(ambiguous?.reply).toContain("2. Chocolate amargo");
     expect(updateMealMock).not.toHaveBeenCalled();

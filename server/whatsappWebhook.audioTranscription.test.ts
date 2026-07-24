@@ -299,7 +299,7 @@ describe("whatsappWebhook audio transcription failures", () => {
     listMealsMock.mockResolvedValue([{
       id: 44,
       mealLabel: "Almoço",
-      occurredAt: "2026-04-20T11:30:00.000Z",
+      occurredAt: "2024-04-21T11:30:00.000Z",
       notes: null,
       items: [{
         foodName: "Registrar",
