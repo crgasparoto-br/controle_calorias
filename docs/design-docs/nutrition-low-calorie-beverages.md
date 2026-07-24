@@ -37,11 +37,14 @@ The final candidate is checked by a shared semantic guard after every catalog so
 - The base coffee portion is read from the canonical `cafe-sem-acucar` reference instead of being repeated in a coffee-specific constant. With the current catalog, one cup equals 200 ml and 2 kcal.
 - Consequently, one cup and 200 ml are equivalent inputs for the same preparation; adding 5 g of sugar produces approximately 205 g, 22 kcal and 5 g of carbohydrates.
 - A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent.
+- A usable inferred item satisfies only one sweetened source segment. Multiple sweetened coffees require the same number of coherent inferred items or explicit quantities; one AI item cannot suppress clarification for companion coffees.
 - Without an explicit amount or usable estimate, the nutrition engine requests only the sugar quantity.
+- When several sweetened coffees are missing quantities, each valid answer is appended to the next unresolved source segment. The partially resolved text and completed-component list are persisted before the next question, so process restart does not lose progress.
+- Registration and addition do not mutate a meal until every sweetened segment has usable nutrition. Multiple sweetened replacements preserve the already resolved target items in the pending operation and apply the complete batch only after the last quantity.
 - Accepted clarification units include grams (`g`, `gr`, `grama` or `gramas`), teaspoon, tablespoon, sachet and packet; advertised units, semantic guard and parser support must remain aligned.
 - A syntactically valid but contextually incompatible reply, such as `5 ml`, is rejected before the atomic claim. The same pending operation remains active with its original id and version, and the user is prompted again.
 - On WhatsApp, registration, addition and replacement use the existing persistent `food_clarification.quantity` lifecycle. No meal or item is changed before the user replies.
-- The pending operation stores the raw original message separately from the canonical food text used to resume calculation, together with inbound correlation and the exact operation target.
+- The pending operation stores the raw original message separately from the resumable food text used to continue calculation, together with inbound correlation, completed components and the exact operation target.
 - Compound registration and addition preserve all companion foods when only the sugar amount is missing.
 - Compound replacement preserves the other replacements from the same command. Completion revalidates every target, applies the batch with compensating rollback if an update fails, and replies from the reloaded state.
 - The compensation includes an update that may have persisted before throwing from a later side effect, preventing silent partial state.
@@ -58,12 +61,14 @@ Coverage lives in:
 - `server/nutritionEngine.coffeeSugar.test.ts`;
 - `server/nutritionEngine.coffeeSugarComposite.test.ts`;
 - `server/coffeeSugarNutrition.discriminant.test.ts`;
+- `server/coffeeSugarNutrition.multipleSweetened.test.ts`;
 - `server/coffeeSugarNutrition.units.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
 - `server/modules/whatsapp/foodClarificationContract.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodCaloricComplementPersistence.test.ts`;
 - `server/modules/whatsapp/foodCaloricComplementComposite.test.ts`;
+- `server/modules/whatsapp/foodCaloricComplementSequential.test.ts`;
 - `server/modules/whatsapp/foodCaloricComplementCompensation.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarCompositeAddition.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarMutationHandlers.test.ts`;
@@ -71,7 +76,7 @@ Coverage lives in:
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
