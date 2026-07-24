@@ -64,7 +64,7 @@
 A migration `0000_global_food_catalog.sql` cria a primeira estrutura dedicada ao catálogo alimentar global:
 
 - `food_sources` registra fonte, versão e metadados de origem, como TACO/TBCA ou curadoria interna.
-- `foods` concentra alimentos globais e personalizados, com nutrientes principais por 100 g do catálogo global.
+- `foods` concentra alimentos globais e personalizados, com nutrientes principais por 100 g, `nutrients_json`, `status` e `merged_into_food_id`.
 - `food_aliases` permite busca por nomes alternativos normalizados.
 - `food_portions` registra porções e medidas caseiras ligadas ao alimento.
 
