@@ -468,9 +468,10 @@ describe("ProfessionalPatients patient rows", () => {
     );
   });
 
-  it("keeps stale patient data closed when access validation fails", async () => {
+  it("removes stale patient data when access validation and refresh fail", async () => {
     window.history.replaceState({}, "", "/professional/patients");
     patientTimeZoneFetch.mockRejectedValueOnce(new Error("FORBIDDEN"));
+    refetch.mockRejectedValueOnce(new Error("temporary refresh failure"));
     portfolioUseQuery.mockImplementation(() =>
       queryResult(1, [patientItems[0]], 1)
     );
@@ -483,6 +484,9 @@ describe("ProfessionalPatients patient rows", () => {
         "O acesso a este paciente não está mais disponível."
       );
       expect(refetch).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(patientItems[0].patientName)).toBeNull();
+      expect(screen.queryByText(patientItems[0].patientEmail)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Abrir paciente" })).toBeNull();
     });
     expect(window.location.pathname).toBe("/professional/patients");
   });
