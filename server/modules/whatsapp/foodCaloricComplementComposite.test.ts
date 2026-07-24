@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: vi.fn(async () => "Resumo composto recarregado."),
+  composeWhatsAppMealActionReplies: vi.fn(async () => "Resumos compostos recarregados."),
 }));
 
 vi.mock("./mealConsolidationService", () => ({
@@ -32,6 +33,19 @@ function sweetenedCoffeeItem() {
     fat: 0,
     confidence: 0.9,
     source: "heuristic" as const,
+  };
+}
+
+function unsweetenedCoffeeItem() {
+  return {
+    ...sweetenedCoffeeItem(),
+    foodName: "Café sem açúcar",
+    canonicalName: "Café Sem Açúcar",
+    portionText: "1 xícara",
+    estimatedGrams: 200,
+    calories: 2,
+    carbs: 0,
+    source: "catalog" as const,
   };
 }
 
@@ -199,5 +213,56 @@ describe("retomada composta da clarificação de açúcar", () => {
       "Café com açúcar",
       "Pão francês",
     ]);
+  });
+
+  it("aplica a substituição adoçada e as trocas companheiras no mesmo lote", async () => {
+    const harness = createHarness([{
+      id: 903,
+      userId: 7,
+      mealLabel: "Café da manhã",
+      occurredAt,
+      notes: null,
+      items: [existingItem(), unsweetenedCoffeeItem()],
+    }]);
+
+    const result = await persistResolvedCaloricComplement(
+      harness.deps,
+      7,
+      {
+        mode: "complete_caloric_complement",
+        componentName: "açúcar",
+        originalFoodText: "1 xícara de café com açúcar",
+        coffeeQuantity: {
+          quantity: 1,
+          unit: "xícara",
+          estimatedMl: 200,
+          cupsEquivalent: 1,
+        },
+        operation: {
+          kind: "replace_item",
+          mealId: 903,
+          itemIndex: 1,
+          originalFoodName: "Café sem açúcar",
+          companionReplacements: [{ fromFood: "Banana", toFood: "Maçã" }],
+        },
+      },
+      { quantity: 5, unit: "g" },
+      new Date("2026-07-24T10:01:00.000Z"),
+      timeZone,
+    );
+
+    expect(result.action).toBe("food_clarification_completed");
+    expect(result.data).toEqual(expect.objectContaining({ replacementCount: 2 }));
+    expect(harness.updateMeal).toHaveBeenCalledTimes(1);
+    expect(harness.meals[0].items[0]).toEqual(expect.objectContaining({
+      foodName: "Maçã",
+      canonicalName: expect.stringMatching(/maçã/i),
+    }));
+    expect(harness.meals[0].items[1]).toEqual(expect.objectContaining({
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      calories: 22,
+      carbs: 5,
+    }));
   });
 });
