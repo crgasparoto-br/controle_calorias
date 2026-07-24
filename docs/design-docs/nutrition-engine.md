@@ -37,9 +37,12 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 ## Componentes calóricos sem quantidade
 
 - Quando a preparação contém açúcar e a quantidade está explícita, o motor incorpora o açúcar uma única vez aos macros e calorias do café.
+- A porção-base do café adoçado deve vir da referência canônica `cafe-sem-acucar`; atualmente `1 xícara` equivale a `200 ml` e `2 kcal`. Não é permitido manter outra constante local para o tamanho da xícara.
+- Por isso, `1 xícara de café com 5 g de açúcar` e `200 ml de café com 5 g de açúcar` são nutricionalmente equivalentes: aproximadamente `205 g`, `22 kcal` e `5 g` de carboidratos.
 - Quando uma estimativa utilizável da IA já representa a preparação adoçada, essa estimativa pode ser preservada, desde que passe pelo guard semântico.
 - Quando a quantidade do açúcar não está explícita e não há estimativa utilizável, o motor retorna `food_component_quantity_required`; não deve cair em uma estimativa genérica nem persistir alimento antes da resposta.
 - O WhatsApp transforma esse erro em `food_clarification.quantity`, preservando texto original, correlação inbound e operação pendente de registro, adição ou substituição.
+- A resposta pode usar massa ou medidas domésticas suportadas pelo contrato (`g`, colher de chá, colher de sopa, sachê ou pacote). A unidade anunciada ao usuário deve ser aceita pelo parser e convertida uma única vez pelo cálculo do complemento.
 
 ## Pontos de atenção para agentes
 
