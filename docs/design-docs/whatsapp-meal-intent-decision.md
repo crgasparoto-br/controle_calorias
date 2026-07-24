@@ -58,8 +58,8 @@ O texto alimentar original não deve ser incluído em logs crus. A telemetria re
 
 Quando botões não estiverem disponíveis, a mesma interação aceita:
 
-- `Registrar`, `Registre`, `Registra`, `Consumi`, `1`;
-- `Sugestão`, `Receber sugestão`, `Quero sugestão`, `Sugerir`, `2`;
+- `Registrar`, `Registrar alimento`, `Registrar consumo`, `Registre`, `Registra`, `Consumi`, `Consumida`, `1`;
+- `Sugestão`, `Receber sugestão`, `Receber uma sugestão`, `Quero sugestão`, `Quero uma sugestão`, `Sugerir`, `Sugira`, `2`;
 - `Cancelar`, `Cancela`, `Cancele`, `Não`, `0`.
 
 Resposta curta incompatível não consome a pendência. A interação é reconstruída com as mesmas ações. Um novo comando completo pode substituir a pendência conforme a precedência central do WhatsApp.
@@ -77,7 +77,7 @@ Resposta curta incompatível não consome a pendência. A interação é reconst
 |---|---|---|
 | Criação | descrição ambígua | pendência criada antes do outbound; três botões |
 | Registro central | pendência válida | interação fechada, reconstruível e componente `buttons` |
-| Fallback textual | `Registrar`, `2`, `Cancelar` | resolve a ação correspondente |
+| Fallback textual | `Registrar`, `Registrar alimento`, `2`, `Cancelar` | resolve a ação correspondente |
 | Resposta inválida | `talvez` | não consome; reapresenta a mesma interação |
 | Sugestão | botão ou texto de sugestão | usa contexto original; `Nada foi registrado` |
 | Cancelamento | botão ou texto de cancelamento | nenhum efeito de domínio |
