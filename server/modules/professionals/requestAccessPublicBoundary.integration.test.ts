@@ -26,7 +26,7 @@ function createProfessionalContext(userId: number): TrpcContext {
 }
 
 describe("nutrition.professionals.requestAccess public caller", () => {
-  it("returns only status for a pending request", async () => {
+  it("returns only the opaque id and status for a pending request", async () => {
     const professionalUserId = 879201;
     const patientUserId = 879202;
     await upsertProfessionalProfile(professionalUserId, {
@@ -42,10 +42,9 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       reason: "Acompanhamento com consentimento",
     });
 
-    expect(result).toEqual({ status: "pending" });
+    expect(result).toEqual({ id: expect.any(String), status: "pending" });
     expect(result).not.toHaveProperty("patient");
     expect(result).not.toHaveProperty("patientUserId");
-    expect(result).not.toHaveProperty("id");
   });
 
   it("uses the same safe public rejection for self-linking", async () => {
