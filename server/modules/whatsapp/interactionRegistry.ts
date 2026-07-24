@@ -87,7 +87,7 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 6;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 7;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -529,7 +529,12 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     reconstruction: "pending_target",
     invalidResponse: "text_guidance",
     staleBehavior: "reply_unavailable_request_new_command",
-    allowedEffects: ["provide_quantity", "cancel", "register_original_food_once"],
+    allowedEffects: [
+      "provide_quantity",
+      "cancel",
+      "register_original_food_once",
+      "complete_pending_food_operation_once",
+    ],
     forbiddenEffects: ["persist_command_word_as_food", "implicit_100g_unit"],
     matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "quantity",
     actions: foodActions,
