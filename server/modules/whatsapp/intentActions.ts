@@ -153,6 +153,24 @@ function resolveInboundCorrelationId(
   return `derived:${digest}`;
 }
 
+function buildFoodMutationContext(
+  userId: number,
+  input: WhatsappIntentInput,
+  text: string,
+  receivedAt: Date
+) {
+  return {
+    originalText: text,
+    receivedAt,
+    messageId: resolveInboundCorrelationId(
+      userId,
+      text,
+      receivedAt,
+      input.messageId
+    ),
+  };
+}
+
 function isLatestFoodCorrectionText(text: string) {
   const normalized = text
     .normalize("NFD")
@@ -230,7 +248,12 @@ async function executeResumedFoodRegistration(
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   return foodAddition
-    ? handleFoodAdditionIntent(userId, foodAddition, userTimeZone)
+    ? handleFoodAdditionIntent(
+        userId,
+        foodAddition,
+        userTimeZone,
+        buildFoodMutationContext(userId, input, text, receivedAt)
+      )
     : null;
 }
 
@@ -392,7 +415,12 @@ export async function executeWhatsappTextIntent(
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition)
-    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
+    return handleFoodAdditionIntent(
+      userId,
+      foodAddition,
+      userTimeZone,
+      buildFoodMutationContext(userId, input, text, receivedAt)
+    );
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
@@ -414,7 +442,12 @@ export async function executeWhatsappTextIntent(
 
   const foodReplacements = parseFoodReplacementIntents(text);
   if (foodReplacements)
-    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
+    return handleFoodReplacementIntents(
+      userId,
+      foodReplacements,
+      userTimeZone,
+      buildFoodMutationContext(userId, input, text, receivedAt)
+    );
 
   if (parseSnackSuggestionIntent(text)) return handleSnackSuggestionIntent();
 
