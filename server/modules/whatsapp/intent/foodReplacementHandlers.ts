@@ -1,4 +1,8 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { getHabitSnapshots } from "../../../db";
+import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
+import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -13,7 +17,7 @@ import {
   updateMealsWithCompensation,
   type MealBatchMutationChange,
 } from "../mealBatchMutation";
-import { formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
+import { formatTotalsLine, replaceMealItemFood, toMealItemInput, toMealItemInputs } from "./mealItemHelpers";
 import { resolveTargetMealItemInMeals, type MealItemTargetCandidate } from "./mealTargetResolution";
 import { formatNumber } from "./textUtils";
 import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
@@ -35,6 +39,11 @@ type PendingReplacementTarget = {
   scopeLabel: string;
   candidates: MealItemTargetCandidate<MutableMealRecord>[];
   toFood: string;
+};
+type ReplacementExecutionContext = {
+  originalText?: string;
+  receivedAt?: Date;
+  messageId?: string | null;
 };
 
 function replacementMatchDetail(params: { prefix: string; targetFood: string; scopeLabel: string; ambiguous: boolean }) {
@@ -126,7 +135,61 @@ function buildMultipleReplacementLines(applied: AppliedFoodReplacement[], notFou
   return lines;
 }
 
-export async function handleFoodReplacementIntents(userId: number, replacements: FoodReplacementIntent[], timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
+async function resolveReplacementItem(input: {
+  userId: number;
+  replacement: FoodReplacementIntent;
+  target: Extract<ReturnType<typeof resolveTargetMealItemInMeals<MutableMealRecord>>, { kind: "matched" }>;
+  timeZone: string;
+  context?: ReplacementExecutionContext;
+}): Promise<MealItemInput | WhatsappIntentResult> {
+  if (!isCoffeeWithAddedSugar(input.replacement.toFood)) {
+    return replaceMealItemFood(
+      toMealItemInput(input.target.meal.items[input.target.index]),
+      input.replacement.toFood,
+    );
+  }
+
+  const currentItem = toMealItemInput(input.target.meal.items[input.target.index]);
+  const originalFoodText = `${currentItem.quantity} ${currentItem.unit} de ${input.replacement.toFood}`;
+  const receivedAt = input.context?.receivedAt ?? new Date();
+  try {
+    const processed = await processMealInput({
+      text: originalFoodText,
+      habits: await getHabitSnapshots(input.userId),
+      occurredAt: receivedAt,
+      timeZone: input.timeZone,
+    });
+    const resolved = toMealItemInputs(processed.items)[0];
+    if (!resolved) throw new MealInferenceError();
+    return resolved;
+  } catch (error) {
+    if (
+      error instanceof MealInferenceError
+      && error.code === "food_component_quantity_required"
+    ) {
+      return requestWhatsappCaloricComplementQuantityClarification({
+        userId: input.userId,
+        originalFoodText,
+        operation: {
+          kind: "replace_item",
+          mealId: input.target.meal.id,
+          itemIndex: input.target.index,
+          originalFoodName: currentItem.foodName,
+        },
+        receivedAt,
+        messageId: input.context?.messageId,
+      });
+    }
+    throw error;
+  }
+}
+
+export async function handleFoodReplacementIntents(
+  userId: number,
+  replacements: FoodReplacementIntent[],
+  timeZone = DEFAULT_APP_TIME_ZONE,
+  context?: ReplacementExecutionContext,
+): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
   if (!meals.length) {
     return { handled: true, action: "clarification_needed", reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar."), eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de substituição sem refeição recente disponível." };
@@ -150,7 +213,15 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
       continue;
     }
     const candidate = { mealId: target.meal.id, mealLabel: target.meal.mealLabel, itemIndex: target.index, itemName: target.item.foodName };
-    const replacedItem = replaceMealItemFood(toMealItemInput(target.meal.items[target.index]), replacement.toFood);
+    const replacementResolution = await resolveReplacementItem({
+      userId,
+      replacement,
+      target,
+      timeZone,
+      context,
+    });
+    if ("handled" in replacementResolution) return replacementResolution;
+    const replacedItem = replacementResolution;
     target.meal.items = target.meal.items.map((item, index) => index === target.index ? replacedItem : item);
     const mealReplacements = replacementsByMeal.get(target.mealIndex) ?? new Map<number, MealItemInput>();
     mealReplacements.set(target.index, replacedItem);
