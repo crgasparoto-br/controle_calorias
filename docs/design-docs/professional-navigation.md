@@ -26,9 +26,22 @@ Cada capacidade profissional usa composição própria e não importa páginas p
 
 ## Carteira e painel inicial
 
-`nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação mínima, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional. O painel consome agregados canônicos e não executa um relatório por paciente.
+`nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional somente quando o vínculo permite essa identificação. O painel consome agregados canônicos e não executa um relatório por paciente.
 
-A solicitação de acesso usa `nutrition.professionals.requestAccess`, mas sua resposta pública anterior à autorização contém somente o identificador opaco da solicitação e o estado do vínculo. Nome, e-mail, telefone, identificador do paciente e o objeto de paciente não atravessam essa fronteira. Pessoa inexistente, auto-vínculo ou outro caso não elegível produzem a mesma mensagem pública segura, enquanto falha temporária usa indisponibilidade genérica sem detalhes internos.
+A solicitação usa `nutrition.professionals.requestAccess`, mas a fronteira pública não confirma se o e-mail ou celular pertence a uma conta. Pessoa existente ainda sem consentimento, pessoa inexistente e auto-vínculo retornam o mesmo contrato de comprovante: `{ id, status: "pending", requestedAt }`. O `id` identifica somente o comprovante opaco da tentativa; não é o ID da autorização, do paciente ou do contato.
+
+Comprovantes são registrados em eventos internos sem contato ou motivo. Quando existe uma autorização canônica, um segundo evento interno associa o comprovante ao vínculo. Esses eventos não atravessam `nutrition.professionals.history`. Falha de formato continua sendo `BAD_REQUEST`; perfil inativo, entitlement ausente e falha temporária não são reconhecidos como solicitação aceita.
+
+Enquanto não existe autorização aprovada:
+
+- `portfolio` e `myAccesses` expõem somente o comprovante genérico;
+- nome, e-mail, telefone, `patientUserId`, erro do provedor e objeto de paciente não são retornados;
+- vínculos pendentes ficam fora da paginação identificável da carteira e aparecem como **Solicitação aguardando confirmação**;
+- recusados e revogados permanecem administrativamente localizáveis apenas por estado e identificador opaco, com rótulos genéricos;
+- busca por nome, e-mail ou ID de paciente é aplicada apenas a vínculos aprovados;
+- eventos de solicitação e entrega anteriores ao consentimento são omitidos do histórico público.
+
+Comprovantes não resolvidos expiram da carteira após trinta dias. Reenvios podem gerar um novo comprovante público, mas a criação da autorização continua obedecendo à idempotência canônica do par profissional/paciente. Comprovantes associados ao mesmo vínculo pendente são deduplicados nas leituras públicas.
 
 A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e a fila de prioridades são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_operational_alerts`, respectivamente, estão habilitados. A assistência generativa permanece separada em `professional_ai_assistance` e não é requisito para consultar pendências operacionais. A ausência de qualquer capacidade complementar apresenta um estado local indisponível sem bloquear o início profissional.
 
@@ -36,7 +49,7 @@ A visão inicial da fila consulta onze pacientes, exibe no máximo os dez primei
 
 A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, e recebe somente o resumo necessário. Ela não devolve a lista da carteira nem exige `professional_portfolio` como dependência indireta.
 
-A ordenação da carteira é estável por identificação exibível, solicitação decrescente e ID do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros. Todas as consultas SQL, inclusive totais, incluem o profissional autenticado. Vínculo pendente, rejeitado ou revogado nunca habilita **Abrir paciente**.
+A ordenação da carteira identificável é estável por identificação exibível, solicitação decrescente e ID do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros. Todas as consultas SQL, inclusive totais, incluem o profissional autenticado. Vínculo pendente, rejeitado ou revogado nunca habilita **Abrir paciente**.
 
 ## Autorização e isolamento
 
@@ -82,7 +95,11 @@ Os testes cobrem:
 
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
-- resposta pública mínima com ID opaco e estado, sem PII do paciente, e erros indistinguíveis para inexistência e auto-vínculo;
+- resultado indistinguível para pessoa existente, inexistente e auto-vínculo, com comprovante opaco e sem PII;
+- preservação de `BAD_REQUEST` para input malformado e `SERVICE_UNAVAILABLE` para falha temporária;
+- neutralização de `requestAccess`, `myAccesses`, `portfolio` e `history` antes do consentimento;
+- deduplicação de comprovantes vinculados e representação de vínculos pendentes legados;
+- busca identificável restrita a vínculos aprovados;
 - abertura da carteira com `professional_record`, diferenciando negação confirmada de `SERVICE_UNAVAILABLE`;
 - início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
 - fila operacional habilitada por `professional_operational_alerts` mesmo quando `professional_ai_assistance` não está disponível;
