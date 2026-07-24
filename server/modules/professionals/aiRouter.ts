@@ -5,12 +5,13 @@ import {
 } from "./aiSchemas";
 import { professionalAiProcedure } from "./entitledProcedure";
 import { professionalAiService } from "./aiService";
+import { professionalPriorityService } from "./aiPrioritiesService";
 
 export const professionalAiRouter = router({
   priorities: professionalAiProcedure
     .input(professionalAiPrioritySchema)
     .query(({ ctx, input }) =>
-      professionalAiService.priorities(ctx.user.id, input.limit)
+      professionalPriorityService.priorities(ctx.user.id, input.limit)
     ),
   generate: professionalAiProcedure
     .input(professionalAiGenerateSchema)
