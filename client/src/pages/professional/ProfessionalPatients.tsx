@@ -317,7 +317,7 @@ export default function ProfessionalPatients() {
       setSearchInput("");
       await Promise.all([
         utils.nutrition.professionals.myAccesses.invalidate(),
-        utils.nutrition.professionals.portfolio.invalidate(),
+        portfolio.refetch(),
       ]);
       setLocation(
         `/professional/patients?authorization=${success.authorizationStatus}`,
