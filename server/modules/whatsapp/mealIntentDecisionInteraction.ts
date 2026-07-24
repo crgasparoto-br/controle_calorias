@@ -67,21 +67,38 @@ export function normalizeMealIntentDecisionText(value: string) {
     .trim();
 }
 
+function hasCanonicalMealIntentDecisionActions(value: unknown) {
+  if (!Array.isArray(value) || value.length !== MEAL_INTENT_DECISION_ACTIONS.length) {
+    return false;
+  }
+  return MEAL_INTENT_DECISION_ACTIONS.every((expected, index) => {
+    const candidate = value[index] as Partial<WhatsappInteractionAction> | undefined;
+    return candidate?.id === expected.id
+      && candidate.label === expected.label
+      && candidate.effect === expected.effect;
+  });
+}
+
 export function isPendingMealIntentDecision(
   value: unknown
 ): value is PendingMealIntentDecision {
   if (!value || typeof value !== "object") return false;
   const target = value as Partial<PendingMealIntentDecision>;
+  const interpretedIntent = target.interpretedIntent;
   return (
     target.contractVersion === 1 &&
     target.interactionId === MEAL_INTENT_DECISION_INTERACTION_ID &&
     target.kind === "meal_intent_decision" &&
     typeof target.originalText === "string" &&
+    target.originalText.trim().length > 0 &&
     typeof target.normalizedText === "string" &&
     (typeof target.inboundMessageId === "string" ||
       target.inboundMessageId === null) &&
-    Boolean(target.interpretedIntent) &&
-    Array.isArray(target.actions)
+    interpretedIntent?.intent === "ambiguous" &&
+    Array.isArray(interpretedIntent.possibleIntents) &&
+    interpretedIntent.possibleIntents[0] === "add_foods_to_meal" &&
+    interpretedIntent.possibleIntents[1] === "meal_suggestion" &&
+    hasCanonicalMealIntentDecisionActions(target.actions)
   );
 }
 
@@ -185,16 +202,25 @@ export function parseMealIntentDecisionTextAction(
   if (["cancelar", "cancela", "cancele", "nao", "0"].includes(normalized))
     return "cancel";
   if (
-    ["registrar", "registre", "registra", "consumi", "consumida", "1"].includes(
-      normalized
-    )
+    [
+      "registrar",
+      "registrar alimento",
+      "registrar consumo",
+      "registre",
+      "registra",
+      "consumi",
+      "consumida",
+      "1",
+    ].includes(normalized)
   )
     return "register";
   if (
     [
       "sugestao",
       "receber sugestao",
+      "receber uma sugestao",
       "quero sugestao",
+      "quero uma sugestao",
       "sugerir",
       "sugira",
       "2",
