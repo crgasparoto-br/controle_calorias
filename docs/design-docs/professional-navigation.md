@@ -28,7 +28,9 @@ Cada capacidade profissional usa composição própria e não importa páginas p
 
 `nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação mínima, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional. O painel consome agregados canônicos e não executa um relatório por paciente.
 
-A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e as prioridades assistidas são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_ai_assistance`, respectivamente, estão habilitados. A ausência desses recursos apresenta um estado local indisponível sem bloquear o início profissional.
+A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e a fila de prioridades são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_operational_alerts`, respectivamente, estão habilitados. A assistência generativa permanece separada em `professional_ai_assistance` e não é requisito para consultar pendências operacionais. A ausência de qualquer capacidade complementar apresenta um estado local indisponível sem bloquear o início profissional.
+
+A visão inicial da fila consulta onze pacientes, exibe no máximo os dez primeiros e usa o décimo primeiro apenas para indicar a existência da visão completa. A visão completa preserva a mesma ordenação determinística e usa páginas de cinquenta pacientes com um item adicional de lookahead; `offset` e `limit` permitem alcançar toda a fila sem um corte fixo de cem pacientes.
 
 A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, e recebe somente o resumo necessário. Ela não devolve a lista da carteira nem exige `professional_portfolio` como dependência indireta.
 
@@ -76,7 +78,9 @@ Os testes cobrem:
 
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
-- início profissional com apenas `professional_dashboard`, sem iniciar consultas de carteira ou IA;
+- início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
+- fila operacional habilitada por `professional_operational_alerts` mesmo quando `professional_ai_assistance` não está disponível;
+- paginação determinística da fila completa além do centésimo paciente;
 - conversão da negação do entitlement principal em `FORBIDDEN`;
 - distinção entre revogação da rota e ausência de alertas ou IA opcionais;
 - uso do timezone por rota individual autorizada sem exigir entitlement de carteira;
