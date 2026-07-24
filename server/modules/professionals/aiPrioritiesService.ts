@@ -61,10 +61,7 @@ function prioritySignal(alert: OperationalAlert) {
   };
 }
 
-export function buildProfessionalPriorities(
-  alerts: OperationalAlert[],
-  limit: number
-) {
+function orderedProfessionalPriorities(alerts: OperationalAlert[]) {
   const grouped = new Map<
     number,
     {
@@ -125,8 +122,19 @@ export function buildProfessionalPriorities(
         Number(second.updatedAt ?? 0) - Number(first.updatedAt ?? 0) ||
         first.patientId - second.patientId
       );
-    })
-    .slice(0, limit);
+    });
+}
+
+export function buildProfessionalPriorities(
+  alerts: OperationalAlert[],
+  limit: number,
+  offset = 0
+) {
+  const safeOffset = Math.max(0, offset);
+  return orderedProfessionalPriorities(alerts).slice(
+    safeOffset,
+    safeOffset + limit
+  );
 }
 
 export function createProfessionalPriorityService(
@@ -134,9 +142,13 @@ export function createProfessionalPriorityService(
 ) {
   const dependencies = { ...defaultDependencies, ...overrides };
   return {
-    async priorities(professionalUserId: number, limit: number) {
+    async priorities(
+      professionalUserId: number,
+      limit: number,
+      offset = 0
+    ) {
       const alerts = await dependencies.listAlerts(professionalUserId);
-      return buildProfessionalPriorities(alerts, limit);
+      return buildProfessionalPriorities(alerts, limit, offset);
     },
   };
 }
