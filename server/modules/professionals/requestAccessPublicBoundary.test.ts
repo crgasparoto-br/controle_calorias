@@ -17,7 +17,7 @@ function captureTrpcError(run: () => unknown) {
 }
 
 describe("professional request access public boundary", () => {
-  it("returns only the authorization status from successful internal results", () => {
+  it("returns only the opaque request id and authorization status", () => {
     expect(
       sanitizeProfessionalRequestAccessResult({
         ok: true,
@@ -32,7 +32,7 @@ describe("professional request access public boundary", () => {
           },
         },
       })
-    ).toEqual({ ok: true, data: { status: "pending" } });
+    ).toEqual({ ok: true, data: { id: "access-1", status: "pending" } });
   });
 
   it.each([
