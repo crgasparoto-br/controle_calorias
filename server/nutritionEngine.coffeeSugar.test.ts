@@ -12,6 +12,36 @@ vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: vi.fn(async () => null),
 }));
 
+function aiCoffeeItem(input: { calories: number; carbs: number; protein?: number; fat?: number }) {
+  return {
+    mealLabel: "Café da manhã",
+    confidence: 0.91,
+    reasoning: "Café adoçado informado explicitamente.",
+    items: [{
+      foodName: "Café com açúcar",
+      brand: null,
+      quantity: 1,
+      unit: "xícara",
+      portionText: "1 xícara",
+      servings: 1,
+      estimatedGrams: 55,
+      estimatedCalories: input.calories,
+      estimatedMacros: {
+        protein: input.protein ?? 0,
+        carbs: input.carbs,
+        fat: input.fat ?? 0,
+      },
+      confidence: 0.9,
+      foodClassification: {
+        processingLevel: "processed_culinary_ingredient",
+        isFruit: false,
+        isVegetable: false,
+        fiberGrams: 0,
+      },
+    }],
+  };
+}
+
 describe("nutritionEngine coffee with sugar handling", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
@@ -67,31 +97,31 @@ describe("nutritionEngine coffee with sugar handling", () => {
     } satisfies Partial<InstanceType<typeof MealInferenceError>>);
   });
 
+  it("rejeita estimativa que mantém açúcar com zero carboidratos", async () => {
+    createTextResponseMock.mockResolvedValueOnce({
+      outputText: JSON.stringify(aiCoffeeItem({
+        calories: 10,
+        carbs: 0,
+        protein: 1,
+      })),
+    });
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({
+      text: "1 xícara de café com açúcar",
+    })).rejects.toMatchObject({
+      name: "MealInferenceError",
+      code: "food_component_quantity_required",
+    } satisfies Partial<InstanceType<typeof MealInferenceError>>);
+  });
+
   it("preserva uma estimativa utilizável da IA sem substituí-la por café sem açúcar", async () => {
     createTextResponseMock.mockResolvedValueOnce({
-      outputText: JSON.stringify({
-        mealLabel: "Café da manhã",
-        confidence: 0.91,
-        reasoning: "Café adoçado informado explicitamente.",
-        items: [{
-          foodName: "Café com açúcar",
-          brand: null,
-          quantity: 1,
-          unit: "xícara",
-          portionText: "1 xícara",
-          servings: 1,
-          estimatedGrams: 55,
-          estimatedCalories: 34,
-          estimatedMacros: { protein: 0.1, carbs: 8, fat: 0 },
-          confidence: 0.9,
-          foodClassification: {
-            processingLevel: "processed_culinary_ingredient",
-            isFruit: false,
-            isVegetable: false,
-            fiberGrams: 0,
-          },
-        }],
-      }),
+      outputText: JSON.stringify(aiCoffeeItem({
+        calories: 34,
+        carbs: 8,
+        protein: 0.1,
+      })),
     });
 
     const { processMealInput } = await import("./nutritionEngine");
