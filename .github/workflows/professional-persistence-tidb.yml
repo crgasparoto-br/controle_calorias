@@ -38,6 +38,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: mkdir -p artifacts
 
       - name: Start TiDB
         run: |
@@ -76,7 +77,7 @@ jobs:
 
       - name: Validate professional migration and repository
         run: |
-          log_file=/tmp/professional-persistence.log
+          log_file=artifacts/professional-persistence.log
           setsid pnpm db:test:professionals >"$log_file" 2>&1 &
           test_pid=$!
           success_marker='"event":"professional.persistence.integration.passed"'
@@ -119,7 +120,7 @@ jobs:
 
       - name: Validate privacy-safe access receipts
         run: |
-          log_file=/tmp/professional-access-receipts.log
+          log_file=artifacts/professional-access-receipts.log
           set +e
           timeout --signal=TERM --kill-after=5s 120s \
             pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts \
@@ -137,7 +138,7 @@ jobs:
 
       - name: Validate public access boundary by email and phone
         run: |
-          log_file=/tmp/professional-access-public-boundary.log
+          log_file=artifacts/professional-access-public-boundary.log
           set +e
           timeout --signal=TERM --kill-after=5s 150s \
             pnpm exec tsx scripts/test-professional-access-public-boundary-tidb.ts \
@@ -158,10 +159,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: professional-access-boundary-${{ github.sha }}
-          path: |
-            /tmp/professional-access-receipts.log
-            /tmp/professional-access-public-boundary.log
-          if-no-files-found: warn
+          path: artifacts/*.log
+          if-no-files-found: error
           retention-days: 3
 
       - name: Validate backfill command idempotency
