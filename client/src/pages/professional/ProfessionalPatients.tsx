@@ -159,14 +159,15 @@ export default function ProfessionalPatients() {
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       setRequestSuccess(
-        "Solicitação enviada. Ela ficará pendente até a autorização do paciente."
+        "Solicitação enviada. A carteira foi atualizada para mostrar os acessos pendentes."
       );
       setPatientContact("");
       setReason("");
-      await Promise.all([
-        portfolio.refetch(),
-        utils.nutrition.professionals.myAccesses.invalidate(),
-      ]);
+      setSearchInput("");
+      setLocation("/professional/patients?authorization=pending", {
+        replace: true,
+      });
+      await utils.nutrition.professionals.myAccesses.invalidate();
     },
   });
 
