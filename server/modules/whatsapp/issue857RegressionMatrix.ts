@@ -99,6 +99,14 @@ const INTERACTION_SCENARIOS: Record<string, {
         ],
       },
       {
+        file: "server/whatsappMealIntentDecisionWebhook.issue899.test.ts",
+        requiredTokens: [
+          "200 ml café com açúcar",
+          "clicar Registrar",
+          "responder Registrar por texto",
+        ],
+      },
+      {
         file: "server/modules/whatsapp/foodAssistant.test.ts",
         requiredTokens: ["segunda clarificação", "Nada foi registrado como consumo"],
       },
