@@ -14,25 +14,17 @@
  *    ou a query contém o nome/alias).
  * 3. Correspondência por palavras-chave: todas as palavras da query com
  *    3+ caracteres devem aparecer no nome ou aliases do item.
+ * 4. Correspondência fuzzy conservadora para erro ortográfico simples.
  *
- * O módulo expõe também `findTacoFoodSemantic` para busca semântica via
- * embeddings, utilizada pelo `catalogSemanticSearch` quando o match textual
- * falha.
- *
- * Design constraints:
- * - O JSON da TACO é carregado uma única vez em memória (lazy singleton).
- * - Falhas de leitura do JSON são fatais em dev e silenciosas em produção,
- *   retornando uma lista vazia para não bloquear o pipeline.
- * - Todos os valores numéricos são normalizados para 100 g de base.
+ * Todo candidato passa pelo mesmo guard semântico do catálogo principal antes
+ * de ser utilizado. Fuzzy matching nunca pode remover ou inverter qualificadores
+ * nutricionais críticos.
  */
 
 import { createRequire } from "module";
+import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import type { CatalogFood } from "./nutritionEngine";
 import { fuzzyMatchesWords } from "./fuzzyTextMatch";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 type TacoEntry = {
   slug: string;
@@ -50,10 +42,6 @@ type TacoEntry = {
   isUltraProcessed?: boolean;
   source?: string;
 };
-
-// ---------------------------------------------------------------------------
-// Data loading
-// ---------------------------------------------------------------------------
 
 let tacoCache: TacoEntry[] | null = null;
 
@@ -73,10 +61,6 @@ export function getTacoCatalog(): TacoEntry[] {
   return loadTacoData();
 }
 
-// ---------------------------------------------------------------------------
-// Text normalisation helpers
-// ---------------------------------------------------------------------------
-
 function normalizeText(value: string): string {
   return value
     .normalize("NFD")
@@ -90,11 +74,17 @@ function getSearchTerms(food: TacoEntry): string[] {
   return [food.name, ...food.aliases].map(normalizeText).filter(Boolean);
 }
 
+function isSemanticallyCompatible(item: TacoEntry, originalQuery: string) {
+  return isFoodCandidateSemanticallyCompatible(originalQuery, [item.name, ...item.aliases]);
+}
+
 function isGenericSingleWordTerm(term: string) {
   return term.split(/\s+/).filter(Boolean).length === 1;
 }
 
-function scoreTacoSubstringMatch(item: TacoEntry, query: string) {
+function scoreTacoSubstringMatch(item: TacoEntry, query: string, originalQuery: string) {
+  if (!isSemanticallyCompatible(item, originalQuery)) return 0;
+
   const queryWords = query.split(/\s+/).filter(Boolean);
   let bestScore = 0;
 
@@ -115,13 +105,9 @@ function scoreTacoSubstringMatch(item: TacoEntry, query: string) {
   return bestScore;
 }
 
-// ---------------------------------------------------------------------------
-// Textual search
-// ---------------------------------------------------------------------------
-
 /**
- * Finds the best matching TACO entry for a given food name using a three-tier
- * textual strategy. Returns null when no match is found.
+ * Finds the best matching TACO entry for a given food name using a four-tier
+ * textual strategy. Returns null when no compatible match is found.
  */
 export function findTacoFood(foodName: string): CatalogFood | null {
   const catalog = loadTacoData();
@@ -130,32 +116,31 @@ export function findTacoFood(foodName: string): CatalogFood | null {
   const query = normalizeText(foodName);
   if (!query) return null;
 
-  // Tier 1: exact match
   const exact = catalog.find(item =>
-    getSearchTerms(item).some(term => term === query),
+    isSemanticallyCompatible(item, foodName)
+      && getSearchTerms(item).some(term => term === query),
   );
   if (exact) return tacoToCatalogFood(exact);
 
-  // Tier 2: substring containment
   const substring = catalog
-    .map(item => ({ item, score: scoreTacoSubstringMatch(item, query) }))
+    .map(item => ({ item, score: scoreTacoSubstringMatch(item, query, foodName) }))
     .filter(match => match.score > 0)
     .sort((a, b) => b.score - a.score)[0]?.item;
   if (substring) return tacoToCatalogFood(substring);
 
-  // Tier 3: all significant keywords present
   const queryWords = query.split(/\s+/).filter(w => w.length >= 3);
   if (queryWords.length > 0) {
     const keyword = catalog.find(item => {
+      if (!isSemanticallyCompatible(item, foodName)) return false;
       const allTerms = getSearchTerms(item).join(" ");
       return queryWords.every(word => allTerms.includes(word));
     });
     if (keyword) return tacoToCatalogFood(keyword);
   }
 
-  // Tier 4: fuzzy word match — tolerates single-character typos per palavra
   if (queryWords.length > 0) {
     const fuzzy = catalog.find(item => {
+      if (!isSemanticallyCompatible(item, foodName)) return false;
       const allTerms = getSearchTerms(item).join(" ");
       return fuzzyMatchesWords(query, allTerms);
     });
@@ -164,10 +149,6 @@ export function findTacoFood(foodName: string): CatalogFood | null {
 
   return null;
 }
-
-// ---------------------------------------------------------------------------
-// Conversion
-// ---------------------------------------------------------------------------
 
 function tacoToCatalogFood(entry: TacoEntry): CatalogFood {
   return {
