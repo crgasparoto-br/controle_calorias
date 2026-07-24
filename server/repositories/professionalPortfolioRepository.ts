@@ -59,34 +59,44 @@ function asTimestamp(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
-function mapItem(row: Row, now: Date): ProfessionalPortfolioItem {
-  const nextReviewAt = asTimestamp(row.nextReviewAt);
-  const nextWeighingAt = asTimestamp(row.nextWeighingAt);
+export function mapProfessionalPortfolioItem(
+  row: Row,
+  now: Date
+): ProfessionalPortfolioItem {
+  const authorizationStatus = String(
+    row.authorizationStatus
+  ) as ProfessionalPortfolioItem["authorizationStatus"];
+  const approved = authorizationStatus === "approved";
+  const nextReviewAt = approved ? asTimestamp(row.nextReviewAt) : null;
+  const nextWeighingAt = approved ? asTimestamp(row.nextWeighingAt) : null;
   return {
     authorizationId: String(row.authorizationId),
     patientUserId: asNumber(row.patientUserId),
     patientName: row.patientName ? String(row.patientName) : null,
-    patientEmail: row.patientEmail ? String(row.patientEmail) : null,
-    authorizationStatus: String(
-      row.authorizationStatus
-    ) as ProfessionalPortfolioItem["authorizationStatus"],
-    trackingStatus: row.trackingStatus
-      ? (String(
-          row.trackingStatus
-        ) as ProfessionalPortfolioItem["trackingStatus"])
-      : null,
+    patientEmail:
+      approved && row.patientEmail ? String(row.patientEmail) : null,
+    authorizationStatus,
+    trackingStatus:
+      approved && row.trackingStatus
+        ? (String(
+            row.trackingStatus
+          ) as ProfessionalPortfolioItem["trackingStatus"])
+        : null,
     requestedAt: asTimestamp(row.requestedAt) ?? 0,
-    lastFoodActivityAt: asTimestamp(row.lastFoodActivityAt),
-    lastProfessionalInteractionAt: asTimestamp(
-      row.lastProfessionalInteractionAt
-    ),
+    lastFoodActivityAt: approved ? asTimestamp(row.lastFoodActivityAt) : null,
+    lastProfessionalInteractionAt: approved
+      ? asTimestamp(row.lastProfessionalInteractionAt)
+      : null,
     nextReviewAt,
     nextWeighingAt,
     pendingItems:
-      (String(row.authorizationStatus) === "pending" ? 1 : 0) +
-      (nextReviewAt !== null && nextReviewAt <= now.getTime() ? 1 : 0) +
-      (nextWeighingAt !== null && nextWeighingAt <= now.getTime() ? 1 : 0),
-    hasRecordsInReportPeriod: asNumber(row.periodRecordCount) > 0,
+      (authorizationStatus === "pending" ? 1 : 0) +
+      (approved && nextReviewAt !== null && nextReviewAt <= now.getTime() ? 1 : 0) +
+      (approved && nextWeighingAt !== null && nextWeighingAt <= now.getTime()
+        ? 1
+        : 0),
+    hasRecordsInReportPeriod:
+      approved && asNumber(row.periodRecordCount) > 0,
   };
 }
 
@@ -118,14 +128,10 @@ export function createProfessionalPortfolioRepository(
       input.reportStartDate ??
       new Date(now.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
     const reportEndDate = input.reportEndDate ?? now.toISOString().slice(0, 10);
-    // Coarse UTC bounds keep the occurredAt index usable; the local-date predicate
-    // below applies each patient's effective timezone at the calendar boundaries.
     const [startYear, startMonth, startDay] = reportStartDate
       .split("-")
       .map(Number);
-    const [endYear, endMonth, endDay] = reportEndDate
-      .split("-")
-      .map(Number);
+    const [endYear, endMonth, endDay] = reportEndDate.split("-").map(Number);
     const reportCoarseStart = new Date(
       Date.UTC(startYear, startMonth - 1, startDay)
     );
@@ -144,6 +150,7 @@ export function createProfessionalPortfolioRepository(
             INNER JOIN professionalPatientAuthorizations scopedAccess
               ON scopedAccess.patientUserId = scopedMeals.userId
               AND scopedAccess.professionalUserId = ${professionalUserId}
+              AND scopedAccess.status = 'approved'
             WHERE scopedMeals.status = 'confirmed'
             GROUP BY scopedMeals.userId
           ) m ON m.userId = a.patientUserId`
@@ -169,20 +176,20 @@ export function createProfessionalPortfolioRepository(
         a.professionalUserId = ${professionalUserId}
         AND (${input.authorizationStatus} = 'all' OR a.status = ${input.authorizationStatus})
         AND (${input.trackingStatus} = 'all'
-          OR (${input.trackingStatus} = 'not_started' AND t.id IS NULL)
-          OR t.status = ${input.trackingStatus})
+          OR (a.status = 'approved' AND ${input.trackingStatus} = 'not_started' AND t.id IS NULL)
+          OR (a.status = 'approved' AND t.status = ${input.trackingStatus}))
         AND (${input.search} = '' OR LOWER(COALESCE(u.name, '')) LIKE ${search}
-          OR LOWER(COALESCE(u.email, '')) LIKE ${search}
+          OR (a.status = 'approved' AND LOWER(COALESCE(u.email, '')) LIKE ${search})
           OR CAST(u.id AS CHAR) = ${input.search})
         AND (${input.activity} = 'all'
-          OR (${input.activity} = 'recent' AND m.lastFoodActivityAt >= ${inactiveBefore})
-          OR (${input.activity} = 'inactive' AND (m.lastFoodActivityAt < ${inactiveBefore} OR m.lastFoodActivityAt IS NULL))
-          OR (${input.activity} = 'unavailable' AND m.lastFoodActivityAt IS NULL))
+          OR (a.status = 'approved' AND ${input.activity} = 'recent' AND m.lastFoodActivityAt >= ${inactiveBefore})
+          OR (a.status = 'approved' AND ${input.activity} = 'inactive' AND (m.lastFoodActivityAt < ${inactiveBefore} OR m.lastFoodActivityAt IS NULL))
+          OR (a.status = 'approved' AND ${input.activity} = 'unavailable' AND m.lastFoodActivityAt IS NULL))
         AND (${input.nextReview} = 'all'
-          OR (${input.nextReview} = 'scheduled' AND t.nextReviewAt IS NOT NULL)
-          OR (${input.nextReview} = 'due_soon' AND t.nextReviewAt >= ${now} AND t.nextReviewAt <= ${dueSoonUntil})
-          OR (${input.nextReview} = 'overdue' AND t.nextReviewAt < ${now})
-          OR (${input.nextReview} = 'unavailable' AND t.nextReviewAt IS NULL))`;
+          OR (a.status = 'approved' AND ${input.nextReview} = 'scheduled' AND t.nextReviewAt IS NOT NULL)
+          OR (a.status = 'approved' AND ${input.nextReview} = 'due_soon' AND t.nextReviewAt >= ${now} AND t.nextReviewAt <= ${dueSoonUntil})
+          OR (a.status = 'approved' AND ${input.nextReview} = 'overdue' AND t.nextReviewAt < ${now})
+          OR (a.status = 'approved' AND ${input.nextReview} = 'unavailable' AND t.nextReviewAt IS NULL))`;
       const baseFrom = sql`
         FROM professionalPatientAuthorizations a
         INNER JOIN users u ON u.id = a.patientUserId
@@ -198,11 +205,15 @@ export function createProfessionalPortfolioRepository(
       const [itemsResult, countResult, summaryResult] = await Promise.all([
         db.execute(sql`
           SELECT a.id AS authorizationId, a.patientUserId, u.name AS patientName,
-            u.email AS patientEmail, a.status AS authorizationStatus,
-            t.status AS trackingStatus, a.requestedAt, t.nextReviewAt,
-            t.nextWeighingAt, m.lastFoodActivityAt,
-            h.lastProfessionalInteractionAt
-            , pm.periodRecordCount
+            CASE WHEN a.status = 'approved' THEN u.email ELSE NULL END AS patientEmail,
+            a.status AS authorizationStatus,
+            CASE WHEN a.status = 'approved' THEN t.status ELSE NULL END AS trackingStatus,
+            a.requestedAt,
+            CASE WHEN a.status = 'approved' THEN t.nextReviewAt ELSE NULL END AS nextReviewAt,
+            CASE WHEN a.status = 'approved' THEN t.nextWeighingAt ELSE NULL END AS nextWeighingAt,
+            CASE WHEN a.status = 'approved' THEN m.lastFoodActivityAt ELSE NULL END AS lastFoodActivityAt,
+            CASE WHEN a.status = 'approved' THEN h.lastProfessionalInteractionAt ELSE NULL END AS lastProfessionalInteractionAt,
+            CASE WHEN a.status = 'approved' THEN pm.periodRecordCount ELSE 0 END AS periodRecordCount
           ${baseFrom}
           ORDER BY COALESCE(u.name, u.email, CAST(u.id AS CHAR)) ASC, a.requestedAt DESC, a.id ASC
           LIMIT ${input.pageSize} OFFSET ${offset}`),
@@ -227,7 +238,9 @@ export function createProfessionalPortfolioRepository(
       const total = asNumber(rowsFromResult(countResult)[0]?.total);
       const summary = rowsFromResult(summaryResult)[0] ?? {};
       return {
-        items: rowsFromResult(itemsResult).map(row => mapItem(row, now)),
+        items: rowsFromResult(itemsResult).map(row =>
+          mapProfessionalPortfolioItem(row, now)
+        ),
         pagination: {
           page: input.page,
           pageSize: input.pageSize,
