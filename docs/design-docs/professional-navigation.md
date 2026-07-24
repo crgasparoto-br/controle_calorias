@@ -103,6 +103,7 @@ Os testes cobrem:
 - resolução do comprovante somente pelo paciente dono durante aprovação ou revogação;
 - preservação de `BAD_REQUEST` para input malformado e `SERVICE_UNAVAILABLE` para falha temporária;
 - neutralização de `requestAccess`, `myAccesses`, `portfolio`, totais e `history` antes do consentimento;
+- caller direto em Vitest com fixtures sintéticas limitadas ao runner de teste e gate TiDB em modo de produção usando e-mail e celular reais, incluindo alvo existente, inexistente, auto-vínculo, repetição e terceiro;
 - representação de vínculos pendentes legados sem expor identidade;
 - busca identificável restrita a vínculos aprovados;
 - abertura da carteira com `professional_record`, diferenciando negação confirmada de `SERVICE_UNAVAILABLE`;
