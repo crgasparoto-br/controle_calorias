@@ -200,7 +200,7 @@ function findExplicitSugarCoffeeTargetIndex(items: MealDraftItem[]) {
     !isExplicitlyUnsweetenedCoffee(items[index])
   );
   if (notExplicitlyUnsweetened.length === 1) return notExplicitlyUnsweetened[0];
-  return coffeeIndexes.length === 1 ? coffeeIndexes[0] : -1;
+  return -1;
 }
 
 function mergeExplicitSugarCoffeeItem(
