@@ -174,6 +174,7 @@ export function createProfessionalPortfolioRepository(
         ) pm ON pm.userId = a.patientUserId`;
       const filters = sql`
         a.professionalUserId = ${professionalUserId}
+        AND a.status <> 'pending'
         AND (${input.authorizationStatus} = 'all' OR a.status = ${input.authorizationStatus})
         AND (${input.trackingStatus} = 'all'
           OR (a.status = 'approved' AND ${input.trackingStatus} = 'not_started' AND t.id IS NULL)
