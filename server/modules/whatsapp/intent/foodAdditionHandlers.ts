@@ -25,6 +25,21 @@ type AdditionExecutionContext = {
   messageId?: string | null;
 };
 
+type FoodAdditionItem = FoodAdditionIntent["items"][number];
+
+function buildAdditionFoodText(item: FoodAdditionItem) {
+  return item.quantity
+    ? `${item.quantity} ${item.unit} de ${item.foodName}`
+    : item.foodName;
+}
+
+function findResolvedSweetenedCoffee(items: MealItemInput[]) {
+  const matches = items.filter(item =>
+    isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
+  );
+  return matches.length === 1 ? matches[0] : null;
+}
+
 async function resolveAdditionItems(input: {
   userId: number;
   addition: FoodAdditionIntent;
@@ -35,60 +50,57 @@ async function resolveAdditionItems(input: {
   | { kind: "items"; items: MealItemInput[] }
   | { kind: "clarification"; result: WhatsappIntentResult }
 > {
-  const genericItems = input.addition.items.map(item =>
+  const resolvedItems = input.addition.items.map(item =>
     buildFoodAdditionItem(item.foodName, item.quantity, item.unit)
   );
-  const coffeeIndex = input.addition.items.findIndex(item =>
-    isCoffeeWithAddedSugar(item.foodName)
-  );
-  const originalText = input.context?.originalText?.trim();
-  if (coffeeIndex < 0 || !originalText) {
-    return { kind: "items", items: genericItems };
-  }
+  const coffeeIndexes = input.addition.items
+    .map((item, index) => isCoffeeWithAddedSugar(item.foodName) ? index : -1)
+    .filter(index => index >= 0);
+  if (!coffeeIndexes.length) return { kind: "items", items: resolvedItems };
 
   const receivedAt = input.context?.receivedAt ?? input.addition.date;
-  try {
-    const processed = await processMealInput({
-      text: originalText,
-      habits: await getHabitSnapshots(input.userId),
-      occurredAt: receivedAt,
-      timeZone: input.timeZone,
-    });
-    const resolvedCoffee = toMealItemInputs(processed.items)[0];
-    if (!resolvedCoffee) {
-      throw new MealInferenceError();
+  const habits = await getHabitSnapshots(input.userId);
+
+  for (const coffeeIndex of coffeeIndexes) {
+    const originalFoodText = buildAdditionFoodText(input.addition.items[coffeeIndex]);
+    try {
+      const processed = await processMealInput({
+        text: originalFoodText,
+        habits,
+        occurredAt: receivedAt,
+        timeZone: input.timeZone,
+      });
+      const resolvedCoffee = findResolvedSweetenedCoffee(
+        toMealItemInputs(processed.items),
+      );
+      if (!resolvedCoffee) throw new MealInferenceError();
+      resolvedItems[coffeeIndex] = resolvedCoffee;
+    } catch (error) {
+      if (
+        error instanceof MealInferenceError
+        && error.code === "food_component_quantity_required"
+      ) {
+        return {
+          kind: "clarification",
+          result: await requestWhatsappCaloricComplementQuantityClarification({
+            userId: input.userId,
+            originalFoodText,
+            operation: {
+              kind: "add_to_meal",
+              mealId: input.targetMeal.id,
+              expectedMealLabel: input.targetMeal.mealLabel,
+              expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+            },
+            receivedAt,
+            messageId: input.context?.messageId,
+          }),
+        };
+      }
+      throw error;
     }
-    return {
-      kind: "items",
-      items: genericItems.map((item, index) =>
-        index === coffeeIndex ? resolvedCoffee : item
-      ),
-    };
-  } catch (error) {
-    if (
-      error instanceof MealInferenceError
-      && error.code === "food_component_quantity_required"
-    ) {
-      return {
-        kind: "clarification",
-        result: await requestWhatsappCaloricComplementQuantityClarification({
-          userId: input.userId,
-          originalFoodText: input.addition.items[coffeeIndex].quantity
-            ? `${input.addition.items[coffeeIndex].quantity} ${input.addition.items[coffeeIndex].unit} de ${input.addition.items[coffeeIndex].foodName}`
-            : input.addition.items[coffeeIndex].foodName,
-          operation: {
-            kind: "add_to_meal",
-            mealId: input.targetMeal.id,
-            expectedMealLabel: input.targetMeal.mealLabel,
-            expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
-          },
-          receivedAt,
-          messageId: input.context?.messageId,
-        }),
-      };
-    }
-    throw error;
   }
+
+  return { kind: "items", items: resolvedItems };
 }
 
 export async function handleFoodAdditionIntent(
