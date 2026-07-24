@@ -1,4 +1,4 @@
-import { listProfessionalAiPriorityAlerts } from "./aiPrioritiesAccess";
+import { listProfessionalPriorityAlerts } from "./aiPrioritiesAccess";
 import {
   professionalAlertLabel,
   type OperationalAlert,
@@ -11,11 +11,11 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 };
 
 type PriorityDependencies = {
-  listAlerts: typeof listProfessionalAiPriorityAlerts;
+  listAlerts: typeof listProfessionalPriorityAlerts;
 };
 
 const defaultDependencies: PriorityDependencies = {
-  listAlerts: listProfessionalAiPriorityAlerts,
+  listAlerts: listProfessionalPriorityAlerts,
 };
 
 function severityWeight(value: string | null | undefined) {
