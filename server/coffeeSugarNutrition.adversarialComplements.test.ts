@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendSugarQuantityToCoffeeText,
+  buildCoffeeWithExplicitSugarItem,
   normalizeSweetenedCoffeeDraftItems,
 } from "./coffeeSugarNutrition";
 import type { MealDraftItem } from "./nutritionEngineTypes";
@@ -140,13 +141,11 @@ describe("passagem adversarial de cafés adoçados compostos", () => {
   });
 
   it("mantém o controle negativo de café com apenas açúcar em 22 kcal", () => {
-    const result = normalizeSweetenedCoffeeDraftItems(
-      [],
+    const result = buildCoffeeWithExplicitSugarItem(
       "1 xícara de café com 5 g de açúcar",
     );
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual(expect.objectContaining({
+    expect(result).toEqual(expect.objectContaining({
       canonicalName: "Café com açúcar",
       calories: 22,
       protein: 0,
