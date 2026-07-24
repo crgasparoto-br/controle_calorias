@@ -127,14 +127,13 @@ function publicReceipt(receipt: ProfessionalAccessRequestReceipt) {
   };
 }
 
-function dedupeReceipts(receipts: ProfessionalAccessRequestReceipt[]) {
-  const linkedAuthorizationIds = new Set<string>();
-  return receipts.filter(receipt => {
-    if (!receipt.linkedAuthorizationId) return true;
-    if (linkedAuthorizationIds.has(receipt.linkedAuthorizationId)) return false;
-    linkedAuthorizationIds.add(receipt.linkedAuthorizationId);
-    return true;
-  });
+function approvedAccessResult(data: Record<string, unknown>) {
+  return {
+    id: data.id,
+    status: "approved" as const,
+    requestedAt:
+      typeof data.requestedAt === "number" ? data.requestedAt : Date.now(),
+  };
 }
 
 function receiptPortfolioItem(receipt: ProfessionalAccessRequestReceipt) {
@@ -271,6 +270,13 @@ async function protectRequestAccessResult(
       ) {
         throw unavailableError();
       }
+      if (authorizationStatus === "approved") {
+        return successfulMiddlewareResult(
+          record,
+          approvedAccessResult(data),
+          ctx
+        );
+      }
       const receipt = await dependencies.createLinkedReceipt({
         professionalUserId,
         authorizationId,
@@ -303,9 +309,7 @@ async function protectMyAccessesResult(
 ) {
   if (!record.ok || !Array.isArray(record.data)) return record;
   try {
-    const receipts = dedupeReceipts(
-      await dependencies.listActiveReceipts(professionalUserId)
-    );
+    const receipts = await dependencies.listActiveReceipts(professionalUserId);
     const visibleAccesses = record.data
       .map(sanitizeNonApprovedAccess)
       .filter((item): item is Record<string, unknown> => Boolean(item));
@@ -334,16 +338,18 @@ async function protectPortfolioResult(
   if (!data || !Array.isArray(data.items)) return record;
   const safeItems = data.items.flatMap(sanitizePortfolioItem);
   try {
-    const receipts = portfolioInputAllowsReceipts(input)
-      ? dedupeReceipts(
-          await dependencies.listActiveReceipts(professionalUserId)
-        )
-      : [];
+    const receipts = await dependencies.listActiveReceipts(professionalUserId);
+    const summary = asRecord(data.summary);
     return {
       ...record,
       data: {
         ...data,
-        items: [...receipts.map(receiptPortfolioItem), ...safeItems],
+        summary: summary
+          ? { ...summary, pendingRequests: receipts.length }
+          : summary,
+        items: portfolioInputAllowsReceipts(input)
+          ? [...receipts.map(receiptPortfolioItem), ...safeItems]
+          : safeItems,
       },
     };
   } catch {
