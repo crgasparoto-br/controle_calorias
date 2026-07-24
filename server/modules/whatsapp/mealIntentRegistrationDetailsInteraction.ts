@@ -5,6 +5,7 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
+import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 
@@ -113,7 +114,9 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
 }
 
 function parseDetailsAction(text?: string | null) {
-  const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
+  const raw = text?.trim() ?? "";
+  if (isCompleteWhatsappCommand(raw)) return null;
+  const normalized = normalizeStandaloneWhatsappCommand(raw);
   if (!normalized) return null;
   if (["cancelar", "cancela", "cancele", "nao", "0"].includes(normalized)) {
     return "cancel" as const;
