@@ -149,11 +149,15 @@ describe("ProfessionalPatients audit regressions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
 
     expect(
-      screen.getByPlaceholderText("paciente@exemplo.com ou celular")
-    ).toHaveAttribute("maxlength", "320");
+      screen
+        .getByPlaceholderText("paciente@exemplo.com ou celular")
+        .getAttribute("maxlength")
+    ).toBe("320");
     expect(
-      screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional")
-    ).toHaveAttribute("maxlength", "500");
+      screen
+        .getByPlaceholderText("Ex.: iniciar acompanhamento nutricional")
+        .getAttribute("maxlength")
+    ).toBe("500");
   });
 
   it("separates authorization and tracking and exposes safe fallback values", () => {
@@ -197,20 +201,34 @@ describe("ProfessionalPatients audit regressions", () => {
 
     render(<ProfessionalPatients />);
 
-    expect(screen.getByText("approved")).toBeInTheDocument();
-    expect(screen.getByText("not_started")).toBeInTheDocument();
-    expect(screen.getByText("Não informado")).toBeInTheDocument();
-    expect(screen.getByText("Sem revisão agendada")).toBeInTheDocument();
-    expect(screen.queryByText("must-not-render@example.com")).not.toBeInTheDocument();
+    expect(screen.getByText("approved")).not.toBeNull();
+    expect(screen.getByText("not_started")).not.toBeNull();
+    expect(screen.getByText("Não informado")).not.toBeNull();
+    expect(screen.getByText("Sem revisão agendada")).not.toBeNull();
+    expect(screen.queryByText("must-not-render@example.com")).toBeNull();
 
-    expect(screen.getByRole("button", { name: "Abrir paciente" })).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: "Aguardando autorização" })
-    ).toBeDisabled();
+      (screen.getByRole("button", { name: "Abrir paciente" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
     expect(
-      screen.getByRole("button", { name: "Solicitação recusada" })
-    ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Acesso revogado" })).toBeDisabled();
+      (
+        screen.getByRole("button", {
+          name: "Aguardando autorização",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Solicitação recusada",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Acesso revogado" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
     expect(
       screen.getAllByText("Dados pessoais e clínicos disponíveis após autorização")
     ).toHaveLength(3);
