@@ -1,0 +1,306 @@
+import crypto from "node:crypto";
+import { sql } from "drizzle-orm";
+import { professionalHistoryEvents } from "../../../drizzle/professional-schema";
+import { getDb, logPersistenceWarning } from "../../db";
+import { professionalRepository } from "./persistenceService";
+
+const ACCESS_REQUEST_RECEIVED_EVENT = "access_request_received";
+const ACCESS_REQUEST_LINKED_EVENT = "access_request_linked";
+const ACCESS_REQUEST_RECEIPT_ENTITY = "request_access_receipt";
+const UNRESOLVED_RECEIPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_RECEIPTS = 50;
+const MAX_SCANNED_RECEIPTS = 200;
+
+export type ProfessionalAccessRequestReceipt = {
+  id: string;
+  status: "pending";
+  requestedAt: number;
+  linkedAuthorizationId: string | null;
+};
+
+type StoredReceipt = ProfessionalAccessRequestReceipt & {
+  professionalUserId: number;
+};
+
+type Row = Record<string, unknown>;
+
+const fallbackReceipts = new Map<string, StoredReceipt>();
+
+function rowsFromResult(result: unknown): Row[] {
+  if (!Array.isArray(result)) return [];
+  return (Array.isArray(result[0]) ? result[0] : result) as Row[];
+}
+
+function asTimestamp(value: unknown) {
+  if (!value) return 0;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function legacyReceiptId(professionalUserId: number, authorizationId: string) {
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${professionalUserId}:${authorizationId}`)
+    .digest("hex")
+    .slice(0, 48);
+  return `req-${digest}`;
+}
+
+async function getReceiptDb() {
+  const db = await getDb();
+  if (!db && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "A persistência das solicitações profissionais está temporariamente indisponível."
+    );
+  }
+  return db;
+}
+
+function toPublicReceipt(receipt: StoredReceipt): ProfessionalAccessRequestReceipt {
+  return {
+    id: receipt.id,
+    status: "pending",
+    requestedAt: receipt.requestedAt,
+    linkedAuthorizationId: receipt.linkedAuthorizationId,
+  };
+}
+
+async function createUnresolvedReceipt(
+  professionalUserId: number,
+  requestedAt = Date.now()
+): Promise<ProfessionalAccessRequestReceipt> {
+  const receipt: StoredReceipt = {
+    id: crypto.randomUUID(),
+    professionalUserId,
+    status: "pending",
+    requestedAt,
+    linkedAuthorizationId: null,
+  };
+  const db = await getReceiptDb();
+  if (!db) {
+    fallbackReceipts.set(receipt.id, receipt);
+    return toPublicReceipt(receipt);
+  }
+
+  try {
+    await db.insert(professionalHistoryEvents).values({
+      id: receipt.id,
+      actorUserId: professionalUserId,
+      professionalUserId,
+      patientUserId: null,
+      eventType: ACCESS_REQUEST_RECEIVED_EVENT,
+      entityType: ACCESS_REQUEST_RECEIPT_ENTITY,
+      entityId: null,
+      occurredAt: new Date(requestedAt),
+    });
+    return toPublicReceipt(receipt);
+  } catch (error) {
+    logPersistenceWarning("professional.access_request_receipt.create", error);
+    throw error;
+  }
+}
+
+async function createLinkedReceipt(input: {
+  professionalUserId: number;
+  authorizationId: string;
+  patientUserId: number;
+  requestedAt?: number;
+}): Promise<ProfessionalAccessRequestReceipt> {
+  const requestedAt = input.requestedAt ?? Date.now();
+  const receipt: StoredReceipt = {
+    id: crypto.randomUUID(),
+    professionalUserId: input.professionalUserId,
+    status: "pending",
+    requestedAt,
+    linkedAuthorizationId: input.authorizationId,
+  };
+  const db = await getReceiptDb();
+  if (!db) {
+    fallbackReceipts.set(receipt.id, receipt);
+    return toPublicReceipt(receipt);
+  }
+
+  try {
+    await db.transaction(async (tx: any) => {
+      await tx.insert(professionalHistoryEvents).values({
+        id: receipt.id,
+        actorUserId: input.professionalUserId,
+        professionalUserId: input.professionalUserId,
+        patientUserId: null,
+        eventType: ACCESS_REQUEST_RECEIVED_EVENT,
+        entityType: ACCESS_REQUEST_RECEIPT_ENTITY,
+        entityId: null,
+        occurredAt: new Date(requestedAt),
+      });
+      await tx.insert(professionalHistoryEvents).values({
+        id: crypto.randomUUID(),
+        actorUserId: input.professionalUserId,
+        professionalUserId: input.professionalUserId,
+        patientUserId: input.patientUserId,
+        eventType: ACCESS_REQUEST_LINKED_EVENT,
+        entityType: receipt.id,
+        entityId: input.authorizationId,
+        occurredAt: new Date(requestedAt),
+      });
+    });
+    return toPublicReceipt(receipt);
+  } catch (error) {
+    logPersistenceWarning("professional.access_request_receipt.link", error);
+    throw error;
+  }
+}
+
+async function listFallbackReceipts(
+  professionalUserId: number,
+  now: number
+): Promise<ProfessionalAccessRequestReceipt[]> {
+  const authorizations =
+    await professionalRepository.listAuthorizationsByProfessional(
+      professionalUserId
+    );
+  const authorizationById = new Map(
+    authorizations.map(authorization => [authorization.id, authorization])
+  );
+  const receipts = [...fallbackReceipts.values()]
+    .filter(receipt => receipt.professionalUserId === professionalUserId)
+    .filter(receipt => {
+      if (!receipt.linkedAuthorizationId) {
+        return receipt.requestedAt >= now - UNRESOLVED_RECEIPT_TTL_MS;
+      }
+      return (
+        authorizationById.get(receipt.linkedAuthorizationId)?.status === "pending"
+      );
+    })
+    .map(toPublicReceipt);
+  const linkedAuthorizationIds = new Set(
+    receipts.flatMap(receipt =>
+      receipt.linkedAuthorizationId ? [receipt.linkedAuthorizationId] : []
+    )
+  );
+
+  for (const authorization of authorizations) {
+    if (
+      authorization.status !== "pending" ||
+      linkedAuthorizationIds.has(authorization.id)
+    ) {
+      continue;
+    }
+    receipts.push({
+      id: legacyReceiptId(professionalUserId, authorization.id),
+      status: "pending",
+      requestedAt: authorization.requestedAt.getTime(),
+      linkedAuthorizationId: authorization.id,
+    });
+  }
+
+  return receipts
+    .sort(
+      (left, right) =>
+        right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
+    )
+    .slice(0, MAX_RECEIPTS);
+}
+
+async function listActiveReceipts(
+  professionalUserId: number,
+  now = Date.now()
+): Promise<ProfessionalAccessRequestReceipt[]> {
+  const db = await getReceiptDb();
+  if (!db) return listFallbackReceipts(professionalUserId, now);
+
+  try {
+    const [receiptResult, pendingResult] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          received.id,
+          received.occurredAt,
+          linked.entityId AS linkedAuthorizationId,
+          authorization.status AS authorizationStatus
+        FROM professionalHistoryEvents received
+        LEFT JOIN professionalHistoryEvents linked
+          ON linked.professionalUserId = received.professionalUserId
+          AND linked.eventType = ${ACCESS_REQUEST_LINKED_EVENT}
+          AND linked.entityType = received.id
+        LEFT JOIN professionalPatientAuthorizations authorization
+          ON authorization.id = linked.entityId
+          AND authorization.professionalUserId = received.professionalUserId
+        WHERE received.professionalUserId = ${professionalUserId}
+          AND received.eventType = ${ACCESS_REQUEST_RECEIVED_EVENT}
+        ORDER BY received.occurredAt DESC, received.id DESC
+        LIMIT ${MAX_SCANNED_RECEIPTS}
+      `),
+      db.execute(sql`
+        SELECT id, requestedAt
+        FROM professionalPatientAuthorizations
+        WHERE professionalUserId = ${professionalUserId}
+          AND status = 'pending'
+        ORDER BY requestedAt DESC, id DESC
+        LIMIT ${MAX_SCANNED_RECEIPTS}
+      `),
+    ]);
+
+    const receipts: ProfessionalAccessRequestReceipt[] = [];
+    const linkedAuthorizationIds = new Set<string>();
+
+    for (const row of rowsFromResult(receiptResult)) {
+      const id = typeof row.id === "string" ? row.id : "";
+      const requestedAt = asTimestamp(row.occurredAt);
+      const linkedAuthorizationId =
+        typeof row.linkedAuthorizationId === "string"
+          ? row.linkedAuthorizationId
+          : null;
+      const authorizationStatus =
+        typeof row.authorizationStatus === "string"
+          ? row.authorizationStatus
+          : null;
+      if (!id || !requestedAt) continue;
+      if (linkedAuthorizationId) {
+        if (authorizationStatus !== "pending") continue;
+        if (linkedAuthorizationIds.has(linkedAuthorizationId)) continue;
+        linkedAuthorizationIds.add(linkedAuthorizationId);
+      } else if (requestedAt < now - UNRESOLVED_RECEIPT_TTL_MS) {
+        continue;
+      }
+      receipts.push({
+        id,
+        status: "pending",
+        requestedAt,
+        linkedAuthorizationId,
+      });
+    }
+
+    for (const row of rowsFromResult(pendingResult)) {
+      const authorizationId = typeof row.id === "string" ? row.id : "";
+      if (!authorizationId || linkedAuthorizationIds.has(authorizationId)) {
+        continue;
+      }
+      const requestedAt = asTimestamp(row.requestedAt);
+      receipts.push({
+        id: legacyReceiptId(professionalUserId, authorizationId),
+        status: "pending",
+        requestedAt,
+        linkedAuthorizationId: authorizationId,
+      });
+    }
+
+    return receipts
+      .sort(
+        (left, right) =>
+          right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
+      )
+      .slice(0, MAX_RECEIPTS);
+  } catch (error) {
+    logPersistenceWarning("professional.access_request_receipt.list", error);
+    throw error;
+  }
+}
+
+export const professionalAccessRequestReceiptRepository = {
+  createUnresolvedReceipt,
+  createLinkedReceipt,
+  listActiveReceipts,
+};
+
+export function _forTestOnly_clearProfessionalAccessRequestReceipts() {
+  fallbackReceipts.clear();
+}
