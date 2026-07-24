@@ -14,14 +14,14 @@ const {
   portfolioUseQuery,
   refetch,
   invalidate,
-  patientTimeZoneFetch,
+  patientContextFetch,
   requestAccessMutate,
   requestAccessResult,
 } = vi.hoisted(() => ({
   portfolioUseQuery: vi.fn(),
   refetch: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
-  patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
+  patientContextFetch: vi.fn().mockResolvedValue(undefined),
   requestAccessMutate: vi.fn(),
   requestAccessResult: {
     current: {
@@ -54,9 +54,11 @@ vi.mock("@/components/professional/ProfessionalUi", () => ({
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
+      professionalRecord: {
+        context: { fetch: patientContextFetch },
+      },
       nutrition: {
         professionals: {
-          patientTimeZone: { fetch: patientTimeZoneFetch },
           myAccesses: { invalidate },
         },
       },
@@ -132,8 +134,8 @@ beforeEach(() => {
   portfolioUseQuery.mockClear();
   refetch.mockClear();
   invalidate.mockClear();
-  patientTimeZoneFetch.mockClear();
-  patientTimeZoneFetch.mockResolvedValue(undefined);
+  patientContextFetch.mockClear();
+  patientContextFetch.mockResolvedValue(undefined);
   requestAccessMutate.mockClear();
   requestAccessResult.current = { status: "pending" };
 });
@@ -448,7 +450,7 @@ describe("ProfessionalPatients patient rows", () => {
     ).toHaveLength(3);
   });
 
-  it("validates an approved patient before navigating to the contextual route", async () => {
+  it("validates the exact record resource before navigating to the contextual route", async () => {
     window.history.replaceState({}, "", "/professional/patients");
     portfolioUseQuery.mockImplementation(() =>
       queryResult(1, [patientItems[0]], 1)
@@ -458,9 +460,9 @@ describe("ProfessionalPatients patient rows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir paciente" }));
 
     await waitFor(() =>
-      expect(patientTimeZoneFetch).toHaveBeenCalledWith({
+      expect(patientContextFetch).toHaveBeenCalledWith({
         patientId: 41,
-        weekOffset: 0,
+        resource: "professional_record",
       })
     );
     await waitFor(() =>
@@ -468,9 +470,9 @@ describe("ProfessionalPatients patient rows", () => {
     );
   });
 
-  it("removes stale patient data when access validation and refresh fail", async () => {
+  it("removes stale patient data when authorization denial and refresh fail", async () => {
     window.history.replaceState({}, "", "/professional/patients");
-    patientTimeZoneFetch.mockRejectedValueOnce(new Error("FORBIDDEN"));
+    patientContextFetch.mockRejectedValueOnce({ data: { code: "FORBIDDEN" } });
     refetch.mockRejectedValueOnce(new Error("temporary refresh failure"));
     portfolioUseQuery.mockImplementation(() =>
       queryResult(1, [patientItems[0]], 1)
@@ -488,6 +490,30 @@ describe("ProfessionalPatients patient rows", () => {
       expect(screen.queryByText(patientItems[0].patientEmail!)).toBeNull();
       expect(screen.queryByRole("button", { name: "Abrir paciente" })).toBeNull();
     });
+    expect(window.location.pathname).toBe("/professional/patients");
+  });
+
+  it("keeps the authorized card visible after a transient validation failure", async () => {
+    window.history.replaceState({}, "", "/professional/patients");
+    patientContextFetch.mockRejectedValueOnce({
+      data: { code: "SERVICE_UNAVAILABLE" },
+    });
+    portfolioUseQuery.mockImplementation(() =>
+      queryResult(1, [patientItems[0]], 1)
+    );
+    render(<ProfessionalPatients />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir paciente" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain(
+        "Não foi possível validar o acesso agora."
+      );
+      expect(screen.getByText(patientItems[0].patientName)).not.toBeNull();
+      expect(screen.getByText(patientItems[0].patientEmail!)).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Abrir paciente" })).not.toBeNull();
+    });
+    expect(refetch).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/professional/patients");
   });
 });
