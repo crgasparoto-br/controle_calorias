@@ -40,7 +40,7 @@ function sugarUnitToGrams(quantity: number, unit: string) {
 export function extractExplicitSugarQuantity(value: string): ExplicitSugarQuantity | null {
   const normalized = normalizeForMatching(value);
   const match = normalized.match(
-    /\b(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
+    /\b(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres de cha|colheres? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
   );
   if (!match) return null;
 
@@ -120,6 +120,27 @@ export function hasUsableSweetenedCoffeeInference(items: LlmItem[] | undefined) 
     const name = normalizeForMatching(item.foodName);
     return /\bcafe\b/.test(name) && isUsableSweetenedCoffeeNutrition(item);
   }));
+}
+
+export function normalizeSweetenedCoffeeDraftItems(
+  items: MealDraftItem[],
+  sourceText: string,
+) {
+  if (!isCoffeeWithAddedSugar(sourceText)) return items;
+
+  return items.map(item => {
+    const identity = normalizeForMatching(
+      `${item.foodName} ${item.canonicalName}`,
+    );
+    if (!/\bcafe\b/.test(identity)) return item;
+    return {
+      ...item,
+      foodName: isCoffeeWithAddedSugar(item.foodName)
+        ? item.foodName
+        : "Café com açúcar",
+      canonicalName: "Café com açúcar",
+    };
+  });
 }
 
 export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
