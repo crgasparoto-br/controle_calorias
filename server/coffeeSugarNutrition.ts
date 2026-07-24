@@ -112,9 +112,7 @@ export function extractCoffeeServingQuantity(value: string): CoffeeServingQuanti
 
 function isUsableSweetenedCoffeeNutrition(item: LlmItem) {
   return item.estimatedCalories > COFFEE_CALORIES_PER_CUP
-    || item.estimatedMacros.carbs > 0
-    || item.estimatedMacros.protein > 0
-    || item.estimatedMacros.fat > 0;
+    && item.estimatedMacros.carbs > 0;
 }
 
 export function hasUsableSweetenedCoffeeInference(items: LlmItem[] | undefined) {
