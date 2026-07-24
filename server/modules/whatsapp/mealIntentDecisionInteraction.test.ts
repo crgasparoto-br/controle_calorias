@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
+import { executeWhatsappTextIntent } from "./intentActions";
 import { describeWhatsappRegisteredInteraction } from "./interactionRegistry";
 import {
   classifyMealIntentDecisionText,
@@ -90,6 +91,53 @@ describe("mealIntentDecisionInteraction", () => {
           expect.objectContaining({ title: "Cancelar" }),
         ],
       }),
+    ]);
+  });
+
+  it.each([
+    {
+      label: "webhook textual",
+      userId: 899101,
+      text: "1 xícara de café com açúcar",
+      messageId: "wamid.issue-899-text",
+      entrypoint: undefined,
+    },
+    {
+      label: "áudio transcrito",
+      userId: 899102,
+      text: "200 ml café com açúcar",
+      messageId: "wamid.issue-899-audio",
+      entrypoint: "audioTranscription" as const,
+    },
+    {
+      label: "simulador",
+      userId: 899103,
+      text: "jantar leve com ovo",
+      messageId: undefined,
+      entrypoint: undefined,
+    },
+  ])("roteia $label pelo construtor persistente antes da LLM", async scenario => {
+    const result = await executeWhatsappTextIntent(scenario.userId, {
+      text: scenario.text,
+      messageId: scenario.messageId,
+      entrypoint: scenario.entrypoint,
+      receivedAt: new Date("2026-07-23T22:00:30.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      eventType: "whatsapp.meal_intent_decision.requested",
+      reply: MEAL_INTENT_DECISION_PROMPT,
+      data: expect.objectContaining({
+        interactionId: MEAL_INTENT_DECISION_INTERACTION_ID,
+        originalTextPreserved: true,
+      }),
+    }));
+    expect(getButtonTitles(result?.interactiveReply)).toEqual([
+      "Registrar",
+      "Receber sugestão",
+      "Cancelar",
     ]);
   });
 
