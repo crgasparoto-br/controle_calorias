@@ -1,0 +1,83 @@
+name: Patch professional synthetic tests 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-professional-tests-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Scope synthetic lookup to tests that use synthetic contacts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_value: str, old: str, new: str) -> None:
+              path = Path(path_value)
+              source = path.read_text(encoding="utf-8")
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old!r}")
+              path.write_text(source.replace(old, new), encoding="utf-8")
+
+          replace_once(
+              "server/nutritionRouter.test.ts",
+              'const { appRouter } = await import("./routers");',
+              'const { _forTestOnly_setProfessionalSyntheticUserLookup } =\n  await import("./modules/professionals/service");\n_forTestOnly_setProfessionalSyntheticUserLookup(true);\nconst { appRouter } = await import("./routers");',
+          )
+
+          for path_value in (
+              "server/modules/professionals/service.test.ts",
+              "server/modules/professionals/service.canonicalIntegration.test.ts",
+          ):
+              replace_once(
+                  path_value,
+                  "import {\n  approvePatientAccess,",
+                  "import {\n  _forTestOnly_setProfessionalSyntheticUserLookup,\n  approvePatientAccess,",
+              )
+              replace_once(
+                  path_value,
+                  '} from "./service";\n\n',
+                  '} from "./service";\n\n_forTestOnly_setProfessionalSyntheticUserLookup(true);\n\n',
+              )
+
+          replace_once(
+              "server/modules/professionals/whatsappAuthorization.test.ts",
+              "import {\n  buildProfessionalAccessAuthorizationMessage,",
+              "import {\n  _forTestOnly_setProfessionalSyntheticUserLookup,\n  buildProfessionalAccessAuthorizationMessage,",
+          )
+          replace_once(
+              "server/modules/professionals/whatsappAuthorization.test.ts",
+              '} from "./service";\n\nconst mockedSendWhatsAppInteractiveButtonsMessage',
+              '} from "./service";\n\n_forTestOnly_setProfessionalSyntheticUserLookup(true);\n\nconst mockedSendWhatsAppInteractiveButtonsMessage',
+          )
+
+          replace_once(
+              "server/modules/whatsapp/messageRouter.interactiveCallback.test.ts",
+              'const professionalsService = await import("../professionals/service");',
+              'const professionalsService = await import("../professionals/service");\nprofessionalsService._forTestOnly_setProfessionalSyntheticUserLookup(true);',
+          )
+          PY
+          git diff --check
+          git diff -- server/nutritionRouter.test.ts server/modules/professionals/service.test.ts server/modules/professionals/service.canonicalIntegration.test.ts server/modules/professionals/whatsappAuthorization.test.ts server/modules/whatsapp/messageRouter.interactiveCallback.test.ts
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/nutritionRouter.test.ts server/modules/professionals/service.test.ts server/modules/professionals/service.canonicalIntegration.test.ts server/modules/professionals/whatsappAuthorization.test.ts server/modules/whatsapp/messageRouter.interactiveCallback.test.ts
+          git rm .github/workflows/patch-professional-tests-879.yml
+          git diff --cached --check
+          git commit -m "test: scope synthetic professional users to explicit suites (#879)"
+          git push origin HEAD:feat/875-professional-context-routes
