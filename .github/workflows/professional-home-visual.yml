@@ -1,0 +1,53 @@
+name: Professional Home visual evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "client/src/pages/ProfessionalAreaPage.tsx"
+      - "client/src/pages/professional/ProfessionalHome.tsx"
+      - "client/src/pages/professional/ProfessionalPatients.tsx"
+      - "client/src/components/ProfessionalLayout.tsx"
+      - "client/src/components/professional/ProfessionalUi.tsx"
+      - "client/src/components/ui/sidebar.tsx"
+      - "client/src/lib/professionalRoutes.ts"
+      - "client/src/index.css"
+      - "visual-tests/professional-home/**"
+      - "scripts/render-professional-home-visual.sh"
+      - ".github/workflows/professional-home-visual.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  visual-evidence:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Render professional home evidence
+        run: bash scripts/render-professional-home-visual.sh
+
+      - name: Upload professional home screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: professional-home-visual-${{ github.event.pull_request.head.sha }}
+          path: artifacts/professional-home
+          if-no-files-found: error
+          retention-days: 30

@@ -9,15 +9,13 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
-import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
-import ProfessionalEntitlementGate, {
-  type ProfessionalRouteEntitlement,
-} from "./components/ProfessionalEntitlementGate";
-import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
-import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
+import ProfessionalEntitlementGate from "./components/ProfessionalEntitlementGate";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
+import { professionalResourceForPath } from "./lib/professionalRoutes";
+
+export { professionalResourceForPath } from "./lib/professionalRoutes";
 
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
 const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"));
@@ -31,11 +29,12 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const SettingsPageRouter = lazy(() => import("@/pages/SettingsPageRouter"));
 const ProfessionalSettingsPage = lazy(
   () => import("@/pages/ProfessionalSettingsPage")
 );
-const ProfessionalWorkspacePage = lazy(
-  () => import("@/pages/ProfessionalWorkspacePage")
+const ProfessionalAreaPage = lazy(
+  () => import("@/pages/ProfessionalAreaPage")
 );
 const QuickEditExercisePage = lazy(
   () => import("@/pages/QuickEditExercisePage")
@@ -61,31 +60,18 @@ function PageLoadingFallback() {
   );
 }
 
-function RetiredProfessionalBookmarkRedirect() {
+function ProfessionalRedirect({ destination }: { destination: string }) {
   const [, setLocation] = useLocation();
-  useEffect(() => setLocation("/professional"), [setLocation]);
+  useEffect(() => setLocation(destination), [destination, setLocation]);
   return <PageLoadingFallback />;
 }
 
-export function professionalResourceForPath(
-  location: string
-): ProfessionalRouteEntitlement {
-  if (location.startsWith("/professional/patients")) {
-    return "professional_portfolio";
-  }
-  if (location.startsWith("/professional/follow-up")) {
-    return "professional_record";
-  }
-  if (location.startsWith("/professional/messages")) {
-    return "professional_messages";
-  }
-  if (location.startsWith("/professional/reports")) {
-    return "professional_reports";
-  }
-  if (location.startsWith("/professional/settings")) {
-    return "professional_settings";
-  }
-  return "professional_dashboard";
+function RetiredProfessionalBookmarkRedirect() {
+  return <ProfessionalRedirect destination="/professional" />;
+}
+
+function RetiredProfessionalFollowUpRedirect() {
+  return <ProfessionalRedirect destination="/professional/patients" />;
 }
 
 function ProfessionalWorkspaceRoute() {
@@ -94,7 +80,7 @@ function ProfessionalWorkspaceRoute() {
     <ProfessionalEntitlementGate
       resource={professionalResourceForPath(location)}
     >
-      <ProfessionalWorkspacePage />
+      <ProfessionalAreaPage />
     </ProfessionalEntitlementGate>
   );
 }
@@ -132,7 +118,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/settings" component={OnboardingPage} />
+        <Route path="/settings" component={SettingsPageRouter} />
         <Route path="/log-meal" component={LogMealPage} />
         <Route path="/record" component={LogMealPage} />
         <Route path="/registrar" component={LogMealPage} />
@@ -148,11 +134,43 @@ function Router() {
           component={RetiredProfessionalBookmarkRedirect}
         />
         <Route
-          path="/professional/patients"
+          path="/professional/follow-up"
+          component={RetiredProfessionalFollowUpRedirect}
+        />
+        <Route
+          path="/professional/patients/:patientId/assessment"
           component={ProfessionalWorkspaceRoute}
         />
         <Route
-          path="/professional/follow-up"
+          path="/professional/patients/:patientId/goals"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/guidance"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/notes"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/history"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/reports"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/messages"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients"
           component={ProfessionalWorkspaceRoute}
         />
         <Route
@@ -185,9 +203,6 @@ function App() {
           <ProfileWhatsappGreetingVisibility />
           <NutritionGoalPreviewValidityBridge />
           <NutritionGoalReportInvalidator />
-          <ProfessionalAnalyzeTabBridge />
-          <ProfessionalGoalExceptionSuggestionsEmbed />
-          <ProfessionalOperationalAlertsBridge />
           <PatientGoalSuggestionsEmbed />
           <PatientProfessionalProfilesEmbed />
           <PatientProfessionalGuidancesEmbed />

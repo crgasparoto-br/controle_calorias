@@ -29,7 +29,7 @@ Alterações são serializadas por profissional. Se a gravação do evento de au
 
 Quando a primeira gravação de identidade cria dados que não existiam e uma etapa posterior falha, a compensação remove o perfil canônico, o espelho legado e a preferência recém-criada `professional_settings_v1`, restaurando integralmente a ausência anterior. A primeira gravação exclusiva de preferências segue a mesma regra e remove a preferência caso o evento final falhe. Perfil canônico e espelho legado são removidos em uma única transação. Em ambientes sem banco fora de produção, tombstones e stores em processo impedem que os fallbacks voltem a expor o estado removido. Em produção, indisponibilidade do banco faz a compensação falhar de forma explícita em vez de simular sucesso volátil.
 
-O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional.
+O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional. A tela de mensagens lê somente a projeção dos modelos por `professionalRecord.messages.templates`, protegida por `professional_messages`; ela não adquire `professional_settings` como requisito indireto.
 
 Lembretes continuam sendo criados no contexto de cada paciente pela central de acompanhamento. Frequência de resumo automático não é exposta enquanto não existir um consumidor operacional. O contrato de entrada é estrito e contém somente controles efetivamente suportados. Dados antigos com chaves de automação obsoletas continuam legíveis e convergem para o contrato atual na próxima gravação, sem migration destrutiva.
 
@@ -37,7 +37,9 @@ Lembretes continuam sendo criados no contexto de cada paciente pela central de a
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
 
-As APIs de prontuário, metas oficiais, alertas, mensagens, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico, como carteira, relatório, prontuário, metas ou IA.
+As APIs de prontuário, alertas, mensagens, relatórios, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico da superfície.
+
+O contexto individual é resolvido por `professionalRecord.context`, que recebe o recurso exato da rota e valida perfil ativo, entitlement e autorização aprovada. Prontuário, avaliação, metas oficiais, orientações, anotações e histórico usam `professional_record`; relatórios usam `professional_reports`; mensagens usam `professional_messages`. Nenhuma dessas rotas pode exigir carteira, prontuário, configurações ou outro entitlement apenas para descobrir o paciente da URL.
 
 No frontend, cada rota profissional declara seu próprio recurso. Um snapshot com `allowed: true` não libera uma rota quando o recurso correspondente não está presente em `enabledResources`. A rota `/professional/settings` exige `professional_settings`; quando negada, oferece retorno às configurações pessoais em vez de criar um redirecionamento circular para a própria rota bloqueada.
 
