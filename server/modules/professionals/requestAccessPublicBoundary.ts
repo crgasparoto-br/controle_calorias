@@ -21,6 +21,8 @@ export const PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE =
   "Não foi possível enviar a solicitação agora. Tente novamente em alguns instantes.";
 export const PROFESSIONAL_PENDING_REQUEST_NAME =
   "Solicitação aguardando confirmação";
+export const PROFESSIONAL_REJECTED_REQUEST_NAME = "Solicitação recusada";
+export const PROFESSIONAL_REVOKED_REQUEST_NAME = "Acesso revogado";
 
 const REQUEST_ACCESS_STATUSES = new Set([
   "pending",
@@ -114,6 +116,16 @@ function publicReceipt(receipt: ProfessionalAccessRequestReceipt) {
   };
 }
 
+function dedupeReceipts(receipts: ProfessionalAccessRequestReceipt[]) {
+  const linkedAuthorizationIds = new Set<string>();
+  return receipts.filter(receipt => {
+    if (!receipt.linkedAuthorizationId) return true;
+    if (linkedAuthorizationIds.has(receipt.linkedAuthorizationId)) return false;
+    linkedAuthorizationIds.add(receipt.linkedAuthorizationId);
+    return true;
+  });
+}
+
 function receiptPortfolioItem(receipt: ProfessionalAccessRequestReceipt) {
   return {
     authorizationId: receipt.id,
@@ -172,6 +184,33 @@ function sanitizeNonApprovedAccess(value: unknown) {
     patient: null,
     authorizationMessageError: null,
   };
+}
+
+function sanitizePortfolioItem(value: unknown) {
+  const item = asRecord(value);
+  if (!item) return [];
+  const status = item.authorizationStatus;
+  if (status === "pending") return [];
+  if (status === "approved") return [item];
+  if (status !== "rejected" && status !== "revoked") return [];
+  return [
+    {
+      ...item,
+      patientUserId: 0,
+      patientName:
+        status === "rejected"
+          ? PROFESSIONAL_REJECTED_REQUEST_NAME
+          : PROFESSIONAL_REVOKED_REQUEST_NAME,
+      patientEmail: null,
+      trackingStatus: null,
+      lastFoodActivityAt: null,
+      lastProfessionalInteractionAt: null,
+      nextReviewAt: null,
+      nextWeighingAt: null,
+      pendingItems: 0,
+      hasRecordsInReportPeriod: false,
+    },
+  ];
 }
 
 function portfolioInputAllowsReceipts(input: unknown) {
@@ -253,7 +292,9 @@ async function protectMyAccessesResult(
 ) {
   if (!record.ok || !Array.isArray(record.data)) return record;
   try {
-    const receipts = await dependencies.listActiveReceipts(professionalUserId);
+    const receipts = dedupeReceipts(
+      await dependencies.listActiveReceipts(professionalUserId)
+    );
     const visibleAccesses = record.data
       .map(sanitizeNonApprovedAccess)
       .filter((item): item is Record<string, unknown> => Boolean(item));
@@ -280,22 +321,18 @@ async function protectPortfolioResult(
   if (!record.ok) return record;
   const data = asRecord(record.data);
   if (!data || !Array.isArray(data.items)) return record;
-  const nonPendingItems = data.items.filter(item => {
-    const value = asRecord(item);
-    return value?.authorizationStatus !== "pending";
-  });
+  const safeItems = data.items.flatMap(sanitizePortfolioItem);
   try {
     const receipts = portfolioInputAllowsReceipts(input)
-      ? await dependencies.listActiveReceipts(professionalUserId)
+      ? dedupeReceipts(
+          await dependencies.listActiveReceipts(professionalUserId)
+        )
       : [];
     return {
       ...record,
       data: {
         ...data,
-        items: [
-          ...receipts.map(receiptPortfolioItem),
-          ...nonPendingItems,
-        ],
+        items: [...receipts.map(receiptPortfolioItem), ...safeItems],
       },
     };
   } catch {
