@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { useLocation } from "wouter";
+import { useSearch } from "wouter/use-location";
 
 const COMPLETE_PAGE_SIZE = 50;
 
@@ -85,10 +86,8 @@ function completePriorityPath(page: number) {
     : `/professional?priorities=all&page=${page}`;
 }
 
-function parsePriorityPage(location: string) {
-  const value = Number(
-    new URLSearchParams(location.split("?")[1] ?? "").get("page") ?? "1"
-  );
+function parsePriorityPage(search: string) {
+  const value = Number(new URLSearchParams(search).get("page") ?? "1");
   return Number.isSafeInteger(value) && value > 0 ? value : 1;
 }
 
@@ -480,7 +479,8 @@ function OperationalShortcuts({ resources }: { resources: string[] }) {
 }
 
 export default function ProfessionalHome() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
   const entitlements =
     trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
       retry: false,
@@ -512,10 +512,9 @@ export default function ProfessionalHome() {
     "professional_operational_alerts"
   );
   const hasPortfolio = resources.includes("professional_portfolio");
-  const showAllPriorities =
-    new URLSearchParams(location.split("?")[1] ?? "").get("priorities") ===
-    "all";
-  const priorityPage = showAllPriorities ? parsePriorityPage(location) : 1;
+  const searchParams = new URLSearchParams(search);
+  const showAllPriorities = searchParams.get("priorities") === "all";
+  const priorityPage = showAllPriorities ? parsePriorityPage(search) : 1;
 
   return (
     <ProfessionalPage>
