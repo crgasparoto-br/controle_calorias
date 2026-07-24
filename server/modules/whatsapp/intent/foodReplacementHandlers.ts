@@ -170,6 +170,7 @@ async function resolveReplacementItem(input: {
       return requestWhatsappCaloricComplementQuantityClarification({
         userId: input.userId,
         originalFoodText,
+        originalText: input.context?.originalText,
         operation: {
           kind: "replace_item",
           mealId: input.target.meal.id,
