@@ -1,8 +1,34 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../db";
-import type { OperationalAlert } from "../modules/professionals/aiContext";
 
 type Row = Record<string, unknown>;
+type PriorityAlertType =
+  | "no_food_records"
+  | "weigh_in_overdue"
+  | "goal_review_due"
+  | "professional_request_overdue"
+  | "record_requires_review";
+type PriorityAlertState = "open" | "resolved" | "dismissed" | "inactive";
+type PriorityAlertSeverity = "info" | "attention" | "urgent";
+
+export type ProfessionalPriorityAlert = {
+  id: string;
+  type: PriorityAlertType;
+  patientUserId: number;
+  patientName: string;
+  authorizationId: string;
+  origin: { type: string; id: string | null };
+  period: { start: number | null; end: number | null };
+  reason: string;
+  severity: PriorityAlertSeverity;
+  state: PriorityAlertState;
+  suggestedAction: string;
+  createdAt: number | null;
+  updatedAt: number | null;
+  resolvedAt: number | null;
+  resolvedByUserId: number | null;
+  resolutionNote: string | null;
+};
 
 function rowsFromResult(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
@@ -15,10 +41,10 @@ function asTimestamp(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
-function mapPriorityAlert(row: Row): OperationalAlert {
+function mapPriorityAlert(row: Row): ProfessionalPriorityAlert {
   return {
     id: String(row.id),
-    type: String(row.type) as OperationalAlert["type"],
+    type: String(row.type) as PriorityAlertType,
     patientUserId: Number(row.patientUserId),
     patientName:
       String(row.patientDisplayName || row.patientName || "").trim() ||
@@ -33,8 +59,8 @@ function mapPriorityAlert(row: Row): OperationalAlert {
       end: asTimestamp(row.periodEnd),
     },
     reason: String(row.reason),
-    severity: String(row.severity) as OperationalAlert["severity"],
-    state: String(row.state) as OperationalAlert["state"],
+    severity: String(row.severity) as PriorityAlertSeverity,
+    state: String(row.state) as PriorityAlertState,
     suggestedAction: String(row.suggestedAction),
     createdAt: asTimestamp(row.createdAt),
     updatedAt: asTimestamp(row.updatedAt),
@@ -50,7 +76,7 @@ function mapPriorityAlert(row: Row): OperationalAlert {
 
 export async function listProfessionalPriorityAlerts(
   professionalUserId: number
-): Promise<OperationalAlert[]> {
+): Promise<ProfessionalPriorityAlert[]> {
   const db = await getDb();
   if (!db) {
     throw new Error("A central de prioridades está temporariamente indisponível.");
