@@ -1,3 +1,4 @@
+import { extractCoffeeServingQuantity, type CoffeeServingQuantity } from "../../coffeeSugarNutrition";
 import { getDb, logPersistenceWarning } from "../../db";
 import type { MealDraftItem } from "../../nutritionEngine";
 import {
@@ -53,9 +54,63 @@ export type ImageMealQuantityContext = {
   currentItemIndex: number;
 };
 
+export type CaloricComplementCompanionReplacement = {
+  fromFood: string;
+  toFood: string;
+};
+
+export type ResolvedCaloricComplementReplacement = {
+  mealId: number;
+  itemIndex: number;
+  originalFoodName: string;
+  resolvedItem: MealDraftItem;
+  explicitQuantity: {
+    quantity: number;
+    unit: string;
+  };
+};
+
+export type CaloricComplementOperation =
+  | {
+      kind: "register";
+      occurredAt: string;
+    }
+  | {
+      kind: "add_to_meal";
+      mealId: number;
+      expectedMealLabel: string;
+      expectedOccurredAt: string;
+    }
+  | {
+      kind: "replace_item";
+      mealId: number;
+      itemIndex: number;
+      originalFoodName: string;
+      companionReplacements?: CaloricComplementCompanionReplacement[];
+      resolvedReplacements?: ResolvedCaloricComplementReplacement[];
+    };
+
+export type ResolvedCaloricComplement = {
+  componentName: "açúcar";
+  quantity: number;
+  unit: string;
+};
+
+export type CaloricComplementQuantityContext = {
+  mode: "complete_caloric_complement";
+  componentName: "açúcar";
+  originalFoodText: string;
+  originalText?: string;
+  inboundMessageId?: string | null;
+  completedComponents?: ResolvedCaloricComplement[];
+  coffeeQuantity: CoffeeServingQuantity;
+  operation: CaloricComplementOperation;
+};
+
 export type FoodQuantityResolutionContext =
   | MealItemCorrectionContext
-  | ImageMealQuantityContext;
+  | ImageMealQuantityContext
+  | CaloricComplementQuantityContext;
 
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
   resolutionContext?: FoodQuantityResolutionContext;
@@ -78,7 +133,8 @@ function result(
 
 function buildRequest(
   foodName: string,
-  originalText: string
+  originalText: string,
+  count = 1,
 ): CountedFoodRequest {
   const normalized = foodName.trim();
   return {
@@ -86,7 +142,7 @@ function buildRequest(
     originalCandidate: normalized,
     normalizedCandidate: normalized,
     normalizationChanged: false,
-    count: 1,
+    count,
   };
 }
 
@@ -137,6 +193,7 @@ export function createFoodQuantityClarificationService(
     messageId?: string | null;
     resolutionContext?: FoodQuantityResolutionContext;
     instructionText?: string;
+    count?: number;
   }): Promise<WhatsappIntentResult> => {
     const occurredAt = input.receivedAt ?? new Date();
     const foodName = input.foodName.trim();
@@ -168,7 +225,7 @@ export function createFoodQuantityClarificationService(
 
     const candidate = buildCandidate(foodName, input.brandName);
     const baseTarget = buildPendingFoodClarificationTarget({
-      request: buildRequest(foodName, input.originalText),
+      request: buildRequest(foodName, input.originalText, input.count),
       pendingKind: "quantity",
       candidates: [candidate],
       selectedCandidateIndex: 0,
@@ -180,7 +237,10 @@ export function createFoodQuantityClarificationService(
       ...baseTarget,
       actions: buildFoodClarificationActions("quantity", [candidate]),
       ...(input.resolutionContext
-        ? { resolutionContext: input.resolutionContext }
+        ? {
+            resolutionContext: input.resolutionContext,
+            allowedDomainEffect: "complete_pending_food_operation_once" as const,
+          }
         : {}),
     };
 
@@ -213,7 +273,9 @@ export function createFoodQuantityClarificationService(
           ? "Correção do último alimento aguardando quantidade em pendência persistente."
           : input.resolutionContext?.mode === "complete_image_meal"
             ? "Refeição identificada por imagem aguardando quantidades em sequência persistente."
-            : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
+            : input.resolutionContext?.mode === "complete_caloric_complement"
+              ? "Operação alimentar aguardando quantidade do complemento calórico em pendência persistente."
+              : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
       data: buildFoodClarificationPendingData(created, target),
     });
   };
@@ -302,6 +364,37 @@ export function createFoodQuantityClarificationService(
           replacementFoodName: input.replacementFoodName,
         },
       }),
+    requestCaloricComplementQuantity: (input: {
+      userId: number;
+      originalFoodText: string;
+      originalText?: string;
+      operation: CaloricComplementOperation;
+      receivedAt?: Date;
+      messageId?: string | null;
+    }) => {
+      const coffeeQuantity = extractCoffeeServingQuantity(input.originalFoodText);
+      const originalText = input.originalText?.trim() || input.originalFoodText;
+      return createQuantityClarification({
+        userId: input.userId,
+        foodName: "Café com açúcar",
+        originalText,
+        receivedAt: input.receivedAt,
+        messageId: input.messageId,
+        count: coffeeQuantity.unit === "xícara" ? coffeeQuantity.quantity : 1,
+        resolutionContext: {
+          mode: "complete_caloric_complement",
+          componentName: "açúcar",
+          originalFoodText: input.originalFoodText,
+          originalText,
+          inboundMessageId: input.messageId?.trim() || null,
+          completedComponents: [],
+          coffeeQuantity,
+          operation: input.operation,
+        },
+        instructionText:
+          "Informe somente a quantidade de açúcar em gramas. Exemplo: 5 g. Não vou assumir uma quantidade padrão.",
+      });
+    },
   };
 }
 
@@ -312,3 +405,5 @@ export const requestWhatsappImageMealQuantityClarification =
   defaultService.requestImageMealQuantity;
 export const requestWhatsappLatestFoodCorrectionQuantity =
   defaultService.requestLatestFoodCorrectionQuantity;
+export const requestWhatsappCaloricComplementQuantityClarification =
+  defaultService.requestCaloricComplementQuantity;
