@@ -151,7 +151,7 @@ describe("normalização discriminante de café adoçado", () => {
         },
         confidence: 0.9,
         foodClassification: {
-          processingLevel: "minimally_processed",
+          processingLevel: "natural_or_minimally_processed",
           isFruit: false,
           isVegetable: false,
           fiberGrams: 0,
