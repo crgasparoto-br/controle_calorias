@@ -25,7 +25,7 @@ type MealSnapshot = {
   id: number;
   mealLabel: string;
   occurredAt: string;
-  notes: string | null;
+  notes: string | undefined;
   items: MealItemInput[];
 };
 
@@ -141,7 +141,7 @@ function toSnapshot(meal: ExistingMeal | MutableMeal): MealSnapshot {
     id: meal.id,
     mealLabel: meal.mealLabel,
     occurredAt: new Date(meal.occurredAt).toISOString(),
-    notes: meal.notes ?? null,
+    notes: meal.notes ?? undefined,
     items: toMealItemInputs(meal.items as MealDraftItem[] | undefined),
   };
 }
@@ -163,7 +163,7 @@ async function updateReplacementBatchWithCompensation(input: {
       });
       applied.push(change);
     }
-  } catch (error) {
+  } catch {
     let rollbackFailed = false;
     for (const change of [...applied].reverse()) {
       try {
@@ -179,9 +179,9 @@ async function updateReplacementBatchWithCompensation(input: {
       }
     }
     if (rollbackFailed) {
-      throw new Error("Falha na substituição composta com rollback incompleto; o estado deve ser verificado.", { cause: error });
+      throw new Error("Falha na substituição composta com rollback incompleto; o estado deve ser verificado.");
     }
-    throw new Error("Falha na substituição composta; as alterações anteriores foram revertidas.", { cause: error });
+    throw new Error("Falha na substituição composta; as alterações anteriores foram revertidas.");
   }
 }
 
