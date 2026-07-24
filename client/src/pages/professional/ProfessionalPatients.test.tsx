@@ -485,7 +485,7 @@ describe("ProfessionalPatients patient rows", () => {
       );
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(screen.queryByText(patientItems[0].patientName)).toBeNull();
-      expect(screen.queryByText(patientItems[0].patientEmail)).toBeNull();
+      expect(screen.queryByText(patientItems[0].patientEmail!)).toBeNull();
       expect(screen.queryByRole("button", { name: "Abrir paciente" })).toBeNull();
     });
     expect(window.location.pathname).toBe("/professional/patients");
