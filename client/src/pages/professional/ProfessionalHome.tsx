@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { useLocation } from "wouter";
-import { useSearch } from "wouter/use-location";
+import { useSearch } from "wouter/use-browser-location";
 
 const COMPLETE_PAGE_SIZE = 50;
 
