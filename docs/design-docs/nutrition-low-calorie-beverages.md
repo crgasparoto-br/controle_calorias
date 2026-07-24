@@ -34,9 +34,10 @@ The final candidate is checked by a shared semantic guard after every catalog so
 ## Sweetened coffee quantity
 
 - An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
+- The deterministic base-coffee-plus-sugar calculation is used only when sugar is the sole caloric complement in the source segment. A preparation that also names milk, honey, cream, condensed milk or another caloric complement keeps a coherent complete-preparation estimate or falls back from the complete segment; it is never flattened to sugar-only nutrition.
 - The base coffee portion is read from the canonical `cafe-sem-acucar` reference instead of being repeated in a coffee-specific constant. With the current catalog, one cup equals 200 ml and 2 kcal.
 - Consequently, one cup and 200 ml are equivalent inputs for the same preparation; adding 5 g of sugar produces approximately 205 g, 22 kcal and 5 g of carbohydrates.
-- A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent.
+- A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent. When the source includes an explicit sugar amount, the estimate must cover at least the calories and carbohydrates implied by that amount.
 - A usable inferred item satisfies only one sweetened source segment. Multiple sweetened coffees require the same number of coherent inferred items or explicit quantities; one AI item cannot suppress clarification for companion coffees.
 - Without an explicit amount or usable estimate, the nutrition engine requests only the sugar quantity.
 - When several sweetened coffees are missing quantities, each valid answer is appended to the next unresolved source segment. The partially resolved text and completed-component list are persisted before the next question, so process restart does not lose progress.
@@ -61,8 +62,10 @@ Coverage lives in:
 - `server/catalogMatching.semanticCompatibility.test.ts`;
 - `server/nutritionEngine.coffeeSugar.test.ts`;
 - `server/nutritionEngine.coffeeSugarComposite.test.ts`;
+- `server/nutritionEngine.coffeeSugarComplements.test.ts`;
 - `server/coffeeSugarNutrition.discriminant.test.ts`;
 - `server/coffeeSugarNutrition.multipleSweetened.test.ts`;
+- `server/coffeeSugarNutrition.compositeComplements.test.ts`;
 - `server/coffeeSugarNutrition.units.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
@@ -78,7 +81,7 @@ Coverage lives in:
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
