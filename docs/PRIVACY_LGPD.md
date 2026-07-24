@@ -6,7 +6,7 @@ Mensagens de acompanhamento são dados pessoais potencialmente sensíveis. A fin
 
 Solicitações profissionais por e-mail ou celular usam minimização antes do consentimento. O profissional recebe apenas um comprovante opaco `pending`, independentemente de a pessoa existir, não existir ou coincidir com a própria conta. Contato, nome, telefone, e-mail, `patientUserId`, objeto de paciente, erro de entrega e eventos internos de resolução não atravessam `requestAccess`, `myAccesses`, `portfolio` ou `history` enquanto não houver autorização aprovada. Busca identificável na carteira é restrita a vínculos aprovados.
 
-Comprovantes são persistidos em `professionalHistoryEvents` sem contato nem motivo. A associação interna com uma autorização canônica é usada somente para deduplicação e para deixar de exibir o comprovante quando o vínculo sai de `pending`. Comprovantes sem vínculo resolvido expiram da carteira após trinta dias. Eles não constituem autorização, cadastro paralelo ou base para leitura de dados do titular.
+Comprovantes são persistidos em `professionalHistoryEvents` sem contato nem motivo. Cada tentativa aceita gera um comprovante próprio, tanto para alvo resolvido quanto não resolvido, para que repetição e contagem não confirmem a existência da conta. A associação interna com uma autorização canônica serve somente para validar uma decisão do próprio paciente e para deixar de exibir os comprovantes quando o vínculo sai de `pending`; ela não é exposta ao profissional. Comprovantes sem vínculo resolvido expiram da carteira após trinta dias. Eles não constituem autorização, cadastro paralelo ou base para leitura de dados do titular.
 
 Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudança em IA, WhatsApp, mídia, logs, analytics, exportação, exclusão, acesso profissional e integrações de saúde como mudança sensível.
 
@@ -31,7 +31,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Segurança: logs, analytics e mensagens de erro devem ser sanitizados.
 - Retenção: dados brutos de IA, mídia, logs, contexto conversacional e integrações externas devem ter retenção intencional, não acidental.
 - Consentimento: fluxos de profissional, WhatsApp, IA multimodal e integrações externas devem respeitar autorização explícita ou ação consciente do usuário.
-- Não enumeração: superfícies de convite não devem confirmar cadastro, elegibilidade ou identidade antes do consentimento por diferenças de payload, status público, metadados ou consultas auxiliares.
+- Não enumeração: superfícies de convite não devem confirmar cadastro, elegibilidade ou identidade antes do consentimento por diferenças de payload, status público, metadados, totais, repetição ou consultas auxiliares.
 
 ## Regras práticas
 
@@ -52,6 +52,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Justificativas de metas profissionais e motivos de revisão são dados nutricionais sensíveis: permanecem no banco e nas telas autorizadas, não entram em logs, analytics nem na notificação ao paciente quando a justificativa for privada.
 - Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
 - Eventos internos de comprovante de acesso não podem ser retornados por históricos públicos nem conter o contato solicitado.
+- A resolução de comprovante em aprovação ou revogação deve validar que o usuário autenticado é o paciente dono da autorização; comprovantes apresentados por terceiros não podem revelar associação ou existência.
 
 ## Contexto persistente do WhatsApp
 
@@ -96,5 +97,5 @@ Foto, áudio e transcrição podem envolver serviços externos de transcrição,
 - [ ] Exportação e exclusão continuam coerentes?
 - [ ] Logs e analytics foram sanitizados?
 - [ ] Dados de IA, mídia, WhatsApp e integrações externas têm retenção intencional?
-- [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas?
+- [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas, inclusive totais e repetição?
 - [ ] Documentação canônica foi atualizada?
