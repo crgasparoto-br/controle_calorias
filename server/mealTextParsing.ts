@@ -27,7 +27,7 @@ const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
   "por",
 ]);
 
-const COORDINATED_BEVERAGE_COMPLEMENT_START = /^(?:(?:\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colheres? de sopa|colheres? de cha|saches?|pacotes?)\s+(?:de\s+)?)?(?:acucar|leite(?:\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\b/i;
+const COORDINATED_BEVERAGE_COMPLEMENT_START = /^(?:(?:\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)\s+(?:de\s+)?)?(?:acucar|leite(?:\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\b/i;
 
 type QuantityExpressionErrorCode =
   | "invalid_syntax"
