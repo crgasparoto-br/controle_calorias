@@ -8,11 +8,13 @@ const {
   refetch,
   invalidate,
   patientTimeZoneFetch,
+  requestAccessMutate,
 } = vi.hoisted(() => ({
   portfolioUseQuery: vi.fn(),
   refetch: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
+  requestAccessMutate: vi.fn(),
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
@@ -48,11 +50,14 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         portfolio: { useQuery: portfolioUseQuery },
         requestAccess: {
-          useMutation: () => ({
+          useMutation: (options: { onSuccess?: () => Promise<void> | void }) => ({
             isPending: false,
             isError: false,
             error: null,
-            mutate: vi.fn(),
+            mutate: (input: unknown) => {
+              requestAccessMutate(input);
+              void options.onSuccess?.();
+            },
             reset: vi.fn(),
           }),
         },
@@ -67,11 +72,11 @@ import ProfessionalPatients, {
   requestAccessErrorMessage,
 } from "./ProfessionalPatients";
 
-function queryResult() {
+function queryResult(page = 1) {
   return {
     data: {
       items: [],
-      pagination: { page: 1, pageSize: 20, total: 60, totalPages: 3 },
+      pagination: { page, pageSize: 20, total: 60, totalPages: 3 },
     },
     isLoading: false,
     isError: false,
@@ -81,11 +86,12 @@ function queryResult() {
 
 beforeEach(() => {
   window.history.replaceState({}, "", "/professional/patients?page=2");
-  portfolioUseQuery.mockImplementation(() => queryResult());
+  portfolioUseQuery.mockImplementation((input: { page: number }) => queryResult(input.page));
   portfolioUseQuery.mockClear();
   refetch.mockClear();
   invalidate.mockClear();
   patientTimeZoneFetch.mockClear();
+  requestAccessMutate.mockClear();
 });
 
 afterEach(() => {
@@ -222,6 +228,54 @@ describe("ProfessionalPatients filter interactions", () => {
           name: "Filtrar autorização",
         }) as HTMLSelectElement).value
       ).toBe("revoked")
+    );
+  });
+
+  it("shows pending requests after success even from incompatible filters", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?search=ana&authorization=approved&tracking=active&activity=recent&review=scheduled&page=3"
+    );
+    render(<ProfessionalPatients />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
+    fireEvent.change(screen.getByPlaceholderText("paciente@exemplo.com ou celular"), {
+      target: { value: "novo@paciente.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional"), {
+      target: { value: "Iniciar acompanhamento" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar solicitação" }));
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?authorization=pending");
+      expect(
+        (screen.getByRole("combobox", {
+          name: "Filtrar autorização",
+        }) as HTMLSelectElement).value
+      ).toBe("pending");
+    });
+
+    expect(
+      (screen.getByPlaceholderText(
+        "Nome, e-mail ou identificador"
+      ) as HTMLInputElement).value
+    ).toBe("");
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: "",
+        authorizationStatus: "pending",
+        trackingStatus: "all",
+        activity: "all",
+        nextReview: "all",
+        page: 1,
+      }),
+      expect.any(Object)
+    );
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "A carteira foi atualizada para mostrar os acessos pendentes."
     );
   });
 });
