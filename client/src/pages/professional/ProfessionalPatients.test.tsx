@@ -16,7 +16,11 @@ const {
   invalidate: vi.fn().mockResolvedValue(undefined),
   patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
   requestAccessMutate: vi.fn(),
-  requestAccessResult: { current: { status: "pending" as const } },
+  requestAccessResult: {
+    current: {
+      status: "pending" as "pending" | "approved" | "rejected" | "revoked",
+    },
+  },
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
