@@ -1,7 +1,7 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { isCoffeeWithAddedSugar } from "./foodSemanticCompatibility";
-import { normalizeForMatching } from "./mealTextParsing";
+import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
 const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(
@@ -131,34 +131,33 @@ export function hasUsableSweetenedCoffeeInference(items: LlmItem[] | undefined) 
   }));
 }
 
-export function normalizeSweetenedCoffeeDraftItems(
-  items: MealDraftItem[],
-  sourceText: string,
-) {
-  if (!isCoffeeWithAddedSugar(sourceText)) return items;
-
-  const coffeeItems = items.filter(item =>
-    /\bcafe\b/.test(normalizeForMatching(`${item.foodName} ${item.canonicalName}`))
+function isCoffeeDraftItem(item: MealDraftItem) {
+  return /\bcafe\b/.test(
+    normalizeForMatching(`${item.foodName} ${item.canonicalName}`),
   );
-  const sourceCanQualifyGenericCoffee = coffeeItems.length === 1;
+}
 
-  return items.map(item => {
-    const identity = `${item.foodName} ${item.canonicalName}`;
-    const normalizedIdentity = normalizeForMatching(identity);
-    if (!/\bcafe\b/.test(normalizedIdentity)) return item;
+function isExplicitlyUnsweetenedCoffee(item: MealDraftItem) {
+  const identity = normalizeForMatching(`${item.foodName} ${item.canonicalName}`);
+  return /\bcafe\b/.test(identity)
+    && (
+      /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(identity)
+      || /\b(?:puro|pura|preto|preta|natural)\b/.test(identity)
+    );
+}
 
-    const itemIsExplicitlySweetened = isCoffeeWithAddedSugar(identity);
-    if (!itemIsExplicitlySweetened && !sourceCanQualifyGenericCoffee) return item;
-
-    return {
-      ...item,
-      foodName: "Café com açúcar",
-      canonicalName: "Café com açúcar",
-    };
+function isStandaloneSugarItem(item: MealDraftItem) {
+  return [item.foodName, item.canonicalName].some(value => {
+    const normalized = normalizeForMatching(value).trim();
+    return /^(?:\d+(?:[,.]\d+)?\s*(?:g|gramas?)\s+(?:de\s+)?)?acucar(?:\s+(?:refinado|cristal|mascavo|demerara))?$/.test(normalized);
   });
 }
 
-export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
+function hasCompanionFoodSegments(sourceText: string) {
+  return splitFoodTextSegments(sourceText).length > 1;
+}
+
+function createCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
   if (!isCoffeeWithAddedSugar(sourceText)) return null;
   const sugar = extractExplicitSugarQuantity(sourceText);
   if (!sugar) return null;
@@ -188,6 +187,73 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
   };
 }
 
+function findExplicitSugarCoffeeTargetIndex(items: MealDraftItem[]) {
+  const coffeeIndexes = items
+    .map((item, index) => isCoffeeDraftItem(item) ? index : -1)
+    .filter(index => index >= 0);
+  const explicitlySweetened = coffeeIndexes.filter(index =>
+    isCoffeeWithAddedSugar(`${items[index].foodName} ${items[index].canonicalName}`)
+  );
+  if (explicitlySweetened.length === 1) return explicitlySweetened[0];
+
+  const notExplicitlyUnsweetened = coffeeIndexes.filter(index =>
+    !isExplicitlyUnsweetenedCoffee(items[index])
+  );
+  if (notExplicitlyUnsweetened.length === 1) return notExplicitlyUnsweetened[0];
+  return coffeeIndexes.length === 1 ? coffeeIndexes[0] : -1;
+}
+
+function mergeExplicitSugarCoffeeItem(
+  items: MealDraftItem[],
+  sourceText: string,
+) {
+  const explicitItem = createCoffeeWithExplicitSugarItem(sourceText);
+  if (!explicitItem || !hasCompanionFoodSegments(sourceText)) return null;
+
+  const targetIndex = findExplicitSugarCoffeeTargetIndex(items);
+  const merged = items.flatMap((item, index) => {
+    if (index === targetIndex) return [explicitItem];
+    if (isStandaloneSugarItem(item)) return [];
+    return [item];
+  });
+
+  return targetIndex >= 0 ? merged : [...merged, explicitItem];
+}
+
+export function normalizeSweetenedCoffeeDraftItems(
+  items: MealDraftItem[],
+  sourceText: string,
+) {
+  if (!isCoffeeWithAddedSugar(sourceText)) return items;
+
+  const mergedExplicitSugar = mergeExplicitSugarCoffeeItem(items, sourceText);
+  if (mergedExplicitSugar) return mergedExplicitSugar;
+
+  const coffeeItems = items.filter(isCoffeeDraftItem);
+  const sourceCanQualifyGenericCoffee = coffeeItems.length === 1;
+
+  return items.map(item => {
+    if (!isCoffeeDraftItem(item)) return item;
+
+    const identity = `${item.foodName} ${item.canonicalName}`;
+    const itemIsExplicitlySweetened = isCoffeeWithAddedSugar(identity);
+    if (!itemIsExplicitlySweetened && !sourceCanQualifyGenericCoffee) return item;
+
+    return {
+      ...item,
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+    };
+  });
+}
+
+export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
+  const explicitItem = createCoffeeWithExplicitSugarItem(sourceText);
+  return explicitItem && !hasCompanionFoodSegments(sourceText)
+    ? explicitItem
+    : null;
+}
+
 export function shouldRequestSugarQuantity(sourceText: string, inferredItems: LlmItem[] | undefined) {
   return isCoffeeWithAddedSugar(sourceText)
     && !extractExplicitSugarQuantity(sourceText)
@@ -201,5 +267,21 @@ export function appendSugarQuantityToCoffeeText(
 ) {
   const normalizedUnit = normalizeForMatching(unit).trim();
   const quantityText = `${quantity} ${normalizedUnit}`;
-  return `${originalText.trim()} (${quantityText} de açúcar)`;
+  const segments = splitFoodTextSegments(originalText);
+  let appended = false;
+  const resolvedSegments = segments.map(segment => {
+    if (
+      !appended
+      && isCoffeeWithAddedSugar(segment)
+      && !extractExplicitSugarQuantity(segment)
+    ) {
+      appended = true;
+      return `${segment.trim()} (${quantityText} de açúcar)`;
+    }
+    return segment;
+  });
+
+  return appended
+    ? resolvedSegments.join(" e ")
+    : `${originalText.trim()} (${quantityText} de açúcar)`;
 }
