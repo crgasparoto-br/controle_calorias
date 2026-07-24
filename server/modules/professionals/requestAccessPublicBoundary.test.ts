@@ -6,6 +6,16 @@ import {
   sanitizeProfessionalRequestAccessResult,
 } from "./requestAccessPublicBoundary";
 
+function captureTrpcError(run: () => unknown) {
+  try {
+    run();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TRPCError);
+    return error as TRPCError;
+  }
+  throw new Error("Expected a TRPCError");
+}
+
 describe("professional request access public boundary", () => {
   it("returns only the authorization status from successful internal results", () => {
     expect(
@@ -29,31 +39,27 @@ describe("professional request access public boundary", () => {
     "Nenhuma pessoa foi encontrada com esse e-mail ou celular.",
     "Profissional e pessoa acompanhada precisam ser usuários diferentes.",
   ])("maps expected rejections to the same public error", message => {
-    expect(() =>
+    const error = captureTrpcError(() =>
       sanitizeProfessionalRequestAccessResult({
         ok: false,
         error: new Error(message),
       })
-    ).toThrowError(
-      expect.objectContaining({
-        code: "BAD_REQUEST",
-        message: PROFESSIONAL_REQUEST_ACCESS_REJECTED_MESSAGE,
-      })
     );
+
+    expect(error.code).toBe("BAD_REQUEST");
+    expect(error.message).toBe(PROFESSIONAL_REQUEST_ACCESS_REJECTED_MESSAGE);
   });
 
   it("keeps transient failures distinct without exposing internal details", () => {
-    expect(() =>
+    const error = captureTrpcError(() =>
       sanitizeProfessionalRequestAccessResult({
         ok: false,
         error: new Error("Failed query: users"),
       })
-    ).toThrowError(
-      expect.objectContaining({
-        code: "SERVICE_UNAVAILABLE",
-        message: PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE,
-      })
     );
+
+    expect(error.code).toBe("SERVICE_UNAVAILABLE");
+    expect(error.message).toBe(PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE);
   });
 
   it("rejects malformed successful payloads without returning internal data", () => {
