@@ -340,6 +340,7 @@ export function createFoodQuantityClarificationService(
     requestCaloricComplementQuantity: (input: {
       userId: number;
       originalFoodText: string;
+      originalText?: string;
       operation: CaloricComplementOperation;
       receivedAt?: Date;
       messageId?: string | null;
@@ -348,7 +349,7 @@ export function createFoodQuantityClarificationService(
       return createQuantityClarification({
         userId: input.userId,
         foodName: "Café com açúcar",
-        originalText: input.originalFoodText,
+        originalText: input.originalText?.trim() || input.originalFoodText,
         receivedAt: input.receivedAt,
         messageId: input.messageId,
         count: coffeeQuantity.unit === "xícara" ? coffeeQuantity.quantity : 1,
