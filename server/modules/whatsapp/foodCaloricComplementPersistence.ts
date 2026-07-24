@@ -1,5 +1,8 @@
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
-import { appendSugarQuantityToCoffeeText } from "../../coffeeSugarNutrition";
+import {
+  appendSugarQuantityToCoffeeText,
+  extractCoffeeServingQuantity,
+} from "../../coffeeSugarNutrition";
 import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import { normalizeText } from "../../mealTextParsing";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
@@ -51,6 +54,20 @@ type MealSnapshot = {
 type BatchReplacementLine = {
   fromFood: string;
   toFood: string;
+};
+
+type ResolvedSweetenedReplacement = {
+  mealId: number;
+  itemIndex: number;
+  originalFoodName: string;
+  resolvedItem: MealItemInput;
+};
+
+type SequentialReplacementOperation = Extract<
+  CaloricComplementQuantityContext["operation"],
+  { kind: "replace_item" }
+> & {
+  resolvedReplacements?: ResolvedSweetenedReplacement[];
 };
 
 function sameLogicalMeal(
@@ -107,30 +124,16 @@ function buildCaloricComplementCandidate(): FoodClarificationCandidate {
   };
 }
 
-async function requestNextSugarQuantity(input: {
+async function createNextSugarPending(input: {
   deps: FoodClarificationDependencies;
   userId: number;
-  context: CaloricComplementQuantityContext;
-  resolvedFoodText: string;
-  explicitQuantity: { quantity: number; unit: string };
+  nextContext: CaloricComplementQuantityContext;
   receivedAt: Date;
+  detail: string;
 }): Promise<WhatsappIntentResult> {
   const candidate = buildCaloricComplementCandidate();
-  const originalText = input.context.originalText?.trim()
-    || input.context.originalFoodText;
-  const nextContext: CaloricComplementQuantityContext = {
-    ...input.context,
-    originalFoodText: input.resolvedFoodText,
-    originalText,
-    completedComponents: [
-      ...(input.context.completedComponents ?? []),
-      {
-        componentName: "açúcar",
-        quantity: input.explicitQuantity.quantity,
-        unit: input.explicitQuantity.unit,
-      },
-    ],
-  };
+  const originalText = input.nextContext.originalText?.trim()
+    || input.nextContext.originalFoodText;
   const baseTarget = buildPendingFoodClarificationTarget({
     request: {
       originalText,
@@ -143,13 +146,13 @@ async function requestNextSugarQuantity(input: {
     candidates: [candidate],
     selectedCandidateIndex: 0,
     instructionText: SUGAR_QUANTITY_INSTRUCTION,
-    messageId: input.context.inboundMessageId,
+    messageId: input.nextContext.inboundMessageId,
   });
   const target: FoodQuantityClarificationTarget = {
     ...baseTarget,
     actions: buildFoodClarificationActions("quantity", [candidate]),
     allowedDomainEffect: "complete_pending_food_operation_once",
-    resolutionContext: nextContext,
+    resolutionContext: input.nextContext,
   };
   const created = await input.deps.repository.createPendingOperation({
     userId: input.userId,
@@ -171,7 +174,7 @@ async function requestNextSugarQuantity(input: {
       detail:
         "A continuação de múltiplos cafés adoçados não foi persistida antes do outbound.",
       data: {
-        completedComponentCount: nextContext.completedComponents?.length ?? 0,
+        completedComponentCount: input.nextContext.completedComponents?.length ?? 0,
         retryRequiresFullMessage: true,
       },
     };
@@ -182,13 +185,45 @@ async function requestNextSugarQuantity(input: {
     action: "food_clarification_requested",
     reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
     eventType: "whatsapp.food_clarification.next_component_requested",
-    detail:
-      "A quantidade anterior foi preservada no estado persistido e o próximo café adoçado aguarda sua própria quantidade.",
+    detail: input.detail,
     data: {
       ...buildFoodClarificationPendingData(created, target),
-      completedComponentCount: nextContext.completedComponents?.length ?? 0,
+      completedComponentCount: input.nextContext.completedComponents?.length ?? 0,
     },
   };
+}
+
+async function requestNextSugarQuantity(input: {
+  deps: FoodClarificationDependencies;
+  userId: number;
+  context: CaloricComplementQuantityContext;
+  resolvedFoodText: string;
+  explicitQuantity: { quantity: number; unit: string };
+  receivedAt: Date;
+}): Promise<WhatsappIntentResult> {
+  const originalText = input.context.originalText?.trim()
+    || input.context.originalFoodText;
+  const nextContext: CaloricComplementQuantityContext = {
+    ...input.context,
+    originalFoodText: input.resolvedFoodText,
+    originalText,
+    completedComponents: [
+      ...(input.context.completedComponents ?? []),
+      {
+        componentName: "açúcar",
+        quantity: input.explicitQuantity.quantity,
+        unit: input.explicitQuantity.unit,
+      },
+    ],
+  };
+  return createNextSugarPending({
+    deps: input.deps,
+    userId: input.userId,
+    nextContext,
+    receivedAt: input.receivedAt,
+    detail:
+      "A quantidade anterior foi preservada no estado persistido e o próximo café adoçado aguarda sua própria quantidade.",
+  });
 }
 
 async function processResolvedFood(
@@ -304,18 +339,61 @@ async function updateReplacementBatchWithCompensation(input: {
   }
 }
 
+function applyExactResolvedReplacement(input: {
+  mutableMeals: MutableMeal[];
+  changedMealIndexes: Set<number>;
+  lines: BatchReplacementLine[];
+  replacement: ResolvedSweetenedReplacement;
+}) {
+  const mealIndex = input.mutableMeals.findIndex(
+    meal => meal.id === input.replacement.mealId,
+  );
+  const meal = input.mutableMeals[mealIndex];
+  const currentItem = meal?.items[input.replacement.itemIndex];
+  if (!meal || !currentItem) {
+    throw new Error("Uma refeição ou item já resolvido deixou de existir.");
+  }
+  const expectedName = normalizeText(input.replacement.originalFoodName);
+  if (![currentItem.foodName, currentItem.canonicalName]
+    .map(value => normalizeText(value ?? ""))
+    .includes(expectedName)) {
+    throw new Error("Um item já resolvido mudou antes da conclusão da substituição.");
+  }
+  meal.items = meal.items.map((item, index) =>
+    index === input.replacement.itemIndex
+      ? input.replacement.resolvedItem
+      : item,
+  );
+  input.changedMealIndexes.add(mealIndex);
+  input.lines.push({
+    fromFood: currentItem.foodName,
+    toFood: input.replacement.resolvedItem.foodName,
+  });
+}
+
 function applyReplacementBatch(input: {
   meals: ExistingMeal[];
   primaryMealId: number;
   primaryItemIndex: number;
   primaryOriginalFoodName: string;
   primaryResolvedItem: MealItemInput;
+  previouslyResolved: ResolvedSweetenedReplacement[];
   companions: Array<{ fromFood: string; toFood: string }>;
   timeZone: string;
 }) {
   const mutableMeals = toMutableMeals(input.meals);
   const changedMealIndexes = new Set<number>();
   const lines: BatchReplacementLine[] = [];
+
+  for (const replacement of input.previouslyResolved) {
+    applyExactResolvedReplacement({
+      mutableMeals,
+      changedMealIndexes,
+      lines,
+      replacement,
+    });
+  }
+
   const primaryMealIndex = mutableMeals.findIndex(meal => meal.id === input.primaryMealId);
   const primaryMeal = mutableMeals[primaryMealIndex];
   const primaryItem = primaryMeal?.items[input.primaryItemIndex];
@@ -340,7 +418,7 @@ function applyReplacementBatch(input: {
 
   for (const companion of input.companions) {
     if (isCoffeeWithAddedSugar(companion.toFood)) {
-      throw new Error("Uma segunda substituição por café adoçado exige clarificação própria.");
+      throw new Error("Uma substituição adoçada permaneceu sem quantidade própria.");
     }
     const target = resolveTargetMealItemInMeals(
       mutableMeals,
@@ -381,12 +459,14 @@ async function persistReplacementBatch(input: {
   explicitQuantity: { quantity: number; unit: string };
   timeZone: string;
 }) {
+  const sequentialOperation = input.operation as SequentialReplacementOperation;
   const batch = applyReplacementBatch({
     meals: input.meals,
     primaryMealId: input.operation.mealId,
     primaryItemIndex: input.operation.itemIndex,
     primaryOriginalFoodName: input.operation.originalFoodName,
     primaryResolvedItem: input.resolvedItem,
+    previouslyResolved: sequentialOperation.resolvedReplacements ?? [],
     companions: input.operation.companionReplacements ?? [],
     timeZone: input.timeZone,
   });
@@ -446,6 +526,81 @@ async function persistReplacementBatch(input: {
       replacementCount: batch.lines.length,
     },
   } satisfies WhatsappIntentResult;
+}
+
+async function continueReplacementClarificationIfNeeded(input: {
+  deps: FoodClarificationDependencies;
+  userId: number;
+  context: CaloricComplementQuantityContext;
+  meals: ExistingMeal[];
+  resolvedItem: MealItemInput;
+  explicitQuantity: { quantity: number; unit: string };
+  receivedAt: Date;
+  timeZone: string;
+}): Promise<WhatsappIntentResult | null> {
+  if (input.context.operation.kind !== "replace_item") return null;
+  const operation = input.context.operation as SequentialReplacementOperation;
+  const companions = operation.companionReplacements ?? [];
+  const nextIndex = companions.findIndex(companion =>
+    isCoffeeWithAddedSugar(companion.toFood)
+  );
+  if (nextIndex < 0) return null;
+
+  const next = companions[nextIndex];
+  const target = resolveTargetMealItemInMeals(
+    input.meals,
+    next.fromFood,
+    input.timeZone,
+  );
+  if (target.kind !== "matched") {
+    throw new Error(
+      target.kind === "ambiguous"
+        ? `A próxima substituição adoçada de ${next.fromFood} ficou ambígua.`
+        : `O próximo alimento ${next.fromFood} já não está disponível.`,
+    );
+  }
+
+  const originalFoodText = `${target.item.quantity} ${target.item.unit} de ${next.toFood}`;
+  const resolvedReplacements: ResolvedSweetenedReplacement[] = [
+    ...(operation.resolvedReplacements ?? []),
+    {
+      mealId: operation.mealId,
+      itemIndex: operation.itemIndex,
+      originalFoodName: operation.originalFoodName,
+      resolvedItem: input.resolvedItem,
+    },
+  ];
+  const nextOperation: SequentialReplacementOperation = {
+    kind: "replace_item",
+    mealId: target.meal.id,
+    itemIndex: target.index,
+    originalFoodName: target.item.foodName,
+    companionReplacements: companions.filter((_, index) => index !== nextIndex),
+    resolvedReplacements,
+  };
+  const nextContext: CaloricComplementQuantityContext = {
+    ...input.context,
+    originalFoodText,
+    coffeeQuantity: extractCoffeeServingQuantity(originalFoodText),
+    operation: nextOperation as CaloricComplementQuantityContext["operation"],
+    completedComponents: [
+      ...(input.context.completedComponents ?? []),
+      {
+        componentName: "açúcar",
+        quantity: input.explicitQuantity.quantity,
+        unit: input.explicitQuantity.unit,
+      },
+    ],
+  };
+
+  return createNextSugarPending({
+    deps: input.deps,
+    userId: input.userId,
+    nextContext,
+    receivedAt: input.receivedAt,
+    detail:
+      "A substituição adoçada anterior foi preservada sem mutação e a próxima troca aguarda sua própria quantidade.",
+  });
 }
 
 export async function persistResolvedCaloricComplement(
@@ -630,6 +785,18 @@ export async function persistResolvedCaloricComplement(
       },
     };
   }
+
+  const continuation = await continueReplacementClarificationIfNeeded({
+    deps,
+    userId,
+    context,
+    meals,
+    resolvedItem,
+    explicitQuantity,
+    receivedAt,
+    timeZone,
+  });
+  if (continuation) return continuation;
 
   return persistReplacementBatch({
     deps,
