@@ -1,4 +1,5 @@
 import { getCatalogCache } from "./catalogRuntime";
+import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -105,6 +106,14 @@ function catalogHasVariation(food: CatalogFood, variation: string) {
   return normalizedTokenIncludes(searchable, variation);
 }
 
+export function isCatalogFoodSemanticallyCompatible(food: CatalogFood, sourceText: string) {
+  return isFoodCandidateSemanticallyCompatible(sourceText, [
+    food.name,
+    ...food.aliases,
+    ...(food.variants ?? []),
+  ]);
+}
+
 function getSignificantWords(value: string) {
   return normalizeForMatching(value)
     .trim()
@@ -162,6 +171,8 @@ export function sourceMentionsFood(sourceText: string, foodName: string) {
 }
 
 function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, normalizedRawQuery: string) {
+  if (!isCatalogFoodSemanticallyCompatible(food, normalizedRawQuery)) return 0;
+
   const catalogBrand = detectCatalogBrand(food, normalizedRawQuery);
   const mentionedBrand = catalogBrand ?? detectKnownBrand(normalizedRawQuery);
   const queryVariations = detectCriticalVariations(normalizedRawQuery);
@@ -222,20 +233,22 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
 }
 
 export function findCatalogFood(foodName: string, userId?: number): CatalogFood | undefined {
-  // Consulta aliases pessoais do usuário antes do catálogo global
+  // Consulta aliases pessoais do usuário antes do catálogo global.
   if (userId != null) {
     try {
-      // Import síncrono via require para evitar async no hot path
+      // Import síncrono via require para evitar async no hot path.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { resolvePersonalFoodAlias } = require("./modules/whatsapp/personalFoodAliasStore") as typeof import("./modules/whatsapp/personalFoodAliasStore");
       const personalAlias = resolvePersonalFoodAlias({ userId, foodText: foodName });
       if (personalAlias) {
-        // Resolve o nome canônico aprendido contra o catálogo global (sem userId para evitar recursão)
+        // O alias aprendido não pode contornar o guard aplicado ao texto original.
         const resolvedFood: CatalogFood | undefined = findCatalogFood(personalAlias.canonicalName);
-        if (resolvedFood) return resolvedFood;
+        if (resolvedFood && isCatalogFoodSemanticallyCompatible(resolvedFood, foodName)) {
+          return resolvedFood;
+        }
       }
     } catch {
-      // Falha silenciosa: continua com catálogo global
+      // Falha silenciosa: continua com catálogo global.
     }
   }
 
