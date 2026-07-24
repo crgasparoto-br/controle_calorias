@@ -4,13 +4,21 @@ import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQua
 import type { WhatsappIntentResult } from "./intent/types";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 
+function looksLikeAmbiguousMealIntentDecision(normalized: string) {
+  if (/\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre)\b/.test(normalized)) {
+    return false;
+  }
+  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
+}
+
 export function isCoffeeSugarRegistrationText(text: string) {
   if (!isCoffeeWithAddedSugar(text)) return false;
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
-  return !/\b(?:adicionar|adicione|adiciona|inclua|incluir|trocar|troque|substituir|substitua|corrigir|corrija)\b/.test(normalized);
+  const isMutation = /\b(?:adicionar|adicione|adiciona|inclua|incluir|trocar|troque|substituir|substitua|corrigir|corrija)\b/.test(normalized);
+  return !isMutation && !looksLikeAmbiguousMealIntentDecision(normalized);
 }
 
 export async function handleCoffeeSugarRegistrationIntent(input: {
