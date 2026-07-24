@@ -104,6 +104,9 @@ describe("mealIntentDecisionInteraction", () => {
     const target = buildTarget();
 
     expect(classifyMealIntentDecisionText(target, "Registrar")).toBe("resolve");
+    expect(classifyMealIntentDecisionText(target, "Registrar alimento")).toBe(
+      "resolve"
+    );
     expect(classifyMealIntentDecisionText(target, "2")).toBe("resolve");
     expect(classifyMealIntentDecisionText(target, "talvez")).toBe("invalid");
   });
