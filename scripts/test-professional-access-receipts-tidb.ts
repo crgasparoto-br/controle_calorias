@@ -46,27 +46,27 @@ async function main() {
 
   async function cleanup() {
     await connection.query(
-      "DELETE FROM professionalHistoryEvents WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalHistoryEvents` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalPatientTrackingEvents WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalPatientTrackingEvents` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalPatientTrackings WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalPatientTrackings` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalPatientAuthorizations WHERE professionalUserId = ? OR patientUserId IN (?, ?)",
+      "DELETE FROM `professionalPatientAuthorizations` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM professionalProfiles WHERE userId = ?",
+      "DELETE FROM `professionalProfiles` WHERE `userId` = ?",
       [PROFESSIONAL_USER_ID]
     );
     await connection.query(
-      `DELETE FROM users WHERE id IN (${USER_IDS.map(() => "?").join(",")})`,
+      `DELETE FROM \`users\` WHERE \`id\` IN (${USER_IDS.map(() => "?").join(",")})`,
       USER_IDS
     );
   }
@@ -75,7 +75,7 @@ async function main() {
     await cleanup();
     for (const userId of USER_IDS) {
       await connection.query(
-        "INSERT INTO users (id, openId, name, email, role) VALUES (?, ?, ?, ?, 'user')",
+        "INSERT INTO `users` (`id`, `openId`, `name`, `email`, `role`) VALUES (?, ?, ?, ?, 'user')",
         [
           userId,
           `professional-receipt-${userId}`,
@@ -157,10 +157,10 @@ async function main() {
     );
 
     const [receiptRows] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT id, patientUserId, eventType, entityType, entityId
-       FROM professionalHistoryEvents
-       WHERE id = ? OR entityType = ?
-       ORDER BY eventType`,
+      `SELECT \`id\`, \`patientUserId\`, \`eventType\`, \`entityType\`, \`entityId\`
+       FROM \`professionalHistoryEvents\`
+       WHERE \`id\` = ? OR \`entityType\` = ?
+       ORDER BY \`eventType\``,
       [linkedReceipt.id, linkedReceipt.id]
     );
     assert.equal(receiptRows.length, 2);
