@@ -52,4 +52,44 @@ describe("nutritionEngine preserva refeições compostas com café adoçado", ()
       expect.objectContaining({ calories: 22, carbs: 5 }),
     );
   });
+
+  it("não usa a estimativa do café com leite para satisfazer o café adoçado", async () => {
+    createTextResponseMock.mockResolvedValueOnce({
+      outputText: JSON.stringify({
+        mealLabel: "Café da manhã",
+        confidence: 0.9,
+        reasoning: "Somente o café com leite foi estimado.",
+        items: [{
+          foodName: "Café com leite",
+          brand: null,
+          quantity: 1,
+          unit: "xícara",
+          portionText: "1 xícara",
+          servings: 1,
+          estimatedGrams: 200,
+          estimatedCalories: 60,
+          estimatedMacros: {
+            protein: 2,
+            carbs: 5,
+            fat: 2,
+          },
+          confidence: 0.9,
+          foodClassification: {
+            processingLevel: "natural_or_minimally_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+          },
+        }],
+      }),
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({
+      text: "1 xícara de café com açúcar e 1 xícara de café com leite",
+    })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ component: "açúcar" }),
+    });
+  });
 });
