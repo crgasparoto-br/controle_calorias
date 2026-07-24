@@ -20,7 +20,8 @@ function rowFor(professionalUserId: number) {
     authorizationId: `access-${professionalUserId}`,
     patientUserId: professionalUserId === 101 ? 41 : 42,
     patientName: professionalUserId === 101 ? "Ana" : "Beatriz",
-    patientEmail: professionalUserId === 101 ? "ana@example.com" : "bia@example.com",
+    patientEmail:
+      professionalUserId === 101 ? "ana@example.com" : "bia@example.com",
     authorizationStatus: "approved",
     trackingStatus: "active",
     requestedAt: new Date("2026-07-01T12:00:00Z"),
@@ -43,17 +44,21 @@ describe("professionalPortfolioRepository", () => {
         call += 1;
         if (call === 1) return [[rowFor(101)]];
         if (call === 2) return [[{ total: 21 }]];
-        return [[{
-          active: 4,
-          paused: 2,
-          ended: 1,
-          notStarted: 3,
-          pendingRequests: 5,
-          activeWithRecentRecords: 7,
-          withoutRecentActivity: 6,
-          pendingReviews: 2,
-          pendingWeighings: 1,
-        }]];
+        return [
+          [
+            {
+              active: 4,
+              paused: 2,
+              ended: 1,
+              notStarted: 3,
+              pendingRequests: 5,
+              activeWithRecentRecords: 7,
+              withoutRecentActivity: 6,
+              pendingReviews: 2,
+              pendingWeighings: 1,
+            },
+          ],
+        ];
       }),
     };
     const repository = createProfessionalPortfolioRepository({
@@ -72,8 +77,15 @@ describe("professionalPortfolioRepository", () => {
     expect(queries[0].sql).toContain("periodMeals.occurredAt >=");
     expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.occurredAt");
     expect(queries[0].sql).toContain("periodAccess.professionalUserId");
+    expect(queries[0].sql).toContain("a.status <> 'pending'");
+    expect(queries[0].sql).toContain("a.status = 'approved' AND");
     expect(queries[2].sql).toContain("COALESCE(pm.periodRecordCount, 0)");
-    expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 21, totalPages: 3 });
+    expect(result.pagination).toEqual({
+      page: 2,
+      pageSize: 10,
+      total: 21,
+      totalPages: 3,
+    });
     expect(result.items[0]).toMatchObject({
       patientUserId: 41,
       patientName: "Ana",
@@ -122,7 +134,9 @@ describe("professionalPortfolioRepository", () => {
     const dialect = new MySqlDialect();
     const execute = vi.fn(async query => {
       const compiled = dialect.sqlToQuery(query);
-      const professionalUserId = compiled.params.find(value => value === 101 || value === 202) as number;
+      const professionalUserId = compiled.params.find(
+        value => value === 101 || value === 202
+      ) as number;
       const callIndex = execute.mock.calls.length % 3;
       if (callIndex === 1) return [[rowFor(professionalUserId)]];
       if (callIndex === 2) return [[{ total: 1 }]];
@@ -152,7 +166,12 @@ describe("professionalPortfolioRepository", () => {
     await expect(repository.list(101, input)).resolves.toMatchObject({
       items: [],
       pagination: { total: 0, totalPages: 0 },
-      summary: { active: 0, pendingRequests: 0, pendingReviews: 0, pendingWeighings: 0 },
+      summary: {
+        active: 0,
+        pendingRequests: 0,
+        pendingReviews: 0,
+        pendingWeighings: 0,
+      },
     });
   });
 });
