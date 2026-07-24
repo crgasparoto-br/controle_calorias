@@ -138,10 +138,10 @@ describe("nutritionEngine coffee with sugar handling", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Café com Açúcar",
+      canonicalName: "Café com açúcar",
       calories: 34,
       carbs: 8,
     }));
-    expect(result.items[0].canonicalName).not.toMatch(/sem açúcar/i);
   });
 
   it("não deixa o nome genérico da IA apagar o qualificador do texto", async () => {
@@ -159,10 +159,11 @@ describe("nutritionEngine coffee with sugar handling", () => {
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
       calories: 34,
       carbs: 8,
     }));
-    expect(result.items[0].canonicalName).not.toMatch(/sem açúcar/i);
   });
 
   it("mantém o controle sem açúcar praticamente sem calorias", async () => {
