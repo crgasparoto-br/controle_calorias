@@ -78,6 +78,19 @@ assert_dom_at_size() {
   done
 }
 
+assert_dom_not_contains() {
+  local name="$1"
+  shift
+  local output="$OUTPUT_DIR/$name.html"
+  test -s "$output"
+  for unexpected in "$@"; do
+    if grep -Fq "$unexpected" "$output"; then
+      echo "Protected DOM content was rendered for $name: $unexpected"
+      exit 1
+    fi
+  done
+}
+
 BASE_URL="http://127.0.0.1:${PORT}/professional"
 PATIENTS_URL="http://127.0.0.1:${PORT}/professional/patients"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
@@ -115,10 +128,16 @@ assert_dom \
   "$PATIENTS_URL" \
   "Solicitar acesso" \
   "Mariana de Almeida Vasconcelos e Silva" \
+  "Solicitação aguardando confirmação" \
   "Aguardando autorização" \
   "Solicitação recusada" \
   "Acesso revogado" \
   "Dados pessoais e clínicos disponíveis após autorização"
+assert_dom_not_contains \
+  "patients-privacy" \
+  "João Pereira" \
+  "Beatriz Fernandes" \
+  "Carlos Henrique"
 assert_dom_at_size \
   "patients-tablet-layout" \
   "1024,768" \
@@ -140,7 +159,7 @@ scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,side
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatients with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
-assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy copy, no horizontal overflow and visible patient action at tablet width
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, no horizontal overflow and visible patient action at tablet width
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"
