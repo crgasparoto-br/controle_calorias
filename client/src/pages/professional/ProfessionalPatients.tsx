@@ -36,6 +36,10 @@ type Filters = {
   pageSize: number;
 };
 
+type RequestAccessResult = {
+  status: "pending" | "approved" | "rejected" | "revoked";
+};
+
 function validValue<T extends string>(
   value: string | null,
   allowed: readonly T[],
@@ -94,6 +98,27 @@ export function requestAccessErrorMessage(error: unknown) {
     return "Não foi possível enviar a solicitação com os dados informados. Confira o contato ou tente novamente mais tarde.";
   }
   return "Não foi possível enviar a solicitação agora. Tente novamente em alguns instantes.";
+}
+
+export function requestAccessSuccessState(result: RequestAccessResult) {
+  if (result.status === "approved") {
+    return {
+      authorizationStatus: "approved" as const,
+      message:
+        "Este paciente já autorizou o acesso. A carteira foi atualizada para mostrar os acessos aprovados.",
+    };
+  }
+  if (result.status === "pending") {
+    return {
+      authorizationStatus: "pending" as const,
+      message:
+        "Solicitação registrada. A carteira foi atualizada para mostrar os acessos pendentes.",
+    };
+  }
+  return {
+    authorizationStatus: result.status,
+    message: "O vínculo já existe. A carteira foi atualizada para mostrar o estado atual.",
+  };
 }
 
 function formatDate(value: number | null | undefined, fallback: string) {
@@ -157,16 +182,16 @@ export default function ProfessionalPatients() {
     refetchInterval: 30_000,
   });
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
-    onSuccess: async () => {
-      setRequestSuccess(
-        "Solicitação enviada. A carteira foi atualizada para mostrar os acessos pendentes."
-      );
+    onSuccess: async result => {
+      const success = requestAccessSuccessState(result);
+      setRequestSuccess(success.message);
       setPatientContact("");
       setReason("");
       setSearchInput("");
-      setLocation("/professional/patients?authorization=pending", {
-        replace: true,
-      });
+      setLocation(
+        `/professional/patients?authorization=${success.authorizationStatus}`,
+        { replace: true }
+      );
       await utils.nutrition.professionals.myAccesses.invalidate();
     },
   });
