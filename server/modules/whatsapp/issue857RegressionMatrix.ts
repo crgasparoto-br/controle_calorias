@@ -90,7 +90,13 @@ const INTERACTION_SCENARIOS: Record<string, {
     evidence: [
       {
         file: "server/modules/whatsapp/mealIntentDecisionInteraction.test.ts",
-        requiredTokens: ["Registrar alimento", "interactive_callback", "originalText"],
+        requiredTokens: [
+          "Registrar alimento",
+          "interactive_callback",
+          "originalText",
+          "audioTranscription",
+          "simulador",
+        ],
       },
       {
         file: "server/modules/whatsapp/foodAssistant.test.ts",
