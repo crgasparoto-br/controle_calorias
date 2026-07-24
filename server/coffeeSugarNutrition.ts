@@ -37,7 +37,7 @@ function parseLocalizedNumber(value: string) {
 
 function sugarUnitToGrams(quantity: number, unit: string) {
   const normalized = normalizeForMatching(unit).trim();
-  if (/^(?:g|grama|gramas)$/.test(normalized)) return quantity;
+  if (/^(?:g|gr|grama|gramas)$/.test(normalized)) return quantity;
   if (/^(?:kg|quilo|quilos)$/.test(normalized)) return quantity * 1000;
   if (/^(?:mg|miligrama|miligramas)$/.test(normalized)) return quantity / 1000;
   if (/^(?:colher de cha|colheres de cha)$/.test(normalized)) return quantity * 4;
@@ -49,7 +49,7 @@ function sugarUnitToGrams(quantity: number, unit: string) {
 export function extractExplicitSugarQuantity(value: string): ExplicitSugarQuantity | null {
   const normalized = normalizeForMatching(value);
   const match = normalized.match(
-    /\b(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
+    /\b(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
   );
   if (!match) return null;
 
@@ -149,7 +149,7 @@ function isExplicitlyUnsweetenedCoffee(item: MealDraftItem) {
 function isStandaloneSugarItem(item: MealDraftItem) {
   return [item.foodName, item.canonicalName].some(value => {
     const normalized = normalizeForMatching(value).trim();
-    return /^(?:\d+(?:[,.]\d+)?\s*(?:g|gramas?)\s+(?:de\s+)?)?acucar(?:\s+(?:refinado|cristal|mascavo|demerara))?$/.test(normalized);
+    return /^(?:\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?)\s+(?:de\s+)?)?acucar(?:\s+(?:refinado|cristal|mascavo|demerara))?$/.test(normalized);
   });
 }
 
