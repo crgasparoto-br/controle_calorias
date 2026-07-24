@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TrpcContext } from "../../_core/context";
 import { appRouter } from "../../routers";
 import { _forTestOnly_clearProfessionalAccessRequestReceipts } from "./accessRequestReceiptRepository";
@@ -9,16 +9,13 @@ import {
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-beforeAll(() => {
-  _forTestOnly_setProfessionalSyntheticUserLookup(true);
-});
-
-afterAll(() => {
-  _forTestOnly_setProfessionalSyntheticUserLookup(false);
-});
-
 beforeEach(() => {
+  _forTestOnly_setProfessionalSyntheticUserLookup(true);
   _forTestOnly_clearProfessionalAccessRequestReceipts();
+});
+
+afterEach(() => {
+  _forTestOnly_setProfessionalSyntheticUserLookup(false);
 });
 
 function createContext(userId: number): TrpcContext {
