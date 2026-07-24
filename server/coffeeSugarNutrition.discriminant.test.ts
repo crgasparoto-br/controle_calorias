@@ -80,4 +80,30 @@ describe("normalização discriminante de café adoçado", () => {
       carbs: 8,
     }));
   });
+
+  it("preserva o café sem açúcar e adiciona o adoçado quando a IA omite o alvo", () => {
+    const result = normalizeSweetenedCoffeeDraftItems(
+      [
+        item({
+          foodName: "Café sem açúcar",
+          canonicalName: "Café Sem Açúcar",
+          calories: 2,
+          carbs: 0,
+        }),
+      ],
+      "1 xícara de café com 5 g de açúcar e 1 xícara de café sem açúcar",
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual(expect.objectContaining({
+      canonicalName: "Café Sem Açúcar",
+      calories: 2,
+      carbs: 0,
+    }));
+    expect(result[1]).toEqual(expect.objectContaining({
+      canonicalName: "Café com açúcar",
+      calories: 22,
+      carbs: 5,
+    }));
+  });
 });
