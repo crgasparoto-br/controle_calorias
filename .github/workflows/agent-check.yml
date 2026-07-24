@@ -58,6 +58,7 @@ jobs:
       - name: Tests
         env:
           NODE_ENV: test
+          PROFESSIONAL_SYNTHETIC_USER_LOOKUP: enabled
         run: |
           : > /tmp/vitest.log
           # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
@@ -123,7 +124,7 @@ jobs:
             "repository": "${GITHUB_REPOSITORY}",
             "commitSha": "${GITHUB_SHA}",
             "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}",
+            "workflow": "${GITHUB_WORKFLOW",
             "event": "${GITHUB_EVENT_NAME}",
             "ref": "${GITHUB_REF}",
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
