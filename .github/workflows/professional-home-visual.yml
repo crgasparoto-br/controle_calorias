@@ -7,6 +7,7 @@ on:
     paths:
       - "client/src/pages/ProfessionalAreaPage.tsx"
       - "client/src/pages/professional/ProfessionalHome.tsx"
+      - "client/src/pages/professional/ProfessionalPatients.tsx"
       - "client/src/components/ProfessionalLayout.tsx"
       - "client/src/components/professional/ProfessionalUi.tsx"
       - "client/src/components/ui/sidebar.tsx"
