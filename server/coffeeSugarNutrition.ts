@@ -1,6 +1,9 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
-import { isCoffeeWithAddedSugar } from "./foodSemanticCompatibility";
+import {
+  hasCaloricCoffeeComplement,
+  isCoffeeWithAddedSugar,
+} from "./foodSemanticCompatibility";
 import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
@@ -124,26 +127,61 @@ function isUsableSweetenedCoffeeNutrition(item: LlmItem) {
     && item.estimatedMacros.carbs > 0;
 }
 
-export function hasUsableSweetenedCoffeeInference(items: LlmItem[] | undefined) {
-  return Boolean(items?.some(item => {
-    const name = normalizeForMatching(item.foodName);
-    return /\bcafe\b/.test(name) && isUsableSweetenedCoffeeNutrition(item);
-  }));
+function isCoffeeIdentity(value: string) {
+  return /\bcafe\b/.test(normalizeForMatching(value));
 }
 
-function isCoffeeDraftItem(item: MealDraftItem) {
-  return /\bcafe\b/.test(
-    normalizeForMatching(`${item.foodName} ${item.canonicalName}`),
-  );
-}
-
-function isExplicitlyUnsweetenedCoffee(item: MealDraftItem) {
-  const identity = normalizeForMatching(`${item.foodName} ${item.canonicalName}`);
+function isExplicitlyUnsweetenedCoffeeIdentity(value: string) {
+  const identity = normalizeForMatching(value);
   return /\bcafe\b/.test(identity)
     && (
       /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(identity)
       || /\b(?:puro|pura|preto|preta|natural)\b/.test(identity)
     );
+}
+
+function isGenericCoffeeIdentity(value: string) {
+  return isCoffeeIdentity(value)
+    && !isCoffeeWithAddedSugar(value)
+    && !isExplicitlyUnsweetenedCoffeeIdentity(value)
+    && !hasCaloricCoffeeComplement(value);
+}
+
+function getCoffeeSourceSegments(sourceText: string) {
+  return splitFoodTextSegments(sourceText).filter(isCoffeeIdentity);
+}
+
+export function hasUsableSweetenedCoffeeInference(
+  items: LlmItem[] | undefined,
+  sourceText = "",
+) {
+  const usableCoffeeItems = items?.filter(item =>
+    isCoffeeIdentity(item.foodName) && isUsableSweetenedCoffeeNutrition(item)
+  ) ?? [];
+  if (usableCoffeeItems.some(item => isCoffeeWithAddedSugar(item.foodName))) {
+    return true;
+  }
+
+  const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
+  const sweetenedSourceSegments = sourceCoffeeSegments.filter(isCoffeeWithAddedSugar);
+  return sweetenedSourceSegments.length === 1
+    && sourceCoffeeSegments.length === 1
+    && usableCoffeeItems.length === 1
+    && isGenericCoffeeIdentity(usableCoffeeItems[0].foodName);
+}
+
+function isCoffeeDraftItem(item: MealDraftItem) {
+  return isCoffeeIdentity(`${item.foodName} ${item.canonicalName}`);
+}
+
+function isExplicitlyUnsweetenedCoffee(item: MealDraftItem) {
+  return isExplicitlyUnsweetenedCoffeeIdentity(
+    `${item.foodName} ${item.canonicalName}`,
+  );
+}
+
+function isGenericCoffeeDraftItem(item: MealDraftItem) {
+  return isGenericCoffeeIdentity(`${item.foodName} ${item.canonicalName}`);
 }
 
 function isStandaloneSugarItem(item: MealDraftItem) {
@@ -230,14 +268,23 @@ export function normalizeSweetenedCoffeeDraftItems(
   if (mergedExplicitSugar) return mergedExplicitSugar;
 
   const coffeeItems = items.filter(isCoffeeDraftItem);
-  const sourceCanQualifyGenericCoffee = coffeeItems.length === 1;
+  const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
+  const sourceCanQualifyGenericCoffee = sourceCoffeeSegments.length === 1
+    && isCoffeeWithAddedSugar(sourceCoffeeSegments[0])
+    && coffeeItems.length === 1
+    && isGenericCoffeeDraftItem(coffeeItems[0]);
 
   return items.map(item => {
     if (!isCoffeeDraftItem(item)) return item;
 
     const identity = `${item.foodName} ${item.canonicalName}`;
     const itemIsExplicitlySweetened = isCoffeeWithAddedSugar(identity);
-    if (!itemIsExplicitlySweetened && !sourceCanQualifyGenericCoffee) return item;
+    if (
+      !itemIsExplicitlySweetened
+      && !(sourceCanQualifyGenericCoffee && isGenericCoffeeDraftItem(item))
+    ) {
+      return item;
+    }
 
     return {
       ...item,
@@ -257,7 +304,7 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
 export function shouldRequestSugarQuantity(sourceText: string, inferredItems: LlmItem[] | undefined) {
   return isCoffeeWithAddedSugar(sourceText)
     && !extractExplicitSugarQuantity(sourceText)
-    && !hasUsableSweetenedCoffeeInference(inferredItems);
+    && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText);
 }
 
 export function appendSugarQuantityToCoffeeText(
