@@ -50,6 +50,18 @@ function buildPending(target = buildTarget()): WhatsAppPendingOperationRecord {
   } as WhatsAppPendingOperationRecord;
 }
 
+function getButtonTitles(interactiveReply: unknown) {
+  const primary = (interactiveReply as {
+    messages?: Array<{
+      type: string;
+      buttons?: Array<{ title: string }>;
+    }>;
+  } | null)?.messages?.[0];
+  return primary?.type === "buttons"
+    ? primary.buttons?.map(button => button.title) ?? []
+    : [];
+}
+
 describe("mealIntentDecisionInteraction", () => {
   it("persiste o contexto antes de apresentar uma decisão fechada com três botões", async () => {
     const result = await createWhatsappMealIntentDecisionInteraction({
@@ -109,6 +121,99 @@ describe("mealIntentDecisionInteraction", () => {
     );
     expect(classifyMealIntentDecisionText(target, "2")).toBe("resolve");
     expect(classifyMealIntentDecisionText(target, "talvez")).toBe("invalid");
+  });
+
+  it("retoma o texto original ao registrar sem abrir a clarificação genérica", async () => {
+    const result = await completeWhatsappMealIntentDecisionCallback({
+      userId: 899005,
+      pendingOperation: buildPending(
+        buildTarget("200 ml café com açúcar")
+      ),
+      action: "register",
+      receivedAt: new Date("2026-07-23T22:03:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result.reply).not.toContain(
+      "registrar um alimento, corrigir uma refeição ou consultar"
+    );
+    expect(result.eventType).not.toBe("whatsapp.intent_clarification.requested");
+    expect(result.data).toEqual(expect.objectContaining({
+      originalTextPreserved: true,
+      originalTextResumed: true,
+      ambiguityReclassified: false,
+    }));
+  });
+
+  it("resolve Registrar alimento pela pendência específica e não pelo menu genérico", async () => {
+    const receivedAt = new Date("2026-07-23T22:04:00.000Z");
+    await createWhatsappMealIntentDecisionInteraction({
+      userId: 899006,
+      originalText: "1 xícara de café com açúcar",
+      messageId: "wamid.issue-899-register-text",
+      receivedAt,
+    });
+
+    const result = await resolveWhatsAppPrecedenceGate({
+      userId: 899006,
+      text: "Registrar alimento",
+      receivedAt: new Date(receivedAt.getTime() + 1000),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result.step).toBe("pending_interaction");
+    if (result.step !== "pending_interaction") throw new Error("unreachable");
+    expect(result.result.reply).not.toContain(
+      "registrar um alimento, corrigir uma refeição ou consultar"
+    );
+    expect(result.result.eventType).not.toBe(
+      "whatsapp.intent_clarification.requested"
+    );
+    expect(result.result.data).toEqual(expect.objectContaining({
+      originalTextPreserved: true,
+      originalTextResumed: true,
+    }));
+  });
+
+  it("reapresenta as mesmas ações após resposta incompatível sem duplicar a pendência", async () => {
+    const receivedAt = new Date("2026-07-23T22:05:00.000Z");
+    await createWhatsappMealIntentDecisionInteraction({
+      userId: 899007,
+      originalText: "jantar com arroz, feijão e frango",
+      messageId: "wamid.issue-899-invalid",
+      receivedAt,
+    });
+
+    const invalid = await resolveWhatsAppPrecedenceGate({
+      userId: 899007,
+      text: "talvez",
+      receivedAt: new Date(receivedAt.getTime() + 1000),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(invalid.step).toBe("pending_interaction");
+    if (invalid.step !== "pending_interaction") throw new Error("unreachable");
+    expect(getButtonTitles(invalid.result.interactiveReply)).toEqual([
+      "Registrar",
+      "Receber sugestão",
+      "Cancelar",
+    ]);
+    expect(invalid.result.data).toEqual(expect.objectContaining({
+      interactionId: MEAL_INTENT_DECISION_INTERACTION_ID,
+      interactionLifecycle: "represented",
+    }));
+
+    const valid = await resolveWhatsAppPrecedenceGate({
+      userId: 899007,
+      text: "Cancelar",
+      receivedAt: new Date(receivedAt.getTime() + 2000),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(valid.step).toBe("pending_interaction");
+    if (valid.step !== "pending_interaction") throw new Error("unreachable");
+    expect(valid.result.eventType).toBe(
+      "whatsapp.meal_intent_decision.cancelled"
+    );
   });
 
   it("usa o texto original para sugestão e deixa explícito que nada foi registrado", async () => {
