@@ -6,6 +6,7 @@ on:
       - fix/899-whatsapp-meal-intent-context
     paths:
       - scripts/apply_issue_899_fixes.py
+      - scripts/apply_issue_899_fixes_v2.py
       - .github/workflows/orchestrate-899-fixes.yml
   pull_request:
     branches:
@@ -16,6 +17,7 @@ on:
       - reopened
     paths:
       - scripts/apply_issue_899_fixes.py
+      - scripts/apply_issue_899_fixes_v2.py
       - .github/workflows/orchestrate-899-fixes.yml
 
 permissions:
@@ -37,7 +39,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Apply orchestrated corrections
-        run: python scripts/apply_issue_899_fixes.py
+        run: |
+          python scripts/apply_issue_899_fixes.py
+          python scripts/apply_issue_899_fixes_v2.py
       - name: Focused regressions
         id: focused
         shell: bash
