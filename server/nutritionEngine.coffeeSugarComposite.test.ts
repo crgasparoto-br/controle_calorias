@@ -53,6 +53,17 @@ describe("nutritionEngine preserva refeições compostas com café adoçado", ()
     );
   });
 
+  it("não atribui ao café o açúcar explicitado somente em outro alimento", async () => {
+    const { processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({
+      text: "1 xícara de café com açúcar e 1 fatia de bolo com 10 g de açúcar",
+    })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ component: "açúcar" }),
+    });
+  });
+
   it("não usa a estimativa do café com leite para satisfazer o café adoçado", async () => {
     createTextResponseMock.mockResolvedValueOnce({
       outputText: JSON.stringify({
