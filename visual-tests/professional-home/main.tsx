@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import ProfessionalHome from "../../client/src/pages/professional/ProfessionalHome";
-import "../../client/src/index.css";
+import "./visual.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
