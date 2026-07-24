@@ -41,6 +41,12 @@ describe("registro de café com complementos coordenados", () => {
     )).toBe(true);
   });
 
+  it("não intercepta uma descrição iniciada pelo nome da refeição", () => {
+    expect(isCoffeeSugarRegistrationText(
+      "café da manhã com pão e café com leite e açúcar",
+    )).toBe(false);
+  });
+
   it("preserva o texto original ao abrir a clarificação persistente", async () => {
     const receivedAt = new Date("2026-07-24T12:00:00.000Z");
     const result = await handleCoffeeSugarRegistrationIntent({
