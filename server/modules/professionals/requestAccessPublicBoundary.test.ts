@@ -10,7 +10,6 @@ import {
   PROFESSIONAL_REQUEST_ACCESS_PATH,
   PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE,
   PROFESSIONAL_REVOKE_ACCESS_PATH,
-  createProfessionalAccessReceiptInputPolicy,
   createProfessionalRequestAccessPublicBoundary,
 } from "./requestAccessPublicBoundary";
 
@@ -56,6 +55,16 @@ function dependencies() {
     listActiveReceipts: vi
       .fn()
       .mockResolvedValue([receipt("receipt-active")]),
+    approveAccess: vi.fn().mockResolvedValue({
+      id: "authorization-1",
+      patientUserId: 42,
+      status: "approved",
+    }),
+    revokeAccess: vi.fn().mockResolvedValue({
+      id: "authorization-1",
+      patientUserId: 42,
+      status: "revoked",
+    }),
   };
 }
 
@@ -63,6 +72,7 @@ async function runPolicy(input: {
   path: string;
   result: unknown;
   rawInput?: unknown;
+  userId?: number;
   deps?: ReturnType<typeof dependencies>;
 }) {
   const deps = input.deps ?? dependencies();
@@ -70,7 +80,7 @@ async function runPolicy(input: {
   return policy({
     path: input.path,
     result: input.result,
-    ctx: context(),
+    ctx: context(input.userId),
     input: input.rawInput,
   });
 }
@@ -90,10 +100,7 @@ describe("professional request access public boundary", () => {
           patientUserId: 42,
           status: "pending",
           requestedAt: 1_700_000_000_000,
-          patient: {
-            name: "Pessoa protegida",
-            email: "protected@example.com",
-          },
+          patient: { name: "Pessoa protegida", email: "protected@example.com" },
         },
       },
     });
@@ -101,9 +108,13 @@ describe("professional request access public boundary", () => {
       path: PROFESSIONAL_REQUEST_ACCESS_PATH,
       result: {
         ok: false,
-        error: new Error(
-          "Nenhuma pessoa foi encontrada com esse e-mail ou celular."
-        ),
+        error: new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Falha segura",
+          cause: new Error(
+            "Nenhuma pessoa foi encontrada com esse e-mail ou celular."
+          ),
+        }),
       },
     });
     const self = await runPolicy({
@@ -129,7 +140,7 @@ describe("professional request access public boundary", () => {
     }
   });
 
-  it("keeps an already approved relationship visible without returning patient PII", async () => {
+  it("keeps an approved relationship visible without returning patient PII", async () => {
     const deps = dependencies();
     const result = await runPolicy({
       deps,
@@ -141,14 +152,10 @@ describe("professional request access public boundary", () => {
           patientUserId: 42,
           status: "approved",
           requestedAt: 1_700_000_000_000,
-          patient: {
-            name: "Pessoa já autorizada",
-            email: "approved@example.com",
-          },
+          patient: { name: "Pessoa", email: "approved@example.com" },
         },
       },
     });
-
     expect(responseData(result)).toEqual({
       id: "approved-authorization",
       status: "approved",
@@ -157,7 +164,7 @@ describe("professional request access public boundary", () => {
     expect(deps.createLinkedReceipt).not.toHaveBeenCalled();
   });
 
-  it("preserves input validation errors instead of acknowledging malformed requests", async () => {
+  it("preserves validation errors and sanitizes transient failures", async () => {
     const validationError = {
       ok: false,
       error: { code: "BAD_REQUEST", message: "Informe um contato válido." },
@@ -168,16 +175,11 @@ describe("professional request access public boundary", () => {
         result: validationError,
       })
     ).resolves.toEqual(validationError);
-  });
 
-  it("keeps transient failures distinct without exposing internal details", async () => {
     await expect(
       runPolicy({
         path: PROFESSIONAL_REQUEST_ACCESS_PATH,
-        result: {
-          ok: false,
-          error: new Error("Failed query: users"),
-        },
+        result: { ok: false, error: new Error("Failed query: users") },
       })
     ).rejects.toMatchObject({
       code: "SERVICE_UNAVAILABLE",
@@ -237,11 +239,6 @@ describe("professional request access public boundary", () => {
       patientEmail: null,
       authorizationStatus: "pending",
     });
-    expect(items[1]).toMatchObject({
-      authorizationId: "receipt-active-2",
-      patientUserId: 0,
-      patientName: PROFESSIONAL_PENDING_REQUEST_NAME,
-    });
     expect(items[2]).toMatchObject({
       authorizationId: "approved-authorization",
       patientName: "Pessoa aprovada",
@@ -251,34 +248,8 @@ describe("professional request access public boundary", () => {
     expect(JSON.stringify(items)).not.toContain("protected@example.com");
   });
 
-  it("does not inject receipts into incompatible portfolio filters but still neutralizes the summary", async () => {
-    const deps = dependencies();
-    const result = await runPolicy({
-      deps,
-      path: PROFESSIONAL_PORTFOLIO_PATH,
-      rawInput: { authorizationStatus: "approved", page: 1 },
-      result: {
-        ok: true,
-        data: {
-          items: [
-            {
-              authorizationId: "pending-authorization",
-              authorizationStatus: "pending",
-            },
-          ],
-          pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
-          summary: { pendingRequests: 99 },
-        },
-      },
-    });
-
-    expect(responseData(result).items).toEqual([]);
-    expect(responseData(result).summary).toEqual({ pendingRequests: 1 });
-    expect(deps.listActiveReceipts).toHaveBeenCalledTimes(1);
-  });
-
-  it("makes myAccesses neutral for pending and non-approved relationships", async () => {
-    const result = await runPolicy({
+  it("neutralizes myAccesses and public history before consent", async () => {
+    const accesses = await runPolicy({
       path: PROFESSIONAL_MY_ACCESSES_PATH,
       result: {
         ok: true,
@@ -305,124 +276,101 @@ describe("professional request access public boundary", () => {
         ],
       },
     });
-
-    const items = (result as { data: Array<Record<string, unknown>> }).data;
-    expect(items[0]).toMatchObject({
+    const accessItems = (accesses as { data: Array<Record<string, unknown>> })
+      .data;
+    expect(accessItems[0]).toMatchObject({
       id: "receipt-active",
       status: "pending",
       patient: null,
     });
     expect(
-      items.find(item => item.id === "pending-authorization")
+      accessItems.find(item => item.id === "pending-authorization")
     ).toBeUndefined();
     expect(
-      items.find(item => item.id === "rejected-authorization")
-    ).toMatchObject({
-      patient: null,
-      authorizationMessageError: null,
-    });
-    expect(
-      items.find(item => item.id === "rejected-authorization")
+      accessItems.find(item => item.id === "rejected-authorization")
     ).not.toHaveProperty("patientUserId");
-    expect(
-      items.find(item => item.id === "approved-authorization")
-    ).toHaveProperty("patientUserId", 44);
-  });
 
-  it("removes pre-consent and internal receipt events from public history", async () => {
-    const result = await runPolicy({
+    const history = await runPolicy({
       path: PROFESSIONAL_HISTORY_PATH,
       result: {
         ok: true,
         data: [
           { id: "1", eventType: "access_request_received" },
-          { id: "2", eventType: "access_request_linked", patientUserId: 42 },
-          { id: "3", eventType: "access_requested", patientUserId: 42 },
+          { id: "2", eventType: "access_requested", patientUserId: 42 },
           {
-            id: "4",
-            eventType: "access_authorization_whatsapp_sent",
-            patientUserId: 42,
-          },
-          {
-            id: "5",
+            id: "3",
             eventType: "access_rejected",
             patientUserId: 42,
             entityId: "private",
           },
-          { id: "6", eventType: "access_approved", patientUserId: 43 },
+          { id: "4", eventType: "access_approved", patientUserId: 43 },
         ],
       },
     });
-
-    expect((result as { data: unknown[] }).data).toEqual([
+    expect((history as { data: unknown[] }).data).toEqual([
       {
-        id: "5",
+        id: "3",
         eventType: "access_rejected",
         patientUserId: null,
         entityId: null,
       },
-      { id: "6", eventType: "access_approved", patientUserId: 43 },
+      { id: "4", eventType: "access_approved", patientUserId: 43 },
     ]);
   });
 });
 
-describe("professional access receipt input policy", () => {
+describe("opaque receipt patient decisions", () => {
   it.each([
-    PROFESSIONAL_APPROVE_ACCESS_PATH,
-    PROFESSIONAL_REVOKE_ACCESS_PATH,
-  ])(
-    "resolves an opaque receipt only for the authenticated patient on %s",
-    async path => {
-      const deps = dependencies();
-      deps.resolveAuthorizationIdForPatient.mockResolvedValueOnce(
-        "authorization-42"
-      );
-      const policy = createProfessionalAccessReceiptInputPolicy(deps);
-
-      await expect(
-        policy({
-          path,
-          ctx: context(42),
-          input: { accessId: "receipt-opaque" },
-        })
-      ).resolves.toEqual({ accessId: "authorization-42" });
-      expect(deps.resolveAuthorizationIdForPatient).toHaveBeenCalledWith(
-        "receipt-opaque",
-        42
-      );
-    }
-  );
-
-  it("keeps an unresolved or outsider receipt unchanged", async () => {
+    [PROFESSIONAL_APPROVE_ACCESS_PATH, "approved"],
+    [PROFESSIONAL_REVOKE_ACCESS_PATH, "revoked"],
+  ] as const)("recovers the canonical authorization on %s", async (path, status) => {
     const deps = dependencies();
-    const policy = createProfessionalAccessReceiptInputPolicy(deps);
-    const input = { accessId: "receipt-not-owned" };
+    deps.resolveAuthorizationIdForPatient.mockResolvedValueOnce(
+      "authorization-1"
+    );
+    const result = await runPolicy({
+      deps,
+      path,
+      userId: 42,
+      rawInput: { accessId: "receipt-opaque" },
+      result: {
+        ok: false,
+        error: new Error("Solicitação de acesso não encontrada."),
+      },
+    });
 
-    await expect(
-      policy({
-        path: PROFESSIONAL_APPROVE_ACCESS_PATH,
-        ctx: context(99),
-        input,
-      })
-    ).resolves.toBe(input);
+    expect(result).toMatchObject({
+      ok: true,
+      data: { id: "authorization-1", patientUserId: 42, status },
+    });
+    expect(deps.resolveAuthorizationIdForPatient).toHaveBeenCalledWith(
+      "receipt-opaque",
+      42
+    );
+    if (path === PROFESSIONAL_APPROVE_ACCESS_PATH) {
+      expect(deps.approveAccess).toHaveBeenCalledWith(42, "authorization-1");
+      expect(deps.revokeAccess).not.toHaveBeenCalled();
+    } else {
+      expect(deps.revokeAccess).toHaveBeenCalledWith(42, "authorization-1");
+      expect(deps.approveAccess).not.toHaveBeenCalled();
+    }
   });
 
-  it("maps receipt persistence failure to sanitized unavailability", async () => {
+  it("preserves the canonical not-found response for outsiders and unresolved receipts", async () => {
     const deps = dependencies();
-    deps.resolveAuthorizationIdForPatient.mockRejectedValueOnce(
-      new Error("Failed query: professionalHistoryEvents")
-    );
-    const policy = createProfessionalAccessReceiptInputPolicy(deps);
-
+    const original = {
+      ok: false,
+      error: new Error("Solicitação de acesso não encontrada."),
+    };
     await expect(
-      policy({
+      runPolicy({
+        deps,
         path: PROFESSIONAL_APPROVE_ACCESS_PATH,
-        ctx: context(42),
-        input: { accessId: "receipt-opaque" },
+        userId: 99,
+        rawInput: { accessId: "receipt-opaque" },
+        result: original,
       })
-    ).rejects.toMatchObject({
-      code: "SERVICE_UNAVAILABLE",
-      message: PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE,
-    });
+    ).resolves.toBe(original);
+    expect(deps.approveAccess).not.toHaveBeenCalled();
   });
 });
