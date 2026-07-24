@@ -196,14 +196,14 @@ export function createProfessionalAccessRequestReceiptRepository(
 
     try {
       const result = await db.execute(sql`
-        SELECT authorization.id
-        FROM professionalHistoryEvents linked
-        INNER JOIN professionalPatientAuthorizations authorization
-          ON authorization.id = linked.entityId
-        WHERE linked.eventType = ${ACCESS_REQUEST_LINKED_EVENT}
-          AND linked.entityType = ${receiptId}
-          AND linked.patientUserId = ${patientUserId}
-          AND authorization.patientUserId = ${patientUserId}
+        SELECT authorization.\`id\`
+        FROM \`professionalHistoryEvents\` linked
+        INNER JOIN \`professionalPatientAuthorizations\` authorization
+          ON authorization.\`id\` = linked.\`entityId\`
+        WHERE linked.\`eventType\` = ${ACCESS_REQUEST_LINKED_EVENT}
+          AND linked.\`entityType\` = ${receiptId}
+          AND linked.\`patientUserId\` = ${patientUserId}
+          AND authorization.\`patientUserId\` = ${patientUserId}
         LIMIT 1
       `);
       const id = rowsFromResult(result)[0]?.id;
@@ -288,29 +288,29 @@ export function createProfessionalAccessRequestReceiptRepository(
       const [receiptResult, pendingResult] = await Promise.all([
         db.execute(sql`
           SELECT
-            received.id,
-            received.occurredAt,
-            linked.entityId AS linkedAuthorizationId,
-            authorization.status AS authorizationStatus
-          FROM professionalHistoryEvents received
-          LEFT JOIN professionalHistoryEvents linked
-            ON linked.professionalUserId = received.professionalUserId
-            AND linked.eventType = ${ACCESS_REQUEST_LINKED_EVENT}
-            AND linked.entityType = received.id
-          LEFT JOIN professionalPatientAuthorizations authorization
-            ON authorization.id = linked.entityId
-            AND authorization.professionalUserId = received.professionalUserId
-          WHERE received.professionalUserId = ${professionalUserId}
-            AND received.eventType = ${ACCESS_REQUEST_RECEIVED_EVENT}
-          ORDER BY received.occurredAt DESC, received.id DESC
+            received.\`id\`,
+            received.\`occurredAt\`,
+            linked.\`entityId\` AS linkedAuthorizationId,
+            authorization.\`status\` AS authorizationStatus
+          FROM \`professionalHistoryEvents\` received
+          LEFT JOIN \`professionalHistoryEvents\` linked
+            ON linked.\`professionalUserId\` = received.\`professionalUserId\`
+            AND linked.\`eventType\` = ${ACCESS_REQUEST_LINKED_EVENT}
+            AND linked.\`entityType\` = received.\`id\`
+          LEFT JOIN \`professionalPatientAuthorizations\` authorization
+            ON authorization.\`id\` = linked.\`entityId\`
+            AND authorization.\`professionalUserId\` = received.\`professionalUserId\`
+          WHERE received.\`professionalUserId\` = ${professionalUserId}
+            AND received.\`eventType\` = ${ACCESS_REQUEST_RECEIVED_EVENT}
+          ORDER BY received.\`occurredAt\` DESC, received.\`id\` DESC
           LIMIT ${MAX_SCANNED_RECEIPTS}
         `),
         db.execute(sql`
-          SELECT id, requestedAt
-          FROM professionalPatientAuthorizations
-          WHERE professionalUserId = ${professionalUserId}
-            AND status = 'pending'
-          ORDER BY requestedAt DESC, id DESC
+          SELECT \`id\`, \`requestedAt\`
+          FROM \`professionalPatientAuthorizations\`
+          WHERE \`professionalUserId\` = ${professionalUserId}
+            AND \`status\` = 'pending'
+          ORDER BY \`requestedAt\` DESC, \`id\` DESC
           LIMIT ${MAX_SCANNED_RECEIPTS}
         `),
       ]);
