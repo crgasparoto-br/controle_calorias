@@ -177,7 +177,7 @@ export function hasUsableSweetenedCoffeeInference(
 
   if (
     sweetenedSourceSegments.length > 0
-    && explicitlySweetenedItems.length >= sweetenedSourceSegments.length
+    && explicitlySweetenedItems.length === sweetenedSourceSegments.length
   ) {
     return true;
   }
