@@ -5,8 +5,12 @@ on:
     branches:
       - develop
     paths:
+      - "client/src/pages/ProfessionalAreaPage.tsx"
       - "client/src/pages/professional/ProfessionalHome.tsx"
+      - "client/src/components/ProfessionalLayout.tsx"
       - "client/src/components/professional/ProfessionalUi.tsx"
+      - "client/src/components/ui/sidebar.tsx"
+      - "client/src/lib/professionalRoutes.ts"
       - "client/src/index.css"
       - "visual-tests/professional-home/**"
       - "scripts/render-professional-home-visual.sh"
