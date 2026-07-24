@@ -47,8 +47,12 @@ describe("compatibilidade semântica do catálogo", () => {
   });
 
   it("aplica o mesmo guard ao fallback TACO", () => {
-    expect(findTacoFood("café com açúcar")?.name).not.toMatch(/sem açúcar/i);
-    expect(findTacoFood("café")?.name).not.toMatch(/sem açúcar/i);
+    expect(findTacoFood("café com açúcar")).not.toEqual(
+      expect.objectContaining({ name: expect.stringMatching(/sem açúcar/i) }),
+    );
+    expect(findTacoFood("café")).not.toEqual(
+      expect.objectContaining({ name: expect.stringMatching(/sem açúcar/i) }),
+    );
   });
 
   it("não confunde os dois cafés da regressão", () => {
