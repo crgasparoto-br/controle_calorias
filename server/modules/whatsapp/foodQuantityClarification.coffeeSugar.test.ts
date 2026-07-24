@@ -72,10 +72,12 @@ describe("clarificação persistente de açúcar", () => {
     const service = createFoodQuantityClarificationService({
       repository: fake.repository,
     });
+    const originalText = `Mensagem original para ${expectedKind}: café com açúcar`;
 
     const result = await service.requestCaloricComplementQuantity({
       userId: 7,
       originalFoodText: "1 xícara de café com açúcar",
+      originalText,
       operation,
       receivedAt: new Date("2026-07-24T12:00:00.000Z"),
       messageId: `wamid-${expectedKind}`,
@@ -91,6 +93,8 @@ describe("clarificação persistente de açúcar", () => {
     const target = pending?.target as {
       interactionId: string;
       pendingKind: string;
+      originalText: string;
+      sanitizedOriginalText: string;
       inboundMessageId: string;
       allowedDomainEffect: string;
       resolutionContext: CaloricComplementQuantityContext;
@@ -98,6 +102,8 @@ describe("clarificação persistente de açúcar", () => {
     expect(target).toEqual(expect.objectContaining({
       interactionId: "food_clarification.quantity",
       pendingKind: "quantity",
+      originalText,
+      sanitizedOriginalText: expect.stringContaining("Mensagem original"),
       inboundMessageId: `wamid-${expectedKind}`,
       allowedDomainEffect: "complete_pending_food_operation_once",
     }));
