@@ -68,27 +68,28 @@ import { handleFoodAdditionIntent } from "./foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./foodReplacementHandlers";
 
 const occurredAt = new Date("2026-07-24T10:00:00.000Z");
+const coffeeItem = {
+  foodName: "Café sem açúcar",
+  canonicalName: "Café Sem Açúcar",
+  brand: null,
+  quantity: 1,
+  unit: "xícara",
+  portionText: "1 xícara",
+  servings: 1,
+  estimatedGrams: 200,
+  calories: 2,
+  protein: 0,
+  carbs: 0,
+  fat: 0,
+  confidence: 0.95,
+  source: "catalog",
+};
 const targetMeal = {
   id: 903,
   mealLabel: "Café da manhã",
   occurredAt,
   notes: null,
-  items: [{
-    foodName: "Café sem açúcar",
-    canonicalName: "Café Sem Açúcar",
-    brand: null,
-    quantity: 1,
-    unit: "xícara",
-    portionText: "1 xícara",
-    servings: 1,
-    estimatedGrams: 200,
-    calories: 2,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    confidence: 0.95,
-    source: "catalog",
-  }],
+  items: [coffeeItem],
 };
 
 function missingSugarError() {
@@ -256,13 +257,56 @@ describe("mutações de café com açúcar no WhatsApp", () => {
     expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
       userId: 7,
       originalFoodText: "1 xícara de Café com açúcar",
-      operation: {
+      operation: expect.objectContaining({
         kind: "replace_item",
         mealId: 903,
         itemIndex: 0,
         originalFoodName: "Café sem açúcar",
-      },
+        companionReplacements: [],
+      }),
       messageId: "wamid-replace-sugar",
+    }));
+    expect(mocks.updateMeal).not.toHaveBeenCalled();
+  });
+
+  it("preserva substituições companheiras quando uma troca exige açúcar", async () => {
+    mocks.listMeals.mockResolvedValueOnce([{
+      ...targetMeal,
+      items: [
+        draftItem({
+          foodName: "Banana",
+          canonicalName: "Banana",
+          calories: 72,
+          carbs: 19,
+        }),
+        coffeeItem,
+      ],
+    }]);
+
+    const result = await handleFoodReplacementIntents(
+      7,
+      [
+        { fromFood: "Banana", toFood: "Maçã" },
+        { fromFood: "Café sem açúcar", toFood: "Café com açúcar" },
+      ],
+      "America/Sao_Paulo",
+      {
+        originalText: "Trocar banana por maçã e café sem açúcar por café com açúcar",
+        receivedAt: occurredAt,
+        messageId: "wamid-replace-batch-sugar",
+      },
+    );
+
+    expect(result.action).toBe("food_clarification_requested");
+    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
+      originalText: "Trocar banana por maçã e café sem açúcar por café com açúcar",
+      operation: expect.objectContaining({
+        kind: "replace_item",
+        mealId: 903,
+        itemIndex: 1,
+        originalFoodName: "Café sem açúcar",
+        companionReplacements: [{ fromFood: "Banana", toFood: "Maçã" }],
+      }),
     }));
     expect(mocks.updateMeal).not.toHaveBeenCalled();
   });
