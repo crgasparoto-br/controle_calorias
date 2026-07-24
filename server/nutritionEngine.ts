@@ -1,5 +1,9 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
-import { findCatalogFood, sourceMentionsFood } from "./catalogMatching";
+import {
+  findCatalogFood,
+  isCatalogFoodSemanticallyCompatible,
+  sourceMentionsFood,
+} from "./catalogMatching";
 import {
   buildCoffeeWithExplicitSugarItem,
   shouldRequestSugarQuantity,
@@ -131,17 +135,29 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   return candidates;
 }
 
+function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: string) {
+  const explicitSource = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  if (explicitSource) return explicitSource;
+
+  const source = sourceText?.trim();
+  if (!source) return item.foodName;
+  const matchingSegments = splitSourceFoodSegments(source)
+    .filter(segment => sourceSegmentMatchesInferenceItem(segment, item));
+  return matchingSegments.length === 1 ? matchingSegments[0] : item.foodName;
+}
+
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
+  const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
 
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
-    if (catalog) return catalog;
+    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
   }
 
   for (const candidate of candidates) {
     const catalog = await findCatalogFoodSemantic(candidate) ?? undefined;
-    if (catalog) return catalog;
+    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
   }
 
   return undefined;
