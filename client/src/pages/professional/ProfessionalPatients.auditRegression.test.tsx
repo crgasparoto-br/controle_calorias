@@ -204,7 +204,7 @@ describe("ProfessionalPatients audit regressions", () => {
     expect(screen.getByText("approved")).not.toBeNull();
     expect(screen.getByText("not_started")).not.toBeNull();
     expect(screen.getByText("Não informado")).not.toBeNull();
-    expect(screen.getByText("Sem revisão agendada")).not.toBeNull();
+    expect(screen.getByText("Sem revisão agendada", { selector: "dd" })).not.toBeNull();
     expect(screen.queryByText("must-not-render@example.com")).toBeNull();
 
     expect(
