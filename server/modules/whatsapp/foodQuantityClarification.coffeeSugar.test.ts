@@ -105,7 +105,41 @@ describe("clarificação persistente de açúcar", () => {
       mode: "complete_caloric_complement",
       componentName: "açúcar",
       originalFoodText: "1 xícara de café com açúcar",
+      coffeeQuantity: {
+        quantity: 1,
+        unit: "xícara",
+        estimatedMl: 50,
+        cupsEquivalent: 1,
+      },
       operation: expect.objectContaining({ kind: expectedKind }),
     }));
+  });
+
+  it("preserva volume em mililitros sem convertê-lo em texto implícito", async () => {
+    const fake = buildRepository();
+    const service = createFoodQuantityClarificationService({
+      repository: fake.repository,
+    });
+
+    await service.requestCaloricComplementQuantity({
+      userId: 8,
+      originalFoodText: "200 ml de café com açúcar",
+      operation: {
+        kind: "register",
+        occurredAt: "2026-07-24T12:00:00.000Z",
+      },
+      receivedAt: new Date("2026-07-24T12:00:00.000Z"),
+      messageId: "wamid-volume",
+    });
+
+    const target = fake.captured()?.target as {
+      resolutionContext: CaloricComplementQuantityContext;
+    };
+    expect(target.resolutionContext.coffeeQuantity).toEqual({
+      quantity: 200,
+      unit: "ml",
+      estimatedMl: 200,
+      cupsEquivalent: 4,
+    });
   });
 });
