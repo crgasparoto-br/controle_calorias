@@ -20,10 +20,12 @@ import {
 import { registerLegacyProfessionalEntitlementPolicy } from "./modules/professionals/legacyEntitlementPolicy";
 import { getCanonicalProfessionalProfile } from "./modules/professionals/persistenceService";
 import { professionalRecordRouter } from "./modules/professionals/recordRouter";
+import { registerProfessionalRequestAccessPublicBoundary } from "./modules/professionals/requestAccessPublicBoundary";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
 
 registerLegacyProfessionalEntitlementPolicy();
+registerProfessionalRequestAccessPublicBoundary();
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),
