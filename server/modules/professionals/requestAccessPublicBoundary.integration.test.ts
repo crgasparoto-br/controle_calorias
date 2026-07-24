@@ -67,6 +67,54 @@ describe("nutrition.professionals.requestAccess public caller", () => {
     expect(Object.keys(existing).sort()).toEqual(Object.keys(self).sort());
   });
 
+  it("keeps one neutral receipt per repeated attempt without duplicating the canonical authorization", async () => {
+    const professionalUserId = 879205;
+    const patientUserId = 879206;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Profissional de repetição",
+      active: true,
+    });
+    const caller = appRouter.createCaller(
+      createProfessionalContext(professionalUserId)
+    );
+
+    const firstExisting = await caller.nutrition.professionals.requestAccess({
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Primeira tentativa existente",
+    });
+    const secondExisting = await caller.nutrition.professionals.requestAccess({
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Segunda tentativa existente",
+    });
+    const firstMissing = await caller.nutrition.professionals.requestAccess({
+      patientContact: "repeated-missing@example.com",
+      reason: "Primeira tentativa ausente",
+    });
+    const secondMissing = await caller.nutrition.professionals.requestAccess({
+      patientContact: "repeated-missing@example.com",
+      reason: "Segunda tentativa ausente",
+    });
+
+    for (const result of [
+      firstExisting,
+      secondExisting,
+      firstMissing,
+      secondMissing,
+    ]) {
+      expectPendingReceipt(result);
+    }
+    expect(new Set([
+      firstExisting.id,
+      secondExisting.id,
+      firstMissing.id,
+      secondMissing.id,
+    ]).size).toBe(4);
+
+    const accesses = await caller.nutrition.professionals.myAccesses();
+    expect(accesses.filter(access => access.status === "pending")).toHaveLength(4);
+    expect(accesses.every(access => !("patientUserId" in access))).toBe(true);
+  });
+
   it("keeps pending identities hidden in myAccesses and portfolio", async () => {
     const professionalUserId = 879211;
     const patientUserId = 879212;
@@ -105,6 +153,7 @@ describe("nutrition.professionals.requestAccess public caller", () => {
       includeHistoricalActivity: true,
     });
     expect(portfolio.items).toHaveLength(2);
+    expect(portfolio.summary.pendingRequests).toBe(2);
     for (const item of portfolio.items) {
       expect(item).toMatchObject({
         patientUserId: 0,
@@ -117,6 +166,48 @@ describe("nutrition.professionals.requestAccess public caller", () => {
     expect(JSON.stringify(portfolio)).not.toContain(
       `user-${patientUserId}@example.com`
     );
+  });
+
+  it("allows only the target patient to approve using the opaque receipt", async () => {
+    const professionalUserId = 879215;
+    const patientUserId = 879216;
+    const outsiderUserId = 879217;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Profissional de consentimento",
+      active: true,
+    });
+    const professional = appRouter.createCaller(
+      createProfessionalContext(professionalUserId)
+    );
+    const patient = appRouter.createCaller(
+      createProfessionalContext(patientUserId)
+    );
+    const outsider = appRouter.createCaller(
+      createProfessionalContext(outsiderUserId)
+    );
+
+    const receipt = await professional.nutrition.professionals.requestAccess({
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Consentimento pelo comprovante",
+    });
+
+    await expect(
+      outsider.nutrition.professionals.approveAccess({ accessId: receipt.id })
+    ).rejects.toThrow("não encontrada");
+    await expect(
+      patient.nutrition.professionals.approveAccess({ accessId: receipt.id })
+    ).resolves.toMatchObject({ status: "approved", patientUserId });
+
+    const repeated = await professional.nutrition.professionals.requestAccess({
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Vínculo já aprovado",
+    });
+    expect(repeated).toEqual({
+      id: expect.any(String),
+      status: "approved",
+      requestedAt: expect.any(Number),
+    });
+    expect(repeated).not.toHaveProperty("patientUserId");
   });
 
   it("keeps malformed input as validation failure", async () => {
