@@ -157,6 +157,14 @@ export function requestAccessSuccessState(result: RequestAccessResult) {
   };
 }
 
+export function withoutBlockedPatients<T extends { patientUserId: number }>(
+  items: readonly T[],
+  blockedPatientIds: ReadonlySet<number>
+) {
+  if (blockedPatientIds.size === 0) return items;
+  return items.filter(item => !blockedPatientIds.has(item.patientUserId));
+}
+
 function formatDate(value: number | null | undefined, fallback: string) {
   return value
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -279,6 +287,9 @@ export default function ProfessionalPatients() {
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   const [openingPatientId, setOpeningPatientId] = useState<number | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [blockedPatientIds, setBlockedPatientIds] = useState<ReadonlySet<number>>(
+    () => new Set()
+  );
 
   const updateFilters = useCallback(
     (patch: Partial<Filters>) => {
@@ -308,6 +319,29 @@ export default function ProfessionalPatients() {
     refetchInterval: 30_000,
   });
 
+  const visiblePortfolioItems = useMemo(
+    () => withoutBlockedPatients(portfolio.data?.items ?? [], blockedPatientIds),
+    [blockedPatientIds, portfolio.data?.items]
+  );
+
+  useEffect(() => {
+    const items = portfolio.data?.items;
+    if (!items || blockedPatientIds.size === 0) return;
+
+    setBlockedPatientIds(current => {
+      const next = new Set(current);
+      for (const patientId of current) {
+        const refreshedItem = items.find(
+          item => item.patientUserId === patientId
+        );
+        if (!refreshedItem || refreshedItem.authorizationStatus !== "approved") {
+          next.delete(patientId);
+        }
+      }
+      return next.size === current.size ? current : next;
+    });
+  }, [blockedPatientIds.size, portfolio.data?.items]);
+
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async result => {
       const success = requestAccessSuccessState(result);
@@ -336,10 +370,19 @@ export default function ProfessionalPatients() {
       });
       setLocation(professionalPatientPath(item.patientUserId));
     } catch {
+      setBlockedPatientIds(current => {
+        const next = new Set(current);
+        next.add(item.patientUserId);
+        return next;
+      });
       setOpenError(
-        "O acesso a este paciente não está mais disponível. A carteira foi atualizada."
+        "O acesso a este paciente não está mais disponível. Os dados foram removidos da carteira."
       );
-      await portfolio.refetch();
+      try {
+        await portfolio.refetch();
+      } catch {
+        // O card permanece oculto até uma consulta segura confirmar o novo estado.
+      }
     } finally {
       setOpeningPatientId(null);
     }
@@ -531,7 +574,7 @@ export default function ProfessionalPatients() {
           description="Nenhum dado de paciente foi exibido."
           onRetry={() => void portfolio.refetch()}
         />
-      ) : portfolio.data?.items.length === 0 ? (
+      ) : visiblePortfolioItems.length === 0 ? (
         <ProfessionalAsyncState
           icon="empty"
           title="Nenhum paciente encontrado"
@@ -539,7 +582,7 @@ export default function ProfessionalPatients() {
         />
       ) : (
         <div className="grid gap-3">
-          {portfolio.data?.items.map((item: PortfolioItem) => (
+          {visiblePortfolioItems.map((item: PortfolioItem) => (
             <PatientCard
               key={item.authorizationId}
               item={item}
