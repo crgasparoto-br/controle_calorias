@@ -1,5 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import {
+  registerProtectedProcedureInputPolicy,
+  type ProtectedProcedureInputPolicy,
+} from "../../_core/procedureInputPolicy";
+import {
   registerProtectedProcedureResultPolicy,
   type ProtectedProcedureResultPolicy,
 } from "../../_core/procedureResultPolicy";
@@ -15,6 +19,10 @@ export const PROFESSIONAL_MY_ACCESSES_PATH =
 export const PROFESSIONAL_PORTFOLIO_PATH =
   "nutrition.professionals.portfolio";
 export const PROFESSIONAL_HISTORY_PATH = "nutrition.professionals.history";
+export const PROFESSIONAL_APPROVE_ACCESS_PATH =
+  "nutrition.professionals.approveAccess";
+export const PROFESSIONAL_REVOKE_ACCESS_PATH =
+  "nutrition.professionals.revokeAccess";
 export const PROFESSIONAL_REQUEST_ACCESS_REJECTED_MESSAGE =
   "Não foi possível enviar a solicitação com os dados informados. Confira o contato ou tente novamente mais tarde.";
 export const PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE =
@@ -52,6 +60,7 @@ const NON_APPROVED_HISTORY_EVENTS = new Set([
 type RequestAccessBoundaryDependencies = {
   createUnresolvedReceipt: typeof professionalAccessRequestReceiptRepository.createUnresolvedReceipt;
   createLinkedReceipt: typeof professionalAccessRequestReceiptRepository.createLinkedReceipt;
+  resolveAuthorizationIdForPatient: typeof professionalAccessRequestReceiptRepository.resolveAuthorizationIdForPatient;
   listActiveReceipts: typeof professionalAccessRequestReceiptRepository.listActiveReceipts;
 };
 
@@ -60,6 +69,8 @@ const defaultDependencies: RequestAccessBoundaryDependencies = {
     professionalAccessRequestReceiptRepository.createUnresolvedReceipt,
   createLinkedReceipt:
     professionalAccessRequestReceiptRepository.createLinkedReceipt,
+  resolveAuthorizationIdForPatient:
+    professionalAccessRequestReceiptRepository.resolveAuthorizationIdForPatient,
   listActiveReceipts:
     professionalAccessRequestReceiptRepository.listActiveReceipts,
 };
@@ -365,6 +376,34 @@ function protectHistoryResult(record: Record<string, unknown>) {
   return { ...record, data: events };
 }
 
+export function createProfessionalAccessReceiptInputPolicy(
+  dependencies: RequestAccessBoundaryDependencies = defaultDependencies
+): ProtectedProcedureInputPolicy {
+  return async ({ path, input, ctx }) => {
+    if (
+      path !== PROFESSIONAL_APPROVE_ACCESS_PATH &&
+      path !== PROFESSIONAL_REVOKE_ACCESS_PATH
+    ) {
+      return input;
+    }
+
+    const record = asRecord(input);
+    const receiptId = record?.accessId;
+    if (typeof receiptId !== "string" || !receiptId) return input;
+
+    try {
+      const authorizationId =
+        await dependencies.resolveAuthorizationIdForPatient(
+          receiptId,
+          ctx.user.id
+        );
+      return authorizationId ? { ...record, accessId: authorizationId } : input;
+    } catch {
+      throw unavailableError();
+    }
+  };
+}
+
 export function createProfessionalRequestAccessPublicBoundary(
   dependencies: RequestAccessBoundaryDependencies = defaultDependencies
 ): ProtectedProcedureResultPolicy {
@@ -394,7 +433,14 @@ export function createProfessionalRequestAccessPublicBoundary(
 }
 
 export function registerProfessionalRequestAccessPublicBoundary() {
-  return registerProtectedProcedureResultPolicy(
+  const unregisterInput = registerProtectedProcedureInputPolicy(
+    createProfessionalAccessReceiptInputPolicy()
+  );
+  const unregisterResult = registerProtectedProcedureResultPolicy(
     createProfessionalRequestAccessPublicBoundary()
   );
+  return () => {
+    unregisterInput();
+    unregisterResult();
+  };
 }
