@@ -28,7 +28,7 @@ Cada capacidade profissional usa composição própria e não importa páginas p
 
 `nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação mínima, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional. O painel consome agregados canônicos e não executa um relatório por paciente.
 
-A solicitação de acesso usa `nutrition.professionals.requestAccess`, mas sua resposta pública anterior à autorização contém somente o estado do vínculo. Nome, e-mail, telefone, identificadores internos e o objeto de paciente não atravessam essa fronteira. Pessoa inexistente, auto-vínculo ou outro caso não elegível produzem a mesma mensagem pública segura, enquanto falha temporária usa indisponibilidade genérica sem detalhes internos.
+A solicitação de acesso usa `nutrition.professionals.requestAccess`, mas sua resposta pública anterior à autorização contém somente o identificador opaco da solicitação e o estado do vínculo. Nome, e-mail, telefone, identificador do paciente e o objeto de paciente não atravessam essa fronteira. Pessoa inexistente, auto-vínculo ou outro caso não elegível produzem a mesma mensagem pública segura, enquanto falha temporária usa indisponibilidade genérica sem detalhes internos.
 
 A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e a fila de prioridades são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_operational_alerts`, respectivamente, estão habilitados. A assistência generativa permanece separada em `professional_ai_assistance` e não é requisito para consultar pendências operacionais. A ausência de qualquer capacidade complementar apresenta um estado local indisponível sem bloquear o início profissional.
 
@@ -82,7 +82,7 @@ Os testes cobrem:
 
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
-- resposta pública mínima da solicitação de acesso e erros indistinguíveis para inexistência e auto-vínculo;
+- resposta pública mínima com ID opaco e estado, sem PII do paciente, e erros indistinguíveis para inexistência e auto-vínculo;
 - abertura da carteira com `professional_record`, diferenciando negação confirmada de `SERVICE_UNAVAILABLE`;
 - início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
 - fila operacional habilitada por `professional_operational_alerts` mesmo quando `professional_ai_assistance` não está disponível;
