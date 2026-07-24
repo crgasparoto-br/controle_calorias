@@ -23,4 +23,10 @@ describe("açúcar coordenado em preparações de café", () => {
   it("não classifica café e leite independentes como café adoçado", () => {
     expect(isCoffeeWithAddedSugar("café e leite")).toBe(false);
   });
+
+  it("não reaproveita açúcar explícito de alimento vizinho", () => {
+    expect(isCoffeeWithAddedSugar(
+      "1 xícara de café com leite e 1 fatia de bolo com 10 g de açúcar",
+    )).toBe(false);
+  });
 });
