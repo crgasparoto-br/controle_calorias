@@ -617,7 +617,7 @@ async function getUserSummaryByEmail(
   const db = await getDb();
   const normalizedEmail = email.trim().toLowerCase();
   if (!db) {
-    if (process.env.NODE_ENV === "test" || process.env.VITEST === "true") {
+    if (process.env.PROFESSIONAL_SYNTHETIC_USER_LOOKUP === "enabled") {
       const syntheticUserId = /^user-(\d+)@example\.com$/.exec(
         normalizedEmail
       )?.[1];
