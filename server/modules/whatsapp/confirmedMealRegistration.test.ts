@@ -7,6 +7,7 @@ import {
   createWhatsappMealIntentDecisionInteraction,
   MEAL_INTENT_DECISION_INTERACTION_ID,
 } from "./mealIntentDecisionInteraction";
+import { createWhatsappMealIntentRegistrationDetailsInteraction } from "./mealIntentRegistrationDetailsInteraction";
 import { resolveWhatsAppPrecedenceGate } from "./messageRouter";
 
 function processed(text: string) {
@@ -148,5 +149,24 @@ describe("issue #899 orchestration regressions", () => {
     if (result.step !== "pending_interaction") throw new Error("unreachable");
     expect(result.result.eventType).toBe("whatsapp.meal_intent_decision.unavailable");
     expect(result.result.reply).not.toContain("corrigir uma refeição");
+  });
+
+  it("substitui a clarificação complementar quando chega novo comando completo", async () => {
+    const receivedAt = new Date("2026-07-24T10:20:00.000Z");
+    await createWhatsappMealIntentRegistrationDetailsInteraction({
+      userId: 899202,
+      originalText: "café com açúcar",
+      prompt: "Qual foi a quantidade de açúcar?",
+      receivedAt,
+    });
+
+    const result = await resolveWhatsAppPrecedenceGate({
+      userId: 899202,
+      text: "registrar 100 g de arroz",
+      receivedAt: new Date(receivedAt.getTime() + 1000),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result.step).toBe("continue_pipeline");
   });
 });
