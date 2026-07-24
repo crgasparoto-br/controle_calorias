@@ -28,7 +28,7 @@ Cada capacidade profissional usa composição própria e não importa páginas p
 
 `nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional somente quando o vínculo permite essa identificação. O painel consome agregados canônicos e não executa um relatório por paciente.
 
-A solicitação usa `nutrition.professionals.requestAccess`, mas a fronteira pública não confirma se o e-mail ou celular pertence a uma conta. Pessoa existente ainda sem consentimento, pessoa inexistente e auto-vínculo retornam o mesmo contrato de comprovante: `{ id, status: "pending", requestedAt }`. O `id` identifica somente o comprovante opaco da tentativa; não é o ID da autorização, do paciente ou do contato.
+A solicitação usa `nutrition.professionals.requestAccess`, mas a fronteira pública não confirma se o e-mail ou celular pertence a uma conta. Pessoa existente ainda sem consentimento, pessoa inexistente e auto-vínculo retornam o mesmo contrato de comprovante: `{ id, status: "pending", requestedAt }`. O `id` identifica somente o comprovante opaco da tentativa; não é o ID da autorização, do paciente ou do contato. Um vínculo já aprovado pode retornar `approved`, pois o profissional já possui consentimento vigente e essa identidade já está disponível na carteira autorizada.
 
 Comprovantes são registrados em eventos internos sem contato ou motivo. Quando existe uma autorização canônica, um segundo evento interno associa o comprovante ao vínculo. Esses eventos não atravessam `nutrition.professionals.history`. Falha de formato continua sendo `BAD_REQUEST`; perfil inativo, entitlement ausente e falha temporária não são reconhecidos como solicitação aceita.
 
@@ -39,9 +39,12 @@ Enquanto não existe autorização aprovada:
 - vínculos pendentes ficam fora da paginação identificável da carteira e aparecem como **Solicitação aguardando confirmação**;
 - recusados e revogados permanecem administrativamente localizáveis apenas por estado e identificador opaco, com rótulos genéricos;
 - busca por nome, e-mail ou ID de paciente é aplicada apenas a vínculos aprovados;
+- totais públicos de solicitações pendentes são derivados dos comprovantes neutros, não da existência de autorizações resolvidas;
 - eventos de solicitação e entrega anteriores ao consentimento são omitidos do histórico público.
 
-Comprovantes não resolvidos expiram da carteira após trinta dias. Reenvios podem gerar um novo comprovante público, mas a criação da autorização continua obedecendo à idempotência canônica do par profissional/paciente. Comprovantes associados ao mesmo vínculo pendente são deduplicados nas leituras públicas.
+Comprovantes não resolvidos expiram da carteira após trinta dias. Cada tentativa aceita pela fronteira pública gera um comprovante próprio, tanto para alvo resolvido quanto não resolvido, evitando diferenças por repetição ou contagem. A criação da autorização continua obedecendo à idempotência canônica do par profissional/paciente, portanto comprovantes repetidos não duplicam o vínculo real.
+
+Quando o próprio paciente responde por `approveAccess` ou `revokeAccess`, o backend pode resolver internamente o comprovante para a autorização associada. A resolução exige que o paciente autenticado seja o dono do vínculo; comprovante inexistente, não resolvido ou apresentado por terceiro permanece sem resolução e segue o erro seguro canônico.
 
 A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e a fila de prioridades são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_operational_alerts`, respectivamente, estão habilitados. A assistência generativa permanece separada em `professional_ai_assistance` e não é requisito para consultar pendências operacionais. A ausência de qualquer capacidade complementar apresenta um estado local indisponível sem bloquear o início profissional.
 
@@ -96,9 +99,11 @@ Os testes cobrem:
 - matcher de rotas e colisão entre coleção e contexto individual;
 - entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
 - resultado indistinguível para pessoa existente, inexistente e auto-vínculo, com comprovante opaco e sem PII;
+- repetição equivalente para alvos resolvidos e não resolvidos, com um comprovante por tentativa e um único vínculo canônico;
+- resolução do comprovante somente pelo paciente dono durante aprovação ou revogação;
 - preservação de `BAD_REQUEST` para input malformado e `SERVICE_UNAVAILABLE` para falha temporária;
-- neutralização de `requestAccess`, `myAccesses`, `portfolio` e `history` antes do consentimento;
-- deduplicação de comprovantes vinculados e representação de vínculos pendentes legados;
+- neutralização de `requestAccess`, `myAccesses`, `portfolio`, totais e `history` antes do consentimento;
+- representação de vínculos pendentes legados sem expor identidade;
 - busca identificável restrita a vínculos aprovados;
 - abertura da carteira com `professional_record`, diferenciando negação confirmada de `SERVICE_UNAVAILABLE`;
 - início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
