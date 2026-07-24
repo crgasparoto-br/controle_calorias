@@ -4,7 +4,7 @@ import { parseFoodClarificationQuantityReply } from "./foodClarificationContract
 describe("quantidade do complemento calórico", () => {
   it.each([
     ["5 g", { quantity: 5, unit: "g" }],
-    ["1 colher de chá", { quantity: 1, unit: "colher de cha" }],
+    ["1 colher de chá", { quantity: 1, unit: "colher de chá" }],
     ["2 colheres de sopa", { quantity: 2, unit: "colher de sopa" }],
     ["1 sachê", { quantity: 1, unit: "sache" }],
   ])("aceita %s sem transformar a resposta em novo comando", (text, expected) => {
