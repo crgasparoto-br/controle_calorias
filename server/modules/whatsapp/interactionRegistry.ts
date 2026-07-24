@@ -448,7 +448,7 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     invalidResponse: "represent_same_actions",
     staleBehavior: "reply_unavailable_request_new_command",
     allowedEffects: ["register_original_meal_once", "suggest_without_persistence", "cancel"],
-    forbiddenEffects: [...NUTRITION_FORBIDDEN, "persist_command_word_as_food", "suggestion_as_consumption"],
+    forbiddenEffects: ["nutrition_fallback", "llm_reinterpretation", "persist_command_word_as_food", "suggestion_as_consumption"],
     matches: isPendingMealIntentDecision,
     actions: target => isPendingMealIntentDecision(target)
       ? target.actions.map(action => ({ ...action }))
