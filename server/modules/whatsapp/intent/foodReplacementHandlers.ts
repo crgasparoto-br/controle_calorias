@@ -2,7 +2,10 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { getHabitSnapshots } from "../../../db";
 import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
 import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
-import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
+import {
+  requestWhatsappCaloricComplementQuantityClarification,
+  type CaloricComplementCompanionReplacement,
+} from "../foodQuantityClarification";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -140,6 +143,7 @@ async function resolveReplacementItem(input: {
   replacement: FoodReplacementIntent;
   target: Extract<ReturnType<typeof resolveTargetMealItemInMeals<MutableMealRecord>>, { kind: "matched" }>;
   timeZone: string;
+  companionReplacements: CaloricComplementCompanionReplacement[];
   context?: ReplacementExecutionContext;
 }): Promise<MealItemInput | WhatsappIntentResult> {
   if (!isCoffeeWithAddedSugar(input.replacement.toFood)) {
@@ -176,6 +180,7 @@ async function resolveReplacementItem(input: {
           mealId: input.target.meal.id,
           itemIndex: input.target.index,
           originalFoodName: currentItem.foodName,
+          companionReplacements: input.companionReplacements.map(replacement => ({ ...replacement })),
         },
         receivedAt,
         messageId: input.context?.messageId,
@@ -203,7 +208,7 @@ export async function handleFoodReplacementIntents(
   const pendingTargets: PendingReplacementTarget[] = [];
   const notFound: string[] = [];
 
-  for (const replacement of replacements) {
+  for (const [replacementIndex, replacement] of replacements.entries()) {
     const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood, timeZone);
     if (target.kind === "ambiguous") {
       pendingTargets.push({ targetFood: replacement.fromFood, context: contextWithPreposition(target.scope), scopeLabel: target.scopeLabel, candidates: target.candidates, toFood: replacement.toFood });
@@ -219,6 +224,9 @@ export async function handleFoodReplacementIntents(
       replacement,
       target,
       timeZone,
+      companionReplacements: replacements
+        .filter((_, index) => index !== replacementIndex)
+        .map(companion => ({ fromFood: companion.fromFood, toFood: companion.toFood })),
       context,
     });
     if ("handled" in replacementResolution) return replacementResolution;
