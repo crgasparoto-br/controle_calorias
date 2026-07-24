@@ -137,11 +137,19 @@ export function normalizeSweetenedCoffeeDraftItems(
 ) {
   if (!isCoffeeWithAddedSugar(sourceText)) return items;
 
+  const coffeeItems = items.filter(item =>
+    /\bcafe\b/.test(normalizeForMatching(`${item.foodName} ${item.canonicalName}`))
+  );
+  const sourceCanQualifyGenericCoffee = coffeeItems.length === 1;
+
   return items.map(item => {
-    const identity = normalizeForMatching(
-      `${item.foodName} ${item.canonicalName}`,
-    );
-    if (!/\bcafe\b/.test(identity)) return item;
+    const identity = `${item.foodName} ${item.canonicalName}`;
+    const normalizedIdentity = normalizeForMatching(identity);
+    if (!/\bcafe\b/.test(normalizedIdentity)) return item;
+
+    const itemIsExplicitlySweetened = isCoffeeWithAddedSugar(identity);
+    if (!itemIsExplicitlySweetened && !sourceCanQualifyGenericCoffee) return item;
+
     return {
       ...item,
       foodName: "Café com açúcar",
