@@ -52,23 +52,42 @@ jobs:
           cat issue899-focused.log
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Upload focused diagnostics
+      - name: Remaining validation gates
+        id: gates
+        shell: bash
+        run: |
+          set +e
+          pnpm check > issue899-types.log 2>&1
+          types=$?
+          pnpm architecture:check > issue899-architecture.log 2>&1
+          architecture=$?
+          pnpm docs:check > issue899-docs.log 2>&1
+          docs=$?
+          pnpm build > issue899-build.log 2>&1
+          build=$?
+          cat issue899-types.log
+          cat issue899-architecture.log
+          cat issue899-docs.log
+          cat issue899-build.log
+          echo "types=$types" >> "$GITHUB_OUTPUT"
+          echo "architecture=$architecture" >> "$GITHUB_OUTPUT"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload orchestration diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-899-focused-diagnostics
-          path: issue899-focused.log
-      - name: Stop after focused failure
-        if: steps.focused.outputs.status != '0'
+          name: issue-899-orchestration-diagnostics
+          path: |
+            issue899-focused.log
+            issue899-types.log
+            issue899-architecture.log
+            issue899-docs.log
+            issue899-build.log
+      - name: Stop after validation failure
+        if: steps.focused.outputs.status != '0' || steps.gates.outputs.types != '0' || steps.gates.outputs.architecture != '0' || steps.gates.outputs.docs != '0' || steps.gates.outputs.build != '0'
         run: exit 1
-      - name: TypeScript check
-        run: pnpm check
-      - name: Architecture check
-        run: pnpm architecture:check
-      - name: Documentation check
-        run: pnpm docs:check
-      - name: Build
-        run: pnpm build
       - name: Commit corrections
         run: |
           git config user.name "chatgpt-orchestrator"
