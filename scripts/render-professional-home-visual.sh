@@ -42,7 +42,7 @@ capture() {
     --disable-gpu \
     --hide-scrollbars \
     --force-device-scale-factor=1 \
-    --virtual-time-budget=1500 \
+    --virtual-time-budget=1800 \
     --window-size="$size" \
     --screenshot="$OUTPUT_DIR/$name.png" \
     "$url"
@@ -50,8 +50,13 @@ capture() {
 }
 
 BASE_URL="http://127.0.0.1:${PORT}/professional"
-capture "main-desktop-1366x768" "1366,768" "$BASE_URL"
+capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
+capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
+capture "main-tablet-1024x768" "1024,768" "$BASE_URL"
 capture "main-mobile-390x844" "390,844" "$BASE_URL"
+capture "sidebar-collapsed-1366x768" "1366,768" "$BASE_URL?sidebar=collapsed"
+capture "complete-page-3-1366x768" "1366,768" "$BASE_URL?priorities=all&page=3"
+capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=loading"
 capture "empty-desktop-1366x768" "1366,768" "$BASE_URL?state=empty"
 capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL?state=priority-error"
 capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL?state=portfolio-error"
@@ -60,9 +65,10 @@ capture "portfolio-error-mobile-390x1200" "390,1200" "$BASE_URL?state=portfolio-
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
 route=/professional
 commit=${GITHUB_SHA:-local}
-scenarios=main,empty,priority-error,portfolio-error
-viewports=1366x768,390x844,390x1200
-source=actual ProfessionalHome component with deterministic tRPC fixtures
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed
+viewports=1440x900,1366x768,1024x768,390x844,390x1200
+source=actual ProfessionalAreaPage and ProfessionalLayout with deterministic tRPC and auth fixtures
+interaction=sidebar collapsed through the actual sidebar trigger
 EOF
 
 ls -lh "$OUTPUT_DIR"
