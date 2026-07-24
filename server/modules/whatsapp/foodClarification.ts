@@ -230,6 +230,24 @@ function reprompt(
   });
 }
 
+function isSugarComplementQuantityTarget(target: PendingFoodClarificationTarget) {
+  const resolutionContext = (target as PendingFoodClarificationTarget & {
+    resolutionContext?: { mode?: string; componentName?: string };
+  }).resolutionContext;
+  return resolutionContext?.mode === "complete_caloric_complement"
+    && resolutionContext.componentName === "açúcar";
+}
+
+function isSupportedSugarQuantityUnit(unit: string) {
+  const normalized = unit
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return /^(?:g|gr|grama|gramas|kg|quilo|quilos|mg|miligrama|miligramas|colher de cha|colheres de cha|colher de sopa|colheres de sopa|sache|saches|pacote|pacotes)$/.test(normalized);
+}
+
 async function resolvePendingText(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -266,6 +284,17 @@ async function resolvePendingText(
         target,
         "whatsapp.food_clarification.invalid_quantity_response",
         "Resposta incompatível não consumiu a pendência aberta de quantidade."
+      );
+    }
+    if (
+      isSugarComplementQuantityTarget(target)
+      && !isSupportedSugarQuantityUnit(quantity.unit)
+    ) {
+      return reprompt(
+        pending,
+        target,
+        "whatsapp.food_clarification.invalid_component_unit",
+        "Unidade incompatível com açúcar não consumiu a pendência aberta."
       );
     }
 
