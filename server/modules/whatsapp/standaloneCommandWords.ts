@@ -37,10 +37,16 @@ function stripBoundaryPunctuation(value: string) {
     .replace(/[^\p{L}\p{N}]+$/gu, "");
 }
 
+function normalizeHouseholdMeasure(value: string) {
+  return value.replace(/\bcolher de (cha|sopa)\b/g, "colheres de $1");
+}
+
 export function normalizeStandaloneWhatsappCommand(text?: string | null) {
   if (!text) return "";
   const normalized = collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
-  return collapseWhitespace(stripBoundaryPunctuation(normalized));
+  return normalizeHouseholdMeasure(
+    collapseWhitespace(stripBoundaryPunctuation(normalized)),
+  );
 }
 
 export function isStandaloneWhatsappCommandWord(text?: string | null): boolean {
