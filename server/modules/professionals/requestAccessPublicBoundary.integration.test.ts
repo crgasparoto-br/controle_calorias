@@ -47,7 +47,7 @@ describe("nutrition.professionals.requestAccess public caller", () => {
     expect(result).not.toHaveProperty("patientUserId");
   });
 
-  it("uses the safe public rejection for self-linking", async () => {
+  it("uses the same safe public rejection for self-linking", async () => {
     const professionalUserId = 879211;
     await upsertProfessionalProfile(professionalUserId, {
       displayName: "Profissional sem auto vínculo",
