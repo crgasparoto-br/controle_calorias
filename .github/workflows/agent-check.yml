@@ -1,49 +1,43 @@
-name: Export exact PR 870 repository
+name: Cleanup PR 870 temporary branches
 
 on:
   pull_request:
     branches:
       - develop
+    types:
+      - reopened
+      - synchronize
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export-exact-repository:
+  cleanup:
     if: github.event.pull_request.head.ref == 'audit/870-exact-sha-export'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact validated SHA
-        uses: actions/checkout@v4
-        with:
-          ref: 7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e
-          fetch-depth: 0
-
-      - name: Verify exact repository state
+      - name: Delete temporary synchronization branches
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e"
-          git cat-file -e cbc7ad98f78cd4b95e336efe009b57a7d5cc2b22^{commit}
-          test -z "$(git status --porcelain)"
-          git fsck --no-dangling
 
-      - name: Package exact repository
-        shell: bash
-        run: |
-          set -euo pipefail
-          git gc --prune=now
-          mkdir -p /tmp/issue-870-exact
-          cp -a . /tmp/issue-870-exact/repository
-          tar -C /tmp/issue-870-exact -czf /tmp/controle-calorias-870-exact.tgz repository
-          sha256sum /tmp/controle-calorias-870-exact.tgz | tee /tmp/controle-calorias-870-exact.sha256
+          branches=(
+            sync/870-develop-into-billing-foundation
+            sync/870-develop-into-billing-foundation-copy
+            sync/870-develop-into-billing-foundation-2
+            sync/870-develop-into-billing-foundation-final
+            sync/870-develop-into-billing-foundation-actual
+            sync/870-develop-into-billing-foundation-check
+            sync/870-develop-into-billing-foundation-pr
+            sync/870-rebuild-on-develop
+          )
 
-      - name: Upload exact repository
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-870-exact-repository-7dcfd45bedf7a6eab7ac8c2a068f9d4deb13c84e
-          path: |
-            /tmp/controle-calorias-870-exact.tgz
-            /tmp/controle-calorias-870-exact.sha256
-          if-no-files-found: error
-          retention-days: 3
+          for branch in "${branches[@]}"; do
+            if git ls-remote --exit-code --heads "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/heads/${branch}" >/dev/null 2>&1; then
+              git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" --delete "${branch}"
+            fi
+          done
+
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" --delete audit/870-exact-sha-export
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
