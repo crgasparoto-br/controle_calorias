@@ -56,7 +56,9 @@ async function getReceiptDb() {
   return db;
 }
 
-function toPublicReceipt(receipt: StoredReceipt): ProfessionalAccessRequestReceipt {
+function toPublicReceipt(
+  receipt: StoredReceipt
+): ProfessionalAccessRequestReceipt {
   return {
     id: receipt.id,
     status: "pending",
@@ -150,6 +152,42 @@ async function createLinkedReceipt(input: {
   }
 }
 
+async function resolveAuthorizationIdForPatient(
+  receiptId: string,
+  patientUserId: number
+): Promise<string | null> {
+  const db = await getReceiptDb();
+  if (!db) {
+    const receipt = fallbackReceipts.get(receiptId);
+    if (!receipt?.linkedAuthorizationId) return null;
+    const authorization = await professionalRepository.getAuthorizationById(
+      receipt.linkedAuthorizationId
+    );
+    return authorization?.patientUserId === patientUserId
+      ? authorization.id
+      : null;
+  }
+
+  try {
+    const result = await db.execute(sql`
+      SELECT authorization.id
+      FROM professionalHistoryEvents linked
+      INNER JOIN professionalPatientAuthorizations authorization
+        ON authorization.id = linked.entityId
+      WHERE linked.eventType = ${ACCESS_REQUEST_LINKED_EVENT}
+        AND linked.entityType = ${receiptId}
+        AND linked.patientUserId = ${patientUserId}
+        AND authorization.patientUserId = ${patientUserId}
+      LIMIT 1
+    `);
+    const id = rowsFromResult(result)[0]?.id;
+    return typeof id === "string" && id ? id : null;
+  } catch (error) {
+    logPersistenceWarning("professional.access_request_receipt.resolve", error);
+    throw error;
+  }
+}
+
 async function listFallbackReceipts(
   professionalUserId: number,
   now: number
@@ -161,22 +199,31 @@ async function listFallbackReceipts(
   const authorizationById = new Map(
     authorizations.map(authorization => [authorization.id, authorization])
   );
-  const receipts = [...fallbackReceipts.values()]
+  const receipts: ProfessionalAccessRequestReceipt[] = [];
+  const linkedAuthorizationIds = new Set<string>();
+  const storedReceipts = [...fallbackReceipts.values()]
     .filter(receipt => receipt.professionalUserId === professionalUserId)
-    .filter(receipt => {
-      if (!receipt.linkedAuthorizationId) {
-        return receipt.requestedAt >= now - UNRESOLVED_RECEIPT_TTL_MS;
+    .sort(
+      (left, right) =>
+        right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
+    );
+
+  for (const receipt of storedReceipts) {
+    if (!receipt.linkedAuthorizationId) {
+      if (receipt.requestedAt >= now - UNRESOLVED_RECEIPT_TTL_MS) {
+        receipts.push(toPublicReceipt(receipt));
       }
-      return (
-        authorizationById.get(receipt.linkedAuthorizationId)?.status === "pending"
-      );
-    })
-    .map(toPublicReceipt);
-  const linkedAuthorizationIds = new Set(
-    receipts.flatMap(receipt =>
-      receipt.linkedAuthorizationId ? [receipt.linkedAuthorizationId] : []
-    )
-  );
+      continue;
+    }
+    if (
+      linkedAuthorizationIds.has(receipt.linkedAuthorizationId) ||
+      authorizationById.get(receipt.linkedAuthorizationId)?.status !== "pending"
+    ) {
+      continue;
+    }
+    linkedAuthorizationIds.add(receipt.linkedAuthorizationId);
+    receipts.push(toPublicReceipt(receipt));
+  }
 
   for (const authorization of authorizations) {
     if (
@@ -185,6 +232,7 @@ async function listFallbackReceipts(
     ) {
       continue;
     }
+    linkedAuthorizationIds.add(authorization.id);
     receipts.push({
       id: legacyReceiptId(professionalUserId, authorization.id),
       status: "pending",
@@ -298,6 +346,7 @@ async function listActiveReceipts(
 export const professionalAccessRequestReceiptRepository = {
   createUnresolvedReceipt,
   createLinkedReceipt,
+  resolveAuthorizationIdForPatient,
   listActiveReceipts,
 };
 
