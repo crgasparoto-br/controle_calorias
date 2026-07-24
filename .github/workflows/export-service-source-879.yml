@@ -1,6 +1,9 @@
 name: Export service source 879
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/export-service-source-879.yml"
   push:
     branches:
       - feat/875-professional-context-routes
