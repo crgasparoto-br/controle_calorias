@@ -124,7 +124,7 @@ jobs:
             "repository": "${GITHUB_REPOSITORY}",
             "commitSha": "${GITHUB_SHA}",
             "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW",
+            "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
             "ref": "${GITHUB_REF}",
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
