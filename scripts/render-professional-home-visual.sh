@@ -53,12 +53,21 @@ assert_dom() {
   local name="$1"
   local url="$2"
   shift 2
+  assert_dom_at_size "$name" "1366,768" "$url" "$@"
+}
+
+assert_dom_at_size() {
+  local name="$1"
+  local size="$2"
+  local url="$3"
+  shift 3
   local output="$OUTPUT_DIR/$name.html"
   "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
     --virtual-time-budget=1800 \
+    --window-size="$size" \
     --dump-dom \
     "$url" > "$output"
   for expected in "$@"; do
@@ -110,15 +119,28 @@ assert_dom \
   "Solicitação recusada" \
   "Acesso revogado" \
   "Dados pessoais e clínicos disponíveis após autorização"
+assert_dom_at_size \
+  "patients-tablet-layout" \
+  "1024,768" \
+  "$PATIENTS_URL" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-patient-cards-contained="true"' \
+  'data-visual-primary-action-visible="true"'
+assert_dom_at_size \
+  "patients-mobile-layout" \
+  "390,844" \
+  "$PATIENTS_URL" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-patient-cards-contained="true"'
 
-cat > "$OUTPUT_DIR/manifest.txt" <<EOF
+cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
 routes=/professional,/professional/patients
 commit=${GITHUB_SHA:-local}
 scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatients with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
-assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions and privacy copy
-EOF
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy copy, no horizontal overflow and visible patient action at tablet width
+MANIFEST
 
 ls -lh "$OUTPUT_DIR"
