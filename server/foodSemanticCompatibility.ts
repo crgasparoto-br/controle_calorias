@@ -16,6 +16,8 @@ const COMPLEMENT_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["achocolatado", /\b(?:com\s+)?achocolatad[oa]\b/],
 ];
 
+const EXPLICIT_SUGAR_UNIT = "(?:g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres? de sopa|saches?|pacotes?)";
+
 function normalizeSemanticText(value: string) {
   return value
     .normalize("NFD")
@@ -34,7 +36,9 @@ function buildProfile(value: string): FoodSemanticProfile {
       ? "tea"
       : null;
   const sugarFree = /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
-  const sugarAdded = /\b(?:com(?:\s+\d+(?:[,.]\d+)?\s*(?:g|gramas?|kg|quilos?|mg|miligramas?|colheres? de cha|colheres? de sopa|saches?|pacotes?)\s+(?:de\s+)?)?acucar|adocad[oa]s?|acucarad[oa]s?)\b/.test(normalized);
+  const sugarAdded = new RegExp(
+    `\\b(?:com\\s+acucar|com\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
+  ).test(normalized);
   const plain = Boolean(family) && /\b(?:puro|pura|preto|preta|natural)\b/.test(normalized);
   const complements = new Set<string>();
 
@@ -93,10 +97,10 @@ function profilesAreCompatible(query: FoodSemanticProfile, candidate: FoodSemant
 }
 
 /**
- * Valida o candidato final, independentemente da origem do catálogo. Cada nome,
- * alias ou variante é avaliado isoladamente para que uma representação
- * semanticamente compatível seja necessária; juntar aliases não pode esconder
- * um qualificador contraditório.
+ * Valida o candidato final, independentemente da origem do catálogo. O primeiro
+ * texto representa o nome canônico: aliases genéricos não podem neutralizar um
+ * qualificador crítico presente nesse nome. Os demais nomes são avaliados
+ * isoladamente, evitando que a concatenação esconda contradições.
  */
 export function isFoodCandidateSemanticallyCompatible(
   sourceText: string,
@@ -105,10 +109,20 @@ export function isFoodCandidateSemanticallyCompatible(
   const query = buildProfile(sourceText);
   const candidates = candidateTexts
     .map(value => value?.trim() ?? "")
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(buildProfile);
 
   if (!candidates.length) return false;
-  return candidates.some(candidate => profilesAreCompatible(query, buildProfile(candidate)));
+  const canonical = candidates[0];
+  if (
+    query.family
+    && canonical.family === query.family
+    && canonical.hasCriticalQualifier
+    && !profilesAreCompatible(query, canonical)
+  ) {
+    return false;
+  }
+  return candidates.some(candidate => profilesAreCompatible(query, candidate));
 }
 
 export function hasCaloricCoffeeComplement(value: string) {
