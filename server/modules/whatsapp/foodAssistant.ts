@@ -1,6 +1,6 @@
 export type WhatsAppFoodAssistantResult = {
   handled: true;
-  action: "food_assistant" | "meal_intent_clarification";
+  action: "food_assistant";
   reply: string;
   eventType: string;
   detail: string;
@@ -37,18 +37,6 @@ function looksLikeFoodAssistantIntent(normalized: string) {
 
   return /\b(?:sugestao|sugira|sugerir|dica|ideia|orientacao|recomenda|recomende|indicacao|indique)\b/.test(normalized)
     && /\b(?:alimentar|comer|cardapio|refeicao|lanche|cafe|almoco|jantar|pre treino|pos treino|ceia)\b/.test(normalized);
-}
-
-function looksLikeExplicitMealRegistration(normalized: string) {
-  return /\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre|adicionar|adicione|inclua|lance|lancar|lançar)\b/.test(normalized);
-}
-
-function looksLikeAmbiguousMealDescription(normalized: string) {
-  if (!normalized || looksLikeFoodAssistantIntent(normalized) || looksLikeExplicitMealRegistration(normalized)) {
-    return false;
-  }
-
-  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
 }
 
 function resolveMealContext(normalized: string): AssistantMealContext {
@@ -118,34 +106,24 @@ function buildAssistantReply(context: AssistantMealContext) {
   ].join("\n");
 }
 
-function buildAmbiguousMealReply() {
-  return "Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?";
-}
-
-export function executeWhatsAppFoodAssistantIntent(text?: string | null): WhatsAppFoodAssistantResult | null {
+export function executeConfirmedWhatsAppFoodSuggestion(text?: string | null): WhatsAppFoodAssistantResult {
   const normalized = normalizeAssistantText(text?.trim() || "");
-  if (looksLikeAmbiguousMealDescription(normalized)) {
-    return {
-      handled: true,
-      action: "meal_intent_clarification",
-      reply: buildAmbiguousMealReply(),
-      eventType: "whatsapp.intent.meal_intent_clarification",
-      detail: "Mensagem alimentar ambígua pediu confirmação antes de registrar ou sugerir refeição.",
-      data: { possibleIntents: ["add_foods_to_meal", "meal_suggestion"] },
-    };
-  }
-
-  if (!looksLikeFoodAssistantIntent(normalized)) {
-    return null;
-  }
-
   const context = resolveMealContext(normalized);
   return {
     handled: true,
     action: "food_assistant",
     reply: buildAssistantReply(context),
     eventType: "whatsapp.intent.food_assistant",
-    detail: "Orientação alimentar respondida pelo WhatsApp sem criar refeição por fallback.",
+    detail: "Orientação alimentar confirmada e respondida pelo WhatsApp sem criar refeição por fallback.",
     data: { context },
   };
+}
+
+export function executeWhatsAppFoodAssistantIntent(text?: string | null): WhatsAppFoodAssistantResult | null {
+  const normalized = normalizeAssistantText(text?.trim() || "");
+  if (!looksLikeFoodAssistantIntent(normalized)) {
+    return null;
+  }
+
+  return executeConfirmedWhatsAppFoodSuggestion(text);
 }
