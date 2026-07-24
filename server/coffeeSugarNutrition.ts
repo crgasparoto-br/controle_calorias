@@ -14,6 +14,13 @@ type ExplicitSugarQuantity = {
   sourceUnit: string;
 };
 
+export type CoffeeServingQuantity = {
+  quantity: number;
+  unit: "xícara" | "ml" | "l";
+  estimatedMl: number;
+  cupsEquivalent: number;
+};
+
 function parseLocalizedNumber(value: string) {
   const parsed = Number(value.replace(",", "."));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -50,12 +57,57 @@ export function extractExplicitSugarQuantity(value: string): ExplicitSugarQuanti
   };
 }
 
-function extractCoffeeCups(value: string) {
+function normalizeCoffeeServing(
+  quantity: number,
+  rawUnit: string,
+): CoffeeServingQuantity | null {
+  const unit = normalizeForMatching(rawUnit).trim();
+  if (/^xicaras?$/.test(unit)) {
+    return {
+      quantity: roundNutritionValue(quantity),
+      unit: "xícara",
+      estimatedMl: roundNutritionValue(quantity * COFFEE_ML_PER_CUP),
+      cupsEquivalent: roundNutritionValue(quantity),
+    };
+  }
+  if (/^(?:ml|mililitros?)$/.test(unit)) {
+    return {
+      quantity: roundNutritionValue(quantity),
+      unit: "ml",
+      estimatedMl: roundNutritionValue(quantity),
+      cupsEquivalent: roundNutritionValue(quantity / COFFEE_ML_PER_CUP),
+    };
+  }
+  if (/^(?:l|litros?)$/.test(unit)) {
+    const estimatedMl = quantity * 1000;
+    return {
+      quantity: roundNutritionValue(quantity),
+      unit: "l",
+      estimatedMl: roundNutritionValue(estimatedMl),
+      cupsEquivalent: roundNutritionValue(estimatedMl / COFFEE_ML_PER_CUP),
+    };
+  }
+  return null;
+}
+
+export function extractCoffeeServingQuantity(value: string): CoffeeServingQuantity {
   const normalized = normalizeForMatching(value);
-  const beforeCoffee = normalized.match(/\b(\d+(?:[,.]\d+)?)\s*xicaras?\s+(?:de\s+)?cafe\b/);
-  const afterCoffee = normalized.match(/\bcafe\b[^,;]*?\b(\d+(?:[,.]\d+)?)\s*xicaras?\b/);
+  const unitPattern = "xicaras?|ml|mililitros?|l|litros?";
+  const beforeCoffee = normalized.match(
+    new RegExp(`\\b(\\d+(?:[,.]\\d+)?)\\s*(${unitPattern})\\s+(?:de\\s+)?cafe\\b`),
+  );
+  const afterCoffee = normalized.match(
+    new RegExp(`\\bcafe\\b[^,;]*?\\b(\\d+(?:[,.]\\d+)?)\\s*(${unitPattern})\\b`),
+  );
   const match = beforeCoffee ?? afterCoffee;
-  return match ? parseLocalizedNumber(match[1]) ?? 1 : 1;
+  const quantity = match ? parseLocalizedNumber(match[1]) : null;
+  const parsed = quantity && match ? normalizeCoffeeServing(quantity, match[2]) : null;
+  return parsed ?? {
+    quantity: 1,
+    unit: "xícara",
+    estimatedMl: COFFEE_ML_PER_CUP,
+    cupsEquivalent: 1,
+  };
 }
 
 function isUsableSweetenedCoffeeNutrition(item: LlmItem) {
@@ -77,24 +129,31 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
   const sugar = extractExplicitSugarQuantity(sourceText);
   if (!sugar) return null;
 
-  const cups = extractCoffeeCups(sourceText);
-  const coffeeVolumeMl = roundNutritionValue(cups * COFFEE_ML_PER_CUP);
-  const cupLabel = cups === 1 ? "xícara" : "xícaras";
+  const coffee = extractCoffeeServingQuantity(sourceText);
+  const portionUnit = coffee.unit === "xícara" && coffee.quantity !== 1
+    ? "xícaras"
+    : coffee.unit;
   const foodName = formatFoodNameTitleCase(
     sourceText
-      .replace(/^.*?\b(\d+(?:[,.]\d+)?)\s*xícaras?\s+de\s+/iu, "")
+      .replace(
+        /^.*?\b\d+(?:[,.]\d+)?\s*(?:xícaras?|ml|mililitros?|l|litros?)\s+(?:de\s+)?/iu,
+        "",
+      )
       .trim() || "Café com açúcar",
   );
 
   return {
     foodName,
     canonicalName: "Café com açúcar",
-    quantity: cups,
-    unit: "xícara",
-    portionText: `${cups} ${cupLabel} com ${sugar.grams} g de açúcar`,
-    servings: Math.max(cups, 0.1),
-    estimatedGrams: roundNutritionValue(coffeeVolumeMl + sugar.grams),
-    calories: roundNutritionValue(cups * COFFEE_CALORIES_PER_CUP + sugar.grams * SUGAR_CALORIES_PER_GRAM),
+    quantity: coffee.quantity,
+    unit: coffee.unit,
+    portionText: `${coffee.quantity} ${portionUnit} com ${sugar.grams} g de açúcar`,
+    servings: Math.max(coffee.cupsEquivalent, 0.1),
+    estimatedGrams: roundNutritionValue(coffee.estimatedMl + sugar.grams),
+    calories: roundNutritionValue(
+      coffee.cupsEquivalent * COFFEE_CALORIES_PER_CUP
+      + sugar.grams * SUGAR_CALORIES_PER_GRAM,
+    ),
     protein: 0,
     carbs: sugar.grams,
     fat: 0,
