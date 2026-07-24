@@ -70,6 +70,7 @@ assert_dom() {
 }
 
 BASE_URL="http://127.0.0.1:${PORT}/professional"
+PATIENTS_URL="http://127.0.0.1:${PORT}/professional/patients"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
 capture "main-tablet-1024x768" "1024,768" "$BASE_URL"
@@ -82,6 +83,13 @@ capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL?state=priority-e
 capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL?state=portfolio-error"
 capture "portfolio-error-mobile-390x1200" "390,1200" "$BASE_URL?state=portfolio-error"
 
+capture "patients-desktop-1440x900" "1440,900" "$PATIENTS_URL"
+capture "patients-notebook-1366x768" "1366,768" "$PATIENTS_URL"
+capture "patients-tablet-1024x768" "1024,768" "$PATIENTS_URL"
+capture "patients-mobile-390x844" "390,844" "$PATIENTS_URL"
+capture "patients-empty-mobile-390x844" "390,844" "$PATIENTS_URL?state=empty"
+capture "patients-error-desktop-1366x768" "1366,768" "$PATIENTS_URL?state=portfolio-error"
+
 assert_dom \
   "complete-page-3" \
   "$BASE_URL?priorities=all&page=3" \
@@ -93,15 +101,24 @@ assert_dom \
   "$BASE_URL?sidebar=collapsed" \
   'data-state="collapsed"' \
   'data-collapsible="icon"'
+assert_dom \
+  "patients-privacy" \
+  "$PATIENTS_URL" \
+  "Solicitar acesso" \
+  "Mariana de Almeida Vasconcelos e Silva" \
+  "Aguardando autorização" \
+  "Solicitação recusada" \
+  "Acesso revogado" \
+  "Dados pessoais e clínicos disponíveis após autorização"
 
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
-route=/professional
+routes=/professional,/professional/patients
 commit=${GITHUB_SHA:-local}
-scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
-source=actual ProfessionalAreaPage and ProfessionalLayout with deterministic tRPC and auth fixtures
+source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatients with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
-assertions=complete page 3 content and collapsed sidebar DOM state
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions and privacy copy
 EOF
 
 ls -lh "$OUTPUT_DIR"
