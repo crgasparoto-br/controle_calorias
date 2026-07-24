@@ -1,0 +1,48 @@
+name: Patch professional test hook 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-test-hook-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Install explicit module test hook
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("server/modules/professionals/service.ts")
+          source = path.read_text(encoding="utf-8")
+          anchor = 'const BRAZIL_COUNTRY_CODE = "55";\n'
+          insertion = '''const BRAZIL_COUNTRY_CODE = "55";\nlet syntheticUserLookupEnabledForTests = false;\n\nexport function _forTestOnly_setProfessionalSyntheticUserLookup(\n  enabled: boolean\n) {\n  syntheticUserLookupEnabledForTests = enabled;\n}\n'''
+          if source.count(anchor) != 1:
+              raise SystemExit("expected exactly one Brazil country code anchor")
+          old_guard = 'if (process.env.PROFESSIONAL_SYNTHETIC_USER_LOOKUP === "enabled") {'
+          if source.count(old_guard) != 1:
+              raise SystemExit("expected exactly one explicit environment lookup guard")
+          source = source.replace(anchor, insertion)
+          source = source.replace(old_guard, 'if (syntheticUserLookupEnabledForTests) {')
+          path.write_text(source, encoding="utf-8")
+          PY
+          grep -n '_forTestOnly_setProfessionalSyntheticUserLookup\|syntheticUserLookupEnabledForTests' server/modules/professionals/service.ts
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/modules/professionals/service.ts
+          git rm .github/workflows/patch-test-hook-879.yml
+          git diff --cached --check
+          git commit -m "test: expose explicit synthetic user lookup hook (#879)"
+          git push origin HEAD:feat/875-professional-context-routes
