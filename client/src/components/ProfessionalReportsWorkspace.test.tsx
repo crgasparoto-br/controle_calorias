@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 describe("ProfessionalReportsWorkspace", () => {
-  it("shows aggregate indicators without duplicating the global priority list", async () => {
+  it("shows aggregate indicators through the reports resource without duplicating the global priority list", async () => {
     const { default: ProfessionalReportsWorkspace } = await import(
       "./ProfessionalReportsWorkspace"
     );
