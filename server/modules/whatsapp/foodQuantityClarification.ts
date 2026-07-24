@@ -59,6 +59,17 @@ export type CaloricComplementCompanionReplacement = {
   toFood: string;
 };
 
+export type ResolvedCaloricComplementReplacement = {
+  mealId: number;
+  itemIndex: number;
+  originalFoodName: string;
+  resolvedItem: MealDraftItem;
+  explicitQuantity: {
+    quantity: number;
+    unit: string;
+  };
+};
+
 export type CaloricComplementOperation =
   | {
       kind: "register";
@@ -76,6 +87,7 @@ export type CaloricComplementOperation =
       itemIndex: number;
       originalFoodName: string;
       companionReplacements?: CaloricComplementCompanionReplacement[];
+      resolvedReplacements?: ResolvedCaloricComplementReplacement[];
     };
 
 export type ResolvedCaloricComplement = {
