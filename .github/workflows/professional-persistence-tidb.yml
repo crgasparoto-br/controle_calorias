@@ -12,6 +12,7 @@ on:
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
+      - "scripts/test-professional-access-receipts-tidb.ts"
       - "package.json"
       - ".github/workflows/professional-persistence-tidb.yml"
   workflow_dispatch:
@@ -114,6 +115,9 @@ jobs:
           wait "$test_pid" 2>/dev/null || true
           echo "Professional persistence integration timed out before its success marker."
           exit 1
+
+      - name: Validate privacy-safe access receipts
+        run: pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts
 
       - name: Validate backfill command idempotency
         run: |
