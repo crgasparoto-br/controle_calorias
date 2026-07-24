@@ -1,4 +1,8 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { getHabitSnapshots } from "../../../db";
+import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
+import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
@@ -11,10 +15,88 @@ import {
   findMealByLabel,
   formatAddedItemsList,
   formatTotalsLine,
+  toMealItemInputs,
 } from "./mealItemHelpers";
 import type { CoffeeAdditionIntent, CoffeeLorCapsuleIntent, ExistingMeal, FoodAdditionIntent, WhatsappIntentResult } from "./types";
 
-export async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIntent, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
+type AdditionExecutionContext = {
+  originalText?: string;
+  receivedAt?: Date;
+  messageId?: string | null;
+};
+
+async function resolveAdditionItems(input: {
+  userId: number;
+  addition: FoodAdditionIntent;
+  targetMeal: ExistingMeal;
+  timeZone: string;
+  context?: AdditionExecutionContext;
+}): Promise<
+  | { kind: "items"; items: MealItemInput[] }
+  | { kind: "clarification"; result: WhatsappIntentResult }
+> {
+  const genericItems = input.addition.items.map(item =>
+    buildFoodAdditionItem(item.foodName, item.quantity, item.unit)
+  );
+  const coffeeIndex = input.addition.items.findIndex(item =>
+    isCoffeeWithAddedSugar(item.foodName)
+  );
+  const originalText = input.context?.originalText?.trim();
+  if (coffeeIndex < 0 || !originalText) {
+    return { kind: "items", items: genericItems };
+  }
+
+  const receivedAt = input.context?.receivedAt ?? input.addition.date;
+  try {
+    const processed = await processMealInput({
+      text: originalText,
+      habits: await getHabitSnapshots(input.userId),
+      occurredAt: receivedAt,
+      timeZone: input.timeZone,
+    });
+    const resolvedCoffee = toMealItemInputs(processed.items)[0];
+    if (!resolvedCoffee) {
+      throw new MealInferenceError();
+    }
+    return {
+      kind: "items",
+      items: genericItems.map((item, index) =>
+        index === coffeeIndex ? resolvedCoffee : item
+      ),
+    };
+  } catch (error) {
+    if (
+      error instanceof MealInferenceError
+      && error.code === "food_component_quantity_required"
+    ) {
+      return {
+        kind: "clarification",
+        result: await requestWhatsappCaloricComplementQuantityClarification({
+          userId: input.userId,
+          originalFoodText: input.addition.items[coffeeIndex].quantity
+            ? `${input.addition.items[coffeeIndex].quantity} ${input.addition.items[coffeeIndex].unit} de ${input.addition.items[coffeeIndex].foodName}`
+            : input.addition.items[coffeeIndex].foodName,
+          operation: {
+            kind: "add_to_meal",
+            mealId: input.targetMeal.id,
+            expectedMealLabel: input.targetMeal.mealLabel,
+            expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+          },
+          receivedAt,
+          messageId: input.context?.messageId,
+        }),
+      };
+    }
+    throw error;
+  }
+}
+
+export async function handleFoodAdditionIntent(
+  userId: number,
+  addition: FoodAdditionIntent,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+  context?: AdditionExecutionContext,
+): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
   const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date, timeZone);
   if (!targetMeal) {
@@ -27,7 +109,16 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
     };
   }
 
-  const addedItems = addition.items.map(item => buildFoodAdditionItem(item.foodName, item.quantity, item.unit));
+  const resolution = await resolveAdditionItems({
+    userId,
+    addition,
+    targetMeal,
+    timeZone,
+    context,
+  });
+  if (resolution.kind === "clarification") return resolution.result;
+  const addedItems = resolution.items;
+
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,
