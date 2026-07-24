@@ -1,8 +1,19 @@
 import { and, desc, eq, lt, ne } from "drizzle-orm";
 import { whatsappPendingOperations } from "../../drizzle/schema";
+import { canUseMemoryPersistenceFallback } from "./memoryFallback";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
+
+type RepositoryDependencies = {
+  getDb: DbProvider;
+  onWarning: PersistenceWarningHandler;
+};
+
+type PersistenceMode =
+  | { kind: "database"; db: any }
+  | { kind: "memory" }
+  | { kind: "unavailable" };
 
 export type WhatsAppPendingOperationRecord =
   typeof whatsappPendingOperations.$inferSelect;
@@ -83,10 +94,31 @@ async function transitionFromActive(
   return getMysqlAffectedRows(result) > 0;
 }
 
+async function resolvePersistenceMode(
+  deps: RepositoryDependencies,
+  scope: string
+): Promise<PersistenceMode> {
+  try {
+    const db = await deps.getDb();
+    if (db) return { kind: "database", db };
+    if (canUseMemoryPersistenceFallback()) return { kind: "memory" };
+
+    deps.onWarning(
+      scope,
+      new Error("Database unavailable and memory persistence fallback is disabled.")
+    );
+    return { kind: "unavailable" };
+  } catch (error) {
+    deps.onWarning(scope, error);
+    return { kind: "unavailable" };
+  }
+}
+
 /**
- * Sem banco configurado, degrada para memória do processo (mesma estratégia de
- * getUserWhatsappConnection em db.ts) em vez de perder a pendência silenciosamente.
- * Não garante consumo atômico entre instâncias nesse modo — só single-instance local.
+ * A memória do processo existe somente para testes e desenvolvimento local
+ * explicitamente autorizado por `canUseMemoryPersistenceFallback()`. Produção
+ * falha fechado quando a persistência durável não está disponível, impedindo
+ * perguntas órfãs e estado que não possa ser reconstruído após reinício.
  */
 let fallbackNextId = 1;
 const fallbackStore = new Map<number, WhatsAppPendingOperationRecord>();
@@ -170,14 +202,18 @@ function createFallbackStore() {
 
 const fallback = createFallbackStore();
 
-export function createDrizzleWhatsAppPendingOperationRepository(deps: {
-  getDb: DbProvider;
-  onWarning: PersistenceWarningHandler;
-}): WhatsAppPendingOperationRepository {
+export function createDrizzleWhatsAppPendingOperationRepository(
+  deps: RepositoryDependencies
+): WhatsAppPendingOperationRepository {
   return {
     async createPendingOperation(input) {
-      const db = await deps.getDb();
-      if (!db) return fallback.create(input);
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation create skipped"
+      );
+      if (persistence.kind === "memory") return fallback.create(input);
+      if (persistence.kind === "unavailable") return null;
+      const { db } = persistence;
 
       const now = input.now ?? new Date();
 
@@ -214,8 +250,13 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async getActivePendingOperation(userId, now = new Date()) {
-      const db = await deps.getDb();
-      if (!db) return fallback.getActive(userId, now);
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation read skipped"
+      );
+      if (persistence.kind === "memory") return fallback.getActive(userId, now);
+      if (persistence.kind === "unavailable") return null;
+      const { db } = persistence;
 
       try {
         const [row] = await db
@@ -241,8 +282,13 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async getLatestPendingOperation(userId) {
-      const db = await deps.getDb();
-      if (!db) return fallback.getLatest(userId);
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation latest read skipped"
+      );
+      if (persistence.kind === "memory") return fallback.getLatest(userId);
+      if (persistence.kind === "unavailable") return null;
+      const { db } = persistence;
 
       try {
         const [row] = await db
@@ -259,8 +305,13 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async getPendingOperationById(id) {
-      const db = await deps.getDb();
-      if (!db) return fallback.getById(id);
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation read by id skipped"
+      );
+      if (persistence.kind === "memory") return fallback.getById(id);
+      if (persistence.kind === "unavailable") return null;
+      const { db } = persistence;
 
       try {
         const [row] = await db
@@ -276,8 +327,15 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async claimPendingOperation({ id, expectedVersion }) {
-      const db = await deps.getDb();
-      if (!db) return { claimed: fallback.claim(id, expectedVersion) };
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation claim skipped"
+      );
+      if (persistence.kind === "memory") {
+        return { claimed: fallback.claim(id, expectedVersion) };
+      }
+      if (persistence.kind === "unavailable") return { claimed: false };
+      const { db } = persistence;
 
       try {
         const result = await db
@@ -304,8 +362,15 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async cancelPendingOperation(id) {
-      const db = await deps.getDb();
-      if (!db) return { cancelled: fallback.transition(id, "cancelled") };
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation cancel skipped"
+      );
+      if (persistence.kind === "memory") {
+        return { cancelled: fallback.transition(id, "cancelled") };
+      }
+      if (persistence.kind === "unavailable") return { cancelled: false };
+      const { db } = persistence;
 
       try {
         const cancelled = await transitionFromActive(db, id, "cancelled");
@@ -317,8 +382,15 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async supersedePendingOperation(id) {
-      const db = await deps.getDb();
-      if (!db) return { superseded: fallback.transition(id, "superseded") };
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation supersede skipped"
+      );
+      if (persistence.kind === "memory") {
+        return { superseded: fallback.transition(id, "superseded") };
+      }
+      if (persistence.kind === "unavailable") return { superseded: false };
+      const { db } = persistence;
 
       try {
         const superseded = await transitionFromActive(db, id, "superseded");
@@ -330,8 +402,15 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
     },
 
     async purgeInactiveOperations(operationalDays, now = new Date()) {
-      const db = await deps.getDb();
-      if (!db) return fallback.purgeInactive(operationalDays, now);
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation purge skipped"
+      );
+      if (persistence.kind === "memory") {
+        return fallback.purgeInactive(operationalDays, now);
+      }
+      if (persistence.kind === "unavailable") return 0;
+      const { db } = persistence;
 
       const cutoff = new Date(
         now.getTime() - operationalDays * 24 * 60 * 60 * 1000
