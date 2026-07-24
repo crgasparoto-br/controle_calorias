@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   invalidateMyAccesses,
-  invalidatePortfolio,
   patientTimeZoneFetch,
   portfolioState,
   portfolioUseQuery,
@@ -14,7 +13,6 @@ const {
   requestAccessResult,
 } = vi.hoisted(() => ({
   invalidateMyAccesses: vi.fn().mockResolvedValue(undefined),
-  invalidatePortfolio: vi.fn().mockResolvedValue(undefined),
   patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
   portfolioState: {
     current: {
@@ -60,7 +58,6 @@ vi.mock("@/lib/trpc", () => ({
         professionals: {
           myAccesses: { invalidate: invalidateMyAccesses },
           patientTimeZone: { fetch: patientTimeZoneFetch },
-          portfolio: { invalidate: invalidatePortfolio },
         },
       },
     }),
@@ -117,7 +114,6 @@ beforeEach(() => {
   };
   portfolioUseQuery.mockImplementation(portfolioQueryResult);
   invalidateMyAccesses.mockClear();
-  invalidatePortfolio.mockClear();
   patientTimeZoneFetch.mockClear();
   patientTimeZoneFetch.mockResolvedValue(undefined);
   refetchPortfolio.mockClear();
@@ -128,7 +124,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("ProfessionalPatients audit regressions", () => {
-  it("invalidates the active portfolio even when the pending filter is already selected", async () => {
+  it("refreshes the active portfolio even when the pending filter is already selected", async () => {
     window.history.replaceState(
       {},
       "",
@@ -139,7 +135,7 @@ describe("ProfessionalPatients audit regressions", () => {
     requestAccess();
 
     await waitFor(() => {
-      expect(invalidatePortfolio).toHaveBeenCalledTimes(1);
+      expect(refetchPortfolio).toHaveBeenCalledTimes(1);
       expect(invalidateMyAccesses).toHaveBeenCalledTimes(1);
     });
     expect(window.location.search).toBe("?authorization=pending");
