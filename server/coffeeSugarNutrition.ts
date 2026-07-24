@@ -5,6 +5,7 @@ import {
   isCoffeeWithAddedSugar,
   isFoodCandidateSemanticallyCompatible,
 } from "./foodSemanticCompatibility";
+import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
@@ -148,6 +149,11 @@ function isGenericCoffeeIdentity(value: string) {
     && !hasCaloricCoffeeComplement(value);
 }
 
+function hasAdditionalCaloricCoffeeComplement(value: string) {
+  return isCoffeeWithAddedSugar(value)
+    && !isFoodCandidateSemanticallyCompatible(value, ["Café com açúcar"]);
+}
+
 function getCoffeeSourceSegments(sourceText: string) {
   return splitFoodTextSegments(sourceText).filter(isCoffeeIdentity);
 }
@@ -159,8 +165,38 @@ function getSweetenedCoffeeSourceSegments(sourceText: string) {
 function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
   return getSweetenedCoffeeSourceSegments(sourceText).flatMap(segment => {
     const sugar = extractExplicitSugarQuantity(segment);
-    return sugar ? [{ segment, sugar }] : [];
+    return sugar && !hasAdditionalCaloricCoffeeComplement(segment)
+      ? [{ segment, sugar }]
+      : [];
   });
+}
+
+function nutritionCoversExplicitSugar(
+  sourceSegment: string,
+  calories: number,
+  carbs: number,
+) {
+  const sugar = extractExplicitSugarQuantity(sourceSegment);
+  if (!sugar) return true;
+
+  const coffee = extractCoffeeServingQuantity(sourceSegment);
+  const minimumCalories = coffee.cupsEquivalent * COFFEE_CALORIES_PER_CUP
+    + sugar.grams * SUGAR_CALORIES_PER_GRAM;
+
+  return carbs + 0.01 >= sugar.grams
+    && calories + 0.01 >= minimumCalories;
+}
+
+function inferredNutritionCoversExplicitSugar(sourceSegment: string, item: LlmItem) {
+  return nutritionCoversExplicitSugar(
+    sourceSegment,
+    item.estimatedCalories,
+    item.estimatedMacros.carbs,
+  );
+}
+
+function draftNutritionCoversExplicitSugar(sourceSegment: string, item: MealDraftItem) {
+  return nutritionCoversExplicitSugar(sourceSegment, item.calories, item.carbs);
 }
 
 function hasSemanticCoverageForSweetenedCoffeeSegments(
@@ -173,6 +209,7 @@ function hasSemanticCoverageForSweetenedCoffeeSegments(
   for (const sourceSegment of sourceSegments) {
     const compatibleIndex = remainingItems.findIndex(item =>
       isFoodCandidateSemanticallyCompatible(sourceSegment, [item.foodName])
+      && inferredNutritionCoversExplicitSugar(sourceSegment, item)
     );
     if (compatibleIndex < 0) return false;
     remainingItems.splice(compatibleIndex, 1);
@@ -207,8 +244,13 @@ export function hasUsableSweetenedCoffeeInference(
 
   return sweetenedSourceSegments.length === 1
     && sourceCoffeeSegments.length === 1
+    && !hasAdditionalCaloricCoffeeComplement(sweetenedSourceSegments[0])
     && usableCoffeeItems.length === 1
-    && isGenericCoffeeIdentity(usableCoffeeItems[0].foodName);
+    && isGenericCoffeeIdentity(usableCoffeeItems[0].foodName)
+    && inferredNutritionCoversExplicitSugar(
+      sweetenedSourceSegments[0],
+      usableCoffeeItems[0],
+    );
 }
 
 function isCoffeeDraftItem(item: MealDraftItem) {
@@ -265,32 +307,69 @@ function createCoffeeWithExplicitSugarItemFromSegment(
   };
 }
 
+function createExplicitSugarCoffeeEntries(sourceText: string) {
+  return getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText).map(({ segment, sugar }) => ({
+    segment,
+    item: createCoffeeWithExplicitSugarItemFromSegment(segment, sugar),
+  }));
+}
+
 function createExplicitSugarCoffeeItems(sourceText: string) {
-  return getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText).map(({ segment, sugar }) =>
-    createCoffeeWithExplicitSugarItemFromSegment(segment, sugar)
-  );
+  return createExplicitSugarCoffeeEntries(sourceText).map(entry => entry.item);
 }
 
 function mergeExplicitSugarCoffeeItems(
   items: MealDraftItem[],
   sourceText: string,
 ) {
-  const explicitItems = createExplicitSugarCoffeeItems(sourceText);
-  if (!explicitItems.length || !hasCompanionFoodSegments(sourceText)) return null;
+  const explicitEntries = createExplicitSugarCoffeeEntries(sourceText);
+  if (!explicitEntries.length || !hasCompanionFoodSegments(sourceText)) return null;
 
-  const remaining = [...explicitItems];
+  const remaining = [...explicitEntries];
   const merged = items.flatMap(item => {
     if (isStandaloneSugarItem(item)) return [];
     if (!remaining.length || !isCoffeeDraftItem(item)) return [item];
 
-    const identity = `${item.foodName} ${item.canonicalName}`;
-    if (isCoffeeWithAddedSugar(identity) || isGenericCoffeeDraftItem(item)) {
-      return [remaining.shift()!];
-    }
-    return [item];
+    const compatibleIndex = remaining.findIndex(entry =>
+      isFoodCandidateSemanticallyCompatible(entry.segment, [item.canonicalName])
+    );
+    const selectedIndex = compatibleIndex >= 0
+      ? compatibleIndex
+      : remaining.length === 1 && isGenericCoffeeDraftItem(item)
+        ? 0
+        : -1;
+    if (selectedIndex < 0) return [item];
+
+    const [selected] = remaining.splice(selectedIndex, 1);
+    return [selected.item];
   });
 
-  return [...merged, ...remaining];
+  return [...merged, ...remaining.map(entry => entry.item)];
+}
+
+function findCompatibleSweetenedSourceSegment(
+  item: MealDraftItem,
+  sourceSegments: string[],
+  usedSourceIndexes: Set<number>,
+) {
+  for (const [index, segment] of sourceSegments.entries()) {
+    if (usedSourceIndexes.has(index)) continue;
+    if (isFoodCandidateSemanticallyCompatible(segment, [item.canonicalName])) {
+      return { index, segment };
+    }
+  }
+  return null;
+}
+
+function normalizeCompositeSweetenedCoffeeItem(item: MealDraftItem, sourceSegment: string) {
+  const displayName = isFoodCandidateSemanticallyCompatible(sourceSegment, [item.foodName])
+    ? item.foodName
+    : item.canonicalName;
+  return {
+    ...item,
+    foodName: displayName,
+    canonicalName: displayName,
+  };
 }
 
 export function normalizeSweetenedCoffeeDraftItems(
@@ -299,33 +378,83 @@ export function normalizeSweetenedCoffeeDraftItems(
 ) {
   if (!isCoffeeWithAddedSugar(sourceText)) return items;
 
-  const mergedExplicitSugar = mergeExplicitSugarCoffeeItems(items, sourceText);
-  if (mergedExplicitSugar) return mergedExplicitSugar;
-
-  const coffeeItems = items.filter(isCoffeeDraftItem);
+  const normalizedInputItems = mergeExplicitSugarCoffeeItems(items, sourceText) ?? items;
+  const coffeeItems = normalizedInputItems.filter(isCoffeeDraftItem);
   const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
+  const sweetenedSourceSegments = sourceCoffeeSegments.filter(isCoffeeWithAddedSugar);
   const sourceCanQualifyGenericCoffee = sourceCoffeeSegments.length === 1
     && isCoffeeWithAddedSugar(sourceCoffeeSegments[0])
+    && !hasAdditionalCaloricCoffeeComplement(sourceCoffeeSegments[0])
     && coffeeItems.length === 1
     && isGenericCoffeeDraftItem(coffeeItems[0]);
+  const usedSourceIndexes = new Set<number>();
 
-  return items.map(item => {
+  return normalizedInputItems.map(item => {
     if (!isCoffeeDraftItem(item)) return item;
 
     const identity = `${item.foodName} ${item.canonicalName}`;
     const itemIsExplicitlySweetened = isCoffeeWithAddedSugar(identity);
-    if (
-      !itemIsExplicitlySweetened
-      && !(sourceCanQualifyGenericCoffee && isGenericCoffeeDraftItem(item))
-    ) {
+    const sourceMatch = findCompatibleSweetenedSourceSegment(
+      item,
+      sweetenedSourceSegments,
+      usedSourceIndexes,
+    );
+
+    if (sourceMatch) {
+      usedSourceIndexes.add(sourceMatch.index);
+      if (hasAdditionalCaloricCoffeeComplement(sourceMatch.segment)) {
+        return draftNutritionCoversExplicitSugar(sourceMatch.segment, item)
+          ? normalizeCompositeSweetenedCoffeeItem(item, sourceMatch.segment)
+          : buildHeuristicItem(sourceMatch.segment);
+      }
+      if (itemIsExplicitlySweetened || isGenericCoffeeDraftItem(item)) {
+        return {
+          ...item,
+          foodName: "Café com açúcar",
+          canonicalName: "Café com açúcar",
+        };
+      }
       return item;
     }
 
-    return {
-      ...item,
-      foodName: "Café com açúcar",
-      canonicalName: "Café com açúcar",
-    };
+    if (itemIsExplicitlySweetened || isGenericCoffeeDraftItem(item)) {
+      const fallbackIndex = sweetenedSourceSegments.findIndex((segment, index) =>
+        !usedSourceIndexes.has(index)
+        && hasAdditionalCaloricCoffeeComplement(segment)
+      );
+      if (fallbackIndex >= 0) {
+        usedSourceIndexes.add(fallbackIndex);
+        return buildHeuristicItem(sweetenedSourceSegments[fallbackIndex]);
+      }
+    }
+
+    if (itemIsExplicitlySweetened) {
+      const specificName = [item.foodName, item.canonicalName].find(
+        hasAdditionalCaloricCoffeeComplement,
+      );
+      if (specificName) {
+        return {
+          ...item,
+          foodName: specificName,
+          canonicalName: specificName,
+        };
+      }
+      return {
+        ...item,
+        foodName: "Café com açúcar",
+        canonicalName: "Café com açúcar",
+      };
+    }
+
+    if (sourceCanQualifyGenericCoffee && isGenericCoffeeDraftItem(item)) {
+      return {
+        ...item,
+        foodName: "Café com açúcar",
+        canonicalName: "Café com açúcar",
+      };
+    }
+
+    return item;
   });
 }
 
