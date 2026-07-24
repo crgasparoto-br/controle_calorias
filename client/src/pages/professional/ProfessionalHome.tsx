@@ -27,6 +27,8 @@ import {
 import React from "react";
 import { useLocation } from "wouter";
 
+const COMPLETE_PAGE_SIZE = 50;
+
 function formatDateTime(value: number | null | undefined) {
   if (!value) return null;
   return new Intl.DateTimeFormat("pt-BR", {
@@ -77,16 +79,35 @@ function priorityActionLabel(item: any) {
   return "Revisar paciente";
 }
 
+function completePriorityPath(page: number) {
+  return page <= 1
+    ? "/professional?priorities=all"
+    : `/professional?priorities=all&page=${page}`;
+}
+
+function parsePriorityPage(location: string) {
+  const value = Number(
+    new URLSearchParams(location.split("?")[1] ?? "").get("page") ?? "1"
+  );
+  return Number.isSafeInteger(value) && value > 0 ? value : 1;
+}
+
 function PrioritiesPanel({
   enabled,
+  page,
   showAll,
 }: {
   enabled: boolean;
+  page: number;
   showAll: boolean;
 }) {
   const [, setLocation] = useLocation();
+  const offset = showAll ? (page - 1) * COMPLETE_PAGE_SIZE : 0;
   const query = trpc.professionalRecord.ai.priorities.useQuery(
-    { limit: showAll ? 100 : 11 },
+    {
+      limit: showAll ? COMPLETE_PAGE_SIZE + 1 : 11,
+      offset,
+    },
     {
       enabled,
       retry: false,
@@ -100,8 +121,8 @@ function PrioritiesPanel({
       <ProfessionalAsyncState
         variant="panel"
         icon="empty"
-        title="Prioridades assistidas indisponíveis"
-        description="A assistência por IA não está incluída no acesso profissional atual. As demais áreas autorizadas continuam disponíveis."
+        title="Prioridades operacionais indisponíveis"
+        description="A central de alertas operacionais não está incluída no acesso profissional atual. As demais áreas autorizadas continuam disponíveis."
       />
     );
   }
@@ -119,10 +140,26 @@ function PrioritiesPanel({
     );
   }
 
-  const allPriorities = query.data ?? [];
-  const hasMore = !showAll && allPriorities.length > 10;
-  const priorities = showAll ? allPriorities : allPriorities.slice(0, 10);
+  const loadedPriorities = query.data ?? [];
+  const hasNextPage = showAll && loadedPriorities.length > COMPLETE_PAGE_SIZE;
+  const hasMoreInitial = !showAll && loadedPriorities.length > 10;
+  const priorities = showAll
+    ? loadedPriorities.slice(0, COMPLETE_PAGE_SIZE)
+    : loadedPriorities.slice(0, 10);
+
   if (!priorities.length) {
+    if (showAll && page > 1) {
+      return (
+        <ProfessionalAsyncState
+          variant="panel"
+          icon="empty"
+          title="Esta página não possui prioridades"
+          description="A fila pode ter mudado desde a última atualização. Volte ao início da lista para consultar as pendências atuais."
+          actionLabel="Voltar à primeira página"
+          onRetry={() => setLocation(completePriorityPath(1))}
+        />
+      );
+    }
     return (
       <ProfessionalAsyncState
         variant="panel"
@@ -184,24 +221,49 @@ function PrioritiesPanel({
         );
       })}
 
-      {hasMore ? (
+      {hasMoreInitial ? (
         <div className="flex justify-center pt-2">
           <Button
             variant="outline"
-            onClick={() => setLocation("/professional?priorities=all")}
+            onClick={() => setLocation(completePriorityPath(1))}
           >
             Ver todas as prioridades
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       ) : null}
+
       {showAll ? (
-        <div className="flex justify-center pt-2">
+        <nav
+          aria-label="Paginação das prioridades"
+          className="flex flex-col items-center justify-between gap-3 pt-2 sm:flex-row"
+        >
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {page > 1 ? (
+              <Button
+                variant="outline"
+                onClick={() => setLocation(completePriorityPath(page - 1))}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Página anterior
+              </Button>
+            ) : null}
+            <span className="text-sm text-muted-foreground">Página {page}</span>
+            {hasNextPage ? (
+              <Button
+                variant="outline"
+                onClick={() => setLocation(completePriorityPath(page + 1))}
+              >
+                Próxima página
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
           <Button variant="ghost" onClick={() => setLocation("/professional")}>
             <ArrowLeft className="h-4 w-4" />
             Voltar às dez primeiras
           </Button>
-        </div>
+        </nav>
       ) : null}
     </div>
   );
@@ -446,11 +508,14 @@ export default function ProfessionalHome() {
   }
 
   const resources = entitlements.data.enabledResources;
-  const hasAiAssistance = resources.includes("professional_ai_assistance");
+  const hasOperationalAlerts = resources.includes(
+    "professional_operational_alerts"
+  );
   const hasPortfolio = resources.includes("professional_portfolio");
   const showAllPriorities =
     new URLSearchParams(location.split("?")[1] ?? "").get("priorities") ===
     "all";
+  const priorityPage = showAllPriorities ? parsePriorityPage(location) : 1;
 
   return (
     <ProfessionalPage>
@@ -468,7 +533,7 @@ export default function ProfessionalHome() {
       />
       <ProfessionalSplitLayout
         aside={
-          hasAiAssistance ? (
+          hasOperationalAlerts ? (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -493,7 +558,8 @@ export default function ProfessionalHome() {
               : "Pacientes que precisam de atenção operacional"}
           </h2>
           <PrioritiesPanel
-            enabled={hasAiAssistance}
+            enabled={hasOperationalAlerts}
+            page={priorityPage}
             showAll={showAllPriorities}
           />
         </section>
