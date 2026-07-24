@@ -16,7 +16,7 @@ SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
 for attempt in $(seq 1 30); do
-  if curl --fail --silent "http://127.0.0.1:${PORT}" > /dev/null; then
+  if curl --fail --silent "http://127.0.0.1:${PORT}/professional" > /dev/null; then
     break
   fi
   if [ "$attempt" -eq 30 ]; then
@@ -49,12 +49,12 @@ capture() {
   test -s "$OUTPUT_DIR/$name.png"
 }
 
-BASE_URL="http://127.0.0.1:${PORT}"
-capture "main-desktop-1366x768" "1366,768" "$BASE_URL/"
-capture "main-mobile-390x844" "390,844" "$BASE_URL/"
-capture "empty-desktop-1366x768" "1366,768" "$BASE_URL/?state=empty"
-capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL/?state=priority-error"
-capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL/?state=portfolio-error"
+BASE_URL="http://127.0.0.1:${PORT}/professional"
+capture "main-desktop-1366x768" "1366,768" "$BASE_URL"
+capture "main-mobile-390x844" "390,844" "$BASE_URL"
+capture "empty-desktop-1366x768" "1366,768" "$BASE_URL?state=empty"
+capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL?state=priority-error"
+capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL?state=portfolio-error"
 
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
 route=/professional
