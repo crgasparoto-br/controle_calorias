@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getDb: vi.fn(),
   getHabitSnapshots: vi.fn(async () => []),
+  getUserWhatsappConnection: vi.fn(),
+  logPersistenceWarning: vi.fn(),
+  normalizeWhatsAppPhoneNumber: vi.fn((value: string) => value),
   processMealInput: vi.fn(),
   requestClarification: vi.fn(async () => ({
     handled: true,
@@ -15,7 +19,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../db", () => ({
+  getDb: mocks.getDb,
   getHabitSnapshots: mocks.getHabitSnapshots,
+  getUserWhatsappConnection: mocks.getUserWhatsappConnection,
+  logPersistenceWarning: mocks.logPersistenceWarning,
+  normalizeWhatsAppPhoneNumber: mocks.normalizeWhatsAppPhoneNumber,
 }));
 
 vi.mock("../../../nutritionEngine", () => {
