@@ -108,14 +108,14 @@ describe("clarificação persistente de açúcar", () => {
       coffeeQuantity: {
         quantity: 1,
         unit: "xícara",
-        estimatedMl: 50,
+        estimatedMl: 200,
         cupsEquivalent: 1,
       },
       operation: expect.objectContaining({ kind: expectedKind }),
     }));
   });
 
-  it("preserva volume em mililitros sem convertê-lo em texto implícito", async () => {
+  it("preserva volume em mililitros usando a equivalência canônica de uma xícara", async () => {
     const fake = buildRepository();
     const service = createFoodQuantityClarificationService({
       repository: fake.repository,
@@ -139,7 +139,7 @@ describe("clarificação persistente de açúcar", () => {
       quantity: 200,
       unit: "ml",
       estimatedMl: 200,
-      cupsEquivalent: 4,
+      cupsEquivalent: 1,
     });
   });
 });
