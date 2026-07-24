@@ -151,6 +151,18 @@ function getCoffeeSourceSegments(sourceText: string) {
   return splitFoodTextSegments(sourceText).filter(isCoffeeIdentity);
 }
 
+function getSweetenedCoffeeSourceSegments(sourceText: string) {
+  return getCoffeeSourceSegments(sourceText).filter(isCoffeeWithAddedSugar);
+}
+
+function findSweetenedCoffeeSegmentWithExplicitSugar(sourceText: string) {
+  const matches = getSweetenedCoffeeSourceSegments(sourceText).flatMap(segment => {
+    const sugar = extractExplicitSugarQuantity(segment);
+    return sugar ? [{ segment, sugar }] : [];
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export function hasUsableSweetenedCoffeeInference(
   items: LlmItem[] | undefined,
   sourceText = "",
@@ -196,11 +208,11 @@ function hasCompanionFoodSegments(sourceText: string) {
 }
 
 function createCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
-  if (!isCoffeeWithAddedSugar(sourceText)) return null;
-  const sugar = extractExplicitSugarQuantity(sourceText);
-  if (!sugar) return null;
+  const explicitSugarCoffee = findSweetenedCoffeeSegmentWithExplicitSugar(sourceText);
+  if (!explicitSugarCoffee) return null;
 
-  const coffee = extractCoffeeServingQuantity(sourceText);
+  const { segment, sugar } = explicitSugarCoffee;
+  const coffee = extractCoffeeServingQuantity(segment);
   const portionUnit = coffee.unit === "xícara" && coffee.quantity !== 1
     ? "xícaras"
     : coffee.unit;
@@ -302,8 +314,9 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
 }
 
 export function shouldRequestSugarQuantity(sourceText: string, inferredItems: LlmItem[] | undefined) {
-  return isCoffeeWithAddedSugar(sourceText)
-    && !extractExplicitSugarQuantity(sourceText)
+  const sweetenedCoffeeSegments = getSweetenedCoffeeSourceSegments(sourceText);
+  return sweetenedCoffeeSegments.length > 0
+    && sweetenedCoffeeSegments.some(segment => !extractExplicitSugarQuantity(segment))
     && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText);
 }
 
