@@ -32,7 +32,6 @@ type MealSnapshot = {
 type BatchReplacementLine = {
   fromFood: string;
   toFood: string;
-  mealId: number;
 };
 
 function sameLogicalMeal(
@@ -151,9 +150,10 @@ async function updateReplacementBatchWithCompensation(input: {
   userId: number;
   changes: Array<{ before: MealSnapshot; after: MealSnapshot }>;
 }) {
-  const applied: Array<{ before: MealSnapshot; after: MealSnapshot }> = [];
+  const attempted: Array<{ before: MealSnapshot; after: MealSnapshot }> = [];
   try {
     for (const change of input.changes) {
+      attempted.push(change);
       await input.deps.updateMeal(input.userId, {
         mealId: change.after.id,
         mealLabel: change.after.mealLabel,
@@ -161,11 +161,10 @@ async function updateReplacementBatchWithCompensation(input: {
         notes: change.after.notes,
         items: change.after.items,
       });
-      applied.push(change);
     }
   } catch {
     let rollbackFailed = false;
-    for (const change of [...applied].reverse()) {
+    for (const change of [...attempted].reverse()) {
       try {
         await input.deps.updateMeal(input.userId, {
           mealId: change.before.id,
@@ -217,7 +216,6 @@ function applyReplacementBatch(input: {
   lines.push({
     fromFood: primaryItem.foodName,
     toFood: input.primaryResolvedItem.foodName,
-    mealId: primaryMeal.id,
   });
 
   for (const companion of input.companions) {
@@ -244,7 +242,6 @@ function applyReplacementBatch(input: {
     lines.push({
       fromFood: target.item.foodName,
       toFood: replacementItem.foodName,
-      mealId: target.meal.id,
     });
   }
 
