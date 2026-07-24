@@ -72,7 +72,7 @@ vi.mock("@/lib/trpc", () => ({
               allowed: true,
               enabledResources: [
                 "professional_dashboard",
-                "professional_ai_assistance",
+                "professional_operational_alerts",
                 "professional_portfolio",
               ],
             },
