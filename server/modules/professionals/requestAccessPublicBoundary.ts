@@ -56,7 +56,8 @@ type RequestAccessBoundaryDependencies = {
 const defaultDependencies: RequestAccessBoundaryDependencies = {
   createUnresolvedReceipt:
     professionalAccessRequestReceiptRepository.createUnresolvedReceipt,
-  createLinkedReceipt: professionalAccessRequestReceiptRepository.createLinkedReceipt,
+  createLinkedReceipt:
+    professionalAccessRequestReceiptRepository.createLinkedReceipt,
   listActiveReceipts:
     professionalAccessRequestReceiptRepository.listActiveReceipts,
 };
@@ -71,6 +72,13 @@ function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   const record = asRecord(error);
   return typeof record?.message === "string" ? record.message : "";
+}
+
+function errorCode(error: unknown) {
+  const record = asRecord(error);
+  if (typeof record?.code === "string") return record.code;
+  const data = asRecord(record?.data);
+  return typeof data?.code === "string" ? data.code : null;
 }
 
 function isExpectedTargetRejection(error: unknown) {
@@ -224,6 +232,7 @@ async function protectRequestAccessResult(
     }
 
     if (!isExpectedTargetRejection(record.error)) {
+      if (errorCode(record.error) === "BAD_REQUEST") return record;
       throw unavailableError();
     }
 
