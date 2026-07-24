@@ -120,7 +120,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([latestMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
     const confirmation = await executeWhatsappDeleteIntent(42, { text: "SIM" });
 
     expect(request).toEqual(expect.objectContaining({
@@ -138,7 +138,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("cancela exclusao pendente quando usuario responde cancelar", async () => {
     listMealsMock.mockResolvedValue([latestMeal]);
 
-    await executeWhatsappDeleteIntent(42, { text: "remover refeição" });
+    await executeWhatsappDeleteIntent(42, { text: "remover refeição", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
     const cancellation = await executeWhatsappDeleteIntent(42, { text: "cancelar" });
 
     expect(removeMealMock).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([latestMeal]);
     updateMealMock.mockImplementation(async (_userId, input) => ({ ...latestMeal, ...input }));
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "apagar o último alimento" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "apagar o último alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
     const confirmation = await executeWhatsappDeleteIntent(42, { text: "autorizo" });
 
     expect(request).toEqual(expect.objectContaining({
@@ -174,7 +174,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([namedMeal]);
     updateMealMock.mockImplementation(async (_userId, input) => ({ ...namedMeal, ...input }));
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Exclua o bife entrecote" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Exclua o bife entrecote", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
     const confirmation = await executeWhatsappDeleteIntent(42, { text: "sim" });
 
     expect(request?.reply).toContain("Encontrei o item Bife entrecote");
@@ -199,7 +199,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("encontra alimento por nome parcial quando ha um unico candidato", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remova a banana" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Remova a banana", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
 
     expect(request?.reply).toContain("Encontrei o item Banana prata");
     expect(request?.reply).not.toContain("quantidade");
@@ -208,7 +208,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("encontra alimento por duas palavras parciais", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Tire o queijo Minas" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Tire o queijo Minas", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
 
     expect(request?.reply).toContain("Encontrei o item Queijo Minas Padrão Fatiado");
     expect(request?.reply).not.toContain("quantidade");
@@ -235,7 +235,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([imageMeal, dinnerMeal]);
     updateMealMock.mockImplementation(async (_userId, input) => ({ ...dinnerMeal, ...input }));
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Excluir o chocolate" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Excluir o chocolate", receivedAt: new Date("2026-07-07T23:30:00.000Z") });
     const confirmation = await executeWhatsappDeleteIntent(42, { text: "sim" });
 
     expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate em Jantar");
@@ -261,7 +261,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     };
     listMealsMock.mockResolvedValue([dinnerMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remover koala" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Remover koala", receivedAt: new Date("2026-07-07T23:30:00.000Z") });
 
     expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate");
   });
@@ -275,7 +275,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       ],
     }]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remova o queijo" });
+    const request = await executeWhatsappDeleteIntent(42, { text: "Remova o queijo", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
 
     expect(request).toEqual(expect.objectContaining({
       action: "clarification_needed",
@@ -305,7 +305,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([singleItemMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento" });
+    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
     const confirmation = await executeWhatsappDeleteIntent(42, { text: "pode remover" });
 
     expect(removeMealMock).toHaveBeenCalledWith(42, 10);
@@ -320,7 +320,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([latestMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada" });
+    await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
 
     const [first, second] = await Promise.all([
       executeWhatsappDeleteIntent(42, { text: "SIM" }),
@@ -334,7 +334,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
 
   it("item excluido entre a pergunta e a confirmacao retorna resposta graciosa", async () => {
     listMealsMock.mockResolvedValueOnce([latestMeal]);
-    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento" });
+    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
 
     // No momento da confirmação, o item já não existe mais na refeição (excluído por outro fluxo).
     listMealsMock.mockResolvedValueOnce([{ ...latestMeal, items: [] }]);
