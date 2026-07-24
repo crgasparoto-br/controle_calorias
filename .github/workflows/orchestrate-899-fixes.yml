@@ -1,0 +1,46 @@
+name: Orchestrate issue 899 fixes
+
+on:
+  push:
+    branches:
+      - fix/899-whatsapp-meal-intent-context
+    paths:
+      - scripts/apply_issue_899_fixes.py
+      - .github/workflows/orchestrate-899-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/899-whatsapp-meal-intent-context
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply orchestrated corrections
+        run: python scripts/apply_issue_899_fixes.py
+      - name: Focused regressions
+        run: pnpm vitest run server/modules/whatsapp/confirmedMealRegistration.test.ts server/modules/whatsapp/mealIntentDecisionInteraction.test.ts server/modules/whatsapp/foodAssistant.test.ts
+      - name: TypeScript check
+        run: pnpm check
+      - name: Architecture check
+        run: pnpm architecture:check
+      - name: Documentation check
+        run: pnpm docs:check
+      - name: Build
+        run: pnpm build
+      - name: Commit corrections
+        run: |
+          git config user.name "chatgpt-orchestrator"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(whatsapp): concluir pendências da issue 899"
+          git push origin HEAD:fix/899-whatsapp-meal-intent-context
