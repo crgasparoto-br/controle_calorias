@@ -12,6 +12,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: "@/_core/hooks/useAuth",
+        replacement: path.resolve(root, "authMock.ts"),
+      },
+      {
         find: "@/lib/trpc",
         replacement: path.resolve(root, "trpcMock.ts"),
       },
