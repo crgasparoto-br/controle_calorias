@@ -1,5 +1,9 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import { findCatalogFood, sourceMentionsFood } from "./catalogMatching";
+import {
+  buildCoffeeWithExplicitSugarItem,
+  shouldRequestSugarQuantity,
+} from "./coffeeSugarNutrition";
 import { extractWithAi } from "./mealAiExtraction";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
@@ -42,10 +46,31 @@ export type {
 
 export { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
+export type MealInferenceErrorCode =
+  | "food_component_quantity_required"
+  | "meal_inference_unavailable";
+
+export type MealInferenceErrorContext = {
+  component?: string;
+  originalText?: string;
+  acceptedUnits?: string[];
+};
+
 export class MealInferenceError extends Error {
-  constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
+  readonly code: MealInferenceErrorCode;
+  readonly context?: MealInferenceErrorContext;
+
+  constructor(
+    message = "Não foi possível gerar um rascunho revisável para esta refeição agora.",
+    options: {
+      code?: MealInferenceErrorCode;
+      context?: MealInferenceErrorContext;
+    } = {},
+  ) {
     super(message);
     this.name = "MealInferenceError";
+    this.code = options.code ?? "meal_inference_unavailable";
+    this.context = options.context;
   }
 }
 
@@ -55,12 +80,8 @@ function clampConfidence(value: number) {
 
 function addCatalogCandidate(candidates: string[], value: string | null | undefined) {
   const normalized = normalizeForMatching(value ?? "").trim();
-  if (!normalized) {
-    return;
-  }
-  if (candidates.some(candidate => normalizeForMatching(candidate).trim() === normalized)) {
-    return;
-  }
+  if (!normalized) return;
+  if (candidates.some(candidate => normalizeForMatching(candidate).trim() === normalized)) return;
   candidates.push(value!.trim());
 }
 
@@ -69,36 +90,25 @@ function sourceSegmentMatchesInferenceItem(segmentFoodName: string, item: LlmIte
   const normalizedItem = normalizeForMatching(item.foodName).trim();
   const normalizedBrand = item.brand ? normalizeForMatching(item.brand).trim() : "";
 
-  if (!normalizedSegment || !normalizedItem) {
-    return false;
-  }
+  if (!normalizedSegment || !normalizedItem) return false;
 
   const foodMatches = sourceMentionsFood(segmentFoodName, item.foodName)
     || normalizedSegment.includes(normalizedItem)
     || normalizedItem.split(/\s+/).filter(word => word.length >= 3).every(word => normalizedSegment.includes(word));
 
-  if (!foodMatches) {
-    return false;
-  }
-
+  if (!foodMatches) return false;
   return !normalizedBrand || normalizedSegment.includes(normalizedBrand);
 }
 
 function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: string) {
   const source = sourceText?.trim();
-  if (!source) {
-    return null;
-  }
+  if (!source) return null;
 
   const explicitSegments = extractExplicitQuantityFoodSegments(source);
-  if (!explicitSegments.length) {
-    return null;
-  }
+  if (!explicitSegments.length) return null;
 
   const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
-  if (matches.length === 1) {
-    return matches[0].foodName;
-  }
+  if (matches.length === 1) return matches[0].foodName;
 
   if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
     return explicitSegments[0].foodName;
@@ -126,16 +136,12 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
 
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
-    if (catalog) {
-      return catalog;
-    }
+    if (catalog) return catalog;
   }
 
   for (const candidate of candidates) {
     const catalog = await findCatalogFoodSemantic(candidate) ?? undefined;
-    if (catalog) {
-      return catalog;
-    }
+    if (catalog) return catalog;
   }
 
   return undefined;
@@ -210,9 +216,7 @@ function sourceSegmentOnlyAddsStructuredBrand(input: {
   normalizedCanonical: string;
 }) {
   const normalizedBrand = input.item.brand ? normalizeForMatching(input.item.brand).trim() : "";
-  if (!normalizedBrand) {
-    return false;
-  }
+  if (!normalizedBrand) return false;
 
   const segmentWithoutBrand = input.normalizedSegment
     .replace(new RegExp(`(^| )${normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`, "g"), " ")
@@ -225,22 +229,16 @@ function sourceSegmentOnlyAddsStructuredBrand(input: {
 
 function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: string, usedSegments: Set<number>) {
   const explicitSegments = extractExplicitQuantityFoodSegments(sourceText);
-  if (!explicitSegments.length) {
-    return null;
-  }
+  if (!explicitSegments.length) return null;
 
   const normalizedItem = normalizeForMatching(item.foodName).trim();
   const normalizedCanonical = normalizeForMatching(item.canonicalName).trim();
 
   for (const [index, segment] of explicitSegments.entries()) {
-    if (usedSegments.has(index)) {
-      continue;
-    }
+    if (usedSegments.has(index)) continue;
 
     const normalizedSegment = normalizeForMatching(segment.foodName).trim();
-    if (!normalizedSegment || normalizedSegment === normalizedItem) {
-      continue;
-    }
+    if (!normalizedSegment || normalizedSegment === normalizedItem) continue;
 
     if (sourceSegmentOnlyAddsStructuredBrand({
       item,
@@ -248,9 +246,7 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
       normalizedSegment,
       normalizedItem,
       normalizedCanonical,
-    })) {
-      continue;
-    }
+    })) continue;
 
     const segmentMatchesItem = sourceMentionsFood(segment.foodName, item.foodName)
       || sourceMentionsFood(segment.foodName, item.canonicalName)
@@ -267,16 +263,12 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
 }
 
 function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
-  if (!sourceText.trim()) {
-    return items;
-  }
+  if (!sourceText.trim()) return items;
 
   const usedSegments = new Set<number>();
   return items.map(item => {
     const sourceFoodName = findSpecificSourceFoodNameForItem(item, sourceText, usedSegments);
-    if (!sourceFoodName) {
-      return item;
-    }
+    if (!sourceFoodName) return item;
 
     return {
       ...item,
@@ -286,21 +278,15 @@ function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: str
 }
 
 function reasoningMentionsNutritionLabel(reasoning?: string) {
-  if (!reasoning) {
-    return false;
-  }
+  if (!reasoning) return false;
 
   const normalized = reasoning
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-  if (/\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\b[^.]{0,60}\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/.test(normalized)) {
-    return false;
-  }
-  if (/\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b[^.]{0,60}\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\b/.test(normalized)) {
-    return false;
-  }
+  if (/\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\b[^.]{0,60}\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/.test(normalized)) return false;
+  if (/\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b[^.]{0,60}\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\b/.test(normalized)) return false;
 
   return /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/i.test(normalized);
 }
@@ -312,9 +298,7 @@ function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extrac
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
   const quantityClarification = getQuantityExpressionClarification(sourceText);
-  if (quantityClarification) {
-    throw new MealInferenceError(quantityClarification);
-  }
+  if (quantityClarification) throw new MealInferenceError(quantityClarification);
 
   const detectedMealLabel = resolveMealLabel(input, sourceText);
 
@@ -325,11 +309,29 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     extraction = null;
   }
 
+  if (shouldRequestSugarQuantity(sourceText, extraction?.items)) {
+    throw new MealInferenceError(
+      "Para registrar o café com açúcar, informe somente a quantidade de açúcar. Exemplo: 5 g de açúcar ou 1 colher de chá.",
+      {
+        code: "food_component_quantity_required",
+        context: {
+          component: "açúcar",
+          originalText: sourceText,
+          acceptedUnits: ["g", "colher de chá", "colher de sopa", "sachê"],
+        },
+      },
+    );
+  }
+
   let usedSourceTextFallback = !extraction || shouldFallbackToSourceText(extraction, sourceText);
   let rejectedAllAiItems = false;
   let rawItems: MealDraftItem[];
+  const explicitSugarCoffee = buildCoffeeWithExplicitSugarItem(sourceText);
 
-  if (usedSourceTextFallback || !extraction) {
+  if (explicitSugarCoffee) {
+    rawItems = [explicitSugarCoffee];
+    usedSourceTextFallback = true;
+  } else if (usedSourceTextFallback || !extraction) {
     rawItems = fallbackFromText(sourceText);
   } else {
     const confirmedExtraction = extraction;
@@ -360,17 +362,17 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     ? preserveSpecificSourceFoodNames(cleanedItems, sourceText)
     : cleanedItems;
 
-  if (!items.length) {
-    throw new MealInferenceError();
-  }
+  if (!items.length) throw new MealInferenceError();
 
   const totals = sumTotals(items);
   const confidence = extraction && !usedSourceTextFallback ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
-  const reasoning = usedSourceTextFallback
-    ? rejectedAllAiItems
-      ? "A IA retornou itens incompatíveis com o texto informado; foi aplicada uma heurística a partir da descrição completa para preservar o alimento e sua preparação. Recomenda-se confirmar a inferência antes de salvar."
-      : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
-    : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
+  const reasoning = explicitSugarCoffee
+    ? "A quantidade explícita de açúcar foi incorporada uma única vez à referência de café, preservando a preparação informada."
+    : usedSourceTextFallback
+      ? rejectedAllAiItems
+        ? "A IA retornou itens incompatíveis com o texto informado; foi aplicada uma heurística a partir da descrição completa para preservar o alimento e sua preparação. Recomenda-se confirmar a inferência antes de salvar."
+        : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
+      : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   return {
     detectedMealLabel,
