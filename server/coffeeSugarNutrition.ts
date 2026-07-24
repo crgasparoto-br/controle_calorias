@@ -155,12 +155,11 @@ function getSweetenedCoffeeSourceSegments(sourceText: string) {
   return getCoffeeSourceSegments(sourceText).filter(isCoffeeWithAddedSugar);
 }
 
-function findSweetenedCoffeeSegmentWithExplicitSugar(sourceText: string) {
-  const matches = getSweetenedCoffeeSourceSegments(sourceText).flatMap(segment => {
+function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
+  return getSweetenedCoffeeSourceSegments(sourceText).flatMap(segment => {
     const sugar = extractExplicitSugarQuantity(segment);
     return sugar ? [{ segment, sugar }] : [];
   });
-  return matches.length === 1 ? matches[0] : null;
 }
 
 export function hasUsableSweetenedCoffeeInference(
@@ -170,12 +169,19 @@ export function hasUsableSweetenedCoffeeInference(
   const usableCoffeeItems = items?.filter(item =>
     isCoffeeIdentity(item.foodName) && isUsableSweetenedCoffeeNutrition(item)
   ) ?? [];
-  if (usableCoffeeItems.some(item => isCoffeeWithAddedSugar(item.foodName))) {
+  const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
+  const sweetenedSourceSegments = sourceCoffeeSegments.filter(isCoffeeWithAddedSugar);
+  const explicitlySweetenedItems = usableCoffeeItems.filter(item =>
+    isCoffeeWithAddedSugar(item.foodName)
+  );
+
+  if (
+    sweetenedSourceSegments.length > 0
+    && explicitlySweetenedItems.length >= sweetenedSourceSegments.length
+  ) {
     return true;
   }
 
-  const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
-  const sweetenedSourceSegments = sourceCoffeeSegments.filter(isCoffeeWithAddedSugar);
   return sweetenedSourceSegments.length === 1
     && sourceCoffeeSegments.length === 1
     && usableCoffeeItems.length === 1
@@ -207,11 +213,10 @@ function hasCompanionFoodSegments(sourceText: string) {
   return splitFoodTextSegments(sourceText).length > 1;
 }
 
-function createCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
-  const explicitSugarCoffee = findSweetenedCoffeeSegmentWithExplicitSugar(sourceText);
-  if (!explicitSugarCoffee) return null;
-
-  const { segment, sugar } = explicitSugarCoffee;
+function createCoffeeWithExplicitSugarItemFromSegment(
+  segment: string,
+  sugar: ExplicitSugarQuantity,
+): MealDraftItem {
   const coffee = extractCoffeeServingQuantity(segment);
   const portionUnit = coffee.unit === "xícara" && coffee.quantity !== 1
     ? "xícaras"
@@ -237,37 +242,32 @@ function createCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | 
   };
 }
 
-function findExplicitSugarCoffeeTargetIndex(items: MealDraftItem[]) {
-  const coffeeIndexes = items
-    .map((item, index) => isCoffeeDraftItem(item) ? index : -1)
-    .filter(index => index >= 0);
-  const explicitlySweetened = coffeeIndexes.filter(index =>
-    isCoffeeWithAddedSugar(`${items[index].foodName} ${items[index].canonicalName}`)
+function createExplicitSugarCoffeeItems(sourceText: string) {
+  return getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText).map(({ segment, sugar }) =>
+    createCoffeeWithExplicitSugarItemFromSegment(segment, sugar)
   );
-  if (explicitlySweetened.length === 1) return explicitlySweetened[0];
-
-  const notExplicitlyUnsweetened = coffeeIndexes.filter(index =>
-    !isExplicitlyUnsweetenedCoffee(items[index])
-  );
-  if (notExplicitlyUnsweetened.length === 1) return notExplicitlyUnsweetened[0];
-  return -1;
 }
 
-function mergeExplicitSugarCoffeeItem(
+function mergeExplicitSugarCoffeeItems(
   items: MealDraftItem[],
   sourceText: string,
 ) {
-  const explicitItem = createCoffeeWithExplicitSugarItem(sourceText);
-  if (!explicitItem || !hasCompanionFoodSegments(sourceText)) return null;
+  const explicitItems = createExplicitSugarCoffeeItems(sourceText);
+  if (!explicitItems.length || !hasCompanionFoodSegments(sourceText)) return null;
 
-  const targetIndex = findExplicitSugarCoffeeTargetIndex(items);
-  const merged = items.flatMap((item, index) => {
-    if (index === targetIndex) return [explicitItem];
+  const remaining = [...explicitItems];
+  const merged = items.flatMap(item => {
     if (isStandaloneSugarItem(item)) return [];
+    if (!remaining.length || !isCoffeeDraftItem(item)) return [item];
+
+    const identity = `${item.foodName} ${item.canonicalName}`;
+    if (isCoffeeWithAddedSugar(identity) || isGenericCoffeeDraftItem(item)) {
+      return [remaining.shift()!];
+    }
     return [item];
   });
 
-  return targetIndex >= 0 ? merged : [...merged, explicitItem];
+  return [...merged, ...remaining];
 }
 
 export function normalizeSweetenedCoffeeDraftItems(
@@ -276,7 +276,7 @@ export function normalizeSweetenedCoffeeDraftItems(
 ) {
   if (!isCoffeeWithAddedSugar(sourceText)) return items;
 
-  const mergedExplicitSugar = mergeExplicitSugarCoffeeItem(items, sourceText);
+  const mergedExplicitSugar = mergeExplicitSugarCoffeeItems(items, sourceText);
   if (mergedExplicitSugar) return mergedExplicitSugar;
 
   const coffeeItems = items.filter(isCoffeeDraftItem);
@@ -307,9 +307,9 @@ export function normalizeSweetenedCoffeeDraftItems(
 }
 
 export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
-  const explicitItem = createCoffeeWithExplicitSugarItem(sourceText);
-  return explicitItem && !hasCompanionFoodSegments(sourceText)
-    ? explicitItem
+  const explicitItems = createExplicitSugarCoffeeItems(sourceText);
+  return explicitItems.length === 1 && !hasCompanionFoodSegments(sourceText)
+    ? explicitItems[0]
     : null;
 }
 
