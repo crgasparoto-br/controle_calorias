@@ -6,6 +6,7 @@ import {
 } from "./catalogMatching";
 import {
   buildCoffeeWithExplicitSugarItem,
+  normalizeSweetenedCoffeeDraftItems,
   shouldRequestSugarQuantity,
 } from "./coffeeSugarNutrition";
 import { extractWithAi } from "./mealAiExtraction";
@@ -374,9 +375,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   }
 
   const cleanedItems = cleanMealItems(rawItems);
-  const items = shouldConstrainAiItemsToText(input, sourceText)
+  const sourceNamedItems = shouldConstrainAiItemsToText(input, sourceText)
     ? preserveSpecificSourceFoodNames(cleanedItems, sourceText)
     : cleanedItems;
+  const items = normalizeSweetenedCoffeeDraftItems(sourceNamedItems, sourceText);
 
   if (!items.length) throw new MealInferenceError();
 
