@@ -176,7 +176,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ProfessionalHome", () => {
-  it("keeps a dashboard-only access usable without starting optional queries", async () => {
+  it("keeps dashboard-only access usable without starting optional queries", async () => {
     const { default: ProfessionalHome } = await import("./ProfessionalHome");
     render(<ProfessionalHome />);
 
@@ -185,13 +185,12 @@ describe("ProfessionalHome", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", {
-        name: "Prioridades assistidas indisponíveis",
+        name: "Prioridades operacionais indisponíveis",
       })
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Resumo da carteira indisponível" })
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Ver carteira" })).toBeNull();
     expect(priorityOptions).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false })
     );
@@ -200,38 +199,28 @@ describe("ProfessionalHome", () => {
     );
   });
 
-  it("loads optional panels and operational shortcuts only for enabled resources", async () => {
+  it("loads operational priorities without requiring AI assistance", async () => {
     enabledResources = [
       "professional_dashboard",
-      "professional_ai_assistance",
+      "professional_operational_alerts",
       "professional_portfolio",
-      "professional_messages",
-      "professional_reports",
     ];
+    priorityState.data = [priority(41)];
     const { default: ProfessionalHome } = await import("./ProfessionalHome");
     render(<ProfessionalHome />);
 
-    expect(
-      screen.getByRole("heading", { name: "Nenhuma prioridade operacional aberta" })
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Ver carteira" })).toBeTruthy();
-    expect(screen.getByText("Ativos")).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Atalhos operacionais" })
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Abrir mensagens/ })).toBeTruthy();
+    expect(screen.getByText("Paciente 41")).toBeTruthy();
+    expect(priorityInput).toHaveBeenCalledWith({ limit: 11, offset: 0 });
     expect(priorityOptions).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true })
     );
-    expect(portfolioOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: true })
-    );
+    expect(enabledResources).not.toContain("professional_ai_assistance");
   });
 
   it("keeps the main list at ten patients and offers the complete view", async () => {
     enabledResources = [
       "professional_dashboard",
-      "professional_ai_assistance",
+      "professional_operational_alerts",
       "professional_portfolio",
     ];
     priorityState.data = Array.from({ length: 11 }, (_, index) =>
@@ -240,7 +229,7 @@ describe("ProfessionalHome", () => {
     const { default: ProfessionalHome } = await import("./ProfessionalHome");
     render(<ProfessionalHome />);
 
-    expect(priorityInput).toHaveBeenCalledWith({ limit: 11 });
+    expect(priorityInput).toHaveBeenCalledWith({ limit: 11, offset: 0 });
     expect(screen.getByText("Paciente 10")).toBeTruthy();
     expect(screen.queryByText("Paciente 11")).toBeNull();
     fireEvent.click(
@@ -249,49 +238,70 @@ describe("ProfessionalHome", () => {
     expect(setLocation).toHaveBeenCalledWith("/professional?priorities=all");
   });
 
-  it("uses the primary signal for reason, action and contextual destination", async () => {
+  it("paginates the complete view beyond one hundred patients", async () => {
+    currentLocation = "/professional?priorities=all&page=3";
     enabledResources = [
       "professional_dashboard",
-      "professional_ai_assistance",
+      "professional_operational_alerts",
       "professional_portfolio",
     ];
-    priorityState.data = [priority(41, "record_requires_review")];
+    priorityState.data = Array.from({ length: 51 }, (_, index) =>
+      priority(index + 101)
+    );
     const { default: ProfessionalHome } = await import("./ProfessionalHome");
     render(<ProfessionalHome />);
 
-    expect(screen.getByText("Motivo prioritário 41")).toBeTruthy();
-    expect(screen.getByText(/Ação prioritária 41/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Abrir relatório/ }));
+    expect(priorityInput).toHaveBeenCalledWith({ limit: 51, offset: 100 });
+    expect(screen.getByText("Paciente 101")).toBeTruthy();
+    expect(screen.getByText("Paciente 150")).toBeTruthy();
+    expect(screen.queryByText("Paciente 151")).toBeNull();
+    expect(screen.getByText("Página 3")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Próxima página" }));
     expect(setLocation).toHaveBeenCalledWith(
-      "/professional/patients/41/reports"
+      "/professional?priorities=all&page=4"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Página anterior" }));
+    expect(setLocation).toHaveBeenCalledWith(
+      "/professional?priorities=all&page=2"
     );
   });
 
-  it("opens a complete priority view and returns to the first ten", async () => {
-    currentLocation = "/professional?priorities=all";
-    enabledResources = [
-      "professional_dashboard",
-      "professional_ai_assistance",
-      "professional_portfolio",
-    ];
-    priorityState.data = Array.from({ length: 12 }, (_, index) =>
-      priority(index + 1)
-    );
-    const { default: ProfessionalHome } = await import("./ProfessionalHome");
-    render(<ProfessionalHome />);
+  it.each([
+    ["goal_review_due", "Abrir metas", "/professional/patients/41/goals"],
+    ["no_food_records", "Abrir relatório", "/professional/patients/41/reports"],
+    [
+      "record_requires_review",
+      "Abrir relatório",
+      "/professional/patients/41/reports",
+    ],
+    ["weigh_in_overdue", "Abrir mensagens", "/professional/patients/41/messages"],
+    [
+      "professional_request_overdue",
+      "Abrir mensagens",
+      "/professional/patients/41/messages",
+    ],
+  ])(
+    "opens the contextual destination for %s",
+    async (type, actionLabel, destination) => {
+      enabledResources = [
+        "professional_dashboard",
+        "professional_operational_alerts",
+        "professional_portfolio",
+      ];
+      priorityState.data = [priority(41, type)];
+      const { default: ProfessionalHome } = await import("./ProfessionalHome");
+      render(<ProfessionalHome />);
 
-    expect(priorityInput).toHaveBeenCalledWith({ limit: 100 });
-    expect(screen.getByText("Paciente 12")).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Voltar às dez primeiras/ })
-    );
-    expect(setLocation).toHaveBeenCalledWith("/professional");
-  });
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(actionLabel) }));
+      expect(setLocation).toHaveBeenCalledWith(destination);
+    }
+  );
 
   it("keeps the portfolio summary visible when priorities fail and retries locally", async () => {
     enabledResources = [
       "professional_dashboard",
-      "professional_ai_assistance",
+      "professional_operational_alerts",
       "professional_portfolio",
     ];
     priorityState = { data: undefined, isLoading: false, isError: true };
@@ -310,7 +320,7 @@ describe("ProfessionalHome", () => {
   it("guides an empty portfolio to the access request flow", async () => {
     enabledResources = [
       "professional_dashboard",
-      "professional_ai_assistance",
+      "professional_operational_alerts",
       "professional_portfolio",
     ];
     portfolioState.data = {
@@ -335,23 +345,5 @@ describe("ProfessionalHome", () => {
     expect(setLocation).toHaveBeenCalledWith(
       "/professional/patients?request=new"
     );
-  });
-
-  it("explains pending weigh-ins without linking to an unrelated portfolio filter", async () => {
-    enabledResources = [
-      "professional_dashboard",
-      "professional_ai_assistance",
-      "professional_portfolio",
-    ];
-    const { default: ProfessionalHome } = await import("./ProfessionalHome");
-    render(<ProfessionalHome />);
-
-    expect(screen.getByText("Pesagens pendentes")).toBeTruthy();
-    expect(
-      screen.getByText(/Solicitações de pesagem vencidas/)
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: /Pesagens pendentes/ })
-    ).toBeNull();
   });
 });
