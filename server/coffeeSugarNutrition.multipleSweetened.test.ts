@@ -6,9 +6,13 @@ import {
 } from "./coffeeSugarNutrition";
 import type { LlmItem } from "./nutritionEngineTypes";
 
-function inferredSweetenedCoffee(calories: number, carbs: number): LlmItem {
+function inferredSweetenedCoffee(
+  calories: number,
+  carbs: number,
+  foodName = "Café com açúcar",
+): LlmItem {
   return {
-    foodName: "Café com açúcar",
+    foodName,
     brand: null,
     quantity: 1,
     unit: "xícara",
@@ -53,6 +57,31 @@ describe("múltiplos cafés adoçados", () => {
         inferredSweetenedCoffee(62, 15),
       ],
       sourceText,
+    )).toBe(false);
+  });
+
+  it("exige cobertura semântica individual sem depender da ordem da IA", () => {
+    const sourceText =
+      "1 xícara de café com açúcar e 1 xícara de café adoçado com leite";
+
+    expect(hasUsableSweetenedCoffeeInference(
+      [inferredSweetenedCoffee(34, 8), inferredSweetenedCoffee(52, 12)],
+      sourceText,
+    )).toBe(false);
+
+    expect(hasUsableSweetenedCoffeeInference(
+      [
+        inferredSweetenedCoffee(72, 12, "Café adoçado com leite"),
+        inferredSweetenedCoffee(34, 8),
+      ],
+      sourceText,
+    )).toBe(true);
+  });
+
+  it("rejeita complemento crítico inventado pela inferência", () => {
+    expect(hasUsableSweetenedCoffeeInference(
+      [inferredSweetenedCoffee(72, 12, "Café com açúcar e leite")],
+      "1 xícara de café com açúcar",
     )).toBe(false);
   });
 
