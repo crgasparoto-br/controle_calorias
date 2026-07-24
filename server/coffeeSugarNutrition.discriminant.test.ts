@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSweetenedCoffeeDraftItems } from "./coffeeSugarNutrition";
+import {
+  normalizeSweetenedCoffeeDraftItems,
+  shouldRequestSugarQuantity,
+} from "./coffeeSugarNutrition";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 function item(input: {
@@ -105,5 +108,57 @@ describe("normalização discriminante de café adoçado", () => {
       calories: 22,
       carbs: 5,
     }));
+  });
+
+  it("não renomeia café com leite como café adoçado em entrada composta", () => {
+    const result = normalizeSweetenedCoffeeDraftItems(
+      [
+        item({
+          foodName: "Café com leite",
+          canonicalName: "Café com leite",
+          calories: 60,
+          carbs: 5,
+        }),
+      ],
+      "1 xícara de café com açúcar e 1 xícara de café com leite",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({
+      foodName: "Café com leite",
+      canonicalName: "Café com leite",
+      calories: 60,
+      carbs: 5,
+    }));
+  });
+
+  it("não aceita a estimativa de outro café como nutrição do café adoçado", () => {
+    const shouldClarify = shouldRequestSugarQuantity(
+      "1 xícara de café com açúcar e 1 xícara de café com leite",
+      [{
+        foodName: "Café com leite",
+        brand: null,
+        quantity: 1,
+        unit: "xícara",
+        portionText: "1 xícara",
+        servings: 1,
+        estimatedGrams: 200,
+        estimatedCalories: 60,
+        estimatedMacros: {
+          protein: 2,
+          carbs: 5,
+          fat: 2,
+        },
+        confidence: 0.9,
+        foodClassification: {
+          processingLevel: "minimally_processed",
+          isFruit: false,
+          isVegetable: false,
+          fiberGrams: 0,
+        },
+      }],
+    );
+
+    expect(shouldClarify).toBe(true);
   });
 });
