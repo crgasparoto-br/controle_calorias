@@ -78,10 +78,19 @@ export type CaloricComplementOperation =
       companionReplacements?: CaloricComplementCompanionReplacement[];
     };
 
+export type ResolvedCaloricComplement = {
+  componentName: "açúcar";
+  quantity: number;
+  unit: string;
+};
+
 export type CaloricComplementQuantityContext = {
   mode: "complete_caloric_complement";
   componentName: "açúcar";
   originalFoodText: string;
+  originalText?: string;
+  inboundMessageId?: string | null;
+  completedComponents?: ResolvedCaloricComplement[];
   coffeeQuantity: CoffeeServingQuantity;
   operation: CaloricComplementOperation;
 };
@@ -352,10 +361,11 @@ export function createFoodQuantityClarificationService(
       messageId?: string | null;
     }) => {
       const coffeeQuantity = extractCoffeeServingQuantity(input.originalFoodText);
+      const originalText = input.originalText?.trim() || input.originalFoodText;
       return createQuantityClarification({
         userId: input.userId,
         foodName: "Café com açúcar",
-        originalText: input.originalText?.trim() || input.originalFoodText,
+        originalText,
         receivedAt: input.receivedAt,
         messageId: input.messageId,
         count: coffeeQuantity.unit === "xícara" ? coffeeQuantity.quantity : 1,
@@ -363,6 +373,9 @@ export function createFoodQuantityClarificationService(
           mode: "complete_caloric_complement",
           componentName: "açúcar",
           originalFoodText: input.originalFoodText,
+          originalText,
+          inboundMessageId: input.messageId?.trim() || null,
+          completedComponents: [],
           coffeeQuantity,
           operation: input.operation,
         },
