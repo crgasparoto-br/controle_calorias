@@ -30,7 +30,7 @@ function aiCoffeeItem(input: {
       unit: "xícara",
       portionText: "1 xícara",
       servings: 1,
-      estimatedGrams: 55,
+      estimatedGrams: 200,
       estimatedCalories: input.calories,
       estimatedMacros: {
         protein: input.protein ?? 0,
@@ -65,6 +65,7 @@ describe("nutritionEngine coffee with sugar handling", () => {
       canonicalName: "Café com açúcar",
       quantity: 1,
       unit: "xícara",
+      estimatedGrams: 205,
       calories: 22,
       carbs: 5,
       protein: 0,
@@ -74,7 +75,7 @@ describe("nutritionEngine coffee with sugar handling", () => {
     expect(result.totals.calories).toBe(22);
   });
 
-  it("preserva volume explícito e soma o açúcar uma única vez", async () => {
+  it("preserva volume explícito e usa a mesma porção canônica de uma xícara", async () => {
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
       text: "200 ml de café com 5 g de açúcar",
@@ -85,10 +86,10 @@ describe("nutritionEngine coffee with sugar handling", () => {
       quantity: 200,
       unit: "ml",
       estimatedGrams: 205,
-      calories: 28,
+      calories: 22,
       carbs: 5,
     }));
-    expect(result.totals.calories).toBe(28);
+    expect(result.totals.calories).toBe(22);
   });
 
   it("solicita somente a quantidade de açúcar quando não há estimativa utilizável", async () => {
@@ -137,7 +138,7 @@ describe("nutritionEngine coffee with sugar handling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Café com Açúcar",
+      foodName: "Café com açúcar",
       canonicalName: "Café com açúcar",
       calories: 34,
       carbs: 8,
