@@ -3,35 +3,14 @@
  *
  * This module provides semantic and web-backed fallbacks for `findCatalogFood`
  * when the standard exact/substring text matching fails to find a catalog entry.
- *
- * Strategy:
- * 1. For likely packaged snacks, search the web for the specific product/brand
- *    nutrition facts before using any category average.
- * 2. If no reliable product nutrition is found, try semantic matching against
- *    the local catalog before falling back to a category average.
- * 3. On first semantic use, generate embeddings for all catalog entries
- *    (name + aliases) and cache them in memory.
- * 4. For each lookup, generate an embedding for the query food name and compute
- *    cosine similarity against all cached catalog embeddings.
- * 5. Return the best match only when its similarity score exceeds a conservative
- *    threshold (SIMILARITY_THRESHOLD), ensuring no false positives are introduced.
- * 6. If OpenAI is not configured or a call fails, the function degrades
- *    gracefully so the meal can still be registered.
- *
- * Design constraints respected:
- * - The OpenAI SDK is used only inside `_core` or through helpers that live in
- *   the server layer. This module calls `_core` helpers because it is a
- *   server-side utility, not a domain service.
- * - Failures are silent and non-blocking: a missing enrichment never prevents a
- *   meal from being registered.
- * - The embedding cache is invalidated whenever the catalog cache changes size,
- *   so a DB-refreshed catalog is always reflected.
+ * Every final candidate is validated by the shared semantic-compatibility guard.
  */
 
 import { getCatalogCache } from "./catalogRuntime";
 import { ENV } from "./_core/env";
 import { getAiProvider } from "./_core/aiProvider";
 import { isOpenAiConfigured, createOpenAiClient } from "./_core/openaiClient";
+import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import type { CatalogFood } from "./nutritionEngine";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -171,14 +150,10 @@ function detectPackagedSnackCategory(foodName: string): PackagedSnackCategory | 
     "kinder",
     "ferrero",
   ];
-  if (hasAnyTerm(normalized, chocolateTerms)) {
-    return "chocolate";
-  }
+  if (hasAnyTerm(normalized, chocolateTerms)) return "chocolate";
 
   const cookieTerms = ["biscoito", "bolacha", "cookie", "cookies", "recheado", "recheada"];
-  if (hasAnyTerm(normalized, cookieTerms)) {
-    return "cookie";
-  }
+  if (hasAnyTerm(normalized, cookieTerms)) return "cookie";
 
   return null;
 }
@@ -219,24 +194,27 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function candidateIsCompatible(foodName: string, candidate: CatalogFood) {
+  return isFoodCandidateSemanticallyCompatible(foodName, [
+    candidate.name,
+    ...candidate.aliases,
+    ...(candidate.variants ?? []),
+  ]);
+}
+
 function parseSearchedNutritionResult(value: unknown, foodName: string): CatalogFood | null {
   const result = value as Partial<SearchedNutritionResult> | null;
   if (!result?.found || result.confidence === undefined || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) {
     return null;
   }
-  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) {
-    return null;
-  }
-  if (!isNonNegativeNumber(result.protein) || !isNonNegativeNumber(result.carbs) || !isNonNegativeNumber(result.fat)) {
-    return null;
-  }
+  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return null;
+  if (!isNonNegativeNumber(result.protein) || !isNonNegativeNumber(result.carbs) || !isNonNegativeNumber(result.fat)) return null;
 
   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
   const brandName = result.brandName?.trim() || null;
   const sourceUrl = result.sourceUrl?.trim();
   const sourceAlias = sourceUrl ? `fonte: ${sourceUrl}` : "fonte: busca web";
-
-  return {
+  const candidate: CatalogFood = {
     slug: `web-nutrition-${normalizeText(matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: matchedProductName,
     aliases: [foodName, matchedProductName, sourceAlias],
@@ -249,15 +227,15 @@ function parseSearchedNutritionResult(value: unknown, foodName: string): Catalog
     brandName,
     isBrandedProduct: Boolean(brandName),
   };
+
+  return candidateIsCompatible(foodName, candidate) ? candidate : null;
 }
 
 async function findPackagedSnackByWebSearch(
   foodName: string,
   category: PackagedSnackCategory,
 ): Promise<CatalogFood | null> {
-  if (!isOpenAiConfigured()) {
-    return null;
-  }
+  if (!isOpenAiConfigured()) return null;
 
   try {
     const response = await getAiProvider().createTextResponse({
@@ -350,21 +328,18 @@ async function getEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
 }
 
 async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood | null> {
-  if (!isOpenAiConfigured()) {
-    return null;
-  }
+  if (!isOpenAiConfigured()) return null;
 
   try {
     const cache = await getEmbeddingCache();
     const [queryEmbedding] = await fetchEmbeddings([foodName]);
-    if (!isEmbedding(queryEmbedding)) {
-      return null;
-    }
+    if (!isEmbedding(queryEmbedding)) return null;
 
     let bestScore = -1;
     let bestFood: CatalogFood | null = null;
 
     for (const entry of cache) {
+      if (!candidateIsCompatible(foodName, entry.food)) continue;
       const score = cosineSimilarity(queryEmbedding, entry.embedding);
       if (score > bestScore) {
         bestScore = score;
@@ -372,9 +347,7 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
       }
     }
 
-    if (bestScore >= SIMILARITY_THRESHOLD && bestFood) {
-      return bestFood;
-    }
+    if (bestScore >= SIMILARITY_THRESHOLD && bestFood) return bestFood;
   } catch {
     // Semantic search is a best-effort enhancement; failures must not block
     // the nutrition pipeline.
@@ -386,25 +359,23 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
 /**
  * Finds the best matching catalog food for a given food name using specific web
  * nutrition lookup, semantic similarity or deterministic packaged-snack
- * fallbacks. Returns null when no safe fallback is available.
+ * fallbacks. Returns null when no safe and semantically compatible fallback is available.
  */
 export async function findCatalogFoodSemantic(
   foodName: string,
 ): Promise<CatalogFood | null> {
   const packagedSnackCategory = detectPackagedSnackCategory(foodName);
   if (packagedSnackCategory) {
-    return await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
+    const candidate = await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
       ?? await findCatalogFoodByEmbedding(foodName)
       ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
+    return candidateIsCompatible(foodName, candidate) ? candidate : null;
   }
 
   return findCatalogFoodByEmbedding(foodName);
 }
 
-/**
- * Resets the in-memory embedding cache. Useful for testing or after a manual
- * catalog refresh.
- */
+/** Resets the in-memory embedding cache. */
 export function resetEmbeddingCache(): void {
   embeddingCache = null;
   cachedCatalogSize = 0;

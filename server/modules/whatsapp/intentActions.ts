@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+  handleCoffeeSugarRegistrationIntent,
+  isCoffeeSugarRegistrationText,
+} from "./coffeeSugarIntent";
 import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
@@ -102,9 +106,6 @@ async function resolvePendingInteractionBeforeTextIntent(
   const requestScopedInbound =
     !input.entrypoint && Boolean(correlatedMessageId);
 
-  // Webhook textual e simulador já executam o gate antes de chamar este executor.
-  // A transcrição de áudio chega diretamente aqui dentro do escopo persistente da
-  // mensagem; testes e consumidores explícitos podem usar o entrypoint nominal.
   if (input.entrypoint !== "audioTranscription" && !requestScopedInbound)
     return null;
 
@@ -152,6 +153,24 @@ function resolveInboundCorrelationId(
   return `derived:${digest}`;
 }
 
+function buildFoodMutationContext(
+  userId: number,
+  input: WhatsappIntentInput,
+  text: string,
+  receivedAt: Date
+) {
+  return {
+    originalText: text,
+    receivedAt,
+    messageId: resolveInboundCorrelationId(
+      userId,
+      text,
+      receivedAt,
+      input.messageId
+    ),
+  };
+}
+
 function isLatestFoodCorrectionText(text: string) {
   const normalized = text
     .normalize("NFD")
@@ -187,9 +206,6 @@ async function executeResumedFoodRegistration(
   receivedAt: Date,
   userTimeZone: string
 ): Promise<WhatsappIntentResult | null> {
-  // A escolha explícita "Registrar alimento" não pode acionar exclusão, água,
-  // ajustes, relatórios ou qualquer outro domínio antes de validar o texto
-  // preservado. Somente parsers alimentares de criação são permitidos aqui.
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
   if (coffeeCapsule)
     return handleCoffeeLorCapsuleIntent(
@@ -232,7 +248,12 @@ async function executeResumedFoodRegistration(
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   return foodAddition
-    ? handleFoodAdditionIntent(userId, foodAddition, userTimeZone)
+    ? handleFoodAdditionIntent(
+        userId,
+        foodAddition,
+        userTimeZone,
+        buildFoodMutationContext(userId, input, text, receivedAt)
+      )
     : null;
 }
 
@@ -265,6 +286,21 @@ export async function executeWhatsappTextIntent(
     userTimeZone
   );
   if (pendingInteraction) return pendingInteraction;
+
+  if (isCoffeeSugarRegistrationText(text)) {
+    return handleCoffeeSugarRegistrationIntent({
+      userId,
+      text,
+      receivedAt,
+      userTimezone: userTimeZone,
+      messageId: resolveInboundCorrelationId(
+        userId,
+        text,
+        receivedAt,
+        input.messageId
+      ),
+    });
+  }
 
   if (looksLikeMealIntentDecisionText(text)) {
     return createWhatsappMealIntentDecisionInteraction({
@@ -379,7 +415,12 @@ export async function executeWhatsappTextIntent(
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition)
-    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
+    return handleFoodAdditionIntent(
+      userId,
+      foodAddition,
+      userTimeZone,
+      buildFoodMutationContext(userId, input, text, receivedAt)
+    );
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
@@ -401,7 +442,12 @@ export async function executeWhatsappTextIntent(
 
   const foodReplacements = parseFoodReplacementIntents(text);
   if (foodReplacements)
-    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
+    return handleFoodReplacementIntents(
+      userId,
+      foodReplacements,
+      userTimeZone,
+      buildFoodMutationContext(userId, input, text, receivedAt)
+    );
 
   if (parseSnackSuggestionIntent(text)) return handleSnackSuggestionIntent();
 

@@ -1,11 +1,13 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../../db";
+import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
+import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQuantityClarification";
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 
@@ -64,6 +66,14 @@ export function isPendingMealIntentRegistrationDetails(
     && Array.isArray(target.actions);
 }
 
+function isSugarQuantityPrompt(input: {
+  registrationText: string;
+  prompt: string;
+}) {
+  return isCoffeeWithAddedSugar(input.registrationText)
+    && /\baçúcar\b/i.test(input.prompt);
+}
+
 export async function createWhatsappMealIntentRegistrationDetailsInteraction(input: {
   userId: number;
   originalText: string;
@@ -73,12 +83,36 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
   attempts?: number;
   receivedAt?: Date;
 }) {
+  const registrationText = (input.registrationText ?? input.originalText).trim();
+  if (isSugarQuantityPrompt({ registrationText, prompt: input.prompt })) {
+    const clarification = await requestWhatsappCaloricComplementQuantityClarification({
+      userId: input.userId,
+      originalFoodText: registrationText,
+      operation: {
+        kind: "register",
+        occurredAt: (input.receivedAt ?? new Date()).toISOString(),
+      },
+      receivedAt: input.receivedAt,
+      messageId: input.inboundMessageId,
+    });
+    return {
+      ...clarification,
+      detail: `${clarification.detail} Texto original retomado após a escolha Registrar.`,
+      data: {
+        ...(clarification.data ?? {}),
+        originalTextPreserved: true,
+        originalTextResumed: true,
+        ambiguityReclassified: false,
+      },
+    };
+  }
+
   const target: PendingMealIntentRegistrationDetails = {
     contractVersion: 1,
     interactionId: MEAL_INTENT_REGISTRATION_DETAILS_INTERACTION_ID,
     kind: "meal_intent_registration_details",
     originalText: input.originalText.trim(),
-    registrationText: (input.registrationText ?? input.originalText).trim(),
+    registrationText,
     normalizedText: normalizeRegistrationDetailsText(input.originalText),
     inboundMessageId: input.inboundMessageId?.trim() || null,
     prompt: input.prompt.trim(),
