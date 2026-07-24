@@ -1,11 +1,3 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   ProfessionalAsyncState,
   ProfessionalLoadingState,
@@ -14,46 +6,87 @@ import {
   ProfessionalSplitLayout,
   ProfessionalStatusBadge,
 } from "@/components/professional/ProfessionalUi";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { professionalPatientPath } from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, BellRing, UsersRound } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  BellRing,
+  MessageSquareText,
+  UsersRound,
+} from "lucide-react";
 import React from "react";
 import { useLocation } from "wouter";
 
-function formatPriorityDate(value: number | null | undefined) {
-  if (!value) return "Atualização não informada";
+function formatDateTime(value: number | null | undefined) {
+  if (!value) return null;
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
+function formatPriorityPeriod(signal: any) {
+  const start = formatDateTime(signal?.period?.start);
+  const end = formatDateTime(signal?.period?.end);
+  if (start && end) return `${start} até ${end}`;
+  if (end) return `Prazo: ${end}`;
+  if (start) return `Desde ${start}`;
+  const updatedAt = formatDateTime(signal?.updatedAt);
+  return updatedAt ? `Atualizado em ${updatedAt}` : "Prazo não informado";
+}
+
 function priorityDestination(item: any) {
-  const signals = (item.signals ?? []) as Array<{ type?: string; key?: string }>;
-  const kinds = signals.map(signal => signal.type ?? signal.key ?? "");
-  if (kinds.some(kind => kind.includes("goal"))) {
+  const type = item.primarySignal?.type;
+  if (type === "goal_review_due") {
     return professionalPatientPath(item.patientId, "goals");
   }
-  if (kinds.some(kind => kind.includes("food") || kind.includes("record"))) {
+  if (type === "no_food_records" || type === "record_requires_review") {
     return professionalPatientPath(item.patientId, "reports");
   }
   if (
-    kinds.some(
-      kind =>
-        kind.includes("weigh") ||
-        kind.includes("request") ||
-        kind.includes("message")
-    )
+    type === "weigh_in_overdue" ||
+    type === "professional_request_overdue"
   ) {
     return professionalPatientPath(item.patientId, "messages");
   }
   return professionalPatientPath(item.patientId);
 }
 
-function PrioritiesPanel({ enabled }: { enabled: boolean }) {
+function priorityActionLabel(item: any) {
+  const type = item.primarySignal?.type;
+  if (type === "goal_review_due") return "Abrir metas";
+  if (type === "no_food_records" || type === "record_requires_review") {
+    return "Abrir relatório";
+  }
+  if (
+    type === "weigh_in_overdue" ||
+    type === "professional_request_overdue"
+  ) {
+    return "Abrir mensagens";
+  }
+  return "Revisar paciente";
+}
+
+function PrioritiesPanel({
+  enabled,
+  showAll,
+}: {
+  enabled: boolean;
+  showAll: boolean;
+}) {
   const [, setLocation] = useLocation();
   const query = trpc.professionalRecord.ai.priorities.useQuery(
-    { limit: 10 },
+    { limit: showAll ? 100 : 11 },
     {
       enabled,
       retry: false,
@@ -85,7 +118,10 @@ function PrioritiesPanel({ enabled }: { enabled: boolean }) {
       />
     );
   }
-  const priorities = query.data ?? [];
+
+  const allPriorities = query.data ?? [];
+  const hasMore = !showAll && allPriorities.length > 10;
+  const priorities = showAll ? allPriorities : allPriorities.slice(0, 10);
   if (!priorities.length) {
     return (
       <ProfessionalAsyncState
@@ -99,45 +135,114 @@ function PrioritiesPanel({ enabled }: { enabled: boolean }) {
 
   return (
     <div className="grid gap-3">
-      {priorities.map((item: any) => (
-        <article
-          key={item.patientId}
-          className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
-        >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="break-words font-semibold">{item.displayName}</h3>
-              <ProfessionalStatusBadge
-                kind="severity"
-                value={item.highestSeverity}
-              />
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {item.alertCount} pendência(s):{" "}
-              {(item.signals ?? [])
-                .slice(0, 3)
-                .map((signal: any) => signal.label)
-                .join(", ")}
-            </p>
-            {(item.signals ?? [])[0]?.suggestedAction ? (
-              <p className="mt-1 text-sm">
-                Ação sugerida: {item.signals[0].suggestedAction}
+      {priorities.map((item: any) => {
+        const primary = item.primarySignal ?? item.signals?.[0];
+        const visibleSignals = (item.signals ?? []).slice(0, 3);
+        const remainingSignals = Math.max(
+          0,
+          Number(item.alertCount ?? visibleSignals.length) - visibleSignals.length
+        );
+        return (
+          <article
+            key={item.patientId}
+            className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="break-words font-semibold">{item.displayName}</h3>
+                <ProfessionalStatusBadge
+                  kind="severity"
+                  value={item.highestSeverity}
+                />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {item.alertCount} pendência(s):{" "}
+                {visibleSignals.map((signal: any) => signal.label).join(", ")}
+                {remainingSignals > 0 ? ` e mais ${remainingSignals}` : ""}
               </p>
-            ) : null}
-            <p className="mt-2 text-xs text-muted-foreground">
-              Atualizado em {formatPriorityDate(item.updatedAt)}
-            </p>
-          </div>
+              {primary?.reason ? (
+                <p className="mt-2 text-sm">{primary.reason}</p>
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatPriorityPeriod(primary)}
+              </p>
+              {primary?.suggestedAction ? (
+                <p className="mt-2 text-sm">
+                  <span className="font-medium">Ação sugerida:</span>{" "}
+                  {primary.suggestedAction}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setLocation(priorityDestination(item))}
+            >
+              {priorityActionLabel(item)}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </article>
+        );
+      })}
+
+      {hasMore ? (
+        <div className="flex justify-center pt-2">
           <Button
             variant="outline"
-            onClick={() => setLocation(priorityDestination(item))}
+            onClick={() => setLocation("/professional?priorities=all")}
           >
-            Revisar paciente
+            Ver todas as prioridades
             <ArrowRight className="h-4 w-4" />
           </Button>
-        </article>
-      ))}
+        </div>
+      ) : null}
+      {showAll ? (
+        <div className="flex justify-center pt-2">
+          <Button variant="ghost" onClick={() => setLocation("/professional")}>
+            <ArrowLeft className="h-4 w-4" />
+            Voltar às dez primeiras
+          </Button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+type SummaryItem = {
+  label: string;
+  value: number;
+  description: string;
+  path?: string;
+};
+
+function SummaryTile({
+  item,
+  onOpen,
+}: {
+  item: SummaryItem;
+  onOpen: (path: string) => void;
+}) {
+  const className =
+    "min-w-0 rounded-2xl border bg-card p-4 text-left shadow-sm";
+  const content = (
+    <>
+      <span className="text-sm text-muted-foreground">{item.label}</span>
+      <strong className="mt-1 block text-2xl">{item.value}</strong>
+      <span className="mt-2 block text-xs leading-5 text-muted-foreground">
+        {item.description}
+      </span>
+    </>
+  );
+
+  return item.path ? (
+    <button
+      type="button"
+      className={`${className} transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      onClick={() => onOpen(item.path as string)}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -185,42 +290,135 @@ function PortfolioSummary({ enabled }: { enabled: boolean }) {
       />
     );
   }
+
+  const total = Number(
+    query.data?.pagination?.total ?? query.data?.items?.length ?? 0
+  );
+  if (total === 0) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        icon="empty"
+        title="Sua carteira ainda está vazia"
+        description="Solicite acesso a um paciente para iniciar o acompanhamento profissional."
+        actionLabel="Solicitar acesso"
+        onRetry={() => setLocation("/professional/patients?request=new")}
+      />
+    );
+  }
+
   const summary = query.data?.summary;
-  const items = [
-    ["Ativos", summary?.active ?? 0, "tracking=active"],
-    ["Pausados", summary?.paused ?? 0, "tracking=paused"],
-    ["Encerrados", summary?.ended ?? 0, "tracking=ended"],
-    [
-      "Solicitações pendentes",
-      summary?.pendingRequests ?? 0,
-      "authorization=pending",
-    ],
-    ["Revisões pendentes", summary?.pendingReviews ?? 0, "review=overdue"],
-    [
-      "Pesagens pendentes",
-      summary?.pendingWeighings ?? 0,
-      "authorization=approved",
-    ],
-  ] as const;
+  const items: SummaryItem[] = [
+    {
+      label: "Ativos",
+      value: summary?.active ?? 0,
+      description: "Acompanhamentos em andamento.",
+      path: "/professional/patients?tracking=active",
+    },
+    {
+      label: "Pausados",
+      value: summary?.paused ?? 0,
+      description: "Acompanhamentos temporariamente pausados.",
+      path: "/professional/patients?tracking=paused",
+    },
+    {
+      label: "Encerrados",
+      value: summary?.ended ?? 0,
+      description: "Acompanhamentos finalizados.",
+      path: "/professional/patients?tracking=ended",
+    },
+    {
+      label: "Solicitações pendentes",
+      value: summary?.pendingRequests ?? 0,
+      description: "Pedidos de acesso aguardando resposta.",
+      path: "/professional/patients?authorization=pending",
+    },
+    {
+      label: "Revisões pendentes",
+      value: summary?.pendingReviews ?? 0,
+      description: "Datas de revisão já alcançadas.",
+      path: "/professional/patients?review=overdue",
+    },
+    {
+      label: "Pesagens pendentes",
+      value: summary?.pendingWeighings ?? 0,
+      description:
+        "Solicitações de pesagem vencidas. Consulte a prioridade ou as mensagens do paciente.",
+    },
+  ];
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {items.map(([label, value, queryString]) => (
-        <button
-          key={label}
-          type="button"
-          className="min-w-0 rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => setLocation(`/professional/patients?${queryString}`)}
-        >
-          <span className="text-sm text-muted-foreground">{label}</span>
-          <strong className="mt-1 block text-2xl">{value}</strong>
-        </button>
+      {items.map(item => (
+        <SummaryTile key={item.label} item={item} onOpen={setLocation} />
       ))}
     </div>
   );
 }
 
-export default function ProfessionalHome() {
+function OperationalShortcuts({ resources }: { resources: string[] }) {
   const [, setLocation] = useLocation();
+  const shortcuts = [
+    {
+      resource: "professional_portfolio",
+      label: "Abrir carteira",
+      description: "Localize pacientes, vínculos e acompanhamentos.",
+      path: "/professional/patients",
+      icon: UsersRound,
+    },
+    {
+      resource: "professional_messages",
+      label: "Abrir mensagens",
+      description: "Consulte solicitações e conversas profissionais.",
+      path: "/professional/messages",
+      icon: MessageSquareText,
+    },
+    {
+      resource: "professional_reports",
+      label: "Abrir relatórios",
+      description: "Acesse indicadores agregados e análises individuais.",
+      path: "/professional/reports",
+      icon: BarChart3,
+    },
+  ].filter(shortcut => resources.includes(shortcut.resource));
+
+  if (!shortcuts.length) return null;
+  return (
+    <section aria-labelledby="operational-shortcuts-title" className="space-y-3">
+      <div>
+        <h2 id="operational-shortcuts-title" className="text-lg font-semibold">
+          Atalhos operacionais
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Acesse áreas secundárias sem tirar o foco das prioridades de hoje.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {shortcuts.map(shortcut => {
+          const Icon = shortcut.icon;
+          return (
+            <Button
+              key={shortcut.path}
+              variant="outline"
+              className="h-auto min-h-20 justify-start whitespace-normal p-4 text-left"
+              onClick={() => setLocation(shortcut.path)}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span>
+                <strong className="block">{shortcut.label}</strong>
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                  {shortcut.description}
+                </span>
+              </span>
+            </Button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export default function ProfessionalHome() {
+  const [location, setLocation] = useLocation();
   const entitlements =
     trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
       retry: false,
@@ -247,17 +445,17 @@ export default function ProfessionalHome() {
     );
   }
 
-  const hasAiAssistance = entitlements.data.enabledResources.includes(
-    "professional_ai_assistance"
-  );
-  const hasPortfolio = entitlements.data.enabledResources.includes(
-    "professional_portfolio"
-  );
+  const resources = entitlements.data.enabledResources;
+  const hasAiAssistance = resources.includes("professional_ai_assistance");
+  const hasPortfolio = resources.includes("professional_portfolio");
+  const showAllPriorities =
+    new URLSearchParams(location.split("?")[1] ?? "").get("priorities") ===
+    "all";
 
   return (
     <ProfessionalPage>
       <ProfessionalPageHeader
-        title="Prioridades de hoje"
+        title={showAllPriorities ? "Todas as prioridades" : "Prioridades de hoje"}
         description="Comece pelos pacientes com pendências objetivas e depois consulte o resumo da carteira. A lista não cria critérios clínicos novos."
         actions={
           hasPortfolio ? (
@@ -290,9 +488,14 @@ export default function ProfessionalHome() {
       >
         <section aria-labelledby="priority-list-title" className="space-y-3">
           <h2 id="priority-list-title" className="text-lg font-semibold">
-            Pacientes que precisam de atenção operacional
+            {showAllPriorities
+              ? "Fila operacional completa"
+              : "Pacientes que precisam de atenção operacional"}
           </h2>
-          <PrioritiesPanel enabled={hasAiAssistance} />
+          <PrioritiesPanel
+            enabled={hasAiAssistance}
+            showAll={showAllPriorities}
+          />
         </section>
       </ProfessionalSplitLayout>
       <section aria-labelledby="portfolio-summary-title" className="space-y-3">
@@ -306,6 +509,7 @@ export default function ProfessionalHome() {
         </div>
         <PortfolioSummary enabled={hasPortfolio} />
       </section>
+      <OperationalShortcuts resources={resources} />
     </ProfessionalPage>
   );
 }
