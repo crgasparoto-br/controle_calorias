@@ -1,6 +1,6 @@
 export type WhatsAppFoodAssistantResult = {
   handled: true;
-  action: "food_assistant" | "meal_intent_clarification";
+  action: "food_assistant";
   reply: string;
   eventType: string;
   detail: string;
@@ -39,18 +39,6 @@ function looksLikeFoodAssistantIntent(normalized: string) {
     && /\b(?:alimentar|comer|cardapio|refeicao|lanche|cafe|almoco|jantar|pre treino|pos treino|ceia)\b/.test(normalized);
 }
 
-function looksLikeExplicitMealRegistration(normalized: string) {
-  return /\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre|adicionar|adicione|inclua|lance|lancar|lançar)\b/.test(normalized);
-}
-
-function looksLikeAmbiguousMealDescription(normalized: string) {
-  if (!normalized || looksLikeFoodAssistantIntent(normalized) || looksLikeExplicitMealRegistration(normalized)) {
-    return false;
-  }
-
-  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
-}
-
 function resolveMealContext(normalized: string): AssistantMealContext {
   if (/\b(cafe da manha|cafe|manha)\b/.test(normalized)) return "breakfast";
   if (/\b(almoco|almoco)\b/.test(normalized)) return "lunch";
@@ -62,7 +50,7 @@ function resolveMealContext(normalized: string): AssistantMealContext {
   return "general";
 }
 
-function buildAssistantReply(context: AssistantMealContext) {
+function buildAssistantReply(context: AssistantMealContext, originalText?: string | null) {
   const optionsByContext: Record<AssistantMealContext, string[]> = {
     breakfast: [
       "• Iogurte natural com banana e aveia",
@@ -106,9 +94,13 @@ function buildAssistantReply(context: AssistantMealContext) {
     ],
   };
 
+  const preservedContext = originalText?.trim()
+    ? `Considerei como base os alimentos e o contexto da sua mensagem: ${originalText.trim()}.`
+    : null;
   return [
     "Sugestão alimentar:",
     "",
+    ...(preservedContext ? [preservedContext, ""] : []),
     "Posso te ajudar com uma escolha prática. Algumas boas opções:",
     ...optionsByContext[context],
     "",
@@ -118,34 +110,24 @@ function buildAssistantReply(context: AssistantMealContext) {
   ].join("\n");
 }
 
-function buildAmbiguousMealReply() {
-  return "Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?";
-}
-
-export function executeWhatsAppFoodAssistantIntent(text?: string | null): WhatsAppFoodAssistantResult | null {
+export function executeConfirmedWhatsAppFoodSuggestion(text?: string | null): WhatsAppFoodAssistantResult {
   const normalized = normalizeAssistantText(text?.trim() || "");
-  if (looksLikeAmbiguousMealDescription(normalized)) {
-    return {
-      handled: true,
-      action: "meal_intent_clarification",
-      reply: buildAmbiguousMealReply(),
-      eventType: "whatsapp.intent.meal_intent_clarification",
-      detail: "Mensagem alimentar ambígua pediu confirmação antes de registrar ou sugerir refeição.",
-      data: { possibleIntents: ["add_foods_to_meal", "meal_suggestion"] },
-    };
-  }
-
-  if (!looksLikeFoodAssistantIntent(normalized)) {
-    return null;
-  }
-
   const context = resolveMealContext(normalized);
   return {
     handled: true,
     action: "food_assistant",
-    reply: buildAssistantReply(context),
+    reply: buildAssistantReply(context, text),
     eventType: "whatsapp.intent.food_assistant",
-    detail: "Orientação alimentar respondida pelo WhatsApp sem criar refeição por fallback.",
-    data: { context },
+    detail: "Orientação alimentar confirmada usou o contexto original e respondeu sem criar refeição por fallback.",
+    data: { context, originalTextUsed: Boolean(normalized) },
   };
+}
+
+export function executeWhatsAppFoodAssistantIntent(text?: string | null): WhatsAppFoodAssistantResult | null {
+  const normalized = normalizeAssistantText(text?.trim() || "");
+  if (!looksLikeFoodAssistantIntent(normalized)) {
+    return null;
+  }
+
+  return executeConfirmedWhatsAppFoodSuggestion(text);
 }

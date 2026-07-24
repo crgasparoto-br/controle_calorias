@@ -35,6 +35,7 @@ import {
   handleSnackSuggestionIntent,
   handleWaterIntent,
 } from "./intent/waterAndReportHandlers";
+import { createWhatsappMealIntentDecisionInteraction } from "./mealIntentDecisionInteraction";
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
@@ -159,6 +160,26 @@ function isLatestFoodCorrectionText(text: string) {
   return /\b(?:ultimo|ultima)\s+(?:alimento|item|refeicao)\b/.test(normalized);
 }
 
+function looksLikeMealIntentDecisionText(text: string) {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return false;
+  if (/\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre|adicionar|adicione|inclua|lance|lancar)\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(o que|oque)\s+(?:eu\s+)?(?:posso\s+)?comer\b/.test(normalized)
+    || /\b(?:posso|devo)\s+comer\b/.test(normalized)
+    || /\b(?:sugestao|sugira|sugerir|dica|ideia|orientacao|recomenda|recomende|indicacao|indique|monte|monta|montar)\b/.test(normalized)) {
+    return false;
+  }
+  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
+}
+
 async function executeResumedFoodRegistration(
   userId: number,
   input: WhatsappIntentInput,
@@ -244,6 +265,15 @@ export async function executeWhatsappTextIntent(
     userTimeZone
   );
   if (pendingInteraction) return pendingInteraction;
+
+  if (looksLikeMealIntentDecisionText(text)) {
+    return createWhatsappMealIntentDecisionInteraction({
+      userId,
+      originalText: text,
+      receivedAt,
+      messageId: input.messageId,
+    });
+  }
 
   if (isLatestFoodCorrectionText(text)) {
     const contextualFoodReplacement =
