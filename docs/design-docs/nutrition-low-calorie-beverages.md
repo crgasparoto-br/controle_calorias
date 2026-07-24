@@ -45,6 +45,7 @@ The final candidate is checked by a shared semantic guard after every catalog so
 - Compound registration and addition preserve all companion foods when only the sugar amount is missing.
 - Compound replacement preserves the other replacements from the same command. Completion revalidates every target, applies the batch with compensating rollback if an update fails, and replies from the reloaded state.
 - The compensation includes an update that may have persisted before throwing from a later side effect, preventing silent partial state.
+- Text webhook, transcribed audio and `simulateWhatsappInbound` converge on the same canonical sweetened-coffee handler and persistent clarification contract.
 - The pending operation is consumed atomically only after the answer is valid for the missing component. Retry, expiration and re-delivery cannot duplicate the domain effect.
 - The interaction registry declares `complete_pending_food_operation_once` as an allowed effect for the open quantity contract.
 
@@ -66,9 +67,11 @@ Coverage lives in:
 - `server/modules/whatsapp/foodCaloricComplementCompensation.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarCompositeAddition.test.ts`;
 - `server/modules/whatsapp/intent/coffeeSugarMutationHandlers.test.ts`;
+- `server/modules/whatsapp/intentActions.coffeeSugarParity.test.ts`;
+- `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
