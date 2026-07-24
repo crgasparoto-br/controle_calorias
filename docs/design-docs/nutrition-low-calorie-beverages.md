@@ -38,9 +38,13 @@ The final candidate is checked by a shared semantic guard after every catalog so
 - Consequently, one cup and 200 ml are equivalent inputs for the same preparation; adding 5 g of sugar produces approximately 205 g, 22 kcal and 5 g of carbohydrates.
 - A usable AI estimate for the complete sweetened preparation may be preserved when semantically coherent.
 - Without an explicit amount or usable estimate, the nutrition engine requests only the sugar quantity.
-- Accepted clarification units include grams, teaspoon, tablespoon, sachet and packet; advertised units and parser support must remain aligned.
+- Accepted clarification units include grams (`g`, `gr`, `grama` or `gramas`), teaspoon, tablespoon, sachet and packet; advertised units, semantic guard and parser support must remain aligned.
+- A syntactically valid but contextually incompatible reply, such as `5 ml`, is rejected before the atomic claim. The same pending operation remains active with its original id and version, and the user is prompted again.
 - On WhatsApp, registration, addition and replacement use the existing persistent `food_clarification.quantity` lifecycle. No meal or item is changed before the user replies.
-- The pending operation stores the original text, inbound message correlation and the exact operation target; completion revalidates the target, consumes the pending operation atomically and replies from the reloaded state.
+- The pending operation stores the raw original message separately from the canonical food text used to resume calculation, together with inbound correlation and the exact operation target.
+- Compound registration and addition preserve all companion foods when only the sugar amount is missing.
+- Compound replacement preserves the other replacements from the same command. Completion revalidates every target, applies the batch with compensating rollback if an update fails, and replies from the reloaded state.
+- The pending operation is consumed atomically only after the answer is valid for the missing component. Retry, expiration and re-delivery cannot duplicate the domain effect.
 - The interaction registry declares `complete_pending_food_operation_once` as an allowed effect for the open quantity contract.
 
 ## Validation
@@ -50,12 +54,19 @@ Coverage lives in:
 - `server/nutritionEngine.lowCalorieBeverages.test.ts`;
 - `server/catalogMatching.semanticCompatibility.test.ts`;
 - `server/nutritionEngine.coffeeSugar.test.ts`;
+- `server/nutritionEngine.coffeeSugarComposite.test.ts`;
+- `server/coffeeSugarNutrition.discriminant.test.ts`;
+- `server/coffeeSugarNutrition.units.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
+- `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
 - `server/modules/whatsapp/foodClarificationContract.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodCaloricComplementPersistence.test.ts`;
+- `server/modules/whatsapp/foodCaloricComplementComposite.test.ts`;
+- `server/modules/whatsapp/intent/coffeeSugarCompositeAddition.test.ts`;
+- `server/modules/whatsapp/intent/coffeeSugarMutationHandlers.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, persistent operation context, household units, registration/addition/replacement lifecycle, target revalidation and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, missing-quantity clarification, contextual unit validation before claim, persistent operation context, compound registration/addition/replacement, target revalidation, compensating rollback boundaries and registry parity.
 
 ## Known limits
 
