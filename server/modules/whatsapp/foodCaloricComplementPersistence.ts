@@ -3,16 +3,37 @@ import { appendSugarQuantityToCoffeeText } from "../../coffeeSugarNutrition";
 import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import { normalizeText } from "../../mealTextParsing";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
+import type { MealItemInput } from "../meals/schemas";
 import type { CaloricComplementQuantityContext } from "./foodQuantityClarification";
 import type { FoodClarificationDependencies } from "./foodClarificationPersistence";
 import type { WhatsappIntentResult } from "./intent/types";
-import { toMealItemInputs } from "./intent/mealItemHelpers";
-import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
+import { resolveTargetMealItemInMeals } from "./intent/mealTargetResolution";
+import {
+  composeWhatsAppMealActionReply,
+  composeWhatsAppMealActionReplies,
+} from "./mealActionReplyComposer";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
 
 type ExistingMeal = Awaited<
   ReturnType<FoodClarificationDependencies["listMeals"]>
 >[number];
+
+type MutableMeal = Omit<ExistingMeal, "items"> & { items: MealItemInput[] };
+
+type MealSnapshot = {
+  id: number;
+  mealLabel: string;
+  occurredAt: string;
+  notes: string | null;
+  items: MealItemInput[];
+};
+
+type BatchReplacementLine = {
+  fromFood: string;
+  toFood: string;
+  mealId: number;
+};
 
 function sameLogicalMeal(
   meal: ExistingMeal,
@@ -65,17 +86,20 @@ async function processResolvedFood(
     timeZone,
   });
   const resolvedItems = toMealItemInputs(processed.items);
+  const resolvedItem = toMealItemInputs([
+    findResolvedSweetenedCoffee(processed.items),
+  ])[0];
   return {
     processed,
     resolvedItems,
-    resolvedItem: findResolvedSweetenedCoffee(processed.items),
+    resolvedItem,
   };
 }
 
 function buildCompletedActionLine(input: {
   action: "register" | "add";
   itemCount: number;
-  resolvedItem: MealDraftItem;
+  resolvedItem: MealItemInput;
   explicitQuantity: { quantity: number; unit: string };
 }) {
   const verb = input.action === "register" ? "Registrei" : "Adicionei";
@@ -103,6 +127,208 @@ async function buildReply(input: {
       mealResultState: input.state,
     },
   });
+}
+
+function toMutableMeals(meals: ExistingMeal[]): MutableMeal[] {
+  return meals.map(meal => ({
+    ...meal,
+    items: toMealItemInputs(meal.items as MealDraftItem[] | undefined),
+  }));
+}
+
+function toSnapshot(meal: ExistingMeal | MutableMeal): MealSnapshot {
+  return {
+    id: meal.id,
+    mealLabel: meal.mealLabel,
+    occurredAt: new Date(meal.occurredAt).toISOString(),
+    notes: meal.notes ?? null,
+    items: toMealItemInputs(meal.items as MealDraftItem[] | undefined),
+  };
+}
+
+async function updateReplacementBatchWithCompensation(input: {
+  deps: FoodClarificationDependencies;
+  userId: number;
+  changes: Array<{ before: MealSnapshot; after: MealSnapshot }>;
+}) {
+  const applied: Array<{ before: MealSnapshot; after: MealSnapshot }> = [];
+  try {
+    for (const change of input.changes) {
+      await input.deps.updateMeal(input.userId, {
+        mealId: change.after.id,
+        mealLabel: change.after.mealLabel,
+        occurredAt: change.after.occurredAt,
+        notes: change.after.notes,
+        items: change.after.items,
+      });
+      applied.push(change);
+    }
+  } catch (error) {
+    let rollbackFailed = false;
+    for (const change of [...applied].reverse()) {
+      try {
+        await input.deps.updateMeal(input.userId, {
+          mealId: change.before.id,
+          mealLabel: change.before.mealLabel,
+          occurredAt: change.before.occurredAt,
+          notes: change.before.notes,
+          items: change.before.items,
+        });
+      } catch {
+        rollbackFailed = true;
+      }
+    }
+    if (rollbackFailed) {
+      throw new Error("Falha na substituição composta com rollback incompleto; o estado deve ser verificado.", { cause: error });
+    }
+    throw new Error("Falha na substituição composta; as alterações anteriores foram revertidas.", { cause: error });
+  }
+}
+
+function applyReplacementBatch(input: {
+  meals: ExistingMeal[];
+  primaryMealId: number;
+  primaryItemIndex: number;
+  primaryOriginalFoodName: string;
+  primaryResolvedItem: MealItemInput;
+  companions: Array<{ fromFood: string; toFood: string }>;
+  timeZone: string;
+}) {
+  const mutableMeals = toMutableMeals(input.meals);
+  const changedMealIndexes = new Set<number>();
+  const lines: BatchReplacementLine[] = [];
+  const primaryMealIndex = mutableMeals.findIndex(meal => meal.id === input.primaryMealId);
+  const primaryMeal = mutableMeals[primaryMealIndex];
+  const primaryItem = primaryMeal?.items[input.primaryItemIndex];
+  if (!primaryMeal || !primaryItem) {
+    throw new Error("A refeição ou o item-alvo já não está disponível.");
+  }
+  const expectedName = normalizeText(input.primaryOriginalFoodName);
+  if (![primaryItem.foodName, primaryItem.canonicalName]
+    .map(value => normalizeText(value ?? ""))
+    .includes(expectedName)) {
+    throw new Error("O item-alvo mudou antes da conclusão da substituição.");
+  }
+
+  primaryMeal.items = primaryMeal.items.map((item, index) =>
+    index === input.primaryItemIndex ? input.primaryResolvedItem : item,
+  );
+  changedMealIndexes.add(primaryMealIndex);
+  lines.push({
+    fromFood: primaryItem.foodName,
+    toFood: input.primaryResolvedItem.foodName,
+    mealId: primaryMeal.id,
+  });
+
+  for (const companion of input.companions) {
+    if (isCoffeeWithAddedSugar(companion.toFood)) {
+      throw new Error("Uma segunda substituição por café adoçado exige clarificação própria.");
+    }
+    const target = resolveTargetMealItemInMeals(
+      mutableMeals,
+      companion.fromFood,
+      input.timeZone,
+    );
+    if (target.kind !== "matched") {
+      throw new Error(
+        target.kind === "ambiguous"
+          ? `A substituição companheira de ${companion.fromFood} ficou ambígua.`
+          : `O alimento companheiro ${companion.fromFood} já não está disponível.`,
+      );
+    }
+    const replacementItem = replaceMealItemFood(target.item, companion.toFood);
+    target.meal.items = target.meal.items.map((item, index) =>
+      index === target.index ? replacementItem : item,
+    );
+    changedMealIndexes.add(target.mealIndex);
+    lines.push({
+      fromFood: target.item.foodName,
+      toFood: replacementItem.foodName,
+      mealId: target.meal.id,
+    });
+  }
+
+  const changes = [...changedMealIndexes].map(index => ({
+    before: toSnapshot(input.meals[index]),
+    after: toSnapshot(mutableMeals[index]),
+  }));
+  return { changes, lines };
+}
+
+async function persistReplacementBatch(input: {
+  deps: FoodClarificationDependencies;
+  userId: number;
+  meals: ExistingMeal[];
+  operation: Extract<CaloricComplementQuantityContext["operation"], { kind: "replace_item" }>;
+  resolvedItem: MealItemInput;
+  explicitQuantity: { quantity: number; unit: string };
+  timeZone: string;
+}) {
+  const batch = applyReplacementBatch({
+    meals: input.meals,
+    primaryMealId: input.operation.mealId,
+    primaryItemIndex: input.operation.itemIndex,
+    primaryOriginalFoodName: input.operation.originalFoodName,
+    primaryResolvedItem: input.resolvedItem,
+    companions: input.operation.companionReplacements ?? [],
+    timeZone: input.timeZone,
+  });
+  await updateReplacementBatchWithCompensation({
+    deps: input.deps,
+    userId: input.userId,
+    changes: batch.changes,
+  });
+
+  const reloadedMeals = await input.deps.listMeals(input.userId);
+  const affectedIds = batch.changes.map(change => change.after.id);
+  const affectedMeals = affectedIds
+    .map(id => reloadedMeals.find(meal => meal.id === id))
+    .filter((meal): meal is ExistingMeal => Boolean(meal));
+  if (affectedMeals.length !== affectedIds.length) {
+    throw new Error("Nem todas as refeições substituídas puderam ser recarregadas.");
+  }
+
+  const actionLines = batch.lines.map(line =>
+    `${line.fromFood} → ${line.toFood}${line.toFood === input.resolvedItem.foodName
+      ? ` com ${input.explicitQuantity.quantity} ${input.explicitQuantity.unit} de açúcar`
+      : ""}.`
+  );
+  const reply = affectedMeals.length === 1
+    ? await buildReply({
+        userId: input.userId,
+        meal: affectedMeals[0],
+        timeZone: input.timeZone,
+        title: batch.lines.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+        actionLine: actionLines.join(" "),
+        state: "updated",
+      })
+    : await composeWhatsAppMealActionReplies({
+        userId: input.userId,
+        timeZone: input.timeZone,
+        entries: affectedMeals.map(meal => ({
+          meal,
+          options: {
+            title: "Alimentos substituídos",
+            actionLines,
+            mealResultState: "updated" as const,
+          },
+        })),
+      });
+
+  return {
+    handled: true,
+    action: "food_clarification_completed",
+    reply,
+    eventType: "whatsapp.food_clarification.completed",
+    detail: `${batch.lines.length} substituição(ões) concluída(s) atomicamente após clarificação e revalidação dos alvos.`,
+    data: {
+      mealId: input.operation.mealId,
+      affectedMealIds: affectedIds,
+      correctedItemIndex: input.operation.itemIndex,
+      component: "açúcar",
+      replacementCount: batch.lines.length,
+    },
+  } satisfies WhatsappIntentResult;
 }
 
 export async function persistResolvedCaloricComplement(
@@ -264,52 +490,13 @@ export async function persistResolvedCaloricComplement(
     };
   }
 
-  if (operation.kind !== "replace_item") {
-    throw new Error("Operação de complemento calórico não suportada.");
-  }
-  const items = toMealItemInputs(
-    currentMeal.items as MealDraftItem[] | undefined,
-  );
-  const currentItem = items[operation.itemIndex];
-  if (!currentItem) throw new Error("O item-alvo já não está disponível.");
-  const expectedName = normalizeText(operation.originalFoodName);
-  if (![currentItem.foodName, currentItem.canonicalName]
-    .map(value => normalizeText(value ?? ""))
-    .includes(expectedName)) {
-    throw new Error("O item-alvo mudou antes da conclusão da substituição.");
-  }
-
-  await deps.updateMeal(userId, {
-    mealId: currentMeal.id,
-    mealLabel: currentMeal.mealLabel,
-    occurredAt: new Date(currentMeal.occurredAt).toISOString(),
-    notes: currentMeal.notes,
-    items: items.map((item, index) =>
-      index === operation.itemIndex ? resolvedItem : item,
-    ),
+  return persistReplacementBatch({
+    deps,
+    userId,
+    meals,
+    operation,
+    resolvedItem,
+    explicitQuantity,
+    timeZone,
   });
-  const reloaded = (await deps.listMeals(userId)).find(
-    meal => meal.id === currentMeal.id,
-  );
-  if (!reloaded) throw new Error("A refeição corrigida não pôde ser recarregada.");
-
-  return {
-    handled: true,
-    action: "food_clarification_completed",
-    reply: await buildReply({
-      userId,
-      meal: reloaded,
-      timeZone,
-      title: "Alimento substituído",
-      actionLine: `${operation.originalFoodName} → ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
-      state: "updated",
-    }),
-    eventType: "whatsapp.food_clarification.completed",
-    detail: "Substituição por café com açúcar concluída após revalidação do item-alvo.",
-    data: {
-      mealId: reloaded.id,
-      correctedItemIndex: operation.itemIndex,
-      component: context.componentName,
-    },
-  };
 }
