@@ -33,6 +33,10 @@ function buildAdditionFoodText(item: FoodAdditionItem) {
     : item.foodName;
 }
 
+function buildCompleteAdditionFoodText(items: FoodAdditionItem[]) {
+  return items.map(buildAdditionFoodText).join(" e ");
+}
+
 function findResolvedSweetenedCoffee(items: MealItemInput[]) {
   const matches = items.filter(item =>
     isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
@@ -60,6 +64,7 @@ async function resolveAdditionItems(input: {
 
   const receivedAt = input.context?.receivedAt ?? input.addition.date;
   const habits = await getHabitSnapshots(input.userId);
+  const completeFoodText = buildCompleteAdditionFoodText(input.addition.items);
 
   for (const coffeeIndex of coffeeIndexes) {
     const originalFoodText = buildAdditionFoodText(input.addition.items[coffeeIndex]);
@@ -84,7 +89,7 @@ async function resolveAdditionItems(input: {
           kind: "clarification",
           result: await requestWhatsappCaloricComplementQuantityClarification({
             userId: input.userId,
-            originalFoodText,
+            originalFoodText: completeFoodText,
             operation: {
               kind: "add_to_meal",
               mealId: input.targetMeal.id,
