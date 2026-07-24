@@ -1,0 +1,90 @@
+name: Patch portfolio SQL identifiers 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-portfolio-sql-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Quote TiDB camelCase identifiers in portfolio SQL
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("server/repositories/professionalPortfolioRepository.ts")
+          source = path.read_text(encoding="utf-8")
+          start = source.index("      const historicalActivityJoin")
+          end = source.index("      const total =", start)
+          segment = source[start:end]
+
+          aliases = (
+              "scopedMeals", "scopedAccess", "periodMeals", "periodAccess",
+              "periodProfile", "m", "a", "pm", "t", "u", "h"
+          )
+          alias_pattern = re.compile(
+              r"\b(" + "|".join(map(re.escape, aliases)) + r")\.([A-Za-z_][A-Za-z0-9_]*)\b"
+          )
+          segment = alias_pattern.sub(lambda match: f"{match.group(1)}.`{match.group(2)}`", segment)
+
+          tables = (
+              "professionalPatientAuthorizations", "professionalPatientTrackings",
+              "professionalHistoryEvents", "userProfiles", "users", "meals"
+          )
+          for table in tables:
+              segment = re.sub(
+                  rf"(?<![A-Za-z0-9_`]){re.escape(table)}(?![A-Za-z0-9_`])",
+                  f"`{table}`",
+                  segment,
+              )
+
+          old_history = (
+              "SELECT professionalUserId, patientUserId, MAX(occurredAt) AS lastProfessionalInteractionAt\n"
+              "          FROM `professionalHistoryEvents` GROUP BY professionalUserId, patientUserId"
+          )
+          new_history = (
+              "SELECT `professionalUserId`, `patientUserId`, MAX(`occurredAt`) AS `lastProfessionalInteractionAt`\n"
+              "          FROM `professionalHistoryEvents` GROUP BY `professionalUserId`, `patientUserId`"
+          )
+          if segment.count(old_history) != 1:
+              raise SystemExit("expected exactly one professional history aggregation")
+          segment = segment.replace(old_history, new_history)
+
+          alias_regex = re.compile(r"\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b", re.IGNORECASE)
+          segment = alias_regex.sub(
+              lambda match: match.group(0) if match.group(1).upper() == "CHAR" else f"AS `{match.group(1)}`",
+              segment,
+          )
+
+          for alias in aliases:
+              remaining = re.findall(rf"\b{re.escape(alias)}\.[A-Za-z_][A-Za-z0-9_]*\b", segment)
+              if remaining:
+                  raise SystemExit(f"unquoted identifiers remain for {alias}: {remaining}")
+
+          source = source[:start] + segment + source[end:]
+          path.write_text(source, encoding="utf-8")
+          PY
+          git diff --check
+          git diff -- server/repositories/professionalPortfolioRepository.ts
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/repositories/professionalPortfolioRepository.ts
+          git rm .github/workflows/patch-portfolio-sql-879.yml
+          git diff --cached --check
+          git commit -m "fix: quote portfolio SQL identifiers for TiDB (#879)"
+          git push origin HEAD:feat/875-professional-context-routes
