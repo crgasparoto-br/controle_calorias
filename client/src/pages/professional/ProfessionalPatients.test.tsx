@@ -9,12 +9,14 @@ const {
   invalidate,
   patientTimeZoneFetch,
   requestAccessMutate,
+  requestAccessResult,
 } = vi.hoisted(() => ({
   portfolioUseQuery: vi.fn(),
   refetch: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
   requestAccessMutate: vi.fn(),
+  requestAccessResult: { current: { status: "pending" as const } },
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
@@ -41,13 +43,13 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         portfolio: { useQuery: portfolioUseQuery },
         requestAccess: {
-          useMutation: (options: { onSuccess?: () => Promise<void> | void }) => ({
+          useMutation: (options: { onSuccess?: (result: { status: string }) => Promise<void> | void }) => ({
             isPending: false,
             isError: false,
             error: null,
             mutate: (input: unknown) => {
               requestAccessMutate(input);
-              void options.onSuccess?.();
+              void options.onSuccess?.(requestAccessResult.current);
             },
             reset: vi.fn(),
           }),
@@ -61,6 +63,7 @@ import ProfessionalPatients, {
   filtersFromLocation,
   filtersToLocation,
   requestAccessErrorMessage,
+  requestAccessSuccessState,
 } from "./ProfessionalPatients";
 
 function queryResult(page = 1) {
@@ -75,6 +78,17 @@ function queryResult(page = 1) {
   };
 }
 
+function submitRequest() {
+  fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
+  fireEvent.change(screen.getByPlaceholderText("paciente@exemplo.com ou celular"), {
+    target: { value: "novo@paciente.com" },
+  });
+  fireEvent.change(screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional"), {
+    target: { value: "Iniciar acompanhamento" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Enviar solicitação" }));
+}
+
 beforeEach(() => {
   window.history.replaceState({}, "", "/professional/patients?page=2");
   portfolioUseQuery.mockImplementation((input: { page: number }) => queryResult(input.page));
@@ -83,6 +97,7 @@ beforeEach(() => {
   invalidate.mockClear();
   patientTimeZoneFetch.mockClear();
   requestAccessMutate.mockClear();
+  requestAccessResult.current = { status: "pending" };
 });
 
 afterEach(() => {
@@ -217,14 +232,7 @@ describe("ProfessionalPatients filter interactions", () => {
       "/professional/patients?search=ana&authorization=approved&tracking=active&activity=recent&review=scheduled&page=3"
     );
     render(<ProfessionalPatients />);
-    fireEvent.click(screen.getByRole("button", { name: "Solicitar acesso" }));
-    fireEvent.change(screen.getByPlaceholderText("paciente@exemplo.com ou celular"), {
-      target: { value: "novo@paciente.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Ex.: iniciar acompanhamento nutricional"), {
-      target: { value: "Iniciar acompanhamento" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Enviar solicitação" }));
+    submitRequest();
     await waitFor(() => {
       expect(window.location.search).toBe("?authorization=pending");
       expect(
@@ -253,6 +261,49 @@ describe("ProfessionalPatients filter interactions", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "A carteira foi atualizada para mostrar os acessos pendentes."
     );
+  });
+
+  it("keeps an already approved relationship in the approved view", async () => {
+    requestAccessResult.current = { status: "approved" };
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?authorization=pending&tracking=active&page=2"
+    );
+    render(<ProfessionalPatients />);
+    submitRequest();
+    await waitFor(() => {
+      expect(window.location.search).toBe("?authorization=approved");
+    });
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: "",
+        authorizationStatus: "approved",
+        trackingStatus: "all",
+        activity: "all",
+        nextReview: "all",
+        page: 1,
+      }),
+      expect.any(Object)
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "Este paciente já autorizou o acesso."
+    );
+  });
+});
+
+describe("ProfessionalPatients request result mapping", () => {
+  it("maps pending and approved to different messages and filters", () => {
+    expect(requestAccessSuccessState({ status: "pending" })).toEqual({
+      authorizationStatus: "pending",
+      message:
+        "Solicitação registrada. A carteira foi atualizada para mostrar os acessos pendentes.",
+    });
+    expect(requestAccessSuccessState({ status: "approved" })).toEqual({
+      authorizationStatus: "approved",
+      message:
+        "Este paciente já autorizou o acesso. A carteira foi atualizada para mostrar os acessos aprovados.",
+    });
   });
 });
 
