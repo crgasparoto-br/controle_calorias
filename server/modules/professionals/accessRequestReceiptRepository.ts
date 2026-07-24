@@ -200,7 +200,7 @@ async function listFallbackReceipts(
     authorizations.map(authorization => [authorization.id, authorization])
   );
   const receipts: ProfessionalAccessRequestReceipt[] = [];
-  const linkedAuthorizationIds = new Set<string>();
+  const authorizationsWithReceipt = new Set<string>();
   const storedReceipts = [...fallbackReceipts.values()]
     .filter(receipt => receipt.professionalUserId === professionalUserId)
     .sort(
@@ -216,23 +216,21 @@ async function listFallbackReceipts(
       continue;
     }
     if (
-      linkedAuthorizationIds.has(receipt.linkedAuthorizationId) ||
       authorizationById.get(receipt.linkedAuthorizationId)?.status !== "pending"
     ) {
       continue;
     }
-    linkedAuthorizationIds.add(receipt.linkedAuthorizationId);
+    authorizationsWithReceipt.add(receipt.linkedAuthorizationId);
     receipts.push(toPublicReceipt(receipt));
   }
 
   for (const authorization of authorizations) {
     if (
       authorization.status !== "pending" ||
-      linkedAuthorizationIds.has(authorization.id)
+      authorizationsWithReceipt.has(authorization.id)
     ) {
       continue;
     }
-    linkedAuthorizationIds.add(authorization.id);
     receipts.push({
       id: legacyReceiptId(professionalUserId, authorization.id),
       status: "pending",
@@ -288,7 +286,7 @@ async function listActiveReceipts(
     ]);
 
     const receipts: ProfessionalAccessRequestReceipt[] = [];
-    const linkedAuthorizationIds = new Set<string>();
+    const authorizationsWithReceipt = new Set<string>();
 
     for (const row of rowsFromResult(receiptResult)) {
       const id = typeof row.id === "string" ? row.id : "";
@@ -304,8 +302,7 @@ async function listActiveReceipts(
       if (!id || !requestedAt) continue;
       if (linkedAuthorizationId) {
         if (authorizationStatus !== "pending") continue;
-        if (linkedAuthorizationIds.has(linkedAuthorizationId)) continue;
-        linkedAuthorizationIds.add(linkedAuthorizationId);
+        authorizationsWithReceipt.add(linkedAuthorizationId);
       } else if (requestedAt < now - UNRESOLVED_RECEIPT_TTL_MS) {
         continue;
       }
@@ -319,7 +316,7 @@ async function listActiveReceipts(
 
     for (const row of rowsFromResult(pendingResult)) {
       const authorizationId = typeof row.id === "string" ? row.id : "";
-      if (!authorizationId || linkedAuthorizationIds.has(authorizationId)) {
+      if (!authorizationId || authorizationsWithReceipt.has(authorizationId)) {
         continue;
       }
       const requestedAt = asTimestamp(row.requestedAt);
