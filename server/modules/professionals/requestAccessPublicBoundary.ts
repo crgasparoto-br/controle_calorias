@@ -1,9 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import {
-  registerProtectedProcedureInputPolicy,
-  type ProtectedProcedureInputPolicy,
-} from "../../_core/procedureInputPolicy";
-import {
   registerProtectedProcedureResultPolicy,
   type ProtectedProcedureResultPolicy,
 } from "../../_core/procedureResultPolicy";
@@ -11,6 +7,7 @@ import {
   professionalAccessRequestReceiptRepository,
   type ProfessionalAccessRequestReceipt,
 } from "./accessRequestReceiptRepository";
+import { approvePatientAccess, revokePatientAccess } from "./service";
 
 export const PROFESSIONAL_REQUEST_ACCESS_PATH =
   "nutrition.professionals.requestAccess";
@@ -62,6 +59,8 @@ type RequestAccessBoundaryDependencies = {
   createLinkedReceipt: typeof professionalAccessRequestReceiptRepository.createLinkedReceipt;
   resolveAuthorizationIdForPatient: typeof professionalAccessRequestReceiptRepository.resolveAuthorizationIdForPatient;
   listActiveReceipts: typeof professionalAccessRequestReceiptRepository.listActiveReceipts;
+  approveAccess: typeof approvePatientAccess;
+  revokeAccess: typeof revokePatientAccess;
 };
 
 const defaultDependencies: RequestAccessBoundaryDependencies = {
@@ -73,6 +72,8 @@ const defaultDependencies: RequestAccessBoundaryDependencies = {
     professionalAccessRequestReceiptRepository.resolveAuthorizationIdForPatient,
   listActiveReceipts:
     professionalAccessRequestReceiptRepository.listActiveReceipts,
+  approveAccess: approvePatientAccess,
+  revokeAccess: revokePatientAccess,
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -81,27 +82,47 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
+function errorMessages(error: unknown, seen = new Set<unknown>()): string[] {
+  if (!error || seen.has(error)) return [];
+  if (typeof error === "string") return [error];
+  if (typeof error !== "object") return [];
+  seen.add(error);
+
+  const messages: string[] = [];
+  if (error instanceof Error && error.message) messages.push(error.message);
   const record = asRecord(error);
-  return typeof record?.message === "string" ? record.message : "";
+  if (!record) return messages;
+  if (typeof record.message === "string") messages.push(record.message);
+  for (const nested of [record.cause, record.error, record.data]) {
+    messages.push(...errorMessages(nested, seen));
+  }
+  return Array.from(new Set(messages));
 }
 
-function errorCode(error: unknown) {
+function errorCode(error: unknown, seen = new Set<unknown>()): string | null {
+  if (!error || typeof error !== "object" || seen.has(error)) return null;
+  seen.add(error);
   const record = asRecord(error);
-  if (typeof record?.code === "string") return record.code;
-  const data = asRecord(record?.data);
-  return typeof data?.code === "string" ? data.code : null;
+  if (!record) return null;
+  if (typeof record.code === "string") return record.code;
+  for (const nested of [record.cause, record.error, record.data]) {
+    const code = errorCode(nested, seen);
+    if (code) return code;
+  }
+  return null;
 }
 
 function isExpectedTargetRejection(error: unknown) {
-  return TARGET_REJECTION_MESSAGES.has(errorMessage(error));
+  return errorMessages(error).some(message =>
+    TARGET_REJECTION_MESSAGES.has(message)
+  );
 }
 
-function unavailableError() {
+function unavailableError(cause?: unknown) {
   return new TRPCError({
     code: "SERVICE_UNAVAILABLE",
     message: PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE,
+    cause,
   });
 }
 
@@ -289,7 +310,7 @@ async function protectRequestAccessResult(
 
     if (!isExpectedTargetRejection(record.error)) {
       if (errorCode(record.error) === "BAD_REQUEST") return record;
-      throw unavailableError();
+      throw unavailableError(record.error);
     }
 
     const receipt = await dependencies.createUnresolvedReceipt(
@@ -298,7 +319,7 @@ async function protectRequestAccessResult(
     return successfulMiddlewareResult(record, publicReceipt(receipt), ctx);
   } catch (error) {
     if (error instanceof TRPCError) throw error;
-    throw unavailableError();
+    throw unavailableError(error);
   }
 }
 
@@ -322,8 +343,8 @@ async function protectMyAccessesResult(
         ...visibleAccesses,
       ],
     };
-  } catch {
-    throw unavailableError();
+  } catch (error) {
+    throw unavailableError(error);
   }
 }
 
@@ -352,8 +373,8 @@ async function protectPortfolioResult(
           : safeItems,
       },
     };
-  } catch {
-    throw unavailableError();
+  } catch (error) {
+    throw unavailableError(error);
   }
 }
 
@@ -382,32 +403,38 @@ function protectHistoryResult(record: Record<string, unknown>) {
   return { ...record, data: events };
 }
 
-export function createProfessionalAccessReceiptInputPolicy(
-  dependencies: RequestAccessBoundaryDependencies = defaultDependencies
-): ProtectedProcedureInputPolicy {
-  return async ({ path, input, ctx }) => {
-    if (
-      path !== PROFESSIONAL_APPROVE_ACCESS_PATH &&
-      path !== PROFESSIONAL_REVOKE_ACCESS_PATH
-    ) {
-      return input;
-    }
+async function protectPatientDecisionResult(
+  path: string,
+  record: Record<string, unknown>,
+  input: unknown,
+  patientUserId: number,
+  ctx: unknown,
+  dependencies: RequestAccessBoundaryDependencies
+) {
+  if (record.ok) return record;
+  const accessId = asRecord(input)?.accessId;
+  if (typeof accessId !== "string" || !accessId) return record;
 
-    const record = asRecord(input);
-    const receiptId = record?.accessId;
-    if (typeof receiptId !== "string" || !receiptId) return input;
+  let authorizationId: string | null;
+  try {
+    authorizationId = await dependencies.resolveAuthorizationIdForPatient(
+      accessId,
+      patientUserId
+    );
+  } catch (error) {
+    throw unavailableError(error);
+  }
+  if (!authorizationId) return record;
 
-    try {
-      const authorizationId =
-        await dependencies.resolveAuthorizationIdForPatient(
-          receiptId,
-          ctx.user.id
-        );
-      return authorizationId ? { ...record, accessId: authorizationId } : input;
-    } catch {
-      throw unavailableError();
-    }
-  };
+  try {
+    const data =
+      path === PROFESSIONAL_APPROVE_ACCESS_PATH
+        ? await dependencies.approveAccess(patientUserId, authorizationId)
+        : await dependencies.revokeAccess(patientUserId, authorizationId);
+    return successfulMiddlewareResult(record, data, ctx);
+  } catch (error) {
+    throw unavailableError(error);
+  }
 }
 
 export function createProfessionalRequestAccessPublicBoundary(
@@ -434,19 +461,25 @@ export function createProfessionalRequestAccessPublicBoundary(
     if (path === PROFESSIONAL_HISTORY_PATH) {
       return protectHistoryResult(record);
     }
+    if (
+      path === PROFESSIONAL_APPROVE_ACCESS_PATH ||
+      path === PROFESSIONAL_REVOKE_ACCESS_PATH
+    ) {
+      return protectPatientDecisionResult(
+        path,
+        record,
+        input,
+        ctx.user.id,
+        ctx,
+        dependencies
+      );
+    }
     return result;
   };
 }
 
 export function registerProfessionalRequestAccessPublicBoundary() {
-  const unregisterInput = registerProtectedProcedureInputPolicy(
-    createProfessionalAccessReceiptInputPolicy()
-  );
-  const unregisterResult = registerProtectedProcedureResultPolicy(
+  return registerProtectedProcedureResultPolicy(
     createProfessionalRequestAccessPublicBoundary()
   );
-  return () => {
-    unregisterInput();
-    unregisterResult();
-  };
 }
