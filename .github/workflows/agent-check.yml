@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
       - name: Checkout repository
@@ -36,16 +37,37 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: pnpm check
+        run: |
+          if ! pnpm check > /tmp/typescript-check.log 2>&1; then
+            echo "TypeScript check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/typescript-check.log
+            exit 1
+          fi
+          cat /tmp/typescript-check.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-typescript-log
+          path: /tmp/typescript-check.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Tests
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
-            exit 1
-          fi
-          tail -n 80 /tmp/vitest.log
+          : > /tmp/vitest.log
+          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
+          for shard_number in $(seq 1 24); do
+            shard="${shard_number}/24"
+            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
+            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
+              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
+              tail -n 250 /tmp/vitest.log
+              exit 1
+            fi
+          done
+          tail -n 120 /tmp/vitest.log
 
       - name: Upload Vitest diagnostics
         if: failure()
@@ -81,6 +103,8 @@ jobs:
         run: pnpm build
 
       - name: Agent check
+        env:
+          CI_SHARDED_TESTS_COMPLETE: "1"
         run: pnpm agent:check
 
       - name: CI gate docs check
@@ -123,7 +147,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (24 sequential single-worker shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"
@@ -145,7 +169,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (24 sequential single-worker shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"

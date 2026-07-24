@@ -1,10 +1,46 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../_core/trpc";
 import {
-  assertProfessionalEntitlement,
-  type ProfessionalEntitlementResource,
-} from "./entitlementService";
+  assertProfessionalResourceAccess,
+  isProfessionalEntitlementVerificationUnavailableError,
+  isProfessionalResourceDeniedError,
+} from "./entitlementAccess";
+import type { ProfessionalEntitlementResource } from "./entitlementService";
 import { getProfessionalProfile } from "./service";
+
+const optionalProfessionalResources = new Set<ProfessionalEntitlementResource>([
+  "professional_operational_alerts",
+  "professional_ai_assistance",
+]);
+
+export const isProfessionalEntitlementDeniedError =
+  isProfessionalResourceDeniedError;
+
+export function professionalEntitlementErrorCode(
+  resource: ProfessionalEntitlementResource,
+  error: unknown
+): "FORBIDDEN" | "PRECONDITION_FAILED" | "SERVICE_UNAVAILABLE" {
+  if (isProfessionalEntitlementVerificationUnavailableError(error)) {
+    return "SERVICE_UNAVAILABLE";
+  }
+  return isProfessionalResourceDeniedError(error) &&
+    optionalProfessionalResources.has(resource)
+    ? "PRECONDITION_FAILED"
+    : "FORBIDDEN";
+}
+
+export function toProfessionalEntitlementTrpcError(
+  resource: ProfessionalEntitlementResource,
+  error: unknown
+) {
+  return new TRPCError({
+    code: professionalEntitlementErrorCode(resource, error),
+    message:
+      error instanceof Error
+        ? error.message
+        : "Este recurso profissional não está disponível.",
+  });
+}
 
 export function professionalEntitledProcedure(
   resource: ProfessionalEntitlementResource
@@ -17,15 +53,9 @@ export function professionalEntitledProcedure(
           "A Área Profissional está inativa. Reative o perfil para continuar."
         );
       }
-      await assertProfessionalEntitlement(ctx.user.id, resource);
+      await assertProfessionalResourceAccess(ctx.user.id, resource);
     } catch (error) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Este recurso profissional não está disponível.",
-      });
+      throw toProfessionalEntitlementTrpcError(resource, error);
     }
     return next({ ctx });
   });

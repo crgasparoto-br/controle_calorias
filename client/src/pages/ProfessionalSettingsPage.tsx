@@ -1,6 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import ProfessionalLayout from "@/components/ProfessionalLayout";
-import PageIntro from "@/components/PageIntro";
+import {
+  ProfessionalAsyncState,
+  ProfessionalLoadingState,
+  ProfessionalPage,
+  ProfessionalPageHeader,
+} from "@/components/professional/ProfessionalUi";
 import {
   ProfessionalAvailabilityCard,
   ProfessionalEntitlementSummaryCard,
@@ -10,10 +15,7 @@ import ProfessionalIdentitySettingsCard from "@/components/professional-settings
 import ProfessionalPreferencesSettingsCard, {
   type TemplateDraft,
 } from "@/components/professional-settings/ProfessionalPreferencesSettingsCard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, RefreshCw } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
@@ -32,8 +34,7 @@ function SettingsContent() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [patientFacingBio, setPatientFacingBio] = useState("");
-  const [defaultReviewIntervalDays, setDefaultReviewIntervalDays] =
-    useState("");
+  const [defaultReviewIntervalDays, setDefaultReviewIntervalDays] = useState("");
   const [messageTemplates, setMessageTemplates] = useState<TemplateDraft[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -50,19 +51,39 @@ function SettingsContent() {
     setMessageTemplates(query.data.preferences.messageTemplates);
   }, [query.data]);
 
-  const invalidate = async () => {
+  const invalidateSettings = async () => {
     await Promise.all([
       utils.professionalRecord.settings.get.invalidate(),
       utils.professionalRecord.settings.entitlements.invalidate(),
       utils.nutrition.professionals.profile.invalidate(),
+      utils.nutrition.professionals.myAccesses.invalidate(),
+      utils.nutrition.professionals.portfolio.invalidate(),
+    ]);
+  };
+
+  const clearProfessionalData = async () => {
+    await Promise.all([
+      utils.professionalRecord.get.cancel(),
+      utils.professionalRecord.messages.list.cancel(),
+      utils.professionalRecord.operationalAlerts.list.cancel(),
+      utils.professionalRecord.ai.priorities.cancel(),
+    ]);
+    await Promise.all([
+      utils.professionalRecord.get.reset(),
+      utils.professionalRecord.messages.list.reset(),
+      utils.professionalRecord.operationalAlerts.list.reset(),
+      utils.professionalRecord.ai.priorities.reset(),
+      utils.nutrition.professionals.patientDashboard.reset(),
+      utils.nutrition.professionals.patientPeriodBundle.reset(),
+      utils.nutrition.professionals.patientTimeZone.reset(),
     ]);
   };
 
   const updateIdentity =
     trpc.professionalRecord.settings.updateIdentity.useMutation({
       onSuccess: async () => {
-        setSuccessMessage("Identificação profissional atualizada.");
-        await invalidate();
+        setSuccessMessage("Identidade profissional atualizada.");
+        await invalidateSettings();
         await refreshAuth();
       },
     });
@@ -70,47 +91,29 @@ function SettingsContent() {
     trpc.professionalRecord.settings.updatePreferences.useMutation({
       onSuccess: async () => {
         setSuccessMessage("Preferências profissionais atualizadas.");
-        await invalidate();
+        await invalidateSettings();
       },
     });
   const setActive = trpc.professionalRecord.settings.setActive.useMutation({
     onSuccess: async result => {
-      await invalidate();
+      await clearProfessionalData();
+      await invalidateSettings();
       await refreshAuth();
-      if (!result.active) setLocation("/settings");
+      if (!result.active) setLocation("/settings?tab=profissional");
     },
   });
 
   if (query.isLoading) {
-    return (
-      <div
-        role="status"
-        className="mx-auto max-w-5xl rounded-2xl border bg-card p-8 text-sm text-muted-foreground"
-      >
-        Carregando configurações profissionais...
-      </div>
-    );
+    return <ProfessionalLoadingState label="Carregando configurações profissionais..." />;
   }
 
   if (query.isError || !query.data) {
     return (
-      <Card className="mx-auto max-w-xl">
-        <CardContent className="space-y-4 py-8 text-center">
-          <AlertTriangle className="mx-auto h-9 w-9 text-destructive" />
-          <div>
-            <h1 className="font-semibold">
-              Não foi possível carregar as configurações
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Nenhuma alteração foi realizada. Tente novamente.
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            <RefreshCw className="h-4 w-4" />
-            Tentar novamente
-          </Button>
-        </CardContent>
-      </Card>
+      <ProfessionalAsyncState
+        title="Não foi possível carregar as configurações"
+        description="Nenhuma alteração foi realizada. Tente novamente."
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
@@ -121,25 +124,19 @@ function SettingsContent() {
     null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <PageIntro
+    <ProfessionalPage>
+      <ProfessionalPageHeader
         title="Configurações profissionais"
-        description="Gerencie sua identificação, preferências operacionais e veja quais recursos estão disponíveis no seu acesso profissional."
+        description="Gerencie a identidade apresentada aos pacientes, preferências de acompanhamento, modelos, alertas e disponibilidade da Área Profissional."
       />
 
       {successMessage ? (
-        <div
-          role="status"
-          className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm"
-        >
+        <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
           {successMessage}
         </div>
       ) : null}
       {mutationError ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
-        >
+        <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           {mutationError}
         </div>
       ) : null}
@@ -196,12 +193,12 @@ function SettingsContent() {
         pending={setActive.isPending}
         onDeactivate={() => {
           const confirmed = window.confirm(
-            "Desativar a Área Profissional? O histórico será preservado, mas novos acessos ficarão bloqueados até a reativação."
+            "Desativar a Área Profissional? A navegação e novas operações serão bloqueadas. Vínculos, prontuários, mensagens e histórico serão preservados. Sua área pessoal continuará funcionando e a reativação poderá ser feita nas Configurações pessoais."
           );
           if (confirmed) setActive.mutate({ active: false });
         }}
       />
-    </div>
+    </ProfessionalPage>
   );
 }
 

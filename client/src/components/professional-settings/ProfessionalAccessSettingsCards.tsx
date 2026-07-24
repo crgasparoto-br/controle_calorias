@@ -1,3 +1,4 @@
+import { professionalLabel } from "@/components/professional/ProfessionalUi";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,24 +40,24 @@ export function ProfessionalOperationalCriteriaCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Critérios da central de alertas</CardTitle>
+        <CardTitle>Critérios operacionais de alertas</CardTitle>
         <CardDescription>
-          A tela mostra apenas critérios realmente suportados pelo avaliador
-          central. Regras ainda fixas não podem ser alteradas localmente.
+          Regras objetivas usadas para organizar pendências. Critérios fixos são
+          apresentados apenas para consulta.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      <CardContent className="grid gap-3 md:grid-cols-2">
         {criteria.map(criterion => (
-          <div key={criterion.key} className="rounded-xl border p-4">
+          <div key={criterion.key} className="min-w-0 rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-medium">{criterion.label}</p>
-              <span className="rounded-full bg-muted px-3 py-1 text-xs">
+              <span className="rounded-full border bg-muted px-3 py-1 text-xs">
                 {criterion.configurable
                   ? "Configurável"
                   : `Regra atual: ${criterion.value} dias`}
               </span>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 break-words text-sm text-muted-foreground">
               {criterion.description}
             </p>
           </div>
@@ -73,76 +74,70 @@ export function ProfessionalEntitlementSummaryCard({
 }) {
   const capacityLabel =
     entitlements.capacity.limit === null
-      ? "Sem limite comercial configurado"
+      ? "Capacidade disponível não informada"
       : entitlements.capacity.usageAvailable &&
           entitlements.capacity.used !== null
         ? `${entitlements.capacity.used} de ${entitlements.capacity.limit}`
-        : `Limite contratado: ${entitlements.capacity.limit}`;
+        : `Até ${entitlements.capacity.limit} acompanhamentos`;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Acesso comercial e recursos</CardTitle>
+        <CardTitle>Plano e acesso</CardTitle>
         <CardDescription>
-          O backend é a fonte do plano, capacidade e recursos. A interface não
-          calcula preços, limites nem elegibilidade.
+          Consulte a disponibilidade atual da Área Profissional e os recursos
+          liberados para sua conta.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent className="grid gap-5">
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border p-4">
-            <p className="text-xs text-muted-foreground">Situação</p>
-            <p className="mt-1 font-semibold">{entitlements.planName}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {entitlements.mode === "open_access"
-                ? "Modo aberto de transição"
-                : entitlements.commercialState}
+          <div className="min-w-0 rounded-xl border p-4">
+            <p className="text-xs text-muted-foreground">Plano atual</p>
+            <p className="mt-1 break-words font-semibold">
+              {entitlements.planName || "Não informado"}
             </p>
           </div>
-          <div className="rounded-xl border p-4">
+          <div className="min-w-0 rounded-xl border p-4">
             <p className="text-xs text-muted-foreground">Capacidade</p>
-            <p className="mt-1 font-semibold">{capacityLabel}</p>
+            <p className="mt-1 break-words font-semibold">{capacityLabel}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               {entitlements.capacity.usageAvailable &&
               entitlements.capacity.used !== null
-                ? `${entitlements.capacity.used} acompanhamentos contabilizados pelo billing`
-                : "Uso não informado pelo contrato central"}
+                ? "Acompanhamentos em uso atualmente."
+                : "Uso atual não informado."}
             </p>
           </div>
-          <div className="rounded-xl border p-4">
-            <p className="text-xs text-muted-foreground">Avaliação</p>
+          <div className="min-w-0 rounded-xl border p-4">
+            <p className="text-xs text-muted-foreground">Disponibilidade</p>
             <div className="mt-1 flex items-center gap-2 font-semibold">
               {entitlements.allowed ? (
-                <BadgeCheck className="h-4 w-4" />
+                <BadgeCheck className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <AlertTriangle className="h-4 w-4" />
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               )}
-              {entitlements.allowed ? "Recursos liberados" : "Acesso bloqueado"}
+              {entitlements.allowed ? "Recursos disponíveis" : "Acesso indisponível"}
             </div>
-            {entitlements.fallbackUsed ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Provider indisponível; fallback do modo aberto aplicado.
-              </p>
-            ) : null}
           </div>
         </div>
         <div>
-          <p className="mb-2 text-sm font-medium">Recursos habilitados</p>
+          <p className="mb-2 text-sm font-medium">Recursos disponíveis</p>
           {entitlements.enabledResources.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {entitlements.enabledResources.map(resource => (
                 <span
                   key={resource}
-                  className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+                  className="inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 text-xs"
                 >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  {resource.replace(/^professional_/, "").replaceAll("_", " ")}
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">
+                    {professionalLabel("entitlement", resource)}
+                  </span>
                 </span>
               ))}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Nenhum recurso profissional liberado pelo contrato atual.
+              Nenhum recurso profissional disponível no momento.
             </p>
           )}
         </div>
@@ -165,8 +160,8 @@ export function ProfessionalAvailabilityCard({
       <CardHeader>
         <CardTitle>Disponibilidade da Área Profissional</CardTitle>
         <CardDescription>
-          Ao desativar, a navegação e as APIs profissionais ficam bloqueadas.
-          Vínculos, prontuários, mensagens e histórico são preservados.
+          Ao desativar, a navegação e novas operações profissionais ficam
+          bloqueadas. Vínculos, prontuários, mensagens e histórico são preservados.
         </CardDescription>
       </CardHeader>
       <CardContent>
