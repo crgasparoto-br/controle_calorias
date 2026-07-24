@@ -179,9 +179,11 @@ export function createProfessionalPortfolioRepository(
         AND (${input.trackingStatus} = 'all'
           OR (a.status = 'approved' AND ${input.trackingStatus} = 'not_started' AND t.id IS NULL)
           OR (a.status = 'approved' AND t.status = ${input.trackingStatus}))
-        AND (${input.search} = '' OR LOWER(COALESCE(u.name, '')) LIKE ${search}
-          OR (a.status = 'approved' AND LOWER(COALESCE(u.email, '')) LIKE ${search})
-          OR CAST(u.id AS CHAR) = ${input.search})
+        AND (${input.search} = '' OR (a.status = 'approved' AND (
+          LOWER(COALESCE(u.name, '')) LIKE ${search}
+          OR LOWER(COALESCE(u.email, '')) LIKE ${search}
+          OR CAST(u.id AS CHAR) = ${input.search}
+        )))
         AND (${input.activity} = 'all'
           OR (a.status = 'approved' AND ${input.activity} = 'recent' AND m.lastFoodActivityAt >= ${inactiveBefore})
           OR (a.status = 'approved' AND ${input.activity} = 'inactive' AND (m.lastFoodActivityAt < ${inactiveBefore} OR m.lastFoodActivityAt IS NULL))
