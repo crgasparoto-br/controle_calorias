@@ -56,7 +56,9 @@ export type PendingFoodClarificationTarget = {
   actions: Array<{ id: string; label: string; effect: string }>;
   instructionText: string;
   inboundMessageId: string | null;
-  allowedDomainEffect: "register_original_food_once";
+  allowedDomainEffect:
+    | "register_original_food_once"
+    | "complete_pending_food_operation_once";
 };
 
 export type CountedFoodRequest = {
@@ -106,10 +108,6 @@ function normalizeCandidate(value: string) {
     .join(" ");
 }
 
-/**
- * Normalização lexical usada somente para comparar identidade de catálogo.
- * Não altera o texto preservado e não é tratada como correção ortográfica.
- */
 function normalizeFoodIdentity(value: string) {
   return normalizeText(value)
     .split(/\s+/)
@@ -231,7 +229,6 @@ export function buildFoodClarificationActions(kind: FoodClarificationKind, candi
 }
 
 export function buildPendingFoodClarificationTarget(input: {
-  /** Mantido apenas para compatibilidade de chamadas antigas; o ID canônico é derivado do tipo. */
   interactionId?: string;
   request: CountedFoodRequest;
   pendingKind: FoodClarificationKind;
@@ -295,7 +292,6 @@ export function buildFoodClarificationPendingData(
     normalizedCandidate: target.normalizedCandidate,
     normalizationChanged: target.normalizationChanged,
     inboundMessageId: target.inboundMessageId,
-    allowedDomainEffect: target.allowedDomainEffect,
   };
 }
 
