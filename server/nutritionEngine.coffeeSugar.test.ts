@@ -84,7 +84,7 @@ describe("nutritionEngine coffee with sugar handling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Café Com Açúcar",
+      foodName: "Café com Açúcar",
       calories: 34,
       carbs: 8,
     }));
