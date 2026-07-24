@@ -5,6 +5,7 @@ import { normalizeText } from "../../mealTextParsing";
 import type * as nutritionRuntime from "../../nutritionEngine";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type * as mealRuntime from "../meals/service";
+import { persistResolvedCaloricComplement } from "./foodCaloricComplementPersistence";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
   buildFoodClarificationRegistrationText,
@@ -330,22 +331,32 @@ async function persistResolvedFood(
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappIntentResult> {
-  const issue874Target = target as FoodQuantityClarificationTarget;
-  if (issue874Target.resolutionContext?.mode === "replace_latest_item") {
+  const quantityTarget = target as FoodQuantityClarificationTarget;
+  if (quantityTarget.resolutionContext?.mode === "complete_caloric_complement") {
+    return persistResolvedCaloricComplement(
+      deps,
+      userId,
+      quantityTarget.resolutionContext,
+      explicitQuantity,
+      occurredAt,
+      timeZone
+    );
+  }
+  if (quantityTarget.resolutionContext?.mode === "replace_latest_item") {
     return persistResolvedCorrection(
       deps,
       userId,
-      issue874Target,
+      quantityTarget,
       occurredAt,
       timeZone,
       explicitQuantity
     );
   }
-  if (issue874Target.resolutionContext?.mode === "complete_image_meal") {
+  if (quantityTarget.resolutionContext?.mode === "complete_image_meal") {
     return persistResolvedImageMeal(
       deps,
       userId,
-      issue874Target,
+      quantityTarget,
       candidate,
       occurredAt,
       timeZone,
