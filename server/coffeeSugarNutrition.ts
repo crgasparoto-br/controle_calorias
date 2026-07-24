@@ -3,6 +3,7 @@ import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import {
   hasCaloricCoffeeComplement,
   isCoffeeWithAddedSugar,
+  isFoodCandidateSemanticallyCompatible,
 } from "./foodSemanticCompatibility";
 import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
@@ -162,6 +163,24 @@ function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
   });
 }
 
+function hasSemanticCoverageForSweetenedCoffeeSegments(
+  sourceSegments: string[],
+  inferredItems: LlmItem[],
+) {
+  if (sourceSegments.length !== inferredItems.length) return false;
+
+  const remainingItems = [...inferredItems];
+  for (const sourceSegment of sourceSegments) {
+    const compatibleIndex = remainingItems.findIndex(item =>
+      isFoodCandidateSemanticallyCompatible(sourceSegment, [item.foodName])
+    );
+    if (compatibleIndex < 0) return false;
+    remainingItems.splice(compatibleIndex, 1);
+  }
+
+  return true;
+}
+
 export function hasUsableSweetenedCoffeeInference(
   items: LlmItem[] | undefined,
   sourceText = "",
@@ -178,6 +197,10 @@ export function hasUsableSweetenedCoffeeInference(
   if (
     sweetenedSourceSegments.length > 0
     && explicitlySweetenedItems.length === sweetenedSourceSegments.length
+    && hasSemanticCoverageForSweetenedCoffeeSegments(
+      sweetenedSourceSegments,
+      explicitlySweetenedItems,
+    )
   ) {
     return true;
   }
