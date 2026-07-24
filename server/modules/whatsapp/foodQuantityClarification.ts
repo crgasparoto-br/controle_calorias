@@ -54,6 +54,11 @@ export type ImageMealQuantityContext = {
   currentItemIndex: number;
 };
 
+export type CaloricComplementCompanionReplacement = {
+  fromFood: string;
+  toFood: string;
+};
+
 export type CaloricComplementOperation =
   | {
       kind: "register";
@@ -70,6 +75,7 @@ export type CaloricComplementOperation =
       mealId: number;
       itemIndex: number;
       originalFoodName: string;
+      companionReplacements?: CaloricComplementCompanionReplacement[];
     };
 
 export type CaloricComplementQuantityContext = {
