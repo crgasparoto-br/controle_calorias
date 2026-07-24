@@ -55,6 +55,8 @@ The final candidate is checked by a shared semantic guard after every catalog so
 - Text webhook, transcribed audio and `simulateWhatsappInbound` converge on the same canonical sweetened-coffee handler and persistent clarification contract.
 - The pending operation is consumed atomically only after the answer is valid for the missing component. Retry, expiration and re-delivery cannot duplicate the domain effect.
 - Failure to persist a follow-up quantity prevents the next question and leaves the meal unchanged.
+- The pending-operation repository may use process-local memory only in tests or explicitly enabled non-production development. In production, a missing or failing database returns a persistence failure for create, read, claim, cancel, supersede and purge operations; it never converts the operation into volatile success.
+- Because the question is emitted only after `createPendingOperation` returns a durable record, database unavailability blocks the clarification reply and prevents an orphan question whose context would disappear after restart or on another instance.
 - The interaction registry declares `complete_pending_food_operation_once` as an allowed effect for the open quantity contract.
 
 ## Validation
@@ -74,8 +76,10 @@ Coverage lives in:
 - `server/coffeeSugarNutrition.compositeComplements.test.ts`;
 - `server/coffeeSugarNutrition.adversarialComplements.test.ts`;
 - `server/coffeeSugarNutrition.units.test.ts`;
+- `server/repositories/whatsappPendingOperationRepository.productionFallback.test.ts`;
 - `server/modules/whatsapp/coffeeSugarIntent.coordinated.test.ts`;
 - `server/modules/whatsapp/foodQuantityClarification.coffeeSugar.test.ts`;
+- `server/modules/whatsapp/foodQuantityClarification.persistenceFailure.test.ts`;
 - `server/modules/whatsapp/foodClarification.coffeeSugarLifecycle.test.ts`;
 - `server/modules/whatsapp/foodClarificationContract.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/foodCaloricComplementPersistence.test.ts`;
@@ -92,7 +96,7 @@ Coverage lives in:
 - `server/whatsappMealIntentDecisionWebhook.issue899.test.ts`;
 - `server/modules/whatsapp/mealIntentDecisionInteraction.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, production database outage through the real repository adapter, restart/cross-instance fail-closed behavior, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
 
 ## Known limits
 
