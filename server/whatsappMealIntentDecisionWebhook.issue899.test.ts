@@ -42,10 +42,9 @@ vi.mock("./nutritionEngine", () => ({
 }));
 
 vi.mock("./modules/whatsapp/mealConsolidationService", () => ({
-  consolidateWhatsAppMealAfterSave: vi.fn(async (_deps, meal) => ({
-    action: "created",
-    meal,
-  })),
+  consolidateWhatsAppMealAfterSave: vi.fn(
+    async (_deps: unknown, meal: unknown) => ({ action: "created", meal }),
+  ),
 }));
 
 vi.mock("./modules/whatsapp/goalProgressService", () => ({
@@ -178,6 +177,53 @@ function processedCoffee() {
   };
 }
 
+function sentPayloads(): any[] {
+  return (global as any).__issue899SentPayloads;
+}
+
+async function askConsumptionOrSuggestion(messageId: string) {
+  const response = createResponse();
+  await handleWhatsAppWebhookWithTextIntent(
+    createTextRequest(messageId, "200 ml café com açúcar") as never,
+    response as never,
+  );
+  expect(response.statusCode).toBe(200);
+  expect(confirmPendingMealMock).not.toHaveBeenCalled();
+  const payload = sentPayloads().find(payload => payload.type === "interactive");
+  expect(payload).toBeTruthy();
+  expect(
+    payload.interactive.action.buttons.map(
+      (button: { reply: { title: string } }) => button.reply.title,
+    ),
+  ).toEqual(["Registrar", "Receber sugestão", "Cancelar"]);
+  return payload;
+}
+
+function expectCanonicalRegistration() {
+  expect(processMealInputMock).toHaveBeenCalledWith(
+    expect.objectContaining({ text: "200 ml café com açúcar" }),
+  );
+  expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  expect(confirmPendingMealMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      notes: "200 ml café com açúcar",
+      items: [expect.objectContaining({ quantity: 200, unit: "ml" })],
+    }),
+  );
+  expect(recordDomainLinkMock).toHaveBeenCalledWith(
+    expect.anything(),
+    { mealId: 899_900 },
+  );
+  const finalText = sentPayloads()
+    .map(payload => payload?.text?.body ?? payload?.interactive?.body?.text)
+    .filter(Boolean)
+    .at(-1);
+  expect(finalText).not.toContain(
+    "registrar um alimento, corrigir uma refeição ou consultar",
+  );
+  expect(annotatedWebhookMock).not.toHaveBeenCalled();
+}
+
 describe("issue #899 — cadeia HTTP real da decisão consumo x sugestão", () => {
   beforeEach(() => {
     __resetWhatsAppTextIntentContextForTests();
@@ -205,71 +251,48 @@ describe("issue #899 — cadeia HTTP real da decisão consumo x sugestão", () =
       notes: "200 ml café com açúcar",
       items: processedCoffee().items,
     });
-    annotatedWebhookMock.mockImplementation(async (_req, res: MockResponse) =>
-      res.status(200).json({ ok: true, processed: 1 })
+    annotatedWebhookMock.mockImplementation(
+      async (_req: unknown, res: MockResponse) =>
+        res.status(200).json({ ok: true, processed: 1 }),
     );
 
     (global as any).__issue899SentPayloads = [];
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      (global as any).__issue899SentPayloads.push(payload);
+      sentPayloads().push(payload);
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
   });
 
   it("preserva 200 ml e registra uma única vez ao clicar Registrar", async () => {
-    const askResponse = createResponse();
-    await handleWhatsAppWebhookWithTextIntent(
-      createTextRequest("wamid-899-ask", "200 ml café com açúcar") as never,
-      askResponse as never,
-    );
-
-    expect(askResponse.statusCode).toBe(200);
-    expect(confirmPendingMealMock).not.toHaveBeenCalled();
-    const buttonsPayload = (global as any).__issue899SentPayloads.find(
-      (payload: any) => payload.type === "interactive",
-    );
-    expect(buttonsPayload).toBeTruthy();
-    expect(
-      buttonsPayload.interactive.action.buttons.map(
-        (button: { reply: { title: string } }) => button.reply.title,
-      ),
-    ).toEqual(["Registrar", "Receber sugestão", "Cancelar"]);
+    const buttonsPayload = await askConsumptionOrSuggestion("wamid-899-ask-click");
     const registerButton = buttonsPayload.interactive.action.buttons.find(
       (button: { reply: { title: string } }) => button.reply.title === "Registrar",
     );
 
-    const clickResponse = createResponse();
+    const response = createResponse();
     await handleWhatsAppWebhookWithTextIntent(
       createInteractiveButtonRequest(
-        "wamid-899-register",
+        "wamid-899-register-click",
         registerButton.reply.id,
       ) as never,
-      clickResponse as never,
+      response as never,
     );
 
-    expect(clickResponse.statusCode).toBe(200);
-    expect(processMealInputMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "200 ml café com açúcar" }),
+    expect(response.statusCode).toBe(200);
+    expectCanonicalRegistration();
+  });
+
+  it("produz o mesmo efeito ao responder Registrar por texto", async () => {
+    await askConsumptionOrSuggestion("wamid-899-ask-text");
+
+    const response = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createTextRequest("wamid-899-register-text", "Registrar") as never,
+      response as never,
     );
-    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
-    expect(confirmPendingMealMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        notes: "200 ml café com açúcar",
-        items: [expect.objectContaining({ quantity: 200, unit: "ml" })],
-      }),
-    );
-    expect(recordDomainLinkMock).toHaveBeenCalledWith(
-      expect.anything(),
-      { mealId: 899_900 },
-    );
-    const finalText = (global as any).__issue899SentPayloads
-      .map((payload: any) => payload?.text?.body ?? payload?.interactive?.body?.text)
-      .filter(Boolean)
-      .at(-1);
-    expect(finalText).not.toContain(
-      "registrar um alimento, corrigir uma refeição ou consultar",
-    );
-    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+
+    expect(response.statusCode).toBe(200);
+    expectCanonicalRegistration();
   });
 });
