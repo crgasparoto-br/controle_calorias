@@ -3,10 +3,17 @@ import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const portfolioUseQuery = vi.fn();
-const refetch = vi.fn().mockResolvedValue(undefined);
-const invalidate = vi.fn().mockResolvedValue(undefined);
-const patientTimeZoneFetch = vi.fn().mockResolvedValue(undefined);
+const {
+  portfolioUseQuery,
+  refetch,
+  invalidate,
+  patientTimeZoneFetch,
+} = vi.hoisted(() => ({
+  portfolioUseQuery: vi.fn(),
+  refetch: vi.fn().mockResolvedValue(undefined),
+  invalidate: vi.fn().mockResolvedValue(undefined),
+  patientTimeZoneFetch: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
   ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
