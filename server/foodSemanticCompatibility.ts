@@ -16,7 +16,7 @@ const COMPLEMENT_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["achocolatado", /\b(?:com\s+)?achocolatad[oa]\b/],
 ];
 
-const EXPLICIT_SUGAR_UNIT = "(?:g|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)";
+const EXPLICIT_SUGAR_UNIT = "(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)";
 
 function normalizeSemanticText(value: string) {
   return value
