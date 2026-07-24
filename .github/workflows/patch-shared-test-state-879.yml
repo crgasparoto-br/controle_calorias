@@ -1,0 +1,76 @@
+name: Patch shared professional test state 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-shared-test-state-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Share explicit test state across module instances
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("server/modules/professionals/service.ts")
+          source = path.read_text(encoding="utf-8")
+          old = '''const BRAZIL_COUNTRY_CODE = "55";
+let syntheticUserLookupEnabledForTests = false;
+
+export function _forTestOnly_setProfessionalSyntheticUserLookup(
+  enabled: boolean
+) {
+  syntheticUserLookupEnabledForTests = enabled;
+}
+'''
+          new = '''const BRAZIL_COUNTRY_CODE = "55";
+const PROFESSIONAL_SYNTHETIC_USER_LOOKUP_TEST_KEY =
+  "__controleCaloriasProfessionalSyntheticUserLookup";
+const professionalSyntheticUserLookupTestState = globalThis as Record<
+  string,
+  unknown
+>;
+
+export function _forTestOnly_setProfessionalSyntheticUserLookup(
+  enabled: boolean
+) {
+  professionalSyntheticUserLookupTestState[
+    PROFESSIONAL_SYNTHETIC_USER_LOOKUP_TEST_KEY
+  ] = enabled;
+}
+'''
+          if source.count(old) != 1:
+              raise SystemExit("expected exactly one local synthetic test state block")
+          source = source.replace(old, new)
+          old_guard = "if (syntheticUserLookupEnabledForTests) {"
+          new_guard = '''if (
+        professionalSyntheticUserLookupTestState[
+          PROFESSIONAL_SYNTHETIC_USER_LOOKUP_TEST_KEY
+        ] === true
+      ) {'''
+          if source.count(old_guard) != 1:
+              raise SystemExit("expected exactly one local synthetic lookup guard")
+          source = source.replace(old_guard, new_guard)
+          path.write_text(source, encoding="utf-8")
+          PY
+          grep -n 'PROFESSIONAL_SYNTHETIC_USER_LOOKUP_TEST_KEY\|professionalSyntheticUserLookupTestState' server/modules/professionals/service.ts
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/modules/professionals/service.ts
+          git rm .github/workflows/patch-shared-test-state-879.yml
+          git diff --cached --check
+          git commit -m "test: share synthetic lookup state across module instances (#879)"
+          git push origin HEAD:feat/875-professional-context-routes
