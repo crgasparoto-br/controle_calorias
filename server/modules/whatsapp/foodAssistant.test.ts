@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import {
+  executeConfirmedWhatsAppFoodSuggestion,
+  executeWhatsAppFoodAssistantIntent,
+} from "./foodAssistant";
 
 describe("executeWhatsAppFoodAssistantIntent", () => {
   it("responde pedidos naturais de orientação alimentar sem depender de refeição", () => {
@@ -49,15 +52,17 @@ describe("executeWhatsAppFoodAssistantIntent", () => {
     "almoço com frango e arroz",
     "jantar leve com ovo",
     "café da manhã com banana",
-  ])("pede confirmação para descrição ambígua antes de registrar: %s", text => {
-    const result = executeWhatsAppFoodAssistantIntent(text);
+  ])("não produz uma segunda clarificação para descrição ambígua: %s", text => {
+    expect(executeWhatsAppFoodAssistantIntent(text)).toBeNull();
+  });
 
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "meal_intent_clarification",
-      eventType: "whatsapp.intent.meal_intent_clarification",
-      reply: "Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?",
-    }));
+  it("gera sugestão confirmada sem persistir consumo", () => {
+    const result = executeConfirmedWhatsAppFoodSuggestion(
+      "jantar com arroz, feijão e frango"
+    );
+
+    expect(result.data).toEqual({ context: "dinner" });
+    expect(result.reply).toContain("Nada foi registrado como consumo");
   });
 
   it("ignora textos comuns de refeição para manter o fluxo de inferência", () => {
