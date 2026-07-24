@@ -91,8 +91,9 @@ export async function persistResolvedCaloricComplement(
     throw new Error("A quantidade do complemento não foi informada.");
   }
 
-  const operationOccurredAt = context.operation.kind === "register"
-    ? new Date(context.operation.occurredAt)
+  const operation = context.operation;
+  const operationOccurredAt = operation.kind === "register"
+    ? new Date(operation.occurredAt)
     : receivedAt;
   const { processed, resolvedItem } = await processResolvedFood(
     deps,
@@ -103,7 +104,7 @@ export async function persistResolvedCaloricComplement(
     timeZone,
   );
 
-  if (context.operation.kind === "register") {
+  if (operation.kind === "register") {
     const meals = await deps.listMeals(userId);
     const existing = meals.find(meal =>
       sameLogicalMeal(
@@ -148,10 +149,12 @@ export async function persistResolvedCaloricComplement(
           saved,
           timeZone,
         );
-    const reloaded =
-      (await deps.listMeals(userId)).find(
-        meal => meal.id === consolidated.meal.id,
-      ) ?? consolidated.meal;
+    const reloaded = (await deps.listMeals(userId)).find(
+      meal => meal.id === consolidated.meal.id,
+    );
+    if (!reloaded) {
+      throw new Error("A refeição registrada não pôde ser recarregada.");
+    }
 
     return {
       handled: true,
@@ -173,15 +176,15 @@ export async function persistResolvedCaloricComplement(
   }
 
   const meals = await deps.listMeals(userId);
-  const currentMeal = meals.find(meal => meal.id === context.operation.mealId);
+  const currentMeal = meals.find(meal => meal.id === operation.mealId);
   if (!currentMeal) throw new Error("A refeição-alvo já não está disponível.");
 
-  if (context.operation.kind === "add_to_meal") {
+  if (operation.kind === "add_to_meal") {
     if (
       normalizeText(currentMeal.mealLabel)
-        !== normalizeText(context.operation.expectedMealLabel)
+        !== normalizeText(operation.expectedMealLabel)
       || new Date(currentMeal.occurredAt).toISOString()
-        !== context.operation.expectedOccurredAt
+        !== operation.expectedOccurredAt
     ) {
       throw new Error("A refeição-alvo mudou antes da conclusão da adição.");
     }
@@ -217,12 +220,15 @@ export async function persistResolvedCaloricComplement(
     };
   }
 
+  if (operation.kind !== "replace_item") {
+    throw new Error("Operação de complemento calórico não suportada.");
+  }
   const items = toMealItemInputs(
     currentMeal.items as MealDraftItem[] | undefined,
   );
-  const currentItem = items[context.operation.itemIndex];
+  const currentItem = items[operation.itemIndex];
   if (!currentItem) throw new Error("O item-alvo já não está disponível.");
-  const expectedName = normalizeText(context.operation.originalFoodName);
+  const expectedName = normalizeText(operation.originalFoodName);
   if (![currentItem.foodName, currentItem.canonicalName]
     .map(value => normalizeText(value ?? ""))
     .includes(expectedName)) {
@@ -235,7 +241,7 @@ export async function persistResolvedCaloricComplement(
     occurredAt: new Date(currentMeal.occurredAt).toISOString(),
     notes: currentMeal.notes,
     items: items.map((item, index) =>
-      index === context.operation.itemIndex ? resolvedItem : item,
+      index === operation.itemIndex ? resolvedItem : item,
     ),
   });
   const reloaded = (await deps.listMeals(userId)).find(
@@ -251,14 +257,14 @@ export async function persistResolvedCaloricComplement(
       meal: reloaded,
       timeZone,
       title: "Alimento substituído",
-      actionLine: `${context.operation.originalFoodName} → ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
+      actionLine: `${operation.originalFoodName} → ${resolvedItem.foodName} com ${explicitQuantity.quantity} ${explicitQuantity.unit} de açúcar.`,
       state: "updated",
     }),
     eventType: "whatsapp.food_clarification.completed",
     detail: "Substituição por café com açúcar concluída após revalidação do item-alvo.",
     data: {
       mealId: reloaded.id,
-      correctedItemIndex: context.operation.itemIndex,
+      correctedItemIndex: operation.itemIndex,
       component: context.componentName,
     },
   };
