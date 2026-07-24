@@ -58,7 +58,10 @@ function priority(patientId: number) {
   return {
     patientId,
     displayName: names[patientId - 1],
-    score: (severity === "urgent" ? 3 : severity === "attention" ? 2 : 1) * 1_000 + 2,
+    score:
+      (severity === "urgent" ? 3 : severity === "attention" ? 2 : 1) *
+        1_000 +
+      2,
     alertCount: patientId % 3 === 0 ? 4 : 2,
     highestSeverity: severity,
     primarySignal,
@@ -113,7 +116,10 @@ function priorityQuery() {
     };
   }
   return {
-    data: state === "empty" ? [] : Array.from({ length: 11 }, (_, index) => priority(index + 1)),
+    data:
+      state === "empty" || state === "portfolio-error"
+        ? []
+        : Array.from({ length: 11 }, (_, index) => priority(index + 1)),
     isLoading: false,
     isError: false,
     refetch: async () => undefined,
@@ -142,7 +148,12 @@ function portfolioQuery() {
   return {
     data: {
       items: empty ? [] : [{ patientUserId: 1 }],
-      pagination: { page: 1, pageSize: 10, total: empty ? 0 : 34, totalPages: empty ? 1 : 4 },
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: empty ? 0 : 34,
+        totalPages: empty ? 1 : 4,
+      },
       summary: {
         active: 24,
         paused: 4,
