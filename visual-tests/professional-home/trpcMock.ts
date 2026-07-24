@@ -1,4 +1,5 @@
 const now = Date.UTC(2026, 6, 23, 18, 0, 0);
+const resolved = async () => undefined;
 
 function visualState() {
   return new URLSearchParams(window.location.search).get("state") ?? "main";
@@ -13,7 +14,8 @@ function priority(patientId: number) {
     "weigh_in_overdue",
   ];
   const type = types[(patientId - 1) % types.length];
-  const severity = patientId <= 2 ? "urgent" : patientId <= 7 ? "attention" : "info";
+  const severity =
+    patientId <= 2 ? "urgent" : patientId <= 7 ? "attention" : "info";
   const labels: Record<string, string> = {
     record_requires_review: "Registro que exige revisão",
     professional_request_overdue: "Solicitação sem resposta",
@@ -21,7 +23,7 @@ function priority(patientId: number) {
     no_food_records: "Sem registros alimentares",
     weigh_in_overdue: "Pesagem pendente",
   };
-  const names = [
+  const baseNames = [
     "Mariana de Almeida Vasconcelos e Silva",
     "João Pereira",
     "Beatriz Fernandes",
@@ -34,6 +36,9 @@ function priority(patientId: number) {
     "Igor Costa",
     "Juliana Ribeiro",
   ];
+  const displayName =
+    baseNames[patientId - 1] ??
+    `Paciente com nome extenso para validação visual número ${patientId}`;
   const primarySignal = {
     id: `priority-${patientId}`,
     type,
@@ -42,7 +47,7 @@ function priority(patientId: number) {
     reason:
       type === "no_food_records"
         ? "Nenhum registro alimentar confirmado no período esperado para acompanhamento."
-        : `Existe uma pendência objetiva com prazo alcançado para ${names[patientId - 1]}.`,
+        : `Existe uma pendência objetiva com prazo alcançado para ${displayName}.`,
     suggestedAction:
       type === "goal_review_due"
         ? "Registrar a revisão da meta ou reagendar a próxima data."
@@ -57,7 +62,7 @@ function priority(patientId: number) {
   };
   return {
     patientId,
-    displayName: names[patientId - 1],
+    displayName,
     score:
       (severity === "urgent" ? 3 : severity === "attention" ? 2 : 1) *
         1_000 +
@@ -97,14 +102,14 @@ function priority(patientId: number) {
   };
 }
 
-function priorityQuery() {
+function priorityQuery(input: { limit: number; offset?: number }) {
   const state = visualState();
   if (state === "priority-error") {
     return {
       data: undefined,
       isLoading: false,
       isError: true,
-      refetch: async () => undefined,
+      refetch: resolved,
     };
   }
   if (state === "loading") {
@@ -112,17 +117,21 @@ function priorityQuery() {
       data: undefined,
       isLoading: true,
       isError: false,
-      refetch: async () => undefined,
+      refetch: resolved,
     };
   }
+  const priorities = Array.from({ length: 151 }, (_, index) =>
+    priority(index + 1)
+  );
+  const offset = input.offset ?? 0;
   return {
     data:
       state === "empty" || state === "portfolio-error"
         ? []
-        : Array.from({ length: 11 }, (_, index) => priority(index + 1)),
+        : priorities.slice(offset, offset + input.limit),
     isLoading: false,
     isError: false,
-    refetch: async () => undefined,
+    refetch: resolved,
   };
 }
 
@@ -133,7 +142,7 @@ function portfolioQuery() {
       data: undefined,
       isLoading: false,
       isError: true,
-      refetch: async () => undefined,
+      refetch: resolved,
     };
   }
   if (state === "loading") {
@@ -141,7 +150,7 @@ function portfolioQuery() {
       data: undefined,
       isLoading: true,
       isError: false,
-      refetch: async () => undefined,
+      refetch: resolved,
     };
   }
   const empty = state === "empty";
@@ -152,7 +161,7 @@ function portfolioQuery() {
         page: 1,
         pageSize: 10,
         total: empty ? 0 : 34,
-        totalPages: empty ? 1 : 4,
+        totalPages: empty ? 0 : 4,
       },
       summary: {
         active: 24,
@@ -165,12 +174,45 @@ function portfolioQuery() {
     },
     isLoading: false,
     isError: false,
-    refetch: async () => undefined,
+    refetch: resolved,
   };
 }
 
+function cancellable() {
+  return { cancel: resolved };
+}
+
 export const trpc = {
+  useUtils: () => ({
+    nutrition: {
+      professionals: {
+        patientTimeZone: cancellable(),
+        patientDashboard: cancellable(),
+        patientPeriodBundle: cancellable(),
+      },
+    },
+    professionalRecord: {
+      context: cancellable(),
+      get: cancellable(),
+      messages: { list: cancellable() },
+      operationalAlerts: { list: cancellable() },
+      ai: { priorities: cancellable() },
+      officialGoal: { professionalState: cancellable() },
+    },
+  }),
   professionalRecord: {
+    context: {
+      useQuery: () => ({
+        data: null,
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        isSuccess: true,
+        isFetchedAfterMount: true,
+        error: null,
+        refetch: resolved,
+      }),
+    },
     settings: {
       entitlements: {
         useQuery: () => ({
@@ -178,26 +220,42 @@ export const trpc = {
             allowed: true,
             enabledResources: [
               "professional_dashboard",
-              "professional_ai_assistance",
               "professional_portfolio",
+              "professional_record",
+              "professional_goals",
+              "professional_operational_alerts",
               "professional_messages",
               "professional_reports",
+              "professional_ai_assistance",
+              "professional_settings",
             ],
           },
           isLoading: false,
           isError: false,
-          refetch: async () => undefined,
+          refetch: resolved,
         }),
       },
     },
     ai: {
       priorities: {
-        useQuery: () => priorityQuery(),
+        useQuery: (input: { limit: number; offset?: number }) =>
+          priorityQuery(input),
       },
     },
   },
   nutrition: {
     professionals: {
+      profile: {
+        useQuery: () => ({
+          data: { active: true },
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+          isSuccess: true,
+          isFetchedAfterMount: true,
+          refetch: resolved,
+        }),
+      },
       portfolio: {
         useQuery: () => portfolioQuery(),
       },
