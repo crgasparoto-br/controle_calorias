@@ -38,6 +38,23 @@ describe("nutritionEngine coffee with sugar handling", () => {
     expect(result.totals.calories).toBe(22);
   });
 
+  it("preserva volume explícito e soma o açúcar uma única vez", async () => {
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "200 ml de café com 5 g de açúcar",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      canonicalName: "Café com açúcar",
+      quantity: 200,
+      unit: "ml",
+      estimatedGrams: 205,
+      calories: 28,
+      carbs: 5,
+    }));
+    expect(result.totals.calories).toBe(28);
+  });
+
   it("solicita somente a quantidade de açúcar quando não há estimativa utilizável", async () => {
     const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
 
