@@ -24,7 +24,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 type Filters = {
   search: string;
@@ -114,8 +114,13 @@ function unavailableActionLabel(status: Filters["authorizationStatus"]) {
 
 export default function ProfessionalPatients() {
   const [location, setLocation] = useLocation();
+  const search = useSearch();
   const utils = trpc.useUtils();
-  const filters = useMemo(() => filtersFromLocation(location), [location]);
+  const locationWithSearch = `${location}${search ? `?${search}` : ""}`;
+  const filters = useMemo(
+    () => filtersFromLocation(locationWithSearch),
+    [locationWithSearch]
+  );
   const [searchInput, setSearchInput] = useState(filters.search);
   const [showRequest, setShowRequest] = useState(false);
   const [patientContact, setPatientContact] = useState("");
@@ -127,9 +132,9 @@ export default function ProfessionalPatients() {
   const updateFilters = useCallback(
     (patch: Partial<Filters>) => {
       const next = filtersToLocation({ ...filters, ...patch });
-      if (next !== location) setLocation(next, { replace: true });
+      if (next !== locationWithSearch) setLocation(next, { replace: true });
     },
-    [filters, location, setLocation]
+    [filters, locationWithSearch, setLocation]
   );
 
   useEffect(() => {
