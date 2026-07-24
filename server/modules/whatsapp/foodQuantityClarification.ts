@@ -1,3 +1,4 @@
+import { extractCoffeeServingQuantity, type CoffeeServingQuantity } from "../../coffeeSugarNutrition";
 import { getDb, logPersistenceWarning } from "../../db";
 import type { MealDraftItem } from "../../nutritionEngine";
 import {
@@ -75,6 +76,7 @@ export type CaloricComplementQuantityContext = {
   mode: "complete_caloric_complement";
   componentName: "açúcar";
   originalFoodText: string;
+  coffeeQuantity: CoffeeServingQuantity;
   operation: CaloricComplementOperation;
 };
 
@@ -104,7 +106,8 @@ function result(
 
 function buildRequest(
   foodName: string,
-  originalText: string
+  originalText: string,
+  count = 1,
 ): CountedFoodRequest {
   const normalized = foodName.trim();
   return {
@@ -112,7 +115,7 @@ function buildRequest(
     originalCandidate: normalized,
     normalizedCandidate: normalized,
     normalizationChanged: false,
-    count: 1,
+    count,
   };
 }
 
@@ -163,6 +166,7 @@ export function createFoodQuantityClarificationService(
     messageId?: string | null;
     resolutionContext?: FoodQuantityResolutionContext;
     instructionText?: string;
+    count?: number;
   }): Promise<WhatsappIntentResult> => {
     const occurredAt = input.receivedAt ?? new Date();
     const foodName = input.foodName.trim();
@@ -194,7 +198,7 @@ export function createFoodQuantityClarificationService(
 
     const candidate = buildCandidate(foodName, input.brandName);
     const baseTarget = buildPendingFoodClarificationTarget({
-      request: buildRequest(foodName, input.originalText),
+      request: buildRequest(foodName, input.originalText, input.count),
       pendingKind: "quantity",
       candidates: [candidate],
       selectedCandidateIndex: 0,
@@ -339,22 +343,26 @@ export function createFoodQuantityClarificationService(
       operation: CaloricComplementOperation;
       receivedAt?: Date;
       messageId?: string | null;
-    }) =>
-      createQuantityClarification({
+    }) => {
+      const coffeeQuantity = extractCoffeeServingQuantity(input.originalFoodText);
+      return createQuantityClarification({
         userId: input.userId,
         foodName: "Café com açúcar",
         originalText: input.originalFoodText,
         receivedAt: input.receivedAt,
         messageId: input.messageId,
+        count: coffeeQuantity.unit === "xícara" ? coffeeQuantity.quantity : 1,
         resolutionContext: {
           mode: "complete_caloric_complement",
           componentName: "açúcar",
           originalFoodText: input.originalFoodText,
+          coffeeQuantity,
           operation: input.operation,
         },
         instructionText:
           "Informe somente a quantidade de açúcar em gramas. Exemplo: 5 g. Não vou assumir uma quantidade padrão.",
-      }),
+      });
+    },
   };
 }
 
