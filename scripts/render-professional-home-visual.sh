@@ -55,12 +55,13 @@ capture "main-mobile-390x844" "390,844" "$BASE_URL"
 capture "empty-desktop-1366x768" "1366,768" "$BASE_URL?state=empty"
 capture "priority-error-desktop-1366x768" "1366,768" "$BASE_URL?state=priority-error"
 capture "portfolio-error-mobile-390x844" "390,844" "$BASE_URL?state=portfolio-error"
+capture "portfolio-error-mobile-390x1200" "390,1200" "$BASE_URL?state=portfolio-error"
 
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
 route=/professional
 commit=${GITHUB_SHA:-local}
 scenarios=main,empty,priority-error,portfolio-error
-viewports=1366x768,390x844
+viewports=1366x768,390x844,390x1200
 source=actual ProfessionalHome component with deterministic tRPC fixtures
 EOF
 
