@@ -1,3 +1,5 @@
+import { splitFoodTextSegments } from "./mealTextParsing";
+
 type FoodSemanticProfile = {
   family: "coffee" | "tea" | null;
   sugarState: "added" | "free" | null;
@@ -133,6 +135,8 @@ export function hasCaloricCoffeeComplement(value: string) {
 }
 
 export function isCoffeeWithAddedSugar(value: string) {
-  const profile = buildProfile(value);
-  return profile.family === "coffee" && profile.sugarState === "added";
+  return splitFoodTextSegments(value).some(segment => {
+    const profile = buildProfile(segment);
+    return profile.family === "coffee" && profile.sugarState === "added";
+  });
 }
