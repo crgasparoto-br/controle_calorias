@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { professionalRepository } from "./persistenceService";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
   processProfessionalAccessWhatsappResponse,
   requestPatientAccess,
@@ -8,6 +9,8 @@ import {
   transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 describe("service.ts writes through to the canonical professional persistence", () => {
   it("upserts the professional profile in the canonical repository", async () => {

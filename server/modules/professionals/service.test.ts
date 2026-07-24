@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
   buildPhoneLookupCandidates,
   getProfessionalPatientTimeZone,
@@ -11,6 +12,8 @@ import {
   suggestMealPlan,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 function goalInput(calories = 1800) {
   return {
