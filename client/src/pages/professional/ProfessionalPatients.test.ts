@@ -1,9 +1,90 @@
-import { describe, expect, it } from "vitest";
-import {
+// @vitest-environment jsdom
+import React from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const portfolioUseQuery = vi.fn();
+const refetch = vi.fn().mockResolvedValue(undefined);
+const invalidate = vi.fn().mockResolvedValue(undefined);
+const patientTimeZoneFetch = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("@/components/professional/ProfessionalUi", () => ({
+  ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+  ProfessionalPageHeader: ({
+    title,
+    actions,
+  }: {
+    title: string;
+    actions?: React.ReactNode;
+  }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
+  ),
+  ProfessionalStatusBadge: ({ value }: { value: string }) => <span>{value}</span>,
+  ProfessionalLoadingState: ({ label }: { label: string }) => <p>{label}</p>,
+  ProfessionalAsyncState: ({ title }: { title: string }) => <p>{title}</p>,
+}));
+
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    useUtils: () => ({
+      nutrition: {
+        professionals: {
+          patientTimeZone: { fetch: patientTimeZoneFetch },
+          myAccesses: { invalidate },
+        },
+      },
+    }),
+    nutrition: {
+      professionals: {
+        portfolio: { useQuery: portfolioUseQuery },
+        requestAccess: {
+          useMutation: () => ({
+            isPending: false,
+            isError: false,
+            error: null,
+            mutate: vi.fn(),
+            reset: vi.fn(),
+          }),
+        },
+      },
+    },
+  },
+}));
+
+import ProfessionalPatients, {
   filtersFromLocation,
   filtersToLocation,
   requestAccessErrorMessage,
 } from "./ProfessionalPatients";
+
+function queryResult() {
+  return {
+    data: {
+      items: [],
+      pagination: { page: 1, pageSize: 20, total: 60, totalPages: 3 },
+    },
+    isLoading: false,
+    isError: false,
+    refetch,
+  };
+}
+
+beforeEach(() => {
+  window.history.replaceState({}, "", "/professional/patients?page=2");
+  portfolioUseQuery.mockImplementation(() => queryResult());
+  portfolioUseQuery.mockClear();
+  refetch.mockClear();
+  invalidate.mockClear();
+  patientTimeZoneFetch.mockClear();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("ProfessionalPatients URL contract", () => {
   it("restores all valid filters and pagination from the URL", () => {
@@ -39,6 +120,100 @@ describe("ProfessionalPatients URL contract", () => {
       page: 1,
       pageSize: 20,
     });
+  });
+});
+
+describe("ProfessionalPatients filter interactions", () => {
+  it("keeps a selected filter and writes it to the URL while resetting pagination", async () => {
+    render(<ProfessionalPatients />);
+
+    const authorization = screen.getByRole("combobox", {
+      name: "Filtrar autorização",
+    }) as HTMLSelectElement;
+    fireEvent.change(authorization, { target: { value: "approved" } });
+
+    await waitFor(() => {
+      expect(authorization.value).toBe("approved");
+      expect(window.location.search).toBe("?authorization=approved");
+    });
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ authorizationStatus: "approved", page: 1 }),
+      expect.any(Object)
+    );
+  });
+
+  it("updates pagination without being reverted by the previous URL", async () => {
+    render(<ProfessionalPatients />);
+
+    fireEvent.click(screen.getByRole("button", { name: /próxima/i }));
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?page=3");
+      expect(screen.getByText("Página 1 de 3")).toBeTruthy();
+    });
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 3 }),
+      expect.any(Object)
+    );
+  });
+
+  it("debounces search, resets the page and avoids intermediate query values", async () => {
+    vi.useFakeTimers();
+    render(<ProfessionalPatients />);
+    portfolioUseQuery.mockClear();
+
+    const search = screen.getByPlaceholderText(
+      "Nome, e-mail ou identificador"
+    ) as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "a" } });
+    fireEvent.change(search, { target: { value: "an" } });
+    fireEvent.change(search, { target: { value: "ana" } });
+
+    expect(window.location.search).toBe("?page=2");
+    expect(
+      portfolioUseQuery.mock.calls.some(([input]) => input.search === "a" || input.search === "an")
+    ).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(window.location.search).toBe("?search=ana");
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "ana", page: 1 }),
+      expect.any(Object)
+    );
+  });
+
+  it("restores filter controls after browser navigation", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?authorization=approved&page=2"
+    );
+    render(<ProfessionalPatients />);
+
+    expect(
+      (screen.getByRole("combobox", { name: "Filtrar autorização" }) as HTMLSelectElement)
+        .value
+    ).toBe("approved");
+
+    act(() => {
+      window.history.pushState(
+        {},
+        "",
+        "/professional/patients?authorization=revoked&page=1"
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("combobox", {
+          name: "Filtrar autorização",
+        }) as HTMLSelectElement).value
+      ).toBe("revoked")
+    );
   });
 });
 
