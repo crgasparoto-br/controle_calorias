@@ -4,7 +4,19 @@ import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import { normalizeText } from "../../mealTextParsing";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type { MealItemInput } from "../meals/schemas";
-import type { CaloricComplementQuantityContext } from "./foodQuantityClarification";
+import {
+  buildFoodClarificationActions,
+  buildFoodClarificationPendingData,
+  buildPendingFoodClarificationTarget,
+  PENDING_FOOD_CLARIFICATION_ORIGIN,
+  PENDING_FOOD_CLARIFICATION_TTL_MS,
+  PENDING_FOOD_CLARIFICATION_TYPE,
+  type FoodClarificationCandidate,
+} from "./foodClarificationContract";
+import type {
+  CaloricComplementQuantityContext,
+  FoodQuantityClarificationTarget,
+} from "./foodQuantityClarification";
 import type { FoodClarificationDependencies } from "./foodClarificationPersistence";
 import type { WhatsappIntentResult } from "./intent/types";
 import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
@@ -14,6 +26,13 @@ import {
   composeWhatsAppMealActionReplies,
 } from "./mealActionReplyComposer";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
+import {
+  buildWhatsAppClarificationReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
+} from "./replyMessages";
+
+const SUGAR_QUANTITY_INSTRUCTION =
+  "Informe somente a quantidade de açúcar em gramas. Exemplo: 5 g. Não vou assumir uma quantidade padrão.";
 
 type ExistingMeal = Awaited<
   ReturnType<FoodClarificationDependencies["listMeals"]>
@@ -60,26 +79,127 @@ function findResolvedSweetenedCoffee(items: MealDraftItem[]) {
   const matches = items.filter(item =>
     isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName}`)
   );
-  if (matches.length !== 1) {
-    throw new Error("A clarificação de açúcar não identificou um único café adoçado.");
+  if (!matches.length) {
+    throw new Error("A clarificação de açúcar não identificou café adoçado.");
   }
-  return assertCoherentSweetenedCoffee(matches[0]);
+  matches.forEach(assertCoherentSweetenedCoffee);
+  return matches[0];
+}
+
+function isSugarQuantityRequired(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    code?: unknown;
+    context?: { component?: unknown };
+  };
+  return candidate.code === "food_component_quantity_required"
+    && candidate.context?.component === "açúcar";
+}
+
+function buildCaloricComplementCandidate(): FoodClarificationCandidate {
+  return {
+    name: "Café com açúcar",
+    servingLabel: "quantidade informada pelo usuário",
+    gramsPerServing: 0,
+    brandName: null,
+    isBrandedProduct: false,
+    matchKind: "exact",
+  };
+}
+
+async function requestNextSugarQuantity(input: {
+  deps: FoodClarificationDependencies;
+  userId: number;
+  context: CaloricComplementQuantityContext;
+  resolvedFoodText: string;
+  explicitQuantity: { quantity: number; unit: string };
+  receivedAt: Date;
+}): Promise<WhatsappIntentResult> {
+  const candidate = buildCaloricComplementCandidate();
+  const originalText = input.context.originalText?.trim()
+    || input.context.originalFoodText;
+  const nextContext: CaloricComplementQuantityContext = {
+    ...input.context,
+    originalFoodText: input.resolvedFoodText,
+    originalText,
+    completedComponents: [
+      ...(input.context.completedComponents ?? []),
+      {
+        componentName: "açúcar",
+        quantity: input.explicitQuantity.quantity,
+        unit: input.explicitQuantity.unit,
+      },
+    ],
+  };
+  const baseTarget = buildPendingFoodClarificationTarget({
+    request: {
+      originalText,
+      originalCandidate: "Café com açúcar",
+      normalizedCandidate: "Café com açúcar",
+      normalizationChanged: false,
+      count: 1,
+    },
+    pendingKind: "quantity",
+    candidates: [candidate],
+    selectedCandidateIndex: 0,
+    instructionText: SUGAR_QUANTITY_INSTRUCTION,
+    messageId: input.context.inboundMessageId,
+  });
+  const target: FoodQuantityClarificationTarget = {
+    ...baseTarget,
+    actions: buildFoodClarificationActions("quantity", [candidate]),
+    allowedDomainEffect: "complete_pending_food_operation_once",
+    resolutionContext: nextContext,
+  };
+  const created = await input.deps.repository.createPendingOperation({
+    userId: input.userId,
+    type: PENDING_FOOD_CLARIFICATION_TYPE,
+    origin: PENDING_FOOD_CLARIFICATION_ORIGIN,
+    target,
+    ttlMs: PENDING_FOOD_CLARIFICATION_TTL_MS,
+    now: input.receivedAt,
+  });
+
+  if (!created) {
+    return {
+      handled: true,
+      action: "food_clarification_blocked",
+      reply: buildWhatsAppRecoverableErrorReplyMessage(
+        "Não consegui guardar a próxima quantidade de açúcar com segurança. Nenhuma refeição foi alterada; envie a descrição completa novamente."
+      ),
+      eventType: "whatsapp.food_clarification.persistence_unavailable",
+      detail:
+        "A continuação de múltiplos cafés adoçados não foi persistida antes do outbound.",
+      data: {
+        completedComponentCount: nextContext.completedComponents?.length ?? 0,
+        retryRequiresFullMessage: true,
+      },
+    };
+  }
+
+  return {
+    handled: true,
+    action: "food_clarification_requested",
+    reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
+    eventType: "whatsapp.food_clarification.next_component_requested",
+    detail:
+      "A quantidade anterior foi preservada no estado persistido e o próximo café adoçado aguarda sua própria quantidade.",
+    data: {
+      ...buildFoodClarificationPendingData(created, target),
+      completedComponentCount: nextContext.completedComponents?.length ?? 0,
+    },
+  };
 }
 
 async function processResolvedFood(
   deps: FoodClarificationDependencies,
   userId: number,
-  context: CaloricComplementQuantityContext,
-  explicitQuantity: { quantity: number; unit: string },
+  resolvedFoodText: string,
   occurredAt: Date,
   timeZone: string,
 ) {
   const processed = await deps.processFood({
-    text: appendSugarQuantityToCoffeeText(
-      context.originalFoodText,
-      explicitQuantity.quantity,
-      explicitQuantity.unit,
-    ),
+    text: resolvedFoodText,
     habits: await deps.getHabits(userId),
     occurredAt,
     timeZone,
@@ -344,14 +464,36 @@ export async function persistResolvedCaloricComplement(
   const operationOccurredAt = operation.kind === "register"
     ? new Date(operation.occurredAt)
     : receivedAt;
-  const { processed, resolvedItems, resolvedItem } = await processResolvedFood(
-    deps,
-    userId,
-    context,
-    explicitQuantity,
-    operationOccurredAt,
-    timeZone,
+  const resolvedFoodText = appendSugarQuantityToCoffeeText(
+    context.originalFoodText,
+    explicitQuantity.quantity,
+    explicitQuantity.unit,
   );
+
+  let resolution: Awaited<ReturnType<typeof processResolvedFood>>;
+  try {
+    resolution = await processResolvedFood(
+      deps,
+      userId,
+      resolvedFoodText,
+      operationOccurredAt,
+      timeZone,
+    );
+  } catch (error) {
+    if (isSugarQuantityRequired(error)) {
+      return requestNextSugarQuantity({
+        deps,
+        userId,
+        context,
+        resolvedFoodText,
+        explicitQuantity,
+        receivedAt,
+      });
+    }
+    throw error;
+  }
+  const { processed, resolvedItems, resolvedItem } = resolution;
+  const originalNotes = context.originalText?.trim() || context.originalFoodText;
 
   if (operation.kind === "register") {
     const meals = await deps.listMeals(userId);
@@ -368,7 +510,7 @@ export async function persistResolvedCaloricComplement(
           mealId: existing.id,
           mealLabel: existing.mealLabel,
           occurredAt: new Date(existing.occurredAt).toISOString(),
-          notes: existing.notes || context.originalFoodText,
+          notes: existing.notes || originalNotes,
           items: [
             ...toMealItemInputs(existing.items as MealDraftItem[] | undefined),
             ...resolvedItems,
@@ -377,7 +519,7 @@ export async function persistResolvedCaloricComplement(
       : await deps.createMeal(userId, {
           mealLabel: processed.detectedMealLabel || "Refeição",
           occurredAt: operationOccurredAt.toISOString(),
-          notes: context.originalFoodText,
+          notes: originalNotes,
           items: resolvedItems,
         });
     const consolidated = existing
@@ -429,6 +571,7 @@ export async function persistResolvedCaloricComplement(
         mealId: reloaded.id,
         component: context.componentName,
         resolvedItemCount: resolvedItems.length,
+        completedComponentCount: (context.completedComponents?.length ?? 0) + 1,
       },
     };
   }
@@ -483,6 +626,7 @@ export async function persistResolvedCaloricComplement(
         mealId: reloaded.id,
         component: context.componentName,
         resolvedItemCount: resolvedItems.length,
+        completedComponentCount: (context.completedComponents?.length ?? 0) + 1,
       },
     };
   }
