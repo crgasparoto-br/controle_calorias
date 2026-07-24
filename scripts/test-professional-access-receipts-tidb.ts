@@ -19,6 +19,8 @@ if (!databaseUrl) {
   );
 }
 
+const warnings: Array<{ scope: string; error: string }> = [];
+
 async function main() {
   const connection = await mysql.createConnection(
     shouldEnableRuntimeDatabaseSsl(databaseUrl)
@@ -26,7 +28,6 @@ async function main() {
       : databaseUrl
   );
   const integrationDb = drizzle(connection);
-  const warnings: Array<{ scope: string; error: string }> = [];
   const onWarning = (scope: string, error: unknown) =>
     warnings.push({
       scope,
@@ -50,8 +51,8 @@ async function main() {
       [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
     );
     await connection.query(
-      "DELETE FROM `professionalPatientTrackingEvents` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
-      [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID]
+      "DELETE FROM `professionalPatientTrackingEvents` WHERE `actorUserId` IN (?, ?, ?) OR `authorizationId` = ?",
+      [...USER_IDS, AUTHORIZATION_ID]
     );
     await connection.query(
       "DELETE FROM `professionalPatientTrackings` WHERE `professionalUserId` = ? OR `patientUserId` IN (?, ?)",
@@ -246,10 +247,15 @@ async function main() {
 }
 
 main().catch(error => {
+  const diagnostic = error as Error & { sql?: unknown; code?: unknown };
   console.error(
     JSON.stringify({
       event: "professional.access_receipts.integration.failed",
-      error: error instanceof Error ? error.message : "UnknownError",
+      error: diagnostic.message || "UnknownError",
+      code: diagnostic.code ?? null,
+      sql: typeof diagnostic.sql === "string" ? diagnostic.sql : null,
+      stack: diagnostic.stack ?? null,
+      warnings,
     })
   );
   process.exitCode = 1;
