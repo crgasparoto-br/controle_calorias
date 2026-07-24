@@ -49,14 +49,20 @@ export function sanitizeProfessionalRequestAccessResult(result: unknown) {
 
   if (record.ok) {
     const data = asRecord(record.data);
+    const id = data?.id;
     const status = data?.status;
-    if (typeof status !== "string" || !REQUEST_ACCESS_STATUSES.has(status)) {
+    if (
+      typeof id !== "string" ||
+      !id ||
+      typeof status !== "string" ||
+      !REQUEST_ACCESS_STATUSES.has(status)
+    ) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE,
       });
     }
-    return { ...record, data: { status } };
+    return { ...record, data: { id, status } };
   }
 
   const error = record.error;
