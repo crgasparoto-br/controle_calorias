@@ -1,120 +1,156 @@
-name: Rebuild PR 870 on develop
+name: Agent-first gate
 
 on:
   pull_request:
+  push:
     branches:
+      - main
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  rebuild:
-    if: github.event.pull_request.head.ref == 'sync/870-rebuild-on-develop'
+  agent-check:
+    name: Agent-first gate
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     steps:
-      - name: Checkout synchronized branch
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          ref: sync/870-rebuild-on-develop
-          fetch-depth: 0
+          run_install: false
 
-      - name: Merge validated billing foundation
-        shell: bash
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Tests
         run: |
-          set -Eeuo pipefail
-          exec > >(tee /tmp/sync-870.log) 2>&1
-          trap 'status=$?; echo "exit_status=${status}"; git status --short || true; git diff --name-only --diff-filter=U || true; exit ${status}' EXIT
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin develop feat/869-billing-foundation
-
-          source_sha="2460c9a06b13dccc54184a3a308d6953003707e1"
-          git cat-file -e "${source_sha}^{commit}"
-
-          set +e
-          git merge --no-ff --no-commit "${source_sha}"
-          merge_status=$?
-          set -e
-
-          if [[ "${merge_status}" -ne 0 ]]; then
-            mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
-            printf 'conflicts=%s\n' "${conflicts[*]}"
-
-            expected=("drizzle.config.ts")
-            if [[ "${conflicts[*]}" != "${expected[*]}" ]]; then
-              echo "Unexpected merge conflicts: ${conflicts[*]}" >&2
-              exit 1
-            fi
-
-            cat > drizzle.config.ts <<'EOF'
-          import { defineConfig } from "drizzle-kit";
-
-          const connectionString = process.env.DATABASE_URL;
-
-          if (!connectionString) {
-            throw new Error("DATABASE_URL is required to run drizzle commands");
-          }
-
-          const useSsl = process.env.TIDB_ENABLE_SSL === "true";
-
-          function buildDbCredentials() {
-            if (!useSsl) {
-              return {
-                url: connectionString,
-              };
-            }
-
-            const url = new URL(connectionString);
-
-            return {
-              host: url.hostname,
-              port: Number(url.port || 4000),
-              user: decodeURIComponent(url.username),
-              password: decodeURIComponent(url.password),
-              database: url.pathname.replace(/^\//, ""),
-              ssl: {
-                minVersion: "TLSv1.2",
-              },
-            };
-          }
-
-          export default defineConfig({
-            schema: [
-              "./drizzle/schema.ts",
-              "./drizzle/food-signals-schema.ts",
-              "./drizzle/professional-schema.ts",
-              "./drizzle/billing-schema.ts",
-            ],
-            out: "./drizzle",
-            dialect: "mysql",
-            dbCredentials: buildDbCredentials(),
-          });
-          EOF
-
-            git add drizzle.config.ts
-          fi
-
-          unresolved="$(git diff --name-only --diff-filter=U)"
-          if [[ -n "${unresolved}" ]]; then
-            echo "Unresolved merge conflicts remain:" >&2
-            printf '%s\n' "${unresolved}" >&2
+          if ! pnpm test > /tmp/vitest.log 2>&1; then
+            echo "Vitest failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/vitest.log
             exit 1
           fi
+          tail -n 80 /tmp/vitest.log
 
-          git checkout origin/develop -- .github/workflows/agent-check.yml
-          rm -f .github/workflows/sync-870-develop.yml .github/sync-870-trigger
-          git add -A
-          git diff --check --cached
-          git commit -m "chore: synchronize billing foundation with develop"
-          git push origin HEAD:sync/870-rebuild-on-develop
-
-      - name: Upload synchronization diagnostics
-        if: always()
+      - name: Upload Vitest diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: sync-870-diagnostics-${{ github.sha }}
-          path: /tmp/sync-870.log
-          if-no-files-found: warn
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
           retention-days: 3
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: |
+          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
+            echo "Documentation check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/docs-check.log
+            exit 1
+          fi
+          cat /tmp/docs-check.log
+
+      - name: Upload documentation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-docs-log
+          path: /tmp/docs-check.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Build
+        run: pnpm build
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: CI gate docs check
+        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+      - name: Create verification manifest
+        run: |
+          mkdir -p /tmp/issue-857-verification
+          cat > /tmp/issue-857-verification/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "issue": 857,
+            "repository": "${GITHUB_REPOSITORY}",
+            "commitSha": "${GITHUB_SHA}",
+            "runId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "event": "${GITHUB_EVENT_NAME}",
+            "ref": "${GITHUB_REF}",
+            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat /tmp/issue-857-verification/manifest.json
+
+      - name: Upload verification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-857-verification-${{ github.sha }}
+          path: /tmp/issue-857-verification/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Database integrity check
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          pnpm db:check-integrity
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo "- pnpm db:check-integrity"
+            echo ""
+            echo "Database integrity: executed with DATABASE_URL."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: |
+          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo ""
+            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
