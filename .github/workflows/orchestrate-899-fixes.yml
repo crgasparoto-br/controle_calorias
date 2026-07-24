@@ -39,7 +39,24 @@ jobs:
       - name: Apply orchestrated corrections
         run: python scripts/apply_issue_899_fixes.py
       - name: Focused regressions
-        run: pnpm vitest run server/modules/whatsapp/confirmedMealRegistration.test.ts server/modules/whatsapp/mealIntentDecisionInteraction.test.ts server/modules/whatsapp/foodAssistant.test.ts
+        id: focused
+        shell: bash
+        run: |
+          set +e
+          pnpm vitest run server/modules/whatsapp/confirmedMealRegistration.test.ts server/modules/whatsapp/mealIntentDecisionInteraction.test.ts server/modules/whatsapp/foodAssistant.test.ts > issue899-focused.log 2>&1
+          status=$?
+          cat issue899-focused.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload focused diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-899-focused-diagnostics
+          path: issue899-focused.log
+      - name: Stop after focused failure
+        if: steps.focused.outputs.status != '0'
+        run: exit 1
       - name: TypeScript check
         run: pnpm check
       - name: Architecture check
