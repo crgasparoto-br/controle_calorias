@@ -51,9 +51,15 @@ type MealSnapshot = {
   items: MealItemInput[];
 };
 
+type SugarQuantity = {
+  quantity: number;
+  unit: string;
+};
+
 type BatchReplacementLine = {
   fromFood: string;
   toFood: string;
+  sugarQuantity?: SugarQuantity;
 };
 
 type ResolvedSweetenedReplacement = {
@@ -61,6 +67,7 @@ type ResolvedSweetenedReplacement = {
   itemIndex: number;
   originalFoodName: string;
   resolvedItem: MealItemInput;
+  explicitQuantity: SugarQuantity;
 };
 
 type SequentialReplacementOperation = Extract<
@@ -198,7 +205,7 @@ async function requestNextSugarQuantity(input: {
   userId: number;
   context: CaloricComplementQuantityContext;
   resolvedFoodText: string;
-  explicitQuantity: { quantity: number; unit: string };
+  explicitQuantity: SugarQuantity;
   receivedAt: Date;
 }): Promise<WhatsappIntentResult> {
   const originalText = input.context.originalText?.trim()
@@ -254,7 +261,7 @@ function buildCompletedActionLine(input: {
   action: "register" | "add";
   itemCount: number;
   resolvedItem: MealItemInput;
-  explicitQuantity: { quantity: number; unit: string };
+  explicitQuantity: SugarQuantity;
 }) {
   const verb = input.action === "register" ? "Registrei" : "Adicionei";
   if (input.itemCount === 1) {
@@ -368,6 +375,7 @@ function applyExactResolvedReplacement(input: {
   input.lines.push({
     fromFood: currentItem.foodName,
     toFood: input.replacement.resolvedItem.foodName,
+    sugarQuantity: input.replacement.explicitQuantity,
   });
 }
 
@@ -377,6 +385,7 @@ function applyReplacementBatch(input: {
   primaryItemIndex: number;
   primaryOriginalFoodName: string;
   primaryResolvedItem: MealItemInput;
+  primaryExplicitQuantity: SugarQuantity;
   previouslyResolved: ResolvedSweetenedReplacement[];
   companions: Array<{ fromFood: string; toFood: string }>;
   timeZone: string;
@@ -414,6 +423,7 @@ function applyReplacementBatch(input: {
   lines.push({
     fromFood: primaryItem.foodName,
     toFood: input.primaryResolvedItem.foodName,
+    sugarQuantity: input.primaryExplicitQuantity,
   });
 
   for (const companion of input.companions) {
@@ -456,7 +466,7 @@ async function persistReplacementBatch(input: {
   meals: ExistingMeal[];
   operation: Extract<CaloricComplementQuantityContext["operation"], { kind: "replace_item" }>;
   resolvedItem: MealItemInput;
-  explicitQuantity: { quantity: number; unit: string };
+  explicitQuantity: SugarQuantity;
   timeZone: string;
 }) {
   const sequentialOperation = input.operation as SequentialReplacementOperation;
@@ -466,6 +476,7 @@ async function persistReplacementBatch(input: {
     primaryItemIndex: input.operation.itemIndex,
     primaryOriginalFoodName: input.operation.originalFoodName,
     primaryResolvedItem: input.resolvedItem,
+    primaryExplicitQuantity: input.explicitQuantity,
     previouslyResolved: sequentialOperation.resolvedReplacements ?? [],
     companions: input.operation.companionReplacements ?? [],
     timeZone: input.timeZone,
@@ -485,11 +496,12 @@ async function persistReplacementBatch(input: {
     throw new Error("Nem todas as refeições substituídas puderam ser recarregadas.");
   }
 
-  const actionLines = batch.lines.map(line =>
-    `${line.fromFood} → ${line.toFood}${line.toFood === input.resolvedItem.foodName
-      ? ` com ${input.explicitQuantity.quantity} ${input.explicitQuantity.unit} de açúcar`
-      : ""}.`
-  );
+  const actionLines = batch.lines.map(line => {
+    const sugarSuffix = line.sugarQuantity
+      ? ` com ${line.sugarQuantity.quantity} ${line.sugarQuantity.unit} de açúcar`
+      : "";
+    return `${line.fromFood} → ${line.toFood}${sugarSuffix}.`;
+  });
   const reply = affectedMeals.length === 1
     ? await buildReply({
         userId: input.userId,
@@ -534,7 +546,7 @@ async function continueReplacementClarificationIfNeeded(input: {
   context: CaloricComplementQuantityContext;
   meals: ExistingMeal[];
   resolvedItem: MealItemInput;
-  explicitQuantity: { quantity: number; unit: string };
+  explicitQuantity: SugarQuantity;
   receivedAt: Date;
   timeZone: string;
 }): Promise<WhatsappIntentResult | null> {
@@ -568,6 +580,7 @@ async function continueReplacementClarificationIfNeeded(input: {
       itemIndex: operation.itemIndex,
       originalFoodName: operation.originalFoodName,
       resolvedItem: input.resolvedItem,
+      explicitQuantity: input.explicitQuantity,
     },
   ];
   const nextOperation: SequentialReplacementOperation = {
@@ -607,7 +620,7 @@ export async function persistResolvedCaloricComplement(
   deps: FoodClarificationDependencies,
   userId: number,
   context: CaloricComplementQuantityContext,
-  explicitQuantity: { quantity: number; unit: string } | undefined,
+  explicitQuantity: SugarQuantity | undefined,
   receivedAt: Date,
   timeZone: string,
 ): Promise<WhatsappIntentResult> {
