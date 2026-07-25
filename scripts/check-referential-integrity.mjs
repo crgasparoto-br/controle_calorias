@@ -58,7 +58,6 @@ const checks = [
     name: "mealItems com foodCatalogId inválido",
     sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN foodCatalog f ON f.id = i.foodCatalogId WHERE i.foodCatalogId IS NOT NULL AND f.id IS NULL",
   },
-
   {
     name: "mealMedia sem refeição",
     sql: "SELECT COUNT(*) AS count FROM mealMedia mm LEFT JOIN meals m ON m.id = mm.mealId WHERE m.id IS NULL",
@@ -106,6 +105,10 @@ const checks = [
   {
     name: "whatsappConnections sem usuário",
     sql: "SELECT COUNT(*) AS count FROM whatsappConnections wc LEFT JOIN users u ON u.id = wc.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "telefones WhatsApp ativos duplicados",
+    sql: "SELECT COUNT(*) AS count FROM (SELECT phoneNumber FROM whatsappConnections WHERE status = 'active' GROUP BY phoneNumber HAVING COUNT(*) > 1) duplicate_active_phones",
   },
   {
     name: "appSecrets com updatedByUserId inválido",
