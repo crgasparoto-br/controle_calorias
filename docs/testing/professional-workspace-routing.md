@@ -100,6 +100,9 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
 16. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
 17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+18. Abrir relatório individual somente com `professional_reports` e conversa individual somente com `professional_messages`; nenhuma consulta `professionalRecord.get` pode ser disparada como dependência indireta.
+19. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.
+20. Conferir que a linha do tempo apresenta rótulos de domínio legíveis e nunca expõe o identificador técnico cru de um evento desconhecido.
 
 ## Cabeçalho contextual
 
