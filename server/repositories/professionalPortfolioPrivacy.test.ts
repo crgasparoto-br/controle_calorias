@@ -48,4 +48,20 @@ describe("professional portfolio privacy", () => {
     expect(item.nextReviewAt).not.toBeNull();
     expect(item.hasRecordsInReportPeriod).toBe(true);
   });
+
+  it("keeps review and weighing unavailable for approved access without canonical scheduling data", () => {
+    const item = mapProfessionalPortfolioItem(
+      {
+        ...sensitiveRow,
+        authorizationStatus: "approved",
+        nextReviewAt: null,
+        nextWeighingAt: null,
+      },
+      now
+    );
+
+    expect(item.nextReviewAt).toBeNull();
+    expect(item.nextWeighingAt).toBeNull();
+    expect(item.pendingItems).toBe(0);
+  });
 });
