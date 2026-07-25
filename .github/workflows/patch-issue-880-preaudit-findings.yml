@@ -23,31 +23,13 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          def replace_once(source: str, old: str, new: str, label: str) -> str:
-              if source.count(old) != 1:
-                  raise SystemExit(f"expected one {label}, found {source.count(old)}")
-              return source.replace(old, new, 1)
+          import re
 
           workspace = Path("client/src/pages/professional/ProfessionalPatientWorkspace.tsx")
           source = workspace.read_text(encoding="utf-8")
 
-          sections_anchor = '''const sections: Array<{
-            section: ProfessionalPatientSection;
-            label: string;
-            icon: React.ComponentType<{ className?: string }>;
-          }> = [
-            { section: "record", label: "Resumo", icon: ClipboardList },
-            { section: "assessment", label: "Avaliação", icon: FileText },
-            { section: "goals", label: "Metas", icon: Target },
-            { section: "guidance", label: "Orientações", icon: Send },
-            { section: "notes", label: "Anotações", icon: StickyNote },
-            { section: "reports", label: "Relatórios", icon: Scale },
-            { section: "messages", label: "Mensagens", icon: MessageSquareText },
-            { section: "history", label: "Histórico", icon: History },
-          ];
-          '''
-          history_helpers = sections_anchor + '''
+          if "const historyEventLabels" not in source:
+              helper = '''
           const historyEventLabels: Record<string, string> = {
             access_requested: "Acesso profissional solicitado",
             access_approved: "Acesso profissional aprovado",
@@ -79,28 +61,36 @@ jobs:
             }
             return "Evento profissional registrado";
           }
-          '''
-          source = replace_once(source, sections_anchor, history_helpers, "sections anchor")
+          '''.replace("          ", "")
+              marker = "\ntype AssessmentDraft = {"
+              if marker not in source:
+                  raise SystemExit("AssessmentDraft marker not found")
+              source = source.replace(marker, helper + marker, 1)
 
-          assessment_meta = '''                  <p className="mt-2 text-xs">{formatDate(item.assessedAt)}</p>'''
-          assessment_meta_new = '''                  <p className="mt-2 text-xs text-muted-foreground">
+          source = source.replace(
+              '<p className="mt-2 text-xs">{formatDate(item.assessedAt)}</p>',
+              '''<p className="mt-2 text-xs text-muted-foreground">
                     {item.authorName ?? "Autoria não informada"} · {formatDate(item.assessedAt)}
-                  </p>'''
-          source = replace_once(source, assessment_meta, assessment_meta_new, "assessment metadata")
+                  </p>''',
+              1,
+          )
 
-          note_meta = '''                  <p className="mt-2 text-xs text-muted-foreground">
+          notes_start = source.index("function NotesSection(")
+          notes_end = source.index("function HistorySection(", notes_start)
+          notes = source[notes_start:notes_end]
+          notes = notes.replace(
+              '''<p className="mt-2 text-xs text-muted-foreground">
                     {formatDate(item.createdAt)}
-                  </p>'''
-          note_meta_new = '''                  <p className="mt-2 text-xs text-muted-foreground">
+                  </p>''',
+              '''<p className="mt-2 text-xs text-muted-foreground">
                     {item.authorName ?? "Autoria não informada"} · {formatDate(item.createdAt)}
-                  </p>'''
-          source = replace_once(source, note_meta, note_meta_new, "note metadata")
+                  </p>''',
+              1,
+          )
+          source = source[:notes_start] + notes + source[notes_end:]
+          source = source.replace("{item.label ?? item.eventType}", "{historyEventLabel(item)}", 1)
 
-          raw_history = '''                  {item.label ?? item.eventType}'''
-          safe_history = '''                  {historyEventLabel(item)}'''
-          source = replace_once(source, raw_history, safe_history, "history label")
-
-          query_block = '''  const record = trpc.professionalRecord.get.useQuery(
+          old_query = '''  const record = trpc.professionalRecord.get.useQuery(
             { patientId, page, pageSize: 20 },
             {
               enabled: patientId > 0,
@@ -109,7 +99,7 @@ jobs:
               refetchInterval: 10_000,
             }
           );'''
-          query_block_new = '''  const requiresProfessionalRecord =
+          new_query = '''  const requiresProfessionalRecord =
             section !== "reports" && section !== "messages";
           const record = trpc.professionalRecord.get.useQuery(
             { patientId, page, pageSize: 20 },
@@ -120,24 +110,21 @@ jobs:
               refetchInterval: requiresProfessionalRecord ? 10_000 : false,
             }
           );'''
-          source = replace_once(source, query_block, query_block_new, "record query block")
-
-          loading_guard = '''  if (record.isLoading) {'''
-          source = replace_once(
-              source,
-              loading_guard,
-              '''  if (requiresProfessionalRecord && record.isLoading) {''',
-              "record loading guard",
+          if old_query not in source and "const requiresProfessionalRecord" not in source:
+              raise SystemExit("record query block not found")
+          source = source.replace(old_query, new_query, 1)
+          source = source.replace(
+              "  if (record.isLoading) {",
+              "  if (requiresProfessionalRecord && record.isLoading) {",
+              1,
           )
-          error_guard = '''  if (record.isError || !record.data) {'''
-          source = replace_once(
-              source,
-              error_guard,
-              '''  if (requiresProfessionalRecord && (record.isError || !record.data)) {''',
-              "record error guard",
+          source = source.replace(
+              "  if (record.isError || !record.data) {",
+              "  if (requiresProfessionalRecord && (record.isError || !record.data)) {",
+              1,
           )
 
-          state_block = '''  const trackingStatus = record.data.patient.trackingStatus ?? "not_started";
+          old_state = '''  const trackingStatus = record.data.patient.trackingStatus ?? "not_started";
             const active = trackingStatus === "active";
             const latest = record.data.latestAssessment;
             const transition = (nextStatus: "active" | "paused" | "ended") =>
@@ -146,7 +133,7 @@ jobs:
                 status: nextStatus,
                 reason: transitionReason || undefined,
               });'''
-          state_block_new = '''  const professionalRecord = record.data;
+          new_state = '''  const professionalRecord = record.data;
             const trackingStatus =
               professionalRecord?.patient.trackingStatus ??
               selectedPatient.trackingStatus ??
@@ -161,441 +148,144 @@ jobs:
                 reason: transitionReason || undefined,
               });
             };'''
-          source = replace_once(source, state_block, state_block_new, "record state block")
-
-          if source.count('record={record.data}') != 4:
-              raise SystemExit(f"expected four record props, found {source.count('record={record.data}')}")
-          source = source.replace('record={record.data}', 'record={professionalRecord}', 4)
-          source = replace_once(
-              source,
-              'lastActivityAt={getLatestPatientActivityAt(record.data)}',
-              'lastActivityAt={getLatestPatientActivityAt(professionalRecord ?? {})}',
-              "patient activity header",
+          if old_state not in source and "const professionalRecord = record.data;" not in source:
+              raise SystemExit("record state block not found")
+          source = source.replace(old_state, new_state, 1)
+          source = source.replace("record={record.data}", "record={professionalRecord}")
+          source = source.replace(
+              "lastActivityAt={getLatestPatientActivityAt(record.data)}",
+              "lastActivityAt={getLatestPatientActivityAt(professionalRecord ?? {})}",
+              1,
           )
-          source = replace_once(
-              source,
-              'accessId: record.data.patient.authorizationId,',
-              'accessId: professionalRecord!.patient.authorizationId,',
-              "tracking access id",
-          ) if 'accessId: record.data.patient.authorizationId,' in source else source
 
+          required_workspace_markers = [
+              "const historyEventLabels",
+              "Autoria não informada",
+              "historyEventLabel(item)",
+              "const requiresProfessionalRecord",
+              "enabled: patientId > 0 && requiresProfessionalRecord",
+              "const professionalRecord = record.data;",
+          ]
+          for marker in required_workspace_markers:
+              if marker not in source:
+                  raise SystemExit(f"workspace marker missing after patch: {marker}")
           workspace.write_text(source, encoding="utf-8")
 
           service = Path("server/modules/professionals/recordService.ts")
           source = service.read_text(encoding="utf-8")
-          source = replace_once(
-              source,
-              '''    scope.db.execute(sql`
-                SELECT * FROM professionalAssessments
-                WHERE authorizationId = ${scope.authorizationId}
-                ORDER BY version DESC LIMIT 1`),''',
-              '''    scope.db.execute(sql`
-                SELECT a.*, p.displayName AS authorName
+          source, count = re.subn(
+              r'''SELECT \* FROM professionalAssessments\s+WHERE authorizationId = \$\{scope\.authorizationId\}\s+ORDER BY version DESC LIMIT 1''',
+              '''SELECT a.*, p.displayName AS authorName
                 FROM professionalAssessments a
                 LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId
                 WHERE a.authorizationId = ${scope.authorizationId}
-                ORDER BY a.version DESC LIMIT 1`),''',
-              "latest assessment query",
-          )
-          source = replace_once(
+                ORDER BY a.version DESC LIMIT 1''',
               source,
-              '''    scope.db.execute(sql`
-                SELECT id, version, objective, assessedAt, nextReviewAt, createdAt
-                FROM professionalAssessments
-                WHERE authorizationId = ${scope.authorizationId}
-                ORDER BY version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),''',
-              '''    scope.db.execute(sql`
-                SELECT a.id, a.version, a.objective, a.assessedAt, a.nextReviewAt,
+              count=1,
+          )
+          if count != 1 and "SELECT a.*, p.displayName AS authorName" not in source:
+              raise SystemExit("latest assessment SQL not patched")
+
+          source, count = re.subn(
+              r'''SELECT id, version, objective, assessedAt, nextReviewAt, createdAt\s+FROM professionalAssessments\s+WHERE authorizationId = \$\{scope\.authorizationId\}\s+ORDER BY version DESC LIMIT \$\{input\.pageSize\} OFFSET \$\{offset\}''',
+              '''SELECT a.id, a.version, a.objective, a.assessedAt, a.nextReviewAt,
                   a.createdAt, p.displayName AS authorName
                 FROM professionalAssessments a
                 LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId
                 WHERE a.authorizationId = ${scope.authorizationId}
-                ORDER BY a.version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),''',
-              "assessment history query",
-          )
-          source = replace_once(
+                ORDER BY a.version DESC LIMIT ${input.pageSize} OFFSET ${offset}''',
               source,
-              '''    scope.db.execute(sql`
-                SELECT id, content, createdAt, updatedAt FROM professionalNotes
-                WHERE authorizationId = ${scope.authorizationId}
-                ORDER BY createdAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),''',
-              '''    scope.db.execute(sql`
-                SELECT n.id, n.content, n.createdAt, n.updatedAt,
+              count=1,
+          )
+          if count != 1 and "a.createdAt, p.displayName AS authorName" not in source:
+              raise SystemExit("assessment history SQL not patched")
+
+          source, count = re.subn(
+              r'''SELECT id, content, createdAt, updatedAt FROM professionalNotes\s+WHERE authorizationId = \$\{scope\.authorizationId\}\s+ORDER BY createdAt DESC, id DESC LIMIT \$\{input\.pageSize\} OFFSET \$\{offset\}''',
+              '''SELECT n.id, n.content, n.createdAt, n.updatedAt,
                   p.displayName AS authorName
                 FROM professionalNotes n
                 LEFT JOIN professionalProfiles p ON p.userId = n.professionalUserId
                 WHERE n.authorizationId = ${scope.authorizationId}
                 ORDER BY n.createdAt DESC, n.id DESC
-                LIMIT ${input.pageSize} OFFSET ${offset}`),''',
-              "notes query",
-          )
-          source = replace_once(
+                LIMIT ${input.pageSize} OFFSET ${offset}''',
               source,
-              '''          createdAt: timestamp(latest.createdAt),
-                }''',
-              '''          createdAt: timestamp(latest.createdAt),
-                  authorName: String(latest.authorName ?? "Profissional"),
-                }''',
-              "latest assessment mapping",
+              count=1,
           )
-          source = replace_once(
-              source,
-              '''    assessmentHistory: rows(assessmentHistoryResult).map(row => ({
-                id: String(row.id), version: Number(row.version), objective: String(row.objective ?? ""),
-                assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
-              })),
-              notes: rows(notesResult).map(row => ({
-                id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
-              })),''',
-              '''    assessmentHistory: rows(assessmentHistoryResult).map(row => ({
-                id: String(row.id), version: Number(row.version), objective: String(row.objective ?? ""),
-                assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
-                authorName: String(row.authorName ?? "Profissional"),
-              })),
-              notes: rows(notesResult).map(row => ({
-                id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
+          if count != 1 and "FROM professionalNotes n" not in source:
+              raise SystemExit("notes SQL not patched")
+
+          latest_marker = "          createdAt: timestamp(latest.createdAt),\n"
+          if "authorName: String(latest.authorName" not in source:
+              if latest_marker not in source:
+                  raise SystemExit("latest mapping marker not found")
+              source = source.replace(
+                  latest_marker,
+                  latest_marker + '          authorName: String(latest.authorName ?? "Profissional"),\n',
+                  1,
+              )
+
+          history_mapping = '''      assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
+            })),'''
+          if "assessmentHistory" in source and "authorName: String(row.authorName" not in source[source.index("assessmentHistory"):source.index("notes:")]:
+              if history_mapping not in source:
+                  raise SystemExit("assessment history mapping marker not found")
+              source = source.replace(
+                  history_mapping,
+                  '''      assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
                 authorName: String(row.authorName ?? "Profissional"),
               })),''',
-              "authorship mappings",
-          )
+                  1,
+              )
+
+          notes_mapping = '''      id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
+            })),'''
+          notes_slice = source[source.index("notes:"):source.index("guidances:")]
+          if "authorName: String(row.authorName" not in notes_slice:
+              if notes_mapping not in source:
+                  raise SystemExit("notes mapping marker not found")
+              source = source.replace(
+                  notes_mapping,
+                  '''      id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
+                authorName: String(row.authorName ?? "Profissional"),
+              })),''',
+                  1,
+              )
+
+          for marker in [
+              "LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId",
+              "LEFT JOIN professionalProfiles p ON p.userId = n.professionalUserId",
+              "authorName: String(latest.authorName",
+          ]:
+              if marker not in source:
+                  raise SystemExit(f"record service marker missing after patch: {marker}")
           service.write_text(source, encoding="utf-8")
 
-          visual_script = Path("scripts/render-professional-patient-workspace-visual.sh")
-          source = visual_script.read_text(encoding="utf-8")
-          source = replace_once(
-              source,
-              '''  "Anotações anteriores" \\
-            "Paciente relatou boa adesão"''',
-              '''  "Anotações anteriores" \\
-            "Paciente relatou boa adesão" \\
-            "Nutricionista de validação"''',
-              "notes visual assertion",
-          )
-          visual_script.write_text(source, encoding="utf-8")
+          visual = Path("scripts/render-professional-patient-workspace-visual.sh")
+          source = visual.read_text(encoding="utf-8")
+          if '"Nutricionista de validação"' not in source[source.index('"notes"'):source.index('"history"')]:
+              source = source.replace(
+                  '  "Paciente relatou boa adesão"\n',
+                  '  "Paciente relatou boa adesão" \\\n  "Nutricionista de validação"\n',
+                  1,
+              )
+          visual.write_text(source, encoding="utf-8")
 
           docs = Path("docs/testing/professional-workspace-routing.md")
           source = docs.read_text(encoding="utf-8")
-          docs_anchor = '''17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
-          '''
-          docs_new = docs_anchor + '''18. Abrir relatório individual somente com `professional_reports` e conversa individual somente com `professional_messages`; nenhuma consulta `professionalRecord.get` pode ser disparada como dependência indireta.
-          19. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.
-          20. Conferir que a linha do tempo apresenta rótulos de domínio legíveis e nunca expõe o identificador técnico cru de um evento desconhecido.
-          '''
-          source = replace_once(source, docs_anchor, docs_new, "manual regression tail")
+          if "nenhuma consulta `professionalRecord.get`" not in source:
+              marker = "17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.\n"
+              if marker not in source:
+                  raise SystemExit("documentation regression marker not found")
+              source = source.replace(
+                  marker,
+                  marker
+                  + "18. Abrir relatório individual somente com `professional_reports` e conversa individual somente com `professional_messages`; nenhuma consulta `professionalRecord.get` pode ser disparada como dependência indireta.\n"
+                  + "19. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.\n"
+                  + "20. Conferir que a linha do tempo apresenta rótulos de domínio legíveis e nunca expõe o identificador técnico cru de um evento desconhecido.\n",
+                  1,
+              )
           docs.write_text(source, encoding="utf-8")
-
-          test = Path("client/src/pages/professional/ProfessionalPatientWorkspace.access.test.tsx")
-          test.write_text(r'''// @vitest-environment jsdom
-          import React from "react";
-          import { cleanup, render, screen } from "@testing-library/react";
-          import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-          let location = "/professional/patients/41/reports";
-          let recordData: any = undefined;
-          const setLocation = vi.fn();
-          const getQuery = vi.fn();
-          const invalidateRecord = vi.fn(async () => undefined);
-          const invalidatePortfolio = vi.fn(async () => undefined);
-
-          const mutation = () => ({
-            mutate: vi.fn(),
-            isPending: false,
-            isError: false,
-            error: null,
-          });
-
-          vi.mock("wouter", () => ({
-            useLocation: () => [location, setLocation],
-          }));
-          vi.mock("@/components/ProfessionalLayout", () => ({
-            useProfessionalWorkspace: () => ({
-              selectedPatient: {
-                patientId: 41,
-                displayName: "Paciente autorizado",
-                trackingStatus: "active",
-              },
-            }),
-          }));
-          vi.mock("@/components/ProfessionalMessagesPanel", () => ({
-            default: () => <div>Conversa individual carregada</div>,
-          }));
-          vi.mock("@/components/ProfessionalReportsWorkspace", () => ({
-            default: () => <div>Relatório individual carregado</div>,
-          }));
-          vi.mock("@/components/ProfessionalOfficialGoalCard", () => ({
-            default: () => <div>Metas profissionais</div>,
-          }));
-          vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
-            default: () => <div>Pendências operacionais</div>,
-          }));
-          vi.mock("@/components/professional/ProfessionalUi", () => ({
-            ProfessionalAsyncState: ({ title }: { title: string }) => <div>{title}</div>,
-            ProfessionalLoadingState: ({ label }: { label: string }) => <div>{label}</div>,
-            ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
-            ProfessionalPageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
-              <header><h1>{title}</h1>{actions}</header>
-            ),
-            ProfessionalPatientHeader: ({ trackingStatus }: { trackingStatus: string }) => (
-              <div>Estado do paciente: {trackingStatus}</div>
-            ),
-            ProfessionalSplitLayout: ({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) => (
-              <div>{children}{aside}</div>
-            ),
-          }));
-          vi.mock("@/components/ui/button", () => ({
-            Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-              <button {...props}>{children}</button>
-            ),
-          }));
-          vi.mock("@/components/ui/card", () => ({
-            Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-            CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-            CardDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
-            CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-            CardTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-          }));
-          vi.mock("@/components/ui/input", () => ({
-            Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-          }));
-          vi.mock("@/lib/trpc", () => ({
-            trpc: {
-              useUtils: () => ({
-                professionalRecord: { get: { invalidate: invalidateRecord } },
-                nutrition: { professionals: { portfolio: { invalidate: invalidatePortfolio } } },
-              }),
-              professionalRecord: {
-                get: {
-                  useQuery: (input: unknown, options: unknown) => {
-                    getQuery(input, options);
-                    return {
-                      data: recordData,
-                      isLoading: false,
-                      isError: false,
-                      error: null,
-                      refetch: vi.fn(async () => undefined),
-                    };
-                  },
-                },
-                saveAssessment: { useMutation: mutation },
-                createNote: { useMutation: mutation },
-                createGuidance: { useMutation: mutation },
-                transitionTracking: { useMutation: mutation },
-              },
-            },
-          }));
-
-          function recordFixture() {
-            return {
-              patient: { trackingStatus: "active", authorizationId: "authorization-41" },
-              latestAssessment: null,
-              assessmentHistory: [
-                {
-                  id: "assessment-1",
-                  version: 1,
-                  objective: "Objetivo",
-                  assessedAt: Date.UTC(2026, 6, 20, 12),
-                  authorName: "Nutricionista Teste",
-                },
-              ],
-              notes: [
-                {
-                  id: "note-1",
-                  content: "Conteúdo privado",
-                  createdAt: Date.UTC(2026, 6, 21, 12),
-                  authorName: "Nutricionista Teste",
-                },
-              ],
-              guidances: [],
-              timeline: [
-                {
-                  id: "history-1",
-                  eventType: "private_note_created",
-                  occurredAt: Date.UTC(2026, 6, 21, 12),
-                },
-                {
-                  id: "history-2",
-                  eventType: "unknown_internal_event",
-                  occurredAt: Date.UTC(2026, 6, 20, 12),
-                },
-              ],
-              pagination: { hasMore: false },
-            };
-          }
-
-          beforeEach(() => {
-            location = "/professional/patients/41/reports";
-            recordData = undefined;
-            setLocation.mockReset();
-            getQuery.mockReset();
-          });
-
-          afterEach(cleanup);
-
-          describe("ProfessionalPatientWorkspace access isolation", () => {
-            it("does not require the professional record to render an individual report", async () => {
-              const { default: ProfessionalPatientWorkspace } = await import(
-                "./ProfessionalPatientWorkspace"
-              );
-              render(<ProfessionalPatientWorkspace />);
-
-              expect(screen.getByText("Relatório individual carregado")).toBeTruthy();
-              expect(screen.getByText("Estado do paciente: active")).toBeTruthy();
-              expect(getQuery).toHaveBeenCalledWith(
-                { patientId: 41, page: 1, pageSize: 20 },
-                expect.objectContaining({ enabled: false, refetchInterval: false })
-              );
-            });
-
-            it("does not require the professional record to render an individual conversation", async () => {
-              location = "/professional/patients/41/messages";
-              const { default: ProfessionalPatientWorkspace } = await import(
-                "./ProfessionalPatientWorkspace"
-              );
-              render(<ProfessionalPatientWorkspace />);
-
-              expect(screen.getByText("Conversa individual carregada")).toBeTruthy();
-              expect(getQuery).toHaveBeenCalledWith(
-                { patientId: 41, page: 1, pageSize: 20 },
-                expect.objectContaining({ enabled: false, refetchInterval: false })
-              );
-            });
-
-            it("shows authorship for private notes and assessment versions", async () => {
-              recordData = recordFixture();
-              location = "/professional/patients/41/notes";
-              const { default: ProfessionalPatientWorkspace } = await import(
-                "./ProfessionalPatientWorkspace"
-              );
-              const view = render(<ProfessionalPatientWorkspace />);
-
-              expect(screen.getByText(/Nutricionista Teste ·/)).toBeTruthy();
-
-              location = "/professional/patients/41/assessment";
-              view.rerender(<ProfessionalPatientWorkspace />);
-              expect(screen.getByText(/Nutricionista Teste ·/)).toBeTruthy();
-            });
-
-            it("maps history event identifiers to safe domain labels", async () => {
-              recordData = recordFixture();
-              location = "/professional/patients/41/history";
-              const { default: ProfessionalPatientWorkspace } = await import(
-                "./ProfessionalPatientWorkspace"
-              );
-              render(<ProfessionalPatientWorkspace />);
-
-              expect(screen.getByText("Anotação privada registrada")).toBeTruthy();
-              expect(screen.getByText("Evento profissional registrado")).toBeTruthy();
-              expect(screen.queryByText("private_note_created")).toBeNull();
-              expect(screen.queryByText("unknown_internal_event")).toBeNull();
-            });
-          });
-          '''.replace("          ", ""), encoding="utf-8")
-
-          server_test = Path("server/modules/professionals/recordService.authorship.test.ts")
-          server_test.write_text(r'''import { beforeEach, describe, expect, it, vi } from "vitest";
-
-          const mocks = vi.hoisted(() => ({
-            execute: vi.fn(),
-            getDb: vi.fn(),
-          }));
-
-          vi.mock("../../db", () => ({
-            getDb: mocks.getDb,
-            logPersistenceWarning: vi.fn(),
-          }));
-
-          import { getProfessionalRecord } from "./recordService";
-
-          function collectStrings(value: unknown, seen = new WeakSet<object>()): string[] {
-            if (typeof value === "string") return [value];
-            if (!value || typeof value !== "object") return [];
-            if (seen.has(value)) return [];
-            seen.add(value);
-            if (Array.isArray(value)) {
-              return value.flatMap(item => collectStrings(item, seen));
-            }
-            return Object.values(value as Record<string, unknown>).flatMap(item =>
-              collectStrings(item, seen)
-            );
-          }
-
-          beforeEach(() => {
-            mocks.execute.mockReset();
-            mocks.getDb.mockReset();
-            mocks.getDb.mockResolvedValue({ execute: mocks.execute });
-          });
-
-          describe("getProfessionalRecord authorship", () => {
-            it("joins and returns the author of assessments, notes and guidances", async () => {
-              mocks.execute
-                .mockResolvedValueOnce([[{
-                  authorizationId: "authorization-1",
-                  authorizationStatus: "approved",
-                  trackingStatus: "active",
-                  patientName: "Paciente",
-                  patientEmail: "paciente@example.com",
-                }]])
-                .mockResolvedValueOnce([[{
-                  id: "assessment-latest",
-                  version: 2,
-                  objective: "Objetivo atual",
-                  assessedAt: new Date("2026-07-20T12:00:00Z"),
-                  nextReviewAt: null,
-                  createdAt: new Date("2026-07-20T12:00:00Z"),
-                  authorName: "Nutricionista Autora",
-                }]])
-                .mockResolvedValueOnce([[{
-                  id: "assessment-history",
-                  version: 1,
-                  objective: "Objetivo anterior",
-                  assessedAt: new Date("2026-06-20T12:00:00Z"),
-                  nextReviewAt: null,
-                  createdAt: new Date("2026-06-20T12:00:00Z"),
-                  authorName: "Nutricionista Autora",
-                }]])
-                .mockResolvedValueOnce([[{
-                  id: "note-1",
-                  content: "Nota privada",
-                  createdAt: new Date("2026-07-21T12:00:00Z"),
-                  updatedAt: new Date("2026-07-21T12:00:00Z"),
-                  authorName: "Nutricionista Autora",
-                }]])
-                .mockResolvedValueOnce([[{
-                  id: "guidance-1",
-                  version: 1,
-                  title: "Orientação",
-                  content: "Conteúdo",
-                  visibility: "patient",
-                  deliveryStatus: "sent",
-                  supersedesGuidanceId: null,
-                  createdAt: new Date("2026-07-22T12:00:00Z"),
-                  authorName: "Nutricionista Autora",
-                }]])
-                .mockResolvedValueOnce([[]])
-                .mockResolvedValueOnce([[{ total: 1 }]])
-                .mockResolvedValueOnce([[{ total: 1 }]])
-                .mockResolvedValueOnce([[{ total: 1 }]])
-                .mockResolvedValueOnce([[{ total: 0 }]]);
-
-              const result = await getProfessionalRecord(11, {
-                patientId: 22,
-                page: 1,
-                pageSize: 20,
-              });
-
-              expect(result.latestAssessment?.authorName).toBe("Nutricionista Autora");
-              expect(result.assessmentHistory[0]?.authorName).toBe("Nutricionista Autora");
-              expect(result.notes[0]?.authorName).toBe("Nutricionista Autora");
-              expect(result.guidances[0]?.authorName).toBe("Nutricionista Autora");
-
-              for (const callIndex of [1, 2, 3]) {
-                const queryText = collectStrings(mocks.execute.mock.calls[callIndex]?.[0]).join(" ");
-                expect(queryText).toContain("professionalProfiles");
-                expect(queryText).toContain("authorName");
-              }
-            });
-          });
-          '''.replace("          ", ""), encoding="utf-8")
           PY
 
           git diff --check
@@ -607,9 +297,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
-            client/src/pages/professional/ProfessionalPatientWorkspace.access.test.tsx \
             server/modules/professionals/recordService.ts \
-            server/modules/professionals/recordService.authorship.test.ts \
             scripts/render-professional-patient-workspace-visual.sh \
             docs/testing/professional-workspace-routing.md
           git rm .github/workflows/patch-issue-880-preaudit-findings.yml
