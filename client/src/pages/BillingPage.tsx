@@ -23,11 +23,13 @@ import React from "react";
 import { toast } from "sonner";
 
 const ACCESS_LABELS: Record<string, string> = {
-  active_subscription: "Assinatura própria ativa",
-  sponsored_by_professional: "Cobertura do profissional",
-  active_trial: "Período de avaliação ativo",
   admin_override: "Liberação administrativa",
-  free_access: "Acesso aberto de transição",
+  sponsored_by_professional: "Cobertura do profissional",
+  active_subscription: "Assinatura própria ativa",
+  active_trial: "Período de avaliação ativo",
+  transition_access: "Período de transição",
+  read_only_access: "Acesso somente para leitura",
+  free_access: "Acesso aberto",
   no_access: "Acesso aguardando ativação",
 };
 
@@ -382,15 +384,17 @@ function Detail({
 }: {
   label: string;
   value: string;
-  supporting: string;
+  supporting?: string;
 }) {
   return (
     <div className="rounded-xl border p-4">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{supporting}</p>
+      <p className="mt-2 font-semibold">{value}</p>
+      {supporting ? (
+        <p className="mt-1 text-xs text-muted-foreground">{supporting}</p>
+      ) : null}
     </div>
   );
 }
