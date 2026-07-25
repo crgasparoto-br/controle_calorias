@@ -10,6 +10,7 @@ const USER_IDS = [PROFESSIONAL_USER_ID, PATIENT_USER_ID, OUTSIDER_USER_ID];
 const PROFESSIONAL_PHONE = "5515999998191";
 const PATIENT_PHONE = "5515999998192";
 const MISSING_PHONE = "+55 (15) 99999-8999";
+const DAY_MS = 86_400_000;
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
@@ -46,6 +47,10 @@ function assertPendingReceipt(value: unknown) {
   assert.equal(typeof record.id, "string");
   assert.equal(typeof record.requestedAt, "number");
   assert.deepEqual(Object.keys(record).sort(), ["id", "requestedAt", "status"]);
+}
+
+function timestampAtOffset(offsetMs: number) {
+  return new Date(Math.floor((Date.now() + offsetMs) / 1000) * 1000);
 }
 
 async function main() {
@@ -112,6 +117,20 @@ async function main() {
     const patient = appRouter.createCaller(createContext(PATIENT_USER_ID));
     const outsider = appRouter.createCaller(createContext(OUTSIDER_USER_ID));
 
+    const portfolioInput = (
+      nextReview: "all" | "scheduled" | "due_soon" | "overdue" | "unavailable",
+      authorizationStatus: "pending" | "approved" = "approved"
+    ) => ({
+      search: "",
+      authorizationStatus,
+      trackingStatus: "all" as const,
+      activity: "all" as const,
+      nextReview,
+      page: 1,
+      pageSize: 20,
+      includeHistoricalActivity: true,
+    });
+
     await professional.nutrition.professionals.upsertProfile({
       displayName: "Profissional Fronteira TiDB",
       active: true,
@@ -166,16 +185,9 @@ async function main() {
     assert.equal(JSON.stringify(accesses).includes(PATIENT_PHONE), false);
     assert.equal(JSON.stringify(accesses).includes(String(PATIENT_USER_ID)), false);
 
-    const portfolio = await professional.nutrition.professionals.portfolio({
-      search: "",
-      authorizationStatus: "pending",
-      trackingStatus: "all",
-      activity: "all",
-      nextReview: "all",
-      page: 1,
-      pageSize: 20,
-      includeHistoricalActivity: true,
-    });
+    const portfolio = await professional.nutrition.professionals.portfolio(
+      portfolioInput("all", "pending")
+    );
     assert.equal(portfolio.items.length, 4);
     assert.equal(portfolio.summary.pendingRequests, 4);
     assert.equal(
@@ -202,16 +214,78 @@ async function main() {
     assert.equal(approved.status, "approved");
     assert.equal(approved.patientUserId, PATIENT_USER_ID);
 
-    const afterApproval = await professional.nutrition.professionals.portfolio({
-      search: "",
-      authorizationStatus: "pending",
-      trackingStatus: "all",
-      activity: "all",
-      nextReview: "all",
-      page: 1,
-      pageSize: 20,
-      includeHistoricalActivity: true,
-    });
+    const dueSoonReview = timestampAtOffset(3 * DAY_MS);
+    const overdueReview = timestampAtOffset(-3 * DAY_MS);
+    const overdueWeighing = timestampAtOffset(-DAY_MS);
+    const [trackingUpdate] = await connection.query<mysql.ResultSetHeader>(
+      `UPDATE \`professionalPatientTrackings\`
+       SET \`nextReviewAt\` = ?, \`nextWeighingAt\` = ?
+       WHERE \`professionalUserId\` = ? AND \`patientUserId\` = ?`,
+      [
+        dueSoonReview,
+        overdueWeighing,
+        PROFESSIONAL_USER_ID,
+        PATIENT_USER_ID,
+      ]
+    );
+    assert.equal(
+      trackingUpdate.affectedRows,
+      1,
+      "approval must create one canonical tracking row with operational schedule columns"
+    );
+
+    const scheduled = await professional.nutrition.professionals.portfolio(
+      portfolioInput("scheduled")
+    );
+    assert.equal(scheduled.items.length, 1);
+    assert.equal(scheduled.items[0]?.patientUserId, PATIENT_USER_ID);
+    assert.equal(scheduled.items[0]?.nextReviewAt, dueSoonReview.getTime());
+    assert.equal(scheduled.items[0]?.nextWeighingAt, overdueWeighing.getTime());
+
+    const dueSoon = await professional.nutrition.professionals.portfolio(
+      portfolioInput("due_soon")
+    );
+    assert.equal(dueSoon.items.length, 1);
+    assert.equal(
+      (await professional.nutrition.professionals.portfolio(
+        portfolioInput("overdue")
+      )).items.length,
+      0
+    );
+    assert.equal(
+      (await professional.nutrition.professionals.portfolio(
+        portfolioInput("unavailable")
+      )).items.length,
+      0
+    );
+
+    await connection.query(
+      `UPDATE \`professionalPatientTrackings\`
+       SET \`nextReviewAt\` = ?
+       WHERE \`professionalUserId\` = ? AND \`patientUserId\` = ?`,
+      [overdueReview, PROFESSIONAL_USER_ID, PATIENT_USER_ID]
+    );
+    const overdue = await professional.nutrition.professionals.portfolio(
+      portfolioInput("overdue")
+    );
+    assert.equal(overdue.items.length, 1);
+    assert.equal(overdue.items[0]?.nextReviewAt, overdueReview.getTime());
+
+    await connection.query(
+      `UPDATE \`professionalPatientTrackings\`
+       SET \`nextReviewAt\` = NULL
+       WHERE \`professionalUserId\` = ? AND \`patientUserId\` = ?`,
+      [PROFESSIONAL_USER_ID, PATIENT_USER_ID]
+    );
+    const unavailable = await professional.nutrition.professionals.portfolio(
+      portfolioInput("unavailable")
+    );
+    assert.equal(unavailable.items.length, 1);
+    assert.equal(unavailable.items[0]?.nextReviewAt, null);
+
+    const afterApproval = await professional.nutrition.professionals.portfolio(
+      portfolioInput("all", "pending")
+    );
     assert.equal(
       afterApproval.summary.pendingRequests,
       2,
@@ -238,6 +312,13 @@ async function main() {
         canonicalAuthorizations: authorizationRows.length,
         phoneCovered: true,
         emailCovered: true,
+        scheduleColumnsCovered: ["nextReviewAt", "nextWeighingAt"],
+        reviewFiltersCovered: [
+          "scheduled",
+          "due_soon",
+          "overdue",
+          "unavailable",
+        ],
       })
     );
   } finally {
