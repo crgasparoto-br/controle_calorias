@@ -15,7 +15,9 @@ on:
       - "client/src/lib/professionalRoutes.ts"
       - "client/src/index.css"
       - "visual-tests/professional-home/**"
+      - "visual-tests/professional-patient-workspace/**"
       - "scripts/render-professional-home-visual.sh"
+      - "scripts/render-professional-patient-workspace-visual.sh"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
@@ -26,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,12 +41,16 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Render professional workspace evidence
+      - name: Render professional aggregate evidence
         run: bash scripts/render-professional-home-visual.sh
+      - name: Render professional patient workspace evidence
+        run: bash scripts/render-professional-patient-workspace-visual.sh
       - name: Upload professional workspace screenshots
         uses: actions/upload-artifact@v4
         with:
           name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}
-          path: artifacts/professional-home
+          path: |
+            artifacts/professional-home
+            artifacts/professional-patient-workspace
           if-no-files-found: error
           retention-days: 30
