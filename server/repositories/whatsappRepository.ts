@@ -9,8 +9,19 @@ export type WhatsAppConnectionRecord = typeof whatsappConnections.$inferSelect;
 export type WhatsAppRepository = {
   findAllByUserId(userId: number): Promise<WhatsAppConnectionRecord[]>;
   findAllByPhoneNumber(phoneNumber: string): Promise<WhatsAppConnectionRecord[]>;
-  insert(input: { userId: number; phoneNumber: string; displayName: string | null }): Promise<number>;
-  update(connectionId: number, input: { phoneNumber: string; displayName: string | null; status: "active" }): Promise<void>;
+  insert(input: {
+    userId: number;
+    phoneNumber: string;
+    displayName: string | null;
+  }): Promise<number>;
+  update(
+    connectionId: number,
+    input: {
+      phoneNumber: string;
+      displayName: string | null;
+      status: "active";
+    }
+  ): Promise<void>;
   disable(connectionId: number): Promise<void>;
 };
 
@@ -40,7 +51,10 @@ export function createDrizzleWhatsAppRepository(deps: {
       if (!db) return [];
 
       try {
-        return await db.select().from(whatsappConnections).where(eq(whatsappConnections.phoneNumber, phoneNumber));
+        return await db
+          .select()
+          .from(whatsappConnections)
+          .where(eq(whatsappConnections.phoneNumber, phoneNumber));
       } catch (error) {
         deps.onWarning("WhatsApp connection lookup by phone skipped", error);
         return [];
@@ -54,6 +68,7 @@ export function createDrizzleWhatsAppRepository(deps: {
       const inserted = await db.insert(whatsappConnections).values({
         userId: input.userId,
         phoneNumber: input.phoneNumber,
+        activePhoneKey: input.phoneNumber,
         displayName: input.displayName,
         status: "active",
       });
@@ -68,6 +83,7 @@ export function createDrizzleWhatsAppRepository(deps: {
         .update(whatsappConnections)
         .set({
           phoneNumber: input.phoneNumber,
+          activePhoneKey: input.phoneNumber,
           displayName: input.displayName,
           status: input.status,
         })
@@ -78,7 +94,10 @@ export function createDrizzleWhatsAppRepository(deps: {
       const db = await deps.getDb();
       if (!db) return;
 
-      await db.update(whatsappConnections).set({ status: "disabled" }).where(eq(whatsappConnections.id, connectionId));
+      await db
+        .update(whatsappConnections)
+        .set({ status: "disabled", activePhoneKey: null })
+        .where(eq(whatsappConnections.id, connectionId));
     },
   };
 }
