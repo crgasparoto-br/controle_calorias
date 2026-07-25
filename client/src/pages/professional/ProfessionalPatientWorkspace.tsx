@@ -62,6 +62,41 @@ const sections: Array<{
   { section: "history", label: "Histórico", icon: History },
 ];
 
+const historyEventLabels: Record<string, string> = {
+  access_requested: "Acesso profissional solicitado",
+  access_approved: "Acesso profissional aprovado",
+  access_rejected: "Acesso profissional recusado",
+  access_revoked: "Acesso profissional revogado",
+  access_authorization_whatsapp_sent: "Autorização enviada pelo WhatsApp",
+  access_authorization_whatsapp_failed: "Falha ao enviar autorização pelo WhatsApp",
+  tracking_started: "Acompanhamento iniciado",
+  tracking_resumed: "Acompanhamento retomado",
+  tracking_paused: "Acompanhamento pausado",
+  tracking_ended: "Acompanhamento encerrado",
+  tracking_status_changed: "Situação do acompanhamento alterada",
+  assessment_version_created: "Nova versão da avaliação registrada",
+  private_note_created: "Anotação privada registrada",
+  guidance_created: "Orientação ao paciente registrada",
+  official_goal_activated: "Meta oficial ativada",
+  official_goal_notification_sent: "Notificação da meta enviada",
+  official_goal_notification_failed: "Falha na notificação da meta",
+  professional_message_created: "Mensagem profissional registrada",
+  professional_message_sent: "Mensagem profissional enviada",
+  professional_message_failed: "Falha no envio da mensagem profissional",
+  professional_message_received: "Mensagem do paciente recebida",
+};
+
+function historyEventLabel(item: {
+  label?: string | null;
+  eventType?: string | null;
+}) {
+  if (item.label?.trim()) return item.label;
+  if (item.eventType && historyEventLabels[item.eventType]) {
+    return historyEventLabels[item.eventType];
+  }
+  return "Evento profissional registrado";
+}
+
 type AssessmentDraft = {
   objective: string;
   weightKg: string;
@@ -355,7 +390,9 @@ function AssessmentSection({
                   <p className="mt-1 break-words text-sm text-muted-foreground">
                     {item.objective}
                   </p>
-                  <p className="mt-2 text-xs">{formatDate(item.assessedAt)}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {item.authorName ?? "Autoria não informada"} · {formatDate(item.assessedAt)}
+                  </p>
                 </article>
               ))
             ) : (
@@ -572,7 +609,7 @@ function NotesSection({
                     {item.content}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {formatDate(item.createdAt)}
+                    {item.authorName ?? "Autoria não informada"} · {formatDate(item.createdAt)}
                   </p>
                 </article>
               ))
@@ -648,7 +685,7 @@ function HistorySection({
                 className="grid min-w-0 gap-2 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_auto]"
               >
                 <span className="break-words text-sm font-medium">
-                  {item.label ?? item.eventType}
+                  {historyEventLabel(item)}
                 </span>
                 <time className="text-xs text-muted-foreground">
                   {formatDate(item.occurredAt)}
@@ -720,13 +757,15 @@ export default function ProfessionalPatientWorkspace() {
     if (guard.canNavigate()) setLocation(path);
   };
 
+  const requiresProfessionalRecord =
+    section !== "reports" && section !== "messages";
   const record = trpc.professionalRecord.get.useQuery(
     { patientId, page, pageSize: 20 },
     {
-      enabled: patientId > 0,
+      enabled: patientId > 0 && requiresProfessionalRecord,
       retry: false,
       refetchOnWindowFocus: true,
-      refetchInterval: 10_000,
+      refetchInterval: requiresProfessionalRecord ? 10_000 : false,
     }
   );
   const invalidate = async () => {
@@ -791,14 +830,14 @@ export default function ProfessionalPatientWorkspace() {
       </ProfessionalPage>
     );
   }
-  if (record.isLoading) {
+  if (requiresProfessionalRecord && record.isLoading) {
     return (
       <ProfessionalPage>
         <ProfessionalLoadingState label="Carregando prontuário e contexto do paciente..." />
       </ProfessionalPage>
     );
   }
-  if (record.isError || !record.data) {
+  if (requiresProfessionalRecord && (record.isError || !record.data)) {
     return (
       <ProfessionalPage>
         <ProfessionalAsyncState
@@ -810,15 +849,21 @@ export default function ProfessionalPatientWorkspace() {
     );
   }
 
-  const trackingStatus = record.data.patient.trackingStatus ?? "not_started";
+  const professionalRecord = record.data;
+  const trackingStatus =
+    professionalRecord?.patient.trackingStatus ??
+    selectedPatient.trackingStatus ??
+    "not_started";
   const active = trackingStatus === "active";
-  const latest = record.data.latestAssessment;
-  const transition = (nextStatus: "active" | "paused" | "ended") =>
+  const latest = professionalRecord?.latestAssessment ?? null;
+  const transition = (nextStatus: "active" | "paused" | "ended") => {
+    if (!professionalRecord) return;
     transitionTracking.mutate({
-      accessId: record.data.patient.authorizationId,
+      accessId: professionalRecord.patient.authorizationId,
       status: nextStatus,
       reason: transitionReason || undefined,
     });
+  };
 
   let content: React.ReactNode;
   if (section === "assessment") {
@@ -828,7 +873,7 @@ export default function ProfessionalPatientWorkspace() {
         draft={assessment}
         onDraftChange={setAssessment}
         patientId={patientId}
-        record={record.data}
+        record={professionalRecord}
         save={saveAssessment}
       />
     );
@@ -843,7 +888,7 @@ export default function ProfessionalPatientWorkspace() {
         onContentChange={setGuidance}
         onTitleChange={setGuidanceTitle}
         patientId={patientId}
-        record={record.data}
+        record={professionalRecord}
         title={guidanceTitle}
       />
     );
@@ -855,7 +900,7 @@ export default function ProfessionalPatientWorkspace() {
         create={createNote}
         onContentChange={setNote}
         patientId={patientId}
-        record={record.data}
+        record={professionalRecord}
       />
     );
   } else if (section === "reports") {
@@ -863,13 +908,13 @@ export default function ProfessionalPatientWorkspace() {
   } else if (section === "messages") {
     content = <ProfessionalMessagesPanel />;
   } else if (section === "history") {
-    content = <HistorySection page={page} record={record.data} setPage={setPage} />;
+    content = <HistorySection page={page} record={professionalRecord} setPage={setPage} />;
   } else {
     content = (
       <SummarySection
         active={active}
         patientId={patientId}
-        record={record.data}
+        record={professionalRecord}
         navigate={navigate}
       />
     );
@@ -894,7 +939,7 @@ export default function ProfessionalPatientWorkspace() {
       <ProfessionalPatientHeader
         displayName={selectedPatient.displayName}
         trackingStatus={trackingStatus}
-        lastActivityAt={getLatestPatientActivityAt(record.data)}
+        lastActivityAt={getLatestPatientActivityAt(professionalRecord ?? {})}
         nextReviewAt={latest?.nextReviewAt}
       />
       <PatientSubnav

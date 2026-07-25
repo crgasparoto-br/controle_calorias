@@ -95,18 +95,26 @@ export async function getProfessionalRecord(
     timelineCountResult,
   ] = await Promise.all([
     scope.db.execute(sql`
-      SELECT * FROM professionalAssessments
-      WHERE authorizationId = ${scope.authorizationId}
-      ORDER BY version DESC LIMIT 1`),
+      SELECT a.*, p.displayName AS authorName
+      FROM professionalAssessments a
+      LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId
+      WHERE a.authorizationId = ${scope.authorizationId}
+      ORDER BY a.version DESC LIMIT 1`),
     scope.db.execute(sql`
-      SELECT id, version, objective, assessedAt, nextReviewAt, createdAt
-      FROM professionalAssessments
-      WHERE authorizationId = ${scope.authorizationId}
-      ORDER BY version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+      SELECT a.id, a.version, a.objective, a.assessedAt, a.nextReviewAt,
+        a.createdAt, p.displayName AS authorName
+      FROM professionalAssessments a
+      LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId
+      WHERE a.authorizationId = ${scope.authorizationId}
+      ORDER BY a.version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
     scope.db.execute(sql`
-      SELECT id, content, createdAt, updatedAt FROM professionalNotes
-      WHERE authorizationId = ${scope.authorizationId}
-      ORDER BY createdAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+      SELECT n.id, n.content, n.createdAt, n.updatedAt,
+        p.displayName AS authorName
+      FROM professionalNotes n
+      LEFT JOIN professionalProfiles p ON p.userId = n.professionalUserId
+      WHERE n.authorizationId = ${scope.authorizationId}
+      ORDER BY n.createdAt DESC, n.id DESC
+      LIMIT ${input.pageSize} OFFSET ${offset}`),
     scope.db.execute(sql`
       SELECT g.id, g.version, g.title, g.content, g.visibility, g.deliveryStatus,
         g.supersedesGuidanceId, g.createdAt, p.displayName AS authorName
@@ -157,14 +165,17 @@ export async function getProfessionalRecord(
           assessedAt: timestamp(latest.assessedAt),
           nextReviewAt: timestamp(latest.nextReviewAt),
           createdAt: timestamp(latest.createdAt),
+          authorName: String(latest.authorName ?? "Profissional"),
         }
       : null,
     assessmentHistory: rows(assessmentHistoryResult).map(row => ({
       id: String(row.id), version: Number(row.version), objective: String(row.objective ?? ""),
       assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
+      authorName: String(row.authorName ?? "Profissional"),
     })),
     notes: rows(notesResult).map(row => ({
       id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
+      authorName: String(row.authorName ?? "Profissional"),
     })),
     guidances: rows(guidancesResult).map(row => ({
       id: String(row.id), version: Number(row.version), title: String(row.title ?? ""), content: String(row.content ?? ""),
