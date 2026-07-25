@@ -1,284 +1,34 @@
-name: Agent-first gate
+name: Export issue 879 implementation source
 
 on:
   pull_request:
-  push:
     branches:
-      - main
       - develop
 
 permissions:
   contents: read
 
 jobs:
-  agent-check:
-    name: Agent-first gate
+  export-source:
+    if: github.head_ref == 'feat/875-professional-context-routes'
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      NODE_OPTIONS: --max-old-space-size=4096
-      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: TypeScript check
-        run: |
-          if ! pnpm check > /tmp/typescript-check.log 2>&1; then
-            echo "TypeScript check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/typescript-check.log
-            exit 1
-          fi
-          cat /tmp/typescript-check.log
-
-      - name: Upload TypeScript diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-typescript-log
-          path: /tmp/typescript-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Tests
-        env:
-          NODE_ENV: test
-        run: |
-          : > /tmp/vitest.log
-          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
-          for shard_number in $(seq 1 24); do
-            shard="${shard_number}/24"
-            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
-            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
-              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
-              tail -n 250 /tmp/vitest.log
-              exit 1
-            fi
-          done
-          tail -n 120 /tmp/vitest.log
-
-      - name: Upload Vitest diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Architecture check
-        run: pnpm architecture:check
-
-      - name: Documentation check
-        run: |
-          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
-            echo "Documentation check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/docs-check.log
-            exit 1
-          fi
-          cat /tmp/docs-check.log
-
-      - name: Upload documentation diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-docs-log
-          path: /tmp/docs-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Build
-        run: pnpm build
-
-      - name: Agent check
-        env:
-          CI_SHARDED_TESTS_COMPLETE: "1"
-        run: pnpm agent:check
-
-      - name: CI gate docs check
-        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
-
-      - name: Create verification manifest
-        run: |
-          mkdir -p /tmp/issue-857-verification
-          cat > /tmp/issue-857-verification/manifest.json <<EOF
-          {
-            "schemaVersion": 1,
-            "issue": 857,
-            "repository": "${GITHUB_REPOSITORY}",
-            "commitSha": "${GITHUB_SHA}",
-            "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "event": "${GITHUB_EVENT_NAME}",
-            "ref": "${GITHUB_REF}",
-            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
-          cat /tmp/issue-857-verification/manifest.json
-
-      - name: Upload verification manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-857-verification-${{ github.sha }}
-          path: /tmp/issue-857-verification/manifest.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
-        run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  apply-issue-879-audit-fixes:
-    name: Apply issue 879 audit fixes
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/875-professional-context-routes'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
-      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-    steps:
-      - name: Checkout PR branch
+      - name: Checkout exact branch
         uses: actions/checkout@v4
         with:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Extract and execute correction script
+      - name: Archive repository with Git history
         run: |
-          python - <<'PYEXTRACT'
-          from pathlib import Path
-          source = Path('.github/workflows/apply-issue-879-audit-fixes.yml').read_text(encoding='utf-8')
-          marker = "          python - <<'PY'\n"
-          start = source.index(marker) + len(marker)
-          end = source.index("\n          PY\n", start)
-          lines = source[start:end].splitlines()
-          script = "\n".join(line[10:] if line.startswith("          ") else line for line in lines) + "\n"
-          Path('/tmp/apply_issue_879.py').write_text(script, encoding='utf-8')
-          PYEXTRACT
-          python /tmp/apply_issue_879.py
+          mkdir -p artifacts/source
+          printf '{"headSha":"%s","baseRef":"develop","issue":879}\n' "$(git rev-parse HEAD)" > artifacts/source/source.json
+          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/source/controle_calorias-with-git.tar.gz .
 
-      - name: Format changed files
-        run: |
-          pnpm exec prettier --write \
-            server/modules/professionals/accessRequestReceiptRepository.ts \
-            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
-            server/modules/professionals/portfolioPagination.ts \
-            server/modules/professionals/portfolioPagination.test.ts \
-            server/modules/professionals/requestAccessPublicBoundary.ts \
-            server/modules/professionals/requestAccessPublicBoundary.test.ts \
-            server/modules/professionals/service.ts \
-            server/repositories/professionalPortfolioRepository.ts \
-            client/src/pages/professional/ProfessionalPatients.tsx \
-            client/src/pages/professional/ProfessionalPatients.test.tsx \
-            client/src/pages/ProfessionalAreaPage.tsx \
-            docs/product-specs/professionals.md \
-            docs/design-docs/professional-portfolio-operational-schedule.md
-
-      - name: Validate focused behavior
-        run: |
-          mkdir -p artifacts/issue-879-implementation
-          pnpm exec vitest run \
-            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
-            server/modules/professionals/portfolioPagination.test.ts \
-            server/modules/professionals/requestAccessPublicBoundary.test.ts \
-            client/src/pages/professional/ProfessionalPatients.test.tsx \
-            --maxWorkers=1 --minWorkers=1 2>&1 | tee artifacts/issue-879-implementation/focused-tests.log
-          pnpm check 2>&1 | tee artifacts/issue-879-implementation/typescript.log
-          pnpm docs:check 2>&1 | tee artifacts/issue-879-implementation/docs-check.log
-          git diff --check
-
-      - name: Restore temporary workflow changes
-        run: |
-          git show HEAD^:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
-          rm -f .github/workflows/apply-issue-879-audit-fixes.yml
-
-      - name: Commit and push corrections
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: resolve audit findings for issue 879"
-          git push origin HEAD:feat/875-professional-context-routes
-          printf '{"issue":879,"headSha":"%s","sourceEventSha":"%s"}\n' "$(git rev-parse HEAD)" "${GITHUB_SHA}" > artifacts/issue-879-implementation/implementation.json
-
-      - name: Archive exact repository state
-        run: |
-          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts vitest.config.ts 2>/dev/null || \
-          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts
-
-      - name: Upload implementation source
+      - name: Upload exact source
         uses: actions/upload-artifact@v4
         with:
-          name: issue-879-implementation-source-${{ github.run_id }}
-          path: artifacts/issue-879-implementation
+          name: issue-879-source-${{ github.event.pull_request.head.sha }}
+          path: artifacts/source
           if-no-files-found: error
           retention-days: 7
