@@ -34,29 +34,33 @@ jobs:
 
           page = Path("client/src/pages/professional/ProfessionalPatients.tsx")
           source = page.read_text(encoding="utf-8")
-          old = '''      await Promise.all([
-                utils.nutrition.professionals.myAccesses.invalidate(),
-                portfolio.refetch(),
-              ]);
-              setLocation(
-                `/professional/patients?authorization=${success.authorizationStatus}`,
-                { replace: true }
-              );'''
-          new = '''      setLocation(
-                `/professional/patients?authorization=${success.authorizationStatus}`,
-                { replace: true }
-              );
-              await Promise.allSettled([
-                utils.nutrition.professionals.myAccesses.invalidate(),
-                portfolio.refetch(),
-              ]);'''
+          old = (
+              "      await Promise.all([\n"
+              "        utils.nutrition.professionals.myAccesses.invalidate(),\n"
+              "        portfolio.refetch(),\n"
+              "      ]);\n"
+              "      setLocation(\n"
+              "        `/professional/patients?authorization=${success.authorizationStatus}`,\n"
+              "        { replace: true }\n"
+              "      );"
+          )
+          new = (
+              "      setLocation(\n"
+              "        `/professional/patients?authorization=${success.authorizationStatus}`,\n"
+              "        { replace: true }\n"
+              "      );\n"
+              "      await Promise.allSettled([\n"
+              "        utils.nutrition.professionals.myAccesses.invalidate(),\n"
+              "        portfolio.refetch(),\n"
+              "      ]);"
+          )
           if source.count(old) != 1:
               raise SystemExit("expected one request refresh block")
           page.write_text(source.replace(old, new), encoding="utf-8")
 
           test = Path("client/src/pages/professional/ProfessionalPatients.test.tsx")
           source = test.read_text(encoding="utf-8")
-          anchor = '''  it("keeps an already approved relationship in the approved view", async () => {'''
+          anchor = '  it("keeps an already approved relationship in the approved view", async () => {'
           insertion = '''  it("keeps the persisted success visible when the portfolio refresh fails", async () => {
             window.history.replaceState(
               {},
