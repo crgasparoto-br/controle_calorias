@@ -121,6 +121,7 @@ export function createProfessionalPortfolioRepository(
     }
 
     const now = new Date();
+    const dueSoonUntil = new Date(now.getTime() + 7 * 86_400_000);
     const search = `%${input.search.toLocaleLowerCase("pt-BR")}%`;
     const inactiveBefore = new Date(now.getTime() - 3 * 86_400_000);
     const reportStartDate =
@@ -191,7 +192,10 @@ export function createProfessionalPortfolioRepository(
           OR (a.\`status\` = 'approved' AND ${input.activity} = 'inactive' AND (m.\`lastFoodActivityAt\` < ${inactiveBefore} OR m.\`lastFoodActivityAt\` IS NULL))
           OR (a.\`status\` = 'approved' AND ${input.activity} = 'unavailable' AND m.\`lastFoodActivityAt\` IS NULL))
         AND (${input.nextReview} = 'all'
-          OR (${input.nextReview} = 'unavailable' AND a.\`status\` = 'approved'))
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'scheduled' AND t.\`nextReviewAt\` IS NOT NULL)
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'due_soon' AND t.\`nextReviewAt\` >= ${now} AND t.\`nextReviewAt\` <= ${dueSoonUntil})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'overdue' AND t.\`nextReviewAt\` < ${now})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'unavailable' AND t.\`nextReviewAt\` IS NULL))
       `;
       const baseFrom = sql`
         FROM \`professionalPatientAuthorizations\` a
@@ -214,8 +218,8 @@ export function createProfessionalPortfolioRepository(
             a.\`status\` AS \`authorizationStatus\`,
             CASE WHEN a.\`status\` = 'approved' THEN t.\`status\` ELSE NULL END AS \`trackingStatus\`,
             a.\`requestedAt\`,
-            NULL AS \`nextReviewAt\`,
-            NULL AS \`nextWeighingAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN t.\`nextReviewAt\` ELSE NULL END AS \`nextReviewAt\`,
+            CASE WHEN a.\`status\` = 'approved' THEN t.\`nextWeighingAt\` ELSE NULL END AS \`nextWeighingAt\`,
             CASE WHEN a.\`status\` = 'approved' THEN m.\`lastFoodActivityAt\` ELSE NULL END AS \`lastFoodActivityAt\`,
             CASE WHEN a.\`status\` = 'approved' THEN h.\`lastProfessionalInteractionAt\` ELSE NULL END AS \`lastProfessionalInteractionAt\`,
             CASE WHEN a.\`status\` = 'approved' THEN pm.\`periodRecordCount\` ELSE 0 END AS \`periodRecordCount\`
@@ -233,8 +237,8 @@ export function createProfessionalPortfolioRepository(
             SUM(CASE WHEN a.\`status\` = 'pending' THEN 1 ELSE 0 END) AS \`pendingRequests\`,
             SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0 THEN 1 ELSE 0 END) AS \`activeWithRecentRecords\`,
             SUM(CASE WHEN a.\`status\` = 'approved' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0 THEN 1 ELSE 0 END) AS \`withoutRecentActivity\`,
-            0 AS \`pendingReviews\`,
-            0 AS \`pendingWeighings\`
+            SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`nextReviewAt\` IS NOT NULL AND t.\`nextReviewAt\` <= ${now} THEN 1 ELSE 0 END) AS \`pendingReviews\`,
+            SUM(CASE WHEN a.\`status\` = 'approved' AND t.\`nextWeighingAt\` IS NOT NULL AND t.\`nextWeighingAt\` <= ${now} THEN 1 ELSE 0 END) AS \`pendingWeighings\`
           FROM \`professionalPatientAuthorizations\` a
           LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
           ${periodRecordsJoin}
