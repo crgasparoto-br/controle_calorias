@@ -57,6 +57,11 @@ Eventos assíncronos precisam ser correlacionados ao paciente atual. Queries usa
 
 Avaliação, orientação, anotação e mensagem devem pedir confirmação antes de trocar de rota, paciente, usar voltar/avançar ou fechar a página quando houver conteúdo não salvo.
 
+- Ao escolher permanecer, o workspace e seus campos devem continuar montados com o rascunho preservado.
+- Ao confirmar o descarte, a navegação deve remontar o workspace da rota de destino antes de exibir o próximo formulário, eliminando os estados não salvos da rota anterior.
+- A troca de `patientId` sempre deve remontar o workspace, mesmo quando a seção da URL permanecer igual, para impedir reutilização de rascunho entre pacientes.
+- Salvar ou descartar deve permitir as navegações seguintes sem reapresentar um rascunho já resolvido.
+
 ## Verificação responsiva
 
 Validar visualmente nos cenários definidos pela issue de layout:
@@ -81,8 +86,9 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 9. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
 10. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
 11. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
-12. Criar rascunho, tentar navegar e conferir a confirmação de descarte, inclusive em voltar/avançar.
-13. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
-14. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
-15. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
-16. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+12. Criar rascunho, cancelar a navegação e confirmar sua preservação; repetir confirmando descarte e verificar que o formulário retorna vazio ao voltar, inclusive em subnav, sidebar e voltar/avançar.
+13. Trocar de paciente com rascunho e confirmar que o novo paciente nunca recebe os campos do anterior.
+14. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
+15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
+16. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
+17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
