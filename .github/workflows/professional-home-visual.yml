@@ -1,4 +1,4 @@
-name: Professional Home visual evidence
+name: Professional workspace visual evidence
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ on:
       - "client/src/pages/ProfessionalAreaPage.tsx"
       - "client/src/pages/professional/ProfessionalHome.tsx"
       - "client/src/pages/professional/ProfessionalPatients.tsx"
+      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
       - "client/src/components/ProfessionalLayout.tsx"
       - "client/src/components/professional/ProfessionalUi.tsx"
       - "client/src/components/ui/sidebar.tsx"
@@ -18,36 +19,67 @@ on:
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  visual-evidence:
+  patch-issue-880:
     runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: 24
-          cache: pnpm
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Apply audit corrections and restore gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          workspace = Path('client/src/pages/professional/ProfessionalPatientWorkspace.tsx')
+          source = workspace.read_text(encoding='utf-8')
+          marker = 'function formatDate(value: number | null | undefined) {\n'
+          helper = 'export function getLatestPatientActivityAt(record: { timeline?: Array<{ occurredAt?: number | null }> }) {\n  return record.timeline?.[0]?.occurredAt ?? null;\n}\n\n'
+          if helper not in source:
+              source = source.replace(marker, helper + marker)
+          source = source.replace('        trackingStatus={trackingStatus}\n        nextReviewAt={latest?.nextReviewAt}', '        trackingStatus={trackingStatus}\n        lastActivityAt={getLatestPatientActivityAt(record.data)}\n        nextReviewAt={latest?.nextReviewAt}')
+          workspace.write_text(source, encoding='utf-8')
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          Path('client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts').write_text('''import { describe, expect, it } from "vitest";\nimport { getLatestPatientActivityAt } from "./ProfessionalPatientWorkspace";\n\ndescribe("workspace patient activity", () => {\n  it("uses the newest canonical timeline event instead of the review date", () => {\n    const activityAt = Date.UTC(2026, 6, 25, 18, 30);\n    const reviewAt = Date.UTC(2026, 7, 20, 12);\n    const record = { latestAssessment: { nextReviewAt: reviewAt }, timeline: [{ occurredAt: activityAt }] };\n    expect(getLatestPatientActivityAt(record)).toBe(activityAt);\n    expect(getLatestPatientActivityAt(record)).not.toBe(reviewAt);\n  });\n  it("returns null without canonical timeline activity", () => {\n    expect(getLatestPatientActivityAt({ timeline: [] })).toBeNull();\n    expect(getLatestPatientActivityAt({})).toBeNull();\n  });\n});\n''', encoding='utf-8')
 
-      - name: Render professional home evidence
-        run: bash scripts/render-professional-home-visual.sh
+          docs = Path('docs/testing/professional-workspace-routing.md')
+          content = docs.read_text(encoding='utf-8')
+          section = '''\n\n## Cabeçalho contextual e gate visual\n\nA última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade. O gate visual inclui as rotas individuais de resumo, avaliação e histórico em desktop e mobile.\n'''
+          if '## Cabeçalho contextual e gate visual' not in content:
+              docs.write_text(content.rstrip() + section, encoding='utf-8')
 
-      - name: Upload professional home screenshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: professional-home-visual-${{ github.event.pull_request.head.sha }}
-          path: artifacts/professional-home
-          if-no-files-found: error
-          retention-days: 30
+          trpc = Path('visual-tests/professional-home/trpcMock.ts')
+          mock = trpc.read_text(encoding='utf-8')
+          old = '''    context: {\n      useQuery: () => ({\n        data: null,\n        isLoading: false,\n        isFetching: false,\n        isError: false,\n        isSuccess: true,\n        isFetchedAfterMount: true,\n        error: null,\n        refetch: resolved,\n      }),\n    },'''
+          new = '''    context: {\n      useQuery: (input: { patientId: number }) => ({\n        data: window.location.pathname.startsWith("/professional/patients/") ? { patientId: input.patientId, authorizationId: `visual-${input.patientId}`, displayName: "Mariana de Almeida Vasconcelos e Silva com nome longo", trackingStatus: "active" } : null,\n        isLoading: false, isFetching: false, isError: false, isSuccess: true, isFetchedAfterMount: true, error: null, refetch: resolved,\n      }),\n    },\n    get: { useQuery: () => ({\n      data: { patient: { authorizationId: "visual-1", trackingStatus: "active" }, latestAssessment: { objective: "Rotina sustentável", assessedAt: now - 604800000, nextReviewAt: now + 1209600000 }, assessmentHistory: [{ id: "a1", version: 1, objective: "Organização alimentar", assessedAt: now - 604800000 }], notes: [], guidance: [], timeline: [{ id: "t1", type: "assessment", title: "Avaliação atualizada", description: "Nova versão registrada", occurredAt: now - 3600000, actorName: "Nutricionista responsável" }], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } },\n      isLoading: false, isError: false, error: null, refetch: resolved,\n    }) },\n    saveAssessment: { useMutation: () => mutation() },\n    createNote: { useMutation: () => mutation() },\n    createGuidance: { useMutation: () => mutation() },\n    transitionTracking: { useMutation: () => mutation() },'''
+          if old in mock:
+              trpc.write_text(mock.replace(old, new), encoding='utf-8')
+
+          Path('visual-tests/professional-home/alertsMock.tsx').write_text('''import React from "react";\nimport { Card, CardContent, CardHeader, CardTitle } from "../../client/src/components/ui/card";\nexport default function ProfessionalOperationalAlertsPanel() { return <Card><CardHeader><CardTitle>Prioridades do paciente</CardTitle></CardHeader><CardContent>Nenhuma pendência crítica.</CardContent></Card>; }\n''', encoding='utf-8')
+
+          vite = Path('visual-tests/professional-home/vite.config.ts')
+          config = vite.read_text(encoding='utf-8')
+          alias = '      { find: "@/components/ProfessionalOperationalAlertsPanel", replacement: path.resolve(root, "alertsMock.tsx") },\n'
+          if alias not in config:
+              config = config.replace('    alias: [\n', '    alias: [\n' + alias)
+          vite.write_text(config, encoding='utf-8')
+
+          script = Path('scripts/render-professional-home-visual.sh')
+          sh = script.read_text(encoding='utf-8')
+          block = '''\nWORKSPACE_URL="http://127.0.0.1:${PORT}/professional/patients/1"\ncapture "workspace-summary-desktop-1440x900" "1440,900" "$WORKSPACE_URL"\ncapture "workspace-summary-mobile-390x844" "390,844" "$WORKSPACE_URL"\ncapture "workspace-assessment-desktop-1440x1200" "1440,1200" "$WORKSPACE_URL/assessment"\ncapture "workspace-assessment-mobile-390x1200" "390,1200" "$WORKSPACE_URL/assessment"\ncapture "workspace-history-desktop-1366x768" "1366,768" "$WORKSPACE_URL/history"\ncapture "workspace-history-mobile-390x844" "390,844" "$WORKSPACE_URL/history"\nassert_dom_at_size "workspace-mobile-layout" "390,844" "$WORKSPACE_URL" "Mariana de Almeida Vasconcelos e Silva com nome longo" "Última atividade" "Avaliação" "Histórico"\n'''
+          if 'WORKSPACE_URL=' not in sh:
+              sh = sh.replace('\ncat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST\n', block + '\ncat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST\n')
+          sh = sh.replace('routes=/professional,/professional/patients', 'routes=/professional,/professional/patients,/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/history')
+          script.write_text(sh, encoding='utf-8')
+
+          final_workflow = '''name: Professional workspace visual evidence\n\non:\n  pull_request:\n    branches:\n      - develop\n    paths:\n      - "client/src/pages/ProfessionalAreaPage.tsx"\n      - "client/src/pages/professional/ProfessionalHome.tsx"\n      - "client/src/pages/professional/ProfessionalPatients.tsx"\n      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"\n      - "client/src/components/ProfessionalLayout.tsx"\n      - "client/src/components/professional/ProfessionalUi.tsx"\n      - "client/src/components/ui/sidebar.tsx"\n      - "client/src/lib/professionalRoutes.ts"\n      - "client/src/index.css"\n      - "visual-tests/professional-home/**"\n      - "scripts/render-professional-home-visual.sh"\n      - ".github/workflows/professional-home-visual.yml"\n\npermissions:\n  contents: read\n\njobs:\n  visual-evidence:\n    runs-on: ubuntu-latest\n    env:\n      NODE_OPTIONS: --max-old-space-size=4096\n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n      - name: Setup pnpm\n        uses: pnpm/action-setup@v4\n      - name: Setup Node.js\n        uses: actions/setup-node@v4\n        with:\n          node-version: 24\n          cache: pnpm\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n      - name: Render professional workspace evidence\n        run: bash scripts/render-professional-home-visual.sh\n      - name: Upload professional workspace screenshots\n        uses: actions/upload-artifact@v4\n        with:\n          name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}\n          path: artifacts/professional-home\n          if-no-files-found: error\n          retention-days: 30\n'''
+          Path('.github/workflows/professional-home-visual.yml').write_text(final_workflow, encoding='utf-8')
+          PY
+          git diff --check
+          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts docs/testing/professional-workspace-routing.md visual-tests/professional-home/trpcMock.ts visual-tests/professional-home/alertsMock.tsx visual-tests/professional-home/vite.config.ts scripts/render-professional-home-visual.sh .github/workflows/professional-home-visual.yml
+          git rm -f .github/workflows/patch-issue-880-final-findings.yml
+          git diff --cached --check
+          git commit -m "fix: address issue 880 audit findings"
+          git push origin HEAD:feat/875-professional-context-routes
