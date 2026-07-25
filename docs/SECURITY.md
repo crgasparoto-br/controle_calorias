@@ -20,7 +20,9 @@
 - Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.
 - Retry de notificação de meta só pode ser executado pelo profissional autor e nunca retorna ou registra a justificativa privada.
 - A conclusão pública do onboarding pelo WhatsApp não confirma se e-mail, telefone ou conta existem. Conflitos de conta usam resposta genérica e preservam o token somente enquanto ele continuar válido.
+- Registro público nunca adiciona senha local nem adota identidade preexistente somente pelo conhecimento do e-mail. Conta existente exige login ou recuperação antes de receber novos vínculos.
 - Vincular um lead do WhatsApp a uma conta existente exige sessão autenticada e o token opaco recebido no próprio canal. Claim do lead, verificação de conflito, associação da conta e vínculo do telefone devem ocorrer transacionalmente e não podem trocar um usuário já convertido.
+- Somente um vínculo ativo pode possuir cada telefone normalizado. A migration preserva históricos desativados, mantém o registro ativo mais recente em duplicidades legadas e instala índice único sobre a chave virtual dos vínculos ativos.
 - `completion_error_code` usa vocabulário fechado. Mensagens de exceção, e-mail, telefone, senha, token e detalhes de banco não podem ser persistidos nesse campo.
 - Retornos após login aceitam somente caminhos internos da aplicação; URLs absolutas, protocol-relative ou normalizadas para outro origin devem ser rejeitadas.
 
