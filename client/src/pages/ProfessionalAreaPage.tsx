@@ -16,7 +16,7 @@ export default function ProfessionalAreaPage() {
 
   let content: React.ReactNode;
   if (patientRoute.kind === "patient") {
-    content = <ProfessionalPatientRouteGuard key={pathname} />;
+    content = <ProfessionalPatientRouteGuard />;
   } else if (pathname === "/professional/patients") {
     content = <ProfessionalPatients />;
   } else if (pathname === "/professional/reports") {
