@@ -50,9 +50,10 @@ jobs:
               if not match:
                   raise SystemExit("request refresh block not found")
               indent = match.group("indent")
+              dollar = "$"
               replacement = (
                   f"{indent}setLocation(\n"
-                  f"{indent}  `/professional/patients?authorization=${{success.authorizationStatus}}`,\n"
+                  f"{indent}  `/professional/patients?authorization={dollar}{{success.authorizationStatus}}`,\n"
                   f"{indent}  {{ replace: true }}\n"
                   f"{indent});\n"
                   f"{indent}await Promise.allSettled([\n"
