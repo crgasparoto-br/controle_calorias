@@ -139,6 +139,8 @@ export const billingEntitlements = mysqlTable(
       "subscription",
       "professional_coverage",
       "trial",
+      "transition",
+      "read_only",
       "free_access",
       "admin_override",
     ]).notNull(),
