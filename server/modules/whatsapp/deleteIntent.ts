@@ -11,6 +11,8 @@ import { formatWhatsAppConsolidationDateKey } from "./mealConsolidation";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import { formatDayMealListReply } from "./mealListIntent";
+import { sequencedTextReply } from "./replyContract";
 import { getRecentConversationTurns } from "./conversationHistory";
 import {
   detectWhatsappDeleteIntent,
@@ -580,11 +582,23 @@ function buildBlockedConfirmationResult(input: {
   } satisfies WhatsappDeleteIntentResult;
 }
 
+async function buildUpdatedDayMealListReply(
+  userId: number,
+  referenceOccurredAt: number | string | Date,
+  timeZone: string,
+  now: Date,
+) {
+  const meals = await listMeals(userId);
+  return formatDayMealListReply(meals, new Date(referenceOccurredAt), timeZone, now);
+}
+
 async function confirmPendingDelete(
   userId: number,
   pending: PendingDeleteIntent,
   timeZone: string,
+  receivedAt?: Date,
 ): Promise<WhatsappDeleteIntentResult> {
+  const now = receivedAt ?? new Date();
   const currentMeal = (await listMeals(userId)).find(meal => meal.id === pending.mealId);
   if (!currentMeal) {
     return buildBlockedConfirmationResult({
@@ -647,10 +661,13 @@ async function confirmPendingDelete(
   const nextItems = currentMeal.items.filter((_item, index) => index !== resolvedItemIndex);
   if (!nextItems.length) {
     await removeMeal(userId, currentMeal.id);
+    const reply = `Removi ${item.foodName}. Como era o único item, excluí também a refeição ${currentMeal.mealLabel}.`;
+    const dayListReply = await buildUpdatedDayMealListReply(userId, currentMeal.occurredAt, timeZone, now);
     return {
       handled: true,
       action: "meal_deleted",
-      reply: `Removi ${item.foodName}. Como era o único item, excluí também a refeição ${currentMeal.mealLabel}.`,
+      reply,
+      interactiveReply: sequencedTextReply([reply, dayListReply]),
       eventType: "whatsapp.intent.meal_deleted_after_last_item_removed",
       detail: `Último alimento da refeição ${currentMeal.id} removido após confirmação; refeição excluída.`,
       data: buildRoutingData({
@@ -670,18 +687,22 @@ async function confirmPendingDelete(
     items: nextItems as MealItemInput[],
   });
 
+  const reply = await composeWhatsAppMealActionReply({
+    userId,
+    meal: updatedMeal,
+    timeZone,
+    options: {
+      title: "Alimento removido",
+      actionLines: [`Removi ${item.foodName} da refeição ${currentMeal.mealLabel}.`],
+    },
+  });
+  const dayListReply = await buildUpdatedDayMealListReply(userId, updatedMeal.occurredAt, timeZone, now);
+
   return {
     handled: true,
     action: "meal_item_deleted",
-    reply: await composeWhatsAppMealActionReply({
-      userId,
-      meal: updatedMeal,
-      timeZone,
-      options: {
-        title: "Alimento removido",
-        actionLines: [`Removi ${item.foodName} da refeição ${currentMeal.mealLabel}.`],
-      },
-    }),
+    reply,
+    interactiveReply: sequencedTextReply([reply, dayListReply]),
     eventType: "whatsapp.intent.meal_item_deleted",
     detail: `Alimento ${item.foodName} removido da refeição ${currentMeal.id} após confirmação por mensagem no WhatsApp.`,
     data: buildRoutingData({
@@ -704,6 +725,7 @@ async function resolveActiveDeletePending(
   normalized: string,
   pending: PendingDeleteOperation,
   timeZone: string,
+  receivedAt?: Date,
 ): Promise<WhatsappDeleteIntentResult | null> {
   if (isCancellationText(normalized)) {
     const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION);
@@ -745,7 +767,7 @@ async function resolveActiveDeletePending(
   if (!isConfirmationText(normalized)) return null;
   const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION);
   if (claim.status !== "claimed") return null;
-  return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent, timeZone);
+  return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent, timeZone, receivedAt);
 }
 
 async function supersedeActivePendingOperations(userId: number, receivedAt?: Date) {
@@ -774,7 +796,7 @@ async function executeWhatsappDeleteIntentInternal(
   if (pendingRow?.type === PENDING_DELETE_TYPE) {
     const pending = pendingRow.target as PendingDeleteOperation;
     if (isCompatiblePendingResponse(normalized, pending)) {
-      const result = await resolveActiveDeletePending(userId, normalized, pending, timeZone);
+      const result = await resolveActiveDeletePending(userId, normalized, pending, timeZone, input.receivedAt);
       return result ?? buildCallbackResourceNotFoundResult();
     }
     if (!detection) {

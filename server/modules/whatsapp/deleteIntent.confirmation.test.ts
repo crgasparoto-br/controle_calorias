@@ -372,6 +372,49 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     expect(removeMealMock).not.toHaveBeenCalled();
   });
 
+  it("reenvia a lista de refeições do dia atualizada após excluir um alimento", async () => {
+    const breakfast = {
+      id: 30,
+      mealLabel: "Café da manhã",
+      occurredAt: "2026-06-23T08:43:00.000Z",
+      notes: null,
+      items: [
+        { foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 },
+        { foodName: "Pão francês", portionText: "50 g", calories: 150, protein: 5, carbs: 28, fat: 1.5 },
+      ],
+    };
+    listMealsMock.mockResolvedValueOnce([breakfast]);
+    updateMealMock.mockImplementation(async (_userId, input) => ({ ...breakfast, ...input }));
+
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Excluir o café",
+      receivedAt: new Date("2026-06-23T09:00:00.000Z"),
+    });
+    expect(request?.reply).toContain("Encontrei o item Café em Café da manhã");
+
+    // 1ª chamada dentro da confirmação: localiza o item ainda presente para removê-lo.
+    listMealsMock.mockResolvedValueOnce([breakfast]);
+    // 2ª chamada: usada pela lista do dia reenviada após a exclusão, já sem o café (persistência simulada).
+    const breakfastAfterDeletion = { ...breakfast, items: [breakfast.items[1]] };
+    listMealsMock.mockResolvedValueOnce([breakfastAfterDeletion]);
+
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "sim",
+      receivedAt: new Date("2026-06-23T09:01:00.000Z"),
+    });
+
+    expect(confirmation).toEqual(expect.objectContaining({ action: "meal_item_deleted" }));
+    expect(confirmation?.interactiveReply?.messages).toHaveLength(2);
+    expect(confirmation?.interactiveReply?.messages[0]).toEqual(
+      expect.objectContaining({ type: "text", body: confirmation?.reply }),
+    );
+    const dayListMessage = confirmation?.interactiveReply?.messages[1];
+    expect(dayListMessage?.type).toBe("text");
+    expect((dayListMessage as { body: string }).body).toContain("Alimentos registrados hoje");
+    expect((dayListMessage as { body: string }).body).toContain("Pão francês");
+    expect((dayListMessage as { body: string }).body).not.toContain("Café —");
+  });
+
   it("mantém 'excluir o café da manhã' apontando para a refeição inteira", async () => {
     const breakfast = {
       id: 21,
