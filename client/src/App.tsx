@@ -1,6 +1,8 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NutritionGoalPreviewValidityBridge from "./components/NutritionGoalPreviewValidityBridge";
@@ -19,7 +21,9 @@ import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreet
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
 
+const AdminBillingPage = lazy(() => import("@/pages/AdminBillingPage"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
 const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"));
 const FoodsPage = lazy(() => import("@/pages/FoodsPage"));
 const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
@@ -44,7 +48,9 @@ const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
-const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
+const SyncedHealthDataPage = lazy(
+  () => import("@/pages/SyncedHealthDataPage")
+);
 const WhatsappOnboardingPage = lazy(
   () => import("@/pages/WhatsappOnboardingPage")
 );
@@ -65,6 +71,45 @@ function RetiredProfessionalBookmarkRedirect() {
   const [, setLocation] = useLocation();
   useEffect(() => setLocation("/professional"), [setLocation]);
   return <PageLoadingFallback />;
+}
+
+function AdminAccessBoundary({ children }: { children: ReactNode }) {
+  const { loading, user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (loading) return <PageLoadingFallback />;
+  if (user?.role === "admin") return <>{children}</>;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-lg rounded-2xl border bg-card p-8 text-center shadow-sm">
+        <h1 className="text-xl font-semibold">Área administrativa restrita</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Sua conta não possui permissão administrativa. Nenhum dado comercial
+          ou operacional foi exibido.
+        </p>
+        <Button className="mt-6" onClick={() => setLocation("/today")}>
+          Voltar ao início
+        </Button>
+      </div>
+    </main>
+  );
+}
+
+function AdminRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminPage />
+    </AdminAccessBoundary>
+  );
+}
+
+function AdminBillingRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminBillingPage />
+    </AdminAccessBoundary>
+  );
 }
 
 export function professionalResourceForPath(
@@ -129,7 +174,7 @@ function Router() {
           path="/onboarding/whatsapp/:token"
           component={WhatsappOnboardingPage}
         />
-        <Route path="/" component={Home} />
+        <Route path="/billing" component={BillingPage} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/settings" component={OnboardingPage} />
@@ -168,8 +213,10 @@ function Router() {
           component={ProfessionalSettingsRoute}
         />
         <Route path="/professional" component={ProfessionalWorkspaceRoute} />
-        <Route path="/admin" component={AdminPage} />
+        <Route path="/admin/billing" component={AdminBillingRoute} />
+        <Route path="/admin" component={AdminRoute} />
         <Route path="/404" component={NotFound} />
+        <Route path="/" component={Home} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
