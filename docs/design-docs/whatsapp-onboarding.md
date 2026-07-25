@@ -37,6 +37,21 @@ O estado persistido acompanha a situação real:
 
 A migration `0037_whatsapp_onboarding_activation.sql` adiciona os estados de conversão/ativação, a origem da ativação, a data de ativação e um código sanitizado para recuperação operacional.
 
+## Conta existente e retomada autenticada
+
+Quando o e-mail informado na conclusão pública já pertence a uma conta, a procedure não confirma publicamente que a conta existe. Ela retorna uma orientação genérica e devolve o lead para `pending_onboarding`, preservando o mesmo token enquanto ele continuar válido.
+
+A continuação ocorre por `auth.whatsappOnboarding.linkExistingAccount({ token })` e exige simultaneamente:
+
+1. sessão autenticada da conta que receberá o vínculo;
+2. token opaco recebido no telefone pelo WhatsApp, usado como prova de posse do canal;
+3. lead pendente, não expirado e ainda não associado a outra conta;
+4. ausência de vínculo ativo do mesmo telefone com outro usuário.
+
+No banco, o lead é bloqueado por `FOR UPDATE`; claim do token, verificação de conflito, ativação ou criação da conexão em `whatsappConnections` e associação de `converted_user_id` são executados na mesma transação. A chave única do telefone no lead serializa tentativas concorrentes do mesmo número. Repetição pelo mesmo usuário é idempotente; tentativa por outra conta retorna resposta genérica e não troca o vínculo.
+
+Esse caminho não cria nova conta, perfil, trial, transição, assinatura ou entitlement. O perfil, o histórico nutricional, a elegibilidade e os consentimentos válidos da conta autenticada não são sobrescritos. Depois do vínculo, a elegibilidade central define `continue` ou `await_activation`, e a saudação continua protegida pelo contrato de envio único.
+
 ## Ativação comercial posterior
 
 `activateWhatsappOnboardingUser(userId, source)` é a orquestração idempotente usada depois que uma condição válida surge.
@@ -100,13 +115,16 @@ Mensagem enviada:
 - O token é armazenado como SHA-256 e expira em 24 horas.
 - O consumo usa atualização condicional; somente uma conclusão pendente pode vencer.
 - O telefone exibido na página pública é mascarado.
+- A conclusão pública não informa se o e-mail pertence a uma conta existente.
+- O vínculo com conta existente exige sessão autenticada e o token recebido pelo próprio WhatsApp.
+- Conflito de telefone ou de conta retorna resposta genérica, sem identificar o usuário associado.
 - O telefone informado na aba Perfil é tratado como dado pessoal sensível para logs e mensagens de erro.
 - O fluxo exige aceite de termos, política de privacidade, tratamento de dados necessários ao serviço e comunicação operacional pelo WhatsApp.
 - Marketing pelo WhatsApp é opt-in separado e opcional.
 - A saudação web exige consentimento operacional específico antes do envio.
 - Logs do serviço usam telefone mascarado nos eventos novos do onboarding.
 - A resposta de acesso pendente não informa plano, dívida, valor ou motivo financeiro detalhado.
-- Códigos de falha persistidos são limitados e não incluem senha, token, telefone ou dados de saúde.
+- `completion_error_code` usa vocabulário fechado; mensagens de exceção, e-mail, telefone, senha e token nunca são persistidos nesse campo.
 
 ## Persistência
 
@@ -123,7 +141,7 @@ Campos principais:
 - `token_used_at`: claim único do link;
 - `converted_user_id` e `converted_at`: vínculo com o usuário convertido;
 - `activation_source` e `activated_at`: fonte e momento da ativação comercial;
-- `completion_error_code`: código sanitizado da última falha recuperável;
+- `completion_error_code`: código sanitizado e pertencente ao vocabulário fechado da última falha recuperável;
 - `last_message_at`: atualização operacional para mensagens repetidas do mesmo telefone.
 
 A compatibilidade de runtime apenas verifica a estrutura em produção. Mudanças estruturais devem ser aplicadas por migrations versionadas antes do deploy.
@@ -135,14 +153,17 @@ A saudação do onboarding web usa `userPreferences` com a chave `whatsapp_web_g
 Rotas tRPC públicas em `auth.whatsappOnboarding`:
 
 - `validate({ token })`: valida o token e retorna telefone mascarado, status e expiração;
-- `complete({ token, email, password, profile, consents })`: cria ou retoma a conta, salva onboarding, vincula WhatsApp, inicia sessão e retorna `{ user, eligibility, nextAction, resumed }`.
+- `complete({ token, email, password, profile, consents })`: cria ou retoma uma conta nova, salva onboarding, vincula WhatsApp, inicia sessão e retorna `{ user, eligibility, nextAction, resumed }`; conflito com conta existente usa resposta genérica e mantém o token retomável.
 
 Rotas tRPC protegidas:
 
+- `auth.whatsappOnboarding.linkExistingAccount({ token })`: associa transacionalmente o telefone provado pelo token à conta autenticada, sem sobrescrever perfil, histórico ou consentimentos;
 - `billing.subscriptionStatus`: consulta a origem efetiva, assinatura própria e capacidade profissional sem depender da liberação dos demais recursos;
 - `billing.refreshOnboardingActivation`: reavalia a elegibilidade e conclui uma ativação pendente sem confiar em estado do cliente;
 - `auth.sendWhatsappGreeting({ acceptedOperationalWhatsapp })`: envia ou registra skip da saudação inicial para usuário logado com WhatsApp vinculado;
 - `nutrition.whatsapp.upsertConnection({ phoneNumber, displayName })`: vincula o telefone do usuário final à conta logada e impede uso do número oficial da solução como telefone pessoal.
+
+`auth.whatsappOnboarding.linkExistingAccount` é a única exceção de onboarding autenticado à policy de billing enquanto o acesso comercial estiver pendente. Rotas com prefixo ou nome semelhante não são liberadas.
 
 ## Validação
 
@@ -151,6 +172,12 @@ Rotas tRPC protegidas:
 - Token inválido, expirado ou usado mostra estado de erro amigável.
 - Duas conclusões concorrentes não criam duas contas.
 - Falha posterior à criação da conta pode ser retomada sem registrar outro usuário.
+- Conflito com conta existente não revela publicamente se o e-mail está cadastrado e mantém o token válido para retomada.
+- Uma conta autenticada pode consumir o token e vincular o telefone exatamente uma vez.
+- Duas contas concorrentes não conseguem consumir o mesmo lead nem trocar o usuário convertido.
+- Telefone já vinculado a outro usuário produz erro público genérico e nenhuma mutação parcial.
+- O vínculo de conta existente não sobrescreve perfil, metas, histórico ou consentimentos.
+- Mensagem de exceção com e-mail, telefone ou token é reduzida a `ONBOARDING_COMPLETION_FAILED` antes da persistência.
 - Cadastro sem consentimentos obrigatórios é recusado.
 - `open_access` conclui o cadastro, retorna `continue` e envia a saudação uma única vez.
 - Elegibilidade negada persiste `pending_activation`, retorna `await_activation` e não envia saudação.
