@@ -18,6 +18,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Checkout repository
@@ -113,15 +114,15 @@ jobs:
       - name: CI gate docs check
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
 
-      - name: Create verification manifest
+      - name: Create exact-head verification manifest
         run: |
-          mkdir -p /tmp/issue-857-verification
-          cat > /tmp/issue-857-verification/manifest.json <<EOF
+          mkdir -p /tmp/agent-first-verification
+          cat > /tmp/agent-first-verification/manifest.json <<EOF
           {
-            "schemaVersion": 1,
-            "issue": 857,
+            "schemaVersion": 2,
             "repository": "${GITHUB_REPOSITORY}",
-            "commitSha": "${GITHUB_SHA}",
+            "headSha": "${VERIFICATION_HEAD_SHA}",
+            "checkoutSha": "${GITHUB_SHA}",
             "runId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
@@ -129,13 +130,14 @@ jobs:
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
-          cat /tmp/issue-857-verification/manifest.json
+          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
+          cat /tmp/agent-first-verification/manifest.json
 
-      - name: Upload verification manifest
+      - name: Upload exact-head verification manifest
         uses: actions/upload-artifact@v4
         with:
-          name: issue-857-verification-${{ github.sha }}
-          path: /tmp/issue-857-verification/manifest.json
+          name: agent-first-verification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/agent-first-verification/manifest.json
           if-no-files-found: error
           retention-days: 30
 
