@@ -1,0 +1,73 @@
+name: Patch issue 880 audit findings
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-issue-880-audit-findings.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Apply issue 880 audit corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workspace = Path('client/src/pages/professional/ProfessionalPatientWorkspace.tsx')
+          source = workspace.read_text(encoding='utf-8')
+
+          old_note = '''                  <p className="mt-2 text-xs text-muted-foreground">\n                    {formatDate(item.createdAt)}\n                  </p>'''
+          new_note = '''                  <p className="mt-2 text-xs text-muted-foreground">\n                    {item.authorName ?? "Autoria não informada"} · {formatDate(item.createdAt)}\n                  </p>'''
+          if source.count(old_note) != 1:
+              raise SystemExit('expected one private-note metadata block')
+          source = source.replace(old_note, new_note)
+
+          old_header = '''      <ProfessionalPatientHeader\n        displayName={selectedPatient.displayName}\n        trackingStatus={trackingStatus}\n        nextReviewAt={latest?.nextReviewAt}\n      />'''
+          new_header = '''      <ProfessionalPatientHeader\n        displayName={selectedPatient.displayName}\n        trackingStatus={trackingStatus}\n        lastActivityAt={record.data.timeline[0]?.occurredAt}\n        nextReviewAt={latest?.nextReviewAt}\n      />'''
+          if source.count(old_header) != 1:
+              raise SystemExit('expected one patient header block')
+          workspace.write_text(source.replace(old_header, new_header), encoding='utf-8')
+
+          test = Path('client/src/pages/ProfessionalPatientWorkspace.auditFindings.test.ts')
+          test.write_text('''import { describe, expect, it } from "vitest";\nimport source from "./ProfessionalPatientWorkspace.tsx?raw";\n\ndescribe("ProfessionalPatientWorkspace audit regressions", () => {\n  it("feeds the canonical latest timeline event into the patient header", () => {\n    expect(source).toContain("lastActivityAt={record.data.timeline[0]?.occurredAt}");\n  });\n\n  it("renders canonical note authorship together with its date", () => {\n    expect(source).toContain('item.authorName ?? "Autoria não informada"');\n    expect(source).toContain("formatDate(item.createdAt)");\n  });\n});\n''', encoding='utf-8')
+
+          docs = Path('docs/testing/professional-workspace-routing.md')
+          documentation = docs.read_text(encoding='utf-8')
+          addition = '''\n\n## Evidência do cabeçalho e autoria — issue #880\n\n- O cabeçalho contextual usa o evento mais recente da linha do tempo canônica (`timeline[0].occurredAt`) como última atividade; ausência permanece como **Não informado**.\n- Anotações privadas exibem autoria canônica e data. Quando dados históricos não possuírem autoria, a interface mostra **Autoria não informada** sem inferir identidade.\n- A evidência visual do workspace deve cobrir desktop e mobile, subnavegação com overflow horizontal, nomes longos, avaliação extensa e histórico paginado.\n'''
+          if '## Evidência do cabeçalho e autoria — issue #880' not in documentation:
+              docs.write_text(documentation.rstrip() + addition, encoding='utf-8')
+
+          workflow = Path('.github/workflows/professional-home-visual.yml')
+          visual = workflow.read_text(encoding='utf-8')
+          anchor = '      - "client/src/pages/ProfessionalAreaPage.tsx"\n'
+          extra = '      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"\n      - "docs/testing/professional-workspace-routing.md"\n'
+          if extra not in visual:
+              if visual.count(anchor) != 1:
+                  raise SystemExit('expected visual workflow path anchor')
+              workflow.write_text(visual.replace(anchor, anchor + extra), encoding='utf-8')
+          PY
+          git diff --check
+          pnpm install --frozen-lockfile
+          pnpm exec vitest run client/src/pages/ProfessionalPatientWorkspace.auditFindings.test.ts --maxWorkers=1 --minWorkers=1
+          pnpm check
+          pnpm docs:check
+      - name: Commit corrections and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/ProfessionalPatientWorkspace.auditFindings.test.ts docs/testing/professional-workspace-routing.md .github/workflows/professional-home-visual.yml
+          git rm .github/workflows/patch-issue-880-audit-findings.yml
+          git diff --cached --check
+          git commit -m "fix: address issue 880 audit findings"
+          git push origin HEAD:feat/875-professional-context-routes
