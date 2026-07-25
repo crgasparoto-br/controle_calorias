@@ -25,6 +25,23 @@ async function loadMigration(fileName: string) {
   return readFile(path.join(process.cwd(), "drizzle", fileName), "utf8");
 }
 
+function isDuplicateEntryError(error: unknown) {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (typeof current !== "object") return false;
+    const candidate = current as {
+      code?: string;
+      errno?: number;
+      cause?: unknown;
+    };
+    if (candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
 async function main() {
   const setup = await mysql.createConnection(connectionOptions());
   try {
@@ -39,11 +56,16 @@ async function main() {
         id int AUTO_INCREMENT NOT NULL,
         userId int NOT NULL,
         phoneNumber varchar(32) NOT NULL,
+        activePhoneKey varchar(32)
+          GENERATED ALWAYS AS (
+            CASE WHEN status = 'active' THEN phoneNumber ELSE NULL END
+          ) STORED,
         displayName varchar(255),
         status enum('pending','active','disabled') NOT NULL DEFAULT 'pending',
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        CONSTRAINT whatsappConnections_id PRIMARY KEY(id)
+        CONSTRAINT whatsappConnections_id PRIMARY KEY(id),
+        CONSTRAINT whatsappConnections_activePhoneKey_unique_idx UNIQUE(activePhoneKey)
       );
       CREATE INDEX whatsappConnections_userId_idx
         ON whatsappConnections (userId);
@@ -278,9 +300,34 @@ async function main() {
     }
     await second.rollback();
 
+    let duplicateActivePhoneRejected = false;
+    try {
+      await second.execute(
+        `INSERT INTO whatsappConnections
+          (userId, phoneNumber, displayName, status, createdAt, updatedAt)
+         VALUES (502, ?, 'Conta concorrente', 'active', ?, ?)`,
+        [linkLead.phone_number, linkedAt, linkedAt]
+      );
+    } catch (error) {
+      duplicateActivePhoneRejected = isDuplicateEntryError(error);
+    }
+    if (!duplicateActivePhoneRejected) {
+      throw new Error(
+        "The database allowed the same active phone to belong to two accounts."
+      );
+    }
+
+    await second.execute(
+      `INSERT INTO whatsappConnections
+        (userId, phoneNumber, displayName, status, createdAt, updatedAt)
+       VALUES (502, ?, 'Histórico desativado', 'disabled', ?, ?)`,
+      [linkLead.phone_number, linkedAt, linkedAt]
+    );
+
     const [linkedRows] = await first.query<mysql.RowDataPacket[]>(
       `SELECT l.status, l.converted_user_id, l.token_used_at,
-              c.userId, c.phoneNumber, c.status AS connection_status
+              c.userId, c.phoneNumber, c.status AS connection_status,
+              c.activePhoneKey
        FROM whatsapp_onboarding_leads l
        INNER JOIN whatsappConnections c
          ON c.phoneNumber = l.phone_number AND c.status = 'active'
@@ -292,7 +339,8 @@ async function main() {
       linked.status !== "converting" ||
       Number(linked.converted_user_id) !== 501 ||
       Number(linked.userId) !== 501 ||
-      linked.connection_status !== "active"
+      linked.connection_status !== "active" ||
+      linked.activePhoneKey !== linked.phoneNumber
     ) {
       throw new Error(
         "The authenticated account link was not persisted atomically."
@@ -309,6 +357,7 @@ async function main() {
         resumedTransitions: resumed[0].affectedRows,
         linkedExistingUserId: Number(linked.converted_user_id),
         competingUserRejected,
+        duplicateActivePhoneRejected,
       })
     );
   } finally {
