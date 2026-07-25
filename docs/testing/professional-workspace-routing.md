@@ -90,7 +90,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 5. Provocar uma resposta tardia do paciente anterior e confirmar que o paciente atual permanece aberto.
 6. Revogar o entitlement da rota e confirmar que o erro `FORBIDDEN` limpa o contexto atual.
 7. Remover somente alertas operacionais ou IA e confirmar que o paciente e o conteúdo principal da rota permanecem abertos.
-8. Abrir relatório individual com somente `professional_reports` e conversa individual somente com `professional_messages`; nenhuma consulta `professionalRecord.get` pode ser disparada como dependência indireta, e o timezone deve ser resolvido sem exigir carteira.
+8. Abrir relatório individual somente com `professional_reports` e conversa individual somente com `professional_messages`; nenhuma consulta `professionalRecord.get` pode ser disparada como dependência indireta, e o timezone deve ser resolvido sem exigir carteira.
 9. Abrir rota com ID inválido, zero e número inseguro; nenhuma consulta individual deve ocorrer.
 10. Filtrar a carteira, recarregar a página e confirmar restauração pelos parâmetros da URL.
 11. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
