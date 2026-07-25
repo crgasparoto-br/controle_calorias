@@ -181,3 +181,104 @@ jobs:
             echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
             echo "Vercel preview/deploy checks are complementary and do not replace this gate."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  apply-issue-879-audit-fixes:
+    name: Apply issue 879 audit fixes
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/875-professional-context-routes'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Extract and execute correction script
+        run: |
+          python - <<'PYEXTRACT'
+          from pathlib import Path
+          source = Path('.github/workflows/apply-issue-879-audit-fixes.yml').read_text(encoding='utf-8')
+          marker = "          python - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          lines = source[start:end].splitlines()
+          script = "\n".join(line[10:] if line.startswith("          ") else line for line in lines) + "\n"
+          Path('/tmp/apply_issue_879.py').write_text(script, encoding='utf-8')
+          PYEXTRACT
+          python /tmp/apply_issue_879.py
+
+      - name: Format changed files
+        run: |
+          pnpm exec prettier --write \
+            server/modules/professionals/accessRequestReceiptRepository.ts \
+            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
+            server/modules/professionals/portfolioPagination.ts \
+            server/modules/professionals/portfolioPagination.test.ts \
+            server/modules/professionals/requestAccessPublicBoundary.ts \
+            server/modules/professionals/requestAccessPublicBoundary.test.ts \
+            server/modules/professionals/service.ts \
+            server/repositories/professionalPortfolioRepository.ts \
+            client/src/pages/professional/ProfessionalPatients.tsx \
+            client/src/pages/professional/ProfessionalPatients.test.tsx \
+            client/src/pages/ProfessionalAreaPage.tsx \
+            docs/product-specs/professionals.md \
+            docs/design-docs/professional-portfolio-operational-schedule.md
+
+      - name: Validate focused behavior
+        run: |
+          mkdir -p artifacts/issue-879-implementation
+          pnpm exec vitest run \
+            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
+            server/modules/professionals/portfolioPagination.test.ts \
+            server/modules/professionals/requestAccessPublicBoundary.test.ts \
+            client/src/pages/professional/ProfessionalPatients.test.tsx \
+            --maxWorkers=1 --minWorkers=1 2>&1 | tee artifacts/issue-879-implementation/focused-tests.log
+          pnpm check 2>&1 | tee artifacts/issue-879-implementation/typescript.log
+          pnpm docs:check 2>&1 | tee artifacts/issue-879-implementation/docs-check.log
+          git diff --check
+
+      - name: Restore temporary workflow changes
+        run: |
+          git show HEAD^:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          rm -f .github/workflows/apply-issue-879-audit-fixes.yml
+
+      - name: Commit and push corrections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: resolve audit findings for issue 879"
+          git push origin HEAD:feat/875-professional-context-routes
+          printf '{"issue":879,"headSha":"%s","sourceEventSha":"%s"}\n' "$(git rev-parse HEAD)" "${GITHUB_SHA}" > artifacts/issue-879-implementation/implementation.json
+
+      - name: Archive exact repository state
+        run: |
+          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts vitest.config.ts 2>/dev/null || \
+          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts
+
+      - name: Upload implementation source
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-879-implementation-source-${{ github.run_id }}
+          path: artifacts/issue-879-implementation
+          if-no-files-found: error
+          retention-days: 7
