@@ -127,7 +127,7 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       action: "clarification_needed",
       eventType: "whatsapp.intent.delete_meal_confirmation_requested",
     }));
-    expect(request?.reply).toContain("Responda SIM");
+    expect(request?.reply).toContain("Toque em Confirmar");
     expect(removeMealMock).toHaveBeenCalledWith(42, 10);
     expect(confirmation).toEqual(expect.objectContaining({
       action: "meal_deleted",
@@ -343,5 +343,55 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     expect(confirmation).toEqual(expect.objectContaining({ action: "clarification_needed" }));
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(removeMealMock).not.toHaveBeenCalled();
+  });
+
+  it("interpreta 'excluir o café' como o alimento café, não a refeição café da manhã", async () => {
+    const breakfast = {
+      id: 20,
+      mealLabel: "Café da manhã",
+      occurredAt: "2026-06-23T08:43:00.000Z",
+      notes: null,
+      items: [
+        { foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 },
+        { foodName: "Pão francês", portionText: "50 g", calories: 150, protein: 5, carbs: 28, fat: 1.5 },
+      ],
+    };
+    listMealsMock.mockResolvedValue([breakfast]);
+    updateMealMock.mockImplementation(async (_userId, input) => ({ ...breakfast, ...input }));
+
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Excluir o café",
+      receivedAt: new Date("2026-06-23T09:00:00.000Z"),
+    });
+
+    expect(request?.reply).toContain("Encontrei o item Café em Café da manhã");
+    expect(request).toEqual(expect.objectContaining({
+      eventType: "whatsapp.intent.delete_food_confirmation_requested",
+      data: expect.objectContaining({ mealId: 20 }),
+    }));
+    expect(removeMealMock).not.toHaveBeenCalled();
+  });
+
+  it("mantém 'excluir o café da manhã' apontando para a refeição inteira", async () => {
+    const breakfast = {
+      id: 21,
+      mealLabel: "Café da manhã",
+      occurredAt: "2026-06-23T08:43:00.000Z",
+      notes: null,
+      items: [{ foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 }],
+    };
+    listMealsMock.mockResolvedValue([breakfast]);
+    removeMealMock.mockResolvedValue(undefined);
+
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Excluir o café da manhã",
+      receivedAt: new Date("2026-06-23T09:00:00.000Z"),
+    });
+
+    expect(request).toEqual(expect.objectContaining({
+      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
+      data: expect.objectContaining({ mealId: 21 }),
+    }));
+    expect(request?.reply).toContain("Encontrei a refeição: Café da manhã");
   });
 });

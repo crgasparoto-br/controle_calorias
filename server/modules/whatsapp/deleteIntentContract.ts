@@ -64,7 +64,7 @@ export function formatMealReference(
 function buildPendingMealDeleteReply(pending: PendingDeleteIntent, timeZone: string) {
   return [
     `Encontrei a refeição: ${formatMealReference(pending, timeZone)}.`,
-    "Responda SIM para confirmar a exclusão dessa refeição ou CANCELAR para desistir.",
+    "Toque em Confirmar para excluir essa refeição ou em Cancelar para desistir (também aceito SIM ou CANCELAR por texto).",
     "Não excluí nada ainda e não registrei nenhum alimento novo.",
   ].join("\n\n");
 }
@@ -72,7 +72,7 @@ function buildPendingMealDeleteReply(pending: PendingDeleteIntent, timeZone: str
 function buildPendingFoodDeleteReply(pending: PendingDeleteIntent, timeZone: string) {
   return [
     `Encontrei o item ${pending.itemName} em ${formatMealReference(pending, timeZone)}.`,
-    "Responda SIM para confirmar a remoção desse alimento ou CANCELAR para desistir.",
+    "Toque em Confirmar para remover esse alimento ou em Cancelar para desistir (também aceito SIM ou CANCELAR por texto).",
     "Não removi nada ainda e não registrei nenhum alimento novo.",
   ].join("\n\n");
 }

@@ -57,8 +57,11 @@ function hasExplicitFoodAbsenceSignal(normalized: string) {
   return /^(?:nao\s+(?:tem|tinha|havia|existe|existia)|sem)\s+/.test(normalized);
 }
 
+// "cafe" isolado é ambíguo: pode ser a refeição "café da manhã" ou o alimento "café" (bebida).
+// Só tratamos como referência de refeição quando a frase completa ("café da manhã") ou "manhã"
+// aparece — "excluir o café" sozinho deve ser interpretado como alimento (issue relatada em produção).
 function extractMealContextLabel(normalized: string) {
-  if (/\b(?:cafe\s+da\s+manha|cafe|manha)\b/.test(normalized)) return "cafe da manha";
+  if (/\b(?:cafe\s+da\s+manha|manha)\b/.test(normalized)) return "cafe da manha";
   if (/\balmoco\b/.test(normalized)) return "almoco";
   if (/\bjantar\b|\bjanta\b/.test(normalized)) return "jantar";
   if (/\blanche\b/.test(normalized)) return "lanche";
@@ -68,8 +71,11 @@ function extractMealContextLabel(normalized: string) {
 
 function removeMealContextFromTarget(value: string) {
   return value
-    .replace(/\b(?:do|da|no|na|em|durante\s+o|durante\s+a)\s+(?:cafe\s+da\s+manha|cafe|manha|almoco|jantar|janta|lanche|ceia)\b.*$/g, " ")
-    .replace(/\b(?:cafe\s+da\s+manha|cafe|manha|almoco|jantar|janta|lanche|ceia)\b$/g, " ")
+    // "manha" isolado fica de fora aqui: dentro de "cafe da manha" o "da" é parte do nome da
+    // refeição, não uma preposição ligando um alimento a ela — tratar como tal cortaria "cafe"
+    // do meio da frase e deixaria "manha" sobrando de forma incorreta.
+    .replace(/\b(?:do|da|no|na|em|durante\s+o|durante\s+a)\s+(?:cafe\s+da\s+manha|almoco|jantar|janta|lanche|ceia)\b.*$/g, " ")
+    .replace(/\b(?:cafe\s+da\s+manha|manha|almoco|jantar|janta|lanche|ceia)\b$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -88,7 +94,7 @@ function hasQuantityAdjustmentSignal(normalized: string) {
 }
 
 function hasMealTarget(normalized: string) {
-  return /\b(?:refeicao|refeicoes|prato|registro|registros|foto|fotografada|fotografado|ultima|ultimo|almoco|jantar|janta|lanche|cafe|ceia)\b/.test(normalized);
+  return /\b(?:refeicao|refeicoes|prato|registro|registros|foto|fotografada|fotografado|ultima|ultimo|almoco|jantar|janta|lanche|cafe\s+da\s+manha|manha|ceia)\b/.test(normalized);
 }
 
 function hasFoodTarget(normalized: string) {
