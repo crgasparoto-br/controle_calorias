@@ -8,8 +8,6 @@ const ACCESS_REQUEST_RECEIVED_EVENT = "access_request_received";
 const ACCESS_REQUEST_LINKED_EVENT = "access_request_linked";
 const ACCESS_REQUEST_RECEIPT_ENTITY = "request_access_receipt";
 const UNRESOLVED_RECEIPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_RECEIPTS = 50;
-const MAX_SCANNED_RECEIPTS = 200;
 const IN_MEMORY_RECEIPT_STORAGE = "memory";
 
 export type ProfessionalAccessRequestReceipt = {
@@ -17,6 +15,11 @@ export type ProfessionalAccessRequestReceipt = {
   status: "pending";
   requestedAt: number;
   linkedAuthorizationId: string | null;
+};
+
+export type ProfessionalAccessRequestReceiptPage = {
+  items: ProfessionalAccessRequestReceipt[];
+  total: number;
 };
 
 type StoredReceipt = ProfessionalAccessRequestReceipt & {
@@ -234,7 +237,8 @@ export function createProfessionalAccessRequestReceiptRepository(
       .filter(receipt => receipt.professionalUserId === professionalUserId)
       .sort(
         (left, right) =>
-          right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
+          right.requestedAt - left.requestedAt ||
+          right.id.localeCompare(left.id)
       );
 
     for (const receipt of storedReceipts) {
@@ -269,12 +273,10 @@ export function createProfessionalAccessRequestReceiptRepository(
       });
     }
 
-    return receipts
-      .sort(
-        (left, right) =>
-          right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
-      )
-      .slice(0, MAX_RECEIPTS);
+    return receipts.sort(
+      (left, right) =>
+        right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
+    );
   }
 
   async function listActiveReceipts(
@@ -303,7 +305,6 @@ export function createProfessionalAccessRequestReceiptRepository(
           WHERE received.\`professionalUserId\` = ${professionalUserId}
             AND received.\`eventType\` = ${ACCESS_REQUEST_RECEIVED_EVENT}
           ORDER BY received.\`occurredAt\` DESC, received.\`id\` DESC
-          LIMIT ${MAX_SCANNED_RECEIPTS}
         `),
         db.execute(sql`
           SELECT \`id\`, \`requestedAt\`
@@ -311,7 +312,6 @@ export function createProfessionalAccessRequestReceiptRepository(
           WHERE \`professionalUserId\` = ${professionalUserId}
             AND \`status\` = 'pending'
           ORDER BY \`requestedAt\` DESC, \`id\` DESC
-          LIMIT ${MAX_SCANNED_RECEIPTS}
         `),
       ]);
 
@@ -346,7 +346,10 @@ export function createProfessionalAccessRequestReceiptRepository(
 
       for (const row of rowsFromResult(pendingResult)) {
         const authorizationId = typeof row.id === "string" ? row.id : "";
-        if (!authorizationId || authorizationsWithReceipt.has(authorizationId)) {
+        if (
+          !authorizationId ||
+          authorizationsWithReceipt.has(authorizationId)
+        ) {
           continue;
         }
         const requestedAt = asTimestamp(row.requestedAt);
@@ -358,16 +361,29 @@ export function createProfessionalAccessRequestReceiptRepository(
         });
       }
 
-      return receipts
-        .sort(
-          (left, right) =>
-            right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)
-        )
-        .slice(0, MAX_RECEIPTS);
+      return receipts.sort(
+        (left, right) =>
+          right.requestedAt - left.requestedAt ||
+          right.id.localeCompare(left.id)
+      );
     } catch (error) {
       dependencies.onWarning("professional.access_request_receipt.list", error);
       throw error;
     }
+  }
+
+  async function listActiveReceiptsPage(
+    professionalUserId: number,
+    page: { offset: number; limit: number },
+    now = Date.now()
+  ): Promise<ProfessionalAccessRequestReceiptPage> {
+    const offset = Math.max(0, Math.trunc(page.offset));
+    const limit = Math.max(1, Math.trunc(page.limit));
+    const receipts = await listActiveReceipts(professionalUserId, now);
+    return {
+      items: receipts.slice(offset, offset + limit),
+      total: receipts.length,
+    };
   }
 
   return {
@@ -375,6 +391,7 @@ export function createProfessionalAccessRequestReceiptRepository(
     createLinkedReceipt,
     resolveAuthorizationIdForPatient,
     listActiveReceipts,
+    listActiveReceiptsPage,
     _forTestOnlyClear: () => fallbackReceipts.clear(),
   };
 }

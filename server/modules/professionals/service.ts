@@ -32,6 +32,12 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { professionalRepository } from "./persistenceService";
+import { professionalAccessRequestReceiptRepository } from "./accessRequestReceiptRepository";
+import {
+  buildProfessionalPortfolioWindow,
+  combineProfessionalPortfolioPage,
+  portfolioIncludesOpaquePendingReceipts,
+} from "./portfolioPagination";
 import { professionalContentRepository } from "./contentPersistenceService";
 import { professionalPortfolioRepository } from "../../repositories/professionalPortfolioRepository";
 import type { CanonicalProfessionalAuthorization } from "./persistence";
@@ -897,7 +903,46 @@ export async function listProfessionalPortfolio(
   input: ProfessionalPortfolioInput
 ) {
   await assertActiveProfessionalProfile(professionalUserId);
-  return professionalPortfolioRepository.list(professionalUserId, input);
+
+  const includesPending = portfolioIncludesOpaquePendingReceipts(input);
+  const combinedOffset = (input.page - 1) * input.pageSize;
+  const pendingPage =
+    await professionalAccessRequestReceiptRepository.listActiveReceiptsPage(
+      professionalUserId,
+      {
+        offset: includesPending ? combinedOffset : 0,
+        limit: includesPending ? input.pageSize : 1,
+      }
+    );
+
+  if (!includesPending) {
+    const portfolio = await professionalPortfolioRepository.list(
+      professionalUserId,
+      input
+    );
+    return {
+      ...portfolio,
+      summary: {
+        ...portfolio.summary,
+        pendingRequests: pendingPage.total,
+      },
+    };
+  }
+
+  const portfolio = await professionalPortfolioRepository.list(
+    professionalUserId,
+    input,
+    buildProfessionalPortfolioWindow(
+      input,
+      pendingPage.total,
+      pendingPage.items.length
+    )
+  );
+  return combineProfessionalPortfolioPage({
+    portfolioInput: input,
+    pendingPage,
+    portfolio,
+  });
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {

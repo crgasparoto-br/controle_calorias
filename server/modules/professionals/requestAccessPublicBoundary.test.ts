@@ -52,9 +52,7 @@ function dependencies() {
       .fn()
       .mockResolvedValue(receipt("receipt-linked", "authorization-1")),
     resolveAuthorizationIdForPatient: vi.fn().mockResolvedValue(null),
-    listActiveReceipts: vi
-      .fn()
-      .mockResolvedValue([receipt("receipt-active")]),
+    listActiveReceipts: vi.fn().mockResolvedValue([receipt("receipt-active")]),
     approveAccess: vi.fn().mockResolvedValue({
       id: "authorization-1",
       patientUserId: 42,
@@ -187,12 +185,8 @@ describe("professional request access public boundary", () => {
     } satisfies Partial<TRPCError>);
   });
 
-  it("replaces pending portfolio identities with opaque receipts and neutral counts", async () => {
+  it("sanitizes pending portfolio identities without querying receipts again", async () => {
     const deps = dependencies();
-    deps.listActiveReceipts.mockResolvedValueOnce([
-      receipt("receipt-active-1", "authorization-1"),
-      receipt("receipt-active-2", "authorization-1"),
-    ]);
     const result = await runPolicy({
       deps,
       path: PROFESSIONAL_PORTFOLIO_PATH,
@@ -209,11 +203,13 @@ describe("professional request access public boundary", () => {
         data: {
           items: [
             {
-              authorizationId: "pending-authorization",
+              authorizationId: "pending-receipt",
               patientUserId: 42,
               patientName: "Pessoa pendente protegida",
               patientEmail: "protected@example.com",
               authorizationStatus: "pending",
+              trackingStatus: "active",
+              requestedAt: 1_700_000_000_000,
             },
             {
               authorizationId: "approved-authorization",
@@ -223,27 +219,29 @@ describe("professional request access public boundary", () => {
               authorizationStatus: "approved",
             },
           ],
-          pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
-          summary: { pendingRequests: 999, active: 1 },
+          pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },
+          summary: { pendingRequests: 1, active: 1 },
         },
       },
     });
 
     const data = responseData(result);
     const items = data.items as Array<Record<string, unknown>>;
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(2);
     expect(items[0]).toMatchObject({
-      authorizationId: "receipt-active-1",
+      authorizationId: "pending-receipt",
       patientUserId: 0,
       patientName: PROFESSIONAL_PENDING_REQUEST_NAME,
       patientEmail: null,
       authorizationStatus: "pending",
+      trackingStatus: null,
     });
-    expect(items[2]).toMatchObject({
+    expect(items[1]).toMatchObject({
       authorizationId: "approved-authorization",
       patientName: "Pessoa aprovada",
     });
-    expect(data.summary).toEqual({ pendingRequests: 2, active: 1 });
+    expect(data.summary).toEqual({ pendingRequests: 1, active: 1 });
+    expect(deps.listActiveReceipts).not.toHaveBeenCalled();
     expect(JSON.stringify(items)).not.toContain("Pessoa pendente protegida");
     expect(JSON.stringify(items)).not.toContain("protected@example.com");
   });
@@ -323,38 +321,41 @@ describe("opaque receipt patient decisions", () => {
   it.each([
     [PROFESSIONAL_APPROVE_ACCESS_PATH, "approved"],
     [PROFESSIONAL_REVOKE_ACCESS_PATH, "revoked"],
-  ] as const)("recovers the canonical authorization on %s", async (path, status) => {
-    const deps = dependencies();
-    deps.resolveAuthorizationIdForPatient.mockResolvedValueOnce(
-      "authorization-1"
-    );
-    const result = await runPolicy({
-      deps,
-      path,
-      userId: 42,
-      rawInput: { accessId: "receipt-opaque" },
-      result: {
-        ok: false,
-        error: new Error("Solicitação de acesso não encontrada."),
-      },
-    });
+  ] as const)(
+    "recovers the canonical authorization on %s",
+    async (path, status) => {
+      const deps = dependencies();
+      deps.resolveAuthorizationIdForPatient.mockResolvedValueOnce(
+        "authorization-1"
+      );
+      const result = await runPolicy({
+        deps,
+        path,
+        userId: 42,
+        rawInput: { accessId: "receipt-opaque" },
+        result: {
+          ok: false,
+          error: new Error("Solicitação de acesso não encontrada."),
+        },
+      });
 
-    expect(result).toMatchObject({
-      ok: true,
-      data: { id: "authorization-1", patientUserId: 42, status },
-    });
-    expect(deps.resolveAuthorizationIdForPatient).toHaveBeenCalledWith(
-      "receipt-opaque",
-      42
-    );
-    if (path === PROFESSIONAL_APPROVE_ACCESS_PATH) {
-      expect(deps.approveAccess).toHaveBeenCalledWith(42, "authorization-1");
-      expect(deps.revokeAccess).not.toHaveBeenCalled();
-    } else {
-      expect(deps.revokeAccess).toHaveBeenCalledWith(42, "authorization-1");
-      expect(deps.approveAccess).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        ok: true,
+        data: { id: "authorization-1", patientUserId: 42, status },
+      });
+      expect(deps.resolveAuthorizationIdForPatient).toHaveBeenCalledWith(
+        "receipt-opaque",
+        42
+      );
+      if (path === PROFESSIONAL_APPROVE_ACCESS_PATH) {
+        expect(deps.approveAccess).toHaveBeenCalledWith(42, "authorization-1");
+        expect(deps.revokeAccess).not.toHaveBeenCalled();
+      } else {
+        expect(deps.revokeAccess).toHaveBeenCalledWith(42, "authorization-1");
+        expect(deps.approveAccess).not.toHaveBeenCalled();
+      }
     }
-  });
+  );
 
   it("preserves the canonical not-found response for outsiders and unresolved receipts", async () => {
     const deps = dependencies();

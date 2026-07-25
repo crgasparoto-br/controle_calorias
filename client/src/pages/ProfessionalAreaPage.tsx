@@ -18,7 +18,7 @@ export default function ProfessionalAreaPage() {
   if (patientRoute.kind === "patient") {
     content = <ProfessionalPatientRouteGuard />;
   } else if (pathname === "/professional/patients") {
-    content = <ProfessionalPatients key={location} />;
+    content = <ProfessionalPatients />;
   } else if (pathname === "/professional/reports") {
     content = (
       <ProfessionalPage>

@@ -20,6 +20,9 @@ desenvolvimento antigos; ele não substitui schema, migration nem `pnpm db:push`
 - Revisões e pesagens com data vencida entram nos totais de pendências do painel.
 - Busca, filtros e página são persistidos na query string da rota da carteira,
   permitindo abrir um paciente e retornar ao mesmo estado operacional.
+- Comprovantes pendentes opacos usam a mesma paginação pública da carteira, aparecem
+  antes dos vínculos identificáveis e não podem ser truncados por limite interno; totais
+  e páginas devem permanecer coerentes quando houver mais de cinquenta tentativas.
 - A consulta permanece paginada, ordenada de forma estável e isolada pelo
   profissional autenticado.
 - Vínculos pendentes, recusados e revogados não recebem datas, acompanhamento ou

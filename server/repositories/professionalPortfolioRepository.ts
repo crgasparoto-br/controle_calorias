@@ -91,12 +91,13 @@ export function mapProfessionalPortfolioItem(
     nextWeighingAt,
     pendingItems:
       (authorizationStatus === "pending" ? 1 : 0) +
-      (approved && nextReviewAt !== null && nextReviewAt <= now.getTime() ? 1 : 0) +
+      (approved && nextReviewAt !== null && nextReviewAt <= now.getTime()
+        ? 1
+        : 0) +
       (approved && nextWeighingAt !== null && nextWeighingAt <= now.getTime()
         ? 1
         : 0),
-    hasRecordsInReportPeriod:
-      approved && asNumber(row.periodRecordCount) > 0,
+    hasRecordsInReportPeriod: approved && asNumber(row.periodRecordCount) > 0,
   };
 }
 
@@ -108,7 +109,8 @@ export function createProfessionalPortfolioRepository(
 ) {
   async function list(
     professionalUserId: number,
-    input: ProfessionalPortfolioInput
+    input: ProfessionalPortfolioInput,
+    window: { offset?: number; limit?: number } = {}
   ): Promise<ProfessionalPortfolioResult> {
     const db = await deps.getDb();
     if (!db) {
@@ -140,7 +142,11 @@ export function createProfessionalPortfolioRepository(
       Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999)
     );
     reportCoarseEnd.setUTCHours(reportCoarseEnd.getUTCHours() + 14);
-    const offset = (input.page - 1) * input.pageSize;
+    const offset = Math.max(
+      0,
+      window.offset ?? (input.page - 1) * input.pageSize
+    );
+    const limit = Math.max(0, window.limit ?? input.pageSize);
 
     try {
       const historicalActivityJoin = input.includeHistoricalActivity
@@ -225,7 +231,7 @@ export function createProfessionalPortfolioRepository(
             CASE WHEN a.\`status\` = 'approved' THEN pm.\`periodRecordCount\` ELSE 0 END AS \`periodRecordCount\`
           ${baseFrom}
           ORDER BY COALESCE(u.\`name\`, u.\`email\`, CAST(u.\`id\` AS CHAR)) ASC, a.\`requestedAt\` DESC, a.\`id\` ASC
-          LIMIT ${input.pageSize} OFFSET ${offset}
+          LIMIT ${limit} OFFSET ${offset}
         `),
         db.execute(sql`SELECT COUNT(*) AS \`total\` ${baseFrom}`),
         db.execute(sql`

@@ -8,13 +8,13 @@ import {
   type ProfessionalAccessRequestReceipt,
 } from "./accessRequestReceiptRepository";
 import { approvePatientAccess, revokePatientAccess } from "./service";
+import { PROFESSIONAL_PENDING_REQUEST_NAME } from "./portfolioPagination";
 
 export const PROFESSIONAL_REQUEST_ACCESS_PATH =
   "nutrition.professionals.requestAccess";
 export const PROFESSIONAL_MY_ACCESSES_PATH =
   "nutrition.professionals.myAccesses";
-export const PROFESSIONAL_PORTFOLIO_PATH =
-  "nutrition.professionals.portfolio";
+export const PROFESSIONAL_PORTFOLIO_PATH = "nutrition.professionals.portfolio";
 export const PROFESSIONAL_HISTORY_PATH = "nutrition.professionals.history";
 export const PROFESSIONAL_APPROVE_ACCESS_PATH =
   "nutrition.professionals.approveAccess";
@@ -24,8 +24,7 @@ export const PROFESSIONAL_REQUEST_ACCESS_REJECTED_MESSAGE =
   "Não foi possível enviar a solicitação com os dados informados. Confira o contato ou tente novamente mais tarde.";
 export const PROFESSIONAL_REQUEST_ACCESS_UNAVAILABLE_MESSAGE =
   "Não foi possível enviar a solicitação agora. Tente novamente em alguns instantes.";
-export const PROFESSIONAL_PENDING_REQUEST_NAME =
-  "Solicitação aguardando confirmação";
+export { PROFESSIONAL_PENDING_REQUEST_NAME };
 export const PROFESSIONAL_REJECTED_REQUEST_NAME = "Solicitação recusada";
 export const PROFESSIONAL_REVOKED_REQUEST_NAME = "Acesso revogado";
 
@@ -157,24 +156,6 @@ function approvedAccessResult(data: Record<string, unknown>) {
   };
 }
 
-function receiptPortfolioItem(receipt: ProfessionalAccessRequestReceipt) {
-  return {
-    authorizationId: receipt.id,
-    patientUserId: 0,
-    patientName: PROFESSIONAL_PENDING_REQUEST_NAME,
-    patientEmail: null,
-    authorizationStatus: "pending" as const,
-    trackingStatus: null,
-    requestedAt: receipt.requestedAt,
-    lastFoodActivityAt: null,
-    lastProfessionalInteractionAt: null,
-    nextReviewAt: null,
-    nextWeighingAt: null,
-    pendingItems: 1,
-    hasRecordsInReportPeriod: false,
-  };
-}
-
 function receiptAccessItem(
   receipt: ProfessionalAccessRequestReceipt,
   professionalUserId: number
@@ -221,7 +202,29 @@ function sanitizePortfolioItem(value: unknown) {
   const item = asRecord(value);
   if (!item) return [];
   const status = item.authorizationStatus;
-  if (status === "pending") return [];
+  if (status === "pending") {
+    if (typeof item.authorizationId !== "string" || !item.authorizationId) {
+      return [];
+    }
+    return [
+      {
+        authorizationId: item.authorizationId,
+        patientUserId: 0,
+        patientName: PROFESSIONAL_PENDING_REQUEST_NAME,
+        patientEmail: null,
+        authorizationStatus: "pending" as const,
+        trackingStatus: null,
+        requestedAt:
+          typeof item.requestedAt === "number" ? item.requestedAt : 0,
+        lastFoodActivityAt: null,
+        lastProfessionalInteractionAt: null,
+        nextReviewAt: null,
+        nextWeighingAt: null,
+        pendingItems: 1,
+        hasRecordsInReportPeriod: false,
+      },
+    ];
+  }
   if (status === "approved") return [item];
   if (status !== "rejected" && status !== "revoked") return [];
   return [
@@ -242,30 +245,6 @@ function sanitizePortfolioItem(value: unknown) {
       hasRecordsInReportPeriod: false,
     },
   ];
-}
-
-function portfolioInputAllowsReceipts(input: unknown) {
-  const value = asRecord(input) ?? {};
-  const page = typeof value.page === "number" ? value.page : 1;
-  const search = typeof value.search === "string" ? value.search.trim() : "";
-  const authorization =
-    typeof value.authorizationStatus === "string"
-      ? value.authorizationStatus
-      : "all";
-  const tracking =
-    typeof value.trackingStatus === "string" ? value.trackingStatus : "all";
-  const activity =
-    typeof value.activity === "string" ? value.activity : "all";
-  const review =
-    typeof value.nextReview === "string" ? value.nextReview : "all";
-  return (
-    page === 1 &&
-    search === "" &&
-    (authorization === "all" || authorization === "pending") &&
-    tracking === "all" &&
-    activity === "all" &&
-    review === "all"
-  );
 }
 
 async function protectRequestAccessResult(
@@ -313,9 +292,8 @@ async function protectRequestAccessResult(
       throw unavailableError(record.error);
     }
 
-    const receipt = await dependencies.createUnresolvedReceipt(
-      professionalUserId
-    );
+    const receipt =
+      await dependencies.createUnresolvedReceipt(professionalUserId);
     return successfulMiddlewareResult(record, publicReceipt(receipt), ctx);
   } catch (error) {
     if (error instanceof TRPCError) throw error;
@@ -348,34 +326,17 @@ async function protectMyAccessesResult(
   }
 }
 
-async function protectPortfolioResult(
-  record: Record<string, unknown>,
-  professionalUserId: number,
-  input: unknown,
-  dependencies: RequestAccessBoundaryDependencies
-) {
+function protectPortfolioResult(record: Record<string, unknown>) {
   if (!record.ok) return record;
   const data = asRecord(record.data);
   if (!data || !Array.isArray(data.items)) return record;
-  const safeItems = data.items.flatMap(sanitizePortfolioItem);
-  try {
-    const receipts = await dependencies.listActiveReceipts(professionalUserId);
-    const summary = asRecord(data.summary);
-    return {
-      ...record,
-      data: {
-        ...data,
-        summary: summary
-          ? { ...summary, pendingRequests: receipts.length }
-          : summary,
-        items: portfolioInputAllowsReceipts(input)
-          ? [...receipts.map(receiptPortfolioItem), ...safeItems]
-          : safeItems,
-      },
-    };
-  } catch (error) {
-    throw unavailableError(error);
-  }
+  return {
+    ...record,
+    data: {
+      ...data,
+      items: data.items.flatMap(sanitizePortfolioItem),
+    },
+  };
 }
 
 function protectHistoryResult(record: Record<string, unknown>) {
@@ -445,18 +406,13 @@ export function createProfessionalRequestAccessPublicBoundary(
     if (!record || typeof record.ok !== "boolean") return result;
 
     if (path === PROFESSIONAL_REQUEST_ACCESS_PATH) {
-      return protectRequestAccessResult(
-        record,
-        ctx.user.id,
-        ctx,
-        dependencies
-      );
+      return protectRequestAccessResult(record, ctx.user.id, ctx, dependencies);
     }
     if (path === PROFESSIONAL_MY_ACCESSES_PATH) {
       return protectMyAccessesResult(record, ctx.user.id, dependencies);
     }
     if (path === PROFESSIONAL_PORTFOLIO_PATH) {
-      return protectPortfolioResult(record, ctx.user.id, input, dependencies);
+      return protectPortfolioResult(record);
     }
     if (path === PROFESSIONAL_HISTORY_PATH) {
       return protectHistoryResult(record);

@@ -46,7 +46,9 @@ vi.mock("@/components/professional/ProfessionalUi", () => ({
       {actions}
     </header>
   ),
-  ProfessionalStatusBadge: ({ value }: { value: string }) => <span>{value}</span>,
+  ProfessionalStatusBadge: ({ value }: { value: string }) => (
+    <span>{value}</span>
+  ),
   ProfessionalLoadingState: ({ label }: { label: string }) => <p>{label}</p>,
   ProfessionalAsyncState: ({ title }: { title: string }) => <p>{title}</p>,
 }));
@@ -244,9 +246,11 @@ describe("ProfessionalPatients filter interactions", () => {
     );
     render(<ProfessionalPatients />);
     expect(
-      (screen.getByRole("combobox", {
-        name: "Filtrar autorização",
-      }) as HTMLSelectElement).value
+      (
+        screen.getByRole("combobox", {
+          name: "Filtrar autorização",
+        }) as HTMLSelectElement
+      ).value
     ).toBe("approved");
     act(() => {
       window.history.pushState(
@@ -258,9 +262,11 @@ describe("ProfessionalPatients filter interactions", () => {
     });
     await waitFor(() =>
       expect(
-        (screen.getByRole("combobox", {
-          name: "Filtrar autorização",
-        }) as HTMLSelectElement).value
+        (
+          screen.getByRole("combobox", {
+            name: "Filtrar autorização",
+          }) as HTMLSelectElement
+        ).value
       ).toBe("revoked")
     );
   });
@@ -276,15 +282,19 @@ describe("ProfessionalPatients filter interactions", () => {
     await waitFor(() => {
       expect(window.location.search).toBe("?authorization=pending");
       expect(
-        (screen.getByRole("combobox", {
-          name: "Filtrar autorização",
-        }) as HTMLSelectElement).value
+        (
+          screen.getByRole("combobox", {
+            name: "Filtrar autorização",
+          }) as HTMLSelectElement
+        ).value
       ).toBe("pending");
     });
     expect(
-      (screen.getByPlaceholderText(
-        "Nome, e-mail ou identificador"
-      ) as HTMLInputElement).value
+      (
+        screen.getByPlaceholderText(
+          "Nome, e-mail ou identificador"
+        ) as HTMLInputElement
+      ).value
     ).toBe("");
     expect(portfolioUseQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -321,6 +331,30 @@ describe("ProfessionalPatients filter interactions", () => {
     expect(window.location.search).toBe("?authorization=pending");
     expect(screen.getByRole("status").textContent).toContain(
       "A carteira foi atualizada para mostrar os acessos pendentes."
+    );
+  });
+
+  it("keeps successful navigation when cache refresh side effects fail", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?authorization=approved&page=2"
+    );
+    invalidate.mockRejectedValueOnce(new Error("invalidate failed"));
+    refetch.mockRejectedValueOnce(new Error("refetch failed"));
+    render(<ProfessionalPatients />);
+
+    submitRequest();
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?authorization=pending");
+    });
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(refetch).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByRole("status").textContent).toContain(
+      "Solicitação registrada."
     );
   });
 
@@ -409,9 +443,7 @@ describe("ProfessionalPatients patient rows", () => {
 
   it("separates authorization and tracking and exposes safe fallback values", () => {
     window.history.replaceState({}, "", "/professional/patients");
-    portfolioUseQuery.mockImplementation(() =>
-      queryResult(1, patientItems, 1)
-    );
+    portfolioUseQuery.mockImplementation(() => queryResult(1, patientItems, 1));
 
     render(<ProfessionalPatients />);
 
@@ -424,8 +456,11 @@ describe("ProfessionalPatients patient rows", () => {
     expect(screen.queryByText("must-not-render@example.com")).toBeNull();
 
     expect(
-      (screen.getByRole("button", { name: "Abrir paciente" }) as HTMLButtonElement)
-        .disabled
+      (
+        screen.getByRole("button", {
+          name: "Abrir paciente",
+        }) as HTMLButtonElement
+      ).disabled
     ).toBe(false);
     expect(
       (
@@ -442,11 +477,16 @@ describe("ProfessionalPatients patient rows", () => {
       ).disabled
     ).toBe(true);
     expect(
-      (screen.getByRole("button", { name: "Acesso revogado" }) as HTMLButtonElement)
-        .disabled
+      (
+        screen.getByRole("button", {
+          name: "Acesso revogado",
+        }) as HTMLButtonElement
+      ).disabled
     ).toBe(true);
     expect(
-      screen.getAllByText("Dados pessoais e clínicos disponíveis após autorização")
+      screen.getAllByText(
+        "Dados pessoais e clínicos disponíveis após autorização"
+      )
     ).toHaveLength(3);
   });
 
@@ -488,7 +528,9 @@ describe("ProfessionalPatients patient rows", () => {
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(screen.queryByText(patientItems[0].patientName)).toBeNull();
       expect(screen.queryByText(patientItems[0].patientEmail!)).toBeNull();
-      expect(screen.queryByRole("button", { name: "Abrir paciente" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Abrir paciente" })
+      ).toBeNull();
     });
     expect(window.location.pathname).toBe("/professional/patients");
   });
@@ -511,7 +553,9 @@ describe("ProfessionalPatients patient rows", () => {
       );
       expect(screen.getByText(patientItems[0].patientName)).not.toBeNull();
       expect(screen.getByText(patientItems[0].patientEmail!)).not.toBeNull();
-      expect(screen.getByRole("button", { name: "Abrir paciente" })).not.toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Abrir paciente" })
+      ).not.toBeNull();
     });
     expect(refetch).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/professional/patients");

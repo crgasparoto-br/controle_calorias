@@ -36,12 +36,7 @@ type AuthorizationStatus =
   | "approved"
   | "rejected"
   | "revoked";
-type TrackingStatus =
-  | "all"
-  | "not_started"
-  | "active"
-  | "paused"
-  | "ended";
+type TrackingStatus = "all" | "not_started" | "active" | "paused" | "ended";
 type ActivityFilter = "all" | "recent" | "inactive" | "unavailable";
 type ReviewFilter =
   | "all"
@@ -154,7 +149,8 @@ export function requestAccessSuccessState(result: RequestAccessResult) {
   }
   return {
     authorizationStatus: result.status,
-    message: "O vínculo já existe. A carteira foi atualizada para mostrar o estado atual.",
+    message:
+      "O vínculo já existe. A carteira foi atualizada para mostrar o estado atual.",
   };
 }
 
@@ -175,9 +171,7 @@ function formatDate(value: number | null | undefined, fallback: string) {
     : fallback;
 }
 
-function unavailableActionLabel(
-  status: Exclude<AuthorizationStatus, "all">
-) {
+function unavailableActionLabel(status: Exclude<AuthorizationStatus, "all">) {
   if (status === "pending") return "Aguardando autorização";
   if (status === "revoked") return "Acesso revogado";
   if (status === "rejected") return "Solicitação recusada";
@@ -208,7 +202,7 @@ function PatientCard({
         <h2 className="break-words font-semibold">{displayName}</h2>
         <p className="mt-1 break-words text-sm text-muted-foreground">
           {accessible
-            ? item.patientEmail ?? "Identificação não informada"
+            ? (item.patientEmail ?? "Identificação não informada")
             : "Dados pessoais e clínicos disponíveis após autorização"}
         </p>
       </div>
@@ -288,9 +282,9 @@ export default function ProfessionalPatients() {
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   const [openingPatientId, setOpeningPatientId] = useState<number | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
-  const [blockedPatientIds, setBlockedPatientIds] = useState<ReadonlySet<number>>(
-    () => new Set()
-  );
+  const [blockedPatientIds, setBlockedPatientIds] = useState<
+    ReadonlySet<number>
+  >(() => new Set());
 
   const updateFilters = useCallback(
     (patch: Partial<Filters>) => {
@@ -321,7 +315,8 @@ export default function ProfessionalPatients() {
   });
 
   const visiblePortfolioItems = useMemo(
-    () => withoutBlockedPatients(portfolio.data?.items ?? [], blockedPatientIds),
+    () =>
+      withoutBlockedPatients(portfolio.data?.items ?? [], blockedPatientIds),
     [blockedPatientIds, portfolio.data?.items]
   );
 
@@ -335,7 +330,10 @@ export default function ProfessionalPatients() {
         const refreshedItem = items.find(
           item => item.patientUserId === patientId
         );
-        if (!refreshedItem || refreshedItem.authorizationStatus !== "approved") {
+        if (
+          !refreshedItem ||
+          refreshedItem.authorizationStatus !== "approved"
+        ) {
           next.delete(patientId);
         }
       }
@@ -350,14 +348,14 @@ export default function ProfessionalPatients() {
       setPatientContact("");
       setReason("");
       setSearchInput("");
-      await Promise.all([
-        utils.nutrition.professionals.myAccesses.invalidate(),
-        portfolio.refetch(),
-      ]);
       setLocation(
         `/professional/patients?authorization=${success.authorizationStatus}`,
         { replace: true }
       );
+      await Promise.allSettled([
+        utils.nutrition.professionals.myAccesses.invalidate(),
+        portfolio.refetch(),
+      ]);
     },
   });
 

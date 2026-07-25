@@ -110,7 +110,7 @@ Gestão da carteira com:
 
 A carteira inicial consulta vínculos identificáveis de forma paginada, com ordenação estável por nome, e-mail ou identificador do paciente, seguida pela data da solicitação e pelo identificador do vínculo. Busca, autorização, situação do acompanhamento e atividade alimentar podem ser combinadas sem carregar relatórios completos. Autorização e acompanhamento são sempre apresentados separadamente.
 
-Vínculos pendentes não participam da paginação identificável. Cada tentativa aparece como um comprovante opaco com o rótulo **Solicitação aguardando confirmação**, inclusive quando várias tentativas apontam para o mesmo vínculo canônico. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela, e o vínculo real continua único.
+Vínculos pendentes não participam da paginação identificável. Cada tentativa aparece como um comprovante opaco com o rótulo **Solicitação aguardando confirmação**, inclusive quando várias tentativas apontam para o mesmo vínculo canônico. Os comprovantes válidos participam da paginação pública da carteira antes dos vínculos identificáveis, sem limite silencioso; `total` e `totalPages` incluem todas as tentativas ainda visíveis. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela, e o vínculo real continua único.
 
 Na primeira versão, “sem atividade recente” significa ausência de refeição confirmada nos três dias anteriores. Ausência de dado é apresentada como “não informado”, nunca como zero. Próxima revisão e pesagem só passam a compor a carteira quando suas entidades canônicas forem entregues pelas fases de prontuário e pendências.
 
