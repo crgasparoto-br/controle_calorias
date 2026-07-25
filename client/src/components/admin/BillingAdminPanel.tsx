@@ -26,10 +26,12 @@ import { toast } from "sonner";
 
 const ACCESS_REASON_OPTIONS = [
   { value: "all", label: "Todas as origens" },
-  { value: "active_subscription", label: "Assinatura ativa" },
-  { value: "sponsored_by_professional", label: "Cobertura profissional" },
-  { value: "active_trial", label: "Trial ativo" },
   { value: "admin_override", label: "Liberação administrativa" },
+  { value: "sponsored_by_professional", label: "Cobertura profissional" },
+  { value: "active_subscription", label: "Assinatura ativa" },
+  { value: "active_trial", label: "Trial ativo" },
+  { value: "transition_access", label: "Período de transição" },
+  { value: "read_only_access", label: "Somente leitura" },
   { value: "free_access", label: "Acesso aberto" },
   { value: "no_access", label: "Sem acesso" },
 ] as const;
@@ -356,161 +358,143 @@ export default function BillingAdminPanel() {
               Registros permanecem visíveis depois da recarga e da revogação.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {overrides.isLoading ? (
               <div role="status" className="text-sm text-muted-foreground">
                 Carregando histórico...
               </div>
             ) : overrides.isError ? (
-              <div role="alert" className="text-sm text-destructive">
-                {overrides.error.message || "Não foi possível carregar o histórico."}
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                <span>{overrides.error.message || "Não foi possível carregar o histórico."}</span>
+                <Button size="sm" variant="outline" onClick={() => void overrides.refetch()}>
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar novamente
+                </Button>
               </div>
             ) : overrides.data?.length ? (
-              <div className="space-y-3">
-                {overrides.data.map(item => {
-                  const revokeReason = revokeReasons[item.id] ?? "";
-                  return (
-                    <div key={item.id} className="rounded-xl border p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{item.reason}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {formatDate(item.startsAt)} — {formatDate(item.endsAt)}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Concedida por usuário #{item.grantedByUserId ?? "removido"}
-                          </p>
-                        </div>
-                        <Badge variant={item.state === "active" ? "default" : "secondary"}>
-                          {item.state === "active"
+              overrides.data.map(override => {
+                const active = override.state === "active";
+                const revokeReason = revokeReasons[override.id] ?? "";
+                return (
+                  <div key={override.id} className="grid gap-4 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr),minmax(280px,0.7fr)]">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={active ? "default" : "secondary"}>
+                          {override.state === "active"
                             ? "Ativa"
-                            : item.state === "revoked"
+                            : override.state === "revoked"
                               ? "Revogada"
                               : "Expirada"}
                         </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(override.startsAt)} até {formatDate(override.endsAt)}
+                        </span>
                       </div>
-
-                      {item.state === "active" ? (
-                        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr),auto]">
-                          <Input
-                            value={revokeReason}
-                            onChange={event =>
-                              setRevokeReasons(current => ({
-                                ...current,
-                                [item.id]: event.target.value,
-                              }))
-                            }
-                            placeholder="Motivo da revogação"
-                            aria-label={`Motivo para revogar a liberação ${item.id}`}
-                          />
-                          <Button
-                            variant="destructive"
-                            disabled={
-                              revokeReason.trim().length < 3 ||
-                              revokeOverride.isPending
-                            }
-                            onClick={() =>
-                              revokeOverride.mutate({
-                                overrideId: item.id,
-                                reason: revokeReason.trim(),
-                              })
-                            }
-                          >
-                            <Ban className="h-4 w-4" />
-                            Revogar
-                          </Button>
-                        </div>
-                      ) : null}
+                      <p className="mt-3 text-sm">{override.reason}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Autor: usuário #{override.grantedByUserId ?? "indisponível"}
+                        {override.revokedByUserId
+                          ? ` · Revogado por #${override.revokedByUserId}`
+                          : ""}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
+                    {active ? (
+                      <div className="space-y-2">
+                        <Label htmlFor={`revoke-${override.id}`}>
+                          Motivo da revogação
+                        </Label>
+                        <Input
+                          id={`revoke-${override.id}`}
+                          value={revokeReason}
+                          onChange={event =>
+                            setRevokeReasons(current => ({
+                              ...current,
+                              [override.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Informe o motivo"
+                        />
+                        <Button
+                          variant="destructive"
+                          className="w-full"
+                          disabled={
+                            revokeReason.trim().length < 3 ||
+                            revokeOverride.isPending
+                          }
+                          onClick={() =>
+                            revokeOverride.mutate({
+                              overrideId: override.id,
+                              reason: revokeReason.trim(),
+                            })
+                          }
+                        >
+                          <Ban className="h-4 w-4" />
+                          Revogar liberação
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
             ) : (
               <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Este usuário ainda não possui histórico de liberação
-                administrativa.
+                Nenhuma liberação administrativa registrada para este usuário.
               </div>
             )}
           </CardContent>
         </Card>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Planos e estados
-            </CardTitle>
-            <CardDescription>
-              Visão provider-neutral por plano, ciclo e situação normalizada.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {analytics.data?.plans.length ? (
-              analytics.data.plans.map(plan => (
-                <div key={plan.planCode} className="rounded-xl border p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{plan.planName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {plan.planCode} · {plan.billingCycle} · {plan.currency}
-                      </p>
-                    </div>
-                    <Badge variant={plan.active ? "default" : "secondary"}>
-                      {plan.active ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Cobertos: {plan.coveredBeneficiaries.toLocaleString("pt-BR")} ·
-                    Capacidade ocupada: {plan.capacityUsed.toLocaleString("pt-BR")}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Nenhum plano comercial foi configurado no backend.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Receita recorrente estimada</CardTitle>
-            <CardDescription>
-              Estimativa separada por moeda. Valores incompatíveis nunca são
-              somados.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {analytics.data?.estimatedMonthlyRecurringRevenue.length ? (
-              analytics.data.estimatedMonthlyRecurringRevenue.map(item => (
-                <div
-                  key={item.currency}
-                  className="flex items-center justify-between rounded-xl border p-4"
-                >
-                  <span className="text-sm text-muted-foreground">
-                    {item.currency}
-                  </span>
-                  <span className="font-semibold">
-                    {formatCurrency(item.amountMinor, item.currency)} / mês
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Não há dados suficientes para estimar receita recorrente.
-              </div>
-            )}
-            <div className="flex items-start gap-2 rounded-xl bg-muted/30 p-4 text-sm text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              A estimativa não substitui conciliação financeira nem confirma
-              pagamento.
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Planos e receita estimada
+          </CardTitle>
+          <CardDescription>
+            Valores são separados por moeda e tratados como estimativa operacional.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {analytics.data?.estimatedMonthlyRecurringRevenue.map(item => (
+            <div key={item.currency} className="flex items-center justify-between rounded-xl border p-4">
+              <span className="text-sm text-muted-foreground">
+                Receita recorrente mensal estimada · {item.currency}
+              </span>
+              <span className="font-semibold">
+                {formatCurrency(item.amountMinor, item.currency)}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+          {analytics.data?.plans.map(plan => (
+            <div key={plan.planCode} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[minmax(0,1fr),auto]">
+              <div>
+                <p className="font-medium">{plan.planName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {plan.planCode} · {plan.audience === "professional" ? "Profissional" : "Individual"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <Badge variant="outline">
+                  {formatCurrency(plan.unitAmount, plan.currency)}
+                </Badge>
+                <Badge variant="outline">
+                  {plan.coveredBeneficiaries.toLocaleString("pt-BR")} coberturas
+                </Badge>
+                <Badge variant="outline">
+                  {plan.capacityUsed.toLocaleString("pt-BR")} vagas ocupadas
+                </Badge>
+              </div>
+            </div>
+          ))}
+          {!analytics.isLoading && !analytics.data?.plans.length ? (
+            <div className="flex items-center gap-3 rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+              <AlertTriangle className="h-4 w-4" />
+              Nenhum plano provider-neutral foi catalogado neste ambiente.
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -525,12 +509,12 @@ function Metric({
   supporting: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-background p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>
-    </div>
+    <Card>
+      <CardContent className="pt-6">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-semibold">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{supporting}</p>
+      </CardContent>
+    </Card>
   );
 }
