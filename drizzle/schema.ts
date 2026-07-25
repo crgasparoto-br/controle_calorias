@@ -263,77 +263,76 @@ export const recipes = mysqlTable("recipes", {
 export const recipeItems = mysqlTable("recipeItems", {
   id: int("id").autoincrement().primaryKey(),
   recipeId: int("recipeId").notNull().references(() => recipes.id, { onDelete: "cascade" }),
-  foodCatalogId: int("foodCatalogId").notNull().references(() => foodCatalog.id, { onDelete: "restrict" }),
+  foodCatalogId: int("foodCatalogId").references(() => foodCatalog.id, { onDelete: "set null" }),
   portionId: int("portionId").references(() => portions.id, { onDelete: "set null" }),
-  foodName: varchar("foodName", { length: 255 }).notNull(),
-  quantity: double("quantity").notNull(),
-  unit: varchar("unit", { length: 40 }).notNull(),
-  grams: double("grams").notNull(),
-  calories: double("calories").notNull(),
-  protein: double("protein").notNull(),
-  carbs: double("carbs").notNull(),
-  fat: double("fat").notNull(),
+  quantity: double("quantity").default(1).notNull(),
+  unit: varchar("unit", { length: 40 }).default("g").notNull(),
+  grams: double("grams").default(0).notNull(),
+  calories: double("calories").default(0).notNull(),
+  protein: double("protein").default(0).notNull(),
+  carbs: double("carbs").default(0).notNull(),
+  fat: double("fat").default(0).notNull(),
+  notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   recipeIdIdx: index("recipeItems_recipeId_idx").on(table.recipeId),
   foodCatalogIdIdx: index("recipeItems_foodCatalogId_idx").on(table.foodCatalogId),
-}));
-
-export const mealSchedules = mysqlTable("mealSchedules", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  mealLabel: varchar("mealLabel", { length: 120 }).notNull(),
-  daysOfWeek: json("daysOfWeek").$type<number[]>().notNull(),
-  timeOfDay: varchar("timeOfDay", { length: 5 }).notNull(),
-  active: int("active").default(1).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, table => ({
-  userIdIdx: index("mealSchedules_userId_idx").on(table.userId),
+  portionIdIdx: index("recipeItems_portionId_idx").on(table.portionId),
 }));
 
 export const meals = mysqlTable("meals", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  source: mysqlEnum("source", ["web", "whatsapp"]).notNull(),
-  mealLabel: varchar("mealLabel", { length: 120 }).notNull(),
-  status: mysqlEnum("status", ["draft", "pending_confirmation", "confirmed", "cancelled"]).default("draft").notNull(),
-  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  source: mysqlEnum("source", ["web", "whatsapp"]).default("web").notNull(),
+  status: mysqlEnum("status", ["draft", "confirmed"]).default("draft").notNull(),
+  mealLabel: varchar("mealLabel", { length: 80 }).notNull(),
   notes: text("notes"),
   sourceText: text("sourceText"),
   transcript: text("transcript"),
-  confidence: double("confidence"),
+  confidence: double("confidence").default(0.5).notNull(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userOccurredIdx: index("meals_user_occurred_idx").on(table.userId, table.occurredAt),
-  userStatusIdx: index("meals_user_status_idx").on(table.userId, table.status),
+  userOccurredAtIdx: index("meals_user_occurredAt_idx").on(table.userId, table.occurredAt),
+  userStatusOccurredAtIdx: index("meals_user_status_occurredAt_idx").on(table.userId, table.status, table.occurredAt),
 }));
 
 export const mealItems = mysqlTable("mealItems", {
   id: int("id").autoincrement().primaryKey(),
   mealId: int("mealId").notNull().references(() => meals.id, { onDelete: "cascade" }),
   foodId: int("foodId").references(() => foods.id, { onDelete: "set null" }),
-  portionId: int("portionId").references(() => foodPortions.id, { onDelete: "set null" }),
+  foodCatalogId: int("foodCatalogId").references(() => foodCatalog.id, { onDelete: "set null" }),
+  recipeId: int("recipeId").references(() => recipes.id, { onDelete: "set null" }),
+  portionId: int("portionId").references(() => portions.id, { onDelete: "set null" }),
+  itemType: mysqlEnum("itemType", ["food", "recipe", "free_text"]).default("food").notNull(),
   foodName: varchar("foodName", { length: 255 }).notNull(),
-  canonicalName: varchar("canonicalName", { length: 255 }),
-  portionText: varchar("portionText", { length: 255 }).notNull(),
-  quantity: double("quantity"),
-  unit: varchar("unit", { length: 40 }),
+  canonicalName: varchar("canonicalName", { length: 255 }).notNull(),
+  portionText: varchar("portionText", { length: 120 }).notNull(),
+  quantity: double("quantity").default(1).notNull(),
+  unit: varchar("unit", { length: 40 }).default("serving").notNull(),
   servings: double("servings").default(1).notNull(),
-  estimatedGrams: double("estimatedGrams"),
+  estimatedGrams: double("estimatedGrams").default(0).notNull(),
   calories: double("calories").notNull(),
   protein: double("protein").notNull(),
   carbs: double("carbs").notNull(),
   fat: double("fat").notNull(),
-  source: varchar("source", { length: 40 }),
+  grams: double("grams"),
+  caloriesKcal: double("caloriesKcal"),
+  proteinG: double("proteinG"),
+  carbG: double("carbG"),
+  fatG: double("fatG"),
+  fiberG: double("fiberG"),
+  sodiumMg: double("sodiumMg"),
+  foodSnapshotJson: text("foodSnapshotJson"),
+  source: mysqlEnum("source", ["catalog", "hybrid", "heuristic"]).default("catalog").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  mealIdIdx: index("mealItems_meal_id_idx").on(table.mealId),
-  foodIdIdx: index("mealItems_food_id_idx").on(table.foodId),
-  portionIdIdx: index("mealItems_portion_id_idx").on(table.portionId),
+  mealIdIdx: index("mealItems_mealId_idx").on(table.mealId),
+  foodIdIdx: index("mealItems_foodId_idx").on(table.foodId),
+  foodCatalogIdIdx: index("mealItems_foodCatalogId_idx").on(table.foodCatalogId),
+  recipeIdIdx: index("mealItems_recipeId_idx").on(table.recipeId),
+  portionIdIdx: index("mealItems_portionId_idx").on(table.portionId),
 }));
 
 export const mealMedia = mysqlTable("mealMedia", {
@@ -346,86 +345,109 @@ export const mealMedia = mysqlTable("mealMedia", {
   originalFileName: varchar("originalFileName", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
-  mealIdIdx: index("mealMedia_meal_id_idx").on(table.mealId),
+  mealIdIdx: index("mealMedia_mealId_idx").on(table.mealId),
+}));
+
+export const mealFavorites = mysqlTable("mealFavorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  mealLabel: varchar("mealLabel", { length: 80 }).notNull(),
+  notes: text("notes"),
+  itemsJson: text("itemsJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  userIdIdx: index("mealFavorites_userId_idx").on(table.userId),
+  userNameUnique: uniqueIndex("mealFavorites_user_name_idx").on(table.userId, table.name),
 }));
 
 export const mealInferences = mysqlTable("mealInferences", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   draftId: varchar("draftId", { length: 64 }).notNull().unique(),
-  source: mysqlEnum("source", ["web", "whatsapp"]).notNull(),
-  status: mysqlEnum("status", ["pending", "confirmed", "cancelled"]).default("pending").notNull(),
-  mealLabel: varchar("mealLabel", { length: 120 }).notNull(),
+  mealId: int("mealId").references(() => meals.id, { onDelete: "set null" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  source: mysqlEnum("source", ["web", "whatsapp"]).default("web").notNull(),
+  requestSummary: text("requestSummary"),
   sourceText: text("sourceText"),
   transcript: text("transcript"),
-  confidence: double("confidence"),
+  mediaJson: text("mediaJson").notNull(),
+  reasoning: text("reasoning"),
+  confidence: double("confidence").default(0.5).notNull(),
+  itemsJson: text("itemsJson").notNull(),
+  totalsJson: text("totalsJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  userIdIdx: index("mealInferences_userId_idx").on(table.userId),
+  mealIdIdx: index("mealInferences_mealId_idx").on(table.mealId),
+}));
+
+export const habitMemories = mysqlTable("habitMemories", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  foodName: varchar("foodName", { length: 255 }).notNull(),
+  typicalMealLabel: varchar("typicalMealLabel", { length: 80 }),
+  preferredPortionGrams: double("preferredPortionGrams").default(0).notNull(),
+  notes: text("notes"),
+  occurrenceCount: int("occurrenceCount").default(1).notNull(),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userStatusIdx: index("mealInferences_user_status_idx").on(table.userId, table.status),
-}));
-
-export const appSecrets = mysqlTable("appSecrets", {
-  id: int("id").autoincrement().primaryKey(),
-  provider: varchar("provider", { length: 64 }).notNull(),
-  secretType: varchar("secretType", { length: 64 }).notNull(),
-  encryptedValue: text("encryptedValue").notNull(),
-  iv: varchar("iv", { length: 64 }).notNull(),
-  authTag: varchar("authTag", { length: 64 }).notNull(),
-  keyId: varchar("keyId", { length: 64 }).notNull(),
-  active: int("active").default(1).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, table => ({
-  providerTypeIdx: index("appSecrets_provider_type_idx").on(table.provider, table.secretType),
-  activeIdx: index("appSecrets_active_idx").on(table.active),
-}));
-
-export const inferenceLogs = mysqlTable("inferenceLogs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").references(() => users.id, { onDelete: "set null" }),
-  origin: mysqlEnum("origin", ["web", "whatsapp"]).notNull(),
-  status: mysqlEnum("status", ["success", "warning", "error"]).notNull(),
-  eventType: varchar("eventType", { length: 120 }).notNull(),
-  detail: text("detail"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, table => ({
-  createdAtIdx: index("inferenceLogs_createdAt_idx").on(table.createdAt),
-  userCreatedIdx: index("inferenceLogs_user_created_idx").on(table.userId, table.createdAt),
+  userFoodIdx: index("habitMemories_user_food_idx").on(table.userId, table.foodName),
+  userLastSeenIdx: index("habitMemories_user_lastSeen_idx").on(table.userId, table.lastSeenAt),
 }));
 
 export const dailySummaries = mysqlTable("dailySummaries", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  date: varchar("date", { length: 10 }).notNull(),
-  totalCalories: double("totalCalories").default(0).notNull(),
-  totalProtein: double("totalProtein").default(0).notNull(),
-  totalCarbs: double("totalCarbs").default(0).notNull(),
-  totalFat: double("totalFat").default(0).notNull(),
+  summaryDate: varchar("summaryDate", { length: 10 }).notNull(),
+  caloriesConsumed: double("caloriesConsumed").default(0).notNull(),
+  proteinConsumed: double("proteinConsumed").default(0).notNull(),
+  carbsConsumed: double("carbsConsumed").default(0).notNull(),
+  fatConsumed: double("fatConsumed").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userDateUnique: uniqueIndex("dailySummaries_user_date_idx").on(table.userId, table.date),
+  userSummaryDateIdx: index("dailySummaries_user_summaryDate_idx").on(table.userId, table.summaryDate),
 }));
 
-export const waterGoals = mysqlTable("waterGoals", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  goalMl: int("goalMl").default(2000).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, table => ({
-  userIdIdx: index("waterGoals_userId_idx").on(table.userId),
-}));
-
-export const waterLogs = mysqlTable("waterLogs", {
+export const exercises = mysqlTable("exercises", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  amountMl: int("amountMl").notNull(),
+  activityType: varchar("activityType", { length: 120 }).notNull(),
+  durationMinutes: int("durationMinutes").notNull(),
+  caloriesBurned: double("caloriesBurned").notNull(),
+  notes: text("notes"),
+  externalProvider: varchar("externalProvider", { length: 40 }),
+  externalId: varchar("externalId", { length: 160 }),
   occurredAt: timestamp("occurredAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userOccurredIdx: index("waterLogs_user_occurred_idx").on(table.userId, table.occurredAt),
+  userOccurredAtIdx: index("exercises_user_occurredAt_idx").on(table.userId, table.occurredAt),
+  externalReferenceIdx: index("exercises_external_reference_idx").on(table.externalProvider, table.externalId),
+  userExternalReferenceUnique: uniqueIndex("exercises_user_external_reference_unique").on(table.userId, table.externalProvider, table.externalId),
+}));
+
+export const healthSyncedRecords = mysqlTable("healthSyncedRecords", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: mysqlEnum("provider", ["apple_health", "health_connect", "google_fit", "strava", "garmin_connect", "mock"]).notNull(),
+  externalRecordId: varchar("externalRecordId", { length: 160 }).notNull(),
+  dataType: mysqlEnum("dataType", ["steps", "weight", "activity", "energy_burned", "sleep"]).notNull(),
+  measuredAt: timestamp("measuredAt").notNull(),
+  value: double("value").notNull(),
+  unit: varchar("unit", { length: 40 }).notNull(),
+  activityType: varchar("activityType", { length: 120 }),
+  energyKind: varchar("energyKind", { length: 40 }),
+  metadataJson: text("metadataJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userMeasuredAtIdx: index("healthSyncedRecords_user_measuredAt_idx").on(table.userId, table.measuredAt),
+  userProviderIdx: index("healthSyncedRecords_user_provider_idx").on(table.userId, table.provider),
+  userDataTypeIdx: index("healthSyncedRecords_user_dataType_idx").on(table.userId, table.dataType),
+  userProviderRecordUnique: uniqueIndex("healthSyncedRecords_user_provider_record_idx").on(table.userId, table.provider, table.externalRecordId, table.dataType),
 }));
 
 export const weightEntries = mysqlTable("weightEntries", {
@@ -437,48 +459,33 @@ export const weightEntries = mysqlTable("weightEntries", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userMeasuredIdx: index("weightEntries_user_measured_idx").on(table.userId, table.measuredAt),
+  userMeasuredAtIdx: index("weightEntries_user_measuredAt_idx").on(table.userId, table.measuredAt),
 }));
 
-export const exercises = mysqlTable("exercises", {
+export const waterGoals = mysqlTable("waterGoals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  dailyTargetMl: int("dailyTargetMl").default(2500).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const waterLogs = mysqlTable("waterLogs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  source: mysqlEnum("source", ["manual", "strava"]).default("manual").notNull(),
-  sourceActivityId: varchar("sourceActivityId", { length: 128 }),
-  name: varchar("name", { length: 255 }).notNull(),
-  exerciseType: varchar("exerciseType", { length: 120 }),
-  durationMinutes: int("durationMinutes"),
-  caloriesBurned: int("caloriesBurned"),
+  amountMl: int("amountMl").notNull(),
   occurredAt: timestamp("occurredAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userOccurredIdx: index("exercises_user_occurred_idx").on(table.userId, table.occurredAt),
-  userSourceActivityIdx: index("exercises_user_source_activity_idx").on(table.userId, table.source, table.sourceActivityId),
-}));
-
-export const stravaConnections = mysqlTable("stravaConnections", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  athleteId: varchar("athleteId", { length: 64 }).notNull(),
-  accessToken: text("accessToken").notNull(),
-  refreshToken: text("refreshToken").notNull(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  scope: varchar("scope", { length: 255 }),
-  status: mysqlEnum("status", ["active", "revoked"]).default("active").notNull(),
-  lastSyncAt: timestamp("lastSyncAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, table => ({
-  userIdIdx: index("stravaConnections_userId_idx").on(table.userId),
-  athleteIdIdx: index("stravaConnections_athleteId_idx").on(table.athleteId),
+  userOccurredAtIdx: index("waterLogs_user_occurredAt_idx").on(table.userId, table.occurredAt),
 }));
 
 export const userPreferences = mysqlTable("userPreferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   preferenceKey: varchar("preferenceKey", { length: 120 }).notNull(),
-  preferenceValue: text("preferenceValue"),
+  preferenceValue: text("preferenceValue").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
@@ -488,8 +495,8 @@ export const userPreferences = mysqlTable("userPreferences", {
 export const userRestrictions = mysqlTable("userRestrictions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  restrictionType: mysqlEnum("restrictionType", ["allergy", "intolerance", "preference", "medical", "other"]).default("other").notNull(),
-  label: varchar("label", { length: 255 }).notNull(),
+  restrictionType: mysqlEnum("restrictionType", ["allergy", "intolerance", "diet", "avoidance", "medical", "other"]).default("other").notNull(),
+  label: varchar("label", { length: 160 }).notNull(),
   severity: mysqlEnum("severity", ["info", "avoid", "strict"]).default("info").notNull(),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -503,10 +510,6 @@ export const whatsappConnections = mysqlTable("whatsappConnections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   phoneNumber: varchar("phoneNumber", { length: 32 }).notNull(),
-  activePhoneKey: varchar("activePhoneKey", { length: 32 }).generatedAlwaysAs(
-    "CASE WHEN status = 'active' THEN phoneNumber ELSE NULL END",
-    { mode: "stored" }
-  ),
   displayName: varchar("displayName", { length: 255 }),
   status: mysqlEnum("status", ["pending", "active", "disabled"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -514,7 +517,6 @@ export const whatsappConnections = mysqlTable("whatsappConnections", {
 }, table => ({
   userIdIdx: index("whatsappConnections_userId_idx").on(table.userId),
   phoneNumberIdx: index("whatsappConnections_phoneNumber_idx").on(table.phoneNumber),
-  activePhoneUniqueIdx: uniqueIndex("whatsappConnections_activePhoneKey_unique_idx").on(table.activePhoneKey),
 }));
 
 export const whatsappConversations = mysqlTable("whatsappConversations", {
@@ -649,49 +651,131 @@ export type InsertWhatsAppConversationSummary = typeof whatsappConversationSumma
 
 export const whatsappPendingOperations = mysqlTable("whatsappPendingOperations", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  operationType: varchar("operationType", { length: 80 }).notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "completed", "cancelled", "expired", "superseded", "blocked"]).default("pending").notNull(),
-  payloadVersion: int("payloadVersion").default(1).notNull(),
-  payloadJson: json("payloadJson").$type<Record<string, unknown>>().notNull(),
-  promptText: text("promptText").notNull(),
-  contextMessageId: int("contextMessageId"),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  target: json("target").notNull(),
+  origin: varchar("origin", { length: 64 }).notNull(),
+  state: varchar("state", { length: 16 }).default("active").notNull(),
+  version: int("version").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   consumedAt: timestamp("consumedAt"),
+}, table => ({
+  userStateIdx: index("wa_pending_op_user_state_idx").on(table.userId, table.state),
+  userFk: foreignKey({
+    name: "wa_pending_op_user_fk",
+    columns: [table.userId],
+    foreignColumns: [users.id],
+  }).onDelete("cascade"),
+}));
+
+export type WhatsAppPendingOperation = typeof whatsappPendingOperations.$inferSelect;
+export type InsertWhatsAppPendingOperation = typeof whatsappPendingOperations.$inferInsert;
+
+export const appSecrets = mysqlTable("appSecrets", {
+  id: int("id").autoincrement().primaryKey(),
+  secretKey: varchar("secretKey", { length: 64 }).notNull().unique(),
+  valueEncrypted: text("valueEncrypted").notNull(),
+  updatedByUserId: int("updatedByUserId").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userStatusCreatedIdx: index("whatsappPendingOperations_user_status_created_idx").on(table.userId, table.status, table.createdAt),
-  statusExpiresIdx: index("whatsappPendingOperations_status_expires_idx").on(table.status, table.expiresAt),
-  contextMessageIdx: index("whatsappPendingOperations_contextMessage_idx").on(table.contextMessageId),
-  contextMessageFk: foreignKey({
-    name: "whatsappPendingOperations_contextMessageId_fk",
-    columns: [table.contextMessageId],
-    foreignColumns: [whatsappConversationMessages.id],
-  }).onDelete("set null"),
+  updatedByUserIdIdx: index("appSecrets_updatedByUserId_idx").on(table.updatedByUserId),
 }));
 
-export const whatsappConversationPendingContext = mysqlTable("whatsappConversationPendingContext", {
+export const inferenceLogs = mysqlTable("inferenceLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").references(() => users.id, { onDelete: "set null" }),
+  origin: mysqlEnum("origin", ["web", "whatsapp", "admin"]).default("web").notNull(),
+  status: mysqlEnum("status", ["success", "warning", "error"]).default("success").notNull(),
+  eventType: varchar("eventType", { length: 120 }).notNull(),
+  detail: text("detail").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  userCreatedAtIdx: index("inferenceLogs_user_createdAt_idx").on(table.userId, table.createdAt),
+  eventTypeIdx: index("inferenceLogs_eventType_idx").on(table.eventType),
+}));
+
+export const quickEditTokens = mysqlTable("quickEditTokens", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  operationId: int("operationId").references(() => whatsappPendingOperations.id, { onDelete: "set null" }),
-  action: varchar("action", { length: 80 }).notNull(),
-  eventType: varchar("eventType", { length: 160 }).notNull(),
-  reply: text("reply").notNull(),
-  detail: text("detail").notNull(),
-  dataJson: json("dataJson").$type<Record<string, unknown>>().notNull(),
-  sourceText: text("sourceText"),
-  receivedAt: timestamp("receivedAt"),
-  status: mysqlEnum("status", ["pending", "completed", "cancelled", "expired", "superseded"]).default("pending").notNull(),
+  mealId: int("mealId").notNull().references(() => meals.id, { onDelete: "cascade" }),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
   expiresAt: timestamp("expiresAt").notNull(),
-  resolvedAt: timestamp("resolvedAt"),
+  usedAt: timestamp("usedAt"),
+  lastAccessedAt: timestamp("lastAccessedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
-  userStatusUpdatedIdx: index("whatsappConversationPendingContext_user_status_updated_idx").on(table.userId, table.status, table.updatedAt),
-  statusExpiresIdx: index("whatsappConversationPendingContext_status_expires_idx").on(table.status, table.expiresAt),
-  operationIdx: index("whatsappConversationPendingContext_operation_idx").on(table.operationId),
+  userMealIdx: index("quickEditTokens_user_meal_idx").on(table.userId, table.mealId),
+  expiresAtIdx: index("quickEditTokens_expiresAt_idx").on(table.expiresAt),
 }));
 
-export type User = typeof users.$inferSelect;
 export type UserWithPasswordHash = typeof users.$inferSelect;
+export type User = Omit<UserWithPasswordHash, "passwordHash">;
+export type InsertUser = typeof users.$inferInsert;
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type InsertUserProfile = typeof userProfiles.$inferInsert;
+export type NutritionGoal = typeof nutritionGoals.$inferSelect;
+export type InsertNutritionGoal = typeof nutritionGoals.$inferInsert;
+export type FoodBrand = typeof foodBrands.$inferSelect;
+export type InsertFoodBrand = typeof foodBrands.$inferInsert;
+export type FoodSource = typeof foodSources.$inferSelect;
+export type InsertFoodSource = typeof foodSources.$inferInsert;
+export type GlobalFood = typeof foods.$inferSelect;
+export type InsertGlobalFood = typeof foods.$inferInsert;
+export type FoodAlias = typeof foodAliases.$inferSelect;
+export type InsertFoodAlias = typeof foodAliases.$inferInsert;
+export type FoodPortion = typeof foodPortions.$inferSelect;
+export type InsertFoodPortion = typeof foodPortions.$inferInsert;
+export type Food = typeof foodCatalog.$inferSelect;
+export type InsertFood = typeof foodCatalog.$inferInsert;
+export type FoodFavorite = typeof foodFavorites.$inferSelect;
+export type InsertFoodFavorite = typeof foodFavorites.$inferInsert;
+export type UserGamificationSetting = typeof userGamificationSettings.$inferSelect;
+export type InsertUserGamificationSetting = typeof userGamificationSettings.$inferInsert;
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = typeof userBadges.$inferInsert;
+export type Portion = typeof portions.$inferSelect;
+export type InsertPortion = typeof portions.$inferInsert;
+export type Recipe = typeof recipes.$inferSelect;
+export type InsertRecipe = typeof recipes.$inferInsert;
+export type RecipeItem = typeof recipeItems.$inferSelect;
+export type InsertRecipeItem = typeof recipeItems.$inferInsert;
+export type Meal = typeof meals.$inferSelect;
+export type InsertMeal = typeof meals.$inferInsert;
+export type MealItem = typeof mealItems.$inferSelect;
+export type InsertMealItem = typeof mealItems.$inferInsert;
+export type MealMedia = typeof mealMedia.$inferSelect;
+export type InsertMealMedia = typeof mealMedia.$inferInsert;
+export type MealFavorite = typeof mealFavorites.$inferSelect;
+export type InsertMealFavorite = typeof mealFavorites.$inferInsert;
+export type HabitMemory = typeof habitMemories.$inferSelect;
+export type InsertHabitMemory = typeof habitMemories.$inferInsert;
+export type DailyLog = typeof dailySummaries.$inferSelect;
+export type InsertDailyLog = typeof dailySummaries.$inferInsert;
+export type Exercise = typeof exercises.$inferSelect;
+export type InsertExercise = typeof exercises.$inferInsert;
+export type ActivityEntry = Exercise;
+export type InsertActivityEntry = InsertExercise;
+export type HealthSyncedRecord = typeof healthSyncedRecords.$inferSelect;
+export type InsertHealthSyncedRecord = typeof healthSyncedRecords.$inferInsert;
+export type WeightEntry = typeof weightEntries.$inferSelect;
+export type InsertWeightEntry = typeof weightEntries.$inferInsert;
+export type WaterGoal = typeof waterGoals.$inferSelect;
+export type InsertWaterGoal = typeof waterGoals.$inferInsert;
+export type WaterLog = typeof waterLogs.$inferSelect;
+export type InsertWaterLog = typeof waterLogs.$inferInsert;
+export type WaterEntry = WaterLog;
+export type InsertWaterEntry = InsertWaterLog;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type InsertUserPreference = typeof userPreferences.$inferInsert;
+export type UserRestriction = typeof userRestrictions.$inferSelect;
+export type InsertUserRestriction = typeof userRestrictions.$inferInsert;
+export type AppSecret = typeof appSecrets.$inferSelect;
+export type InsertAppSecret = typeof appSecrets.$inferInsert;
+export type InferenceLog = typeof inferenceLogs.$inferSelect;
+export type InsertInferenceLog = typeof inferenceLogs.$inferInsert;
+export type QuickEditToken = typeof quickEditTokens.$inferSelect;
+export type InsertQuickEditToken = typeof quickEditTokens.$inferInsert;
