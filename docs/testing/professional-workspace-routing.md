@@ -92,3 +92,7 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
 16. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
 17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
+
+## Cabeçalho contextual
+
+A última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade.

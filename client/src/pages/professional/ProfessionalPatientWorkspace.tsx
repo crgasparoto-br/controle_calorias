@@ -92,6 +92,10 @@ const emptyAssessment: AssessmentDraft = {
   nextReviewAt: "",
 };
 
+export function getLatestPatientActivityAt(record: { timeline?: Array<{ occurredAt?: number | null }> }) {
+  return record.timeline?.[0]?.occurredAt ?? null;
+}
+
 function formatDate(value: number | null | undefined) {
   return value
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -890,6 +894,7 @@ export default function ProfessionalPatientWorkspace() {
       <ProfessionalPatientHeader
         displayName={selectedPatient.displayName}
         trackingStatus={trackingStatus}
+        lastActivityAt={getLatestPatientActivityAt(record.data)}
         nextReviewAt={latest?.nextReviewAt}
       />
       <PatientSubnav
