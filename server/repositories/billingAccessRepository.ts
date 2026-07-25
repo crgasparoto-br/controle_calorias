@@ -136,7 +136,7 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
     );
     for (const row of standaloneRows) {
       const sourceType = String(row.sourceType);
-      const reason =
+      const reason: BillingEntitlementCandidate["reason"] =
         sourceType === "trial"
           ? "active_trial"
           : sourceType === "transition"
