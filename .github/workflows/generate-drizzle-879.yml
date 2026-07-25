@@ -1,0 +1,53 @@
+name: Generate Drizzle metadata for issue 879
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/generate-drizzle-879.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate canonical Drizzle migration and snapshot
+        run: pnpm exec drizzle-kit generate
+      - name: Validate generated scope
+        run: |
+          mapfile -t changed < <(git status --short | awk '{print $2}' | sort)
+          printf 'Generated paths:\n%s\n' "${changed[*]}"
+          test "${#changed[@]}" -eq 3
+          printf '%s\n' "${changed[@]}" | grep -qx 'drizzle/meta/0036_snapshot.json'
+          printf '%s\n' "${changed[@]}" | grep -qx 'drizzle/meta/_journal.json'
+          migration="$(printf '%s\n' "${changed[@]}" | grep '^drizzle/0036_.*\.sql$')"
+          test -n "$migration"
+          grep -q 'ADD `nextReviewAt` timestamp' "$migration"
+          grep -q 'ADD `nextWeighingAt` timestamp' "$migration"
+          grep -q 'professionalTrackings_review_idx' "$migration"
+          grep -q 'professionalTrackings_weighing_idx' "$migration"
+      - name: Commit generated metadata
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add drizzle
+          git commit -m "chore: gerar migration da agenda profissional (#879)"
+          git push origin HEAD:feat/875-professional-context-routes
