@@ -31,7 +31,11 @@ function assertMemoryPersistenceFallbackAllowed() {
   }
 }
 
-function createMemoryUser(input: { name: string; email: string; passwordHash: string }): User {
+function createMemoryUser(input: {
+  name: string;
+  email: string;
+  passwordHash: string;
+}): User {
   const normalizedEmail = normalizeEmail(input.email);
   if (memoryUserIdsByEmail.has(normalizedEmail)) {
     throw new Error("EMAIL_ALREADY_REGISTERED");
@@ -87,38 +91,30 @@ async function findUserByEmail(email: string) {
   return rows[0];
 }
 
-export async function registerLocalUser(input: { name: string; email: string; password: string }) {
+export async function registerLocalUser(input: {
+  name: string;
+  email: string;
+  password: string;
+}) {
   const normalizedEmail = normalizeEmail(input.email);
   const passwordHash = await hashPassword(input.password);
   const database = await db.getDb();
 
   if (!database) {
     assertMemoryPersistenceFallbackAllowed();
-    return createMemoryUser({ name: input.name.trim(), email: normalizedEmail, passwordHash });
+    return createMemoryUser({
+      name: input.name.trim(),
+      email: normalizedEmail,
+      passwordHash,
+    });
   }
 
   const existing = await findUserByEmail(normalizedEmail);
   if (existing) {
-    if (existing.passwordHash) {
-      throw new Error("EMAIL_ALREADY_REGISTERED");
-    }
-
-    await database
-      .update(users)
-      .set({
-        name: input.name.trim() || existing.name,
-        loginMethod: "password",
-        passwordHash,
-        lastSignedIn: new Date(),
-      })
-      .where(eq(users.id, existing.id));
-
-    const migratedUser = await findUserByEmail(normalizedEmail);
-    if (!migratedUser) {
-      throw new Error("USER_CREATE_FAILED");
-    }
-
-    return stripPasswordHash(migratedUser);
+    // Existing identities must be authenticated through their original login or
+    // recovery flow before adding a local password or linking WhatsApp. Public
+    // registration never adopts an account solely from knowledge of its e-mail.
+    throw new Error("EMAIL_ALREADY_REGISTERED");
   }
 
   const values = {
@@ -130,7 +126,15 @@ export async function registerLocalUser(input: { name: string; email: string; pa
     lastSignedIn: new Date(),
   };
 
-  await database.insert(users).values(values);
+  try {
+    await database.insert(users).values(values);
+  } catch (error) {
+    const racedExisting = await findUserByEmail(normalizedEmail);
+    if (racedExisting) {
+      throw new Error("EMAIL_ALREADY_REGISTERED");
+    }
+    throw error;
+  }
 
   const user = await findUserByEmail(normalizedEmail);
   if (!user) {
@@ -140,7 +144,10 @@ export async function registerLocalUser(input: { name: string; email: string; pa
   return stripPasswordHash(user);
 }
 
-export async function authenticateLocalUser(input: { email: string; password: string }) {
+export async function authenticateLocalUser(input: {
+  email: string;
+  password: string;
+}) {
   const normalizedEmail = normalizeEmail(input.email);
   const database = await db.getDb();
 
@@ -148,7 +155,10 @@ export async function authenticateLocalUser(input: { email: string; password: st
     assertMemoryPersistenceFallbackAllowed();
     const memoryUserId = memoryUserIdsByEmail.get(normalizedEmail);
     const memoryUser = memoryUserId ? memoryUsersById.get(memoryUserId) : null;
-    if (!memoryUser || !(await verifyPassword(input.password, memoryUser.passwordHash))) {
+    if (
+      !memoryUser ||
+      !(await verifyPassword(input.password, memoryUser.passwordHash))
+    ) {
       throw new Error("INVALID_CREDENTIALS");
     }
     memoryUser.lastSignedIn = new Date();

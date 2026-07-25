@@ -47,7 +47,7 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 
 ## Contrato de entitlements
 
-`entitlementService.ts` é o ponto único de integração com o futuro billing da issue #145. O snapshot normaliza:
+`entitlementService.ts` é o ponto único de integração com o billing da issue #145. O snapshot normaliza:
 
 - acesso permitido ou negado;
 - razão da elegibilidade;
@@ -57,7 +57,7 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 - capacidade, uso e disponibilidade fornecidos pelo provider;
 - disponibilidade do provider e uso de fallback.
 
-O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
+A fundação de billing registra o provider canônico por `configureBillingProfessionalEntitlementProvider`, que delega a `configureProfessionalEntitlementProvider` e à persistência descrita em `billing-foundation.md`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
 
 `BILLING_ACCESS_MODE=open_access` é uma política de rollout, não apenas um fallback de indisponibilidade. Enquanto estiver ativo, todos os recursos profissionais permanecem liberados mesmo que o provider esteja disponível e responda que não há assinatura. Dados comerciais retornados ainda podem ser exibidos, mas não bloqueiam operações nem capacidade. Em `enforced`, ausência, falha, expiração ou negação do provider resultam em bloqueio seguro. O serviço não mantém cache de autorização.
 
@@ -79,4 +79,4 @@ Redução de plano abaixo da carteira atual não remove pacientes nem histórico
 
 ## Evolução com a issue #145
 
-A implementação comercial deve registrar um provider no contrato central e manter a mesma forma normalizada. O provider será responsável pela persistência auditável da capacidade, definição comercial de paciente ativo, idempotência da reserva, correlação pela `coverageKey`, retry e liberação de vagas. Checkout, cobrança, webhooks, preços e limites concretos permanecem fora da issue #814.
+A fundação comercial já registra um provider interno provider-neutral e mantém a forma normalizada. A persistência auditável de capacidade, idempotência por `coverageKey`, retry e liberação de vagas são centrais. Checkout, cobrança, provider financeiro real, preços, limites concretos e definição comercial de paciente ativo permanecem em entregas posteriores da épica #145.
