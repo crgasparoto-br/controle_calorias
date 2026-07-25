@@ -38,6 +38,19 @@ function isDuplicateEntryError(error: unknown) {
   return false;
 }
 
+async function applyDrizzleMigration(
+  connection: mysql.Connection,
+  migration: string
+) {
+  const statements = migration
+    .split("--> statement-breakpoint")
+    .map(statement => statement.trim())
+    .filter(Boolean);
+  for (const statement of statements) {
+    await connection.query(statement);
+  }
+}
+
 const connection = await mysql.createConnection(connectionOptions());
 try {
   await connection.query("DROP TABLE IF EXISTS whatsappConnections");
@@ -78,7 +91,7 @@ try {
     ),
     "utf8"
   );
-  await connection.query(migration);
+  await applyDrizzleMigration(connection, migration);
 
   const [rows] = await connection.query<mysql.RowDataPacket[]>(`
     SELECT userId, phoneNumber, activePhoneKey, status
