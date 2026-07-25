@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getSafeWhatsappOnboardingCompletionErrorCode } from "./whatsappOnboardingErrors";
 
 const completeOnboardingMock = vi.fn(async () => undefined);
 const getLocalUserByIdMock = vi.fn();
@@ -41,6 +42,7 @@ const {
   createWhatsappOnboardingLead,
   getWhatsappOnboardingActivationState,
   getWhatsappOnboardingLeadByToken,
+  linkWhatsappOnboardingToAuthenticatedUser,
 } = await import("./whatsappLeadService");
 
 const profile = {
@@ -228,6 +230,83 @@ describe("WhatsApp onboarding eligibility", () => {
     expect(registerLocalUserMock).toHaveBeenCalledTimes(1);
     expect(getLocalUserByIdMock).toHaveBeenCalledWith(45);
     expect(completeOnboardingMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves the lead after an existing-account conflict and links only through an authenticated continuation", async () => {
+    registerLocalUserMock.mockRejectedValue(
+      new Error("EMAIL_ALREADY_REGISTERED")
+    );
+    const lead = await createWhatsappOnboardingLead({
+      phoneNumber: "5511999999906",
+      displayName: "Ana existente",
+    });
+
+    await expect(
+      completeWhatsappOnboarding(
+        completionInput(lead.token, "ana.existing@example.com")
+      )
+    ).rejects.toThrow("EMAIL_ALREADY_REGISTERED");
+    await expect(getWhatsappOnboardingLeadByToken(lead.token)).resolves.toMatchObject({
+      status: "pending_onboarding",
+    });
+
+    const linked = await linkWhatsappOnboardingToAuthenticatedUser(90, lead.token);
+    expect(linked).toMatchObject({
+      status: "linked",
+      nextAction: "continue",
+      eligibility: { allowed: true },
+    });
+    expect(completeOnboardingMock).not.toHaveBeenCalled();
+    expect(upsertUserWhatsappConnectionMock).toHaveBeenCalledWith({
+      userId: 90,
+      phoneNumber: "5511999999906",
+      displayName: "Ana existente",
+    });
+    expect(sendOnboardingWelcomeWhatsappMock).toHaveBeenCalledTimes(1);
+
+    await expect(
+      linkWhatsappOnboardingToAuthenticatedUser(90, lead.token)
+    ).resolves.toMatchObject({ status: "already_active", resumed: true });
+    expect(sendOnboardingWelcomeWhatsappMock).toHaveBeenCalledTimes(1);
+    await expect(
+      linkWhatsappOnboardingToAuthenticatedUser(91, lead.token)
+    ).rejects.toThrow("ONBOARDING_ACCOUNT_LINK_UNAVAILABLE");
+  });
+
+  it("persists only a closed safe error code after a sensitive failure", async () => {
+    const lead = await createWhatsappOnboardingLead({
+      phoneNumber: "5511999999907",
+      displayName: "Ana segura",
+    });
+    upsertUserWhatsappConnectionMock.mockRejectedValueOnce(
+      new Error(
+        "database failed for ana.secret@example.com token super-secret-token"
+      )
+    );
+
+    await expect(
+      linkWhatsappOnboardingToAuthenticatedUser(92, lead.token)
+    ).rejects.toThrow("database failed");
+    const state = await getWhatsappOnboardingActivationState(92);
+    expect(state).toMatchObject({
+      status: "converting",
+      completionErrorCode: "ONBOARDING_COMPLETION_FAILED",
+    });
+    expect(state?.completionErrorCode).not.toContain("ana.secret@example.com");
+    expect(state?.completionErrorCode).not.toContain("super-secret-token");
+  });
+
+  it("maps account and unknown failures to a closed persistence vocabulary", () => {
+    expect(
+      getSafeWhatsappOnboardingCompletionErrorCode(
+        new Error("EMAIL_ALREADY_REGISTERED")
+      )
+    ).toBe("ACCOUNT_AUTHENTICATION_REQUIRED");
+    expect(
+      getSafeWhatsappOnboardingCompletionErrorCode(
+        new Error("private database detail with phone 5511999999999")
+      )
+    ).toBe("ONBOARDING_COMPLETION_FAILED");
   });
 
   it("activates a pending account later through the same eligibility contract", async () => {
