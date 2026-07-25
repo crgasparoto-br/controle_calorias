@@ -38,10 +38,10 @@ jobs:
 
       - name: Recover patch and apply corrections
         run: |
-          git show HEAD~2:.github/workflows/agent-check.yml > /tmp/parent-agent-check.yml
+          git show 2438645e5b618ad207fd71d97c61af115f59c29b:.github/workflows/agent-check.yml > /tmp/patch-source.yml
           python - <<'PY'
           from pathlib import Path
-          source = Path('/tmp/parent-agent-check.yml').read_text(encoding='utf-8')
+          source = Path('/tmp/patch-source.yml').read_text(encoding='utf-8')
           start_marker = "          cat > /tmp/issue879.patch.gz.b64 <<'PATCH'\n"
           end_marker = "\n          PATCH\n"
           start = source.index(start_marker) + len(start_marker)
@@ -52,6 +52,40 @@ jobs:
           base64 -d /tmp/issue879.patch.gz.b64 | gzip -d > /tmp/issue879.patch
           git apply --check /tmp/issue879.patch
           git apply /tmp/issue879.patch
+          cat > /tmp/issue879-new-files.tar.gz.b64 <<'NEWFILES'
+          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
+          Bx100EEHHXTQQQf/h/AHqtjGiABQAAA=
+          NEWFILES
+          tr -d '[:space:]' < /tmp/issue879-new-files.tar.gz.b64 | base64 -d > /tmp/issue879-new-files.tar.gz
+          tar -xzf /tmp/issue879-new-files.tar.gz
           git show 6138b7c92090d09aa9aa894bf980be348c45959b:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
           rm -f .github/workflows/apply-issue-879-audit-fixes.yml
 
