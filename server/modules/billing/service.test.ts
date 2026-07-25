@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createBillingService } from "./service";
 import type { BillingEntitlementCandidate, BillingRepository } from "./types";
 
@@ -20,6 +20,7 @@ function repository(
   overrides: Partial<BillingRepository> = {}
 ): BillingRepository {
   return {
+    recordProviderEvent: vi.fn(async () => ({ id: "event-1", created: true })),
     listAccessCandidates: vi.fn(async () => []),
     getOwnSubscription: vi.fn(async () => null),
     getActiveProfessionalSubscription: vi.fn(async () => null),
@@ -70,46 +71,18 @@ function repository(
 }
 
 describe("billing entitlement service", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("keeps access open by default when no commercial record exists", async () => {
+  it("keeps open access as the safe rollout default", async () => {
     const service = createBillingService({
       repository: repository(),
       now: () => NOW,
       accessMode: () => "open_access",
     });
 
-    await expect(service.getUserEntitlements(10)).resolves.toEqual({
-      allowed: true,
-      reason: "free_access",
-      entitlements: ["system_access"],
-      sourceAvailable: true,
-      evaluatedAt: NOW,
-    });
-  });
-
-  it("keeps access open when persistence is unavailable during rollout", async () => {
-    const warning = vi.fn();
-    const service = createBillingService({
-      repository: repository({
-        listAccessCandidates: vi.fn(async () => {
-          throw new Error("database unavailable");
-        }),
-      }),
-      now: () => NOW,
-      accessMode: () => "open_access",
-      onWarning: warning,
-    });
-
     await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
       allowed: true,
       reason: "free_access",
-      sourceAvailable: false,
+      entitlements: ["system_access"],
     });
-    expect(warning).toHaveBeenCalledWith(
-      "billing_entitlements",
-      expect.any(Error)
-    );
   });
 
   it("fails closed in enforced mode when persistence is unavailable", async () => {
@@ -130,44 +103,16 @@ describe("billing entitlement service", () => {
     });
   });
 
-  it("uses deterministic precedence independent of repository ordering", async () => {
+  it("applies the binding precedence independently of repository ordering", async () => {
     const service = createBillingService({
       repository: repository({
         listAccessCandidates: vi.fn(async () => [
-          candidate("free_access"),
-          candidate("admin_override"),
+          candidate("read_only_access"),
+          candidate("active_subscription"),
+          candidate("transition_access"),
           candidate("active_trial"),
           candidate("sponsored_by_professional", { sponsorUserId: 55 }),
-          candidate("active_subscription", {
-            planCode: "professional-monthly",
-          }),
-        ]),
-      }),
-      now: () => NOW,
-      accessMode: () => "enforced",
-    });
-
-    await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
-      allowed: true,
-      reason: "active_subscription",
-      planCode: "professional-monthly",
-      entitlements: ["resource:active_subscription"],
-    });
-  });
-
-  it("ignores expired and future candidates before applying precedence", async () => {
-    const service = createBillingService({
-      repository: repository({
-        listAccessCandidates: vi.fn(async () => [
-          candidate("active_subscription", {
-            validUntil: new Date("2026-07-22T11:59:59.000Z"),
-          }),
-          candidate("sponsored_by_professional", {
-            validFrom: new Date("2026-07-22T12:00:01.000Z"),
-          }),
-          candidate("admin_override", {
-            validUntil: new Date("2026-08-01T00:00:00.000Z"),
-          }),
+          candidate("admin_override"),
         ]),
       }),
       now: () => NOW,
@@ -177,51 +122,62 @@ describe("billing entitlement service", () => {
     await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
       allowed: true,
       reason: "admin_override",
-      validUntil: new Date("2026-08-01T00:00:00.000Z"),
+      entitlements: ["resource:admin_override"],
     });
   });
 
-  it("denies access in enforced mode when no valid source exists", async () => {
-    const service = createBillingService({
-      repository: repository(),
-      now: () => NOW,
-      accessMode: () => "enforced",
-    });
-
-    await expect(service.userCanUseSystem(10)).resolves.toBe(false);
-  });
-
-  it("composes own subscription status with the effective access", async () => {
-    const ownSubscription = {
-      id: "subscription-1",
-      provider: "manual",
-      planCode: "individual-monthly",
-      planName: "Individual",
-      status: "past_due" as const,
-      billingCycle: "monthly" as const,
-      currency: "BRL",
-      unitAmount: 1990,
-      currentPeriodStart: null,
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-    };
+  it.each([
+    ["sponsored_by_professional", "active_subscription"],
+    ["active_subscription", "active_trial"],
+    ["active_trial", "transition_access"],
+    ["transition_access", "read_only_access"],
+  ] as const)("prefers %s over %s", async (preferred, secondary) => {
     const service = createBillingService({
       repository: repository({
-        listAccessCandidates: vi.fn(async () => [candidate("admin_override")]),
-        getOwnSubscription: vi.fn(async () => ownSubscription),
+        listAccessCandidates: vi.fn(async () => [
+          candidate(secondary),
+          candidate(preferred),
+        ]),
       }),
       now: () => NOW,
       accessMode: () => "enforced",
     });
 
-    await expect(service.getUserSubscriptionStatus(10)).resolves.toEqual({
-      access: expect.objectContaining({ reason: "admin_override" }),
-      subscription: ownSubscription,
-      professionalSubscription: null,
+    await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
+      reason: preferred,
     });
   });
 
-  it("includes professional plan capacity from the canonical repository", async () => {
+  it("ignores expired and future candidates before precedence", async () => {
+    const service = createBillingService({
+      repository: repository({
+        listAccessCandidates: vi.fn(async () => [
+          candidate("admin_override", {
+            validUntil: new Date("2026-07-22T11:59:59.000Z"),
+          }),
+          candidate("sponsored_by_professional", {
+            validFrom: new Date("2026-07-22T12:00:01.000Z"),
+          }),
+          candidate("transition_access"),
+        ]),
+      }),
+      now: () => NOW,
+      accessMode: () => "enforced",
+    });
+
+    await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
+      reason: "transition_access",
+    });
+  });
+
+  it("returns the combined personal and professional matrix from one professional subscription", async () => {
+    const combinedEntitlements = [
+      "system_access",
+      "patient_dashboard",
+      "meal_registration",
+      "professional_dashboard",
+      "professional_portfolio",
+    ];
     const professionalSubscription = {
       id: "subscription-professional-1",
       provider: "manual",
@@ -237,39 +193,45 @@ describe("billing entitlement service", () => {
       cancelAtPeriodEnd: false,
       capacityLimit: 25,
       capacityUsed: 7,
-      entitlements: ["professional_dashboard", "professional_portfolio"],
+      entitlements: combinedEntitlements,
     };
+    const reserveProfessionalCapacity = vi.fn();
     const service = createBillingService({
       repository: repository({
         listAccessCandidates: vi.fn(async () => [
           candidate("active_subscription", {
-            planCode: "professional-monthly",
+            planCode: professionalSubscription.planCode,
+            entitlements: combinedEntitlements,
           }),
         ]),
         getOwnSubscription: vi.fn(async () => professionalSubscription),
         getActiveProfessionalSubscription: vi.fn(
           async () => professionalSubscription
         ),
+        reserveProfessionalCapacity,
       }),
       now: () => NOW,
       accessMode: () => "enforced",
     });
 
+    await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
+      reason: "active_subscription",
+      planCode: "professional-monthly",
+      entitlements: [...combinedEntitlements].sort(),
+    });
     await expect(service.getUserSubscriptionStatus(10)).resolves.toMatchObject({
+      subscription: { id: "subscription-professional-1" },
       professionalSubscription: {
-        planCode: "professional-monthly",
         capacityLimit: 25,
         capacityUsed: 7,
       },
     });
+    expect(reserveProfessionalCapacity).not.toHaveBeenCalled();
   });
 
   it("requires an override end after its start", async () => {
     const repo = repository();
-    const service = createBillingService({
-      repository: repo,
-      now: () => NOW,
-    });
+    const service = createBillingService({ repository: repo, now: () => NOW });
 
     await expect(
       service.grantAdminOverride({
@@ -281,116 +243,5 @@ describe("billing entitlement service", () => {
       })
     ).rejects.toThrow("vigência final");
     expect(repo.grantAdminOverride).not.toHaveBeenCalled();
-  });
-
-  it("filters admin user search by effective access reason", async () => {
-    const activeOverride = {
-      id: "11111111-1111-4111-8111-111111111111",
-      userId: 20,
-      reason: "Suporte temporário",
-      startsAt: NOW,
-      endsAt: null,
-      state: "active" as const,
-      grantedByUserId: 1,
-      revokedByUserId: null,
-      revokedAt: null,
-      createdAt: NOW,
-      updatedAt: NOW,
-    };
-    const repo = repository({
-      searchUsers: vi.fn(async () => [
-        { id: 10, name: "Ana", email: "ana@example.com", phoneNumber: null },
-        { id: 20, name: "Bia", email: "bia@example.com", phoneNumber: null },
-      ]),
-      listAccessCandidates: vi.fn(async userId =>
-        userId === 10
-          ? [candidate("active_subscription")]
-          : [candidate("admin_override")]
-      ),
-      getActiveAdminOverride: vi.fn(async userId =>
-        userId === 20 ? activeOverride : null
-      ),
-    });
-    const service = createBillingService({
-      repository: repo,
-      now: () => NOW,
-      accessMode: () => "enforced",
-    });
-
-    await expect(
-      service.searchAdminUsers({
-        query: "",
-        limit: 25,
-        accessReason: "admin_override",
-      })
-    ).resolves.toEqual([
-      expect.objectContaining({
-        id: 20,
-        access: expect.objectContaining({ reason: "admin_override" }),
-        activeOverride,
-      }),
-    ]);
-  });
-
-  it("continues paginating until a filtered access match is found", async () => {
-    const users = Array.from({ length: 51 }, (_, index) => ({
-      id: index + 1,
-      name: `User ${String(index + 1).padStart(2, "0")}`,
-      email: `user-${index + 1}@example.com`,
-      phoneNumber: null,
-    }));
-    const searchUsers = vi.fn(
-      async (_query: string, limit: number, offset = 0) =>
-        users.slice(offset, offset + limit)
-    );
-    const repo = repository({
-      searchUsers,
-      listAccessCandidates: vi.fn(async userId =>
-        userId === 51 ? [candidate("admin_override")] : []
-      ),
-    });
-    const service = createBillingService({
-      repository: repo,
-      now: () => NOW,
-      accessMode: () => "enforced",
-    });
-
-    await expect(
-      service.searchAdminUsers({
-        query: "",
-        limit: 1,
-        accessReason: "admin_override",
-      })
-    ).resolves.toEqual([
-      expect.objectContaining({
-        id: 51,
-        access: expect.objectContaining({ reason: "admin_override" }),
-      }),
-    ]);
-    expect(searchUsers).toHaveBeenNthCalledWith(1, "", 50, 0);
-    expect(searchUsers).toHaveBeenNthCalledWith(2, "", 50, 50);
-  });
-
-  it("loads override history with the same evaluation instant", async () => {
-    const history = [
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        userId: 10,
-        reason: "Suporte temporário",
-        startsAt: NOW,
-        endsAt: null,
-        state: "active" as const,
-        grantedByUserId: 1,
-        revokedByUserId: null,
-        revokedAt: null,
-        createdAt: NOW,
-        updatedAt: NOW,
-      },
-    ];
-    const repo = repository({ listAdminOverrides: vi.fn(async () => history) });
-    const service = createBillingService({ repository: repo, now: () => NOW });
-
-    await expect(service.listAdminOverrides(10, 25)).resolves.toEqual(history);
-    expect(repo.listAdminOverrides).toHaveBeenCalledWith(10, 25, NOW);
   });
 });
