@@ -8,8 +8,6 @@ on:
       - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
       - "client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts"
       - "docs/testing/professional-workspace-routing.md"
-      - "visual-tests/professional-home/**"
-      - "scripts/render-professional-home-visual.sh"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
@@ -23,7 +21,7 @@ jobs:
         with:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
-      - name: Apply correction and restore visual gate
+      - name: Apply code and test corrections
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -37,15 +35,12 @@ jobs:
           Path('client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts').write_text('''import { describe, expect, it } from "vitest";\nimport { getLatestPatientActivityAt } from "./ProfessionalPatientWorkspace";\n\ndescribe("workspace patient activity", () => {\n  it("uses canonical timeline activity instead of the review date", () => {\n    const activityAt = Date.UTC(2026, 6, 25, 18, 30);\n    const reviewAt = Date.UTC(2026, 7, 20, 12);\n    const record = { latestAssessment: { nextReviewAt: reviewAt }, timeline: [{ occurredAt: activityAt }] };\n    expect(getLatestPatientActivityAt(record)).toBe(activityAt);\n    expect(getLatestPatientActivityAt(record)).not.toBe(reviewAt);\n  });\n  it("returns null without timeline activity", () => {\n    expect(getLatestPatientActivityAt({ timeline: [] })).toBeNull();\n    expect(getLatestPatientActivityAt({})).toBeNull();\n  });\n});\n''', encoding='utf-8')
           docs = Path('docs/testing/professional-workspace-routing.md')
           doc = docs.read_text(encoding='utf-8')
-          if '## Cabeçalho contextual e gate visual' not in doc:
-              docs.write_text(doc.rstrip() + '\n\n## Cabeçalho contextual e gate visual\n\nA última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade. O gate visual inclui as rotas individuais em desktop e mobile.\n', encoding='utf-8')
-          final = '''name: Professional workspace visual evidence\n\non:\n  pull_request:\n    branches:\n      - develop\n    paths:\n      - "client/src/pages/ProfessionalAreaPage.tsx"\n      - "client/src/pages/professional/ProfessionalHome.tsx"\n      - "client/src/pages/professional/ProfessionalPatients.tsx"\n      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"\n      - "client/src/components/ProfessionalLayout.tsx"\n      - "client/src/components/professional/ProfessionalUi.tsx"\n      - "client/src/components/ui/sidebar.tsx"\n      - "client/src/lib/professionalRoutes.ts"\n      - "client/src/index.css"\n      - "visual-tests/professional-home/**"\n      - "scripts/render-professional-home-visual.sh"\n      - ".github/workflows/professional-home-visual.yml"\n\npermissions:\n  contents: read\n\njobs:\n  visual-evidence:\n    runs-on: ubuntu-latest\n    env:\n      NODE_OPTIONS: --max-old-space-size=4096\n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n      - name: Setup pnpm\n        uses: pnpm/action-setup@v4\n      - name: Setup Node.js\n        uses: actions/setup-node@v4\n        with:\n          node-version: 24\n          cache: pnpm\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n      - name: Render professional workspace evidence\n        run: bash scripts/render-professional-home-visual.sh\n      - name: Upload professional workspace screenshots\n        uses: actions/upload-artifact@v4\n        with:\n          name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}\n          path: artifacts/professional-home\n          if-no-files-found: error\n          retention-days: 30\n'''
-          Path('.github/workflows/professional-home-visual.yml').write_text(final, encoding='utf-8')
+          if '## Cabeçalho contextual' not in doc:
+              docs.write_text(doc.rstrip() + '\n\n## Cabeçalho contextual\n\nA última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade.\n', encoding='utf-8')
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts docs/testing/professional-workspace-routing.md .github/workflows/professional-home-visual.yml
-          git rm -f .github/workflows/patch-issue-880-final-findings.yml
+          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts docs/testing/professional-workspace-routing.md
           git diff --cached --check
           git commit -m "fix: expose canonical patient activity in workspace header"
           git push origin HEAD:feat/875-professional-context-routes
