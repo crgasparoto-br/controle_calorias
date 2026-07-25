@@ -38,6 +38,7 @@
     {"idx":35,"version":"5","when":1784743092269,"tag":"0035_meal_item_nutrition_snapshot_repair","breakpoints":true},
     {"idx":36,"version":"5","when":1784745000000,"tag":"0036_billing_foundation","breakpoints":true},
     {"idx":37,"version":"5","when":1784748600000,"tag":"0037_whatsapp_onboarding_activation","breakpoints":true},
-    {"idx":38,"version":"5","when":1784937600000,"tag":"0038_billing_access_origins","breakpoints":true}
+    {"idx":38,"version":"5","when":1784937600000,"tag":"0038_billing_access_origins","breakpoints":true},
+    {"idx":39,"version":"5","when":1785024000000,"tag":"0039_whatsapp_active_phone_uniqueness","breakpoints":true}
   ]
 }
