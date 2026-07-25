@@ -1,0 +1,105 @@
+name: Patch final issue 880 audit findings
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-issue-880-final-findings.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Apply final issue 880 corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workspace = Path('client/src/pages/professional/ProfessionalPatientWorkspace.tsx')
+          source = workspace.read_text(encoding='utf-8')
+          marker = '''function formatDate(value: number | null | undefined) {\n'''
+          helper = '''export function getLatestPatientActivityAt(record: {\n  timeline?: Array<{ occurredAt?: number | null }>;\n}) {\n  return record.timeline?.[0]?.occurredAt ?? null;\n}\n\n'''
+          if helper not in source:
+              if source.count(marker) != 1:
+                  raise SystemExit('formatDate marker not found exactly once')
+              source = source.replace(marker, helper + marker)
+          old_header = '''      <ProfessionalPatientHeader\n        displayName={selectedPatient.displayName}\n        trackingStatus={trackingStatus}\n        nextReviewAt={latest?.nextReviewAt}\n      />'''
+          new_header = '''      <ProfessionalPatientHeader\n        displayName={selectedPatient.displayName}\n        trackingStatus={trackingStatus}\n        lastActivityAt={getLatestPatientActivityAt(record.data)}\n        nextReviewAt={latest?.nextReviewAt}\n      />'''
+          if old_header in source:
+              source = source.replace(old_header, new_header)
+          elif new_header not in source:
+              raise SystemExit('patient header block not found')
+          workspace.write_text(source, encoding='utf-8')
+
+          test = Path('client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts')
+          test.write_text('''import { describe, expect, it } from "vitest";\nimport { getLatestPatientActivityAt } from "./ProfessionalPatientWorkspace";\n\ndescribe("ProfessionalPatientWorkspace patient activity", () => {\n  it("uses the newest canonical timeline event instead of the review date", () => {\n    const reviewAt = Date.UTC(2026, 7, 20, 12, 0, 0);\n    const newestActivityAt = Date.UTC(2026, 6, 25, 18, 30, 0);\n    const olderActivityAt = Date.UTC(2026, 6, 24, 10, 0, 0);\n\n    const record = {\n      latestAssessment: { nextReviewAt: reviewAt },\n      timeline: [\n        { occurredAt: newestActivityAt },\n        { occurredAt: olderActivityAt },\n      ],\n    };\n\n    expect(getLatestPatientActivityAt(record)).toBe(newestActivityAt);\n    expect(getLatestPatientActivityAt(record)).not.toBe(reviewAt);\n  });\n\n  it("returns null when the canonical timeline has no activity", () => {\n    expect(getLatestPatientActivityAt({ timeline: [] })).toBeNull();\n    expect(getLatestPatientActivityAt({})).toBeNull();\n  });\n});\n''', encoding='utf-8')
+
+          docs = Path('docs/testing/professional-workspace-routing.md')
+          doc = docs.read_text(encoding='utf-8')
+          addition = '''\n## Cabeçalho contextual e evidência visual\n\n- A última atividade exibida no cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, e não da próxima revisão.\n- O fallback `Não informado` é usado somente quando a timeline não possui atividade.\n- O gate visual captura o workspace individual nas rotas de resumo, avaliação e histórico em desktop e mobile, com nome longo, subnavegação completa e formulário extenso.\n- A evidência visual valida layout e acessibilidade básica; autorização, revalidação e isolamento continuam cobertos pelos testes de integração das rotas.\n'''
+          if '## Cabeçalho contextual e evidência visual' not in doc:
+              docs.write_text(doc.rstrip() + addition, encoding='utf-8')
+
+          workflow = Path('.github/workflows/professional-home-visual.yml')
+          visual = workflow.read_text(encoding='utf-8')
+          visual = visual.replace('name: Professional Home visual evidence', 'name: Professional workspace visual evidence')
+          if 'client/src/pages/professional/ProfessionalPatientWorkspace.tsx' not in visual:
+              visual = visual.replace('      - "client/src/pages/professional/ProfessionalPatients.tsx"\n', '      - "client/src/pages/professional/ProfessionalPatients.tsx"\n      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"\n')
+          visual = visual.replace('      - name: Render professional home evidence\n', '      - name: Render professional workspace evidence\n')
+          visual = visual.replace('      - name: Upload professional home screenshots\n', '      - name: Upload professional workspace screenshots\n')
+          visual = visual.replace('name: professional-home-visual-${{ github.event.pull_request.head.sha }}', 'name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}')
+          workflow.write_text(visual, encoding='utf-8')
+
+          trpc = Path('visual-tests/professional-home/trpcMock.ts')
+          mock = trpc.read_text(encoding='utf-8')
+          old_context = '''    context: {\n      useQuery: () => ({\n        data: null,\n        isLoading: false,\n        isFetching: false,\n        isError: false,\n        isSuccess: true,\n        isFetchedAfterMount: true,\n        error: null,\n        refetch: resolved,\n      }),\n    },'''
+          new_context = '''    context: {\n      useQuery: (input: { patientId: number }) => ({\n        data: window.location.pathname.startsWith("/professional/patients/")\n          ? {\n              patientId: input.patientId,\n              authorizationId: `visual-${input.patientId}`,\n              displayName: "Mariana de Almeida Vasconcelos e Silva com nome longo",\n              trackingStatus: "active",\n            }\n          : null,\n        isLoading: false,\n        isFetching: false,\n        isError: false,\n        isSuccess: true,\n        isFetchedAfterMount: true,\n        error: null,\n        refetch: resolved,\n      }),\n    },\n    get: {\n      useQuery: () => ({\n        data: {\n          patient: { authorizationId: "visual-1", trackingStatus: "active" },\n          latestAssessment: {\n            objective: "Melhorar composição corporal com rotina sustentável e acompanhamento progressivo",\n            assessedAt: now - 7 * 86_400_000,\n            nextReviewAt: now + 14 * 86_400_000,\n          },\n          assessmentHistory: [\n            { id: "a2", version: 2, objective: "Rotina sustentável", assessedAt: now - 7 * 86_400_000 },\n            { id: "a1", version: 1, objective: "Organização alimentar", assessedAt: now - 30 * 86_400_000 },\n          ],\n          notes: [],\n          guidance: [],\n          timeline: [\n            { id: "t1", type: "assessment", title: "Avaliação atualizada", description: "Nova versão registrada", occurredAt: now - 3_600_000, actorName: "Nutricionista responsável" },\n            { id: "t2", type: "tracking", title: "Acompanhamento iniciado", description: "Vínculo ativo", occurredAt: now - 20 * 86_400_000, actorName: "Nutricionista responsável" },\n          ],\n          pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },\n        },\n        isLoading: false,\n        isError: false,\n        error: null,\n        refetch: resolved,\n      }),\n    },\n    saveAssessment: { useMutation: () => mutation() },\n    createNote: { useMutation: () => mutation() },\n    createGuidance: { useMutation: () => mutation() },\n    transitionTracking: { useMutation: () => mutation() },'''
+          if old_context in mock:
+              mock = mock.replace(old_context, new_context)
+          elif new_context not in mock:
+              raise SystemExit('visual context mock not found')
+          trpc.write_text(mock, encoding='utf-8')
+
+          panel = Path('visual-tests/professional-home/alertsMock.tsx')
+          panel.write_text('''import React from "react";\nimport { Card, CardContent, CardHeader, CardTitle } from "../../client/src/components/ui/card";\nexport default function ProfessionalOperationalAlertsPanel() {\n  return <Card><CardHeader><CardTitle>Prioridades do paciente</CardTitle></CardHeader><CardContent className="text-sm">Nenhuma pendência crítica. Revisão programada e acompanhamento ativo.</CardContent></Card>;\n}\n''', encoding='utf-8')
+
+          vite = Path('visual-tests/professional-home/vite.config.ts')
+          config = vite.read_text(encoding='utf-8')
+          alias = '''      {\n        find: "@/components/ProfessionalOperationalAlertsPanel",\n        replacement: path.resolve(root, "alertsMock.tsx"),\n      },\n'''
+          anchor = '''      {\n        find: "@/_core/hooks/useAuth",\n'''
+          if alias not in config:
+              config = config.replace(anchor, alias + anchor)
+          vite.write_text(config, encoding='utf-8')
+
+          script = Path('scripts/render-professional-home-visual.sh')
+          sh = script.read_text(encoding='utf-8')
+          workspace_block = '''\nWORKSPACE_URL="http://127.0.0.1:${PORT}/professional/patients/1"\ncapture "workspace-summary-desktop-1440x900" "1440,900" "$WORKSPACE_URL"\ncapture "workspace-summary-mobile-390x844" "390,844" "$WORKSPACE_URL"\ncapture "workspace-assessment-desktop-1440x1200" "1440,1200" "$WORKSPACE_URL/assessment"\ncapture "workspace-assessment-mobile-390x1200" "390,1200" "$WORKSPACE_URL/assessment"\ncapture "workspace-history-desktop-1366x768" "1366,768" "$WORKSPACE_URL/history"\ncapture "workspace-history-mobile-390x844" "390,844" "$WORKSPACE_URL/history"\nassert_dom_at_size \\\n  "workspace-mobile-layout" \\\n  "390,844" \\\n  "$WORKSPACE_URL" \\\n  "Mariana de Almeida Vasconcelos e Silva com nome longo" \\\n  "Última atividade" \\\n  "Avaliação" \\\n  "Histórico"\n'''
+          if 'WORKSPACE_URL=' not in sh:
+              sh = sh.replace('\ncat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST\n', workspace_block + '\ncat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST\n')
+          sh = sh.replace('routes=/professional,/professional/patients', 'routes=/professional,/professional/patients,/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/history')
+          sh = sh.replace('scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error', 'scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,workspace-summary,workspace-assessment,workspace-history')
+          sh = sh.replace('assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, no horizontal overflow and visible patient action at tablet width', 'assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, no horizontal overflow, visible patient action, contextual workspace header, full internal subnavigation and responsive assessment/history routes')
+          script.write_text(sh, encoding='utf-8')
+          PY
+          git diff --check
+          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts \
+            docs/testing/professional-workspace-routing.md \
+            .github/workflows/professional-home-visual.yml \
+            visual-tests/professional-home/trpcMock.ts \
+            visual-tests/professional-home/alertsMock.tsx \
+            visual-tests/professional-home/vite.config.ts \
+            scripts/render-professional-home-visual.sh
+          git rm .github/workflows/patch-issue-880-final-findings.yml
+          git diff --cached --check
+          git commit -m "fix: address final issue 880 audit findings"
+          git push origin HEAD:feat/875-professional-context-routes
