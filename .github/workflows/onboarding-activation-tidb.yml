@@ -5,8 +5,12 @@ on:
     paths:
       - "drizzle/0016_whatsapp_onboarding_leads.sql"
       - "drizzle/0037_whatsapp_onboarding_activation.sql"
+      - "drizzle/0039_whatsapp_active_phone_uniqueness.sql"
+      - "drizzle/schema.ts"
       - "server/modules/onboarding/**"
       - "server/modules/billing/router.ts"
+      - "server/repositories/whatsappRepository.ts"
+      - "scripts/test-whatsapp-active-phone-migration-tidb.ts"
       - "scripts/test-whatsapp-onboarding-activation-tidb.ts"
       - ".github/workflows/onboarding-activation-tidb.yml"
   workflow_dispatch:
@@ -49,7 +53,10 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          pnpm exec tsx scripts/test-whatsapp-onboarding-activation-tidb.ts 2>&1 | tee onboarding-activation-test.log
+          {
+            pnpm exec tsx scripts/test-whatsapp-active-phone-migration-tidb.ts
+            pnpm exec tsx scripts/test-whatsapp-onboarding-activation-tidb.ts
+          } 2>&1 | tee onboarding-activation-test.log
 
       - name: Preserve onboarding activation diagnostics
         if: always()
