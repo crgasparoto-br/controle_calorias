@@ -1,0 +1,92 @@
+name: Patch issue 880 single confirmation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/patch-issue-880-single-confirmation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Apply single-confirmation correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workspace = Path("client/src/pages/professional/ProfessionalPatientWorkspace.tsx")
+          source = workspace.read_text(encoding="utf-8")
+          old = '''    canNavigate() {
+      if (!dirty || window.confirm(UNSAVED_MESSAGE)) {
+        allowNavigationRef.current = true;
+        return true;
+      }
+      return false;
+    },'''
+          new = '''    canNavigate() {
+      if (allowNavigationRef.current || !dirty) {
+        allowNavigationRef.current = true;
+        return true;
+      }
+      if (window.confirm(UNSAVED_MESSAGE)) {
+        allowNavigationRef.current = true;
+        return true;
+      }
+      return false;
+    },'''
+          if source.count(old) != 1:
+              raise SystemExit("expected one unsaved-navigation canNavigate block")
+          workspace.write_text(source.replace(old, new), encoding="utf-8")
+
+          test = Path("client/src/pages/ProfessionalPatientWorkspace.singleConfirmation.test.ts")
+          test.write_text('''import { describe, expect, it } from "vitest";
+import source from "./professional/ProfessionalPatientWorkspace.tsx?raw";
+
+describe("ProfessionalPatientWorkspace unsaved navigation", () => {
+  it("reuses the confirmed discard instead of requesting a second confirmation", () => {
+    const allowIndex = source.indexOf("if (allowNavigationRef.current || !dirty)");
+    const confirmIndex = source.indexOf("if (window.confirm(UNSAVED_MESSAGE))", allowIndex);
+
+    expect(allowIndex).toBeGreaterThan(-1);
+    expect(confirmIndex).toBeGreaterThan(allowIndex);
+  });
+});
+''', encoding="utf-8")
+
+          docs = Path("docs/testing/professional-workspace-routing.md")
+          documentation = docs.read_text(encoding="utf-8")
+          addition = '''
+
+## Confirmação única ao descartar
+
+Quando uma navegação protegida já foi confirmada no interceptor do controle, a mesma ação deve prosseguir sem abrir um segundo diálogo. O estado de permissão vale somente para a transição corrente e é redefinido quando a URL muda. Os testes de regressão devem falhar caso `canNavigate` consulte novamente o usuário após o descarte já confirmado.
+'''
+          if "## Confirmação única ao descartar" not in documentation:
+              docs.write_text(documentation.rstrip() + addition, encoding="utf-8")
+          PY
+
+          git diff --check
+          pnpm exec vitest run client/src/pages/ProfessionalPatientWorkspace.singleConfirmation.test.ts client/src/pages/ProfessionalAreaPage.draftDiscard.test.tsx --maxWorkers=1 --minWorkers=1
+          pnpm check
+          pnpm docs:check
+
+      - name: Commit correction and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/ProfessionalPatientWorkspace.singleConfirmation.test.ts docs/testing/professional-workspace-routing.md
+          git rm .github/workflows/patch-issue-880-single-confirmation.yml
+          git diff --cached --check
+          git commit -m "fix: avoid duplicate discard confirmation (#880)"
+          git push origin HEAD:feat/875-professional-context-routes
