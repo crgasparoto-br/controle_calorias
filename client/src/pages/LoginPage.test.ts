@@ -14,6 +14,7 @@ describe("resolveSafeLoginReturnTo", () => {
     "",
     "?returnTo=https%3A%2F%2Fevil.example",
     "?returnTo=%2F%2Fevil.example",
+    "?returnTo=%2F%5Cevil.example",
   ])("rejects an unsafe return target: %s", search => {
     expect(resolveSafeLoginReturnTo(search)).toBe("/");
   });
