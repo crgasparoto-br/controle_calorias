@@ -171,7 +171,7 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
       status: "warning",
       eventType: "whatsapp.intent.delete_meal_confirmation_requested",
     }));
-    expect(sentMessages.at(-1)).toContain("Responda SIM");
+    expect(sentMessages.at(-1)).toContain("Toque em Confirmar");
     expect(sentMessages.at(-1)).toContain("Não excluí nada ainda");
     expect(sentMessages.at(-1)).toContain("não registrei nenhum alimento novo");
   });
