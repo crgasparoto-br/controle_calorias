@@ -54,6 +54,7 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
       return { id: String(existing.id), created: false };
     }
   }
+
   async function listAccessCandidates(userId: number, now: Date) {
     const db = await requireDb(deps.getDb);
     const candidates: BillingEntitlementCandidate[] = [];
@@ -126,7 +127,7 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
         FROM billingEntitlements e
         LEFT JOIN billingPlans p ON p.id = e.planId
         WHERE e.beneficiaryUserId = ${userId}
-          AND e.sourceType IN ('trial', 'free_access')
+          AND e.sourceType IN ('trial', 'transition', 'read_only', 'free_access')
           AND e.state = 'active'
           AND e.validFrom <= ${now}
           AND (e.validUntil IS NULL OR e.validUntil > ${now})
@@ -134,8 +135,17 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
       `)
     );
     for (const row of standaloneRows) {
+      const sourceType = String(row.sourceType);
+      const reason =
+        sourceType === "trial"
+          ? "active_trial"
+          : sourceType === "transition"
+            ? "transition_access"
+            : sourceType === "read_only"
+              ? "read_only_access"
+              : "free_access";
       candidates.push({
-        reason: row.sourceType === "trial" ? "active_trial" : "free_access",
+        reason,
         sourceId: String(row.sourceId),
         validFrom: dateOrNull(row.validFrom),
         validUntil: dateOrNull(row.validUntil),
