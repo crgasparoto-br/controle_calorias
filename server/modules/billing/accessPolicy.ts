@@ -6,9 +6,15 @@ import {
 import { billingService } from "./service";
 
 const BILLING_ACCESS_EXEMPT_PREFIXES = ["billing."] as const;
+const BILLING_ACCESS_EXEMPT_PATHS = [
+  "auth.whatsappOnboarding.linkExistingAccount",
+] as const;
 
 export function isBillingAccessExemptPath(path: string) {
-  return BILLING_ACCESS_EXEMPT_PREFIXES.some(prefix => path.startsWith(prefix));
+  return (
+    BILLING_ACCESS_EXEMPT_PATHS.some(exemptPath => path === exemptPath) ||
+    BILLING_ACCESS_EXEMPT_PREFIXES.some(prefix => path.startsWith(prefix))
+  );
 }
 
 export function createBillingAccessPolicy(deps: {
