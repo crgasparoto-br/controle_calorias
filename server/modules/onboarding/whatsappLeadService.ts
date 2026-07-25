@@ -14,6 +14,7 @@ import { billingService } from "../billing/service";
 import { completeOnboarding } from "./service";
 import type { OnboardingInput } from "./schemas";
 import type { WhatsappOnboardingConsents } from "./whatsappLeadSchemas";
+import { getSafeWhatsappOnboardingCompletionErrorCode } from "./whatsappOnboardingErrors";
 import { sendOnboardingWelcomeWhatsapp } from "./webGreetingService";
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -122,11 +123,15 @@ async function executeRaw<T = unknown>(query: SQL) {
   return db.execute(query) as Promise<T>;
 }
 
-function firstRow<T>(result: unknown): T | null {
+function rowsFromResult<T>(result: unknown): T[] {
   const rows = Array.isArray(result)
     ? result[0]
     : (result as { rows?: unknown })?.rows;
-  return Array.isArray(rows) && rows.length ? (rows[0] as T) : null;
+  return Array.isArray(rows) ? (rows as T[]) : [];
+}
+
+function firstRow<T>(result: unknown): T | null {
+  return rowsFromResult<T>(result)[0] ?? null;
 }
 
 function affectedRows(result: unknown) {
@@ -445,8 +450,7 @@ async function recordCompletionFailure(
   error: unknown
 ) {
   const now = new Date();
-  const errorCode =
-    error instanceof Error ? error.message.slice(0, 120) : "UNKNOWN_ERROR";
+  const errorCode = getSafeWhatsappOnboardingCompletionErrorCode(error);
   const status: LeadStatus = userId ? "converting" : "pending_onboarding";
   const tokenUsedAt = userId ? lead.tokenUsedAt : null;
 
@@ -496,6 +500,169 @@ async function persistConsents(
     values (${userId}, 'whatsapp_onboarding_consents', ${payload}, ${now}, ${now})
     on duplicate key update preferenceValue = ${payload}, updatedAt = ${now}
   `);
+}
+
+function canResumeAuthenticatedLink(lead: WhatsappOnboardingLead, userId: number) {
+  return (
+    lead.convertedUserId === userId &&
+    (lead.status === "converting" ||
+      lead.status === "pending_activation" ||
+      lead.status === "active")
+  );
+}
+
+async function claimAndLinkAuthenticatedAccount(
+  userId: number,
+  token: string
+): Promise<CompletionClaim> {
+  const tokenHash = hashToken(token);
+  const db = await getDb();
+
+  if (!db) {
+    const existing = memoryLeadsByTokenHash.get(tokenHash);
+    if (existing?.convertedUserId && existing.convertedUserId !== userId) {
+      throw new Error("ONBOARDING_ACCOUNT_LINK_UNAVAILABLE");
+    }
+
+    let claim = existing && canResumeAuthenticatedLink(existing, userId)
+      ? { lead: existing, resumed: true }
+      : await claimLeadForCompletion(tokenHash);
+
+    if (claim.lead.convertedUserId && claim.lead.convertedUserId !== userId) {
+      throw new Error("ONBOARDING_ACCOUNT_LINK_UNAVAILABLE");
+    }
+    if (!claim.lead.convertedUserId) {
+      claim = {
+        lead: await persistClaimedUser(claim.lead, userId),
+        resumed: claim.resumed,
+      };
+    }
+
+    try {
+      await upsertUserWhatsappConnection({
+        userId,
+        phoneNumber: claim.lead.phoneNumber,
+        displayName: claim.lead.displayName ?? undefined,
+      });
+    } catch (error) {
+      await recordCompletionFailure(claim.lead, userId, error);
+      throw error;
+    }
+    return claim;
+  }
+
+  const now = new Date();
+  return db.transaction(async tx => {
+    const leadRow = firstRow<any>(
+      await tx.execute(sql`
+        SELECT *
+        FROM whatsapp_onboarding_leads
+        WHERE token_hash = ${tokenHash}
+        LIMIT 1
+        FOR UPDATE
+      `)
+    );
+    if (!leadRow) {
+      throw new Error("INVALID_OR_EXPIRED_ONBOARDING_TOKEN");
+    }
+
+    const lead = rowToLead(leadRow);
+    if (lead.convertedUserId && lead.convertedUserId !== userId) {
+      throw new Error("ONBOARDING_ACCOUNT_LINK_UNAVAILABLE");
+    }
+
+    const resumed = canResumeAuthenticatedLink(lead, userId);
+    if (!resumed) {
+      if (lead.status === "converting") {
+        throw new Error("ONBOARDING_COMPLETION_IN_PROGRESS");
+      }
+      if (
+        !["lead_whatsapp", "pending_onboarding"].includes(lead.status) ||
+        lead.tokenUsedAt ||
+        lead.tokenExpiresAt.getTime() <= now.getTime()
+      ) {
+        throw new Error("INVALID_OR_EXPIRED_ONBOARDING_TOKEN");
+      }
+      await tx.execute(sql`
+        UPDATE whatsapp_onboarding_leads
+        SET status = 'converting', token_used_at = ${now},
+            completion_error_code = NULL, updated_at = ${now}
+        WHERE id = ${lead.id}
+          AND status IN ('lead_whatsapp', 'pending_onboarding')
+          AND token_used_at IS NULL
+      `);
+    }
+
+    const connectionRows = rowsFromResult<Record<string, unknown>>(
+      await tx.execute(sql`
+        SELECT id, userId, phoneNumber, status, updatedAt
+        FROM whatsappConnections
+        WHERE phoneNumber = ${lead.phoneNumber} OR userId = ${userId}
+        ORDER BY updatedAt DESC, id DESC
+        FOR UPDATE
+      `)
+    );
+    const conflictingConnection = connectionRows.find(
+      row =>
+        Number(row.userId) !== userId &&
+        String(row.phoneNumber) === lead.phoneNumber &&
+        String(row.status) !== "disabled"
+    );
+    if (conflictingConnection) {
+      throw new Error("WHATSAPP_PHONE_ALREADY_LINKED");
+    }
+
+    const targetConnection = connectionRows.find(
+      row => Number(row.userId) === userId
+    );
+    if (targetConnection) {
+      await tx.execute(sql`
+        UPDATE whatsappConnections
+        SET phoneNumber = ${lead.phoneNumber},
+            displayName = ${lead.displayName},
+            status = 'active', updatedAt = ${now}
+        WHERE id = ${Number(targetConnection.id)}
+      `);
+      await tx.execute(sql`
+        UPDATE whatsappConnections
+        SET status = 'disabled', updatedAt = ${now}
+        WHERE userId = ${userId}
+          AND id <> ${Number(targetConnection.id)}
+          AND status <> 'disabled'
+      `);
+    } else {
+      await tx.execute(sql`
+        INSERT INTO whatsappConnections (
+          userId, phoneNumber, displayName, status, createdAt, updatedAt
+        ) VALUES (
+          ${userId}, ${lead.phoneNumber}, ${lead.displayName}, 'active', ${now}, ${now}
+        )
+      `);
+    }
+
+    if (!resumed) {
+      await tx.execute(sql`
+        UPDATE whatsapp_onboarding_leads
+        SET converted_user_id = ${userId},
+            converted_at = COALESCE(converted_at, ${now}),
+            completion_error_code = NULL, updated_at = ${now}
+        WHERE id = ${lead.id} AND status = 'converting'
+      `);
+    }
+
+    return {
+      lead: {
+        ...lead,
+        status: resumed ? lead.status : "converting",
+        tokenUsedAt: lead.tokenUsedAt ?? now,
+        convertedUserId: userId,
+        convertedAt: lead.convertedAt ?? now,
+        completionErrorCode: null,
+        updatedAt: now,
+      },
+      resumed,
+    };
+  });
 }
 
 export async function getWhatsappOnboardingActivationState(userId: number) {
@@ -588,6 +755,85 @@ export async function activateWhatsappOnboardingUser(
         : ("activated" as const),
     eligibility,
   };
+}
+
+export async function linkWhatsappOnboardingToAuthenticatedUser(
+  userId: number,
+  token: string
+) {
+  let claim: CompletionClaim | null = null;
+  try {
+    claim = await claimAndLinkAuthenticatedAccount(userId, token);
+    const eligibility = await billingService.getUserEntitlements(userId);
+
+    if (claim.lead.status === "active") {
+      return {
+        status: "already_active" as const,
+        eligibility,
+        nextAction: "continue" as const,
+        resumed: true,
+      };
+    }
+
+    if (claim.lead.status === "pending_activation") {
+      if (!eligibility.allowed) {
+        return {
+          status: "pending_activation" as const,
+          eligibility,
+          nextAction: "await_activation" as const,
+          resumed: true,
+        };
+      }
+      const activation = await activateWhatsappOnboardingUser(
+        userId,
+        eligibility.reason
+      );
+      return {
+        status: activation.status,
+        eligibility: activation.eligibility,
+        nextAction: "continue" as const,
+        resumed: true,
+      };
+    }
+
+    await finalizeLeadConversion({
+      lead: claim.lead,
+      userId,
+      allowed: eligibility.allowed,
+      source: eligibility.reason,
+    });
+    if (eligibility.allowed) {
+      await sendOnboardingWelcomeWhatsapp(userId);
+    }
+
+    logInferenceEvent({
+      userId,
+      origin: "web",
+      status: eligibility.allowed ? "success" : "warning",
+      eventType: eligibility.allowed
+        ? "whatsapp.onboarding_existing_account_linked"
+        : "whatsapp.onboarding_existing_account_pending_activation",
+      detail: eligibility.allowed
+        ? "Conta autenticada vinculada ao WhatsApp com elegibilidade válida."
+        : "Conta autenticada vinculada ao WhatsApp e aguardando elegibilidade comercial.",
+    });
+
+    return {
+      status: eligibility.allowed
+        ? ("linked" as const)
+        : ("pending_activation" as const),
+      eligibility,
+      nextAction: eligibility.allowed
+        ? ("continue" as const)
+        : ("await_activation" as const),
+      resumed: claim.resumed,
+    };
+  } catch (error) {
+    if (claim?.lead.status === "converting") {
+      await recordCompletionFailure(claim.lead, userId, error);
+    }
+    throw error;
+  }
 }
 
 export async function completeWhatsappOnboarding(input: {
