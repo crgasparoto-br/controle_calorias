@@ -2,8 +2,22 @@ import {
   configureProfessionalEntitlementProvider,
   PROFESSIONAL_ENTITLEMENT_RESOURCES,
   type ProfessionalEntitlementProvider,
+  type ProfessionalEntitlementReason,
 } from "../professionals/entitlementService";
 import { billingRepository, billingService } from "./service";
+import type { BillingAccessReason } from "./types";
+
+function professionalReason(reason: BillingAccessReason): ProfessionalEntitlementReason {
+  if (
+    reason === "active_subscription" ||
+    reason === "active_trial" ||
+    reason === "admin_override" ||
+    reason === "free_access"
+  ) {
+    return reason;
+  }
+  return "no_access";
+}
 
 export function createBillingProfessionalEntitlementProvider(
   deps: {
@@ -21,25 +35,24 @@ export function createBillingProfessionalEntitlementProvider(
         ),
       ]);
 
-      const sponsoredOnly = access.reason === "sponsored_by_professional";
+      const effectiveReason = professionalReason(access.reason);
+      const personalOnlyAccess = effectiveReason === "no_access";
       const administrativeAccess =
-        access.reason === "admin_override" || access.reason === "free_access";
+        effectiveReason === "admin_override" || effectiveReason === "free_access";
       const entitlements = administrativeAccess
         ? [...PROFESSIONAL_ENTITLEMENT_RESOURCES]
         : access.entitlements;
 
       return {
-        allowed: access.allowed && !sponsoredOnly,
-        reason: access.reason === "sponsored_by_professional"
-          ? "no_access"
-          : access.reason,
+        allowed: access.allowed && !personalOnlyAccess,
+        reason: effectiveReason,
         validUntil: access.validUntil ?? null,
         planCode: access.planCode ?? subscription?.planCode ?? null,
         planName:
           subscription?.planName ??
-          (access.reason === "admin_override"
+          (effectiveReason === "admin_override"
             ? "Liberação administrativa"
-            : access.reason === "free_access"
+            : effectiveReason === "free_access"
               ? "Acesso aberto"
               : "Plano profissional"),
         entitlements,
