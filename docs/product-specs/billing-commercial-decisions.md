@@ -2,11 +2,11 @@
 
 ## Objetivo
 
-Registrar, em um único documento versionado, as decisões comerciais que precisam ser aprovadas antes da integração de um provedor financeiro real, da publicação de preços ou da ativação de `BILLING_ACCESS_MODE=enforced`.
+Registrar, em um único documento versionado, as decisões vinculantes consolidadas pela épica #145 e separar essas decisões da implementação incremental das subissues.
 
-Este documento não autoriza cobrança por si só. Itens marcados como **Em aberto** não podem ser convertidos em hardcode, seed de produção, benefício, limite, downgrade, tolerância ou bloqueio definitivo.
+Este documento não autoriza cobrança real, publicação de preços ou ativação de `BILLING_ACCESS_MODE=enforced`. A implementação continua condicionada aos gates e às issues indicadas abaixo.
 
-## Contexto de produto já aprovado
+## Contexto de produto aprovado
 
 - O principal cliente pagante será o profissional.
 - O primeiro público profissional será o nutricionista com atendimento individual.
@@ -17,63 +17,65 @@ Este documento não autoriza cobrança por si só. Itens marcados como **Em aber
 - Billing e Área Profissional permanecem programas separados.
 - O perfil profissional continua sendo uma capacidade adicional da mesma conta.
 
-## Registro das decisões bloqueantes
+## Registro das decisões vinculantes
 
-| ID | Decisão | Estado | Registro atual | Evidência necessária para aprovação |
+| ID | Decisão | Estado | Regra vinculante | Implementação |
 |---|---|---|---|---|
-| COM-01 | Provedor inicial de pagamento | **Em aberto** | Nenhum provider real foi escolhido. O código contém apenas o contrato `BillingProvider`. | Nome do provider, conta comercial, métodos aceitos, sandbox, produção, taxas, SLA e responsáveis. |
-| COM-02 | Planos profissionais, preços, moeda e ciclos | **Em aberto** | O profissional é o pagador principal, mas catálogo, preços e ciclos não foram aprovados. | Tabela de planos com código estável, nome, preço em unidade inteira, moeda, ciclo e data de vigência. |
-| COM-03 | Quantidade incluída e definição de paciente ativo | **Em aberto** | A capacidade técnica existe, mas não há conceito comercial definitivo de paciente ativo. | Regra observável para ocupar e liberar vaga, incluindo pausa, alta, vínculo e período de tolerância. |
-| COM-04 | Entitlements do profissional e do paciente coberto | **Em aberto** | Existe catálogo técnico de recursos profissionais, sem matriz comercial aprovada por plano. | Matriz plano × recurso × perfil, incluindo web, WhatsApp, IA, relatórios e mensagens. |
-| COM-05 | Existência, preço e recursos do plano individual | **Em aberto** | A pessoa pode usar a Área do Paciente sem profissional; não foi decidido se isso será gratuito ou pago. | Decisão explícita sobre existência, preço, ciclo, recursos e posicionamento do plano individual. |
-| COM-06 | Usuário independente que inicia acompanhamento profissional | **Em aberto** | O domínio suporta assinatura própria e cobertura profissional simultâneas. | Regra de precedência comercial, comunicação e prevenção de cobrança duplicada. |
-| COM-07 | Continuidade após perda da cobertura profissional | **Em aberto** | Dados são preservados e a elegibilidade é recalculada; a oferta posterior não foi definida. | Período de continuidade, recursos disponíveis, proposta de plano individual e comunicação. |
-| COM-08 | Tratamento dos usuários atuais e transição | **Em aberto** | `open_access` permanece padrão. | Segmentos migrados, prazo, grandfathering, comunicação, suporte e rollback. |
-| COM-09 | Trial, cupom, acesso gratuito e combinações | **Em aberto** | O domínio suporta trial, acesso gratuito e override, mas nenhuma política foi habilitada. | Elegibilidade, duração, repetição, combinação, expiração e necessidade de meio de pagamento. |
-| COM-10 | Momento efetivo do cancelamento | **Em aberto** | O schema suporta `cancelAtPeriodEnd`, `canceledAt` e `endedAt`. | Cancelamento imediato ou no fim do período, reativação, reembolso e comunicação. |
-| COM-11 | `past_due`, tolerância, recuperação e expiração | **Em aberto** | `past_due` não concede acesso por padrão na fundação. | Janela de tolerância, tentativas, notificações, suspensão, recuperação e expiração. |
-| COM-12 | Cobrança variável por WhatsApp, IA ou consumo | **Em aberto** | Nenhum consumo variável é cobrado ou usado para elegibilidade. | Métrica faturável, franquia, preço, arredondamento, transparência, limite e contestação, ou decisão explícita de não cobrar. |
+| COM-01 | Provedor inicial de pagamento | **Definida para implementação posterior** | A fundação permanece provider-neutral. A integração inicial será feita por adapter, sem espalhar contratos externos pelo domínio. Nenhum provider real pertence à #869. | #892 |
+| COM-02 | Planos profissionais, preços, moeda e ciclos | **Definida** | Catálogo versionado e servido pelo backend; valores monetários em unidade inteira; códigos estáveis e independentes do provider; histórico não é reescrito por mudança de preço. | #891 |
+| COM-03 | Quantidade incluída e definição de paciente ativo | **Definida** | Capacidade é associada à assinatura profissional e consumida por cobertura de paciente ativa, com reserva/liberação transacional e idempotente por `coverageKey`. O uso pessoal do pagador profissional não consome vaga. | #891 e #894 |
+| COM-04 | Entitlements do profissional e do paciente coberto | **Definida** | Profissional e Profissional Plus possuem a mesma matriz de recursos e diferem inicialmente pela capacidade. O pagador profissional recebe, na mesma assinatura, a matriz pessoal do Individual e a matriz profissional. O paciente coberto recebe a matriz pessoal definida pela épica. | #891 e #894 |
+| COM-05 | Existência, preço e recursos do plano individual | **Definida** | Existe modalidade Individual para uso pessoal sem profissional. Catálogo, preço, ciclo e matriz são versionados no backend, sem tabela comercial paralela no frontend. | #891 |
+| COM-06 | Usuário independente que inicia acompanhamento profissional | **Definida** | Origens válidas coexistem sem serem apagadas. A origem efetiva segue a precedência vinculante e não cria assinatura duplicada. | #893 e #894 |
+| COM-07 | Continuidade após perda da cobertura profissional | **Definida** | Dados não são apagados. A elegibilidade é recalculada e pode resultar em transição e, depois, acesso somente para leitura, cada qual como origem explícita e expiráveis conforme catálogo/política. | #893 e #898 |
+| COM-08 | Tratamento dos usuários atuais e transição | **Definida** | `open_access` permanece padrão até rollout explícito. Usuários atuais devem ser classificados antes de `enforced`, com transição, comunicação, observabilidade e rollback. | #898 |
+| COM-09 | Trial, cupom, acesso gratuito e combinações | **Definida** | Trial é origem de acesso; cupom não é origem. Isenção administrativa é expiráveis/revogável e tem precedência máxima. Combinações preservam origens secundárias válidas. | #891, #893 e #896 |
+| COM-10 | Momento efetivo do cancelamento | **Definida** | O domínio suporta cancelamento no fim do período por `cancelAtPeriodEnd`; encerramento efetivo e reativação são processados pelo ciclo comercial, preservando histórico. | #893 |
+| COM-11 | `past_due`, tolerância, recuperação e expiração | **Definida** | `past_due` não concede acesso pago por si só na fundação. Tolerância, recuperação, expiração e comunicação são estados explícitos do ciclo comercial e nunca são inferidos apenas pelo frontend. | #893 e #898 |
+| COM-12 | Cobrança variável por WhatsApp, IA ou consumo | **Definida** | Não há cobrança variável por WhatsApp, IA ou consumo no escopo aprovado inicial. Medição pode existir para observabilidade e evolução, sem alterar elegibilidade ou fatura sem nova decisão versionada. | #897 |
 
-## Regras para registrar uma aprovação
+## Precedência vinculante de acesso
 
-Cada decisão aprovada deve incluir:
+Quando houver múltiplas origens válidas, o backend aplica, nesta ordem:
 
-1. data de aprovação;
-2. responsável pela decisão;
-3. texto objetivo e testável;
-4. data de vigência;
-5. impacto sobre usuários atuais;
-6. necessidade de comunicação;
-7. consequência para backend, banco, frontend, WhatsApp e suporte;
-8. plano de rollback quando houver bloqueio ou cobrança.
+1. isenção administrativa;
+2. cobertura profissional;
+3. assinatura própria paga;
+4. trial;
+5. período de transição;
+6. acesso somente para leitura.
 
-Não substituir **Em aberto** por expressões vagas como “conforme mercado”, “configurável” ou “decidir depois”. A configuração técnica só é válida depois que a regra de produto estiver definida.
+A precedência define origem efetiva, atribuição de consumo e comunicação. Origens secundárias ainda válidas permanecem registradas. Cupom não é origem de acesso.
+
+## Matriz profissional vinculante
+
+- Profissional e Profissional Plus concedem ao próprio pagador a matriz pessoal do Individual junto com a matriz profissional.
+- Não existe assinatura individual adicional, cobertura sobre o próprio profissional ou cobrança duplicada.
+- O uso pessoal do pagador profissional não reserva nem consome vaga de paciente.
+- Profissional e Plus diferem inicialmente somente pela capacidade.
+- Pacientes cobertos recebem a matriz pessoal definida no catálogo versionado.
 
 ## Catálogo técnico e fonte de verdade
 
-Depois da aprovação:
-
-- o catálogo deve ser persistido e servido pelo backend;
+- o catálogo é persistido e servido pelo backend;
 - valores monetários permanecem em unidade inteira da moeda;
-- códigos de plano devem ser estáveis e independentes do provider;
-- o frontend não pode possuir uma tabela comercial paralela;
-- o adapter do provider mapeia produtos externos para códigos internos;
+- códigos de plano são estáveis e independentes do provider;
+- o frontend não mantém tabela comercial paralela;
+- adapters mapeiam produtos externos para códigos internos;
 - ambientes de teste e produção usam identificadores externos distintos;
-- mudanças de preço não reescrevem o histórico das assinaturas existentes.
+- mudanças de preço não reescrevem o histórico de assinaturas existentes.
 
 ## Gates antes de integrar o primeiro provider
 
-- COM-01 a COM-04 aprovadas;
-- COM-08, COM-10 e COM-11 aprovadas;
+- catálogo, matriz e capacidades versionados;
 - política de privacidade e termos revisados para cobrança;
 - responsável operacional e procedimento de suporte definidos;
 - variáveis e segredos separados por ambiente;
-- critérios de conciliação, webhook e recuperação documentados.
+- critérios de conciliação, webhook e recuperação documentados;
+- sandbox validado sem ativar cobrança em produção.
 
 ## Gates antes de ativar `enforced`
 
-- todas as decisões aplicáveis aprovadas;
-- matriz de entitlements versionada;
 - usuários atuais classificados ou migrados;
 - onboarding web e WhatsApp integrados à elegibilidade;
 - rotas, procedures e comandos protegidos mapeados;
@@ -84,6 +86,6 @@ Depois da aprovação:
 
 ## Estado atual
 
-A fundação provider-neutral, a consulta **Plano e acesso**, a administração de overrides e analytics, o gate de procedures protegidas e o bloqueio pré-pipeline do WhatsApp podem ser validados sem essas decisões.
+A #869 entrega somente a fundação provider-neutral: persistência, elegibilidade central, capacidade profissional, overrides administrativos, onboarding recuperável e superfícies de consulta/administração.
 
-Provider real, checkout, preço, cobrança, cancelamento comercial, inadimplência, trial e ativação de `enforced` permanecem bloqueados até a aprovação correspondente.
+Provider real, checkout, catálogo final, preços, cobrança, ciclo comercial, interfaces finais, medição e rollout permanecem nas subissues da épica. `BILLING_ACCESS_MODE=open_access` continua sendo o padrão obrigatório até a aprovação do rollout.
