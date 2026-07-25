@@ -68,12 +68,11 @@ export function createDrizzleWhatsAppRepository(deps: {
       return db.transaction(async (tx: any) => {
         await tx
           .update(whatsappConnections)
-          .set({ status: "disabled", activePhoneKey: null })
+          .set({ status: "disabled" })
           .where(eq(whatsappConnections.userId, input.userId));
         const inserted = await tx.insert(whatsappConnections).values({
           userId: input.userId,
           phoneNumber: input.phoneNumber,
-          activePhoneKey: input.phoneNumber,
           displayName: input.displayName,
           status: "active",
         });
@@ -95,7 +94,7 @@ export function createDrizzleWhatsAppRepository(deps: {
 
         await tx
           .update(whatsappConnections)
-          .set({ status: "disabled", activePhoneKey: null })
+          .set({ status: "disabled" })
           .where(
             and(
               eq(whatsappConnections.userId, target.userId),
@@ -106,7 +105,6 @@ export function createDrizzleWhatsAppRepository(deps: {
           .update(whatsappConnections)
           .set({
             phoneNumber: input.phoneNumber,
-            activePhoneKey: input.phoneNumber,
             displayName: input.displayName,
             status: input.status,
           })
@@ -120,7 +118,7 @@ export function createDrizzleWhatsAppRepository(deps: {
 
       await db
         .update(whatsappConnections)
-        .set({ status: "disabled", activePhoneKey: null })
+        .set({ status: "disabled" })
         .where(eq(whatsappConnections.id, connectionId));
     },
   };
