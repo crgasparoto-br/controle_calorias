@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { whatsappConnections } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -66,22 +66,17 @@ export function createDrizzleWhatsAppRepository(deps: {
       if (!db) return 0;
 
       return db.transaction(async (tx: any) => {
-        await tx.execute(sql`
-          UPDATE whatsappConnections
-          SET status = 'disabled', activePhoneKey = NULL, updatedAt = NOW()
-          WHERE userId = ${input.userId}
-        `);
-        const inserted = await tx.execute(sql`
-          INSERT INTO whatsappConnections (
-            userId, phoneNumber, activePhoneKey, displayName,
-            status, createdAt, updatedAt
-          ) VALUES (
-            ${input.userId}, ${input.phoneNumber}, ${input.phoneNumber},
-            ${input.displayName}, 'active', NOW(), NOW()
-          )
-        `);
-        const header = Array.isArray(inserted) ? inserted[0] : inserted;
-        return Number((header as { insertId?: number }).insertId ?? 0);
+        await tx
+          .update(whatsappConnections)
+          .set({ status: "disabled" })
+          .where(eq(whatsappConnections.userId, input.userId));
+        const inserted = await tx.insert(whatsappConnections).values({
+          userId: input.userId,
+          phoneNumber: input.phoneNumber,
+          displayName: input.displayName,
+          status: "active",
+        });
+        return Number((inserted as { insertId?: number }).insertId ?? 0);
       });
     },
 
@@ -106,20 +101,14 @@ export function createDrizzleWhatsAppRepository(deps: {
               ne(whatsappConnections.id, connectionId)
             )
           );
-        await tx.execute(sql`
-          UPDATE whatsappConnections
-          SET status = 'disabled', activePhoneKey = NULL, updatedAt = NOW()
-          WHERE userId = ${target.userId}
-            AND id <> ${connectionId}
-        `);
-        await tx.execute(sql`
-          UPDATE whatsappConnections
-          SET phoneNumber = ${input.phoneNumber},
-              activePhoneKey = ${input.phoneNumber},
-              displayName = ${input.displayName},
-              status = 'active', updatedAt = NOW()
-          WHERE id = ${connectionId}
-        `);
+        await tx
+          .update(whatsappConnections)
+          .set({
+            phoneNumber: input.phoneNumber,
+            displayName: input.displayName,
+            status: input.status,
+          })
+          .where(eq(whatsappConnections.id, connectionId));
       });
     },
 
@@ -127,11 +116,10 @@ export function createDrizzleWhatsAppRepository(deps: {
       const db = await deps.getDb();
       if (!db) return;
 
-      await db.execute(sql`
-        UPDATE whatsappConnections
-        SET status = 'disabled', activePhoneKey = NULL, updatedAt = NOW()
-        WHERE id = ${connectionId}
-      `);
+      await db
+        .update(whatsappConnections)
+        .set({ status: "disabled" })
+        .where(eq(whatsappConnections.id, connectionId));
     },
   };
 }
