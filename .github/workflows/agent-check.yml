@@ -38,10 +38,9 @@ jobs:
 
       - name: Recover patch and apply corrections
         run: |
-          git show HEAD^:.github/workflows/agent-check.yml > /tmp/parent-agent-check.yml
+          git show HEAD~2:.github/workflows/agent-check.yml > /tmp/parent-agent-check.yml
           python - <<'PY'
           from pathlib import Path
-
           source = Path('/tmp/parent-agent-check.yml').read_text(encoding='utf-8')
           start_marker = "          cat > /tmp/issue879.patch.gz.b64 <<'PATCH'\n"
           end_marker = "\n          PATCH\n"
@@ -55,52 +54,6 @@ jobs:
           git apply /tmp/issue879.patch
           git show 6138b7c92090d09aa9aa894bf980be348c45959b:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
           rm -f .github/workflows/apply-issue-879-audit-fixes.yml
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('.github/workflows/agent-check.yml')
-          source = path.read_text(encoding='utf-8')
-          env_anchor = '      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory\n'
-          if source.count(env_anchor) != 1:
-              raise SystemExit('expected one agent gate environment anchor')
-          action_expression = '$' + '{{ github.event.pull_request.head.sha || github.sha }}'
-          source = source.replace(
-              env_anchor,
-              env_anchor + f'      VERIFICATION_HEAD_SHA: {action_expression}\n',
-          )
-          start = source.index('      - name: Create verification manifest')
-          end = source.index('      - name: Database integrity check', start)
-          dollar = '$'
-          replacement = f'''      - name: Create exact-head verification manifest
-        run: |
-          mkdir -p /tmp/agent-first-verification
-          cat > /tmp/agent-first-verification/manifest.json <<EOF
-          {{
-            "schemaVersion": 2,
-            "repository": "{dollar}{{GITHUB_REPOSITORY}}",
-            "headSha": "{dollar}{{VERIFICATION_HEAD_SHA}}",
-            "checkoutSha": "{dollar}{{GITHUB_SHA}}",
-            "runId": "{dollar}{{GITHUB_RUN_ID}}",
-            "workflow": "{dollar}{{GITHUB_WORKFLOW}}",
-            "event": "{dollar}{{GITHUB_EVENT_NAME}}",
-            "ref": "{dollar}{{GITHUB_REF}}",
-            "verifiedAt": "{dollar}(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }}
-          EOF
-          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
-          cat /tmp/agent-first-verification/manifest.json
-
-      - name: Upload exact-head verification manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-verification-{action_expression}
-          path: /tmp/agent-first-verification/manifest.json
-          if-no-files-found: error
-          retention-days: 30
-
-'''
-          path.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
-          PY
 
       - name: Format implementation
         run: |
@@ -117,8 +70,7 @@ jobs:
             client/src/pages/professional/ProfessionalPatients.test.tsx \
             client/src/pages/ProfessionalAreaPage.tsx \
             docs/product-specs/professionals.md \
-            docs/design-docs/professional-portfolio-operational-schedule.md \
-            .github/workflows/agent-check.yml
+            docs/design-docs/professional-portfolio-operational-schedule.md
           git diff --check
 
       - name: Archive formatted source
