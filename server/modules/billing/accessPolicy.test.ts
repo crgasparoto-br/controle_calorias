@@ -25,6 +25,16 @@ describe("billing protected procedure policy", () => {
     expect(userCanUseSystem).not.toHaveBeenCalled();
   });
 
+  it("keeps authenticated WhatsApp account linking accessible while commercial access is pending", async () => {
+    const userCanUseSystem = vi.fn(async () => false);
+    const policy = createBillingAccessPolicy({ userCanUseSystem });
+
+    await expect(
+      policy({ path: "auth.whatsappOnboarding.linkExistingAccount", ctx })
+    ).resolves.toBeUndefined();
+    expect(userCanUseSystem).not.toHaveBeenCalled();
+  });
+
   it("blocks protected domain procedures when eligibility is denied", async () => {
     const policy = createBillingAccessPolicy({
       userCanUseSystem: vi.fn(async () => false),
@@ -50,5 +60,10 @@ describe("billing protected procedure policy", () => {
   it("does not exempt similarly named non-billing procedures", () => {
     expect(isBillingAccessExemptPath("billing.me")).toBe(true);
     expect(isBillingAccessExemptPath("nutrition.billing.me")).toBe(false);
+    expect(
+      isBillingAccessExemptPath(
+        "auth.whatsappOnboarding.linkExistingAccount.preview"
+      )
+    ).toBe(false);
   });
 });
