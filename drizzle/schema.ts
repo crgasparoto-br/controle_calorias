@@ -503,7 +503,10 @@ export const whatsappConnections = mysqlTable("whatsappConnections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   phoneNumber: varchar("phoneNumber", { length: 32 }).notNull(),
-  activePhoneKey: varchar("activePhoneKey", { length: 32 }),
+  activePhoneKey: varchar("activePhoneKey", { length: 32 }).generatedAlwaysAs(
+    "CASE WHEN status = 'active' THEN phoneNumber ELSE NULL END",
+    { mode: "stored" }
+  ),
   displayName: varchar("displayName", { length: 255 }),
   status: mysqlEnum("status", ["pending", "active", "disabled"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
