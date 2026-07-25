@@ -177,7 +177,10 @@ describe("deleteIntent issue #856", () => {
 
   it("mantém confirmação destrutiva aberta após resposta inválida e não executa mutação", async () => {
     listMealsMock.mockResolvedValue([lunch]);
-    await executeWhatsappDeleteIntent(52, { text: "Excluir o arroz" });
+    await executeWhatsappDeleteIntent(52, {
+      text: "Excluir o arroz",
+      receivedAt: new Date("2026-07-20T16:00:00.000Z"),
+    });
 
     const invalid = await executeWhatsappDeleteIntent(52, { text: "talvez o arroz" });
 
@@ -199,7 +202,7 @@ describe("deleteIntent issue #856", () => {
     const recentLunch = {
       ...lunch,
       id: 12,
-      occurredAt: "2026-07-21T15:00:00.000Z",
+      occurredAt: "2026-07-20T18:00:00.000Z",
       items: [{ ...lunch.items[0], foodName: "Feijão" }],
     };
     listMealsMock.mockResolvedValue([lunch, recentLunch, dinner]);
@@ -207,6 +210,7 @@ describe("deleteIntent issue #856", () => {
     const selection = await executeWhatsappDeleteIntent(53, {
       text: "Apagar o almoço",
       timeZone: "America/Sao_Paulo",
+      receivedAt: new Date("2026-07-20T22:10:00.000Z"),
     });
 
     expect(selection).toEqual(expect.objectContaining({
@@ -239,7 +243,10 @@ describe("deleteIntent issue #856", () => {
   it("não escolhe silenciosamente a refeição mais recente quando o comando é genérico", async () => {
     listMealsMock.mockResolvedValue([dinner, lunch]);
 
-    const result = await executeWhatsappDeleteIntent(54, { text: "Remover refeição" });
+    const result = await executeWhatsappDeleteIntent(54, {
+      text: "Remover refeição",
+      receivedAt: new Date("2026-07-20T22:10:00.000Z"),
+    });
 
     expect(result).toEqual(expect.objectContaining({
       eventType: "whatsapp.intent.delete_meal_selection_requested",
@@ -294,7 +301,10 @@ describe("deleteIntent issue #856", () => {
   it("preserva negação contextual da issue #841", async () => {
     listMealsMock.mockResolvedValue([dinner, lunch]);
 
-    const result = await executeWhatsappDeleteIntent(56, { text: "Não tem queijo no almoço" });
+    const result = await executeWhatsappDeleteIntent(56, {
+      text: "Não tem queijo no almoço",
+      receivedAt: new Date("2026-07-20T22:10:00.000Z"),
+    });
 
     expect(result).toEqual(expect.objectContaining({
       eventType: "whatsapp.intent.delete_food_confirmation_requested",

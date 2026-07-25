@@ -1,5 +1,6 @@
 import { getDb, logPersistenceWarning } from "../../db";
-import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { resolveWhatsappTemporalContext } from "./temporalContext";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
@@ -514,13 +515,46 @@ async function requestFoodDeleteConfirmation(
   return createPendingFoodSelection(userId, "alimento", matches, timeZone);
 }
 
+function resolveDeleteReferenceDateKey(
+  detection: WhatsappDeleteIntentDetection,
+  timeZone: string,
+  receivedAt: Date,
+) {
+  const temporal = resolveWhatsappTemporalContext({
+    text: detection.text,
+    receivedAt,
+    userTimezone: timeZone,
+  });
+  if (temporal.clarification) {
+    return { dateKey: null, clarification: temporal.clarification } as const;
+  }
+  return {
+    dateKey: temporal.context?.resolvedDate ?? getDateKeyInTimeZone(receivedAt, timeZone),
+    clarification: null,
+  } as const;
+}
+
 async function requestDeleteConfirmation(
   userId: number,
   detection: WhatsappDeleteIntentDetection,
   timeZone: string,
   receivedAt?: Date,
 ): Promise<WhatsappDeleteIntentResult> {
-  const meals = await listMeals(userId);
+  const effectiveReceivedAt = receivedAt ?? new Date();
+  const reference = resolveDeleteReferenceDateKey(detection, timeZone, effectiveReceivedAt);
+  if (reference.clarification) {
+    return buildClarificationResult({
+      ...detection,
+      reply: reference.clarification.reply,
+      eventType: reference.clarification.eventType,
+      detail: reference.clarification.detail,
+    });
+  }
+
+  const allMeals = await listMeals(userId);
+  const meals = allMeals.filter(
+    meal => formatWhatsAppConsolidationDateKey(meal.occurredAt, timeZone) === reference.dateKey,
+  );
   return detection.kind === "delete_meal"
     ? requestMealDeleteConfirmation(userId, meals, detection, timeZone, receivedAt)
     : requestFoodDeleteConfirmation(userId, meals, detection, timeZone, receivedAt);
