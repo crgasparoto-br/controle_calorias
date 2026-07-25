@@ -15,11 +15,13 @@ import type {
 } from "./types";
 
 const ACCESS_PRIORITY: Record<Exclude<BillingAccessReason, "no_access">, number> = {
-  active_subscription: 0,
+  admin_override: 0,
   sponsored_by_professional: 1,
-  active_trial: 2,
-  admin_override: 3,
-  free_access: 4,
+  active_subscription: 2,
+  active_trial: 3,
+  transition_access: 4,
+  read_only_access: 5,
+  free_access: 6,
 };
 
 export function getBillingAccessMode(): BillingAccessMode {
