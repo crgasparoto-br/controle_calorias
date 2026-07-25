@@ -20,5 +20,6 @@ export default function ProfessionalPatientRouteGuard() {
     );
   }
 
-  return <ProfessionalPatientWorkspace />;
+  const pathname = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+  return <ProfessionalPatientWorkspace key={pathname} />;
 }
