@@ -1,5 +1,3 @@
-import ProfessionalMessagesPanel from "@/components/ProfessionalMessagesPanel";
-import ProfessionalReportsWorkspace from "@/components/ProfessionalReportsWorkspace";
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
 import { ProfessionalAsyncState } from "@/components/professional/ProfessionalUi";
 import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
@@ -20,14 +18,6 @@ export default function ProfessionalPatientRouteGuard() {
         description="Abra um paciente autorizado pela carteira para acessar o acompanhamento."
       />
     );
-  }
-
-  if (route.section === "reports") {
-    return <ProfessionalReportsWorkspace />;
-  }
-
-  if (route.section === "messages") {
-    return <ProfessionalMessagesPanel />;
   }
 
   return <ProfessionalPatientWorkspace />;
