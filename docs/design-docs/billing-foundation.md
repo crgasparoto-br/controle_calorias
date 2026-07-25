@@ -29,8 +29,9 @@ Cobertura profissional não cria assinatura em nome do paciente. Exceção admin
 - `billingCapacityAllocations`: ocupação e liberação auditável de vagas profissionais por `coverageKey`.
 - `billingAdminOverrides`: concessões manuais com motivo, vigência, autoria, revogação e histórico preservado.
 - `billingAccessAuditEvents`: trilha append-only das mudanças de acesso e capacidade.
+- `whatsappConnections.activePhoneKey`: coluna gerada apenas para vínculos ativos e protegida por índice único, impedindo que o mesmo telefone ativo pertença a duas contas sem bloquear a preservação de registros desativados.
 
-As migrations canônicas desta fundação são `drizzle/0036_billing_foundation.sql`, `drizzle/0037_whatsapp_onboarding_activation.sql` e `drizzle/0038_billing_access_origins.sql`. O workflow `Billing persistence TiDB gate` aplica o schema em TiDB, verifica drift do metadata Drizzle, executa concorrência/idempotência e roda integridade referencial.
+As migrations canônicas desta fundação são `drizzle/0036_billing_foundation.sql`, `drizzle/0037_whatsapp_onboarding_activation.sql`, `drizzle/0038_billing_access_origins.sql` e `drizzle/0039_whatsapp_active_phone_uniqueness.sql`. A última migration desativa duplicidades ativas históricas mantendo o vínculo ativo atualizado mais recentemente e, depois, instala a restrição única. Os workflows TiDB aplicam o schema, verificam drift do metadata Drizzle, exercitam concorrência/idempotência e rodam integridade referencial.
 
 ## Eventos do provider e minimização
 
@@ -65,7 +66,7 @@ Não é criada assinatura individual adicional, cobertura do profissional sobre 
 
 `registerBillingAccessPolicy` registra uma política central sobre todas as `protectedProcedure`. Quando a elegibilidade é negada, a procedure é bloqueada no backend com erro seguro e explicável.
 
-As procedures sob `billing.*` permanecem acessíveis para que o usuário autenticado consiga consultar sua situação e acompanhar a regularização. Procedures administrativas continuam usando `adminProcedure`, que valida `users.role = admin` independentemente da visibilidade da navegação.
+As procedures sob `billing.*` permanecem acessíveis para que o usuário autenticado consiga consultar sua situação e acompanhar a regularização. `auth.whatsappOnboarding.linkExistingAccount` é uma exceção exata e limitada, necessária para que uma conta autenticada ainda inelegível conclua o vínculo provado pelo token do WhatsApp. Procedures administrativas continuam usando `adminProcedure`, que valida `users.role = admin` independentemente da visibilidade da navegação.
 
 No modo `open_access`, a policy preserva o comportamento atual. No modo `enforced`, a ausência de uma origem válida bloqueia os recursos protegidos. A ativação de `enforced` continua proibida até que catálogo, migração, comunicação e rollback estejam aprovados.
 
@@ -80,7 +81,7 @@ Quando o acesso está pendente:
 - o usuário recebe orientação para consultar **Plano e acesso** no sistema web;
 - o evento operacional é registrado sem texto cru, telefone ou detalhes financeiros sensíveis.
 
-A conclusão do onboarding preserva estados recuperáveis, reavalia a elegibilidade e executa ativação posterior de modo idempotente. Cadastro concluído sem elegibilidade permanece preservado e autenticado, mas segue para a página de situação comercial. Saudação e ativação são emitidas no máximo uma vez.
+A conclusão do onboarding preserva estados recuperáveis, reavalia a elegibilidade e executa ativação posterior de modo idempotente. Conflitos com conta existente usam resposta pública genérica, preservam o lead e exigem sessão autenticada mais o token recebido no WhatsApp. A associação do lead, a troca do vínculo ativo e a unicidade do telefone são protegidas por transação e restrição de banco. Cadastro concluído sem elegibilidade permanece preservado e autenticado, mas segue para a página de situação comercial. Saudação e ativação são emitidas no máximo uma vez.
 
 ## Capacidade profissional
 
@@ -118,6 +119,8 @@ As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing
 - testes unitários discriminantes da precedência completa, validade e fallback;
 - teste da matriz profissional combinada em uma única assinatura, sem reserva de capacidade pelo uso pessoal;
 - teste discriminante do WhatsApp para usuário inelegível antes do pipeline nutricional;
+- testes diretos da fronteira pública para não enumeração e exigência de sessão autenticada;
+- teste TiDB de claim, ativação, retomada, disputa entre contas e rejeição de telefone ativo duplicado;
 - teste TiDB de concorrência, idempotência, cobertura, overrides, analytics, evento duplicado e metadata sanitizada;
 - `pnpm agent:check`;
 - `pnpm build`;
