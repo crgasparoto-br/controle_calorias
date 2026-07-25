@@ -7,12 +7,19 @@ import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 
+const INTERNAL_RETURN_ORIGIN = "https://controle-calorias.local";
+
 export function resolveSafeLoginReturnTo(search: string) {
   const returnTo = new URLSearchParams(search).get("returnTo")?.trim();
-  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
+  if (!returnTo) return "/";
+
+  try {
+    const destination = new URL(returnTo, INTERNAL_RETURN_ORIGIN);
+    if (destination.origin !== INTERNAL_RETURN_ORIGIN) return "/";
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
     return "/";
   }
-  return returnTo;
 }
 
 export default function LoginPage() {
