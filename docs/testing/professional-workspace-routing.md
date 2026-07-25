@@ -73,6 +73,14 @@ Validar visualmente nos cenários definidos pela issue de layout:
 
 Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, textos extremos, estados locais de loading/erro/vazio e quebra legível de nomes, mensagens e erros longos. O foco programático da área principal deve usar `preventScroll` para não posicionar o título sob o cabeçalho fixo.
 
+## Evidência visual automatizada
+
+O workflow `Professional workspace visual evidence` deve renderizar, no head exato da pull request, as superfícies agregadas e o workspace individual real em rotas canônicas. Para a issue #880, o artefato precisa incluir resumo, avaliação, orientações, anotações e histórico, além dos estados pausado, encerrado, carregando e erro recuperável.
+
+As capturas obrigatórias cobrem 1440 × 900, 1366 × 768, 1024 × 768, 390 × 844 e 390 × 1200. O manifesto do artefato individual registra separadamente `head_sha` e `checkout_sha`, porque o checkout de eventos `pull_request` pode usar o merge preview. As asserções de DOM verificam ausência de overflow horizontal da página, contenção da subnavegação e rolagem horizontal da subnav no mobile.
+
+O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatientWorkspace` reais, substituindo somente autenticação e transporte tRPC por fixtures determinísticas. Ele comprova composição, responsividade e estados visuais; autorização, persistência e contratos de backend permanecem cobertos pelos gates funcionais próprios.
+
 ## Regressão manual mínima
 
 1. Abrir diretamente cada rota individual e confirmar paciente e seção corretos.
