@@ -145,7 +145,11 @@ vi.mock("@/pages/professional/ProfessionalPatients", () => ({
   default: () => <div>Carteira profissional</div>,
 }));
 vi.mock("@/pages/professional/ProfessionalPatientWorkspace", () => ({
-  default: () => <div>Prontuário individual</div>,
+  default: () => {
+    if (location.endsWith("/reports")) return <div>Relatórios individuais</div>;
+    if (location.endsWith("/messages")) return <div>Mensagens individuais</div>;
+    return <div>Prontuário individual</div>;
+  },
 }));
 
 beforeEach(() => {
