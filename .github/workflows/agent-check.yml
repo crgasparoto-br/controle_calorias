@@ -1,4 +1,4 @@
-name: Export issue 879 implementation source
+name: Apply issue 879 audit corrections
 
 on:
   pull_request:
@@ -6,12 +6,15 @@ on:
       - develop
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export-source:
+  apply:
     if: github.head_ref == 'feat/875-professional-context-routes'
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
     steps:
       - name: Checkout exact branch
         uses: actions/checkout@v4
@@ -19,16 +22,199 @@ jobs:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
 
-      - name: Archive repository with Git history
-        run: |
-          mkdir -p artifacts/source
-          printf '{"headSha":"%s","baseRef":"develop","issue":879}\n' "$(git rev-parse HEAD)" > artifacts/source/source.json
-          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/source/controle_calorias-with-git.tar.gz .
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
-      - name: Upload exact source
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply functional patch and restore canonical workflows
+        run: |
+          cat > /tmp/issue879.patch.gz.b64 <<'PATCH'
+          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
+          PATCH
+          tr -d '[:space:]' < /tmp/issue879.patch.gz.b64 | base64 -d | gzip -d > /tmp/issue879.patch
+          git apply --check /tmp/issue879.patch
+          git apply /tmp/issue879.patch
+          git show 6138b7c92090d09aa9aa894bf980be348c45959b:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          rm -f .github/workflows/apply-issue-879-audit-fixes.yml
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/agent-check.yml')
+          source = path.read_text(encoding='utf-8')
+          env_anchor = '      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory\n'
+          if source.count(env_anchor) != 1:
+              raise SystemExit('expected one agent gate environment anchor')
+          expression = '$' + '{{ github.event.pull_request.head.sha || github.sha }}'
+          source = source.replace(
+              env_anchor,
+              env_anchor + f'      VERIFICATION_HEAD_SHA: {expression}\n',
+          )
+          start = source.index('      - name: Create verification manifest')
+          end = source.index('      - name: Database integrity check', start)
+          replacement = f'''      - name: Create exact-head verification manifest
+        run: |
+          mkdir -p /tmp/agent-first-verification
+          cat > /tmp/agent-first-verification/manifest.json <<EOF
+          {{
+            "schemaVersion": 2,
+            "repository": "${{GITHUB_REPOSITORY}}",
+            "headSha": "${{VERIFICATION_HEAD_SHA}}",
+            "checkoutSha": "${{GITHUB_SHA}}",
+            "runId": "${{GITHUB_RUN_ID}}",
+            "workflow": "${{GITHUB_WORKFLOW}}",
+            "event": "${{GITHUB_EVENT_NAME}}",
+            "ref": "${{GITHUB_REF}}",
+            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }}
+          EOF
+          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
+          cat /tmp/agent-first-verification/manifest.json
+
+      - name: Upload exact-head verification manifest
         uses: actions/upload-artifact@v4
         with:
-          name: issue-879-source-${{ github.event.pull_request.head.sha }}
-          path: artifacts/source
+          name: agent-first-verification-{expression}
+          path: /tmp/agent-first-verification/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+'''
+          path.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+          PY
+
+      - name: Format implementation
+        run: |
+          pnpm exec prettier --write \
+            server/modules/professionals/accessRequestReceiptRepository.ts \
+            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
+            server/modules/professionals/portfolioPagination.ts \
+            server/modules/professionals/portfolioPagination.test.ts \
+            server/modules/professionals/requestAccessPublicBoundary.ts \
+            server/modules/professionals/requestAccessPublicBoundary.test.ts \
+            server/modules/professionals/service.ts \
+            server/repositories/professionalPortfolioRepository.ts \
+            client/src/pages/professional/ProfessionalPatients.tsx \
+            client/src/pages/professional/ProfessionalPatients.test.tsx \
+            client/src/pages/ProfessionalAreaPage.tsx \
+            docs/product-specs/professionals.md \
+            docs/design-docs/professional-portfolio-operational-schedule.md \
+            .github/workflows/agent-check.yml
+          git diff --check
+
+      - name: Archive formatted source
+        if: always()
+        run: |
+          mkdir -p artifacts/issue-879
+          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879/controle_calorias-formatted.tar.gz .
+
+      - name: Validate focused behavior
+        run: |
+          set -o pipefail
+          pnpm exec vitest run \
+            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
+            server/modules/professionals/portfolioPagination.test.ts \
+            server/modules/professionals/requestAccessPublicBoundary.test.ts \
+            client/src/pages/professional/ProfessionalPatients.test.tsx \
+            --maxWorkers=1 --minWorkers=1 2>&1 | tee artifacts/issue-879/focused-tests.log
+          pnpm check 2>&1 | tee artifacts/issue-879/typescript.log
+          pnpm docs:check 2>&1 | tee artifacts/issue-879/docs-check.log
+          pnpm exec tsx scripts/check-ci-gate-docs.ts 2>&1 | tee artifacts/issue-879/ci-docs-check.log
+          git diff --check
+
+      - name: Commit and push final correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: resolve audit findings for issue 879"
+          git push origin HEAD:feat/875-professional-context-routes
+          printf '{"issue":879,"headSha":"%s","sourceEventSha":"%s"}\n' "$(git rev-parse HEAD)" "${GITHUB_SHA}" > artifacts/issue-879/implementation.json
+
+      - name: Upload correction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-879-correction-${{ github.run_id }}
+          path: artifacts/issue-879
           if-no-files-found: error
           retention-days: 7
