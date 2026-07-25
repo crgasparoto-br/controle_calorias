@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +16,9 @@ import { trpc } from "@/lib/trpc";
 import {
   AlertCircle,
   CheckCircle2,
+  Link2,
   Loader2,
+  LogIn,
   MessageCircle,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
@@ -130,8 +133,13 @@ function parseOptionalDecimalInput(value: string) {
 export default function WhatsappOnboardingPage() {
   const [, params] = useRoute("/onboarding/whatsapp/:token");
   const [, setLocation] = useLocation();
+  const { loading: authLoading, user } = useAuth();
   const token = params?.token ?? "";
   const [form, setForm] = useState<FormState>(initialForm);
+  const [showExistingAccountRecovery, setShowExistingAccountRecovery] =
+    useState(false);
+  const returnPath = `/onboarding/whatsapp/${encodeURIComponent(token)}`;
+  const loginPath = `/login?returnTo=${encodeURIComponent(returnPath)}`;
 
   const leadQuery = trpc.auth.whatsappOnboarding.validate.useQuery(
     { token },
@@ -140,6 +148,7 @@ export default function WhatsappOnboardingPage() {
   const completeOnboarding =
     trpc.auth.whatsappOnboarding.complete.useMutation({
       onSuccess: result => {
+        setShowExistingAccountRecovery(false);
         if (result.nextAction === "continue") {
           toast.success("Cadastro concluído. Seu acesso está liberado.");
           setLocation("/onboarding");
@@ -150,9 +159,31 @@ export default function WhatsappOnboardingPage() {
         );
         setLocation("/billing");
       },
-      onError: error =>
+      onError: error => {
+        if (error.message.includes("retome o vínculo")) {
+          setShowExistingAccountRecovery(true);
+        }
         toast.error(
           error.message || "Não foi possível concluir o cadastro."
+        );
+      },
+    });
+  const linkExistingAccount =
+    trpc.auth.whatsappOnboarding.linkExistingAccount.useMutation({
+      onSuccess: result => {
+        if (result.nextAction === "continue") {
+          toast.success("WhatsApp vinculado à sua conta.");
+          setLocation("/onboarding");
+          return;
+        }
+        toast.info(
+          "WhatsApp vinculado. Consulte Plano e acesso para acompanhar a ativação."
+        );
+        setLocation("/billing");
+      },
+      onError: error =>
+        toast.error(
+          error.message || "Não foi possível vincular o WhatsApp à sua conta."
         ),
     });
 
@@ -208,6 +239,7 @@ export default function WhatsappOnboardingPage() {
       return;
     }
 
+    setShowExistingAccountRecovery(false);
     completeOnboarding.mutate({
       token,
       email: parsed.email,
@@ -235,7 +267,7 @@ export default function WhatsappOnboardingPage() {
     });
   }
 
-  if (leadQuery.isLoading) {
+  if (authLoading || leadQuery.isLoading) {
     return (
       <StatusScreen
         icon={<Loader2 className="h-5 w-5 animate-spin" />}
@@ -251,6 +283,18 @@ export default function WhatsappOnboardingPage() {
         icon={<AlertCircle className="h-5 w-5" />}
         title="Link indisponível"
         description="Este link está inválido, expirado ou já foi utilizado. Envie uma nova mensagem pelo WhatsApp para receber outro acesso seguro."
+      />
+    );
+  }
+
+  if (user) {
+    return (
+      <ExistingAccountLinkScreen
+        accountLabel={user.email || user.name || "conta autenticada"}
+        phoneNumberMasked={leadQuery.data.phoneNumberMasked}
+        pending={linkExistingAccount.isPending}
+        errorMessage={linkExistingAccount.error?.message ?? null}
+        onLink={() => linkExistingAccount.mutate({ token })}
       />
     );
   }
@@ -283,6 +327,32 @@ export default function WhatsappOnboardingPage() {
             </p>
           </div>
         </section>
+
+        {showExistingAccountRecovery ? (
+          <section
+            role="alert"
+            className="grid gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-5 sm:grid-cols-[1fr_auto] sm:items-center"
+          >
+            <div>
+              <p className="flex items-center gap-2 font-semibold">
+                <LogIn className="h-4 w-4 text-primary" /> Já utiliza o Controle
+                de Calorias?
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Entre na sua conta e volte automaticamente para este link. O
+                telefone será vinculado somente depois da autenticação e da
+                validação do token recebido pelo WhatsApp.
+              </p>
+            </div>
+            <Button
+              type="button"
+              className="h-11 w-full sm:w-auto"
+              onClick={() => setLocation(loginPath)}
+            >
+              Entrar e vincular
+            </Button>
+          </section>
+        ) : null}
 
         {validationMessage ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -482,6 +552,74 @@ export default function WhatsappOnboardingPage() {
           </Button>
         </div>
       </form>
+    </main>
+  );
+}
+
+function ExistingAccountLinkScreen({
+  accountLabel,
+  phoneNumberMasked,
+  pending,
+  errorMessage,
+  onLink,
+}: {
+  accountLabel: string;
+  phoneNumberMasked: string;
+  pending: boolean;
+  errorMessage: string | null;
+  onLink: () => void;
+}) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-foreground">
+      <section className="w-full max-w-xl rounded-2xl border bg-background p-6 shadow-sm sm:p-8">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Link2 className="h-5 w-5" />
+        </div>
+        <p className="mt-5 text-sm font-medium text-primary">
+          Conta autenticada
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          Vincular este WhatsApp à sua conta
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Você entrou como <span className="font-medium text-foreground">{accountLabel}</span>.
+          Confirme o vínculo com o telefone provado pelo link recebido no
+          WhatsApp.
+        </p>
+
+        <dl className="mt-6 rounded-xl border bg-muted/20 p-4 text-sm">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <dt className="text-muted-foreground">Telefone do link</dt>
+            <dd className="font-semibold">{phoneNumberMasked}</dd>
+          </div>
+        </dl>
+
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">
+          Seu perfil, metas, histórico e consentimentos atuais não serão
+          substituídos. O vínculo só será concluído se o token ainda estiver
+          válido e o telefone não pertencer a outra conta.
+        </p>
+
+        {errorMessage ? (
+          <p role="alert" className="mt-4 text-sm text-destructive">
+            {errorMessage}
+          </p>
+        ) : null}
+
+        <Button
+          type="button"
+          className="mt-6 h-11 w-full sm:w-auto"
+          disabled={pending}
+          onClick={onLink}
+        >
+          {pending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Link2 className="mr-2 h-4 w-4" />
+          )}
+          Vincular WhatsApp
+        </Button>
+      </section>
     </main>
   );
 }
