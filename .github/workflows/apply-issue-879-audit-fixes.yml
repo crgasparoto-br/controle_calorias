@@ -1,280 +1,41 @@
 name: Apply issue 879 audit fixes
 
 on:
-  push:
-    branches:
-      - feat/875-professional-context-routes
-    paths:
-      - ".github/workflows/apply-issue-879-audit-fixes.yml"
+  workflow_dispatch:
 
-permissions:
-  contents: write
+jobs: {}
 
-jobs:
-  apply:
-    runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
-      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: feat/875-professional-context-routes
-          fetch-depth: 0
+x-correction-script: |
+  python - <<'PY'
+  import subprocess
 
-      - name: Verify expected parent
-        run: |
-          test "$(git rev-parse HEAD^)" = "6138b7c92090d09aa9aa894bf980be348c45959b"
+  path = ".github/workflows/apply-issue-879-audit-fixes.yml"
+  source = subprocess.check_output(
+      ["git", "show", f"HEAD^:{path}"],
+      text=True,
+  )
+  marker = "          python - <<'PY'\n"
+  start = source.index(marker) + len(marker)
+  end = source.index("\n          PY\n", start)
+  lines = source[start:end].splitlines()
+  script = "\n".join(
+      line[10:] if line.startswith("          ") else line for line in lines
+  ) + "\n"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Apply corrections
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              source = file.read_text(encoding="utf-8")
-              if source.count(old) != 1:
-                  raise SystemExit(f"expected one anchor in {path}: {old[:80]!r}; found {source.count(old)}")
-              file.write_text(source.replace(old, new), encoding="utf-8")
-
-          def replace_between(path: str, start: str, end: str, replacement: str) -> None:
-              file = Path(path)
-              source = file.read_text(encoding="utf-8")
-              if source.count(start) != 1 or source.count(end) != 1:
-                  raise SystemExit(f"invalid range anchors in {path}: {start!r} / {end!r}")
-              start_index = source.index(start)
-              end_index = source.index(end, start_index)
-              file.write_text(source[:start_index] + replacement + source[end_index:], encoding="utf-8")
-
-          receipt_repo = "server/modules/professionals/accessRequestReceiptRepository.ts"
-          replace_once(
-              receipt_repo,
-              'const MAX_RECEIPTS = 50;\nconst MAX_SCANNED_RECEIPTS = 200;\n',
-              '',
-          )
-          replace_once(
-              receipt_repo,
-              '''export type ProfessionalAccessRequestReceipt = {\n  id: string;\n  status: "pending";\n  requestedAt: number;\n  linkedAuthorizationId: string | null;\n};\n''',
-              '''export type ProfessionalAccessRequestReceipt = {\n  id: string;\n  status: "pending";\n  requestedAt: number;\n  linkedAuthorizationId: string | null;\n};\n\nexport type ProfessionalAccessRequestReceiptPage = {\n  items: ProfessionalAccessRequestReceipt[];\n  total: number;\n};\n''',
-          )
-          replace_once(
-              receipt_repo,
-              '''    return receipts\n      .sort(\n        (left, right) =>\n          right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)\n      )\n      .slice(0, MAX_RECEIPTS);\n''',
-              '''    return receipts.sort(\n      (left, right) =>\n        right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)\n    );\n''',
-          )
-          replace_once(receipt_repo, '          LIMIT ${MAX_SCANNED_RECEIPTS}\n', '')
-          replace_once(receipt_repo, '          LIMIT ${MAX_SCANNED_RECEIPTS}\n', '')
-          replace_once(
-              receipt_repo,
-              '''      return receipts\n        .sort(\n          (left, right) =>\n            right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)\n        )\n        .slice(0, MAX_RECEIPTS);\n''',
-              '''      return receipts.sort(\n        (left, right) =>\n          right.requestedAt - left.requestedAt || right.id.localeCompare(left.id)\n      );\n''',
-          )
-          replace_once(
-              receipt_repo,
-              '''  return {\n    createUnresolvedReceipt,\n    createLinkedReceipt,\n    resolveAuthorizationIdForPatient,\n    listActiveReceipts,\n    _forTestOnlyClear: () => fallbackReceipts.clear(),\n  };\n''',
-              '''  async function listActiveReceiptsPage(\n    professionalUserId: number,\n    page: { offset: number; limit: number },\n    now = Date.now()\n  ): Promise<ProfessionalAccessRequestReceiptPage> {\n    const offset = Math.max(0, Math.trunc(page.offset));\n    const limit = Math.max(1, Math.trunc(page.limit));\n    const receipts = await listActiveReceipts(professionalUserId, now);\n    return {\n      items: receipts.slice(offset, offset + limit),\n      total: receipts.length,\n    };\n  }\n\n  return {\n    createUnresolvedReceipt,\n    createLinkedReceipt,\n    resolveAuthorizationIdForPatient,\n    listActiveReceipts,\n    listActiveReceiptsPage,\n    _forTestOnlyClear: () => fallbackReceipts.clear(),\n  };\n''',
-          )
-
-          pagination_module = Path("server/modules/professionals/portfolioPagination.ts")
-          pagination_module.write_text('''import type { ProfessionalPortfolioResult } from "../../repositories/professionalPortfolioRepository";\nimport type { ProfessionalAccessRequestReceiptPage } from "./accessRequestReceiptRepository";\nimport type { ProfessionalPortfolioInput } from "./schemas";\n\nexport const PROFESSIONAL_PENDING_REQUEST_NAME =\n  "Solicitação aguardando confirmação";\n\nexport function portfolioIncludesOpaquePendingReceipts(\n  input: ProfessionalPortfolioInput\n) {\n  return (\n    input.search.trim() === "" &&\n    (input.authorizationStatus === "all" ||\n      input.authorizationStatus === "pending") &&\n    input.trackingStatus === "all" &&\n    input.activity === "all" &&\n    input.nextReview === "all"\n  );\n}\n\nexport function buildProfessionalPortfolioWindow(\n  input: ProfessionalPortfolioInput,\n  pendingTotal: number,\n  pendingItemsOnPage: number\n) {\n  const combinedOffset = (input.page - 1) * input.pageSize;\n  return {\n    offset: Math.max(0, combinedOffset - pendingTotal),\n    limit: Math.max(0, input.pageSize - pendingItemsOnPage),\n  };\n}\n\nfunction pendingReceiptPortfolioItem(\n  receipt: ProfessionalAccessRequestReceiptPage["items"][number]\n): ProfessionalPortfolioResult["items"][number] {\n  return {\n    authorizationId: receipt.id,\n    patientUserId: 0,\n    patientName: PROFESSIONAL_PENDING_REQUEST_NAME,\n    patientEmail: null,\n    authorizationStatus: "pending",\n    trackingStatus: null,\n    requestedAt: receipt.requestedAt,\n    lastFoodActivityAt: null,\n    lastProfessionalInteractionAt: null,\n    nextReviewAt: null,\n    nextWeighingAt: null,\n    pendingItems: 1,\n    hasRecordsInReportPeriod: false,\n  };\n}\n\nexport function combineProfessionalPortfolioPage(input: {\n  portfolioInput: ProfessionalPortfolioInput;\n  pendingPage: ProfessionalAccessRequestReceiptPage;\n  portfolio: ProfessionalPortfolioResult;\n}): ProfessionalPortfolioResult {\n  const total = input.pendingPage.total + input.portfolio.pagination.total;\n  return {\n    ...input.portfolio,\n    items: [\n      ...input.pendingPage.items.map(pendingReceiptPortfolioItem),\n      ...input.portfolio.items,\n    ],\n    pagination: {\n      page: input.portfolioInput.page,\n      pageSize: input.portfolioInput.pageSize,\n      total,\n      totalPages:\n        total === 0 ? 0 : Math.ceil(total / input.portfolioInput.pageSize),\n    },\n    summary: {\n      ...input.portfolio.summary,\n      pendingRequests: input.pendingPage.total,\n    },\n  };\n}\n''', encoding="utf-8")
-
-          portfolio_repo = "server/repositories/professionalPortfolioRepository.ts"
-          replace_once(
-              portfolio_repo,
-              '''  async function list(\n    professionalUserId: number,\n    input: ProfessionalPortfolioInput\n  ): Promise<ProfessionalPortfolioResult> {\n''',
-              '''  async function list(\n    professionalUserId: number,\n    input: ProfessionalPortfolioInput,\n    window: { offset?: number; limit?: number } = {}\n  ): Promise<ProfessionalPortfolioResult> {\n''',
-          )
-          replace_once(
-              portfolio_repo,
-              '    const offset = (input.page - 1) * input.pageSize;\n',
-              '''    const offset = Math.max(\n      0,\n      window.offset ?? (input.page - 1) * input.pageSize\n    );\n    const limit = Math.max(0, window.limit ?? input.pageSize);\n''',
-          )
-          replace_once(
-              portfolio_repo,
-              '          LIMIT ${input.pageSize} OFFSET ${offset}\n',
-              '          LIMIT ${limit} OFFSET ${offset}\n',
-          )
-
-          service = "server/modules/professionals/service.ts"
-          replace_once(
-              service,
-              'import { professionalRepository } from "./persistenceService";\n',
-              '''import { professionalRepository } from "./persistenceService";\nimport { professionalAccessRequestReceiptRepository } from "./accessRequestReceiptRepository";\nimport {\n  buildProfessionalPortfolioWindow,\n  combineProfessionalPortfolioPage,\n  portfolioIncludesOpaquePendingReceipts,\n} from "./portfolioPagination";\n''',
-          )
-          replace_once(
-              service,
-              '''export async function listProfessionalPortfolio(\n  professionalUserId: number,\n  input: ProfessionalPortfolioInput\n) {\n  await assertActiveProfessionalProfile(professionalUserId);\n  return professionalPortfolioRepository.list(professionalUserId, input);\n}\n''',
-              '''export async function listProfessionalPortfolio(\n  professionalUserId: number,\n  input: ProfessionalPortfolioInput\n) {\n  await assertActiveProfessionalProfile(professionalUserId);\n\n  const includesPending = portfolioIncludesOpaquePendingReceipts(input);\n  const combinedOffset = (input.page - 1) * input.pageSize;\n  const pendingPage =\n    await professionalAccessRequestReceiptRepository.listActiveReceiptsPage(\n      professionalUserId,\n      {\n        offset: includesPending ? combinedOffset : 0,\n        limit: includesPending ? input.pageSize : 1,\n      }\n    );\n\n  if (!includesPending) {\n    const portfolio = await professionalPortfolioRepository.list(\n      professionalUserId,\n      input\n    );\n    return {\n      ...portfolio,\n      summary: {\n        ...portfolio.summary,\n        pendingRequests: pendingPage.total,\n      },\n    };\n  }\n\n  const portfolio = await professionalPortfolioRepository.list(\n    professionalUserId,\n    input,\n    buildProfessionalPortfolioWindow(\n      input,\n      pendingPage.total,\n      pendingPage.items.length\n    )\n  );\n  return combineProfessionalPortfolioPage({\n    portfolioInput: input,\n    pendingPage,\n    portfolio,\n  });\n}\n''',
-          )
-
-          boundary = "server/modules/professionals/requestAccessPublicBoundary.ts"
-          replace_once(
-              boundary,
-              'import { approvePatientAccess, revokePatientAccess } from "./service";\n',
-              '''import { approvePatientAccess, revokePatientAccess } from "./service";\nimport { PROFESSIONAL_PENDING_REQUEST_NAME } from "./portfolioPagination";\n''',
-          )
-          replace_once(
-              boundary,
-              '''export const PROFESSIONAL_PENDING_REQUEST_NAME =\n  "Solicitação aguardando confirmação";\n''',
-              'export { PROFESSIONAL_PENDING_REQUEST_NAME };\n',
-          )
-          replace_between(
-              boundary,
-              'function receiptPortfolioItem(',
-              'function receiptAccessItem(',
-              '',
-          )
-          replace_once(
-              boundary,
-              '''function sanitizePortfolioItem(value: unknown) {\n  const item = asRecord(value);\n  if (!item) return [];\n  const status = item.authorizationStatus;\n  if (status === "pending") return [];\n  if (status === "approved") return [item];\n  if (status !== "rejected" && status !== "revoked") return [];\n  return [\n    {\n      ...item,\n      patientUserId: 0,\n      patientName:\n        status === "rejected"\n          ? PROFESSIONAL_REJECTED_REQUEST_NAME\n          : PROFESSIONAL_REVOKED_REQUEST_NAME,\n      patientEmail: null,\n      trackingStatus: null,\n      lastFoodActivityAt: null,\n      lastProfessionalInteractionAt: null,\n      nextReviewAt: null,\n      nextWeighingAt: null,\n      pendingItems: 0,\n      hasRecordsInReportPeriod: false,\n    },\n  ];\n}\n''',
-              '''function sanitizePortfolioItem(value: unknown) {\n  const item = asRecord(value);\n  if (!item) return [];\n  const status = item.authorizationStatus;\n  if (status === "pending") {\n    if (typeof item.authorizationId !== "string" || !item.authorizationId) {\n      return [];\n    }\n    return [\n      {\n        authorizationId: item.authorizationId,\n        patientUserId: 0,\n        patientName: PROFESSIONAL_PENDING_REQUEST_NAME,\n        patientEmail: null,\n        authorizationStatus: "pending" as const,\n        trackingStatus: null,\n        requestedAt:\n          typeof item.requestedAt === "number" ? item.requestedAt : 0,\n        lastFoodActivityAt: null,\n        lastProfessionalInteractionAt: null,\n        nextReviewAt: null,\n        nextWeighingAt: null,\n        pendingItems: 1,\n        hasRecordsInReportPeriod: false,\n      },\n    ];\n  }\n  if (status === "approved") return [item];\n  if (status !== "rejected" && status !== "revoked") return [];\n  return [\n    {\n      ...item,\n      patientUserId: 0,\n      patientName:\n        status === "rejected"\n          ? PROFESSIONAL_REJECTED_REQUEST_NAME\n          : PROFESSIONAL_REVOKED_REQUEST_NAME,\n      patientEmail: null,\n      trackingStatus: null,\n      lastFoodActivityAt: null,\n      lastProfessionalInteractionAt: null,\n      nextReviewAt: null,\n      nextWeighingAt: null,\n      pendingItems: 0,\n      hasRecordsInReportPeriod: false,\n    },\n  ];\n}\n''',
-          )
-          replace_between(
-              boundary,
-              'function portfolioInputAllowsReceipts(',
-              'async function protectRequestAccessResult(',
-              '',
-          )
-          replace_between(
-              boundary,
-              'async function protectPortfolioResult(',
-              'function protectHistoryResult(',
-              '''function protectPortfolioResult(record: Record<string, unknown>) {\n  if (!record.ok) return record;\n  const data = asRecord(record.data);\n  if (!data || !Array.isArray(data.items)) return record;\n  return {\n    ...record,\n    data: {\n      ...data,\n      items: data.items.flatMap(sanitizePortfolioItem),\n    },\n  };\n}\n\n''',
-          )
-          replace_once(
-              boundary,
-              '      return protectPortfolioResult(record, ctx.user.id, input, dependencies);\n',
-              '      return protectPortfolioResult(record);\n',
-          )
-
-          patients = "client/src/pages/professional/ProfessionalPatients.tsx"
-          replace_once(
-              patients,
-              '''      await Promise.all([\n        utils.nutrition.professionals.myAccesses.invalidate(),\n        portfolio.refetch(),\n      ]);\n      setLocation(\n        `/professional/patients?authorization=${success.authorizationStatus}`,\n        { replace: true }\n      );\n''',
-              '''      setLocation(\n        `/professional/patients?authorization=${success.authorizationStatus}`,\n        { replace: true }\n      );\n      await Promise.allSettled([\n        utils.nutrition.professionals.myAccesses.invalidate(),\n        portfolio.refetch(),\n      ]);\n''',
-          )
-          replace_once(
-              "client/src/pages/ProfessionalAreaPage.tsx",
-              '    content = <ProfessionalPatients key={location} />;\n',
-              '    content = <ProfessionalPatients />;\n',
-          )
-
-          patient_tests = "client/src/pages/professional/ProfessionalPatients.test.tsx"
-          insertion = '''\n  it("keeps successful navigation when cache refresh side effects fail", async () => {\n    window.history.replaceState(\n      {},\n      "",\n      "/professional/patients?authorization=approved&page=2"\n    );\n    invalidate.mockRejectedValueOnce(new Error("invalidate failed"));\n    refetch.mockRejectedValueOnce(new Error("refetch failed"));\n    render(<ProfessionalPatients />);\n\n    submitRequest();\n\n    await waitFor(() => {\n      expect(window.location.search).toBe("?authorization=pending");\n    });\n    await waitFor(() => {\n      expect(invalidate).toHaveBeenCalledTimes(1);\n      expect(refetch).toHaveBeenCalledTimes(1);\n    });\n    expect(screen.getByRole("status").textContent).toContain(\n      "Solicitação registrada."\n    );\n  });\n'''
-          replace_once(
-              patient_tests,
-              '\n  it("keeps an already approved relationship in the approved view", async () => {\n',
-              insertion + '\n  it("keeps an already approved relationship in the approved view", async () => {\n',
-          )
-
-          boundary_tests = "server/modules/professionals/requestAccessPublicBoundary.test.ts"
-          replace_once(
-              boundary_tests,
-              'it("replaces pending portfolio identities with opaque receipts and neutral counts", async () => {',
-              'it("sanitizes pending portfolio identities without querying receipts again", async () => {',
-          )
-          replace_once(
-              boundary_tests,
-              '          summary: { pendingRequests: 999, active: 1 },\n',
-              '          summary: { pendingRequests: 1, active: 1 },\n',
-          )
-          replace_once(boundary_tests, '    expect(items).toHaveLength(3);\n', '    expect(items).toHaveLength(2);\n')
-          replace_once(
-              boundary_tests,
-              '      authorizationId: "receipt-active-1",\n',
-              '      authorizationId: "pending-authorization",\n',
-          )
-          replace_once(boundary_tests, '    expect(items[2]).toMatchObject({\n', '    expect(items[1]).toMatchObject({\n')
-          replace_once(
-              boundary_tests,
-              '    expect(data.summary).toEqual({ pendingRequests: 2, active: 1 });\n',
-              '''    expect(data.summary).toEqual({ pendingRequests: 1, active: 1 });\n    expect(deps.listActiveReceipts).not.toHaveBeenCalled();\n''',
-          )
-
-          Path("server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts").write_text('''import { describe, expect, it, vi } from "vitest";\nimport {\n  createProfessionalAccessRequestReceiptRepository,\n} from "./accessRequestReceiptRepository";\nimport { professionalRepository as canonicalProfessionalRepository } from "./persistenceService";\n\nfunction createRepository() {\n  const listAuthorizationsByProfessional = vi.fn().mockResolvedValue([]);\n  return {\n    repository: createProfessionalAccessRequestReceiptRepository({\n      getDb: async () => null,\n      onWarning: vi.fn(),\n      professionalRepository: {\n        ...canonicalProfessionalRepository,\n        listAuthorizationsByProfessional,\n      },\n    }),\n    listAuthorizationsByProfessional,\n  };\n}\n\ndescribe("professional access receipt pagination", () => {\n  it("keeps every valid receipt reachable beyond the former fifty-item limit", async () => {\n    const { repository } = createRepository();\n    const professionalUserId = 879001;\n    const baseTime = 1_800_000_000_000;\n    for (let index = 0; index < 65; index += 1) {\n      await repository.createUnresolvedReceipt(\n        professionalUserId,\n        baseTime + index\n      );\n    }\n\n    const pages = await Promise.all(\n      [0, 20, 40, 60].map(offset =>\n        repository.listActiveReceiptsPage(\n          professionalUserId,\n          { offset, limit: 20 },\n          baseTime + 100\n        )\n      )\n    );\n\n    expect(pages.map(page => page.items.length)).toEqual([20, 20, 20, 5]);\n    expect(pages.every(page => page.total === 65)).toBe(true);\n    expect(new Set(pages.flatMap(page => page.items.map(item => item.id))).size).toBe(65);\n  });\n\n  it("excludes expired unresolved receipts before calculating totals", async () => {\n    const { repository } = createRepository();\n    const professionalUserId = 879002;\n    const now = 1_800_000_000_000;\n    await repository.createUnresolvedReceipt(\n      professionalUserId,\n      now - 31 * 24 * 60 * 60 * 1000\n    );\n    await repository.createUnresolvedReceipt(professionalUserId, now - 1000);\n    await repository.createUnresolvedReceipt(professionalUserId, now);\n\n    const page = await repository.listActiveReceiptsPage(\n      professionalUserId,\n      { offset: 0, limit: 20 },\n      now\n    );\n\n    expect(page.total).toBe(2);\n    expect(page.items).toHaveLength(2);\n  });\n\n  it("removes linked receipts once the canonical authorization is no longer pending", async () => {\n    const { repository, listAuthorizationsByProfessional } = createRepository();\n    const professionalUserId = 879003;\n    const authorizationId = "authorization-879003";\n    await repository.createLinkedReceipt({\n      professionalUserId,\n      authorizationId,\n      patientUserId: 42,\n      requestedAt: 1_800_000_000_000,\n    });\n    listAuthorizationsByProfessional.mockResolvedValueOnce([\n      { id: authorizationId, status: "approved" },\n    ]);\n\n    const page = await repository.listActiveReceiptsPage(\n      professionalUserId,\n      { offset: 0, limit: 20 },\n      1_800_000_000_100\n    );\n\n    expect(page).toEqual({ items: [], total: 0 });\n  });\n});\n''', encoding="utf-8")
-
-          Path("server/modules/professionals/portfolioPagination.test.ts").write_text('''import { describe, expect, it } from "vitest";\nimport type { ProfessionalPortfolioResult } from "../../repositories/professionalPortfolioRepository";\nimport type { ProfessionalPortfolioInput } from "./schemas";\nimport {\n  buildProfessionalPortfolioWindow,\n  combineProfessionalPortfolioPage,\n  portfolioIncludesOpaquePendingReceipts,\n} from "./portfolioPagination";\n\nconst baseInput: ProfessionalPortfolioInput = {\n  search: "",\n  authorizationStatus: "all",\n  trackingStatus: "all",\n  activity: "all",\n  nextReview: "all",\n  page: 1,\n  pageSize: 20,\n  includeHistoricalActivity: true,\n};\n\nfunction emptyPortfolio(page: number, total: number): ProfessionalPortfolioResult {\n  return {\n    items: [],\n    pagination: { page, pageSize: 20, total, totalPages: Math.ceil(total / 20) },\n    summary: {\n      active: 0,\n      paused: 0,\n      ended: 0,\n      notStarted: 0,\n      pendingRequests: 0,\n      activeWithRecentRecords: 0,\n      withoutRecentActivity: 0,\n      pendingReviews: 0,\n      pendingWeighings: 0,\n    },\n    generatedAt: 1_800_000_000_000,\n  };\n}\n\ndescribe("professional portfolio pagination", () => {\n  it("shifts the identified window after opaque pending receipts", () => {\n    expect(buildProfessionalPortfolioWindow(baseInput, 65, 20)).toEqual({\n      offset: 0,\n      limit: 0,\n    });\n    expect(\n      buildProfessionalPortfolioWindow({ ...baseInput, page: 4 }, 65, 5)\n    ).toEqual({ offset: 0, limit: 15 });\n    expect(\n      buildProfessionalPortfolioWindow({ ...baseInput, page: 5 }, 65, 0)\n    ).toEqual({ offset: 15, limit: 20 });\n  });\n\n  it("combines totals and keeps the final pending page reachable", () => {\n    const input = { ...baseInput, page: 4 };\n    const pendingPage = {\n      total: 65,\n      items: Array.from({ length: 5 }, (_, index) => ({\n        id: `receipt-${60 + index}`,\n        status: "pending" as const,\n        requestedAt: 1_800_000_000_000 - index,\n        linkedAuthorizationId: null,\n      })),\n    };\n    const result = combineProfessionalPortfolioPage({\n      portfolioInput: input,\n      pendingPage,\n      portfolio: emptyPortfolio(4, 35),\n    });\n\n    expect(result.items).toHaveLength(5);\n    expect(result.items.every(item => item.patientUserId === 0)).toBe(true);\n    expect(result.pagination).toEqual({\n      page: 4,\n      pageSize: 20,\n      total: 100,\n      totalPages: 5,\n    });\n    expect(result.summary.pendingRequests).toBe(65);\n  });\n\n  it("does not mix opaque receipts into identifiable filters", () => {\n    expect(\n      portfolioIncludesOpaquePendingReceipts({\n        ...baseInput,\n        search: "ana",\n      })\n    ).toBe(false);\n    expect(\n      portfolioIncludesOpaquePendingReceipts({\n        ...baseInput,\n        trackingStatus: "active",\n      })\n    ).toBe(false);\n    expect(\n      portfolioIncludesOpaquePendingReceipts({\n        ...baseInput,\n        authorizationStatus: "approved",\n      })\n    ).toBe(false);\n  });\n});\n''', encoding="utf-8")
-
-          professionals_doc = "docs/product-specs/professionals.md"
-          replace_once(
-              professionals_doc,
-              '''Vínculos pendentes não participam da paginação identificável. Cada tentativa aparece como um comprovante opaco com o rótulo **Solicitação aguardando confirmação**, inclusive quando várias tentativas apontam para o mesmo vínculo canônico. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela, e o vínculo real continua único.\n''',
-              '''Vínculos pendentes não participam da paginação identificável. Cada tentativa aparece como um comprovante opaco com o rótulo **Solicitação aguardando confirmação**, inclusive quando várias tentativas apontam para o mesmo vínculo canônico. Os comprovantes válidos participam da paginação pública da carteira antes dos vínculos identificáveis, sem limite silencioso; `total` e `totalPages` incluem todas as tentativas ainda visíveis. Tentativas ainda não resolvidas expiram dessa lista após trinta dias. Esse mecanismo não cria cadastro de paciente nem autorização paralela, e o vínculo real continua único.\n''',
-          )
-          schedule_doc = "docs/design-docs/professional-portfolio-operational-schedule.md"
-          replace_once(
-              schedule_doc,
-              '''- Busca, filtros e página são persistidos na query string da rota da carteira,\n  permitindo abrir um paciente e retornar ao mesmo estado operacional.\n''',
-              '''- Busca, filtros e página são persistidos na query string da rota da carteira,\n  permitindo abrir um paciente e retornar ao mesmo estado operacional.\n- Comprovantes pendentes opacos usam a mesma paginação pública da carteira, aparecem\n  antes dos vínculos identificáveis e não podem ser truncados por limite interno; totais\n  e páginas devem permanecer coerentes quando houver mais de cinquenta tentativas.\n''',
-          )
-
-          Path(".github/workflows/apply-issue-879-audit-fixes.yml").unlink()
-          PY
-
-      - name: Format changed files
-        run: |
-          pnpm exec prettier --write \
-            server/modules/professionals/accessRequestReceiptRepository.ts \
-            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
-            server/modules/professionals/portfolioPagination.ts \
-            server/modules/professionals/portfolioPagination.test.ts \
-            server/modules/professionals/requestAccessPublicBoundary.ts \
-            server/modules/professionals/requestAccessPublicBoundary.test.ts \
-            server/modules/professionals/service.ts \
-            server/repositories/professionalPortfolioRepository.ts \
-            client/src/pages/professional/ProfessionalPatients.tsx \
-            client/src/pages/professional/ProfessionalPatients.test.tsx \
-            client/src/pages/ProfessionalAreaPage.tsx \
-            docs/product-specs/professionals.md \
-            docs/design-docs/professional-portfolio-operational-schedule.md
-
-      - name: Validate focused behavior
-        run: |
-          mkdir -p artifacts/issue-879-implementation
-          pnpm exec vitest run \
-            server/modules/professionals/accessRequestReceiptRepository.pagination.test.ts \
-            server/modules/professionals/portfolioPagination.test.ts \
-            server/modules/professionals/requestAccessPublicBoundary.test.ts \
-            client/src/pages/professional/ProfessionalPatients.test.tsx \
-            --maxWorkers=1 --minWorkers=1 2>&1 | tee artifacts/issue-879-implementation/focused-tests.log
-          pnpm check 2>&1 | tee artifacts/issue-879-implementation/typescript.log
-          pnpm docs:check 2>&1 | tee artifacts/issue-879-implementation/docs-check.log
-          git diff --check
-
-      - name: Commit and push corrections
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: resolve audit findings for issue 879"
-          git push origin HEAD:feat/875-professional-context-routes
-          printf '{"issue":879,"headSha":"%s","sourceEventSha":"%s"}\n' "$(git rev-parse HEAD)" "${GITHUB_SHA}" > artifacts/issue-879-implementation/implementation.json
-
-      - name: Archive exact repository state
-        run: |
-          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts vitest.config.ts 2>/dev/null || \
-          tar --exclude='./node_modules' --exclude='./artifacts' -czf artifacts/issue-879-implementation/controle_calorias-with-git.tar.gz .git .github AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md client docs drizzle package.json pnpm-lock.yaml scripts server shared tsconfig.json vite.config.ts
-
-      - name: Upload implementation source
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-879-implementation-source-${{ github.run_id }}
-          path: artifacts/issue-879-implementation
-          if-no-files-found: error
-          retention-days: 7
+  old = """replace_once(receipt_repo, '          LIMIT ${MAX_SCANNED_RECEIPTS}\\n', '')
+replace_once(receipt_repo, '          LIMIT ${MAX_SCANNED_RECEIPTS}\\n', '')
+"""
+  new = """file = Path(receipt_repo)
+source = file.read_text(encoding=\"utf-8\")
+limit_anchor = '          LIMIT ${MAX_SCANNED_RECEIPTS}\\n'
+if source.count(limit_anchor) != 2:
+    raise SystemExit(
+        f\"expected two receipt scan limits; found {source.count(limit_anchor)}\"
+    )
+file.write_text(source.replace(limit_anchor, ''), encoding=\"utf-8\")
+"""
+  if old not in script:
+      raise SystemExit("could not patch duplicate receipt limit replacements")
+  script = script.replace(old, new)
+  exec(compile(script, "/tmp/apply_issue_879_original.py", "exec"))
+  PY
