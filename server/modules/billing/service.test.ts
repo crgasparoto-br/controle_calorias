@@ -170,13 +170,19 @@ describe("billing entitlement service", () => {
     });
   });
 
-  it("returns the combined personal and professional matrix from one professional subscription", async () => {
-    const combinedEntitlements = [
+  it("returns the professional plan matrix as one own subscription without consuming patient capacity", async () => {
+    const personalEntitlements = [
       "system_access",
       "patient_dashboard",
       "meal_registration",
+    ];
+    const professionalEntitlements = [
       "professional_dashboard",
       "professional_portfolio",
+    ];
+    const combinedEntitlements = [
+      ...personalEntitlements,
+      ...professionalEntitlements,
     ];
     const professionalSubscription = {
       id: "subscription-professional-1",
@@ -195,15 +201,17 @@ describe("billing entitlement service", () => {
       capacityUsed: 7,
       entitlements: combinedEntitlements,
     };
+    const listAccessCandidates = vi.fn(async () => [
+      candidate("active_subscription", {
+        sourceId: professionalSubscription.id,
+        planCode: professionalSubscription.planCode,
+        entitlements: professionalSubscription.entitlements,
+      }),
+    ]);
     const reserveProfessionalCapacity = vi.fn();
     const service = createBillingService({
       repository: repository({
-        listAccessCandidates: vi.fn(async () => [
-          candidate("active_subscription", {
-            planCode: professionalSubscription.planCode,
-            entitlements: combinedEntitlements,
-          }),
-        ]),
+        listAccessCandidates,
         getOwnSubscription: vi.fn(async () => professionalSubscription),
         getActiveProfessionalSubscription: vi.fn(
           async () => professionalSubscription
@@ -214,11 +222,20 @@ describe("billing entitlement service", () => {
       accessMode: () => "enforced",
     });
 
-    await expect(service.getUserEntitlements(10)).resolves.toMatchObject({
+    const access = await service.getUserEntitlements(10);
+    expect(access).toMatchObject({
       reason: "active_subscription",
       planCode: "professional-monthly",
       entitlements: [...combinedEntitlements].sort(),
     });
+    expect(access.entitlements).toEqual(
+      expect.arrayContaining(personalEntitlements)
+    );
+    expect(access.entitlements).toEqual(
+      expect.arrayContaining(professionalEntitlements)
+    );
+    expect(listAccessCandidates).toHaveBeenCalledWith(10, NOW);
+
     await expect(service.getUserSubscriptionStatus(10)).resolves.toMatchObject({
       subscription: { id: "subscription-professional-1" },
       professionalSubscription: {
