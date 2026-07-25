@@ -1,8 +1,10 @@
 export const BILLING_ACCESS_REASONS = [
-  "active_subscription",
-  "sponsored_by_professional",
-  "active_trial",
   "admin_override",
+  "sponsored_by_professional",
+  "active_subscription",
+  "active_trial",
+  "transition_access",
+  "read_only_access",
   "free_access",
   "no_access",
 ] as const;
