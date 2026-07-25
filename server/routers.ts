@@ -15,7 +15,12 @@ import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreet
 import {
   completeWhatsappOnboarding,
   getWhatsappOnboardingLeadByToken,
+  linkWhatsappOnboardingToAuthenticatedUser,
 } from "./modules/onboarding/whatsappLeadService";
+import {
+  getPublicWhatsappAuthenticatedLinkError,
+  getPublicWhatsappOnboardingCompletionError,
+} from "./modules/onboarding/whatsappOnboardingErrors";
 import {
   whatsappOnboardingCompleteSchema,
   whatsappOnboardingTokenSchema,
@@ -200,51 +205,21 @@ export const appRouter = router({
               resumed: result.resumed,
             };
           } catch (error) {
-            if (
-              error instanceof Error &&
-              error.message === "EMAIL_ALREADY_REGISTERED"
-            ) {
-              throw new TRPCError({
-                code: "CONFLICT",
-                message:
-                  "Já existe uma conta com este e-mail. Entre na sua conta para vincular o WhatsApp.",
-              });
-            }
-            if (
-              error instanceof Error &&
-              error.message === "INVALID_OR_EXPIRED_ONBOARDING_TOKEN"
-            ) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message:
-                  "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
-              });
-            }
-            if (
-              error instanceof Error &&
-              error.message === "ONBOARDING_COMPLETION_IN_PROGRESS"
-            ) {
-              throw new TRPCError({
-                code: "CONFLICT",
-                message:
-                  "Este cadastro já está sendo concluído. Aguarde alguns instantes e tente novamente.",
-              });
-            }
-            if (
-              error instanceof Error &&
-              error.message === "ONBOARDING_RECOVERY_ACCOUNT_MISMATCH"
-            ) {
-              throw new TRPCError({
-                code: "CONFLICT",
-                message:
-                  "Não foi possível retomar este cadastro com os dados informados. Entre na conta criada ou solicite suporte.",
-              });
-            }
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message:
-                "Não foi possível concluir o cadastro iniciado pelo WhatsApp.",
-            });
+            throw new TRPCError(
+              getPublicWhatsappOnboardingCompletionError(error)
+            );
+          }
+        }),
+      linkExistingAccount: protectedProcedure
+        .input(whatsappOnboardingTokenSchema)
+        .mutation(async ({ input, ctx }) => {
+          try {
+            return await linkWhatsappOnboardingToAuthenticatedUser(
+              ctx.user.id,
+              input.token
+            );
+          } catch (error) {
+            throw new TRPCError(getPublicWhatsappAuthenticatedLinkError(error));
           }
         }),
     }),
