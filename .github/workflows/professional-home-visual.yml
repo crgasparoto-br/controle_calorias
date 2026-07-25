@@ -5,42 +5,45 @@ on:
     branches:
       - develop
     paths:
+      - "client/src/pages/ProfessionalAreaPage.tsx"
+      - "client/src/pages/professional/ProfessionalHome.tsx"
+      - "client/src/pages/professional/ProfessionalPatients.tsx"
       - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
-      - "client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts"
-      - "docs/testing/professional-workspace-routing.md"
+      - "client/src/components/ProfessionalLayout.tsx"
+      - "client/src/components/professional/ProfessionalUi.tsx"
+      - "client/src/components/ui/sidebar.tsx"
+      - "client/src/lib/professionalRoutes.ts"
+      - "client/src/index.css"
+      - "visual-tests/professional-home/**"
+      - "scripts/render-professional-home-visual.sh"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-issue-880:
+  visual-evidence:
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          ref: feat/875-professional-context-routes
-          fetch-depth: 0
-      - name: Apply code and test corrections
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          workspace = Path('client/src/pages/professional/ProfessionalPatientWorkspace.tsx')
-          source = workspace.read_text(encoding='utf-8')
-          helper = 'export function getLatestPatientActivityAt(record: { timeline?: Array<{ occurredAt?: number | null }> }) {\n  return record.timeline?.[0]?.occurredAt ?? null;\n}\n\n'
-          if helper not in source:
-              source = source.replace('function formatDate(value: number | null | undefined) {\n', helper + 'function formatDate(value: number | null | undefined) {\n')
-          source = source.replace('        trackingStatus={trackingStatus}\n        nextReviewAt={latest?.nextReviewAt}', '        trackingStatus={trackingStatus}\n        lastActivityAt={getLatestPatientActivityAt(record.data)}\n        nextReviewAt={latest?.nextReviewAt}')
-          workspace.write_text(source, encoding='utf-8')
-          Path('client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts').write_text('''import { describe, expect, it } from "vitest";\nimport { getLatestPatientActivityAt } from "./ProfessionalPatientWorkspace";\n\ndescribe("workspace patient activity", () => {\n  it("uses canonical timeline activity instead of the review date", () => {\n    const activityAt = Date.UTC(2026, 6, 25, 18, 30);\n    const reviewAt = Date.UTC(2026, 7, 20, 12);\n    const record = { latestAssessment: { nextReviewAt: reviewAt }, timeline: [{ occurredAt: activityAt }] };\n    expect(getLatestPatientActivityAt(record)).toBe(activityAt);\n    expect(getLatestPatientActivityAt(record)).not.toBe(reviewAt);\n  });\n  it("returns null without timeline activity", () => {\n    expect(getLatestPatientActivityAt({ timeline: [] })).toBeNull();\n    expect(getLatestPatientActivityAt({})).toBeNull();\n  });\n});\n''', encoding='utf-8')
-          docs = Path('docs/testing/professional-workspace-routing.md')
-          doc = docs.read_text(encoding='utf-8')
-          if '## Cabeçalho contextual' not in doc:
-              docs.write_text(doc.rstrip() + '\n\n## Cabeçalho contextual\n\nA última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade.\n', encoding='utf-8')
-          PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/src/pages/professional/ProfessionalPatientWorkspace.tsx client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts docs/testing/professional-workspace-routing.md
-          git diff --cached --check
-          git commit -m "fix: expose canonical patient activity in workspace header"
-          git push origin HEAD:feat/875-professional-context-routes
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Render professional workspace evidence
+        run: bash scripts/render-professional-home-visual.sh
+      - name: Upload professional workspace screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}
+          path: artifacts/professional-home
+          if-no-files-found: error
+          retention-days: 30
