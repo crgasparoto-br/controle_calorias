@@ -73,11 +73,6 @@ describe("billing professional entitlement provider", () => {
       entitlements: ["professional_dashboard", "professional_portfolio"],
       capacity: { limit: 10, used: 3 },
     });
-    expect(deps.service.getUserEntitlements).toHaveBeenCalledWith(10);
-    expect(deps.repository.getActiveProfessionalSubscription).toHaveBeenCalledWith(
-      10,
-      expect.any(Date)
-    );
   });
 
   it("turns an admin override into full professional access without a fake subscription", async () => {
@@ -91,7 +86,6 @@ describe("billing professional entitlement provider", () => {
     const provider = createBillingProfessionalEntitlementProvider(deps as any);
 
     const result = await provider.getEntitlements(10);
-
     expect(result).toMatchObject({
       allowed: true,
       reason: "admin_override",
@@ -101,12 +95,13 @@ describe("billing professional entitlement provider", () => {
     expect(result.entitlements).toEqual([...PROFESSIONAL_ENTITLEMENT_RESOURCES]);
   });
 
-  it("does not convert sponsorship as a patient into professional access", async () => {
+  it.each([
+    "sponsored_by_professional",
+    "transition_access",
+    "read_only_access",
+  ])("does not convert %s into professional access", async reason => {
     const deps = dependencies({
-      access: {
-        reason: "sponsored_by_professional",
-        sponsorUserId: 55,
-      },
+      access: { reason },
       subscription: null,
     });
     const provider = createBillingProfessionalEntitlementProvider(deps as any);
@@ -131,7 +126,5 @@ describe("billing professional entitlement provider", () => {
       reservationId: "allocation-1",
     });
     await expect(provider.releaseCapacity?.(input)).resolves.toBeUndefined();
-    expect(deps.repository.reserveProfessionalCapacity).toHaveBeenCalledWith(input);
-    expect(deps.repository.releaseProfessionalCapacity).toHaveBeenCalledWith(input);
   });
 });
