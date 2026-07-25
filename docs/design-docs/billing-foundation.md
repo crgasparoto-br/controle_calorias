@@ -4,9 +4,9 @@
 
 Esta fundação implementa as entregas técnicas provider-neutral da épica #145. Ela persiste planos, assinaturas, eventos normalizados, entitlements, cobertura profissional, capacidade e exceções administrativas sem escolher um provedor financeiro real nem cadastrar preço comercial definitivo.
 
-`BILLING_ACCESS_MODE=open_access` é o padrão. Nesse modo, ausência ou falha da persistência comercial mantém o acesso atual e registra apenas diagnóstico sanitizado. `BILLING_ACCESS_MODE=enforced` deve ser ativado somente depois de aprovadas a matriz de recursos pagos, a migração dos usuários atuais e as políticas comerciais bloqueantes da épica.
+`BILLING_ACCESS_MODE=open_access` é o padrão. Nesse modo, ausência ou falha da persistência comercial mantém o acesso atual e registra apenas diagnóstico sanitizado. `BILLING_ACCESS_MODE=enforced` deve ser ativado somente depois de concluídos catálogo, migração dos usuários atuais, comunicação e rollback.
 
-As interfaces implementadas nesta etapa são consultivas e operacionais sobre o contrato provider-neutral. Elas não oferecem checkout, alteração de plano ou cancelamento enquanto o primeiro provedor e as regras comerciais não estiverem aprovados.
+As interfaces implementadas nesta etapa são consultivas e operacionais sobre o contrato provider-neutral. Elas não oferecem checkout, alteração de plano ou cancelamento.
 
 ## Fronteiras do domínio
 
@@ -18,19 +18,19 @@ O modelo diferencia explicitamente:
 - **vínculo clínico**: `professionalPatientAuthorizations`, que continua sendo a autorização de acesso aos dados;
 - **origem comercial**: `sourceType` e `sourceId` do entitlement.
 
-Cobertura profissional não cria assinatura em nome do paciente. Exceção administrativa também não cria assinatura, checkout ou registro falso no provedor. Encerrar cobertura libera a vaga e termina o entitlement, mas não apaga usuário, vínculo, prontuário ou histórico.
+Cobertura profissional não cria assinatura em nome do paciente. Exceção administrativa também não cria assinatura, checkout ou registro falso no provider. Encerrar cobertura libera a vaga e termina o entitlement, mas não apaga usuário, vínculo, prontuário ou histórico.
 
 ## Persistência
 
-- `billingPlans`: catálogo provider-neutral; valores monetários em unidade inteira da moeda; plano inativo deixa de aceitar novas vendas, sem invalidar automaticamente assinaturas vigentes.
+- `billingPlans`: catálogo provider-neutral; valores monetários em unidade inteira da moeda; plano inativo deixa de aceitar novas vendas sem invalidar assinaturas vigentes.
 - `billingSubscriptions`: titular, plano, provider, identificadores externos, período e estado normalizado (`pending`, `active`, `past_due`, `canceled`, `expired`).
 - `billingProviderEvents`: envelope normalizado e idempotente por `(provider, providerEventId)`.
-- `billingEntitlements`: concessões próprias, patrocinadas, trial, acesso gratuito configurado ou override administrativo.
+- `billingEntitlements`: concessões próprias, patrocinadas, trial, transição, acesso somente para leitura, acesso gratuito configurado ou origem administrativa relacionada.
 - `billingCapacityAllocations`: ocupação e liberação auditável de vagas profissionais por `coverageKey`.
 - `billingAdminOverrides`: concessões manuais com motivo, vigência, autoria, revogação e histórico preservado.
 - `billingAccessAuditEvents`: trilha append-only das mudanças de acesso e capacidade.
 
-A migration canônica é `drizzle/0035_billing_foundation.sql`. O workflow `Billing persistence TiDB gate` aplica o schema em TiDB, verifica drift do metadata Drizzle, executa concorrência/idempotência e roda integridade referencial.
+As migrations canônicas desta fundação são `drizzle/0036_billing_foundation.sql`, `drizzle/0037_whatsapp_onboarding_activation.sql` e `drizzle/0038_billing_access_origins.sql`. O workflow `Billing persistence TiDB gate` aplica o schema em TiDB, verifica drift do metadata Drizzle, executa concorrência/idempotência e roda integridade referencial.
 
 ## Eventos do provider e minimização
 
@@ -40,18 +40,26 @@ A lista permitida contém apenas identificadores operacionais, estado, motivo sa
 
 ## Elegibilidade e precedência
 
-`getUserEntitlements(userId)` é o contrato central para web, tRPC e integrações. A precedência determinística é:
+`getUserEntitlements(userId)` é o contrato central para web, tRPC e integrações. A precedência determinística e vinculante é:
 
-1. assinatura própria ativa;
+1. isenção administrativa ativa;
 2. cobertura válida por profissional;
-3. trial ativo;
-4. exceção administrativa ativa;
-5. acesso gratuito configurado;
-6. ausência de acesso.
+3. assinatura própria paga ativa;
+4. trial ativo;
+5. período de transição ativo;
+6. acesso somente para leitura ativo.
 
-Dentro da mesma origem, vence a concessão com maior validade; empate é resolvido pelo identificador da fonte. Registros futuros ou expirados são descartados defensivamente. Apenas assinatura `active` dentro do período concede acesso; `pending`, `past_due`, `canceled` e `expired` não concedem.
+`free_access` permanece reservado ao modo de rollout aberto e a concessões gratuitas explicitamente configuradas; ele não substitui transição nem leitura.
+
+A precedência define origem efetiva, atribuição de consumo e comunicação. Origens secundárias ainda válidas não são apagadas. Dentro da mesma origem, vence a concessão com maior validade; empate é resolvido pelo identificador da fonte. Registros futuros ou expirados são descartados defensivamente. Apenas assinatura `active` dentro do período concede acesso; `pending`, `past_due`, `canceled` e `expired` não concedem.
 
 Cobertura profissional exige simultaneamente assinatura ativa do patrocinador, vaga ativa, entitlement ativo e autorização profissional-paciente aprovada. Assinatura não substitui consentimento clínico.
+
+## Matriz profissional combinada
+
+Profissional e Profissional Plus concedem ao próprio pagador, em uma única assinatura, a matriz pessoal do Individual e a matriz profissional. O catálogo versionado deve entregar essa matriz combinada em `billingPlans.entitlementsJson`.
+
+Não é criada assinatura individual adicional, cobertura do profissional sobre si próprio ou cobrança duplicada. O uso pessoal do pagador profissional não chama reserva de capacidade e não ocupa vaga de paciente. Profissional e Plus diferem inicialmente somente pelo limite de capacidade.
 
 ## Aplicação progressiva no backend
 
@@ -59,7 +67,7 @@ Cobertura profissional exige simultaneamente assinatura ativa do patrocinador, v
 
 As procedures sob `billing.*` permanecem acessíveis para que o usuário autenticado consiga consultar sua situação e acompanhar a regularização. Procedures administrativas continuam usando `adminProcedure`, que valida `users.role = admin` independentemente da visibilidade da navegação.
 
-No modo `open_access`, a policy preserva o comportamento atual. No modo `enforced`, a ausência de uma origem válida bloqueia os recursos protegidos. A ativação de `enforced` continua proibida até que a matriz de recursos, a migração e o rollback estejam aprovados.
+No modo `open_access`, a policy preserva o comportamento atual. No modo `enforced`, a ausência de uma origem válida bloqueia os recursos protegidos. A ativação de `enforced` continua proibida até que catálogo, migração, comunicação e rollback estejam aprovados.
 
 ## WhatsApp e onboarding
 
@@ -72,9 +80,7 @@ Quando o acesso está pendente:
 - o usuário recebe orientação para consultar **Plano e acesso** no sistema web;
 - o evento operacional é registrado sem texto cru, telefone ou detalhes financeiros sensíveis.
 
-A conclusão do onboarding cria conta, perfil, consentimentos e vínculo do WhatsApp, consome o token e então reavalia a elegibilidade. A resposta retorna `eligibility` e `nextAction` de forma estruturada. A saudação operacional só é enviada quando `eligibility.allowed` é verdadeiro. Cadastro concluído sem elegibilidade permanece preservado e autenticado, mas segue para a página de situação comercial.
-
-Esta etapa ainda não introduz o estado persistente `pending_activation`, checkout ou recuperação de pagamento. Esses fluxos dependem da política comercial e do primeiro provider da épica.
+A conclusão do onboarding preserva estados recuperáveis, reavalia a elegibilidade e executa ativação posterior de modo idempotente. Cadastro concluído sem elegibilidade permanece preservado e autenticado, mas segue para a página de situação comercial. Saudação e ativação são emitidas no máximo uma vez.
 
 ## Capacidade profissional
 
@@ -88,28 +94,14 @@ Para planos com capacidade finita:
 - ultrapassar o limite retorna `capacity_exceeded` e não cria cobertura parcial;
 - falha da transição clínica dispara compensação pelo contrato profissional existente;
 - liberação repetida é idempotente;
-- revogação do vínculo pelo paciente nunca depende do sucesso da integração comercial para concluir a decisão clínica.
-
-A definição comercial futura de “paciente ativo”, downgrade, tolerância e inadimplência ainda pertence à épica #145. Esta fundação não codifica essas decisões como regra definitiva.
+- revogação do vínculo pelo paciente nunca depende do sucesso da integração comercial para concluir a decisão clínica;
+- o próprio pagador profissional nunca é representado como paciente coberto e não consome capacidade.
 
 ## Interfaces provider-neutral
 
-A rota autenticada `/billing` apresenta:
+A rota autenticada `/billing` apresenta origem efetiva, vigência, assinatura própria, plano profissional, capacidade e recursos retornados pelo backend sem inventar preço ou checkout.
 
-- origem efetiva do acesso;
-- vigência e disponibilidade da fonte comercial;
-- assinatura própria e estado normalizado, quando existir;
-- plano profissional, capacidade contratada, ocupada e disponível;
-- recursos profissionais retornados pelo backend;
-- orientação de próxima etapa sem prometer checkout inexistente.
-
-A rota `/admin/billing` é protegida no frontend pelo papel administrativo e no backend por `adminProcedure`. Ela permite:
-
-- pesquisa por nome, e-mail, telefone e origem efetiva;
-- concessão de override com motivo e vigência opcional;
-- recarga do histórico e revogação pelo identificador persistido;
-- indicadores por plano e estado;
-- receita recorrente apenas como estimativa separada por moeda.
+A rota `/admin/billing` é protegida no frontend pelo papel administrativo e no backend por `adminProcedure`. Ela permite pesquisa, concessão e revogação de override, histórico e indicadores provider-neutral.
 
 O frontend não mantém tabela comercial paralela, não calcula elegibilidade e não inventa preço, limite ou benefício.
 
@@ -117,30 +109,16 @@ O frontend não mantém tabela comercial paralela, não calcula elegibilidade e 
 
 As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing.adminGrantOverride`, `billing.adminRevokeOverride` e `billing.adminAnalytics` usam `adminProcedure`. A autoria é sempre obtida de `ctx.user.id`; o cliente não informa quem concedeu ou revogou.
 
-A busca suporta nome, e-mail e telefone. Quando há filtro por motivo efetivo de acesso, o serviço percorre páginas estáveis de usuários até preencher o limite solicitado ou esgotar os resultados; o filtro nunca é aplicado somente depois do primeiro `LIMIT`. Cada resultado inclui o override ativo efetivo, quando existir, com o identificador necessário para uma revogação posterior.
-
-`adminListOverrides` recupera o histórico recente por usuário, incluindo identificador, motivo, vigência, autoria, revogação e estado efetivo. Assim, grant e revoke formam um fluxo durável mesmo após recarregar a aplicação ou transferir o atendimento para outro administrador.
-
-A análise separa status de assinatura, overrides ativos, beneficiários cobertos, ocupação e receita recorrente estimada por moeda. `usersWithoutCommercialAccess` usa as mesmas condições canônicas de assinatura própria, cobertura profissional, trial, acesso gratuito e override aplicadas na elegibilidade. Assinaturas futuras e coberturas sem assinatura, vaga ou autorização válidas não são contabilizadas como acesso. Valores de moedas diferentes nunca são somados. Ciclo anual é dividido por 12 apenas para estimativa e permanece identificado como estimativa.
-
 ## Contrato para provider financeiro futuro
 
-`BillingProvider` define checkout hospedado, sincronização, cancelamento e autenticação/normalização de webhook. Nenhuma implementação real é registrada nesta entrega. O retorno do navegador não fará parte da confirmação de acesso; ativação futura dependerá de estado confirmado pelo backend.
-
-Ao integrar o primeiro provider real:
-
-1. registrar decisões comerciais na épica #145;
-2. mapear estados externos para os cinco estados internos;
-3. autenticar webhook sobre o corpo bruto sem persisti-lo;
-4. gravar o evento normalizado antes do processamento;
-5. aplicar transação idempotente e impedir regressão por evento fora de ordem;
-6. manter `open_access` até o rollout ser aprovado.
+`BillingProvider` define checkout hospedado, sincronização, cancelamento e autenticação/normalização de webhook. Nenhuma implementação real é registrada nesta entrega. O retorno do navegador não confirma acesso; ativação futura depende de estado confirmado pelo backend.
 
 ## Validação
 
-- testes unitários: precedência, validade, estados, fallback, sanitização, provider profissional, policy global e autorização administrativa;
-- teste discriminante do WhatsApp: usuário sem acesso envia imagem de água com quantidade explícita e nenhum registro nutricional é criado;
-- teste TiDB: última vaga concorrente, retry de reserva, liberação repetida, cobertura derivada, histórico e recuperação durável de override, consistência entre analytics e elegibilidade, evento duplicado e payload sanitizado;
+- testes unitários discriminantes da precedência completa, validade e fallback;
+- teste da matriz profissional combinada em uma única assinatura, sem reserva de capacidade pelo uso pessoal;
+- teste discriminante do WhatsApp para usuário inelegível antes do pipeline nutricional;
+- teste TiDB de concorrência, idempotência, cobertura, overrides, analytics, evento duplicado e metadata sanitizada;
 - `pnpm agent:check`;
 - `pnpm build`;
 - `pnpm db:test:billing` e `pnpm db:check-integrity` quando houver banco.
