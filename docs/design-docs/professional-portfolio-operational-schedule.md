@@ -7,6 +7,10 @@ existem no acompanhamento profissional e devem ser consumidas pela carteira.
 
 A carteira profissional usa `professionalPatientTrackings.nextReviewAt` e
 `professionalPatientTrackings.nextWeighingAt` como fontes canônicas opcionais.
+Essas colunas são declaradas em `drizzle/professional-schema.ts`, fazem parte da
+migration Drizzle versionada e possuem índices compostos com `professionalUserId`.
+O reparo de compatibilidade em runtime é apenas uma proteção para ambientes de
+desenvolvimento antigos; ele não substitui schema, migration nem `pnpm db:push`.
 
 - Datas ausentes são exibidas como “Não informado” ou “Sem revisão agendada”,
   nunca como zero.
@@ -20,3 +24,11 @@ A carteira profissional usa `professionalPatientTrackings.nextReviewAt` e
   profissional autenticado.
 - Vínculos pendentes, recusados e revogados não recebem datas, acompanhamento ou
   outros dados operacionais protegidos no payload público.
+
+## Validação obrigatória
+
+Mudanças nessas colunas ou filtros devem ser verificadas no TiDB real pelo workflow
+`Professional persistence TiDB gate`. O cenário discriminante deve gravar uma
+revisão futura, uma revisão vencida e uma revisão ausente, comprovando os filtros
+`scheduled`, `due_soon`, `overdue` e `unavailable`. A geração Drizzle não pode
+produzir diff residual depois que a migration e o snapshot forem commitados.
