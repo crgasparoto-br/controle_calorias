@@ -37,7 +37,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 | `waterLogs` | `waterLogs` | 6 | Requer atenção |
 | `userPreferences` | `userPreferences` | 6 | Requer atenção |
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
-| `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
+| `whatsappConnections` | `whatsappConnections` | 8 | Requer atenção |
 | `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
 | `whatsappConversationMessages` | `whatsappConversationMessages` | 23 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
