@@ -91,14 +91,16 @@ function parseReplacement(segment: string): FoodReplacementIntent | null {
   return fromFood && toFood && !/\d/.test(toFood) ? { fromFood, toFood } : null;
 }
 
-const REPLACEMENT_COMMAND_PATTERN =
+const REPLACEMENT_COMMAND_START_PATTERN =
   "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s|$)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b)";
+const REPLACEMENT_COMMAND_BOUNDARY_PATTERN =
+  "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b(?=\\s+))";
 const REPLACEMENT_COMMAND_START = new RegExp(
-  `^\\s*${REPLACEMENT_COMMAND_PATTERN}`,
+  `^\\s*${REPLACEMENT_COMMAND_START_PATTERN}`,
   "i"
 );
 const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
-  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${REPLACEMENT_COMMAND_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${REPLACEMENT_COMMAND_PATTERN})`,
+  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})`,
   "i"
 );
 const QUANTITY_ADJUSTMENT_TARGET =
