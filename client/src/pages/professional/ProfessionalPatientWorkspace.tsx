@@ -258,18 +258,20 @@ function recordCollectionTotal(input: {
 }
 
 function RecordCollectionPagination({
+  alwaysVisible = false,
   label,
   onPageChange,
   page,
   total,
 }: {
+  alwaysVisible?: boolean;
   label: string;
   onPageChange: (page: number) => void;
   page: number;
   total: number;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / RECORD_PAGE_SIZE));
-  if (totalPages <= 1 && page <= 1) return null;
+  if (!alwaysVisible && totalPages <= 1 && page <= 1) return null;
   return (
     <nav
       aria-label={`Paginação de ${label}`}
@@ -1053,6 +1055,7 @@ function HistorySection({
           </p>
         )}
         <RecordCollectionPagination
+          alwaysVisible
           label="histórico"
           page={page}
           total={recordCollectionTotal({

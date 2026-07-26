@@ -233,6 +233,10 @@ describe("professional patient workspace audit corrections", () => {
 
     expect(screen.getByText("Nova versão da meta oficial ativada")).toBeTruthy();
     expect(screen.getByText("Situação do acompanhamento alterada")).toBeTruthy();
+    expect(
+      screen.getByRole("navigation", { name: "Paginação de histórico" })
+    ).toBeTruthy();
+    expect(screen.getByText("Página 1 de 1")).toBeTruthy();
     expect(screen.queryByText("official_goal_revised")).toBeNull();
     expect(screen.queryByText("tracking_transitioned")).toBeNull();
   });
