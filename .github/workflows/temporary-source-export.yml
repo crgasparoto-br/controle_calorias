@@ -1,0 +1,35 @@
+name: Temporary source checkout export
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/temporary-source-export.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Record exported identity
+        run: |
+          printf '%s\n' "${{ github.event.pull_request.head.sha }}" > source-head-sha.txt
+          git rev-parse HEAD
+      - name: Upload source checkout
+        uses: actions/upload-artifact@v4
+        with:
+          name: temporary-source-${{ github.event.pull_request.head.sha }}
+          path: |
+            .
+            !.git
+            !node_modules
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
