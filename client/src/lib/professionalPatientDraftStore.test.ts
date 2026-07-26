@@ -56,4 +56,30 @@ describe("professional patient draft store", () => {
       readProfessionalPatientDraftSnapshot(secondPatient, () => ({ note: "" }))
     ).toEqual({ note: "" });
   });
+
+  it("clears drafts from every authorization when the professional session ends", () => {
+    const firstAuthorization = {
+      patientId: 41,
+      authorizationId: "authorization-41",
+    };
+    const secondAuthorization = {
+      patientId: 42,
+      authorizationId: "authorization-42",
+    };
+    storeProfessionalPatientDraftSnapshot(firstAuthorization, { note: "um" });
+    storeProfessionalPatientDraftSnapshot(secondAuthorization, { note: "dois" });
+
+    clearAllProfessionalPatientDraftSnapshots();
+
+    expect(
+      readProfessionalPatientDraftSnapshot(firstAuthorization, () => ({
+        note: "",
+      }))
+    ).toEqual({ note: "" });
+    expect(
+      readProfessionalPatientDraftSnapshot(secondAuthorization, () => ({
+        note: "",
+      }))
+    ).toEqual({ note: "" });
+  });
 });
