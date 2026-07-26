@@ -158,16 +158,6 @@ describe("getProfessionalRecord authorship", () => {
         ],
       ])
       .mockResolvedValueOnce([
-        [{ id: "assessment-latest", objective: "Sensitive" }],
-      ])
-      .mockResolvedValueOnce([
-        [{ id: "assessment-history", objective: "Sensitive" }],
-      ])
-      .mockResolvedValueOnce([[{ id: "note-sensitive", content: "Sensitive" }]])
-      .mockResolvedValueOnce([
-        [{ id: "guidance-sensitive", content: "Sensitive" }],
-      ])
-      .mockResolvedValueOnce([
         [
           {
             id: "history-ended",
@@ -178,9 +168,6 @@ describe("getProfessionalRecord authorship", () => {
           },
         ],
       ])
-      .mockResolvedValueOnce([[{ total: 25 }]])
-      .mockResolvedValueOnce([[{ total: 25 }]])
-      .mockResolvedValueOnce([[{ total: 25 }]])
       .mockResolvedValueOnce([[{ total: 1 }]]);
 
     const result = await getProfessionalRecord(11, {
@@ -189,6 +176,7 @@ describe("getProfessionalRecord authorship", () => {
       pageSize: 20,
     });
 
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
     expect(result.latestAssessment).toBeNull();
     expect(result.assessmentHistory).toEqual([]);
     expect(result.notes).toEqual([]);
