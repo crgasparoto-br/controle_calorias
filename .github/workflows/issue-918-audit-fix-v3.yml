@@ -67,22 +67,14 @@ jobs:
           from pathlib import Path
           path = Path('server/modules/whatsapp/contextualFoodReplacementIntent.ts')
           content = path.read_text(encoding='utf-8')
-          old_start = '''  const parsedReplacements = parseReplacements(text);
-          if (parsedReplacements.kind === "invalid_replacement") {'''
-          new_start = '''  const latestCorrection = parseLatestFoodCorrection(text);
-          const parsedReplacements = latestCorrection
-            ? ({ kind: "not_replacement" } as const)
-            : parseReplacements(text);
-          if (parsedReplacements.kind === "invalid_replacement") {'''
+          old_start = '  const parsedReplacements = parseReplacements(text);\n  if (parsedReplacements.kind === "invalid_replacement") {'
+          new_start = '  const latestCorrection = parseLatestFoodCorrection(text);\n  const parsedReplacements = latestCorrection\n    ? ({ kind: "not_replacement" } as const)\n    : parseReplacements(text);\n  if (parsedReplacements.kind === "invalid_replacement") {'
           if new_start not in content:
               if old_start not in content:
                   raise SystemExit('latest correction precedence anchor not found')
               content = content.replace(old_start, new_start, 1)
-          old_latest = '''  const latestCorrection = replacements
-            ? null
-            : parseLatestFoodCorrection(text);
-          if (!replacements && !latestCorrection) return null;'''
-          new_latest = '''  if (!replacements && !latestCorrection) return null;'''
+          old_latest = '  const latestCorrection = replacements\n    ? null\n    : parseLatestFoodCorrection(text);\n  if (!replacements && !latestCorrection) return null;'
+          new_latest = '  if (!replacements && !latestCorrection) return null;'
           if old_latest in content:
               content = content.replace(old_latest, new_latest, 1)
           elif new_latest not in content:
@@ -116,6 +108,7 @@ jobs:
             .github/workflows/issue-918-audit-fix-v2.yml \
             .github/workflows/issue-918-audit-fix-v3.yml \
             .github/workflows/issue-918-audit-diagnostics.yml \
+            .github/workflows/issue-918-patch-diagnostics-v3.yml \
             scripts/issue-918-audit-fix.py
 
       - name: Commit audit fixes
