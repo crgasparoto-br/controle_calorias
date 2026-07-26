@@ -34,6 +34,10 @@ const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const REPLACEMENT_COMMAND_OCCURRENCE =
   /(?:n[aã]o)\s+(?:é|e|era)(?=\s)|\b(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b/gi;
 
+export function hasMultipleWhatsappFoodReplacementCommands(text: string) {
+  return (text.match(REPLACEMENT_COMMAND_OCCURRENCE) ?? []).length > 1;
+}
+
 function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -43,10 +47,6 @@ function normalizeText(value: string) {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function hasMultipleReplacementCommands(text: string) {
-  return (text.match(REPLACEMENT_COMMAND_OCCURRENCE) ?? []).length > 1;
 }
 
 // Verbos destrutivos (remover/apagar/excluir) não são detectados aqui: o gate
@@ -104,7 +104,7 @@ export async function executeWhatsappRecordAdjustmentIntent(
   const text = input.text?.trim();
   if (!text) return null;
 
-  if (hasMultipleReplacementCommands(text)) {
+  if (hasMultipleWhatsappFoodReplacementCommands(text)) {
     const contextualReplacement =
       await executeWhatsappContextualFoodReplacementIntent(userId, {
         text,
