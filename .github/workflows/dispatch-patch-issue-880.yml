@@ -1,4 +1,4 @@
-name: Dispatch issue 880 workflow repair
+name: Repair and dispatch issue 880 corrections
 
 on:
   pull_request:
@@ -9,13 +9,83 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 jobs:
-  dispatch:
+  repair-and-dispatch:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch workflow repair
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+      - name: Repair correction workflow and clean helpers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/patch-issue-880-audit-findings.yml')
+          source = path.read_text(encoding='utf-8')
+
+          old_loop = '          ]:\n              replace_once(professional_service, old, new)\n'
+          new_loop = '''          ]:
+              file = Path(professional_service)
+              source = file.read_text(encoding="utf-8")
+              expected = 2 if "const timeZone = await getEffectiveUserTimeZone" in old else 1
+              count = source.count(old)
+              if count != expected:
+                  raise SystemExit(
+                      f"{professional_service}: expected {expected} anchors, found {count}: {old[:100]!r}"
+                  )
+              file.write_text(source.replace(old, new), encoding="utf-8")
+'''
+          if source.count(old_loop) != 1:
+              raise SystemExit('expected one professional service loop anchor')
+          source = source.replace(old_loop, new_loop, 1)
+
+          old_permissions = 'permissions:\n  contents: write\n'
+          new_permissions = 'permissions:\n  actions: read\n  contents: write\n  issues: write\n  pull-requests: write\n'
+          if source.count(old_permissions) != 1:
+              raise SystemExit('expected one correction workflow permissions block')
+          source = source.replace(old_permissions, new_permissions, 1)
+
+          old_cleanup = '          git rm .github/workflows/patch-issue-880-audit-findings.yml\n'
+          new_cleanup = '          git rm .github/workflows/patch-issue-880-audit-findings.yml .github/workflows/report-patch-issue-880.yml\n'
+          if source.count(old_cleanup) != 1:
+              raise SystemExit('expected one correction workflow cleanup command')
+          source = source.replace(old_cleanup, new_cleanup, 1)
+
+          report_step = '''
+      - name: Report correction workflow result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: "888"
+        run: |
+          conclusion="${{ job.status }}"
+          body=$(printf '## Implementação das pendências da issue #880\n\n- workflow run: `%s`\n- resultado: `%s`\n- head de entrada: `%s`\n\nO resultado é uma verificação interna do contexto de implementação e não substitui auditoria independente.' "${GITHUB_RUN_ID}" "$conclusion" "${GITHUB_SHA}")
+          jq -n --arg body "$body" '{body:$body}' > /tmp/issue-880-result.json
+          curl --fail --silent --location \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --data-binary @/tmp/issue-880-result.json
+'''
+          if 'Report correction workflow result' in source:
+              raise SystemExit('correction workflow already contains result reporter')
+          source = source.rstrip() + '\n' + report_step
+          path.write_text(source, encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-patch-issue-880-workflow.yml .github/workflows/dispatch-patch-issue-880.yml
+          git add .github/workflows/patch-issue-880-audit-findings.yml
+          git diff --cached --check
+          git commit -m "ci: repair issue 880 correction workflow"
+          git push origin HEAD:feat/875-professional-context-routes
+      - name: Dispatch corrected implementation workflow
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -24,5 +94,5 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/fix-patch-issue-880-workflow.yml/dispatches \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/patch-issue-880-audit-findings.yml/dispatches \
             --data '{"ref":"feat/875-professional-context-routes"}'
