@@ -55,6 +55,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Falha ao persistir a pendência impede a pergunta; falha após possível mutação exige verificação do estado e não recria automaticamente a operação.
 - Ao salvar pelo link de edição rápida, alimentos alterados sem referência de catálogo são reprocessados pelo backend antes da persistência, e uma nova confirmação é enviada ao WhatsApp a partir do estado salvo.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
+- Várias correções completas na mesma mensagem devem ser tratadas como um único lote lógico quando separadas por quebra de linha (`LF` ou `CRLF`), linhas em branco, `e não`, vírgula ou ponto e vírgula antes da próxima correção. Cada origem deve permanecer associada ao respectivo destino, e pontuação final não faz parte do nome do alimento.
+- Se qualquer linha de um lote de substituições estiver incompleta ou inválida, nenhuma refeição pode ser alterada e o usuário deve receber uma solicitação clara para reenviar todas as correções completas; o conteúdo remanescente não pode cair no fallback nutricional nem criar nova refeição.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
 - Se a geração do link de edição rápida falhar, o registro da refeição e a resposta nutricional principal devem continuar funcionando.
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
@@ -98,6 +100,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Alimentos sólidos sem densidade confiável não são convertidos automaticamente de gramas para mililitros.
 - Pedidos como `O que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
 - Correções como `Não é água é pão de cenoura` não devem cair no fluxo de água sem quantidade; devem gerar correção ou novo rascunho com o alimento informado.
+- Uma mensagem com duas ou mais substituições completas separadas por `LF`, `CRLF` ou linhas em branco aplica todas as correções no mesmo lote, preserva cada par origem → destino e envia uma única resposta funcional com o estado recalculado.
+- Uma linha incompleta em um lote impede qualquer mutação, produz esclarecimento e bloqueia o fallback nutricional tanto no webhook quanto no simulador.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
