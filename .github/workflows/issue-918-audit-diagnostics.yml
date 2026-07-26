@@ -1,0 +1,60 @@
+name: Issue 918 audit diagnostics
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.head_ref == 'fix/918-whatsapp-multiline-replacements' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/918-whatsapp-multiline-replacements
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply patch in diagnostic workspace
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/issue-918-audit-fix.py')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace("    '''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", "    r'''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", 1)
+          content = content.replace("    separator_block = '''const REPLACEMENT_SEGMENT_SEPARATOR", "    separator_block = r'''const REPLACEMENT_SEGMENT_SEPARATOR", 1)
+          path.write_text(content, encoding='utf-8')
+          PY
+          python scripts/issue-918-audit-fix.py
+      - name: Capture validation output
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          pnpm agent:check > /tmp/agent-check.log 2>&1
+          AGENT_EXIT=$?
+          pnpm build > /tmp/build.log 2>&1
+          BUILD_EXIT=$?
+          git diff --check > /tmp/diff-check.log 2>&1
+          DIFF_EXIT=$?
+          printf 'agent_check=%s\nbuild=%s\ndiff_check=%s\n' "$AGENT_EXIT" "$BUILD_EXIT" "$DIFF_EXIT" | tee /tmp/exit-codes.txt
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-918-validation-diagnostics-${{ github.sha }}
+          path: |
+            /tmp/agent-check.log
+            /tmp/build.log
+            /tmp/diff-check.log
+            /tmp/exit-codes.txt
+          if-no-files-found: error
+          retention-days: 3
