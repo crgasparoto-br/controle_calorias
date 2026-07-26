@@ -1,6 +1,12 @@
 name: Issue 880 correction builder
 
 on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".orchestrator/issue-880-corrections.py"
+      - ".github/workflows/issue-880-correction-builder.yml"
   push:
     branches:
       - feat/875-professional-context-routes
@@ -97,7 +103,7 @@ jobs:
       - name: Upload correction candidate
         uses: actions/upload-artifact@v4
         with:
-          name: issue-880-correction-candidate-${{ github.sha }}
+          name: issue-880-correction-candidate-${{ github.event.pull_request.head.sha || github.sha }}
           path: /tmp/issue-880-builder
           if-no-files-found: error
           retention-days: 7
