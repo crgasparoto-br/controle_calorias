@@ -130,7 +130,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createTextWebhookRequest(text: string) {
+function createTextWebhookRequest(text: string, messageId: string) {
   return {
     body: {
       entry: [
@@ -141,7 +141,7 @@ function createTextWebhookRequest(text: string) {
                 metadata: { phone_number_id: "phone-number-test" },
                 messages: [
                   {
-                    id: "wamid-issue-918-webhook",
+                    id: messageId,
                     from: "5511999999999",
                     timestamp: "1785067500",
                     type: "text",
@@ -175,36 +175,48 @@ describe("webhook real com substituições multiline", () => {
     });
   });
 
-  it("alcança o mesmo handler contextual e envia uma única resposta funcional", async () => {
-    const text =
-      "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada";
-    const req = createTextWebhookRequest(text);
-    const res = createResponse();
+  it.each([
+    [
+      "quebra de linha",
+      "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada",
+      "wamid-issue-918-webhook-multiline",
+    ],
+    [
+      "ponto e vírgula sem espaço",
+      "Trocar requeijão por maionese;Trocar presunto por mortadela defumada",
+      "wamid-issue-918-webhook-semicolon",
+    ],
+  ])(
+    "alcança o mesmo handler e envia uma resposta funcional com %s",
+    async (_label, text, messageId) => {
+      const req = createTextWebhookRequest(text, messageId);
+      const res = createResponse();
 
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(
-      executeWhatsappContextualFoodReplacementIntentMock
-    ).toHaveBeenCalledOnce();
-    expect(
-      executeWhatsappContextualFoodReplacementIntentMock
-    ).toHaveBeenCalledWith(42, {
-      text,
-      receivedAt: expect.any(Date),
-    });
-    expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledOnce();
-    expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "5511999999999",
-        userId: 42,
-        replyText: expect.stringContaining("Presunto → mortadela defumada"),
-        mealId: 10,
-      })
-    );
-    expect(handleWhatsAppWebhookWithAnnotatedImagesMock).not.toHaveBeenCalled();
-    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
-    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
-    expect(processMealDraftFallbackMock).not.toHaveBeenCalled();
-    expect(res.statusCode).toBe(200);
-  });
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledOnce();
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledWith(42, {
+        text,
+        receivedAt: expect.any(Date),
+      });
+      expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledOnce();
+      expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "5511999999999",
+          userId: 42,
+          replyText: expect.stringContaining("Presunto → mortadela defumada"),
+          mealId: 10,
+        })
+      );
+      expect(handleWhatsAppWebhookWithAnnotatedImagesMock).not.toHaveBeenCalled();
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(processMealDraftFallbackMock).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(200);
+    }
+  );
 });
