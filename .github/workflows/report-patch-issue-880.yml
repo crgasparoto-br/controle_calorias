@@ -43,15 +43,17 @@ jobs:
           ) + '\n'
 
           old = '    replace_once(professional_service, old, new)'
-          new = '''    file = Path(professional_service)
-    current = file.read_text(encoding="utf-8")
-    expected = 2 if "const timeZone = await getEffectiveUserTimeZone" in old else 1
-    count = current.count(old)
-    if count != expected:
-        raise SystemExit(
-            f"{professional_service}: expected {expected} anchors, found {count}: {old[:100]!r}"
-        )
-    file.write_text(current.replace(old, new), encoding="utf-8")'''
+          new = (
+              '    file = Path(professional_service)\n'
+              '    current = file.read_text(encoding="utf-8")\n'
+              '    expected = 2 if "const timeZone = await getEffectiveUserTimeZone" in old else 1\n'
+              '    count = current.count(old)\n'
+              '    if count != expected:\n'
+              '        raise SystemExit(\n'
+              '            f"{professional_service}: expected {expected} anchors, found {count}: {old[:100]!r}"\n'
+              '        )\n'
+              '    file.write_text(current.replace(old, new), encoding="utf-8")'
+          )
           if script.count(old) != 1:
               raise SystemExit('expected one professional service loop call in embedded script')
           script = script.replace(old, new, 1)
