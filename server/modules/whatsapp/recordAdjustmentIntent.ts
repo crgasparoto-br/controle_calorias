@@ -31,6 +31,8 @@ type AdjustmentIntent =
   | { kind: "incomplete" };
 
 const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const REPLACEMENT_COMMAND_OCCURRENCE =
+  /(?:n[aã]o)\s+(?:é|e|era)(?=\s)|\b(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b/gi;
 
 function normalizeText(value: string) {
   return value
@@ -41,6 +43,10 @@ function normalizeText(value: string) {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasMultipleReplacementCommands(text: string) {
+  return (text.match(REPLACEMENT_COMMAND_OCCURRENCE) ?? []).length > 1;
 }
 
 // Verbos destrutivos (remover/apagar/excluir) não são detectados aqui: o gate
@@ -98,17 +104,19 @@ export async function executeWhatsappRecordAdjustmentIntent(
   const text = input.text?.trim();
   if (!text) return null;
 
-  const contextualReplacement =
-    await executeWhatsappContextualFoodReplacementIntent(userId, {
-      text,
-      receivedAt: input.receivedAt,
-      userTimezone: input.userTimezone ?? undefined,
-    });
-  if (contextualReplacement) {
-    return {
-      handled: true,
-      ...contextualReplacement,
-    };
+  if (hasMultipleReplacementCommands(text)) {
+    const contextualReplacement =
+      await executeWhatsappContextualFoodReplacementIntent(userId, {
+        text,
+        receivedAt: input.receivedAt,
+        userTimezone: input.userTimezone ?? undefined,
+      });
+    if (contextualReplacement) {
+      return {
+        handled: true,
+        ...contextualReplacement,
+      };
+    }
   }
 
   const intent = detectAdjustmentIntent(text);
