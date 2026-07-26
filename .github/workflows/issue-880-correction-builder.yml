@@ -15,7 +15,7 @@ on:
       - ".github/workflows/issue-880-correction-builder.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: issue-880-correction-builder-pr-888
@@ -119,6 +119,9 @@ jobs:
           git format-patch -1 --stdout HEAD > /tmp/issue-880-builder/candidate.patch
           git bundle create /tmp/issue-880-builder/candidate.bundle HEAD
           git archive --format=tar.gz -o /tmp/issue-880-builder/candidate-source.tar.gz HEAD
+
+      - name: Push corrected candidate
+        run: git push origin HEAD:refs/heads/feat/875-professional-context-routes
 
       - name: Upload correction candidate
         uses: actions/upload-artifact@v4
