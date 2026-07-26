@@ -237,6 +237,26 @@ function formatDate(value: number | null | undefined) {
     : "Não informado";
 }
 
+function recordCollectionTotal(input: {
+  total: unknown;
+  visibleCount: number;
+  page: number;
+  hasMore?: boolean;
+}) {
+  if (
+    typeof input.total === "number" &&
+    Number.isFinite(input.total) &&
+    input.total >= 0
+  ) {
+    return input.total;
+  }
+  return (
+    (input.page - 1) * RECORD_PAGE_SIZE +
+    input.visibleCount +
+    (input.hasMore ? 1 : 0)
+  );
+}
+
 function RecordCollectionPagination({
   label,
   onPageChange,
@@ -671,7 +691,11 @@ function AssessmentSection({
             <RecordCollectionPagination
               label="avaliações"
               page={page}
-              total={record.pagination.totals.assessments}
+              total={recordCollectionTotal({
+                total: record.pagination?.totals?.assessments,
+                visibleCount: record.assessmentHistory.length,
+                page,
+              })}
               onPageChange={onPageChange}
             />
           </CardContent>
@@ -815,7 +839,11 @@ function GuidanceSection({
             <RecordCollectionPagination
               label="orientações"
               page={page}
-              total={record.pagination.totals.guidances}
+              total={recordCollectionTotal({
+                total: record.pagination?.totals?.guidances,
+                visibleCount: record.guidances.length,
+                page,
+              })}
               onPageChange={onPageChange}
             />
           </CardContent>
@@ -926,7 +954,11 @@ function NotesSection({
             <RecordCollectionPagination
               label="anotações"
               page={page}
-              total={record.pagination.totals.notes}
+              total={recordCollectionTotal({
+                total: record.pagination?.totals?.notes,
+                visibleCount: record.notes.length,
+                page,
+              })}
               onPageChange={onPageChange}
             />
           </CardContent>
@@ -1017,7 +1049,12 @@ function HistorySection({
         <RecordCollectionPagination
           label="histórico"
           page={page}
-          total={record.pagination.totals.timeline}
+          total={recordCollectionTotal({
+            total: record.pagination?.totals?.timeline,
+            visibleCount: record.timeline.length,
+            page,
+            hasMore: Boolean(record.pagination?.hasMore),
+          })}
           onPageChange={nextPage => setPage(() => nextPage)}
         />
       </CardContent>
