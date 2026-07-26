@@ -195,16 +195,27 @@ jobs:
           NODE_ENV: test
           PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
         run: |
-          pnpm exec vitest run \
-            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
-            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
-            server/modules/professionals/recordService.authorship.test.ts \
-            server/modules/professionals/service.test.ts \
-            server/modules/professionals/messageService.endedAccess.test.ts \
-            --maxWorkers=1 --minWorkers=1
-          pnpm check
-          pnpm docs:check
-          bash scripts/render-professional-patient-workspace-visual.sh
+          set -o pipefail
+          {
+            pnpm exec vitest run \
+              client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+              client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
+              server/modules/professionals/recordService.authorship.test.ts \
+              server/modules/professionals/service.test.ts \
+              server/modules/professionals/messageService.endedAccess.test.ts \
+              --maxWorkers=1 --minWorkers=1
+            pnpm check
+            pnpm docs:check
+            bash scripts/render-professional-patient-workspace-visual.sh
+          } 2>&1 | tee /tmp/verify-issue-880.log
+      - name: Upload verification diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-880-verification-diagnostics-${{ github.run_id }}
+          path: /tmp/verify-issue-880.log
+          if-no-files-found: error
+          retention-days: 3
       - name: Commit functional corrections
         run: |
           git config user.name "github-actions[bot]"
@@ -233,7 +244,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RESULT: ${{ job.status }}
         run: |
-          details=$(tail -n 40 /tmp/apply-issue-880.log 2>/dev/null || true)
+          details=$(tail -n 40 /tmp/verify-issue-880.log 2>/dev/null || tail -n 40 /tmp/apply-issue-880.log 2>/dev/null || true)
           body=$(printf '## Implementação das pendências da issue #880\n\n- workflow run: `%s`\n- resultado: `%s`\n- head de entrada: `%s`\n\n### Diagnóstico\n```text\n%s\n```\n\nEsta é uma verificação interna do contexto de implementação e não substitui auditoria independente.' "${GITHUB_RUN_ID}" "${RESULT}" "${GITHUB_SHA}" "${details}")
           jq -n --arg body "$body" '{body:$body}' > /tmp/issue-880-result.json
           curl --fail --silent --location \
