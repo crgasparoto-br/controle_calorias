@@ -1,4 +1,4 @@
-name: Repair and dispatch issue 880 implementation
+name: Execute issue 880 functional corrections
 
 on:
   pull_request:
@@ -8,92 +8,120 @@ on:
       - ".github/workflows/report-patch-issue-880.yml"
 
 permissions:
-  actions: write
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  repair-and-dispatch:
+  implement-and-verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
-      - name: Repair implementation workflow
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply audited functional corrections
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path('.github/workflows/patch-issue-880-audit-findings.yml')
-          source = path.read_text(encoding='utf-8')
+          workflow = Path('.github/workflows/patch-issue-880-audit-findings.yml').read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          embedded = workflow[start:end]
+          script = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in embedded.splitlines()
+          ) + '\n'
 
-          old_loop = '          ]:\n              replace_once(professional_service, old, new)\n'
-          new_loop = (
-              '          ]:\n'
-              '              file = Path(professional_service)\n'
-              '              source = file.read_text(encoding="utf-8")\n'
-              '              expected = 2 if "const timeZone = await getEffectiveUserTimeZone" in old else 1\n'
-              '              count = source.count(old)\n'
-              '              if count != expected:\n'
-              '                  raise SystemExit(\n'
-              '                      f"{professional_service}: expected {expected} anchors, found {count}: {old[:100]!r}"\n'
-              '                  )\n'
-              '              file.write_text(source.replace(old, new), encoding="utf-8")\n'
-          )
-          if source.count(old_loop) != 1:
-              raise SystemExit('expected one professional service loop anchor')
-          source = source.replace(old_loop, new_loop, 1)
-
-          old_permissions = 'permissions:\n  contents: write\n'
-          new_permissions = (
-              'permissions:\n'
-              '  contents: write\n'
-              '  issues: write\n'
-              '  pull-requests: write\n'
-          )
-          if source.count(old_permissions) != 1:
-              raise SystemExit('expected one correction workflow permissions block')
-          source = source.replace(old_permissions, new_permissions, 1)
-
-          report_step = (
-              '\n      - name: Report correction workflow result\n'
-              '        if: always()\n'
-              '        env:\n'
-              '          GH_TOKEN: ${{ github.token }}\n'
-              '          PR_NUMBER: "888"\n'
-              '        run: |\n'
-              '          conclusion="${{ job.status }}"\n'
-              "          body=$(printf '## Implementação das pendências da issue #880\\n\\n- workflow run: `%s`\\n- resultado: `%s`\\n- head de entrada: `%s`\\n\\nO resultado é uma verificação interna do contexto de implementação e não substitui auditoria independente.' \"${GITHUB_RUN_ID}\" \"$conclusion\" \"${GITHUB_SHA}\")\n"
-              '          jq -n --arg body "$body" \'{body:$body}\' > /tmp/issue-880-result.json\n'
-              '          curl --fail --silent --location \\\n'
-              '            --request POST \\\n'
-              '            --header "Accept: application/vnd.github+json" \\\n'
-              '            --header "Authorization: Bearer ${GH_TOKEN}" \\\n'
-              '            --header "X-GitHub-Api-Version: 2022-11-28" \\\n'
-              '            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \\\n'
-              '            --data-binary @/tmp/issue-880-result.json\n'
-          )
-          if 'Report correction workflow result' in source:
-              raise SystemExit('correction workflow already contains result reporter')
-          source = source.rstrip() + '\n' + report_step
-          path.write_text(source, encoding='utf-8')
+          old = '    replace_once(professional_service, old, new)'
+          new = '''    file = Path(professional_service)
+    current = file.read_text(encoding="utf-8")
+    expected = 2 if "const timeZone = await getEffectiveUserTimeZone" in old else 1
+    count = current.count(old)
+    if count != expected:
+        raise SystemExit(
+            f"{professional_service}: expected {expected} anchors, found {count}: {old[:100]!r}"
+        )
+    file.write_text(current.replace(old, new), encoding="utf-8")'''
+          if script.count(old) != 1:
+              raise SystemExit('expected one professional service loop call in embedded script')
+          script = script.replace(old, new, 1)
+          Path('/tmp/apply-issue-880.py').write_text(script, encoding='utf-8')
           PY
-      - name: Commit repaired implementation workflow
+          python /tmp/apply-issue-880.py
+      - name: Format corrected files
+        run: |
+          pnpm exec prettier --write \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
+            server/modules/professionals/recordService.ts \
+            server/modules/professionals/recordService.authorship.test.ts \
+            server/modules/professionals/service.ts \
+            server/modules/professionals/service.test.ts \
+            server/modules/professionals/messageService.ts \
+            server/modules/professionals/messageService.endedAccess.test.ts \
+            docs/testing/professional-workspace-routing.md \
+            docs/design-docs/professional-navigation.md
+      - name: Run focused verification
+        env:
+          NODE_ENV: test
+          PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+        run: |
+          pnpm exec vitest run \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
+            server/modules/professionals/recordService.authorship.test.ts \
+            server/modules/professionals/service.test.ts \
+            server/modules/professionals/messageService.endedAccess.test.ts \
+            --maxWorkers=1 --minWorkers=1
+          pnpm check
+          pnpm docs:check
+          bash scripts/render-professional-patient-workspace-visual.sh
+      - name: Commit functional corrections
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/patch-issue-880-audit-findings.yml
+          git add \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
+            server/modules/professionals/recordService.ts \
+            server/modules/professionals/recordService.authorship.test.ts \
+            server/modules/professionals/service.ts \
+            server/modules/professionals/service.test.ts \
+            server/modules/professionals/messageService.ts \
+            server/modules/professionals/messageService.endedAccess.test.ts \
+            docs/testing/professional-workspace-routing.md \
+            docs/design-docs/professional-navigation.md \
+            scripts/render-professional-patient-workspace-visual.sh
           git diff --cached --check
-          git commit -m "ci: repair issue 880 implementation workflow"
+          git commit -m "fix: resolve issue 880 audit findings (#880)"
           git push origin HEAD:feat/875-professional-context-routes
-      - name: Dispatch repaired implementation
+      - name: Report implementation result
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RESULT: ${{ job.status }}
         run: |
-          curl --fail-with-body --location \
+          body=$(printf '## Implementação das pendências da issue #880\n\n- workflow run: `%s`\n- resultado: `%s`\n- head de entrada: `%s`\n\nEsta é uma verificação interna do contexto de implementação e não substitui auditoria independente.' "${GITHUB_RUN_ID}" "${RESULT}" "${GITHUB_SHA}")
+          jq -n --arg body "$body" '{body:$body}' > /tmp/issue-880-result.json
+          curl --fail --silent --location \
             --request POST \
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/patch-issue-880-audit-findings.yml/dispatches \
-            --data '{"ref":"feat/875-professional-context-routes"}'
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --data-binary @/tmp/issue-880-result.json
