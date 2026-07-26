@@ -306,6 +306,7 @@ export function useUnsavedNavigationGuard(
   onDiscard: () => void = () => undefined
 ) {
   const allowNavigationRef = useRef(false);
+  const restoringHistoryRef = useRef(false);
 
   useEffect(() => {
     allowNavigationRef.current = false;
@@ -392,12 +393,17 @@ export function useUnsavedNavigationGuard(
     if (navigation) return;
 
     const guardBack = () => {
+      if (restoringHistoryRef.current) {
+        restoringHistoryRef.current = false;
+        return;
+      }
       if (!dirty || allowNavigationRef.current) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {
-        window.history.pushState(
-          { professionalDraftGuard: true },
-          "",
-          currentPath
+        const restorationState = { professionalDraftGuard: true };
+        restoringHistoryRef.current = true;
+        window.history.pushState(restorationState, "", currentPath);
+        window.dispatchEvent(
+          new PopStateEvent("popstate", { state: restorationState })
         );
       } else {
         onDiscard();
