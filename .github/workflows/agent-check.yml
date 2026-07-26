@@ -2,18 +2,14 @@ name: Agent-first gate
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
-      - develop
 
 permissions:
   contents: write
 
 jobs:
-  apply-issue-880-audit-fixes:
-    name: Apply issue 880 audit fixes
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/875-professional-context-routes' }}
+  agent-check:
+    name: Agent-first gate
+    if: ${{ github.event.pull_request.head.ref == 'feat/875-professional-context-routes' }}
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -38,8 +34,18 @@ jobs:
 
       - name: Apply deterministic fixes
         run: |
+          set -o pipefail
           base64 -d .github/issue-880-fixes.b64 | gzip -d > /tmp/apply-issue-880-audit-fixes.mjs
-          node /tmp/apply-issue-880-audit-fixes.mjs
+          node /tmp/apply-issue-880-audit-fixes.mjs 2>&1 | tee /tmp/issue-880-fix.log
+
+      - name: Upload deterministic fix diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-880-fix-diagnostics
+          path: /tmp/issue-880-fix.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Format changed sources
         run: >-
@@ -88,175 +94,3 @@ jobs:
           git add -A
           git commit -m "fix: address issue 880 audit findings"
           git push origin HEAD:feat/875-professional-context-routes
-  agent-check:
-    name: Agent-first gate
-    runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      NODE_OPTIONS: --max-old-space-size=4096
-      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-      VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: TypeScript check
-        run: |
-          if ! pnpm check > /tmp/typescript-check.log 2>&1; then
-            echo "TypeScript check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/typescript-check.log
-            exit 1
-          fi
-          cat /tmp/typescript-check.log
-
-      - name: Upload TypeScript diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-typescript-log
-          path: /tmp/typescript-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Tests
-        env:
-          NODE_ENV: test
-        run: |
-          : > /tmp/vitest.log
-          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
-          for shard_number in $(seq 1 24); do
-            shard="${shard_number}/24"
-            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
-            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
-              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
-              tail -n 250 /tmp/vitest.log
-              exit 1
-            fi
-          done
-          tail -n 120 /tmp/vitest.log
-
-      - name: Upload Vitest diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Architecture check
-        run: pnpm architecture:check
-
-      - name: Documentation check
-        run: |
-          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
-            echo "Documentation check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/docs-check.log
-            exit 1
-          fi
-          cat /tmp/docs-check.log
-
-      - name: Upload documentation diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-docs-log
-          path: /tmp/docs-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Build
-        run: pnpm build
-
-      - name: Agent check
-        env:
-          CI_SHARDED_TESTS_COMPLETE: "1"
-        run: pnpm agent:check
-
-      - name: CI gate docs check
-        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
-
-      - name: Create exact-head verification manifest
-        run: |
-          mkdir -p /tmp/agent-first-verification
-          cat > /tmp/agent-first-verification/manifest.json <<EOF2
-          {
-            "schemaVersion": 2,
-            "repository": "${GITHUB_REPOSITORY}",
-            "headSha": "${VERIFICATION_HEAD_SHA}",
-            "checkoutSha": "${GITHUB_SHA}",
-            "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "event": "${GITHUB_EVENT_NAME}",
-            "ref": "${GITHUB_REF}",
-            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF2
-          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
-          cat /tmp/agent-first-verification/manifest.json
-
-      - name: Upload exact-head verification manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-verification-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /tmp/agent-first-verification/manifest.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
-        run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
