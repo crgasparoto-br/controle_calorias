@@ -106,3 +106,10 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 ## Cabeçalho contextual
 
 A última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade.
+
+## Proteção completa das saídas com rascunho — issue #880
+
+- Toda saída visível do workspace, incluindo **Minha alimentação**, subnavegação, navegação principal, retorno à carteira e troca de paciente, participa do mesmo contrato de proteção de rascunho.
+- A confirmação ocorre no máximo uma vez por tentativa de navegação. Uma confirmação já aceita pelo interceptor é reutilizada pelo handler da mesma transição.
+- Cancelar preserva rota, paciente e campos montados; confirmar o descarte permite a navegação e o remount da rota de destino; após salvar, não há diálogo.
+- O teste comportamental clica nos controles protegidos, verifica o número de chamadas a `window.confirm` e comprova que a navegação foi executada ou bloqueada conforme a decisão.

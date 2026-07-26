@@ -140,7 +140,7 @@ function formatDate(value: number | null | undefined) {
     : "Não informado";
 }
 
-function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
+export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
   const allowNavigationRef = useRef(false);
 
   useEffect(() => {
@@ -162,7 +162,7 @@ function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
       if (!dirty || allowNavigationRef.current) return;
       const target = event.target as HTMLElement | null;
       const control = target?.closest(
-        "[data-professional-navigation], nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
+        "[data-professional-navigation], nav[aria-label='Navegação da Área Profissional'] button, [data-sidebar='footer'] button, button[aria-label='Ir para o início da Área Profissional']"
       );
       if (!control) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {
@@ -192,7 +192,11 @@ function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
 
   return {
     canNavigate() {
-      if (!dirty || window.confirm(UNSAVED_MESSAGE)) {
+      if (allowNavigationRef.current || !dirty) {
+        allowNavigationRef.current = true;
+        return true;
+      }
+      if (window.confirm(UNSAVED_MESSAGE)) {
         allowNavigationRef.current = true;
         return true;
       }
