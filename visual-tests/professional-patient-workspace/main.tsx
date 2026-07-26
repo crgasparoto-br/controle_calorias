@@ -4,9 +4,9 @@ import { createRoot } from "react-dom/client";
 import ProfessionalAreaPage from "../../client/src/pages/ProfessionalAreaPage";
 import "../professional-home/visual.css";
 
-const draftHistoryScenario = new URLSearchParams(window.location.search).get(
-  "draft-history"
-);
+const searchParams = new URLSearchParams(window.location.search);
+const draftHistoryScenario = searchParams.get("draft-history");
+const goalTransitionScenario = searchParams.get("goal-transition");
 
 async function prepareDraftHistoryScenario() {
   if (!draftHistoryScenario) return;
@@ -47,6 +47,66 @@ const queryClient = new QueryClient({
   },
 });
 
+function findButton(text: string, root: ParentNode = document) {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
+    button => button.textContent?.includes(text)
+  );
+}
+
+function goalCard() {
+  const title = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-slot="card-title"]')
+  ).find(element => element.textContent?.includes("Meta profissional oficial"));
+  return title?.closest<HTMLElement>('[data-slot="card"]') ?? null;
+}
+
+function writeGoalDiagnostics(root: HTMLElement) {
+  const card = goalCard();
+  if (!card) return;
+
+  const controls = Array.from(
+    card.querySelectorAll<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement
+    >("input, select, textarea, button")
+  );
+  const fields = Array.from(
+    card.querySelectorAll<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >("input, select, textarea")
+  );
+  const cardRect = card.getBoundingClientRect();
+  root.dataset.visualGoalsCardContained = String(
+    cardRect.left >= 0 && cardRect.right <= window.innerWidth
+  );
+  root.dataset.visualGoalsControlsContained = String(
+    controls.every(control => {
+      const rect = control.getBoundingClientRect();
+      return rect.left >= 0 && rect.right <= window.innerWidth;
+    })
+  );
+  root.dataset.visualGoalsFieldsLabeled = String(
+    fields.every(field => {
+      const hasAriaLabel = Boolean(field.getAttribute("aria-label")?.trim());
+      const label = field.closest("label");
+      return hasAriaLabel || Boolean(label?.textContent?.trim());
+    })
+  );
+  root.dataset.visualGoalsExceptionVisible = String(
+    Boolean(card.querySelector('[aria-label="Dia da exceção 1"]')) &&
+      Boolean(card.querySelector('[aria-label="Duração da exceção 1"]')) &&
+      Boolean(card.querySelector('[aria-label="Remover exceção 1"]'))
+  );
+  root.dataset.visualGoalsPrimaryActionDisabled = String(
+    Boolean(findButton("Ativar nova versão", card)?.disabled)
+  );
+  root.dataset.visualGoalsAllMutationsDisabled = String(
+    controls.length > 0 && controls.every(control => control.disabled)
+  );
+  root.dataset.visualGoalsTrackingState = new URLSearchParams(
+    window.location.search
+  ).get("state") ?? "active";
+}
+
 function writeVisualDiagnostics() {
   const root = document.documentElement;
   const horizontalOverflow =
@@ -75,6 +135,8 @@ function writeVisualDiagnostics() {
       rect.top >= 0 && rect.top < window.innerHeight && rect.right <= window.innerWidth
     );
   }
+
+  writeGoalDiagnostics(root);
 }
 
 function VisualProfessionalPatientWorkspace() {
@@ -122,6 +184,49 @@ function VisualProfessionalPatientWorkspace() {
         );
       }, 800);
     }, 600);
+
+    return () => window.clearTimeout(run);
+  }, []);
+
+  useEffect(() => {
+    if (!window.location.pathname.endsWith("/goals")) return;
+
+    const run = window.setTimeout(() => {
+      const card = goalCard();
+      if (!card) {
+        document.documentElement.dataset.visualGoalsError = "goal-card-not-found";
+        return;
+      }
+
+      const justification = card.querySelector<HTMLTextAreaElement>("textarea");
+      if (justification && !justification.disabled) {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set;
+        valueSetter?.call(
+          justification,
+          "Revisão visual da vigência e das exceções por dia."
+        );
+        justification.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      const addException = findButton("Adicionar exceção", card);
+      if (addException && !addException.disabled) addException.click();
+
+      window.setTimeout(() => {
+        if (goalTransitionScenario === "paused") {
+          const nextUrl = `${window.location.pathname}?state=paused&goal-seeded=1`;
+          window.history.replaceState({ visualGoalState: "paused" }, "", nextUrl);
+          window.dispatchEvent(
+            new PopStateEvent("popstate", {
+              state: { visualGoalState: "paused" },
+            })
+          );
+        }
+        window.setTimeout(writeVisualDiagnostics, 600);
+      }, 250);
+    }, 700);
 
     return () => window.clearTimeout(run);
   }, []);
