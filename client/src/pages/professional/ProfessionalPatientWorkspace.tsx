@@ -41,7 +41,7 @@ import {
   StickyNote,
   Target,
 } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 const UNSAVED_MESSAGE =
@@ -100,10 +100,12 @@ const historyEventLabels: Record<string, string> = {
   tracking_paused: "Acompanhamento pausado",
   tracking_ended: "Acompanhamento encerrado",
   tracking_status_changed: "Situação do acompanhamento alterada",
+  tracking_transitioned: "Situação do acompanhamento alterada",
   assessment_version_created: "Nova versão da avaliação registrada",
   private_note_created: "Anotação privada registrada",
   guidance_created: "Orientação ao paciente registrada",
   official_goal_activated: "Meta oficial ativada",
+  official_goal_revised: "Nova versão da meta oficial ativada",
   official_goal_notification_sent: "Notificação da meta enviada",
   official_goal_notification_failed: "Falha na notificação da meta",
   professional_message_created: "Mensagem profissional registrada",
@@ -153,6 +155,79 @@ const emptyAssessment: AssessmentDraft = {
   nextReviewAt: "",
 };
 
+const RECORD_PAGE_SIZE = 20;
+
+type PaginatedRecordSection =
+  | "assessment"
+  | "guidance"
+  | "notes"
+  | "history";
+
+type RecordPages = Record<PaginatedRecordSection, number>;
+
+type PatientDraftSnapshot = {
+  assessment: AssessmentDraft;
+  note: string;
+  guidanceTitle: string;
+  guidance: string;
+};
+
+const initialRecordPages: RecordPages = {
+  assessment: 1,
+  guidance: 1,
+  notes: 1,
+  history: 1,
+};
+
+const patientDraftSnapshots = new Map<number, PatientDraftSnapshot>();
+
+function createEmptyPatientDraft(): PatientDraftSnapshot {
+  return {
+    assessment: { ...emptyAssessment },
+    note: "",
+    guidanceTitle: "",
+    guidance: "",
+  };
+}
+
+function getPatientDraftSnapshot(patientId: number) {
+  return patientDraftSnapshots.get(patientId) ?? createEmptyPatientDraft();
+}
+
+function storePatientDraftSnapshot(
+  patientId: number,
+  snapshot: PatientDraftSnapshot
+) {
+  if (patientId <= 0) return;
+  patientDraftSnapshots.set(patientId, {
+    ...snapshot,
+    assessment: { ...snapshot.assessment },
+  });
+}
+
+export function _forTestOnly_clearProfessionalPatientDraftSnapshots() {
+  patientDraftSnapshots.clear();
+}
+
+function paginatedRecordSection(
+  section: ProfessionalPatientSection
+): PaginatedRecordSection | null {
+  return section === "assessment" ||
+    section === "guidance" ||
+    section === "notes" ||
+    section === "history"
+    ? section
+    : null;
+}
+
+function recordPageForSection(
+  section: ProfessionalPatientSection,
+  pages: RecordPages
+) {
+  const paginatedSection = paginatedRecordSection(section);
+  return paginatedSection ? pages[paginatedSection] : 1;
+}
+
 function formatDate(value: number | null | undefined) {
   return value
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -162,7 +237,54 @@ function formatDate(value: number | null | undefined) {
     : "Não informado";
 }
 
-export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
+function RecordCollectionPagination({
+  label,
+  onPageChange,
+  page,
+  total,
+}: {
+  label: string;
+  onPageChange: (page: number) => void;
+  page: number;
+  total: number;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / RECORD_PAGE_SIZE));
+  if (totalPages <= 1 && page <= 1) return null;
+  return (
+    <nav
+      aria-label={`Paginação de ${label}`}
+      className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+    >
+      <Button
+        type="button"
+        variant="outline"
+        disabled={page <= 1}
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Anterior
+      </Button>
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        Página {page} de {totalPages}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={page >= totalPages}
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+      >
+        Próxima
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </nav>
+  );
+}
+
+export function useUnsavedNavigationGuard(
+  dirty: boolean,
+  currentPath: string,
+  onDiscard: () => void = () => undefined
+) {
   const allowNavigationRef = useRef(false);
 
   useEffect(() => {
@@ -196,12 +318,13 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
         event.stopPropagation();
         event.stopImmediatePropagation();
       } else {
+        onDiscard();
         allowNavigationRef.current = true;
       }
     };
     document.addEventListener("click", guardNavigation, true);
     return () => document.removeEventListener("click", guardNavigation, true);
-  }, [dirty]);
+  }, [dirty, onDiscard]);
 
   useEffect(() => {
     const navigation = (
@@ -232,12 +355,13 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
         );
         return;
       }
+      onDiscard();
       allowNavigationRef.current = true;
     };
 
     navigation.addEventListener("navigate", guardTraversal);
     return () => navigation.removeEventListener("navigate", guardTraversal);
-  }, [currentPath, dirty]);
+  }, [currentPath, dirty, onDiscard]);
 
   useEffect(() => {
     const navigation = (
@@ -256,12 +380,13 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
           currentPath
         );
       } else {
+        onDiscard();
         allowNavigationRef.current = true;
       }
     };
     window.addEventListener("popstate", guardBack);
     return () => window.removeEventListener("popstate", guardBack);
-  }, [currentPath, dirty]);
+  }, [currentPath, dirty, onDiscard]);
 
   return {
     canNavigate() {
@@ -270,6 +395,7 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
         return true;
       }
       if (window.confirm(UNSAVED_MESSAGE)) {
+        onDiscard();
         allowNavigationRef.current = true;
         return true;
       }
@@ -458,6 +584,8 @@ function AssessmentSection({
   active,
   draft,
   onDraftChange,
+  onPageChange,
+  page,
   patientId,
   record,
   save,
@@ -465,6 +593,8 @@ function AssessmentSection({
   active: boolean;
   draft: AssessmentDraft;
   onDraftChange: React.Dispatch<React.SetStateAction<AssessmentDraft>>;
+  onPageChange: (page: number) => void;
+  page: number;
   patientId: number;
   record: any;
   save: {
@@ -517,8 +647,9 @@ function AssessmentSection({
               Cada salvamento cria uma nova versão auditável.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid max-h-[65vh] gap-3 overflow-y-auto">
-            {record.assessmentHistory.length ? (
+          <CardContent className="space-y-4">
+            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
+              {record.assessmentHistory.length ? (
               record.assessmentHistory.map((item: any) => (
                 <article key={item.id} className="rounded-xl border p-3">
                   <p className="font-medium">Versão {item.version}</p>
@@ -535,7 +666,14 @@ function AssessmentSection({
               <p className="text-sm text-muted-foreground">
                 Nenhuma avaliação registrada.
               </p>
-            )}
+              )}
+            </div>
+            <RecordCollectionPagination
+              label="avaliações"
+              page={page}
+              total={record.pagination.totals.assessments}
+              onPageChange={onPageChange}
+            />
           </CardContent>
         </Card>
       }
@@ -622,7 +760,9 @@ function GuidanceSection({
   content,
   create,
   onContentChange,
+  onPageChange,
   onTitleChange,
+  page,
   patientId,
   record,
   title,
@@ -636,7 +776,9 @@ function GuidanceSection({
     mutate: (input: any) => void;
   };
   onContentChange: (value: string) => void;
+  onPageChange: (page: number) => void;
   onTitleChange: (value: string) => void;
+  page: number;
   patientId: number;
   record: any;
   title: string;
@@ -648,8 +790,9 @@ function GuidanceSection({
           <CardHeader>
             <CardTitle className="text-base">Orientações registradas</CardTitle>
           </CardHeader>
-          <CardContent className="grid max-h-[65vh] gap-3 overflow-y-auto">
-            {record.guidances.length ? (
+          <CardContent className="space-y-4">
+            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
+              {record.guidances.length ? (
               record.guidances.map((item: any) => (
                 <article key={item.id} className="rounded-xl border p-3">
                   <p className="break-words font-medium">
@@ -667,7 +810,14 @@ function GuidanceSection({
               <p className="text-sm text-muted-foreground">
                 Nenhuma orientação registrada.
               </p>
-            )}
+              )}
+            </div>
+            <RecordCollectionPagination
+              label="orientações"
+              page={page}
+              total={record.pagination.totals.guidances}
+              onPageChange={onPageChange}
+            />
           </CardContent>
         </Card>
       }
@@ -729,6 +879,8 @@ function NotesSection({
   content,
   create,
   onContentChange,
+  onPageChange,
+  page,
   patientId,
   record,
 }: {
@@ -741,6 +893,8 @@ function NotesSection({
     mutate: (input: any) => void;
   };
   onContentChange: (value: string) => void;
+  onPageChange: (page: number) => void;
+  page: number;
   patientId: number;
   record: any;
 }) {
@@ -751,8 +905,9 @@ function NotesSection({
           <CardHeader>
             <CardTitle className="text-base">Anotações anteriores</CardTitle>
           </CardHeader>
-          <CardContent className="grid max-h-[65vh] gap-3 overflow-y-auto">
-            {record.notes.length ? (
+          <CardContent className="space-y-4">
+            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
+              {record.notes.length ? (
               record.notes.map((item: any) => (
                 <article key={item.id} className="rounded-xl border p-3">
                   <p className="whitespace-pre-wrap break-words text-sm">
@@ -766,7 +921,14 @@ function NotesSection({
               ))
             ) : (
               <p className="text-sm text-muted-foreground">Nenhuma anotação.</p>
-            )}
+              )}
+            </div>
+            <RecordCollectionPagination
+              label="anotações"
+              page={page}
+              total={record.pagination.totals.notes}
+              onPageChange={onPageChange}
+            />
           </CardContent>
         </Card>
       }
@@ -852,25 +1014,12 @@ function HistorySection({
             Nenhum evento disponível nesta página.
           </p>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => setPage(current => current - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Anterior
-          </Button>
-          <p className="text-sm text-muted-foreground">Página {page}</p>
-          <Button
-            variant="outline"
-            disabled={!record.pagination.hasMore}
-            onClick={() => setPage(current => current + 1)}
-          >
-            Próxima
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        <RecordCollectionPagination
+          label="histórico"
+          page={page}
+          total={record.pagination.totals.timeline}
+          onPageChange={nextPage => setPage(() => nextPage)}
+        />
       </CardContent>
     </Card>
   );
@@ -884,20 +1033,106 @@ export default function ProfessionalPatientWorkspace() {
   const section =
     parsedRoute.kind === "patient" ? parsedRoute.section : "record";
   const patientId = selectedPatient?.patientId ?? 0;
-  const [assessment, setAssessment] = useState(emptyAssessment);
-  const [note, setNote] = useState("");
-  const [guidanceTitle, setGuidanceTitle] = useState("");
-  const [guidance, setGuidance] = useState("");
+  const initialDraft = getPatientDraftSnapshot(patientId);
+  const [assessment, setAssessment] = useState(initialDraft.assessment);
+  const [note, setNote] = useState(initialDraft.note);
+  const [guidanceTitle, setGuidanceTitle] = useState(
+    initialDraft.guidanceTitle
+  );
+  const [guidance, setGuidance] = useState(initialDraft.guidance);
   const [transitionReason, setTransitionReason] = useState("");
-  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState<RecordPages>(initialRecordPages);
 
-  useEffect(() => {
-    setAssessment(emptyAssessment);
+  const updateAssessment = useCallback<
+    React.Dispatch<React.SetStateAction<AssessmentDraft>>
+  >(
+    nextAssessment => {
+      setAssessment(current => {
+        const value =
+          typeof nextAssessment === "function"
+            ? nextAssessment(current)
+            : nextAssessment;
+        const stored = getPatientDraftSnapshot(patientId);
+        storePatientDraftSnapshot(patientId, {
+          ...stored,
+          assessment: value,
+        });
+        return value;
+      });
+    },
+    [patientId]
+  );
+  const updateNote = useCallback(
+    (value: string) => {
+      setNote(value);
+      storePatientDraftSnapshot(patientId, {
+        ...getPatientDraftSnapshot(patientId),
+        note: value,
+      });
+    },
+    [patientId]
+  );
+  const updateGuidanceTitle = useCallback(
+    (value: string) => {
+      setGuidanceTitle(value);
+      storePatientDraftSnapshot(patientId, {
+        ...getPatientDraftSnapshot(patientId),
+        guidanceTitle: value,
+      });
+    },
+    [patientId]
+  );
+  const updateGuidance = useCallback(
+    (value: string) => {
+      setGuidance(value);
+      storePatientDraftSnapshot(patientId, {
+        ...getPatientDraftSnapshot(patientId),
+        guidance: value,
+      });
+    },
+    [patientId]
+  );
+  const discardDraft = useCallback(() => {
+    patientDraftSnapshots.delete(patientId);
+    setAssessment({ ...emptyAssessment });
     setNote("");
     setGuidanceTitle("");
     setGuidance("");
+  }, [patientId]);
+  const clearDraftSection = useCallback(
+    (draftSection: "assessment" | "notes" | "guidance") => {
+      const stored = getPatientDraftSnapshot(patientId);
+      const next =
+        draftSection === "assessment"
+          ? { ...stored, assessment: { ...emptyAssessment } }
+          : draftSection === "notes"
+            ? { ...stored, note: "" }
+            : { ...stored, guidanceTitle: "", guidance: "" };
+      storePatientDraftSnapshot(patientId, next);
+      if (draftSection === "assessment") setAssessment({ ...emptyAssessment });
+      if (draftSection === "notes") setNote("");
+      if (draftSection === "guidance") {
+        setGuidanceTitle("");
+        setGuidance("");
+      }
+    },
+    [patientId]
+  );
+  const setPageForSection = useCallback(
+    (targetSection: PaginatedRecordSection, page: number) => {
+      setPages(current => ({ ...current, [targetSection]: Math.max(1, page) }));
+    },
+    []
+  );
+
+  useEffect(() => {
+    const stored = getPatientDraftSnapshot(patientId);
+    setAssessment(stored.assessment);
+    setNote(stored.note);
+    setGuidanceTitle(stored.guidanceTitle);
+    setGuidance(stored.guidance);
     setTransitionReason("");
-    setPage(1);
+    setPages(initialRecordPages);
   }, [patientId]);
 
   const dirty = useMemo(
@@ -906,15 +1141,16 @@ export default function ProfessionalPatientWorkspace() {
       Boolean(note.trim() || guidanceTitle.trim() || guidance.trim()),
     [assessment, guidance, guidanceTitle, note]
   );
-  const guard = useUnsavedNavigationGuard(dirty, location);
+  const guard = useUnsavedNavigationGuard(dirty, location, discardDraft);
   const navigate = (path: string) => {
     if (guard.canNavigate()) setLocation(path);
   };
+  const page = recordPageForSection(section, pages);
 
   const requiresProfessionalRecord =
     section !== "reports" && section !== "messages";
   const record = trpc.professionalRecord.get.useQuery(
-    { patientId, page, pageSize: 20 },
+    { patientId, page, pageSize: RECORD_PAGE_SIZE },
     {
       enabled: patientId > 0 && requiresProfessionalRecord,
       retry: false,
@@ -930,22 +1166,24 @@ export default function ProfessionalPatientWorkspace() {
   };
   const saveAssessment = trpc.professionalRecord.saveAssessment.useMutation({
     onSuccess: async () => {
-      setAssessment(emptyAssessment);
+      clearDraftSection("assessment");
+      setPageForSection("assessment", 1);
       guard.markSaved();
       await invalidate();
     },
   });
   const createNote = trpc.professionalRecord.createNote.useMutation({
     onSuccess: async () => {
-      setNote("");
+      clearDraftSection("notes");
+      setPageForSection("notes", 1);
       guard.markSaved();
       await invalidate();
     },
   });
   const createGuidance = trpc.professionalRecord.createGuidance.useMutation({
     onSuccess: async () => {
-      setGuidanceTitle("");
-      setGuidance("");
+      clearDraftSection("guidance");
+      setPageForSection("guidance", 1);
       guard.markSaved();
       await invalidate();
     },
@@ -965,13 +1203,10 @@ export default function ProfessionalPatientWorkspace() {
       message.includes("acesso a este paciente não está mais disponível") ||
       message.includes("não autorizado")
     ) {
-      setAssessment(emptyAssessment);
-      setNote("");
-      setGuidanceTitle("");
-      setGuidance("");
+      discardDraft();
       setLocation("/professional/patients?notice=patient-access-unavailable");
     }
-  }, [record.error?.message, record.isError, setLocation]);
+  }, [discardDraft, record.error?.message, record.isError, setLocation]);
 
   if (!selectedPatient) {
     return (
@@ -1024,7 +1259,9 @@ export default function ProfessionalPatientWorkspace() {
       <AssessmentSection
         active={active}
         draft={assessment}
-        onDraftChange={setAssessment}
+        onDraftChange={updateAssessment}
+        onPageChange={nextPage => setPageForSection("assessment", nextPage)}
+        page={pages.assessment}
         patientId={patientId}
         record={professionalRecord}
         save={saveAssessment}
@@ -1040,8 +1277,10 @@ export default function ProfessionalPatientWorkspace() {
         active={active}
         content={guidance}
         create={createGuidance}
-        onContentChange={setGuidance}
-        onTitleChange={setGuidanceTitle}
+        onContentChange={updateGuidance}
+        onPageChange={nextPage => setPageForSection("guidance", nextPage)}
+        onTitleChange={updateGuidanceTitle}
+        page={pages.guidance}
         patientId={patientId}
         record={professionalRecord}
         title={guidanceTitle}
@@ -1053,7 +1292,9 @@ export default function ProfessionalPatientWorkspace() {
         active={active}
         content={note}
         create={createNote}
-        onContentChange={setNote}
+        onContentChange={updateNote}
+        onPageChange={nextPage => setPageForSection("notes", nextPage)}
+        page={pages.notes}
         patientId={patientId}
         record={professionalRecord}
       />
@@ -1065,9 +1306,13 @@ export default function ProfessionalPatientWorkspace() {
   } else if (section === "history") {
     content = (
       <HistorySection
-        page={page}
+        page={pages.history}
         record={professionalRecord}
-        setPage={setPage}
+        setPage={updater => {
+          const nextPage =
+            typeof updater === "function" ? updater(pages.history) : updater;
+          setPageForSection("history", nextPage);
+        }}
       />
     );
   } else {

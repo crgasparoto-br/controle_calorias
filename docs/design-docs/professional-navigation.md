@@ -74,6 +74,9 @@ A ordenação da carteira identificável é estável por identificação exibív
 - Falha temporária, rede, timeout, indisponibilidade ou erro não autoritativo durante a abertura mantém o paciente visível e oferece nova tentativa. Somente negação confirmada remove o card e os dados obsoletos.
 - Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
 - Falhas temporárias de timezone ou bundle no relatório individual mantêm os dados parciais ocultos e oferecem a ação **Tentar novamente** no próprio contexto do relatório.
+- Avaliações, anotações, orientações e histórico mantêm páginas independentes. Trocar de área preserva a página daquela coleção e nunca reutiliza o deslocamento de outra lista.
+- Rascunhos de avaliação, anotação e orientação são mantidos temporariamente por `patientId` enquanto o workspace está montado. Em navegadores sem Navigation API, um `popstate` cancelado pode remontar a rota sem perder o conteúdo; salvar, descartar explicitamente ou perder a autorização remove o rascunho. O conteúdo nunca é restaurado em outro paciente.
+- A timeline traduz os tipos canônicos suportados, incluindo `tracking_transitioned` e `official_goal_revised`, para rótulos de domínio. Eventos desconhecidos permanecem sanitizados pelo rótulo genérico e não exibem identificadores internos.
 - Acompanhamento `ended` mantém somente `/history`: as demais rotas individuais redirecionam antes de montar conteúdo, e as APIs de prontuário, timezone, dashboard, relatório de período e conversa individual deixam de retornar dados do paciente.
 - ID malformado, zero ou número inseguro não dispara consulta com identificador artificial.
 
@@ -86,6 +89,7 @@ A ordenação da carteira identificável é estável por identificação exibív
 - O contexto do paciente usa região viva para anunciar alterações sem depender apenas de cor ou posição visual.
 - O cabeçalho nomeia explicitamente acompanhamento não iniciado, ativo, pausado ou encerrado e oferece somente atalhos compatíveis com o estado: ações clínicas durante acompanhamento ativo, comunicação administrativa e histórico durante pausa, e apenas histórico após encerramento.
 - A subnavegação individual é rolável horizontalmente quando necessário e preserva ações e nomes acessíveis.
+- Controles de paginação usam landmarks próprios, nomes por coleção e anunciam a página atual sem depender somente da posição visual.
 
 ## Migração e compatibilidade
 
@@ -115,6 +119,7 @@ Os testes cobrem:
 - início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
 - fila operacional habilitada por `professional_operational_alerts` mesmo quando `professional_ai_assistance` não está disponível;
 - paginação determinística da fila completa além do centésimo paciente;
+- paginação independente de avaliações, anotações, orientações e histórico, inclusive ao alternar entre áreas;
 - conversão da negação do entitlement principal em `FORBIDDEN`;
 - distinção entre revogação da rota e ausência de alertas ou IA opcionais;
 - uso do timezone por rota individual autorizada sem exigir entitlement de carteira;
@@ -123,7 +128,9 @@ Os testes cobrem:
 - revalidação ao recuperar foco;
 - troca entre pacientes com cancelamento e remoção dos dados anteriores;
 - remount equivalente a reload/nova aba, caller tRPC independente e navegação voltar/avançar derivada da URL;
+- fallback `popstate` sem Navigation API, com restauração após cancelamento, limpeza após descarte e isolamento entre pacientes;
 - navegação rápida voltar/avançar sem aplicar transição tardia;
+- rótulos canônicos da timeline para revisão de meta e transição de acompanhamento, sem exposição dos identificadores crus;
 - revogação entregue pelo canal SSE autenticado sem interação adicional do profissional, além da detecção por query e mutation e do retry de mensagem após revogação;
 - retries explícitos para falhas de timezone e bundle do relatório individual;
 - limpeza do contexto ao voltar para a experiência pessoal;
