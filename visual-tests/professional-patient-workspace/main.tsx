@@ -7,7 +7,10 @@ import "../professional-home/visual.css";
 const draftHistoryScenario = new URLSearchParams(window.location.search).get(
   "draft-history"
 );
-if (draftHistoryScenario) {
+
+async function prepareDraftHistoryScenario() {
+  if (!draftHistoryScenario) return;
+
   const requestedUrl = `${window.location.pathname}${window.location.search}`;
   window.history.replaceState(
     { visualDraftHistory: "previous" },
@@ -19,6 +22,22 @@ if (draftHistoryScenario) {
     "",
     requestedUrl
   );
+
+  if (!draftHistoryScenario.startsWith("forward-")) return;
+
+  window.history.pushState(
+    { visualDraftHistory: "next" },
+    "",
+    "/professional/patients/1/notes"
+  );
+  await new Promise<void>(resolve => {
+    const finish = () => {
+      window.removeEventListener("popstate", finish);
+      resolve();
+    };
+    window.addEventListener("popstate", finish, { once: true });
+    window.history.back();
+  });
 }
 
 const queryClient = new QueryClient({
@@ -80,9 +99,13 @@ function VisualProfessionalPatientWorkspace() {
       let confirmations = 0;
       window.confirm = () => {
         confirmations += 1;
-        return draftHistoryScenario === "accept";
+        return draftHistoryScenario.endsWith("accept");
       };
-      window.history.back();
+      if (draftHistoryScenario.startsWith("forward-")) {
+        window.history.forward();
+      } else {
+        window.history.back();
+      }
 
       window.setTimeout(() => {
         const currentDraft = document.querySelector<HTMLTextAreaElement>(
@@ -119,6 +142,8 @@ function VisualProfessionalPatientWorkspace() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
-  <VisualProfessionalPatientWorkspace />
-);
+void prepareDraftHistoryScenario().then(() => {
+  createRoot(document.getElementById("root")!).render(
+    <VisualProfessionalPatientWorkspace />
+  );
+});
