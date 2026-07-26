@@ -1,1 +1,0 @@
-Trigger official pull-request gates for the corrected issue #880 head after the pagination compatibility fix.
