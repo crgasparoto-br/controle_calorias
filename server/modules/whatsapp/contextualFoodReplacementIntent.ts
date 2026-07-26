@@ -95,6 +95,15 @@ const REPLACEMENT_COMMAND_START =
   /^\s*(?:(?:n[aã]o)\s+(?:é|e|era)(?=\s|$)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b)/i;
 const REPLACEMENT_SEGMENT_SEPARATOR =
   /(?:[ \t]*\r?\n[ \t]*)+|\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i;
+const QUANTITY_ADJUSTMENT_TARGET =
+  /\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|ml|l|litros?|un|unidade|unidades|fatia|fatias|porcao|porcoes|porção|porções)\s*[.,;:!?]*$/i;
+
+function isQuantityAdjustmentSegment(segment: string) {
+  return (
+    REPLACEMENT_COMMAND_START.test(segment) &&
+    QUANTITY_ADJUSTMENT_TARGET.test(segment)
+  );
+}
 
 function parseReplacements(text: string): ReplacementParseResult {
   const segments = text
@@ -107,6 +116,12 @@ function parseReplacements(text: string): ReplacementParseResult {
 
   const replacements = segments.map(parseReplacement);
   if (!replacements.length || replacements.some(value => !value)) {
+    if (
+      replacements.every(value => !value) &&
+      segments.every(isQuantityAdjustmentSegment)
+    ) {
+      return { kind: "not_replacement" };
+    }
     return { kind: "invalid_replacement" };
   }
   return {
