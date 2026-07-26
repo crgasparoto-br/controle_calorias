@@ -83,8 +83,10 @@ ASSESSMENT_URL="${BASE_URL}/assessment"
 GUIDANCE_URL="${BASE_URL}/guidance"
 NOTES_URL="${BASE_URL}/notes"
 HISTORY_URL="${BASE_URL}/history"
-DRAFT_CANCEL_URL="${ASSESSMENT_URL}?draft-history=cancel"
-DRAFT_ACCEPT_URL="${ASSESSMENT_URL}?draft-history=accept"
+DRAFT_BACK_CANCEL_URL="${ASSESSMENT_URL}?draft-history=back-cancel"
+DRAFT_BACK_ACCEPT_URL="${ASSESSMENT_URL}?draft-history=back-accept"
+DRAFT_FORWARD_CANCEL_URL="${ASSESSMENT_URL}?draft-history=forward-cancel"
+DRAFT_FORWARD_ACCEPT_URL="${ASSESSMENT_URL}?draft-history=forward-accept"
 
 capture "summary-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "summary-notebook-1366x768" "1366,768" "$BASE_URL"
@@ -182,31 +184,47 @@ assert_dom_at_size \
   'data-visual-patient-subnav-scrollable="true"' \
   'data-visual-patient-header-visible="true"'
 assert_dom_at_size \
-  "draft-history-cancel" \
+  "draft-history-back-cancel" \
   "1366,768" \
-  "$DRAFT_CANCEL_URL" \
-  'data-visual-draft-history-scenario="cancel"' \
+  "$DRAFT_BACK_CANCEL_URL" \
+  'data-visual-draft-history-scenario="back-cancel"' \
   'data-visual-draft-history-confirmations="1"' \
   'data-visual-draft-history-path="/professional/patients/1/assessment"' \
   'data-visual-draft-history-preserved="true"'
 assert_dom_at_size \
-  "draft-history-accept" \
+  "draft-history-back-accept" \
   "1366,768" \
-  "$DRAFT_ACCEPT_URL" \
-  'data-visual-draft-history-scenario="accept"' \
+  "$DRAFT_BACK_ACCEPT_URL" \
+  'data-visual-draft-history-scenario="back-accept"' \
   'data-visual-draft-history-confirmations="1"' \
   'data-visual-draft-history-path="/professional/patients/1"' \
+  'data-visual-draft-history-preserved="false"'
+assert_dom_at_size \
+  "draft-history-forward-cancel" \
+  "1366,768" \
+  "$DRAFT_FORWARD_CANCEL_URL" \
+  'data-visual-draft-history-scenario="forward-cancel"' \
+  'data-visual-draft-history-confirmations="1"' \
+  'data-visual-draft-history-path="/professional/patients/1/assessment"' \
+  'data-visual-draft-history-preserved="true"'
+assert_dom_at_size \
+  "draft-history-forward-accept" \
+  "1366,768" \
+  "$DRAFT_FORWARD_ACCEPT_URL" \
+  'data-visual-draft-history-scenario="forward-accept"' \
+  'data-visual-draft-history-confirmations="1"' \
+  'data-visual-draft-history-path="/professional/patients/1/notes"' \
   'data-visual-draft-history-preserved="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
 routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
-scenarios=summary,assessment,guidance,notes,history,paused,ended,loading,error,draft-history-cancel,draft-history-accept
+scenarios=summary,assessment,guidance,notes,history,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
 interaction=canonical patient deep links and internal workspace composition
-assertions=patient identity and internal areas, operational alert, versioned assessment, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back navigation preserving a cancelled draft and discarding an accepted draft, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+assertions=patient identity and internal areas, operational alert, versioned assessment, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"
