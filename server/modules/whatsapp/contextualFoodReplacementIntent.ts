@@ -92,7 +92,7 @@ function parseReplacement(segment: string): FoodReplacementIntent | null {
 }
 
 const REPLACEMENT_COMMAND_START =
-  /^\s*(?:(?:n[aã]o)\s+(?:é|e|era)\b|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b)/i;
+  /^\s*(?:(?:n[aã]o)\s+(?:é|e|era)(?=\s|$)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b)/i;
 const REPLACEMENT_SEGMENT_SEPARATOR =
   /(?:[ \t]*\r?\n[ \t]*)+|\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i;
 
