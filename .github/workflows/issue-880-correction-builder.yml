@@ -99,6 +99,7 @@ jobs:
       - name: Assemble exact candidate tree
         run: |
           rm -f .orchestrator/issue-880-corrections.py
+          rm -rf .orchestrator/issue-880-correction-parts
           rm -f .github/workflows/issue-880-correction-builder.yml
           git diff --check
           git add -A
