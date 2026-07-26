@@ -1,0 +1,151 @@
+name: Issue 918 audit fix v3
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-918-audit-fix-v3
+  cancel-in-progress: false
+
+jobs:
+  patch-validate-and-publish:
+    if: ${{ github.head_ref == 'fix/918-whatsapp-multiline-replacements' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: fix/918-whatsapp-multiline-replacements
+          fetch-depth: 0
+
+      - name: Detect current state
+        id: state
+        shell: bash
+        run: |
+          if grep -q 'WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN' server/modules/whatsapp/replacementCommandDetection.ts; then
+            echo "already_applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_applied=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.state.outputs.already_applied == 'false'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        if: steps.state.outputs.already_applied == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.state.outputs.already_applied == 'false'
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply audit fixes
+        if: steps.state.outputs.already_applied == 'false'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/issue-918-audit-fix.py')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace("    '''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", "    r'''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", 1)
+          content = content.replace("    separator_block = '''const REPLACEMENT_SEGMENT_SEPARATOR", "    separator_block = r'''const REPLACEMENT_SEGMENT_SEPARATOR", 1)
+          path.write_text(content, encoding='utf-8')
+          PY
+          python scripts/issue-918-audit-fix.py
+
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('server/modules/whatsapp/contextualFoodReplacementIntent.ts')
+          content = path.read_text(encoding='utf-8')
+          old_start = '''  const parsedReplacements = parseReplacements(text);
+          if (parsedReplacements.kind === "invalid_replacement") {'''
+          new_start = '''  const latestCorrection = parseLatestFoodCorrection(text);
+          const parsedReplacements = latestCorrection
+            ? ({ kind: "not_replacement" } as const)
+            : parseReplacements(text);
+          if (parsedReplacements.kind === "invalid_replacement") {'''
+          if new_start not in content:
+              if old_start not in content:
+                  raise SystemExit('latest correction precedence anchor not found')
+              content = content.replace(old_start, new_start, 1)
+          old_latest = '''  const latestCorrection = replacements
+            ? null
+            : parseLatestFoodCorrection(text);
+          if (!replacements && !latestCorrection) return null;'''
+          new_latest = '''  if (!replacements && !latestCorrection) return null;'''
+          if old_latest in content:
+              content = content.replace(old_latest, new_latest, 1)
+          elif new_latest not in content:
+              raise SystemExit('latest correction declaration cleanup anchor not found')
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Validate focused and legacy regressions
+        if: steps.state.outputs.already_applied == 'false'
+        run: >-
+          pnpm exec vitest run
+          server/modules/whatsapp/contextualFoodReplacementIntent.multiline.test.ts
+          server/modules/whatsapp/service.multilineReplacement.test.ts
+          server/whatsappIntentWebhook.multilineReplacement.test.ts
+          server/modules/whatsapp/contextualFoodReplacementIntent.test.ts
+          server/modules/whatsapp/intentActions.test.ts
+
+      - name: Validate repository
+        if: steps.state.outputs.already_applied == 'false'
+        run: |
+          pnpm agent:check
+          pnpm build
+          git diff --check
+
+      - name: Remove temporary orchestration files
+        if: steps.state.outputs.already_applied == 'false'
+        run: |
+          rm -f \
+            .github/workflows/issue-918-audit-fix.yml \
+            .github/workflows/issue-918-audit-fix-pr.yml \
+            .github/workflows/issue-918-audit-fix-v2.yml \
+            .github/workflows/issue-918-audit-fix-v3.yml \
+            .github/workflows/issue-918-audit-diagnostics.yml \
+            scripts/issue-918-audit-fix.py
+
+      - name: Commit audit fixes
+        if: steps.state.outputs.already_applied == 'false'
+        id: commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(whatsapp): bloqueia substituições incompletas [audit-fix]"
+          git push origin HEAD:fix/918-whatsapp-multiline-replacements
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build repository snapshot
+        if: steps.state.outputs.already_applied == 'false'
+        shell: bash
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          tar \
+            --exclude='./node_modules' \
+            --exclude='./dist' \
+            --exclude='./.cache' \
+            -czf /tmp/controle-calorias-issue-918-repo.tar.gz .
+
+      - name: Upload repository snapshot
+        if: steps.state.outputs.already_applied == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-918-orchestration-repo-${{ steps.commit.outputs.head_sha }}
+          path: /tmp/controle-calorias-issue-918-repo.tar.gz
+          if-no-files-found: error
+          retention-days: 7
