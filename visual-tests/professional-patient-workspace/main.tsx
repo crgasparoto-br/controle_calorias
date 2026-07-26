@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import ProfessionalAreaPage from "../../client/src/pages/ProfessionalAreaPage";
+import { VISUAL_PROFESSIONAL_STATE_EVENT } from "./trpcMock";
 import "../professional-home/visual.css";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -218,11 +219,7 @@ function VisualProfessionalPatientWorkspace() {
         if (goalTransitionScenario === "paused") {
           const nextUrl = `${window.location.pathname}?state=paused&goal-seeded=1`;
           window.history.replaceState({ visualGoalState: "paused" }, "", nextUrl);
-          window.dispatchEvent(
-            new PopStateEvent("popstate", {
-              state: { visualGoalState: "paused" },
-            })
-          );
+          window.dispatchEvent(new Event(VISUAL_PROFESSIONAL_STATE_EVENT));
         }
         window.setTimeout(writeVisualDiagnostics, 600);
       }, 250);
