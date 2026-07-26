@@ -77,6 +77,16 @@ describe("simulateWhatsappInbound com substituições multiline", () => {
       "Trocar requeijão por maionese;Trocar presunto por mortadela defumada",
       "issue-918-simulator-semicolon",
     ],
+    [
+      "ponto e vírgula após correção iniciada por água",
+      "Não é água, é suco;Não é pão, é tapioca",
+      "issue-918-simulator-water-semicolon",
+    ],
+    [
+      "vírgula após correção iniciada por água",
+      "Não é água, é suco,Não é pão, é tapioca",
+      "issue-918-simulator-water-comma",
+    ],
   ])(
     "alcança o handler contextual e não segue para fallback com %s",
     async (_label, text, messageId) => {
