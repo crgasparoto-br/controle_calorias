@@ -34,6 +34,7 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   markMessageProcessed: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   wasMessageAlreadyProcessed: vi.fn(async () => false),
