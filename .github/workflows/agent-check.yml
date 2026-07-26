@@ -87,14 +87,52 @@ jobs:
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
 
       - name: Create verification manifest
+        id: verification_manifest
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
-          mkdir -p /tmp/issue-857-verification
-          cat > /tmp/issue-857-verification/manifest.json <<EOF
+          ISSUE_NUMBER=""
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            ISSUE_NUMBER="$(
+              jq -r '.pull_request.body // ""' "${GITHUB_EVENT_PATH}" \
+                | grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#[0-9]+' \
+                | grep -Eo '[0-9]+' \
+                | head -n 1 \
+                || true
+            )"
+            if [ -z "${ISSUE_NUMBER}" ]; then
+              ISSUE_NUMBER="$(
+                printf '%s\n' "${PR_HEAD_REF}" \
+                  | grep -Eo '(^|/)[0-9]+' \
+                  | grep -Eo '[0-9]+' \
+                  | head -n 1 \
+                  || true
+              )"
+            fi
+          fi
+
+          ISSUE_SLUG="${ISSUE_NUMBER:-unscoped}"
+          ISSUE_JSON="${ISSUE_NUMBER:-null}"
+          HEAD_SHA="${PR_HEAD_SHA:-${GITHUB_SHA}}"
+          BASE_SHA_JSON="null"
+          MERGE_PREVIEW_SHA_JSON="null"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            BASE_SHA_JSON="\"${PR_BASE_SHA}\""
+            MERGE_PREVIEW_SHA_JSON="\"${GITHUB_SHA}\""
+          fi
+
+          MANIFEST_DIR="/tmp/issue-${ISSUE_SLUG}-verification"
+          mkdir -p "${MANIFEST_DIR}"
+          cat > "${MANIFEST_DIR}/manifest.json" <<EOF
           {
-            "schemaVersion": 1,
-            "issue": 857,
+            "schemaVersion": 2,
+            "issue": ${ISSUE_JSON},
             "repository": "${GITHUB_REPOSITORY}",
-            "commitSha": "${GITHUB_SHA}",
+            "headSha": "${HEAD_SHA}",
+            "baseSha": ${BASE_SHA_JSON},
+            "mergePreviewSha": ${MERGE_PREVIEW_SHA_JSON},
             "runId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
@@ -102,13 +140,15 @@ jobs:
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
-          cat /tmp/issue-857-verification/manifest.json
+          cat "${MANIFEST_DIR}/manifest.json"
+          echo "artifact_name=issue-${ISSUE_SLUG}-verification-${HEAD_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "manifest_path=${MANIFEST_DIR}/manifest.json" >> "${GITHUB_OUTPUT}"
 
       - name: Upload verification manifest
         uses: actions/upload-artifact@v4
         with:
-          name: issue-857-verification-${{ github.sha }}
-          path: /tmp/issue-857-verification/manifest.json
+          name: ${{ steps.verification_manifest.outputs.artifact_name }}
+          path: ${{ steps.verification_manifest.outputs.manifest_path }}
           if-no-files-found: error
           retention-days: 30
 
