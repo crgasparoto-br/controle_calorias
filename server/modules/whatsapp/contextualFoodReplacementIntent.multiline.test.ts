@@ -84,6 +84,18 @@ describe("substituições contextuais separadas por linhas", () => {
       "linhas em branco e espaços",
       "  Não é requeijão, é maionese.  \n\n   Não é presunto, é mortadela defumada  ",
     ],
+    [
+      "ponto e vírgula sem espaço entre comandos 'trocar'",
+      "Trocar requeijão por maionese;Trocar presunto por mortadela defumada",
+    ],
+    [
+      "vírgula sem espaço entre comandos 'substituir'",
+      "Substituir requeijão por maionese,Substituir presunto por mortadela defumada",
+    ],
+    [
+      "ponto e vírgula sem espaço entre correções 'não é'",
+      "Não é requeijão, é maionese;Não é presunto, é mortadela defumada",
+    ],
   ])("aplica todas as correções com %s em um único lote", async (_label, text) => {
     const result = await executeWhatsappContextualFoodReplacementIntent(42, {
       text,
