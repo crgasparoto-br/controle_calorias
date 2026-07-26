@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: issue-880-correction-builder-pr-888
+  cancel-in-progress: true
+
 jobs:
   build-candidate:
     runs-on: ubuntu-latest
