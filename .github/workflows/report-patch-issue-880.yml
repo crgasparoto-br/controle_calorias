@@ -167,6 +167,16 @@ jobs:
             });
           });
           EOF
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/render-professional-patient-workspace-visual.sh')
+          source = path.read_text(encoding='utf-8')
+          old = 'for forbidden in "Ciclo de acompanhamento" "Nova versão da avaliação" "Nova orientação ao paciente" "Nova anotação privada"; do'
+          new = 'for forbidden in "Ciclo de acompanhamento" "Salvar nova versão" "Nova orientação ao paciente" "Nova anotação privada"; do'
+          if source.count(old) != 1:
+              raise SystemExit('expected one ended visual forbidden-list anchor')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Upload apply diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
