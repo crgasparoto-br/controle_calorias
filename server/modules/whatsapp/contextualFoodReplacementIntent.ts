@@ -21,6 +21,10 @@ import {
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";
+import {
+  isWhatsappFoodReplacementCommandStart,
+  WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN,
+} from "./replacementCommandDetection";
 
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
@@ -91,16 +95,8 @@ function parseReplacement(segment: string): FoodReplacementIntent | null {
   return fromFood && toFood && !/\d/.test(toFood) ? { fromFood, toFood } : null;
 }
 
-const REPLACEMENT_COMMAND_START_PATTERN =
-  "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s|$)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b)";
-const REPLACEMENT_COMMAND_BOUNDARY_PATTERN =
-  "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b(?=\\s+))";
-const REPLACEMENT_COMMAND_START = new RegExp(
-  `^\\s*${REPLACEMENT_COMMAND_START_PATTERN}`,
-  "i"
-);
 const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
-  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})`,
+  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})`,
   "i"
 );
 const QUANTITY_ADJUSTMENT_TARGET =
@@ -108,7 +104,7 @@ const QUANTITY_ADJUSTMENT_TARGET =
 
 function isQuantityAdjustmentSegment(segment: string) {
   return (
-    REPLACEMENT_COMMAND_START.test(segment) &&
+    isWhatsappFoodReplacementCommandStart(segment) &&
     QUANTITY_ADJUSTMENT_TARGET.test(segment)
   );
 }
@@ -118,7 +114,7 @@ function parseReplacements(text: string): ReplacementParseResult {
     .split(REPLACEMENT_SEGMENT_SEPARATOR)
     .map(segment => segment.trim())
     .filter(Boolean);
-  if (!segments.some(segment => REPLACEMENT_COMMAND_START.test(segment))) {
+  if (!segments.some(segment => isWhatsappFoodReplacementCommandStart(segment))) {
     return { kind: "not_replacement" };
   }
 
@@ -305,7 +301,10 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
-  const parsedReplacements = parseReplacements(text);
+  const latestCorrection = parseLatestFoodCorrection(text);
+  const parsedReplacements = latestCorrection
+    ? ({ kind: "not_replacement" } as const)
+    : parseReplacements(text);
   if (parsedReplacements.kind === "invalid_replacement") {
     return {
       action: "clarification_needed",
@@ -319,9 +318,6 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     parsedReplacements.kind === "replacements"
       ? parsedReplacements.replacements
       : null;
-  const latestCorrection = replacements
-    ? null
-    : parseLatestFoodCorrection(text);
   if (!replacements && !latestCorrection) return null;
 
   const meals = recentMeals(

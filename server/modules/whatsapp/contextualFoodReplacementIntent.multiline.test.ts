@@ -232,4 +232,97 @@ describe("substituições contextuais separadas por linhas", () => {
     );
     expect(result?.action).toBe("clarification_needed");
   });
+
+  it.each([
+    [
+      "nova linha termina em 'não é'",
+      "Não é requeijão, é maionese.\nNão é",
+    ],
+    [
+      "ponto e vírgula termina em 'trocar'",
+      "Trocar requeijão por maionese;Trocar",
+    ],
+    [
+      "vírgula termina em 'substituir'",
+      "Substituir requeijão por maionese,Substituir",
+    ],
+    [
+      "comando incompleto termina com pontuação",
+      "Não é requeijão, é maionese; Não é,",
+    ],
+  ])("bloqueia o lote quando %s", async (_label, text) => {
+    const result = await executeWhatsappContextualFoodReplacementIntent(42, {
+      text,
+      receivedAt: new Date("2026-07-26T12:05:00.000Z"),
+    });
+
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(updateMealsWithCompensationMock).not.toHaveBeenCalled();
+    expect(createPendingMealItemSelectionMock).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.clarification_needed",
+        reply: expect.stringContaining("todas as substituições"),
+      })
+    );
+  });
+
+  it("aplica ações claras em refeições diferentes no mesmo lote", async () => {
+    listMealsMock.mockResolvedValue([
+      meal(1, [item("Requeijão")]),
+      {
+        ...meal(2, [item("Presunto")]),
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-07-26T11:55:00.000Z").getTime(),
+      },
+    ]);
+
+    const result = await executeWhatsappContextualFoodReplacementIntent(42, {
+      text: "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada",
+      receivedAt: new Date("2026-07-26T12:05:00.000Z"),
+    });
+
+    expect(updateMealsWithCompensationMock).toHaveBeenCalledOnce();
+    const changes = updateMealsWithCompensationMock.mock.calls[0]?.[1];
+    expect(changes).toEqual([
+      expect.objectContaining({
+        after: expect.objectContaining({
+          id: 1,
+          items: [expect.objectContaining({ foodName: "maionese" })],
+        }),
+      }),
+      expect.objectContaining({
+        after: expect.objectContaining({
+          id: 2,
+          items: [
+            expect.objectContaining({ foodName: "mortadela defumada" }),
+          ],
+        }),
+      }),
+    ]);
+    expect(composeWhatsAppMealActionRepliesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [
+          expect.objectContaining({
+            options: expect.objectContaining({
+              actionLines: ["Requeijão → maionese"],
+            }),
+          }),
+          expect.objectContaining({
+            options: expect.objectContaining({
+              actionLines: ["Presunto → mortadela defumada"],
+            }),
+          }),
+        ],
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_replaced",
+        data: expect.objectContaining({ mealIds: [1, 2] }),
+      })
+    );
+  });
+
 });

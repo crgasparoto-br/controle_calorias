@@ -150,7 +150,7 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | Resposta inválida de exclusão permanece fail-closed | `deleteIntent.issue856.test.ts` |
 | Refeições 0/1/N sem escolha silenciosa | `deleteIntent.issue856.test.ts` |
 | Webhook HTTP, áudio transcrito e simulador não chamam fallback | `whatsappIntentWebhook.delete.test.ts`, `whatsappWebhook.audioTranscription.test.ts`, `service.issue856.pending.test.ts` |
-| Substituições multiline preservam todos os pares e bloqueiam lote incompleto | `contextualFoodReplacementIntent.multiline.test.ts`; smoke equivalente no simulador e webhook |
+| Substituições multiline preservam todos os pares e bloqueiam lote incompleto, inclusive quando o novo comando termina no próprio verbo (`não é`, `trocar` ou `substituir`) | `contextualFoodReplacementIntent.multiline.test.ts`; smoke equivalente no simulador e webhook |
 | Isolamento entre usuários nas intents destrutivas | `deleteIntent.test.ts`, `learningSecurity.test.ts` |
 | Clarificação alimentar preserva original/normalizado e rejeita `100 g` implícito | `foodClarification.test.ts`, `foodClarification.lifecycle.test.ts` |
 | Gate alimentar preserva parsers especializados e bloqueia comando isolado | `foodClarificationGate.test.ts`, `standaloneCommandWords.test.ts` |

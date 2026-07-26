@@ -229,4 +229,52 @@ describe("webhook real com substituições multiline", () => {
       expect(res.statusCode).toBe(200);
     }
   );
+
+  it.each([
+    [
+      "linha final incompleta",
+      "Não é requeijão, é maionese.\nNão é",
+      "wamid-issue-918-webhook-incomplete-line",
+    ],
+    [
+      "verbo trocar incompleto",
+      "Trocar requeijão por maionese;Trocar",
+      "wamid-issue-918-webhook-incomplete-swap",
+    ],
+    [
+      "verbo substituir incompleto",
+      "Substituir requeijão por maionese,Substituir",
+      "wamid-issue-918-webhook-incomplete-substitute",
+    ],
+  ])(
+    "envia esclarecimento e bloqueia fallback quando há %s",
+    async (_label, text, messageId) => {
+      executeWhatsappContextualFoodReplacementIntentMock.mockResolvedValueOnce({
+        action: "clarification_needed",
+        reply: "Reenvie todas as substituições completas.",
+        eventType: "whatsapp.intent.clarification_needed",
+        detail: "Pedido de substituição com segmento incompleto.",
+      });
+      const req = createTextWebhookRequest(text, messageId);
+      const res = createResponse();
+
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledOnce();
+      expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledOnce();
+      expect(sendWhatsAppLogicalDomainReplyMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 42,
+          replyText: "Reenvie todas as substituições completas.",
+        })
+      );
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(processMealDraftFallbackMock).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(200);
+    }
+  );
+
 });

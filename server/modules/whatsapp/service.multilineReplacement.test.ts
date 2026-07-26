@@ -125,4 +125,87 @@ describe("simulateWhatsappInbound com substituições multiline", () => {
       expect(processMealDraftMock).not.toHaveBeenCalled();
     }
   );
+
+  it.each([
+    [
+      "linha final incompleta",
+      "Não é requeijão, é maionese.\nNão é",
+      "issue-918-simulator-incomplete-line",
+    ],
+    [
+      "verbo trocar incompleto",
+      "Trocar requeijão por maionese;Trocar",
+      "issue-918-simulator-incomplete-swap",
+    ],
+    [
+      "verbo substituir incompleto",
+      "Substituir requeijão por maionese,Substituir",
+      "issue-918-simulator-incomplete-substitute",
+    ],
+  ])(
+    "encaminha %s ao handler e bloqueia fallback",
+    async (_label, text, messageId) => {
+      executeWhatsappContextualFoodReplacementIntentMock.mockResolvedValueOnce({
+        action: "clarification_needed",
+        reply: "Reenvie todas as substituições completas.",
+        eventType: "whatsapp.intent.clarification_needed",
+        detail: "Pedido de substituição com segmento incompleto.",
+      });
+
+      const result = await simulateWhatsappInbound(42, {
+        text,
+        receivedAt: new Date("2026-07-26T12:05:00.000Z"),
+        userTimezone: "America/Sao_Paulo",
+        messageId,
+      });
+
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledOnce();
+      expect(result).toEqual(
+        expect.objectContaining({
+          handled: true,
+          action: "clarification_needed",
+          eventType: "whatsapp.intent.clarification_needed",
+        })
+      );
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("ignora a reentrega do mesmo messageId sem reaplicar o lote", async () => {
+    const text =
+      "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada";
+    const receivedAt = new Date("2026-07-26T12:05:00.000Z");
+
+    const first = await simulateWhatsappInbound(42, {
+      text,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "issue-918-simulator-retry",
+    });
+    const second = await simulateWhatsappInbound(42, {
+      text,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "issue-918-simulator-retry",
+    });
+
+    expect(first.action).toBe("meal_item_replaced");
+    expect(second).toEqual(
+      expect.objectContaining({
+        action: "duplicate_inbound_message_ignored",
+        eventType: "whatsapp.idempotency.message_retry_ignored",
+        data: expect.objectContaining({
+          duplicateKind: "message_id_retry",
+        }),
+      })
+    );
+    expect(
+      executeWhatsappContextualFoodReplacementIntentMock
+    ).toHaveBeenCalledOnce();
+  });
+
 });
