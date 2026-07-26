@@ -145,6 +145,9 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - **Fonte de verdade pós-mutação**: `datedFoodAdditionIntent.ts`, `contextualFoodReplacementIntent.ts`, `gramsAdjustmentIntent.ts`, `gramsIncrementIntent.ts` e `deleteIntent.ts` recarregam a refeição (`listMeals`/`updateMeal`/`removeMeal`) antes de montar a resposta; nenhum desses fluxos monta a resposta a partir do payload anterior à mutação.
 - **Builders locais removidos**: `buildMealFullSummary` e `formatMealSummary`/`formatTotalsLine` foram removidos; os fluxos agora produzem uma única seção com os blocos centrais.
 - **Substituição e ajuste de quantidade diretos**: quando o alvo é inequívoco, a mutação é aplicada sem pedido de confirmação.
+- **Segmentação de substituições contextuais**: `contextualFoodReplacementIntent.ts` trata `LF`, `CRLF`, linhas em branco e os separadores textuais já suportados como limites entre correções completas. A segmentação preserva a ordem e cada par origem → destino, remove apenas pontuação terminal e encaminha o lote inteiro ao mesmo plano de seleção, compensação e resposta canônica.
+- **Validação fail-closed do lote**: quando ao menos um segmento iniciado como substituição não forma uma correção completa, o handler retorna esclarecimento antes de consultar refeições. Nenhuma ação clara é aplicada, nenhuma pendência parcial é criada e o texto não alcança LLM, parser alimentar ou criação de refeição.
+- **Paridade de entrypoints**: webhook e `simulateWhatsappInbound` delegam ao mesmo handler canônico de substituição contextual; a mesma mensagem multiline produz o mesmo plano de domínio, respeitando a idempotência própria de cada entrada.
 - **Ambiguidade por botões/lista**: `mealItemSelectionCallback.ts` generaliza o padrão de seleção ambígua da exclusão para ajuste de gramas, correção de quantidade e substituição.
 - **Encadeamento completo e ordenado**: mensagens com ação clara e ações ambíguas não escrevem antes da última escolha.
 - **Caminhos equivalentes**: `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts`, inclusive no simulador, delegam aos mesmos handlers canônicos.
@@ -206,6 +209,8 @@ A especificação detalhada e o contrato consumível pela #858 estão em [whatsa
 - Testar confirmação, seleção, cancelamento, expiração, reentrega, callback repetido e isolamento entre usuários.
 - Testar comando destrutivo durante pendência alimentar, comando operacional isolado sem pendência e frase completa `registrar 100 g de arroz`.
 - Testar saída estruturada com `foodName: Registrar` rejeitada antes da persistência.
+- Testar substituições múltiplas em `LF`, `CRLF`, com linhas em branco e separadores legados, incluindo lote totalmente claro, lote com ambiguidade e lote com segmento incompleto sem qualquer mutação ou fallback.
+- Testar a mesma mensagem multiline pelo handler canônico, pelo simulador e pelo webhook, verificando equivalência do plano de domínio e uma única resposta funcional.
 
 ## Invariantes finais da epic #779
 
