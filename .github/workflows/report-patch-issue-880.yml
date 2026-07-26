@@ -1,0 +1,60 @@
+name: Report issue 880 correction result
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/report-patch-issue-880.yml"
+
+permissions:
+  actions: read
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for correction workflow and report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          run_id=""
+          for attempt in $(seq 1 60); do
+            payload=$(curl --fail --silent --location \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "${api}/actions/workflows/patch-issue-880-audit-findings.yml/runs?branch=feat%2F875-professional-context-routes&event=workflow_dispatch&per_page=1")
+            run_id=$(printf '%s' "$payload" | jq -r '.workflow_runs[0].id // empty')
+            status=$(printf '%s' "$payload" | jq -r '.workflow_runs[0].status // empty')
+            conclusion=$(printf '%s' "$payload" | jq -r '.workflow_runs[0].conclusion // empty')
+            if [ -n "$run_id" ] && [ "$status" = "completed" ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ -z "$run_id" ]; then
+            body='## Correção da issue #880\n\nNão foi possível localizar o workflow de correção disparado.'
+          else
+            jobs=$(curl --fail --silent --location \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "${api}/actions/runs/${run_id}/jobs?per_page=100")
+            failed=$(printf '%s' "$jobs" | jq -r '[.jobs[] | .steps[] | select(.conclusion == "failure") | .name] | unique | join(", ")')
+            body=$(printf '## Correção da issue #880\n\n- workflow run: `%s`\n- status: `%s`\n- conclusão: `%s`\n- etapas com falha: `%s`' "$run_id" "$status" "${conclusion:-none}" "${failed:-none}")
+          fi
+          jq -n --arg body "$body" '{body:$body}' > /tmp/comment.json
+          curl --fail --silent --location \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${api}/issues/${PR_NUMBER}/comments" \
+            --data-binary @/tmp/comment.json
