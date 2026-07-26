@@ -35,8 +35,15 @@ jobs:
       - name: Apply deterministic fixes
         run: |
           set -o pipefail
-          base64 -d .github/issue-880-fixes.b64 | gzip -d > /tmp/apply-issue-880-audit-fixes.mjs
-          node /tmp/apply-issue-880-audit-fixes.mjs 2>&1 | tee /tmp/issue-880-fix.log
+          {
+            wc -c .github/issue-880-fixes.b64
+            base64 -d .github/issue-880-fixes.b64 > /tmp/issue-880-fixes.gz
+            wc -c /tmp/issue-880-fixes.gz
+            gzip -t /tmp/issue-880-fixes.gz
+            gzip -dc /tmp/issue-880-fixes.gz > /tmp/apply-issue-880-audit-fixes.mjs
+            node --check /tmp/apply-issue-880-audit-fixes.mjs
+            node /tmp/apply-issue-880-audit-fixes.mjs
+          } 2>&1 | tee /tmp/issue-880-fix.log
 
       - name: Upload deterministic fix diagnostics
         if: failure()
