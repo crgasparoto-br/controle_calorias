@@ -1,0 +1,76 @@
+name: Issue 918 patch diagnostics v3
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-patch:
+    if: ${{ github.head_ref == 'fix/918-whatsapp-multiline-replacements' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/918-whatsapp-multiline-replacements
+      - name: Capture patch diagnostics
+        shell: bash
+        run: |
+          set +e
+          {
+            python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/issue-918-audit-fix.py')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace("    '''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", "    r'''export const WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN =", 1)
+          content = content.replace("    separator_block = '''const REPLACEMENT_SEGMENT_SEPARATOR", "    separator_block = r'''const REPLACEMENT_SEGMENT_SEPARATOR", 1)
+          path.write_text(content, encoding='utf-8')
+          PY
+            python scripts/issue-918-audit-fix.py
+            echo "SCRIPT_EXIT=$?"
+            python - <<'PY'
+          from pathlib import Path
+          path = Path('server/modules/whatsapp/contextualFoodReplacementIntent.ts')
+          content = path.read_text(encoding='utf-8')
+          old_start = '''  const parsedReplacements = parseReplacements(text);
+          if (parsedReplacements.kind === "invalid_replacement") {'''
+          new_start = '''  const latestCorrection = parseLatestFoodCorrection(text);
+          const parsedReplacements = latestCorrection
+            ? ({ kind: "not_replacement" } as const)
+            : parseReplacements(text);
+          if (parsedReplacements.kind === "invalid_replacement") {'''
+          print('OLD_START_FOUND', old_start in content)
+          print('NEW_START_FOUND', new_start in content)
+          if new_start not in content:
+              if old_start not in content:
+                  raise SystemExit('latest correction precedence anchor not found')
+              content = content.replace(old_start, new_start, 1)
+          old_latest = '''  const latestCorrection = replacements
+            ? null
+            : parseLatestFoodCorrection(text);
+          if (!replacements && !latestCorrection) return null;'''
+          new_latest = '''  if (!replacements && !latestCorrection) return null;'''
+          print('OLD_LATEST_FOUND', old_latest in content)
+          print('NEW_LATEST_FOUND', new_latest in content)
+          if old_latest in content:
+              content = content.replace(old_latest, new_latest, 1)
+          elif new_latest not in content:
+              raise SystemExit('latest correction declaration cleanup anchor not found')
+          path.write_text(content, encoding='utf-8')
+          PY
+            echo "PRECEDENCE_EXIT=$?"
+            git diff --stat
+            git diff --check
+            echo "DIFF_EXIT=$?"
+          } > /tmp/patch-diagnostics.log 2>&1
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-918-patch-diagnostics-v3-${{ github.sha }}
+          path: /tmp/patch-diagnostics.log
+          if-no-files-found: error
+          retention-days: 3
