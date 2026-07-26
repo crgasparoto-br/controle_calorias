@@ -1,0 +1,45 @@
+name: Orchestrator issue 880 YAML diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+    paths:
+      - .github/workflows/orchestrator-issue-880-diagnostic2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Run YAML-preserved correction script
+        shell: bash
+        run: |
+          ruby -ryaml -e '
+            workflow = YAML.load_file(".github/workflows/orchestrator-issue-880.yml")
+            step = workflow.fetch("jobs").fetch("apply-corrections").fetch("steps").find { |item| item["name"] == "Apply issue 880 corrections" }
+            abort("apply step not found") unless step && step["run"]
+            File.write("/tmp/apply-issue-880.sh", step["run"])
+          '
+          set +e
+          bash /tmp/apply-issue-880.sh > orchestrator-issue-880-yaml-diagnostic.txt 2>&1
+          status=$?
+          printf '\nexit_code=%s\n' "$status" >> orchestrator-issue-880-yaml-diagnostic.txt
+          cat orchestrator-issue-880-yaml-diagnostic.txt
+          exit 0
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-issue-880-yaml-diagnostic-${{ github.sha }}
+          path: orchestrator-issue-880-yaml-diagnostic.txt
+          if-no-files-found: error
