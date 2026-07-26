@@ -186,6 +186,16 @@ describe("webhook real com substituições multiline", () => {
       "Trocar requeijão por maionese;Trocar presunto por mortadela defumada",
       "wamid-issue-918-webhook-semicolon",
     ],
+    [
+      "ponto e vírgula após correção iniciada por água",
+      "Não é água, é suco;Não é pão, é tapioca",
+      "wamid-issue-918-webhook-water-semicolon",
+    ],
+    [
+      "vírgula após correção iniciada por água",
+      "Não é água, é suco,Não é pão, é tapioca",
+      "wamid-issue-918-webhook-water-comma",
+    ],
   ])(
     "alcança o mesmo handler e envia uma resposta funcional com %s",
     async (_label, text, messageId) => {
