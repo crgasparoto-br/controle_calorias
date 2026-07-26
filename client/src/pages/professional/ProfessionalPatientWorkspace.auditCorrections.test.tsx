@@ -10,12 +10,12 @@ let recordData: any;
 const setLocation = vi.fn();
 const getQuery = vi.fn();
 
-const mutation = () => ({
+const mutation = vi.hoisted(() => () => ({
   mutate: vi.fn(),
   isPending: false,
   isError: false,
   error: null,
-});
+}));
 
 vi.mock("wouter", () => ({
   useLocation: () => [location, setLocation],
