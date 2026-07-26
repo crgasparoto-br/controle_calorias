@@ -61,6 +61,14 @@ jobs:
           PY
           set -o pipefail
           python /tmp/apply-issue-880.py 2>&1 | tee /tmp/apply-issue-880.log
+      - name: Upload apply diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-880-apply-diagnostics-${{ github.run_id }}
+          path: /tmp/apply-issue-880.log
+          if-no-files-found: error
+          retention-days: 3
       - name: Format corrected files
         run: |
           pnpm exec prettier --write \
