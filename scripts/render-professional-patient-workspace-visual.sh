@@ -80,6 +80,8 @@ assert_dom_at_size() {
 
 BASE_URL="http://127.0.0.1:${PORT}/professional/patients/1"
 ASSESSMENT_URL="${BASE_URL}/assessment"
+GOALS_URL="${BASE_URL}/goals"
+GOALS_PAUSED_URL="${GOALS_URL}?goal-transition=paused"
 GUIDANCE_URL="${BASE_URL}/guidance"
 NOTES_URL="${BASE_URL}/notes"
 HISTORY_URL="${BASE_URL}/history"
@@ -100,6 +102,18 @@ capture "paused-assessment-1366x768" "1366,768" "$ASSESSMENT_URL?state=paused"
 capture "ended-history-390x1200" "390,1200" "$HISTORY_URL?state=ended"
 capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=patient-loading"
 capture "error-desktop-1366x768" "1366,768" "$BASE_URL?state=patient-error"
+
+GOAL_VIEWPORTS=(
+  "desktop-1440x900|1440,900"
+  "notebook-1366x768|1366,768"
+  "tablet-1024x768|1024,768"
+  "mobile-390x844|390,844"
+)
+for spec in "${GOAL_VIEWPORTS[@]}"; do
+  IFS='|' read -r label size <<< "$spec"
+  capture "goals-active-${label}" "$size" "$GOALS_URL"
+  capture "goals-paused-${label}" "$size" "$GOALS_PAUSED_URL"
+done
 
 assert_dom \
   "summary" \
@@ -124,6 +138,27 @@ assert_dom \
   "Versões anteriores" \
   "Versão 2" \
   "Salvar nova versão"
+assert_dom \
+  "goals-active" \
+  "$GOALS_URL" \
+  "Meta profissional oficial" \
+  "Versão 3 ativa" \
+  "O paciente solicitou revisão desta meta." \
+  "Exceções por dia" \
+  "Dia da exceção 1" \
+  "Duração da exceção 1" \
+  "Remover exceção 1" \
+  "Ativar nova versão" \
+  "Notificação pendente (2 tentativa(s))."
+assert_dom \
+  "goals-paused" \
+  "$GOALS_PAUSED_URL" \
+  "Acompanhamento pausado" \
+  "Meta profissional oficial" \
+  "Exceções por dia" \
+  "Dia da exceção 1" \
+  "Ativar nova versão" \
+  "Notificação pendente (2 tentativa(s))."
 assert_dom \
   "guidance" \
   "$GUIDANCE_URL" \
@@ -183,6 +218,35 @@ assert_dom_at_size \
   'data-visual-patient-subnav-contained="true"' \
   'data-visual-patient-subnav-scrollable="true"' \
   'data-visual-patient-header-visible="true"'
+
+for spec in "${GOAL_VIEWPORTS[@]}"; do
+  IFS='|' read -r label size <<< "$spec"
+  assert_dom_at_size \
+    "goals-active-layout-${label}" \
+    "$size" \
+    "$GOALS_URL" \
+    'data-visual-horizontal-overflow="false"' \
+    'data-visual-goals-card-contained="true"' \
+    'data-visual-goals-controls-contained="true"' \
+    'data-visual-goals-fields-labeled="true"' \
+    'data-visual-goals-exception-visible="true"' \
+    'data-visual-goals-primary-action-disabled="false"' \
+    'data-visual-goals-all-mutations-disabled="false"' \
+    'data-visual-goals-tracking-state="active"'
+  assert_dom_at_size \
+    "goals-paused-layout-${label}" \
+    "$size" \
+    "$GOALS_PAUSED_URL" \
+    'data-visual-horizontal-overflow="false"' \
+    'data-visual-goals-card-contained="true"' \
+    'data-visual-goals-controls-contained="true"' \
+    'data-visual-goals-fields-labeled="true"' \
+    'data-visual-goals-exception-visible="true"' \
+    'data-visual-goals-primary-action-disabled="true"' \
+    'data-visual-goals-all-mutations-disabled="true"' \
+    'data-visual-goals-tracking-state="paused"'
+done
+
 assert_dom_at_size \
   "draft-history-back-cancel" \
   "1366,768" \
@@ -217,14 +281,14 @@ assert_dom_at_size \
   'data-visual-draft-history-preserved="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history
+routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
-scenarios=summary,assessment,guidance,notes,history,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
+scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
-interaction=canonical patient deep links and internal workspace composition
-assertions=patient identity and internal areas, operational alert, versioned assessment, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+interaction=canonical patient deep links, internal workspace composition, goal exception creation and active-to-paused transition
+assertions=patient identity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"
