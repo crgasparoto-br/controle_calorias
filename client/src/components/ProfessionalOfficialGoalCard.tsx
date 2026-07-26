@@ -247,6 +247,7 @@ export default function ProfessionalOfficialGoalCard({
                 aria-label={`Dia da exceção ${index + 1}`}
                 className="h-10 rounded-md border bg-background px-2 text-sm"
                 value={item.weekday}
+                disabled={disabled}
                 onChange={event =>
                   setExceptions(values =>
                     values.map((value, itemIndex) =>
@@ -275,6 +276,7 @@ export default function ProfessionalOfficialGoalCard({
                 aria-label={`Duração da exceção ${index + 1}`}
                 className="h-10 rounded-md border bg-background px-2 text-sm"
                 value={item.durationType}
+                disabled={disabled}
                 onChange={event =>
                   setExceptions(values =>
                     values.map((value, itemIndex) =>
@@ -303,6 +305,7 @@ export default function ProfessionalOfficialGoalCard({
                   type="number"
                   min={1}
                   value={item[field]}
+                  disabled={disabled}
                   onChange={event =>
                     setExceptions(values =>
                       values.map((value, itemIndex) =>
@@ -318,6 +321,7 @@ export default function ProfessionalOfficialGoalCard({
                 aria-label={`Remover exceção ${index + 1}`}
                 variant="ghost"
                 size="icon"
+                disabled={disabled}
                 onClick={() =>
                   setExceptions(values =>
                     values.filter((_, itemIndex) => itemIndex !== index)
@@ -376,7 +380,7 @@ export default function ProfessionalOfficialGoalCard({
               <span>Notificação pendente ({item.attempts} tentativa(s)).</span>
               <Button
                 variant="outline"
-                disabled={retry.isPending}
+                disabled={disabled || retry.isPending}
                 onClick={() => retry.mutate({ goalId: item.goalId })}
               >
                 <RotateCcw className="h-4 w-4" />
