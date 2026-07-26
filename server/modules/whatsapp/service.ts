@@ -19,6 +19,7 @@ import {
   resolveWhatsappConversationContext,
 } from "./conversationContext";
 import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
+import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
@@ -37,10 +38,8 @@ import {
   type WhatsappIntentRouteDecision,
 } from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
-import {
-  executeWhatsappRecordAdjustmentIntent,
-  hasMultipleWhatsappFoodReplacementCommands,
-} from "./recordAdjustmentIntent";
+import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
+import { hasMultipleWhatsappFoodReplacementCommands } from "./replacementCommandDetection";
 import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
 import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
@@ -318,17 +317,18 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   if (text && hasMultipleWhatsappFoodReplacementCommands(text)) {
-    const replacementBatch = await logAndReturnInterpretedIntent(
-      userId,
-      await executeWhatsappRecordAdjustmentIntent(userId, {
+    const contextualReplacement =
+      await executeWhatsappContextualFoodReplacementIntent(userId, {
         text,
         receivedAt,
         userTimezone,
-      }),
-      { text, receivedAt },
-    );
-    if (replacementBatch) {
-      return replacementBatch;
+      });
+    if (contextualReplacement) {
+      return logAndReturnInterpretedIntent(
+        userId,
+        { handled: true, ...contextualReplacement },
+        { text, receivedAt },
+      );
     }
   }
 
