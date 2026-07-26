@@ -1,0 +1,51 @@
+name: Temporary issue 880 test hygiene
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/temporary-issue-880-test-hygiene.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-hygiene:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Verify exact input head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Move EventSource reset to beforeEach
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("client/src/components/ProfessionalLayout.test.tsx")
+          text = path.read_text()
+          malformed = """      return () => {\n        mutationSubscriber = null;\n  EventSourceMock.instances = [];\n      };\n"""
+          clean = """      return () => {\n        mutationSubscriber = null;\n      };\n"""
+          if malformed not in text:
+              raise SystemExit("expected malformed unsubscribe block not found")
+          text = text.replace(malformed, clean, 1)
+          marker = """  querySubscriber = null;\n  mutationSubscriber = null;\n"""
+          replacement = marker + "  EventSourceMock.instances = [];\n"
+          if marker not in text:
+              raise SystemExit("beforeEach marker not found")
+          text = text.replace(marker, replacement, 1)
+          path.write_text(text)
+          PY
+          rm -f .github/workflows/temporary-issue-880-test-hygiene.yml
+          git diff --check
+      - name: Commit and push hygiene correction
+        run: |
+          git config user.name "solverit-orchestrator"
+          git config user.email "solverit-orchestrator@users.noreply.github.com"
+          git add -A
+          git commit -m "test: higienizar reset do stream profissional"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
