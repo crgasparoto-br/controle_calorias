@@ -1,10 +1,28 @@
+import { useSyncExternalStore } from "react";
 import { trpc as baseTrpc } from "../professional-home/trpcMock";
 
 const now = Date.UTC(2026, 6, 23, 18, 0, 0);
 const resolved = async () => undefined;
+export const VISUAL_PROFESSIONAL_STATE_EVENT =
+  "visual-professional-state-change";
 
 function visualState() {
   return new URLSearchParams(window.location.search).get("state") ?? "main";
+}
+
+function useVisualState() {
+  return useSyncExternalStore(
+    onStoreChange => {
+      window.addEventListener(VISUAL_PROFESSIONAL_STATE_EVENT, onStoreChange);
+      return () =>
+        window.removeEventListener(
+          VISUAL_PROFESSIONAL_STATE_EVENT,
+          onStoreChange
+        );
+    },
+    visualState,
+    () => "main"
+  );
 }
 
 function trackingStatusForState() {
@@ -223,14 +241,20 @@ trpc.useUtils = () => {
 
 Object.assign(trpc.professionalRecord, {
   context: {
-    useQuery: (input: { patientId: number }) => patientContextQuery(input),
+    useQuery: (input: { patientId: number }) => {
+      useVisualState();
+      return patientContextQuery(input);
+    },
   },
   get: {
     useQuery: (input: {
       patientId: number;
       page?: number;
       pageSize?: number;
-    }) => recordQuery(input),
+    }) => {
+      useVisualState();
+      return recordQuery(input);
+    },
   },
   saveAssessment: { useMutation: () => mutation() },
   createNote: { useMutation: () => mutation() },
