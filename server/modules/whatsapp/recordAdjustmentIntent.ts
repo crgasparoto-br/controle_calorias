@@ -4,6 +4,7 @@ import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFood
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import { handleQuantityCorrectionIntent } from "./intent/gramsAdjustmentHandlers";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
+import { hasMultipleWhatsappFoodReplacementCommands } from "./replacementCommandDetection";
 import type { WhatsAppLogicalReply } from "./replyContract";
 
 export type WhatsappRecordAdjustmentInput = {
@@ -31,12 +32,6 @@ type AdjustmentIntent =
   | { kind: "incomplete" };
 
 const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const REPLACEMENT_COMMAND_OCCURRENCE =
-  /(?:n[aã]o)\s+(?:é|e|era)(?=\s)|\b(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b/gi;
-
-export function hasMultipleWhatsappFoodReplacementCommands(text: string) {
-  return (text.match(REPLACEMENT_COMMAND_OCCURRENCE) ?? []).length > 1;
-}
 
 function normalizeText(value: string) {
   return value
