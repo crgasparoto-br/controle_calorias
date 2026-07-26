@@ -47,7 +47,9 @@ Ao trocar de paciente, sair da rota individual, perder autorização ou desativa
 4. redirecionar para a carteira quando o acesso não estiver mais disponível;
 5. preservar vínculos e histórico persistidos ao desativar a área, mas bloquear novas operações.
 
-A limpeza é acionada por refetch, foco ou erro de query/mutation que informe revogação ou ausência do vínculo. A negação do entitlement exato de `professionalRecord.context` é convertida para tRPC `FORBIDDEN` e também limpa o contexto. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+A limpeza é acionada imediatamente pelo canal SSE autenticado quando `revokeAccess` persiste a revogação, sem depender de clique, foco ou nova mutation do profissional. Refetch, foco e erros de query/mutation continuam como defesa em profundidade para reconexão ou indisponibilidade transitória do canal. A negação do entitlement exato de `professionalRecord.context` é convertida para tRPC `FORBIDDEN` e também limpa o contexto. `reset` isolado não é suficiente: as queries individuais precisam ser removidas do cache.
+
+O stream `/api/professional/access-events` autentica a sessão, valida o `patientId` e o entitlement exato antes de abrir a conexão, isola listeners pelo par profissional/paciente e envia somente `patientId` e `occurredAt`. A entrega local é imediata após a persistência; uma verificação server-side curta do status canônico cobre revogações processadas por outra instância sem criar polling no navegador. A desconexão remove o listener e não altera o estado autorizado; o contexto canônico continua sendo a fonte de verdade.
 
 Um `FORBIDDEN` não pode ser usado genericamente para inferir revogação quando pertence a uma capacidade complementar. Alertas ou IA ausentes não removem um paciente que continua autorizado para prontuário, relatórios ou mensagens.
 
@@ -61,7 +63,7 @@ Quando o acompanhamento está `ended`, qualquer rota individual diferente de `/h
 
 Avaliação, orientação, anotação e mensagem devem pedir confirmação antes de trocar de rota, paciente, usar voltar/avançar ou fechar a página quando houver conteúdo não salvo.
 
-- Ao escolher permanecer, o workspace e seus campos devem continuar montados com o rascunho preservado.
+- Ao escolher permanecer, o workspace e seus campos devem continuar montados com o rascunho preservado. Em navegadores com Navigation API, o evento `navigate` do tipo `traverse` é cancelado antes da troca de rota; o fallback legado restaura a entrada atual quando essa API não existe.
 - Ao confirmar o descarte, a navegação deve remontar o workspace da rota de destino antes de exibir o próximo formulário, eliminando os estados não salvos da rota anterior.
 - A troca de `patientId` sempre deve remontar o workspace, mesmo quando a seção da URL permanecer igual, para impedir reutilização de rascunho entre pacientes.
 - Salvar ou descartar deve permitir a navegação que encerra aquele rascunho. Se o profissional iniciar uma nova edição na mesma rota, o guard é rearmado e volta a exigir confirmação.
@@ -91,7 +93,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 1. Abrir diretamente cada rota individual e confirmar paciente e seção corretos.
 2. Trocar entre dois pacientes e confirmar que nenhum dado do anterior permanece visível.
 3. Revogar acesso com a tela aberta e confirmar limpeza e redirecionamento.
-4. Provocar revogação em uma query e em uma mutation e confirmar remoção imediata do conteúdo e do cache.
+4. Com o workspace aberto, revogar o vínculo em outra sessão e confirmar que o evento SSE remove conteúdo e cache sem clique, foco ou nova mutation do profissional; repetir por query e mutation como defesa em profundidade.
 5. Provocar uma resposta tardia do paciente anterior e confirmar que o paciente atual permanece aberto.
 6. Revogar o entitlement da rota e confirmar que o erro `FORBIDDEN` limpa o contexto atual.
 7. Remover somente alertas operacionais ou IA e confirmar que o paciente e o conteúdo principal da rota permanecem abertos.
@@ -117,4 +119,4 @@ A última atividade do cabeçalho vem do primeiro evento da timeline canônica j
 - Toda saída visível do workspace, incluindo **Minha alimentação**, subnavegação, navegação principal, retorno à carteira e troca de paciente, participa do mesmo contrato de proteção de rascunho.
 - A confirmação ocorre no máximo uma vez por tentativa de navegação. Uma confirmação já aceita pelo interceptor é reutilizada pelo handler da mesma transição.
 - Cancelar preserva rota, paciente e campos montados; confirmar o descarte permite a navegação e o remount da rota de destino; após salvar, não há diálogo.
-- O teste comportamental clica nos controles protegidos, verifica o número de chamadas a `window.confirm` e comprova que a navegação foi executada ou bloqueada conforme a decisão.
+- Os testes unitários verificam cliques e eventos `navigate` canceláveis. O gate visual executa `history.back()` no Chromium real com um formulário controlado preenchido: cancelar deve manter a URL e o valor; confirmar deve voltar ao resumo, desmontar o formulário e eliminar o rascunho.

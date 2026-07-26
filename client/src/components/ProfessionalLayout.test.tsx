@@ -77,6 +77,7 @@ const queryClient = {
       mutationSubscriber = subscriber;
       return () => {
         mutationSubscriber = null;
+  EventSourceMock.instances = [];
       };
     },
   }),
@@ -95,7 +96,31 @@ class ResizeObserverMock {
   unobserve() {}
   disconnect() {}
 }
+
+class EventSourceMock extends EventTarget {
+  static instances: EventSourceMock[] = [];
+  readonly url: string;
+  readonly withCredentials: boolean;
+  close = vi.fn();
+
+  constructor(url: string | URL, init?: EventSourceInit) {
+    super();
+    this.url = String(url);
+    this.withCredentials = Boolean(init?.withCredentials);
+    EventSourceMock.instances.push(this);
+  }
+
+  emitRevocation(patientId: number) {
+    this.dispatchEvent(
+      new MessageEvent("access_revoked", {
+        data: JSON.stringify({ patientId, occurredAt: Date.now() }),
+      })
+    );
+  }
+}
+
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+vi.stubGlobal("EventSource", EventSourceMock);
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => queryClient,
@@ -313,6 +338,41 @@ describe("ProfessionalLayout", () => {
 
     await waitFor(() => expect(screen.getByText("Bruno")).toBeTruthy());
     expect(removeQueries).toHaveBeenCalled();
+  });
+
+  it("removes visible data immediately when the authenticated event stream reports external revocation", async () => {
+    location = "/professional/patients/10/reports";
+    renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    await waitFor(() => expect(EventSourceMock.instances).toHaveLength(1));
+    expect(EventSourceMock.instances[0].url).toContain("patientId=10");
+    expect(EventSourceMock.instances[0].url).toContain(
+      "resource=professional_reports"
+    );
+
+    EventSourceMock.instances[0].emitRevocation(10);
+
+    await waitFor(() =>
+      expect(setLocation).toHaveBeenCalledWith(
+        "/professional/patients?notice=patient-access-unavailable"
+      )
+    );
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
+    expect(removeQueries).toHaveBeenCalled();
+  });
+
+  it("ignores an external revocation event for another patient", async () => {
+    location = "/professional/patients/10/reports";
+    renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    await waitFor(() => expect(EventSourceMock.instances).toHaveLength(1));
+
+    EventSourceMock.instances[0].emitRevocation(20);
+
+    await Promise.resolve();
+    expect(setLocation).not.toHaveBeenCalled();
+    expect(screen.getByText("Ana")).toBeTruthy();
+    expect(removeQueries).not.toHaveBeenCalled();
   });
 
   it("removes context immediately when a query reports revoked access", async () => {

@@ -17,6 +17,7 @@ import {
   professionalPatientResourceForRoute,
 } from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
+import { useProfessionalAccessRevocationStream } from "@/hooks/useProfessionalAccessRevocationStream";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -373,6 +374,13 @@ export default function ProfessionalLayout({
       revocationInProgressRef.current = false;
     });
   }, [clearPatientQueries, invalidatePatientContext, setLocation]);
+
+  useProfessionalAccessRevocationStream({
+    enabled: Boolean(selectedPatient),
+    patientId: routePatientId,
+    resource: patientResource,
+    onRevoked: revokePatientContext,
+  });
 
   const clearPatient = useCallback(() => {
     invalidatePatientContext();

@@ -40,6 +40,7 @@ import {
 } from "./portfolioPagination";
 import { professionalContentRepository } from "./contentPersistenceService";
 import { professionalPortfolioRepository } from "../../repositories/professionalPortfolioRepository";
+import { publishProfessionalAccessRevoked } from "./accessRevocationEvents";
 import type { CanonicalProfessionalAuthorization } from "./persistence";
 import type {
   AppendProfessionalHistoryInput,
@@ -1022,12 +1023,22 @@ export async function revokePatientAccess(
     "revoked",
     "web"
   );
-  await pushHistory({
-    actorUserId: patientUserId,
-    professionalUserId: access.professionalUserId,
-    patientUserId,
-    eventType: "access_revoked",
-  });
+  try {
+    await pushHistory({
+      actorUserId: patientUserId,
+      professionalUserId: access.professionalUserId,
+      patientUserId,
+      eventType: "access_revoked",
+    });
+  } finally {
+    publishProfessionalAccessRevoked({
+      type: "access_revoked",
+      professionalUserId: access.professionalUserId,
+      patientUserId,
+      authorizationId: access.id,
+      occurredAt: revoked.revokedAt ?? Date.now(),
+    });
+  }
   return publicAccess(revoked);
 }
 

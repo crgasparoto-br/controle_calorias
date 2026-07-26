@@ -68,8 +68,9 @@ A ordenação da carteira identificável é estável por identificação exibív
 - Recursos complementares, como alertas operacionais e assistência de IA, continuam com entitlements próprios. A ausência deles é tratada como capacidade indisponível e não como revogação do vínculo ou do entitlement principal da rota.
 - APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e entitlement no backend; a proteção visual não substitui autorização.
 - Perfil e contexto do paciente são revalidados periodicamente e quando a janela recupera o foco.
-- Na troca de paciente, saída para **Minha alimentação**, perda de autorização, perda do perfil ou desmontagem do shell, consultas individuais são canceladas e removidas do cache antes de outro paciente ficar visível.
-- Erros de query ou mutation que informem revogação removem imediatamente o contexto e os dados visíveis e retornam com segurança à carteira. O retry de uma mensagem confirma novamente a autorização e devolve `FORBIDDEN` quando o vínculo já não está aprovado, sem confundir uma tentativa concorrente já consumida com revogação.
+- Enquanto uma rota individual autorizada permanece aberta, o navegador mantém um canal SSE autenticado em `/api/professional/access-events`, limitado ao `patientId` e ao entitlement exato da rota. A revogação persistida publica `access_revoked` somente para o par profissional/paciente correspondente; o payload público contém apenas `patientId` e `occurredAt`. O stream também relê periodicamente o status canônico da autorização para detectar revogações processadas por outra instância, sem polling do cliente.
+- Na troca de paciente, saída para **Minha alimentação**, perda de autorização, evento de revogação, perda do perfil ou desmontagem do shell, o canal é fechado e as consultas individuais são canceladas e removidas do cache antes de outro paciente ficar visível.
+- O evento SSE, assim como erros de query ou mutation que informem revogação, remove imediatamente o contexto e os dados visíveis e retorna com segurança à carteira. O retry de uma mensagem confirma novamente a autorização e devolve `FORBIDDEN` quando o vínculo já não está aprovado, sem confundir uma tentativa concorrente já consumida com revogação.
 - Falha temporária, rede, timeout, indisponibilidade ou erro não autoritativo durante a abertura mantém o paciente visível e oferece nova tentativa. Somente negação confirmada remove o card e os dados obsoletos.
 - Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
 - Falhas temporárias de timezone ou bundle no relatório individual mantêm os dados parciais ocultos e oferecem a ação **Tentar novamente** no próprio contexto do relatório.
@@ -123,7 +124,7 @@ Os testes cobrem:
 - troca entre pacientes com cancelamento e remoção dos dados anteriores;
 - remount equivalente a reload/nova aba, caller tRPC independente e navegação voltar/avançar derivada da URL;
 - navegação rápida voltar/avançar sem aplicar transição tardia;
-- revogação detectada por query e mutation com limpeza imediata, incluindo retry de mensagem após revogação;
+- revogação entregue pelo canal SSE autenticado sem interação adicional do profissional, além da detecção por query e mutation e do retry de mensagem após revogação;
 - retries explícitos para falhas de timezone e bundle do relatório individual;
 - limpeza do contexto ao voltar para a experiência pessoal;
 - redirects de `/professional/follow-up` e `/professional/legacy`;

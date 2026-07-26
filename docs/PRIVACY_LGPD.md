@@ -53,6 +53,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
 - Eventos internos de comprovante de acesso não podem ser retornados por históricos públicos nem conter o contato solicitado.
 - A resolução de comprovante em aprovação ou revogação deve validar que o usuário autenticado é o paciente dono da autorização; comprovantes apresentados por terceiros não podem revelar associação ou existência.
+- O stream SSE de revogação profissional exige sessão autenticada e autorização vigente na abertura, isola conexões por profissional e paciente e transmite somente `patientId` e instante da revogação; nome, contato, conteúdo clínico, motivo e identificador da autorização não atravessam o stream.
 
 ## Contexto persistente do WhatsApp
 

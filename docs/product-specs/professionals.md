@@ -178,7 +178,7 @@ Estados:
 - `rejected`;
 - `revoked`.
 
-A revogação bloqueia imediatamente novas consultas e mutações profissionais, inclusive em páginas já abertas.
+A revogação bloqueia imediatamente novas consultas e mutações profissionais, inclusive em páginas já abertas. Uma conexão SSE autenticada e vinculada ao paciente ativo remove o conteúdo já renderizado sem exigir nova interação do profissional; refetch e validações de cada operação permanecem como defesa em profundidade.
 
 ### Acompanhamento
 

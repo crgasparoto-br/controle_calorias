@@ -204,6 +204,49 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
   }, [dirty]);
 
   useEffect(() => {
+    const navigation = (
+      window as Window & {
+        navigation?: EventTarget;
+      }
+    ).navigation;
+    if (!navigation) return;
+
+    const guardTraversal = (event: Event) => {
+      const navigateEvent = event as Event & { navigationType?: string };
+      if (
+        !dirty ||
+        allowNavigationRef.current ||
+        navigateEvent.navigationType !== "traverse"
+      ) {
+        return;
+      }
+      if (!window.confirm(UNSAVED_MESSAGE)) {
+        if (event.cancelable) {
+          event.preventDefault();
+          return;
+        }
+        window.history.pushState(
+          { professionalDraftGuard: true },
+          "",
+          currentPath
+        );
+        return;
+      }
+      allowNavigationRef.current = true;
+    };
+
+    navigation.addEventListener("navigate", guardTraversal);
+    return () => navigation.removeEventListener("navigate", guardTraversal);
+  }, [currentPath, dirty]);
+
+  useEffect(() => {
+    const navigation = (
+      window as Window & {
+        navigation?: EventTarget;
+      }
+    ).navigation;
+    if (navigation) return;
+
     const guardBack = () => {
       if (!dirty || allowNavigationRef.current) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {

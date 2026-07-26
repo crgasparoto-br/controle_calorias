@@ -70,7 +70,14 @@ function NavigationHarness({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  Reflect.deleteProperty(window, "navigation");
 });
+
+function traversalEvent() {
+  const event = new Event("navigate", { cancelable: true });
+  Object.defineProperty(event, "navigationType", { value: "traverse" });
+  return event;
+}
 
 describe("professional workspace unsaved navigation", () => {
   it("uses exactly one confirmation when discard is accepted", async () => {
@@ -132,6 +139,40 @@ describe("professional workspace unsaved navigation", () => {
 
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("cancels browser back or forward before the route changes when the draft is kept", () => {
+    const navigation = new EventTarget();
+    Object.defineProperty(window, "navigation", {
+      configurable: true,
+      value: navigation,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<NavigationHarness onNavigate={vi.fn()} />);
+
+    const event = traversalEvent();
+    const notCancelled = navigation.dispatchEvent(event);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(notCancelled).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("allows browser back or forward after explicit discard", () => {
+    const navigation = new EventTarget();
+    Object.defineProperty(window, "navigation", {
+      configurable: true,
+      value: navigation,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<NavigationHarness onNavigate={vi.fn()} />);
+
+    const event = traversalEvent();
+    const notCancelled = navigation.dispatchEvent(event);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(notCancelled).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it("does not ask for confirmation after the draft is clean", async () => {

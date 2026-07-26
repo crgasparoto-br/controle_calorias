@@ -1,8 +1,25 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React, { useLayoutEffect } from "react";
+import React, { useEffect, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import ProfessionalAreaPage from "../../client/src/pages/ProfessionalAreaPage";
 import "../professional-home/visual.css";
+
+const draftHistoryScenario = new URLSearchParams(window.location.search).get(
+  "draft-history"
+);
+if (draftHistoryScenario) {
+  const requestedUrl = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(
+    { visualDraftHistory: "previous" },
+    "",
+    "/professional/patients/1"
+  );
+  window.history.pushState(
+    { visualDraftHistory: "current" },
+    "",
+    requestedUrl
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +59,50 @@ function writeVisualDiagnostics() {
 }
 
 function VisualProfessionalPatientWorkspace() {
+  useEffect(() => {
+    if (!draftHistoryScenario) return;
+
+    const run = window.setTimeout(() => {
+      const draft = document.querySelector<HTMLTextAreaElement>("textarea");
+      if (!draft) {
+        document.documentElement.dataset.visualDraftHistoryError =
+          "draft-field-not-found";
+        return;
+      }
+
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set;
+      valueSetter?.call(draft, "Rascunho preservado no histórico");
+      draft.dispatchEvent(new Event("input", { bubbles: true }));
+
+      let confirmations = 0;
+      window.confirm = () => {
+        confirmations += 1;
+        return draftHistoryScenario === "accept";
+      };
+      window.history.back();
+
+      window.setTimeout(() => {
+        const currentDraft = document.querySelector<HTMLTextAreaElement>(
+          "textarea"
+        );
+        document.documentElement.dataset.visualDraftHistoryScenario =
+          draftHistoryScenario;
+        document.documentElement.dataset.visualDraftHistoryConfirmations =
+          String(confirmations);
+        document.documentElement.dataset.visualDraftHistoryPath =
+          window.location.pathname;
+        document.documentElement.dataset.visualDraftHistoryPreserved = String(
+          currentDraft?.value === "Rascunho preservado no histórico"
+        );
+      }, 800);
+    }, 600);
+
+    return () => window.clearTimeout(run);
+  }, []);
+
   useLayoutEffect(() => {
     const timer = window.setTimeout(writeVisualDiagnostics, 800);
     window.addEventListener("resize", writeVisualDiagnostics);
