@@ -66,37 +66,49 @@ describe("simulateWhatsappInbound com substituições multiline", () => {
     });
   });
 
-  it("alcança o handler contextual e não segue para fallback", async () => {
-    const text =
-      "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada";
-    const receivedAt = new Date("2026-07-26T12:05:00.000Z");
+  it.each([
+    [
+      "quebra de linha",
+      "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada",
+      "issue-918-simulator-multiline",
+    ],
+    [
+      "ponto e vírgula sem espaço",
+      "Trocar requeijão por maionese;Trocar presunto por mortadela defumada",
+      "issue-918-simulator-semicolon",
+    ],
+  ])(
+    "alcança o handler contextual e não segue para fallback com %s",
+    async (_label, text, messageId) => {
+      const receivedAt = new Date("2026-07-26T12:05:00.000Z");
 
-    const result = await simulateWhatsappInbound(42, {
-      text,
-      receivedAt,
-      userTimezone: "America/Sao_Paulo",
-      messageId: "issue-918-simulator",
-    });
+      const result = await simulateWhatsappInbound(42, {
+        text,
+        receivedAt,
+        userTimezone: "America/Sao_Paulo",
+        messageId,
+      });
 
-    expect(
-      executeWhatsappContextualFoodReplacementIntentMock
-    ).toHaveBeenCalledOnce();
-    expect(
-      executeWhatsappContextualFoodReplacementIntentMock
-    ).toHaveBeenCalledWith(42, {
-      text,
-      receivedAt,
-      userTimezone: "America/Sao_Paulo",
-    });
-    expect(result).toEqual(
-      expect.objectContaining({
-        handled: true,
-        action: "meal_item_replaced",
-        data: expect.objectContaining({ mealIds: [10] }),
-      })
-    );
-    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
-    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
-    expect(processMealDraftMock).not.toHaveBeenCalled();
-  });
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledOnce();
+      expect(
+        executeWhatsappContextualFoodReplacementIntentMock
+      ).toHaveBeenCalledWith(42, {
+        text,
+        receivedAt,
+        userTimezone: "America/Sao_Paulo",
+      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          handled: true,
+          action: "meal_item_replaced",
+          data: expect.objectContaining({ mealIds: [10] }),
+        })
+      );
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+    }
+  );
 });
