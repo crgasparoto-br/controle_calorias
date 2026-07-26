@@ -62,6 +62,31 @@ const sections: Array<{
   { section: "history", label: "Histórico", icon: History },
 ];
 
+const headerActionLabels: Partial<Record<ProfessionalPatientSection, string>> =
+  {
+    record: "Ir ao resumo",
+    assessment: "Registrar avaliação",
+    goals: "Revisar metas",
+    guidance: "Nova orientação",
+    messages: "Mensagem administrativa",
+    history: "Ver histórico",
+  };
+
+export function professionalPatientHeaderActionSections(
+  trackingStatus: "not_started" | "active" | "paused" | "ended",
+  currentSection: ProfessionalPatientSection
+): ProfessionalPatientSection[] {
+  const allowed: ProfessionalPatientSection[] =
+    trackingStatus === "active"
+      ? ["assessment", "goals", "guidance"]
+      : trackingStatus === "paused"
+        ? ["messages", "history"]
+        : trackingStatus === "ended"
+          ? ["history"]
+          : ["record"];
+  return allowed.filter(section => section !== currentSection);
+}
+
 const historyEventLabels: Record<string, string> = {
   access_requested: "Acesso profissional solicitado",
   access_approved: "Acesso profissional aprovado",
@@ -127,12 +152,6 @@ const emptyAssessment: AssessmentDraft = {
   assessedAt: "",
   nextReviewAt: "",
 };
-
-export function getLatestPatientActivityAt(record: {
-  timeline?: Array<{ occurredAt?: number | null }>;
-}) {
-  return record.timeline?.[0]?.occurredAt ?? null;
-}
 
 function formatDate(value: number | null | undefined) {
   return value
@@ -252,6 +271,48 @@ function PatientSubnav({
         );
       })}
     </nav>
+  );
+}
+
+function PatientHeaderActions({
+  currentSection,
+  navigate,
+  patientId,
+  trackingStatus,
+}: {
+  currentSection: ProfessionalPatientSection;
+  navigate: (path: string) => void;
+  patientId: number;
+  trackingStatus: "not_started" | "active" | "paused" | "ended";
+}) {
+  const actionSections = professionalPatientHeaderActionSections(
+    trackingStatus,
+    currentSection
+  );
+  if (!actionSections.length) return null;
+  return (
+    <>
+      {actionSections.map(actionSection => {
+        const item = sections.find(
+          section => section.section === actionSection
+        );
+        if (!item) return null;
+        return (
+          <Button
+            key={actionSection}
+            size="sm"
+            variant="outline"
+            data-professional-navigation
+            onClick={() =>
+              navigate(professionalPatientPath(patientId, actionSection))
+            }
+          >
+            <item.icon className="h-4 w-4" />
+            {headerActionLabels[actionSection] ?? item.label}
+          </Button>
+        );
+      })}
+    </>
   );
 }
 
@@ -905,7 +966,6 @@ export default function ProfessionalPatientWorkspace() {
     selectedPatient.trackingStatus ??
     "not_started";
   const active = trackingStatus === "active";
-  const latest = professionalRecord?.latestAssessment ?? null;
   const transition = (nextStatus: "active" | "paused" | "ended") => {
     if (!professionalRecord) return;
     transitionTracking.mutate({
@@ -995,10 +1055,19 @@ export default function ProfessionalPatientWorkspace() {
         }
       />
       <ProfessionalPatientHeader
+        actions={
+          <PatientHeaderActions
+            currentSection={section}
+            navigate={navigate}
+            patientId={patientId}
+            trackingStatus={trackingStatus}
+          />
+        }
+        authorizationStatus={selectedPatient.authorizationStatus ?? "approved"}
         displayName={selectedPatient.displayName}
         trackingStatus={trackingStatus}
-        lastActivityAt={getLatestPatientActivityAt(professionalRecord ?? {})}
-        nextReviewAt={latest?.nextReviewAt}
+        lastActivityAt={selectedPatient.lastActivityAt ?? null}
+        nextReviewAt={selectedPatient.nextReviewAt ?? null}
       />
       <PatientSubnav
         activeSection={section}

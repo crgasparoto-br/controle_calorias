@@ -44,6 +44,9 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 export type ProfessionalPatientContext = {
   patientId: number;
   displayName: string;
+  authorizationStatus?: "approved";
+  lastActivityAt?: number | null;
+  nextReviewAt?: number | null;
   trackingStatus: "not_started" | "active" | "paused" | "ended";
 };
 
@@ -105,7 +108,9 @@ const professionalPatientMutationPaths = new Set([
 
 function operationPath(operationKey: unknown) {
   if (!Array.isArray(operationKey)) return null;
-  const candidate = Array.isArray(operationKey[0]) ? operationKey[0] : operationKey;
+  const candidate = Array.isArray(operationKey[0])
+    ? operationKey[0]
+    : operationKey;
   return candidate.every(item => typeof item === "string")
     ? candidate.join(".")
     : null;
@@ -283,16 +288,20 @@ export default function ProfessionalLayout({
   const hasActiveProfile = Boolean(
     user?.professionalProfileActive && profile.data?.active
   );
-  const contextInput = routePatientId && patientResource
-    ? { patientId: routePatientId, resource: patientResource }
-    : { patientId: 1, resource: "professional_record" as const };
-  const patientContext = trpc.professionalRecord.context.useQuery(contextInput, {
-    enabled: Boolean(hasActiveProfile && routePatientId && patientResource),
-    retry: false,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchInterval: 30_000,
-  });
+  const contextInput =
+    routePatientId && patientResource
+      ? { patientId: routePatientId, resource: patientResource }
+      : { patientId: 1, resource: "professional_record" as const };
+  const patientContext = trpc.professionalRecord.context.useQuery(
+    contextInput,
+    {
+      enabled: Boolean(hasActiveProfile && routePatientId && patientResource),
+      retry: false,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      refetchInterval: 30_000,
+    }
+  );
 
   const profileValidated = Boolean(
     profile.isSuccess && profile.isFetchedAfterMount && !profile.isFetching
@@ -318,6 +327,9 @@ export default function ProfessionalLayout({
     return {
       patientId: patientContext.data.patientId,
       displayName: patientContext.data.displayName,
+      authorizationStatus: patientContext.data.authorizationStatus,
+      lastActivityAt: patientContext.data.lastActivityAt,
+      nextReviewAt: patientContext.data.nextReviewAt,
       trackingStatus: patientContext.data.trackingStatus,
     };
   }, [
@@ -387,8 +399,11 @@ export default function ProfessionalLayout({
       options?: { mutationKey?: unknown };
       state?: { error?: unknown; submittedAt?: number; variables?: unknown };
     }) => {
-      const variablePatientId = patientIdFromOperation(mutation.state?.variables);
-      if (variablePatientId !== null) return variablePatientId === routePatientId;
+      const variablePatientId = patientIdFromOperation(
+        mutation.state?.variables
+      );
+      if (variablePatientId !== null)
+        return variablePatientId === routePatientId;
       const path = operationPath(mutation.options?.mutationKey);
       return Boolean(
         path &&
@@ -412,7 +427,9 @@ export default function ProfessionalLayout({
         if (
           event.type === "updated" &&
           mutationTargetsCurrentPatient(event.mutation) &&
-          isProfessionalPatientAccessUnavailableError(event.mutation.state.error)
+          isProfessionalPatientAccessUnavailableError(
+            event.mutation.state.error
+          )
         ) {
           revokePatientContext();
         }
@@ -557,8 +574,8 @@ export default function ProfessionalLayout({
             Não foi possível confirmar seu acesso
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Verifique sua conexão e tente novamente. Nenhum dado profissional foi
-            exibido.
+            Verifique sua conexão e tente novamente. Nenhum dado profissional
+            foi exibido.
           </p>
           <Button className="mt-6" onClick={() => void profile.refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -716,8 +733,8 @@ export default function ProfessionalLayout({
                 role="status"
                 className="mb-4 rounded-2xl border bg-card p-4 text-sm"
               >
-                O acesso a esse paciente não está mais disponível. A carteira foi
-                atualizada e nenhum dado anterior permaneceu visível.
+                O acesso a esse paciente não está mais disponível. A carteira
+                foi atualizada e nenhum dado anterior permaneceu visível.
               </div>
             ) : null}
 

@@ -26,6 +26,9 @@ vi.mock("@/components/ProfessionalLayout", () => ({
     selectedPatient: {
       patientId: 41,
       displayName: "Paciente autorizado",
+      authorizationStatus: "approved",
+      lastActivityAt: Date.UTC(2026, 6, 24, 15, 30),
+      nextReviewAt: Date.UTC(2026, 7, 5, 12),
       trackingStatus: "active",
     },
   }),
@@ -49,7 +52,9 @@ vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
   ProfessionalAsyncState: ({ title }: { title: string }) => <div>{title}</div>,
-  ProfessionalLoadingState: ({ label }: { label: string }) => <div>{label}</div>,
+  ProfessionalLoadingState: ({ label }: { label: string }) => (
+    <div>{label}</div>
+  ),
   ProfessionalPage: ({ children }: { children: React.ReactNode }) => (
     <main>{children}</main>
   ),
@@ -66,10 +71,23 @@ vi.mock("@/components/professional/ProfessionalUi", () => ({
     </header>
   ),
   ProfessionalPatientHeader: ({
+    actions,
+    lastActivityAt,
+    nextReviewAt,
     trackingStatus,
   }: {
+    actions?: React.ReactNode;
+    lastActivityAt?: number | null;
+    nextReviewAt?: number | null;
     trackingStatus: string;
-  }) => <div>Estado do paciente: {trackingStatus}</div>,
+  }) => (
+    <div>
+      <span>Estado do paciente: {trackingStatus}</span>
+      <span>Última atividade estável: {lastActivityAt}</span>
+      <span>Próxima revisão estável: {nextReviewAt}</span>
+      {actions}
+    </div>
+  ),
   ProfessionalSplitLayout: ({
     children,
     aside,
@@ -94,15 +112,27 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 vi.mock("@/components/ui/card", () => ({
-  Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
-  CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  Card: ({ children }: { children: React.ReactNode }) => (
+    <section>{children}</section>
+  ),
+  CardContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  CardDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  CardHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  CardTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
 }));
 
 vi.mock("@/components/ui/input", () => ({
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} />
+  ),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -193,6 +223,14 @@ describe("ProfessionalPatientWorkspace access isolation", () => {
 
     expect(screen.getByText("Relatório individual carregado")).toBeTruthy();
     expect(screen.getByText("Estado do paciente: active")).toBeTruthy();
+    expect(
+      screen.getByText(
+        `Última atividade estável: ${Date.UTC(2026, 6, 24, 15, 30)}`
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(`Próxima revisão estável: ${Date.UTC(2026, 7, 5, 12)}`)
+    ).toBeTruthy();
     expect(getQuery).toHaveBeenCalledWith(
       { patientId: 41, page: 1, pageSize: 20 },
       expect.objectContaining({ enabled: false, refetchInterval: false })
@@ -207,6 +245,14 @@ describe("ProfessionalPatientWorkspace access isolation", () => {
     render(<ProfessionalPatientWorkspace />);
 
     expect(screen.getByText("Conversa individual carregada")).toBeTruthy();
+    expect(
+      screen.getByText(
+        `Última atividade estável: ${Date.UTC(2026, 6, 24, 15, 30)}`
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(`Próxima revisão estável: ${Date.UTC(2026, 7, 5, 12)}`)
+    ).toBeTruthy();
     expect(getQuery).toHaveBeenCalledWith(
       { patientId: 41, page: 1, pageSize: 20 },
       expect.objectContaining({ enabled: false, refetchInterval: false })

@@ -34,6 +34,8 @@ beforeEach(() => {
         patientName: "Ana",
         patientEmail: "ana@example.com",
         trackingStatus: "paused",
+        lastActivityAt: new Date("2026-07-24T15:30:00.000Z"),
+        nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
       },
     ],
   ]);
@@ -54,7 +56,38 @@ describe("getProfessionalPatientContext", () => {
       patientId: 41,
       authorizationId: "authorization-1",
       displayName: "Ana",
+      authorizationStatus: "approved",
+      lastActivityAt: Date.parse("2026-07-24T15:30:00.000Z"),
+      nextReviewAt: Date.parse("2026-08-05T12:00:00.000Z"),
       trackingStatus: "paused",
+    });
+  });
+
+  it("returns explicit nulls when stable header metadata is absent", async () => {
+    mocks.execute.mockResolvedValueOnce([
+      [
+        {
+          authorizationId: "authorization-1",
+          patientUserId: 41,
+          patientName: "Ana",
+          patientEmail: "ana@example.com",
+          trackingStatus: "active",
+          lastActivityAt: null,
+          nextReviewAt: null,
+        },
+      ],
+    ]);
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_messages",
+      })
+    ).resolves.toMatchObject({
+      authorizationStatus: "approved",
+      lastActivityAt: null,
+      nextReviewAt: null,
+      trackingStatus: "active",
     });
   });
 

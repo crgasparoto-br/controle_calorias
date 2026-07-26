@@ -93,7 +93,7 @@ capture "guidance-notebook-1366x768" "1366,768" "$GUIDANCE_URL"
 capture "notes-mobile-390x1200" "390,1200" "$NOTES_URL"
 capture "history-desktop-1366x768" "1366,768" "$HISTORY_URL"
 capture "paused-assessment-1366x768" "1366,768" "$ASSESSMENT_URL?state=paused"
-capture "ended-history-390x1200" "390,1200" "$BASE_URL?state=ended"
+capture "ended-history-390x1200" "390,1200" "$HISTORY_URL?state=ended"
 capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=patient-loading"
 capture "error-desktop-1366x768" "1366,768" "$BASE_URL?state=patient-error"
 
@@ -144,10 +144,12 @@ assert_dom \
   "Novas avaliações ficam bloqueadas enquanto o acompanhamento não estiver ativo."
 assert_dom \
   "ended" \
-  "$BASE_URL?state=ended" \
+  "$HISTORY_URL?state=ended" \
+  "Acompanhamento encerrado" \
+  "Encerrado" \
   "Linha do tempo profissional" \
   "Histórico"
-for forbidden in "Ciclo de acompanhamento" "Salvar nova versão" "Nova orientação ao paciente" "Nova anotação privada"; do
+for forbidden in "Ativo" "Paciente em acompanhamento" "Ciclo de acompanhamento" "Salvar nova versão" "Nova orientação ao paciente" "Nova anotação privada"; do
   if grep -Fq "$forbidden" "$OUTPUT_DIR/ended.html"; then
     echo "Ended tracking exposed a non-audit surface: $forbidden"
     exit 1

@@ -41,6 +41,9 @@ function patientContextQuery(input: { patientId: number }) {
   return querySuccess({
     patientId: input.patientId,
     displayName: "Mariana de Almeida Vasconcelos e Silva",
+    authorizationStatus: "approved" as const,
+    lastActivityAt: now - 45 * 60_000,
+    nextReviewAt: now + 12 * 86_400_000,
     trackingStatus: trackingStatusForState(),
   });
 }
@@ -122,7 +125,8 @@ function recordQuery(input: {
       {
         id: "assessment-1",
         version: 1,
-        objective: "Organizar horários e aumentar a regularidade das refeições.",
+        objective:
+          "Organizar horários e aumentar a regularidade das refeições.",
         assessedAt: now - 30 * 86_400_000,
       },
     ],

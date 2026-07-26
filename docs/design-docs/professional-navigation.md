@@ -60,6 +60,7 @@ A ordenação da carteira identificável é estável por identificação exibív
 - O shell consulta o perfil profissional canônico antes de exibir o conteúdo e diferencia carregamento, sessão ausente, perfil inativo e falha de validação.
 - A URL é a única fonte de verdade do paciente e da seção ativa. `selectedPatient` é apenas projeção derivada da rota depois da revalidação.
 - `professionalRecord.context` recebe o `patientId` e o recurso exato da rota, revalidando perfil ativo, entitlement e autorização `approved`.
+- A mesma resposta produz a projeção mínima e estável do cabeçalho: autorização aprovada, acompanhamento, último registro alimentar confirmado e próxima revisão do tracking. Esses campos independem da página atual da timeline e permanecem disponíveis em prontuário, relatórios e mensagens sem introduzir dependência indireta de `professional_record`.
 - A ação **Abrir paciente** da carteira usa `professionalRecord.context` com `professional_record`, que é o recurso exato da rota raiz do prontuário. `patientTimeZone` não é usado como preflight de autorização.
 - Negação do entitlement exato de `professionalRecord.context` é devolvida como tRPC `FORBIDDEN`, permitindo limpar o contexto e redirecionar imediatamente.
 - Prontuário, avaliação, metas, orientações, anotações e histórico usam `professional_record`; relatórios usam `professional_reports`; mensagens usam `professional_messages`.
@@ -82,6 +83,7 @@ A ordenação da carteira identificável é estável por identificação exibív
 - O controle da barra lateral possui nome acessível e continua disponível no comportamento responsivo do componente de sidebar.
 - Mudanças de rota atualizam o título do documento e movem o foco programaticamente para o conteúdo principal com `preventScroll`.
 - O contexto do paciente usa região viva para anunciar alterações sem depender apenas de cor ou posição visual.
+- O cabeçalho nomeia explicitamente acompanhamento não iniciado, ativo, pausado ou encerrado e oferece somente atalhos compatíveis com o estado: ações clínicas durante acompanhamento ativo, comunicação administrativa e histórico durante pausa, e apenas histórico após encerramento.
 - A subnavegação individual é rolável horizontalmente quando necessário e preserva ações e nomes acessíveis.
 
 ## Migração e compatibilidade

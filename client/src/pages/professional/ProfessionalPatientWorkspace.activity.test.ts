@@ -1,16 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { getLatestPatientActivityAt } from "./ProfessionalPatientWorkspace";
+import { professionalPatientHeaderActionSections } from "./ProfessionalPatientWorkspace";
 
-describe("workspace patient activity", () => {
-  it("uses canonical timeline activity instead of the review date", () => {
-    const activityAt = Date.UTC(2026, 6, 25, 18, 30);
-    const reviewAt = Date.UTC(2026, 7, 20, 12);
-    const record = { latestAssessment: { nextReviewAt: reviewAt }, timeline: [{ occurredAt: activityAt }] };
-    expect(getLatestPatientActivityAt(record)).toBe(activityAt);
-    expect(getLatestPatientActivityAt(record)).not.toBe(reviewAt);
+describe("workspace patient header actions", () => {
+  it("offers active clinical shortcuts without repeating the current section", () => {
+    expect(professionalPatientHeaderActionSections("active", "record")).toEqual(
+      ["assessment", "goals", "guidance"]
+    );
+    expect(professionalPatientHeaderActionSections("active", "goals")).toEqual([
+      "assessment",
+      "guidance",
+    ]);
   });
-  it("returns null without timeline activity", () => {
-    expect(getLatestPatientActivityAt({ timeline: [] })).toBeNull();
-    expect(getLatestPatientActivityAt({})).toBeNull();
+
+  it("limits paused tracking to administrative messaging and history", () => {
+    expect(professionalPatientHeaderActionSections("paused", "record")).toEqual(
+      ["messages", "history"]
+    );
+  });
+
+  it("keeps ended tracking restricted to history", () => {
+    expect(professionalPatientHeaderActionSections("ended", "record")).toEqual([
+      "history",
+    ]);
+    expect(professionalPatientHeaderActionSections("ended", "history")).toEqual(
+      []
+    );
+  });
+
+  it("routes not-started tracking back to the summary before intervention", () => {
+    expect(
+      professionalPatientHeaderActionSections("not_started", "assessment")
+    ).toEqual(["record"]);
   });
 });

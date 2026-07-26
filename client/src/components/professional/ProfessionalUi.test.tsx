@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   professionalLabel,
   ProfessionalAsyncState,
+  ProfessionalPatientHeader,
   ProfessionalStatusBadge,
 } from "./ProfessionalUi";
 
@@ -32,6 +33,28 @@ describe("shared professional states", () => {
     );
     expect(html).toContain("Atenção");
     expect(html).toContain("svg");
+  });
+
+  it("describes ended tracking without presenting it as active", () => {
+    const html = renderToString(
+      <ProfessionalPatientHeader
+        actions={<button type="button">Ver histórico</button>}
+        displayName="Ana"
+        trackingStatus="ended"
+      />
+    );
+    expect(html).toContain("Acompanhamento encerrado");
+    expect(html).toContain("Encerrado");
+    expect(html).toContain("Ver histórico");
+    expect(html).not.toContain("Paciente em acompanhamento");
+  });
+
+  it("describes paused tracking explicitly", () => {
+    const html = renderToString(
+      <ProfessionalPatientHeader displayName="Ana" trackingStatus="paused" />
+    );
+    expect(html).toContain("Acompanhamento pausado");
+    expect(html).toContain("Pausado");
   });
 
   it("announces recoverable errors and retry", () => {

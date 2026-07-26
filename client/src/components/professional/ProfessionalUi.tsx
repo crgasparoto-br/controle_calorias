@@ -66,27 +66,38 @@ const statusIcons = {
 
 const statusClasses: Record<ProfessionalStatusKind, Record<string, string>> = {
   authorization: {
-    approved: "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
-    pending: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
-    rejected: "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
+    approved:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
+    pending:
+      "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+    rejected:
+      "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
     revoked: "border-destructive/40 bg-destructive/10 text-destructive",
   },
   tracking: {
-    active: "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
-    not_started: "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
-    paused: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
-    ended: "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
+    active:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
+    not_started:
+      "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
+    paused:
+      "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+    ended:
+      "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
   },
   message: {
-    draft: "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
-    pending: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+    draft:
+      "border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200",
+    pending:
+      "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
     sent: "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
     failed: "border-destructive/40 bg-destructive/10 text-destructive",
-    received: "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
+    received:
+      "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
   },
   severity: {
     urgent: "border-destructive/40 bg-destructive/10 text-destructive",
-    attention: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+    attention:
+      "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200",
     info: "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200",
   },
 };
@@ -162,7 +173,9 @@ export function ProfessionalPageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
     </header>
   );
@@ -200,7 +213,11 @@ export function ProfessionalAsyncState({
   variant?: "card" | "panel";
 }) {
   const Icon =
-    icon === "success" ? CheckCircle2 : icon === "empty" ? UserRound : AlertCircle;
+    icon === "success"
+      ? CheckCircle2
+      : icon === "empty"
+        ? UserRound
+        : AlertCircle;
   const content = (
     <div className="flex flex-col items-center text-center">
       <Icon className="h-9 w-9 text-muted-foreground" aria-hidden="true" />
@@ -218,7 +235,10 @@ export function ProfessionalAsyncState({
   );
   if (variant === "panel") {
     return (
-      <div role={icon === "error" ? "alert" : "status"} className="rounded-2xl border bg-card p-6">
+      <div
+        role={icon === "error" ? "alert" : "status"}
+        className="rounded-2xl border bg-card p-6"
+      >
         {content}
       </div>
     );
@@ -243,12 +263,14 @@ export function ProfessionalLoadingState({ label }: { label: string }) {
 }
 
 export function ProfessionalPatientHeader({
+  actions,
   authorizationStatus = "approved",
   displayName,
   lastActivityAt,
   nextReviewAt,
   trackingStatus,
 }: {
+  actions?: React.ReactNode;
   authorizationStatus?: string;
   displayName: string;
   lastActivityAt?: number | null;
@@ -262,6 +284,14 @@ export function ProfessionalPatientHeader({
           timeStyle: "short",
         }).format(new Date(value))
       : fallback;
+  const contextLabel =
+    trackingStatus === "ended"
+      ? "Acompanhamento encerrado"
+      : trackingStatus === "paused"
+        ? "Acompanhamento pausado"
+        : trackingStatus === "active"
+          ? "Paciente em acompanhamento"
+          : "Acompanhamento não iniciado";
   return (
     <section
       aria-label="Contexto do paciente"
@@ -269,12 +299,20 @@ export function ProfessionalPatientHeader({
     >
       <div className="min-w-0">
         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          Paciente em acompanhamento
+          {contextLabel}
         </p>
-        <h2 className="mt-1 break-words text-xl font-semibold">{displayName}</h2>
+        <h2 className="mt-1 break-words text-xl font-semibold">
+          {displayName}
+        </h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <ProfessionalStatusBadge kind="authorization" value={authorizationStatus} />
-          <ProfessionalStatusBadge kind="tracking" value={trackingStatus ?? "not_started"} />
+          <ProfessionalStatusBadge
+            kind="authorization"
+            value={authorizationStatus}
+          />
+          <ProfessionalStatusBadge
+            kind="tracking"
+            value={trackingStatus ?? "not_started"}
+          />
         </div>
       </div>
       <div className="min-w-0">
@@ -289,6 +327,14 @@ export function ProfessionalPatientHeader({
           {format(nextReviewAt, "Sem revisão agendada")}
         </p>
       </div>
+      {actions ? (
+        <div
+          aria-label="Ações permitidas para o paciente"
+          className="flex min-w-0 flex-wrap gap-2 lg:col-span-3"
+        >
+          {actions}
+        </div>
+      ) : null}
     </section>
   );
 }

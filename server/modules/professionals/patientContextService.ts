@@ -11,6 +11,12 @@ function rows(result: unknown): Row[] {
   return (Array.isArray(result[0]) ? result[0] : result) as Row[];
 }
 
+function timestamp(value: unknown) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
 export async function getProfessionalPatientContext(
   professionalUserId: number,
   input: ProfessionalPatientContextInput
@@ -35,7 +41,14 @@ export async function getProfessionalPatientContext(
       a.patientUserId,
       u.name AS patientName,
       u.email AS patientEmail,
-      COALESCE(t.status, 'not_started') AS trackingStatus
+      COALESCE(t.status, 'not_started') AS trackingStatus,
+      t.nextReviewAt,
+      (
+        SELECT MAX(m.occurredAt)
+        FROM meals m
+        WHERE m.userId = a.patientUserId
+          AND m.status = 'confirmed'
+      ) AS lastActivityAt
     FROM professionalPatientAuthorizations a
     INNER JOIN users u ON u.id = a.patientUserId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
@@ -58,6 +71,9 @@ export async function getProfessionalPatientContext(
       (context.patientName ? String(context.patientName) : null) ??
       (context.patientEmail ? String(context.patientEmail) : null) ??
       `Paciente ${input.patientId}`,
+    authorizationStatus: "approved" as const,
+    lastActivityAt: timestamp(context.lastActivityAt),
+    nextReviewAt: timestamp(context.nextReviewAt),
     trackingStatus: String(context.trackingStatus) as
       | "not_started"
       | "active"
