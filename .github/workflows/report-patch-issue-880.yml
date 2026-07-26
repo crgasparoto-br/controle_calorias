@@ -59,7 +59,8 @@ jobs:
           script = script.replace(old, new, 1)
           Path('/tmp/apply-issue-880.py').write_text(script, encoding='utf-8')
           PY
-          python /tmp/apply-issue-880.py
+          set -o pipefail
+          python /tmp/apply-issue-880.py 2>&1 | tee /tmp/apply-issue-880.log
       - name: Format corrected files
         run: |
           pnpm exec prettier --write \
@@ -118,7 +119,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RESULT: ${{ job.status }}
         run: |
-          body=$(printf '## Implementação das pendências da issue #880\n\n- workflow run: `%s`\n- resultado: `%s`\n- head de entrada: `%s`\n\nEsta é uma verificação interna do contexto de implementação e não substitui auditoria independente.' "${GITHUB_RUN_ID}" "${RESULT}" "${GITHUB_SHA}")
+          details=$(tail -n 40 /tmp/apply-issue-880.log 2>/dev/null || true)
+          body=$(printf '## Implementação das pendências da issue #880\n\n- workflow run: `%s`\n- resultado: `%s`\n- head de entrada: `%s`\n\n### Diagnóstico\n```text\n%s\n```\n\nEsta é uma verificação interna do contexto de implementação e não substitui auditoria independente.' "${GITHUB_RUN_ID}" "${RESULT}" "${GITHUB_SHA}" "${details}")
           jq -n --arg body "$body" '{body:$body}' > /tmp/issue-880-result.json
           curl --fail --silent --location \
             --request POST \
