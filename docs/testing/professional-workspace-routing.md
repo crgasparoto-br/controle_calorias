@@ -2,21 +2,21 @@
 
 ## Rotas canônicas
 
-| Superfície | Rota | Contexto |
-| --- | --- | --- |
-| Início profissional | `/professional` | agregado |
-| Carteira | `/professional/patients` | agregado |
-| Prontuário | `/professional/patients/:patientId` | paciente |
-| Avaliação | `/professional/patients/:patientId/assessment` | paciente |
-| Metas | `/professional/patients/:patientId/goals` | paciente |
-| Orientações | `/professional/patients/:patientId/guidance` | paciente |
-| Anotações | `/professional/patients/:patientId/notes` | paciente |
-| Histórico | `/professional/patients/:patientId/history` | paciente |
-| Relatório individual | `/professional/patients/:patientId/reports` | paciente |
-| Conversa individual | `/professional/patients/:patientId/messages` | paciente |
-| Mensagens da carteira | `/professional/messages` | agregado |
-| Relatórios da carteira | `/professional/reports` | agregado |
-| Configurações profissionais | `/professional/settings` | agregado |
+| Superfície                  | Rota                                           | Contexto |
+| --------------------------- | ---------------------------------------------- | -------- |
+| Início profissional         | `/professional`                                | agregado |
+| Carteira                    | `/professional/patients`                       | agregado |
+| Prontuário                  | `/professional/patients/:patientId`            | paciente |
+| Avaliação                   | `/professional/patients/:patientId/assessment` | paciente |
+| Metas                       | `/professional/patients/:patientId/goals`      | paciente |
+| Orientações                 | `/professional/patients/:patientId/guidance`   | paciente |
+| Anotações                   | `/professional/patients/:patientId/notes`      | paciente |
+| Histórico                   | `/professional/patients/:patientId/history`    | paciente |
+| Relatório individual        | `/professional/patients/:patientId/reports`    | paciente |
+| Conversa individual         | `/professional/patients/:patientId/messages`   | paciente |
+| Mensagens da carteira       | `/professional/messages`                       | agregado |
+| Relatórios da carteira      | `/professional/reports`                        | agregado |
+| Configurações profissionais | `/professional/settings`                       | agregado |
 
 `/professional/follow-up` é legado e redireciona para a carteira. O identificador do paciente deve ser inteiro positivo e seguro; valores inválidos não podem disparar consultas.
 
@@ -53,6 +53,10 @@ Um `FORBIDDEN` não pode ser usado genericamente para inferir revogação quando
 
 Eventos assíncronos precisam ser correlacionados ao paciente atual. Queries usam a chave tRPC e o `patientId` do input. Mutations usam o `patientId` das variáveis quando disponível; operações identificadas apenas por `accessId`, `goalId`, `messageId` ou `alertId` só podem revogar o contexto quando a chave da mutation é individual e a operação foi enviada depois da validação do paciente atualmente presente na URL. Uma resposta tardia do paciente anterior deve ser ignorada.
 
+## Acompanhamento encerrado
+
+Quando o acompanhamento está `ended`, qualquer rota individual diferente de `/history` redireciona para a linha do tempo auditável antes de montar relatórios, mensagens ou formulários. O backend não retorna avaliação, anotações ou orientações por `professionalRecord.get`, e bloqueia timezone, dashboard, relatório de período e conversa individual. A timeline pública contém somente identificador opaco do evento, tipo de domínio permitido e data; identificadores técnicos da entidade não atravessam o contrato público.
+
 ## Proteção de rascunho
 
 Avaliação, orientação, anotação e mensagem devem pedir confirmação antes de trocar de rota, paciente, usar voltar/avançar ou fechar a página quando houver conteúdo não salvo.
@@ -60,7 +64,8 @@ Avaliação, orientação, anotação e mensagem devem pedir confirmação antes
 - Ao escolher permanecer, o workspace e seus campos devem continuar montados com o rascunho preservado.
 - Ao confirmar o descarte, a navegação deve remontar o workspace da rota de destino antes de exibir o próximo formulário, eliminando os estados não salvos da rota anterior.
 - A troca de `patientId` sempre deve remontar o workspace, mesmo quando a seção da URL permanecer igual, para impedir reutilização de rascunho entre pacientes.
-- Salvar ou descartar deve permitir as navegações seguintes sem reapresentar um rascunho já resolvido.
+- Salvar ou descartar deve permitir a navegação que encerra aquele rascunho. Se o profissional iniciar uma nova edição na mesma rota, o guard é rearmado e volta a exigir confirmação.
+- A paginação do histórico é derivada exclusivamente do total da timeline; avaliações, orientações ou anotações adicionais não podem criar páginas vazias na linha do tempo.
 
 ## Verificação responsiva
 

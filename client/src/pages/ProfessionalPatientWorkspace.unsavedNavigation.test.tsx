@@ -5,6 +5,39 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useUnsavedNavigationGuard } from "./professional/ProfessionalPatientWorkspace";
 
+function SaveThenEditHarness({ onNavigate }: { onNavigate: () => void }) {
+  const [dirty, setDirty] = React.useState(true);
+  const guard = useUnsavedNavigationGuard(
+    dirty,
+    "/professional/patients/41/assessment"
+  );
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          guard.markSaved();
+          setDirty(false);
+        }}
+      >
+        Salvar
+      </button>
+      <button type="button" onClick={() => setDirty(true)}>
+        Editar novamente
+      </button>
+      <button
+        type="button"
+        data-professional-navigation
+        onClick={() => {
+          if (guard.canNavigate()) onNavigate();
+        }}
+      >
+        Navegar após nova edição
+      </button>
+    </>
+  );
+}
+
 function NavigationHarness({
   direct = false,
   dirty = true,
@@ -82,6 +115,23 @@ describe("professional workspace unsaved navigation", () => {
 
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("protects a new draft created after a successful save", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const onNavigate = vi.fn();
+    render(<SaveThenEditHarness onNavigate={onNavigate} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Editar novamente" })
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Navegar após nova edição" })
+    );
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("does not ask for confirmation after the draft is clean", async () => {

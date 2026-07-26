@@ -12,7 +12,10 @@ vi.mock("../../db", () => ({
 
 import { getProfessionalRecord } from "./recordService";
 
-function collectStrings(value: unknown, seen = new WeakSet<object>()): string[] {
+function collectStrings(
+  value: unknown,
+  seen = new WeakSet<object>()
+): string[] {
   if (typeof value === "string") return [value];
   if (!value || typeof value !== "object") return [];
   if (seen.has(value)) return [];
@@ -97,11 +100,21 @@ describe("getProfessionalRecord authorship", () => {
           },
         ],
       ])
-      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([
+        [
+          {
+            id: "history-1",
+            eventType: "private_note_created",
+            entityType: "note",
+            entityId: "note-1",
+            occurredAt: new Date("2026-07-22T12:00:00Z"),
+          },
+        ],
+      ])
       .mockResolvedValueOnce([[{ total: 1 }]])
       .mockResolvedValueOnce([[{ total: 1 }]])
       .mockResolvedValueOnce([[{ total: 1 }]])
-      .mockResolvedValueOnce([[{ total: 0 }]]);
+      .mockResolvedValueOnce([[{ total: 1 }]]);
 
     const result = await getProfessionalRecord(11, {
       patientId: 22,
@@ -110,9 +123,18 @@ describe("getProfessionalRecord authorship", () => {
     });
 
     expect(result.latestAssessment?.authorName).toBe("Nutricionista Autora");
-    expect(result.assessmentHistory[0]?.authorName).toBe("Nutricionista Autora");
+    expect(result.assessmentHistory[0]?.authorName).toBe(
+      "Nutricionista Autora"
+    );
     expect(result.notes[0]?.authorName).toBe("Nutricionista Autora");
     expect(result.guidances[0]?.authorName).toBe("Nutricionista Autora");
+    expect(result.timeline[0]).toEqual({
+      id: "history-1",
+      eventType: "private_note_created",
+      occurredAt: new Date("2026-07-22T12:00:00Z").getTime(),
+    });
+    expect(result.timeline[0]).not.toHaveProperty("entityType");
+    expect(result.timeline[0]).not.toHaveProperty("entityId");
 
     for (const callIndex of [1, 2, 3]) {
       const queryText = collectStrings(
@@ -121,5 +143,68 @@ describe("getProfessionalRecord authorship", () => {
       expect(queryText).toContain("professionalProfiles");
       expect(queryText).toContain("authorName");
     }
+  });
+
+  it("returns only paginated audit history after tracking is ended", async () => {
+    mocks.execute
+      .mockResolvedValueOnce([
+        [
+          {
+            authorizationId: "authorization-ended",
+            trackingStatus: "ended",
+            patientName: "Paciente",
+            patientEmail: "paciente@example.com",
+          },
+        ],
+      ])
+      .mockResolvedValueOnce([
+        [{ id: "assessment-latest", objective: "Sensitive" }],
+      ])
+      .mockResolvedValueOnce([
+        [{ id: "assessment-history", objective: "Sensitive" }],
+      ])
+      .mockResolvedValueOnce([[{ id: "note-sensitive", content: "Sensitive" }]])
+      .mockResolvedValueOnce([
+        [{ id: "guidance-sensitive", content: "Sensitive" }],
+      ])
+      .mockResolvedValueOnce([
+        [
+          {
+            id: "history-ended",
+            eventType: "tracking_ended",
+            entityType: "tracking",
+            entityId: "internal-id",
+            occurredAt: new Date("2026-07-23T12:00:00Z"),
+          },
+        ],
+      ])
+      .mockResolvedValueOnce([[{ total: 25 }]])
+      .mockResolvedValueOnce([[{ total: 25 }]])
+      .mockResolvedValueOnce([[{ total: 25 }]])
+      .mockResolvedValueOnce([[{ total: 1 }]]);
+
+    const result = await getProfessionalRecord(11, {
+      patientId: 22,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.latestAssessment).toBeNull();
+    expect(result.assessmentHistory).toEqual([]);
+    expect(result.notes).toEqual([]);
+    expect(result.guidances).toEqual([]);
+    expect(result.timeline).toEqual([
+      {
+        id: "history-ended",
+        eventType: "tracking_ended",
+        occurredAt: new Date("2026-07-23T12:00:00Z").getTime(),
+      },
+    ]);
+    expect(result.pagination).toEqual({
+      page: 1,
+      pageSize: 20,
+      totals: { assessments: 0, notes: 0, guidances: 0, timeline: 1 },
+      hasMore: false,
+    });
   });
 });

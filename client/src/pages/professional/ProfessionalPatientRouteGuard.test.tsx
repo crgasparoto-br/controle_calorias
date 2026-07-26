@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let route = "/professional/patients/41";
-let selectedPatient:
-  | { patientId: number; displayName: string; trackingStatus: "active" }
-  | null = {
+const setLocation = vi.fn();
+let selectedPatient: {
+  patientId: number;
+  displayName: string;
+  trackingStatus: "active" | "ended";
+} | null = {
   patientId: 41,
   displayName: "Ana",
   trackingStatus: "active",
@@ -15,13 +18,14 @@ let selectedPatient:
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({ selectedPatient, clearPatient: vi.fn() }),
 }));
-vi.mock("wouter", () => ({ useLocation: () => [route, vi.fn()] }));
+vi.mock("wouter", () => ({ useLocation: () => [route, setLocation] }));
 vi.mock("./ProfessionalPatientWorkspace", () => ({
   default: () => <div>Workspace contextual do paciente</div>,
 }));
 
 beforeEach(() => {
   route = "/professional/patients/41";
+  setLocation.mockReset();
   selectedPatient = {
     patientId: 41,
     displayName: "Ana",
@@ -46,6 +50,39 @@ describe("ProfessionalPatientRouteGuard", () => {
     const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
     render(<Guard />);
     expect(screen.getByText("Workspace contextual do paciente")).toBeTruthy();
+  });
+
+  it("redirects ended tracking to the audit history surface", async () => {
+    route = "/professional/patients/41/assessment";
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "ended",
+    };
+    const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
+    render(<Guard />);
+
+    expect(screen.getByText("Acompanhamento encerrado")).toBeTruthy();
+    expect(screen.queryByText("Workspace contextual do paciente")).toBeNull();
+    await waitFor(() =>
+      expect(setLocation).toHaveBeenCalledWith(
+        "/professional/patients/41/history"
+      )
+    );
+  });
+
+  it("keeps ended tracking inside the audit history route", async () => {
+    route = "/professional/patients/41/history";
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "ended",
+    };
+    const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
+    render(<Guard />);
+
+    expect(screen.getByText("Workspace contextual do paciente")).toBeTruthy();
+    expect(setLocation).not.toHaveBeenCalled();
   });
 
   it("keeps protected content hidden without a validated patient context", async () => {

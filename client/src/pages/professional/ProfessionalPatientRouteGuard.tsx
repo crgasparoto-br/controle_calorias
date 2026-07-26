@@ -1,14 +1,27 @@
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
 import { ProfessionalAsyncState } from "@/components/professional/ProfessionalUi";
-import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
-import React from "react";
+import {
+  parseProfessionalPatientRoute,
+  professionalPatientPath,
+} from "@/lib/professionalRoutes";
+import React, { useEffect } from "react";
 import { useLocation } from "wouter";
 import ProfessionalPatientWorkspace from "./ProfessionalPatientWorkspace";
 
 export default function ProfessionalPatientRouteGuard() {
   const { selectedPatient } = useProfessionalWorkspace();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const route = parseProfessionalPatientRoute(location);
+  const endedOutsideHistory = Boolean(
+    selectedPatient?.trackingStatus === "ended" &&
+      route.kind === "patient" &&
+      route.section !== "history"
+  );
+
+  useEffect(() => {
+    if (!endedOutsideHistory || !selectedPatient) return;
+    setLocation(professionalPatientPath(selectedPatient.patientId, "history"));
+  }, [endedOutsideHistory, selectedPatient, setLocation]);
 
   if (!selectedPatient || route.kind !== "patient") {
     return (
@@ -16,6 +29,16 @@ export default function ProfessionalPatientRouteGuard() {
         icon="empty"
         title="Selecione um paciente"
         description="Abra um paciente autorizado pela carteira para acessar o acompanhamento."
+      />
+    );
+  }
+
+  if (endedOutsideHistory) {
+    return (
+      <ProfessionalAsyncState
+        icon="empty"
+        title="Acompanhamento encerrado"
+        description="Somente o histórico profissional necessário para auditoria permanece disponível."
       />
     );
   }

@@ -9,7 +9,11 @@ import type {
 } from "./schemas";
 import { getProfessionalOperationalDefaults } from "./settingsService";
 
-export type ProfessionalRecordState = "not_started" | "active" | "paused" | "ended";
+export type ProfessionalRecordState =
+  | "not_started"
+  | "active"
+  | "paused"
+  | "ended";
 type Row = Record<string, unknown>;
 
 function rows(result: unknown): Row[] {
@@ -38,9 +42,7 @@ export function resolveProfessionalNextReviewAt(input: {
   if (input.nextReviewAt) return new Date(input.nextReviewAt);
   if (!input.defaultReviewIntervalDays) return null;
   const reviewAt = new Date(input.assessedAt);
-  reviewAt.setUTCDate(
-    reviewAt.getUTCDate() + input.defaultReviewIntervalDays
-  );
+  reviewAt.setUTCDate(reviewAt.getUTCDate() + input.defaultReviewIntervalDays);
   return reviewAt;
 }
 
@@ -50,7 +52,10 @@ async function requireProfessionalScope(
   options: { requireActive?: boolean } = {}
 ) {
   const db = await getDb();
-  if (!db) throw new Error("O prontuário profissional está temporariamente indisponível.");
+  if (!db)
+    throw new Error(
+      "O prontuário profissional está temporariamente indisponível."
+    );
   const result = await db.execute(sql`
     SELECT a.id AS authorizationId, a.status AS authorizationStatus,
       t.status AS trackingStatus, u.name AS patientName, u.email AS patientEmail
@@ -63,10 +68,15 @@ async function requireProfessionalScope(
     ORDER BY a.approvedAt DESC, a.id DESC
     LIMIT 1`);
   const scope = rows(result)[0];
-  if (!scope) throw new Error("O acesso a este paciente não está mais disponível.");
-  const trackingStatus = scope.trackingStatus ? String(scope.trackingStatus) : "not_started";
+  if (!scope)
+    throw new Error("O acesso a este paciente não está mais disponível.");
+  const trackingStatus = scope.trackingStatus
+    ? String(scope.trackingStatus)
+    : "not_started";
   if (options.requireActive && trackingStatus !== "active") {
-    throw new Error("Esta ação está disponível somente durante acompanhamento ativo.");
+    throw new Error(
+      "Esta ação está disponível somente durante acompanhamento ativo."
+    );
   }
   return {
     db,
@@ -81,7 +91,11 @@ export async function getProfessionalRecord(
   professionalUserId: number,
   input: ProfessionalRecordInput
 ) {
-  const scope = await requireProfessionalScope(professionalUserId, input.patientId);
+  const scope = await requireProfessionalScope(
+    professionalUserId,
+    input.patientId
+  );
+  const historyOnly = scope.trackingStatus === "ended";
   const offset = (input.page - 1) * input.pageSize;
   const [
     assessmentResult,
@@ -123,14 +137,22 @@ export async function getProfessionalRecord(
       WHERE g.authorizationId = ${scope.authorizationId}
       ORDER BY g.version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
     scope.db.execute(sql`
-      SELECT id, eventType, entityType, entityId, occurredAt
+      SELECT id, eventType, occurredAt
       FROM professionalHistoryEvents
       WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
       ORDER BY occurredAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
-    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalAssessments WHERE authorizationId = ${scope.authorizationId}`),
-    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalNotes WHERE authorizationId = ${scope.authorizationId}`),
-    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalGuidances WHERE authorizationId = ${scope.authorizationId}`),
-    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalHistoryEvents WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}`),
+    scope.db.execute(
+      sql`SELECT COUNT(*) AS total FROM professionalAssessments WHERE authorizationId = ${scope.authorizationId}`
+    ),
+    scope.db.execute(
+      sql`SELECT COUNT(*) AS total FROM professionalNotes WHERE authorizationId = ${scope.authorizationId}`
+    ),
+    scope.db.execute(
+      sql`SELECT COUNT(*) AS total FROM professionalGuidances WHERE authorizationId = ${scope.authorizationId}`
+    ),
+    scope.db.execute(
+      sql`SELECT COUNT(*) AS total FROM professionalHistoryEvents WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}`
+    ),
   ]);
   const latest = rows(assessmentResult)[0];
   const totals = {
@@ -148,50 +170,89 @@ export async function getProfessionalRecord(
       authorizationStatus: "approved" as const,
       trackingStatus: scope.trackingStatus,
     },
-    latestAssessment: latest
-      ? {
-          id: String(latest.id),
-          version: Number(latest.version),
-          objective: String(latest.objective ?? ""),
-          weightKg: numberOrNull(latest.weightKg),
-          heightCm: numberOrNull(latest.heightCm),
-          routineAndSchedule: latest.routineAndSchedule ? String(latest.routineAndSchedule) : null,
-          physicalActivity: latest.physicalActivity ? String(latest.physicalActivity) : null,
-          foodPreferences: latest.foodPreferences ? String(latest.foodPreferences) : null,
-          restrictionsAndAllergies: latest.restrictionsAndAllergies ? String(latest.restrictionsAndAllergies) : null,
-          reportedDifficulties: latest.reportedDifficulties ? String(latest.reportedDifficulties) : null,
-          relevantHabits: latest.relevantHabits ? String(latest.relevantHabits) : null,
-          professionalObservations: latest.professionalObservations ? String(latest.professionalObservations) : null,
-          assessedAt: timestamp(latest.assessedAt),
-          nextReviewAt: timestamp(latest.nextReviewAt),
-          createdAt: timestamp(latest.createdAt),
-          authorName: String(latest.authorName ?? "Profissional"),
-        }
-      : null,
-    assessmentHistory: rows(assessmentHistoryResult).map(row => ({
-      id: String(row.id), version: Number(row.version), objective: String(row.objective ?? ""),
-      assessedAt: timestamp(row.assessedAt), nextReviewAt: timestamp(row.nextReviewAt), createdAt: timestamp(row.createdAt),
-      authorName: String(row.authorName ?? "Profissional"),
-    })),
-    notes: rows(notesResult).map(row => ({
-      id: String(row.id), content: String(row.content ?? ""), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt),
-      authorName: String(row.authorName ?? "Profissional"),
-    })),
-    guidances: rows(guidancesResult).map(row => ({
-      id: String(row.id), version: Number(row.version), title: String(row.title ?? ""), content: String(row.content ?? ""),
-      visibility: String(row.visibility), deliveryStatus: String(row.deliveryStatus), authorName: String(row.authorName ?? "Profissional"),
-      supersedesGuidanceId: row.supersedesGuidanceId ? String(row.supersedesGuidanceId) : null,
-      createdAt: timestamp(row.createdAt),
-    })),
+    latestAssessment: historyOnly
+      ? null
+      : latest
+        ? {
+            id: String(latest.id),
+            version: Number(latest.version),
+            objective: String(latest.objective ?? ""),
+            weightKg: numberOrNull(latest.weightKg),
+            heightCm: numberOrNull(latest.heightCm),
+            routineAndSchedule: latest.routineAndSchedule
+              ? String(latest.routineAndSchedule)
+              : null,
+            physicalActivity: latest.physicalActivity
+              ? String(latest.physicalActivity)
+              : null,
+            foodPreferences: latest.foodPreferences
+              ? String(latest.foodPreferences)
+              : null,
+            restrictionsAndAllergies: latest.restrictionsAndAllergies
+              ? String(latest.restrictionsAndAllergies)
+              : null,
+            reportedDifficulties: latest.reportedDifficulties
+              ? String(latest.reportedDifficulties)
+              : null,
+            relevantHabits: latest.relevantHabits
+              ? String(latest.relevantHabits)
+              : null,
+            professionalObservations: latest.professionalObservations
+              ? String(latest.professionalObservations)
+              : null,
+            assessedAt: timestamp(latest.assessedAt),
+            nextReviewAt: timestamp(latest.nextReviewAt),
+            createdAt: timestamp(latest.createdAt),
+            authorName: String(latest.authorName ?? "Profissional"),
+          }
+        : null,
+    assessmentHistory: historyOnly
+      ? []
+      : rows(assessmentHistoryResult).map(row => ({
+          id: String(row.id),
+          version: Number(row.version),
+          objective: String(row.objective ?? ""),
+          assessedAt: timestamp(row.assessedAt),
+          nextReviewAt: timestamp(row.nextReviewAt),
+          createdAt: timestamp(row.createdAt),
+          authorName: String(row.authorName ?? "Profissional"),
+        })),
+    notes: historyOnly
+      ? []
+      : rows(notesResult).map(row => ({
+          id: String(row.id),
+          content: String(row.content ?? ""),
+          createdAt: timestamp(row.createdAt),
+          updatedAt: timestamp(row.updatedAt),
+          authorName: String(row.authorName ?? "Profissional"),
+        })),
+    guidances: historyOnly
+      ? []
+      : rows(guidancesResult).map(row => ({
+          id: String(row.id),
+          version: Number(row.version),
+          title: String(row.title ?? ""),
+          content: String(row.content ?? ""),
+          visibility: String(row.visibility),
+          deliveryStatus: String(row.deliveryStatus),
+          authorName: String(row.authorName ?? "Profissional"),
+          supersedesGuidanceId: row.supersedesGuidanceId
+            ? String(row.supersedesGuidanceId)
+            : null,
+          createdAt: timestamp(row.createdAt),
+        })),
     timeline: rows(timelineResult).map(row => ({
-      id: String(row.id), eventType: String(row.eventType), entityType: row.entityType ? String(row.entityType) : null,
-      entityId: row.entityId ? String(row.entityId) : null, occurredAt: timestamp(row.occurredAt),
+      id: String(row.id),
+      eventType: String(row.eventType),
+      occurredAt: timestamp(row.occurredAt),
     })),
     pagination: {
       page: input.page,
       pageSize: input.pageSize,
-      totals,
-      hasMore: Object.values(totals).some(total => total > input.page * input.pageSize),
+      totals: historyOnly
+        ? { assessments: 0, notes: 0, guidances: 0, timeline: totals.timeline }
+        : totals,
+      hasMore: totals.timeline > input.page * input.pageSize,
     },
   };
 }
@@ -242,7 +303,9 @@ export async function saveProfessionalAssessment(
     return { id, nextReviewAt: nextReviewAt?.getTime() ?? null };
   } catch (error) {
     logPersistenceWarning("professional_record_assessment", error);
-    throw new Error("Não foi possível salvar a avaliação. O conteúdo informado foi preservado na tela.");
+    throw new Error(
+      "Não foi possível salvar a avaliação. O conteúdo informado foi preservado na tela."
+    );
   }
 }
 
@@ -250,7 +313,11 @@ export async function createProfessionalNote(
   professionalUserId: number,
   input: ProfessionalNoteInput
 ) {
-  const scope = await requireProfessionalScope(professionalUserId, input.patientId, { requireActive: true });
+  const scope = await requireProfessionalScope(
+    professionalUserId,
+    input.patientId,
+    { requireActive: true }
+  );
   const id = crypto.randomUUID();
   await scope.db.transaction(async tx => {
     await tx.execute(sql`
@@ -267,7 +334,11 @@ export async function createProfessionalGuidance(
   professionalUserId: number,
   input: ProfessionalGuidanceInput
 ) {
-  const scope = await requireProfessionalScope(professionalUserId, input.patientId, { requireActive: true });
+  const scope = await requireProfessionalScope(
+    professionalUserId,
+    input.patientId,
+    { requireActive: true }
+  );
   const id = crypto.randomUUID();
   await scope.db.transaction(async tx => {
     const versionResult = await tx.execute(sql`
@@ -302,8 +373,12 @@ export async function listPatientProfessionalGuidances(patientUserId: number) {
       AND a.status = 'approved' AND g.deliveryStatus IN ('pending','sent','failed')
     ORDER BY g.createdAt DESC, g.id DESC LIMIT 100`);
   return rows(result).map(row => ({
-    id: String(row.id), version: Number(row.version), title: String(row.title ?? ""), content: String(row.content ?? ""),
-    deliveryStatus: String(row.deliveryStatus), professionalName: String(row.professionalName ?? "Profissional"),
+    id: String(row.id),
+    version: Number(row.version),
+    title: String(row.title ?? ""),
+    content: String(row.content ?? ""),
+    deliveryStatus: String(row.deliveryStatus),
+    professionalName: String(row.professionalName ?? "Profissional"),
     createdAt: timestamp(row.createdAt),
   }));
 }

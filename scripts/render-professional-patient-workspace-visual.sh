@@ -93,7 +93,7 @@ capture "guidance-notebook-1366x768" "1366,768" "$GUIDANCE_URL"
 capture "notes-mobile-390x1200" "390,1200" "$NOTES_URL"
 capture "history-desktop-1366x768" "1366,768" "$HISTORY_URL"
 capture "paused-assessment-1366x768" "1366,768" "$ASSESSMENT_URL?state=paused"
-capture "ended-summary-390x1200" "390,1200" "$BASE_URL?state=ended"
+capture "ended-history-390x1200" "390,1200" "$BASE_URL?state=ended"
 capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=patient-loading"
 capture "error-desktop-1366x768" "1366,768" "$BASE_URL?state=patient-error"
 
@@ -145,7 +145,14 @@ assert_dom \
 assert_dom \
   "ended" \
   "$BASE_URL?state=ended" \
-  "O acompanhamento foi encerrado. O histórico permanece disponível para auditoria."
+  "Linha do tempo profissional" \
+  "Histórico"
+for forbidden in "Ciclo de acompanhamento" "Salvar nova versão" "Nova orientação ao paciente" "Nova anotação privada"; do
+  if grep -Fq "$forbidden" "$OUTPUT_DIR/ended.html"; then
+    echo "Ended tracking exposed a non-audit surface: $forbidden"
+    exit 1
+  fi
+done
 assert_dom \
   "loading" \
   "$BASE_URL?state=patient-loading" \
@@ -179,7 +186,7 @@ scenarios=summary,assessment,guidance,notes,history,paused,ended,loading,error
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
 interaction=canonical patient deep links and internal workspace composition
-assertions=patient identity and internal areas, operational alert, versioned assessment, guidance and private note separation, stable history, paused and ended restrictions, loading and recoverable error states, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+assertions=patient identity and internal areas, operational alert, versioned assessment, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

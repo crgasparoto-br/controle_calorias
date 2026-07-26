@@ -68,7 +68,8 @@ const historyEventLabels: Record<string, string> = {
   access_rejected: "Acesso profissional recusado",
   access_revoked: "Acesso profissional revogado",
   access_authorization_whatsapp_sent: "Autorização enviada pelo WhatsApp",
-  access_authorization_whatsapp_failed: "Falha ao enviar autorização pelo WhatsApp",
+  access_authorization_whatsapp_failed:
+    "Falha ao enviar autorização pelo WhatsApp",
   tracking_started: "Acompanhamento iniciado",
   tracking_resumed: "Acompanhamento retomado",
   tracking_paused: "Acompanhamento pausado",
@@ -127,7 +128,9 @@ const emptyAssessment: AssessmentDraft = {
   nextReviewAt: "",
 };
 
-export function getLatestPatientActivityAt(record: { timeline?: Array<{ occurredAt?: number | null }> }) {
+export function getLatestPatientActivityAt(record: {
+  timeline?: Array<{ occurredAt?: number | null }>;
+}) {
   return record.timeline?.[0]?.occurredAt ?? null;
 }
 
@@ -146,6 +149,10 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
   useEffect(() => {
     allowNavigationRef.current = false;
   }, [currentPath]);
+
+  useEffect(() => {
+    if (dirty) allowNavigationRef.current = false;
+  }, [dirty]);
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -181,7 +188,11 @@ export function useUnsavedNavigationGuard(dirty: boolean, currentPath: string) {
     const guardBack = () => {
       if (!dirty || allowNavigationRef.current) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {
-        window.history.pushState({ professionalDraftGuard: true }, "", currentPath);
+        window.history.pushState(
+          { professionalDraftGuard: true },
+          "",
+          currentPath
+        );
       } else {
         allowNavigationRef.current = true;
       }
@@ -231,7 +242,9 @@ function PatientSubnav({
             variant={active ? "secondary" : "ghost"}
             className="shrink-0"
             aria-current={active ? "page" : undefined}
-            onClick={() => navigate(professionalPatientPath(patientId, item.section))}
+            onClick={() =>
+              navigate(professionalPatientPath(patientId, item.section))
+            }
           >
             <item.icon className="h-4 w-4" />
             {item.label}
@@ -268,7 +281,9 @@ function SummarySection({
             <Button
               variant="outline"
               disabled={!active}
-              onClick={() => navigate(professionalPatientPath(patientId, "assessment"))}
+              onClick={() =>
+                navigate(professionalPatientPath(patientId, "assessment"))
+              }
             >
               <NotebookPen className="h-4 w-4" />
               Registrar avaliação
@@ -276,14 +291,18 @@ function SummarySection({
             <Button
               variant="outline"
               disabled={!active}
-              onClick={() => navigate(professionalPatientPath(patientId, "goals"))}
+              onClick={() =>
+                navigate(professionalPatientPath(patientId, "goals"))
+              }
             >
               <Target className="h-4 w-4" />
               Revisar metas
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate(professionalPatientPath(patientId, "reports"))}
+              onClick={() =>
+                navigate(professionalPatientPath(patientId, "reports"))
+              }
             >
               <Scale className="h-4 w-4" />
               Analisar relatório
@@ -308,7 +327,9 @@ function SummarySection({
               </p>
             </div>
             <div className="rounded-xl border p-3">
-              <p className="text-xs text-muted-foreground">Objetivo registrado</p>
+              <p className="text-xs text-muted-foreground">
+                Objetivo registrado
+              </p>
               <p className="mt-1 break-words font-medium">
                 {latest?.objective ?? "Não informado"}
               </p>
@@ -362,7 +383,10 @@ function AssessmentSection({
           className="min-h-24 rounded-md border bg-background p-3"
           value={draft[key]}
           onChange={event =>
-            onDraftChange(current => ({ ...current, [key]: event.target.value }))
+            onDraftChange(current => ({
+              ...current,
+              [key]: event.target.value,
+            }))
           }
         />
       ) : (
@@ -370,7 +394,10 @@ function AssessmentSection({
           type={type}
           value={draft[key]}
           onChange={event =>
-            onDraftChange(current => ({ ...current, [key]: event.target.value }))
+            onDraftChange(current => ({
+              ...current,
+              [key]: event.target.value,
+            }))
           }
         />
       )}
@@ -395,7 +422,8 @@ function AssessmentSection({
                     {item.objective}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {item.authorName ?? "Autoria não informada"} · {formatDate(item.assessedAt)}
+                    {item.authorName ?? "Autoria não informada"} ·{" "}
+                    {formatDate(item.assessedAt)}
                   </p>
                 </article>
               ))
@@ -412,13 +440,15 @@ function AssessmentSection({
         <CardHeader>
           <CardTitle>Nova versão da avaliação</CardTitle>
           <CardDescription>
-            A versão anterior será preservada. Campos sem informação podem permanecer vazios.
+            A versão anterior será preservada. Campos sem informação podem
+            permanecer vazios.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-4">
           {!active ? (
             <p role="status" className="rounded-xl border bg-muted p-4 text-sm">
-              Novas avaliações ficam bloqueadas enquanto o acompanhamento não estiver ativo.
+              Novas avaliações ficam bloqueadas enquanto o acompanhamento não
+              estiver ativo.
             </p>
           ) : null}
           {field("objective", "Objetivo do acompanhamento", true)}
@@ -432,7 +462,11 @@ function AssessmentSection({
           {field("restrictionsAndAllergies", "Restrições e alergias", true)}
           {field("reportedDifficulties", "Dificuldades relatadas", true)}
           {field("relevantHabits", "Hábitos relevantes", true)}
-          {field("professionalObservations", "Observações do nutricionista", true)}
+          {field(
+            "professionalObservations",
+            "Observações do nutricionista",
+            true
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             {field("assessedAt", "Data da avaliação", false, "datetime-local")}
             {field("nextReviewAt", "Próxima revisão", false, "datetime-local")}
@@ -538,16 +572,22 @@ function GuidanceSection({
         <CardHeader>
           <CardTitle>Nova orientação ao paciente</CardTitle>
           <CardDescription>
-            Este conteúdo será destinado ao paciente. Uma anotação privada nunca é enviada automaticamente.
+            Este conteúdo será destinado ao paciente. Uma anotação privada nunca
+            é enviada automaticamente.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           {!active ? (
             <p role="status" className="rounded-xl border bg-muted p-4 text-sm">
-              Novas orientações ficam bloqueadas enquanto o acompanhamento não estiver ativo.
+              Novas orientações ficam bloqueadas enquanto o acompanhamento não
+              estiver ativo.
             </p>
           ) : null}
-          <Input placeholder="Título" value={title} onChange={event => onTitleChange(event.target.value)} />
+          <Input
+            placeholder="Título"
+            value={title}
+            onChange={event => onTitleChange(event.target.value)}
+          />
           <textarea
             className="min-h-40 rounded-md border bg-background p-3"
             value={content}
@@ -560,7 +600,9 @@ function GuidanceSection({
             </p>
           ) : null}
           <Button
-            disabled={!active || !title.trim() || !content.trim() || create.isPending}
+            disabled={
+              !active || !title.trim() || !content.trim() || create.isPending
+            }
             onClick={() =>
               create.mutate({
                 patientId,
@@ -613,7 +655,8 @@ function NotesSection({
                     {item.content}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {item.authorName ?? "Autoria não informada"} · {formatDate(item.createdAt)}
+                    {item.authorName ?? "Autoria não informada"} ·{" "}
+                    {formatDate(item.createdAt)}
                   </p>
                 </article>
               ))
@@ -628,13 +671,15 @@ function NotesSection({
         <CardHeader>
           <CardTitle>Nova anotação privada</CardTitle>
           <CardDescription>
-            Visível somente para você. Não será enviada ao paciente nem ao WhatsApp.
+            Visível somente para você. Não será enviada ao paciente nem ao
+            WhatsApp.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           {!active ? (
             <p role="status" className="rounded-xl border bg-muted p-4 text-sm">
-              Novas anotações ficam bloqueadas enquanto o acompanhamento não estiver ativo.
+              Novas anotações ficam bloqueadas enquanto o acompanhamento não
+              estiver ativo.
             </p>
           ) : null}
           <textarea
@@ -677,7 +722,8 @@ function HistorySection({
           Linha do tempo profissional
         </CardTitle>
         <CardDescription>
-          Eventos auditáveis do vínculo, acompanhamento, avaliações, metas e orientações.
+          Eventos auditáveis do vínculo, acompanhamento, avaliações, metas e
+          orientações.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -882,7 +928,9 @@ export default function ProfessionalPatientWorkspace() {
       />
     );
   } else if (section === "goals") {
-    content = <ProfessionalOfficialGoalCard patientId={patientId} disabled={!active} />;
+    content = (
+      <ProfessionalOfficialGoalCard patientId={patientId} disabled={!active} />
+    );
   } else if (section === "guidance") {
     content = (
       <GuidanceSection
@@ -912,7 +960,13 @@ export default function ProfessionalPatientWorkspace() {
   } else if (section === "messages") {
     content = <ProfessionalMessagesPanel />;
   } else if (section === "history") {
-    content = <HistorySection page={page} record={professionalRecord} setPage={setPage} />;
+    content = (
+      <HistorySection
+        page={page}
+        record={professionalRecord}
+        setPage={setPage}
+      />
+    );
   } else {
     content = (
       <SummarySection
@@ -1017,11 +1071,15 @@ export default function ProfessionalPatientWorkspace() {
             </label>
             {trackingStatus === "ended" ? (
               <p className="text-sm text-muted-foreground">
-                O acompanhamento foi encerrado. O histórico permanece disponível para auditoria.
+                O acompanhamento foi encerrado. O histórico permanece disponível
+                para auditoria.
               </p>
             ) : null}
             {transitionTracking.isError ? (
-              <p role="alert" className="text-sm text-destructive lg:col-span-2">
+              <p
+                role="alert"
+                className="text-sm text-destructive lg:col-span-2"
+              >
                 {transitionTracking.error.message}
               </p>
             ) : null}
@@ -1036,7 +1094,9 @@ export default function ProfessionalPatientWorkspace() {
           <Button
             data-professional-navigation
             variant="ghost"
-            onClick={() => navigate(professionalPatientPath(patientId, "history"))}
+            onClick={() =>
+              navigate(professionalPatientPath(patientId, "history"))
+            }
           >
             Ver histórico auditável
             <ArrowRight className="h-4 w-4" />

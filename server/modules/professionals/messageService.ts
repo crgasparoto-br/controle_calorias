@@ -282,7 +282,15 @@ export async function listProfessionalMessages(
   professionalUserId: number,
   input: ProfessionalMessageListInput
 ) {
-  const db = await dbRequired();
+  const patientScope = input.patientId
+    ? await professionalScope(professionalUserId, input.patientId)
+    : null;
+  if (patientScope?.trackingStatus === "ended") {
+    throw new Error(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+  }
+  const db = patientScope?.db ?? (await dbRequired());
   const patientFilter = input.patientId
     ? sql`AND m.patientUserId = ${input.patientId}`
     : sql``;

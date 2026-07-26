@@ -731,6 +731,22 @@ async function assertApprovedAccess(
   return access;
 }
 
+async function assertOpenProfessionalAccess(
+  professionalUserId: number,
+  patientUserId: number
+) {
+  const access = await assertApprovedAccess(professionalUserId, patientUserId);
+  const tracking = await professionalRepository.getTrackingByAuthorization(
+    access.id
+  );
+  if (tracking?.status === "ended") {
+    throw new Error(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+  }
+  return access;
+}
+
 export async function upsertProfessionalProfile(
   userId: number,
   input: ProfessionalProfileInput
@@ -1039,7 +1055,7 @@ export async function getProfessionalPatientTimeZone(
   professionalUserId: number,
   patientUserId: number
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   return resolveEffectiveUserTimeZone(patientUserId);
 }
 
@@ -1048,7 +1064,7 @@ export async function getProfessionalPatientDashboard(
   patientUserId: number,
   weekOffset = 0
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   const timeZone = await getEffectiveUserTimeZone(patientUserId);
   const [
     bundle,
@@ -1126,7 +1142,7 @@ export async function getProfessionalPatientPeriodBundle(
   patientUserId: number,
   range: { startDate: string; endDate: string }
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   const timeZone = await getEffectiveUserTimeZone(patientUserId);
   return getPeriodReportBundle(patientUserId, range, timeZone);
 }
@@ -1135,7 +1151,7 @@ export async function addProfessionalComment(
   professionalUserId: number,
   input: ProfessionalCommentInput
 ) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createComment({
     id: crypto.randomUUID(),
     professionalUserId,
@@ -1148,7 +1164,7 @@ export async function suggestGoalAdjustment(
   professionalUserId: number,
   input: ProfessionalGoalSuggestionInput
 ): Promise<GoalSuggestion> {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createGoalSuggestion({
     id: crypto.randomUUID(),
     professionalUserId,
@@ -1163,7 +1179,7 @@ export async function suggestMealPlan(
   professionalUserId: number,
   input: ProfessionalMealSuggestionInput
 ): Promise<MealSuggestion> {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createMealSuggestion({
     id: crypto.randomUUID(),
     professionalUserId,

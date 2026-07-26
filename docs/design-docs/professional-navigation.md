@@ -72,6 +72,7 @@ A ordenação da carteira identificável é estável por identificação exibív
 - Falha temporária, rede, timeout, indisponibilidade ou erro não autoritativo durante a abertura mantém o paciente visível e oferece nova tentativa. Somente negação confirmada remove o card e os dados obsoletos.
 - Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
 - Falhas temporárias de timezone ou bundle no relatório individual mantêm os dados parciais ocultos e oferecem a ação **Tentar novamente** no próprio contexto do relatório.
+- Acompanhamento `ended` mantém somente `/history`: as demais rotas individuais redirecionam antes de montar conteúdo, e as APIs de prontuário, timezone, dashboard, relatório de período e conversa individual deixam de retornar dados do paciente.
 - ID malformado, zero ou número inseguro não dispara consulta com identificador artificial.
 
 ## Acessibilidade e responsividade
