@@ -21,6 +21,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  clearAllProfessionalPatientDraftSnapshots,
+  clearProfessionalPatientDraftSnapshot as clearStoredProfessionalPatientDraftSnapshot,
+  readProfessionalPatientDraftSnapshot,
+  storeProfessionalPatientDraftSnapshot as persistProfessionalPatientDraftSnapshot,
+  type ProfessionalPatientDraftScope,
+} from "@/lib/professionalPatientDraftStore";
+import {
   parseProfessionalPatientRoute,
   professionalPatientPath,
   type ProfessionalPatientSection,
@@ -41,7 +48,13 @@ import {
   StickyNote,
   Target,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation } from "wouter";
 
 const UNSAVED_MESSAGE =
@@ -157,11 +170,7 @@ const emptyAssessment: AssessmentDraft = {
 
 const RECORD_PAGE_SIZE = 20;
 
-type PaginatedRecordSection =
-  | "assessment"
-  | "guidance"
-  | "notes"
-  | "history";
+type PaginatedRecordSection = "assessment" | "guidance" | "notes" | "history";
 
 type RecordPages = Record<PaginatedRecordSection, number>;
 
@@ -179,8 +188,6 @@ const initialRecordPages: RecordPages = {
   history: 1,
 };
 
-const patientDraftSnapshots = new Map<number, PatientDraftSnapshot>();
-
 function createEmptyPatientDraft(): PatientDraftSnapshot {
   return {
     assessment: { ...emptyAssessment },
@@ -190,23 +197,25 @@ function createEmptyPatientDraft(): PatientDraftSnapshot {
   };
 }
 
-function getPatientDraftSnapshot(patientId: number) {
-  return patientDraftSnapshots.get(patientId) ?? createEmptyPatientDraft();
+function getPatientDraftSnapshot(scope: ProfessionalPatientDraftScope | null) {
+  return readProfessionalPatientDraftSnapshot<PatientDraftSnapshot>(
+    scope,
+    createEmptyPatientDraft
+  );
 }
 
 function storePatientDraftSnapshot(
-  patientId: number,
+  scope: ProfessionalPatientDraftScope | null,
   snapshot: PatientDraftSnapshot
 ) {
-  if (patientId <= 0) return;
-  patientDraftSnapshots.set(patientId, {
+  persistProfessionalPatientDraftSnapshot(scope, {
     ...snapshot,
     assessment: { ...snapshot.assessment },
   });
 }
 
 export function _forTestOnly_clearProfessionalPatientDraftSnapshots() {
-  patientDraftSnapshots.clear();
+  clearAllProfessionalPatientDraftSnapshots();
 }
 
 function paginatedRecordSection(
@@ -678,22 +687,22 @@ function AssessmentSection({
           <CardContent className="space-y-4">
             <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
               {record.assessmentHistory.length ? (
-              record.assessmentHistory.map((item: any) => (
-                <article key={item.id} className="rounded-xl border p-3">
-                  <p className="font-medium">Versão {item.version}</p>
-                  <p className="mt-1 break-words text-sm text-muted-foreground">
-                    {item.objective}
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {item.authorName ?? "Autoria não informada"} ·{" "}
-                    {formatDate(item.assessedAt)}
-                  </p>
-                </article>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma avaliação registrada.
-              </p>
+                record.assessmentHistory.map((item: any) => (
+                  <article key={item.id} className="rounded-xl border p-3">
+                    <p className="font-medium">Versão {item.version}</p>
+                    <p className="mt-1 break-words text-sm text-muted-foreground">
+                      {item.objective}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {item.authorName ?? "Autoria não informada"} ·{" "}
+                      {formatDate(item.assessedAt)}
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma avaliação registrada.
+                </p>
               )}
             </div>
             <RecordCollectionPagination
@@ -825,23 +834,23 @@ function GuidanceSection({
           <CardContent className="space-y-4">
             <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
               {record.guidances.length ? (
-              record.guidances.map((item: any) => (
-                <article key={item.id} className="rounded-xl border p-3">
-                  <p className="break-words font-medium">
-                    {item.title} · v{item.version}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm">
-                    {item.content}
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {item.authorName} · {formatDate(item.createdAt)}
-                  </p>
-                </article>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma orientação registrada.
-              </p>
+                record.guidances.map((item: any) => (
+                  <article key={item.id} className="rounded-xl border p-3">
+                    <p className="break-words font-medium">
+                      {item.title} · v{item.version}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm">
+                      {item.content}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {item.authorName} · {formatDate(item.createdAt)}
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma orientação registrada.
+                </p>
               )}
             </div>
             <RecordCollectionPagination
@@ -944,19 +953,21 @@ function NotesSection({
           <CardContent className="space-y-4">
             <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
               {record.notes.length ? (
-              record.notes.map((item: any) => (
-                <article key={item.id} className="rounded-xl border p-3">
-                  <p className="whitespace-pre-wrap break-words text-sm">
-                    {item.content}
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {item.authorName ?? "Autoria não informada"} ·{" "}
-                    {formatDate(item.createdAt)}
-                  </p>
-                </article>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhuma anotação.</p>
+                record.notes.map((item: any) => (
+                  <article key={item.id} className="rounded-xl border p-3">
+                    <p className="whitespace-pre-wrap break-words text-sm">
+                      {item.content}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {item.authorName ?? "Autoria não informada"} ·{" "}
+                      {formatDate(item.createdAt)}
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma anotação.
+                </p>
               )}
             </div>
             <RecordCollectionPagination
@@ -1079,7 +1090,13 @@ export default function ProfessionalPatientWorkspace() {
   const section =
     parsedRoute.kind === "patient" ? parsedRoute.section : "record";
   const patientId = selectedPatient?.patientId ?? 0;
-  const initialDraft = getPatientDraftSnapshot(patientId);
+  const authorizationId = selectedPatient?.authorizationId ?? "";
+  const draftScope = useMemo<ProfessionalPatientDraftScope | null>(
+    () =>
+      patientId > 0 && authorizationId ? { patientId, authorizationId } : null,
+    [authorizationId, patientId]
+  );
+  const initialDraft = getPatientDraftSnapshot(draftScope);
   const [assessment, setAssessment] = useState(initialDraft.assessment);
   const [note, setNote] = useState(initialDraft.note);
   const [guidanceTitle, setGuidanceTitle] = useState(
@@ -1098,63 +1115,63 @@ export default function ProfessionalPatientWorkspace() {
           typeof nextAssessment === "function"
             ? nextAssessment(current)
             : nextAssessment;
-        const stored = getPatientDraftSnapshot(patientId);
-        storePatientDraftSnapshot(patientId, {
+        const stored = getPatientDraftSnapshot(draftScope);
+        storePatientDraftSnapshot(draftScope, {
           ...stored,
           assessment: value,
         });
         return value;
       });
     },
-    [patientId]
+    [draftScope]
   );
   const updateNote = useCallback(
     (value: string) => {
       setNote(value);
-      storePatientDraftSnapshot(patientId, {
-        ...getPatientDraftSnapshot(patientId),
+      storePatientDraftSnapshot(draftScope, {
+        ...getPatientDraftSnapshot(draftScope),
         note: value,
       });
     },
-    [patientId]
+    [draftScope]
   );
   const updateGuidanceTitle = useCallback(
     (value: string) => {
       setGuidanceTitle(value);
-      storePatientDraftSnapshot(patientId, {
-        ...getPatientDraftSnapshot(patientId),
+      storePatientDraftSnapshot(draftScope, {
+        ...getPatientDraftSnapshot(draftScope),
         guidanceTitle: value,
       });
     },
-    [patientId]
+    [draftScope]
   );
   const updateGuidance = useCallback(
     (value: string) => {
       setGuidance(value);
-      storePatientDraftSnapshot(patientId, {
-        ...getPatientDraftSnapshot(patientId),
+      storePatientDraftSnapshot(draftScope, {
+        ...getPatientDraftSnapshot(draftScope),
         guidance: value,
       });
     },
-    [patientId]
+    [draftScope]
   );
   const discardDraft = useCallback(() => {
-    patientDraftSnapshots.delete(patientId);
+    clearStoredProfessionalPatientDraftSnapshot(draftScope);
     setAssessment({ ...emptyAssessment });
     setNote("");
     setGuidanceTitle("");
     setGuidance("");
-  }, [patientId]);
+  }, [draftScope]);
   const clearDraftSection = useCallback(
     (draftSection: "assessment" | "notes" | "guidance") => {
-      const stored = getPatientDraftSnapshot(patientId);
+      const stored = getPatientDraftSnapshot(draftScope);
       const next =
         draftSection === "assessment"
           ? { ...stored, assessment: { ...emptyAssessment } }
           : draftSection === "notes"
             ? { ...stored, note: "" }
             : { ...stored, guidanceTitle: "", guidance: "" };
-      storePatientDraftSnapshot(patientId, next);
+      storePatientDraftSnapshot(draftScope, next);
       if (draftSection === "assessment") setAssessment({ ...emptyAssessment });
       if (draftSection === "notes") setNote("");
       if (draftSection === "guidance") {
@@ -1162,7 +1179,7 @@ export default function ProfessionalPatientWorkspace() {
         setGuidance("");
       }
     },
-    [patientId]
+    [draftScope]
   );
   const setPageForSection = useCallback(
     (targetSection: PaginatedRecordSection, page: number) => {
@@ -1172,14 +1189,14 @@ export default function ProfessionalPatientWorkspace() {
   );
 
   useEffect(() => {
-    const stored = getPatientDraftSnapshot(patientId);
+    const stored = getPatientDraftSnapshot(draftScope);
     setAssessment(stored.assessment);
     setNote(stored.note);
     setGuidanceTitle(stored.guidanceTitle);
     setGuidance(stored.guidance);
     setTransitionReason("");
     setPages(initialRecordPages);
-  }, [patientId]);
+  }, [draftScope]);
 
   const dirty = useMemo(
     () =>
@@ -1206,6 +1223,10 @@ export default function ProfessionalPatientWorkspace() {
   );
   const invalidate = async () => {
     await Promise.all([
+      utils.professionalRecord.context.invalidate({
+        patientId,
+        resource: "professional_record",
+      }),
       utils.professionalRecord.get.invalidate(),
       utils.nutrition.professionals.portfolio.invalidate(),
     ]);
@@ -1236,8 +1257,12 @@ export default function ProfessionalPatientWorkspace() {
   });
   const transitionTracking =
     trpc.professionalRecord.transitionTracking.useMutation({
-      onSuccess: async () => {
+      onSuccess: async (_tracking, variables) => {
         setTransitionReason("");
+        if (variables.status === "ended") {
+          discardDraft();
+          setLocation(professionalPatientPath(patientId, "history"));
+        }
         await invalidate();
       },
     });

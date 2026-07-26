@@ -8,6 +8,11 @@ import ProfessionalLayout, {
   isProfessionalPatientQueryKey,
   useProfessionalWorkspace,
 } from "./ProfessionalLayout";
+import {
+  clearAllProfessionalPatientDraftSnapshots,
+  readProfessionalPatientDraftSnapshot,
+  storeProfessionalPatientDraftSnapshot,
+} from "@/lib/professionalPatientDraftStore";
 
 const setLocation = vi.fn();
 const refreshAuth = vi.fn(async () => undefined);
@@ -199,7 +204,8 @@ function fetchingPatientContext() {
 
 function forbiddenError() {
   return {
-    message: "Este recurso não está disponível para o acesso profissional atual.",
+    message:
+      "Este recurso não está disponível para o acesso profissional atual.",
     data: { code: "FORBIDDEN" },
   };
 }
@@ -207,6 +213,7 @@ function forbiddenError() {
 afterEach(cleanup);
 
 beforeEach(() => {
+  clearAllProfessionalPatientDraftSnapshots();
   location = "/professional";
   setLocation.mockReset();
   refreshAuth.mockClear();
@@ -340,7 +347,11 @@ describe("ProfessionalLayout", () => {
     expect(removeQueries).toHaveBeenCalled();
   });
 
-  it("removes visible data immediately when the authenticated event stream reports external revocation", async () => {
+  it("removes visible data and authorization-scoped drafts when the authenticated event stream reports external revocation", async () => {
+    const draftScope = { patientId: 10, authorizationId: "access-10" };
+    storeProfessionalPatientDraftSnapshot(draftScope, {
+      note: "rascunho sensível",
+    });
     location = "/professional/patients/10/reports";
     renderPatientLayout();
     await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
@@ -359,6 +370,9 @@ describe("ProfessionalLayout", () => {
     );
     await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
     expect(removeQueries).toHaveBeenCalled();
+    expect(
+      readProfessionalPatientDraftSnapshot(draftScope, () => ({ note: "" }))
+    ).toEqual({ note: "" });
   });
 
   it("ignores an external revocation event for another patient", async () => {

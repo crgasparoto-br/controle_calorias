@@ -13,6 +13,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
+  clearAllProfessionalPatientDraftSnapshots,
+  clearProfessionalPatientDraftsForAuthorization,
+} from "@/lib/professionalPatientDraftStore";
+import {
   parseProfessionalPatientRoute,
   professionalPatientResourceForRoute,
 } from "@/lib/professionalRoutes";
@@ -44,6 +48,7 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
 export type ProfessionalPatientContext = {
   patientId: number;
+  authorizationId: string;
   displayName: string;
   authorizationStatus?: "approved";
   lastActivityAt?: number | null;
@@ -266,6 +271,7 @@ export default function ProfessionalLayout({
   const queryClient = useQueryClient();
   const mainRef = useRef<HTMLElement | null>(null);
   const previousPatientIdRef = useRef<number | null>(null);
+  const activeAuthorizationIdRef = useRef<string | null>(null);
   const transitionGenerationRef = useRef(0);
   const revocationInProgressRef = useRef(false);
   const patientReadyAtRef = useRef(0);
@@ -327,6 +333,7 @@ export default function ProfessionalLayout({
     }
     return {
       patientId: patientContext.data.patientId,
+      authorizationId: patientContext.data.authorizationId,
       displayName: patientContext.data.displayName,
       authorizationStatus: patientContext.data.authorizationStatus,
       lastActivityAt: patientContext.data.lastActivityAt,
@@ -340,6 +347,12 @@ export default function ProfessionalLayout({
     readyPatientId,
     routePatientId,
   ]);
+
+  useEffect(() => {
+    if (selectedPatient?.authorizationId) {
+      activeAuthorizationIdRef.current = selectedPatient.authorizationId;
+    }
+  }, [selectedPatient?.authorizationId]);
 
   const clearPatientQueries = useCallback(async () => {
     await Promise.all([
@@ -367,8 +380,12 @@ export default function ProfessionalLayout({
   const revokePatientContext = useCallback(() => {
     if (revocationInProgressRef.current) return;
     revocationInProgressRef.current = true;
+    clearProfessionalPatientDraftsForAuthorization(
+      activeAuthorizationIdRef.current
+    );
     invalidatePatientContext();
     void clearPatientQueries().finally(() => {
+      activeAuthorizationIdRef.current = null;
       previousPatientIdRef.current = null;
       setLocation("/professional/patients?notice=patient-access-unavailable");
       revocationInProgressRef.current = false;
@@ -383,6 +400,10 @@ export default function ProfessionalLayout({
   });
 
   const clearPatient = useCallback(() => {
+    clearProfessionalPatientDraftsForAuthorization(
+      activeAuthorizationIdRef.current
+    );
+    activeAuthorizationIdRef.current = null;
     invalidatePatientContext();
     if (routePatientId ?? previousPatientIdRef.current) {
       void clearPatientQueries();
@@ -522,6 +543,8 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     if (routePatientId && profileValidated && !hasActiveProfile) {
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
       invalidatePatientContext();
       void clearPatientQueries();
     }
@@ -534,6 +557,13 @@ export default function ProfessionalLayout({
   ]);
 
   useEffect(() => {
+    if (!user || (profileValidated && !hasActiveProfile)) {
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
+    }
+  }, [hasActiveProfile, profileValidated, user]);
+
+  useEffect(() => {
     document.title = `${routeTitle(location)} | Área Profissional`;
     mainRef.current?.focus({ preventScroll: true });
   }, [location]);
@@ -542,6 +572,8 @@ export default function ProfessionalLayout({
     () => () => {
       transitionGenerationRef.current += 1;
       patientReadyAtRef.current = 0;
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
       if (previousPatientIdRef.current) void clearPatientQueries();
       previousPatientIdRef.current = null;
     },

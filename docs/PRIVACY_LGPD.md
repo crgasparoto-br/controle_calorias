@@ -54,6 +54,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Eventos internos de comprovante de acesso não podem ser retornados por históricos públicos nem conter o contato solicitado.
 - A resolução de comprovante em aprovação ou revogação deve validar que o usuário autenticado é o paciente dono da autorização; comprovantes apresentados por terceiros não podem revelar associação ou existência.
 - O stream SSE de revogação profissional exige sessão autenticada e autorização vigente na abertura, isola conexões por profissional e paciente e transmite somente `patientId` e instante da revogação; nome, contato, conteúdo clínico, motivo e identificador da autorização não atravessam o stream.
+- Rascunhos profissionais não salvos permanecem somente em memória e são isolados pelo identificador da autorização e do paciente. Revogação, perda do perfil profissional, encerramento da sessão ou desmontagem do shell removem esse conteúdo antes que outro contexto possa ser exibido.
 
 ## Contexto persistente do WhatsApp
 

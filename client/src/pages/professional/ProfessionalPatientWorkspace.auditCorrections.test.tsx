@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let location = "/professional/patients/41/assessment";
 let selectedPatientId = 41;
+let selectedAuthorizationId = "authorization-41";
 let recordData: any;
 const setLocation = vi.fn();
 const getQuery = vi.fn();
+const contextInvalidate = vi.fn(async () => undefined);
 
 const mutation = vi.hoisted(() => () => ({
   mutate: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
     selectedPatient: {
       patientId: selectedPatientId,
+      authorizationId: selectedAuthorizationId,
       displayName: `Paciente ${selectedPatientId}`,
       authorizationStatus: "approved",
       lastActivityAt: null,
@@ -49,7 +52,9 @@ vi.mock("@/components/ProfessionalReportsWorkspace", () => ({
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
   ProfessionalAsyncState: ({ title }: { title: string }) => <div>{title}</div>,
-  ProfessionalLoadingState: ({ label }: { label: string }) => <div>{label}</div>,
+  ProfessionalLoadingState: ({ label }: { label: string }) => (
+    <div>{label}</div>
+  ),
   ProfessionalPage: ({ children }: { children: React.ReactNode }) => (
     <main>{children}</main>
   ),
@@ -95,23 +100,40 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 vi.mock("@/components/ui/card", () => ({
-  Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
-  CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  Card: ({ children }: { children: React.ReactNode }) => (
+    <section>{children}</section>
+  ),
+  CardContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  CardDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  CardHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  CardTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
 }));
 
 vi.mock("@/components/ui/input", () => ({
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} />
+  ),
 }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
-      professionalRecord: { get: { invalidate: vi.fn(async () => undefined) } },
+      professionalRecord: {
+        context: { invalidate: contextInvalidate },
+        get: { invalidate: vi.fn(async () => undefined) },
+      },
       nutrition: {
-        professionals: { portfolio: { invalidate: vi.fn(async () => undefined) } },
+        professionals: {
+          portfolio: { invalidate: vi.fn(async () => undefined) },
+        },
       },
     }),
     professionalRecord: {
@@ -130,7 +152,19 @@ vi.mock("@/lib/trpc", () => ({
       saveAssessment: { useMutation: mutation },
       createNote: { useMutation: mutation },
       createGuidance: { useMutation: mutation },
-      transitionTracking: { useMutation: mutation },
+      transitionTracking: {
+        useMutation: (options: {
+          onSuccess?: (
+            data: unknown,
+            variables: { status: "active" | "paused" | "ended" }
+          ) => void | Promise<void>;
+        }) => ({
+          ...mutation(),
+          mutate: (input: { status: "active" | "paused" | "ended" }) => {
+            void options.onSuccess?.({}, input);
+          },
+        }),
+      },
     },
   },
 }));
@@ -167,7 +201,9 @@ function recordFixture(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   location = "/professional/patients/41/assessment";
   selectedPatientId = 41;
+  selectedAuthorizationId = "authorization-41";
   recordData = recordFixture();
+  contextInvalidate.mockClear();
   getQuery.mockReset();
   setLocation.mockReset();
   vi.restoreAllMocks();
@@ -185,7 +221,9 @@ describe("professional patient workspace audit corrections", () => {
     const user = userEvent.setup();
     const view = render(<ProfessionalPatientWorkspace />);
 
-    expect(screen.getByRole("navigation", { name: "Paginação de avaliações" })).toBeTruthy();
+    expect(
+      screen.getByRole("navigation", { name: "Paginação de avaliações" })
+    ).toBeTruthy();
     expect(screen.getByText("Página 1 de 3")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Próxima" }));
     await waitFor(() =>
@@ -220,8 +258,16 @@ describe("professional patient workspace audit corrections", () => {
     location = "/professional/patients/41/history";
     recordData = recordFixture({
       timeline: [
-        { id: "goal", eventType: "official_goal_revised", occurredAt: Date.now() },
-        { id: "tracking", eventType: "tracking_transitioned", occurredAt: Date.now() },
+        {
+          id: "goal",
+          eventType: "official_goal_revised",
+          occurredAt: Date.now(),
+        },
+        {
+          id: "tracking",
+          eventType: "tracking_transitioned",
+          occurredAt: Date.now(),
+        },
       ],
       pagination: {
         totals: { assessments: 0, notes: 0, guidances: 0, timeline: 2 },
@@ -231,8 +277,12 @@ describe("professional patient workspace audit corrections", () => {
 
     render(<ProfessionalPatientWorkspace />);
 
-    expect(screen.getByText("Nova versão da meta oficial ativada")).toBeTruthy();
-    expect(screen.getByText("Situação do acompanhamento alterada")).toBeTruthy();
+    expect(
+      screen.getByText("Nova versão da meta oficial ativada")
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Situação do acompanhamento alterada")
+    ).toBeTruthy();
     expect(
       screen.getByRole("navigation", { name: "Paginação de histórico" })
     ).toBeTruthy();
@@ -246,7 +296,9 @@ describe("professional patient workspace audit corrections", () => {
     location = "/professional/patients/41/notes";
     recordData = recordFixture({ notes: [] });
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    const pushState = vi.spyOn(window.history, "pushState").mockImplementation(() => undefined);
+    const pushState = vi
+      .spyOn(window.history, "pushState")
+      .mockImplementation(() => undefined);
     const view = render(<ProfessionalPatientWorkspace />);
 
     const note = screen.getByPlaceholderText(
@@ -265,9 +317,11 @@ describe("professional patient workspace audit corrections", () => {
     view.unmount();
     const samePatient = render(<ProfessionalPatientWorkspace />);
     expect(
-      (screen.getByPlaceholderText(
-        "Registre observações internas do acompanhamento."
-      ) as HTMLTextAreaElement).value
+      (
+        screen.getByPlaceholderText(
+          "Registre observações internas do acompanhamento."
+        ) as HTMLTextAreaElement
+      ).value
     ).toBe("Rascunho preservado");
 
     samePatient.unmount();
@@ -275,10 +329,56 @@ describe("professional patient workspace audit corrections", () => {
     location = "/professional/patients/42/notes";
     render(<ProfessionalPatientWorkspace />);
     expect(
-      (screen.getByPlaceholderText(
-        "Registre observações internas do acompanhamento."
-      ) as HTMLTextAreaElement).value
+      (
+        screen.getByPlaceholderText(
+          "Registre observações internas do acompanhamento."
+        ) as HTMLTextAreaElement
+      ).value
     ).toBe("");
+  });
+
+  it("does not restore a draft when the same patient receives a new authorization", async () => {
+    const user = userEvent.setup();
+    location = "/professional/patients/41/notes";
+    recordData = recordFixture({ notes: [] });
+    const view = render(<ProfessionalPatientWorkspace />);
+
+    await user.type(
+      screen.getByPlaceholderText(
+        "Registre observações internas do acompanhamento."
+      ),
+      "Rascunho da autorização anterior"
+    );
+    view.unmount();
+
+    selectedAuthorizationId = "authorization-41-renewed";
+    render(<ProfessionalPatientWorkspace />);
+    expect(
+      (
+        screen.getByPlaceholderText(
+          "Registre observações internas do acompanhamento."
+        ) as HTMLTextAreaElement
+      ).value
+    ).toBe("");
+  });
+
+  it("redirects immediately to history and refreshes canonical context when tracking ends", async () => {
+    const user = userEvent.setup();
+    location = "/professional/patients/41";
+    recordData = recordFixture();
+    render(<ProfessionalPatientWorkspace />);
+
+    await user.click(screen.getByRole("button", { name: "Encerrar" }));
+
+    await waitFor(() =>
+      expect(setLocation).toHaveBeenCalledWith(
+        "/professional/patients/41/history"
+      )
+    );
+    expect(contextInvalidate).toHaveBeenCalledWith({
+      patientId: 41,
+      resource: "professional_record",
+    });
   });
 
   it("clears the preserved draft after an explicit discard", async () => {
@@ -289,7 +389,9 @@ describe("professional patient workspace audit corrections", () => {
     const view = render(<ProfessionalPatientWorkspace />);
 
     await user.type(
-      screen.getByPlaceholderText("Registre observações internas do acompanhamento."),
+      screen.getByPlaceholderText(
+        "Registre observações internas do acompanhamento."
+      ),
       "Descartar este texto"
     );
     await user.click(screen.getByRole("button", { name: "Resumo" }));
@@ -298,9 +400,11 @@ describe("professional patient workspace audit corrections", () => {
     view.unmount();
     render(<ProfessionalPatientWorkspace />);
     expect(
-      (screen.getByPlaceholderText(
-        "Registre observações internas do acompanhamento."
-      ) as HTMLTextAreaElement).value
+      (
+        screen.getByPlaceholderText(
+          "Registre observações internas do acompanhamento."
+        ) as HTMLTextAreaElement
+      ).value
     ).toBe("");
   });
 });
