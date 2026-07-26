@@ -77,7 +77,6 @@ const queryClient = {
       mutationSubscriber = subscriber;
       return () => {
         mutationSubscriber = null;
-  EventSourceMock.instances = [];
       };
     },
   }),
@@ -217,6 +216,7 @@ beforeEach(() => {
   removeQueries.mockClear();
   querySubscriber = null;
   mutationSubscriber = null;
+  EventSourceMock.instances = [];
   for (const cache of patientCaches) {
     cache.cancel.mockReset();
     cache.cancel.mockImplementation(() => Promise.resolve());
