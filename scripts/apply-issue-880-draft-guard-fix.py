@@ -1,7 +1,5 @@
 from pathlib import Path
 
-BRANCH = "feat/875-professional-context-routes"
-
 workspace = Path("client/src/pages/professional/ProfessionalPatientWorkspace.tsx")
 source = workspace.read_text(encoding="utf-8")
 
@@ -162,74 +160,3 @@ section = """
 """
 if "## Proteção completa das saídas com rascunho — issue #880" not in documentation:
     docs.write_text(documentation.rstrip() + section, encoding="utf-8")
-
-visual_workflow = Path(".github/workflows/professional-home-visual.yml")
-visual_workflow.write_text(
-    '''name: Professional workspace visual evidence
-
-on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - "client/src/pages/ProfessionalAreaPage.tsx"
-      - "client/src/pages/professional/ProfessionalHome.tsx"
-      - "client/src/pages/professional/ProfessionalPatients.tsx"
-      - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
-      - "client/src/components/ProfessionalLayout.tsx"
-      - "client/src/components/professional/ProfessionalUi.tsx"
-      - "client/src/components/ui/sidebar.tsx"
-      - "client/src/lib/professionalRoutes.ts"
-      - "client/src/index.css"
-      - "visual-tests/professional-home/**"
-      - "visual-tests/professional-patient-workspace/**"
-      - "scripts/render-professional-home-visual.sh"
-      - "scripts/render-professional-patient-workspace-visual.sh"
-      - ".github/workflows/professional-home-visual.yml"
-
-permissions:
-  contents: read
-
-jobs:
-  visual-evidence:
-    runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
-      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Render professional aggregate evidence
-        run: bash scripts/render-professional-home-visual.sh
-      - name: Render professional patient workspace evidence
-        run: bash scripts/render-professional-patient-workspace-visual.sh
-      - name: Upload professional workspace screenshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: professional-workspace-visual-${{ github.event.pull_request.head.sha }}
-          path: |
-            artifacts/professional-home
-            artifacts/professional-patient-workspace
-          if-no-files-found: error
-          retention-days: 30
-''',
-    encoding="utf-8",
-)
-
-for temporary in (
-    Path(".github/workflows/patch-issue-880-single-confirmation.yml"),
-    Path(".github/workflows/patch-issue-880-audit-findings.yml"),
-):
-    if temporary.exists():
-        temporary.unlink()
-
-Path(__file__).unlink()
