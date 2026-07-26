@@ -317,6 +317,21 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return contextResult;
   }
 
+  if (text && hasMultipleWhatsappFoodReplacementCommands(text)) {
+    const replacementBatch = await logAndReturnInterpretedIntent(
+      userId,
+      await executeWhatsappRecordAdjustmentIntent(userId, {
+        text,
+        receivedAt,
+        userTimezone,
+      }),
+      { text, receivedAt },
+    );
+    if (replacementBatch) {
+      return replacementBatch;
+    }
+  }
+
   const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
   if (multiActionPreview) {
     const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
