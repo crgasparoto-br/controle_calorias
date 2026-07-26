@@ -97,6 +97,48 @@ export async function getProfessionalRecord(
   );
   const historyOnly = scope.trackingStatus === "ended";
   const offset = (input.page - 1) * input.pageSize;
+
+  if (historyOnly) {
+    const [timelineResult, timelineCountResult] = await Promise.all([
+      scope.db.execute(sql`
+        SELECT id, eventType, occurredAt
+        FROM professionalHistoryEvents
+        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
+        ORDER BY occurredAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+      scope.db.execute(
+        sql`SELECT COUNT(*) AS total FROM professionalHistoryEvents WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}`
+      ),
+    ]);
+    const timelineTotal = count(timelineCountResult);
+    return {
+      patient: {
+        id: input.patientId,
+        authorizationStatus: "approved" as const,
+        trackingStatus: "ended" as const,
+      },
+      latestAssessment: null,
+      assessmentHistory: [],
+      notes: [],
+      guidances: [],
+      timeline: rows(timelineResult).map(row => ({
+        id: String(row.id),
+        eventType: String(row.eventType),
+        occurredAt: timestamp(row.occurredAt),
+      })),
+      pagination: {
+        page: input.page,
+        pageSize: input.pageSize,
+        totals: {
+          assessments: 0,
+          notes: 0,
+          guidances: 0,
+          timeline: timelineTotal,
+        },
+        hasMore: timelineTotal > input.page * input.pageSize,
+      },
+    };
+  }
+
   const [
     assessmentResult,
     assessmentHistoryResult,
@@ -170,77 +212,69 @@ export async function getProfessionalRecord(
       authorizationStatus: "approved" as const,
       trackingStatus: scope.trackingStatus,
     },
-    latestAssessment: historyOnly
-      ? null
-      : latest
-        ? {
-            id: String(latest.id),
-            version: Number(latest.version),
-            objective: String(latest.objective ?? ""),
-            weightKg: numberOrNull(latest.weightKg),
-            heightCm: numberOrNull(latest.heightCm),
-            routineAndSchedule: latest.routineAndSchedule
-              ? String(latest.routineAndSchedule)
-              : null,
-            physicalActivity: latest.physicalActivity
-              ? String(latest.physicalActivity)
-              : null,
-            foodPreferences: latest.foodPreferences
-              ? String(latest.foodPreferences)
-              : null,
-            restrictionsAndAllergies: latest.restrictionsAndAllergies
-              ? String(latest.restrictionsAndAllergies)
-              : null,
-            reportedDifficulties: latest.reportedDifficulties
-              ? String(latest.reportedDifficulties)
-              : null,
-            relevantHabits: latest.relevantHabits
-              ? String(latest.relevantHabits)
-              : null,
-            professionalObservations: latest.professionalObservations
-              ? String(latest.professionalObservations)
-              : null,
-            assessedAt: timestamp(latest.assessedAt),
-            nextReviewAt: timestamp(latest.nextReviewAt),
-            createdAt: timestamp(latest.createdAt),
-            authorName: String(latest.authorName ?? "Profissional"),
-          }
-        : null,
-    assessmentHistory: historyOnly
-      ? []
-      : rows(assessmentHistoryResult).map(row => ({
-          id: String(row.id),
-          version: Number(row.version),
-          objective: String(row.objective ?? ""),
-          assessedAt: timestamp(row.assessedAt),
-          nextReviewAt: timestamp(row.nextReviewAt),
-          createdAt: timestamp(row.createdAt),
-          authorName: String(row.authorName ?? "Profissional"),
-        })),
-    notes: historyOnly
-      ? []
-      : rows(notesResult).map(row => ({
-          id: String(row.id),
-          content: String(row.content ?? ""),
-          createdAt: timestamp(row.createdAt),
-          updatedAt: timestamp(row.updatedAt),
-          authorName: String(row.authorName ?? "Profissional"),
-        })),
-    guidances: historyOnly
-      ? []
-      : rows(guidancesResult).map(row => ({
-          id: String(row.id),
-          version: Number(row.version),
-          title: String(row.title ?? ""),
-          content: String(row.content ?? ""),
-          visibility: String(row.visibility),
-          deliveryStatus: String(row.deliveryStatus),
-          authorName: String(row.authorName ?? "Profissional"),
-          supersedesGuidanceId: row.supersedesGuidanceId
-            ? String(row.supersedesGuidanceId)
+    latestAssessment: latest
+      ? {
+          id: String(latest.id),
+          version: Number(latest.version),
+          objective: String(latest.objective ?? ""),
+          weightKg: numberOrNull(latest.weightKg),
+          heightCm: numberOrNull(latest.heightCm),
+          routineAndSchedule: latest.routineAndSchedule
+            ? String(latest.routineAndSchedule)
             : null,
-          createdAt: timestamp(row.createdAt),
-        })),
+          physicalActivity: latest.physicalActivity
+            ? String(latest.physicalActivity)
+            : null,
+          foodPreferences: latest.foodPreferences
+            ? String(latest.foodPreferences)
+            : null,
+          restrictionsAndAllergies: latest.restrictionsAndAllergies
+            ? String(latest.restrictionsAndAllergies)
+            : null,
+          reportedDifficulties: latest.reportedDifficulties
+            ? String(latest.reportedDifficulties)
+            : null,
+          relevantHabits: latest.relevantHabits
+            ? String(latest.relevantHabits)
+            : null,
+          professionalObservations: latest.professionalObservations
+            ? String(latest.professionalObservations)
+            : null,
+          assessedAt: timestamp(latest.assessedAt),
+          nextReviewAt: timestamp(latest.nextReviewAt),
+          createdAt: timestamp(latest.createdAt),
+          authorName: String(latest.authorName ?? "Profissional"),
+        }
+      : null,
+    assessmentHistory: rows(assessmentHistoryResult).map(row => ({
+      id: String(row.id),
+      version: Number(row.version),
+      objective: String(row.objective ?? ""),
+      assessedAt: timestamp(row.assessedAt),
+      nextReviewAt: timestamp(row.nextReviewAt),
+      createdAt: timestamp(row.createdAt),
+      authorName: String(row.authorName ?? "Profissional"),
+    })),
+    notes: rows(notesResult).map(row => ({
+      id: String(row.id),
+      content: String(row.content ?? ""),
+      createdAt: timestamp(row.createdAt),
+      updatedAt: timestamp(row.updatedAt),
+      authorName: String(row.authorName ?? "Profissional"),
+    })),
+    guidances: rows(guidancesResult).map(row => ({
+      id: String(row.id),
+      version: Number(row.version),
+      title: String(row.title ?? ""),
+      content: String(row.content ?? ""),
+      visibility: String(row.visibility),
+      deliveryStatus: String(row.deliveryStatus),
+      authorName: String(row.authorName ?? "Profissional"),
+      supersedesGuidanceId: row.supersedesGuidanceId
+        ? String(row.supersedesGuidanceId)
+        : null,
+      createdAt: timestamp(row.createdAt),
+    })),
     timeline: rows(timelineResult).map(row => ({
       id: String(row.id),
       eventType: String(row.eventType),
@@ -249,9 +283,7 @@ export async function getProfessionalRecord(
     pagination: {
       page: input.page,
       pageSize: input.pageSize,
-      totals: historyOnly
-        ? { assessments: 0, notes: 0, guidances: 0, timeline: totals.timeline }
-        : totals,
+      totals,
       hasMore: totals.timeline > input.page * input.pageSize,
     },
   };

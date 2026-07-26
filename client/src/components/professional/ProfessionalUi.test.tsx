@@ -47,6 +47,8 @@ describe("shared professional states", () => {
     expect(html).toContain("Encerrado");
     expect(html).toContain("Ver histórico");
     expect(html).not.toContain("Paciente em acompanhamento");
+    expect(html).not.toContain("Última atividade");
+    expect(html).not.toContain("Próxima revisão");
   });
 
   it("describes paused tracking explicitly", () => {

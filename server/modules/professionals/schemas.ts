@@ -65,6 +65,103 @@ export const professionalRecordSchema = z.object({
   pageSize: z.number().int().min(10).max(50).optional().default(20),
 });
 
+const professionalRecordTimestampSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .nullable();
+const professionalRecordPatientSchema = z
+  .object({
+    id: z.number().int().positive(),
+    authorizationId: z.string().min(1).optional(),
+    name: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    authorizationStatus: z.literal("approved"),
+    trackingStatus: z.enum(["not_started", "active", "paused", "ended"]),
+  })
+  .strict();
+const professionalAssessmentSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    version: z.number().int().positive(),
+    objective: z.string(),
+    assessedAt: professionalRecordTimestampSchema,
+    nextReviewAt: professionalRecordTimestampSchema,
+    createdAt: professionalRecordTimestampSchema,
+    authorName: z.string(),
+  })
+  .strict();
+
+export const professionalRecordOutputSchema = z
+  .object({
+    patient: professionalRecordPatientSchema,
+    latestAssessment: professionalAssessmentSummarySchema
+      .extend({
+        weightKg: z.number().nullable(),
+        heightCm: z.number().nullable(),
+        routineAndSchedule: z.string().nullable(),
+        physicalActivity: z.string().nullable(),
+        foodPreferences: z.string().nullable(),
+        restrictionsAndAllergies: z.string().nullable(),
+        reportedDifficulties: z.string().nullable(),
+        relevantHabits: z.string().nullable(),
+        professionalObservations: z.string().nullable(),
+      })
+      .nullable(),
+    assessmentHistory: z.array(professionalAssessmentSummarySchema),
+    notes: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          content: z.string(),
+          createdAt: professionalRecordTimestampSchema,
+          updatedAt: professionalRecordTimestampSchema,
+          authorName: z.string(),
+        })
+        .strict()
+    ),
+    guidances: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          version: z.number().int().positive(),
+          title: z.string(),
+          content: z.string(),
+          visibility: z.string(),
+          deliveryStatus: z.string(),
+          authorName: z.string(),
+          supersedesGuidanceId: z.string().nullable(),
+          createdAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    timeline: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          eventType: z.string().min(1),
+          occurredAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    pagination: z
+      .object({
+        page: z.number().int().positive(),
+        pageSize: z.number().int().positive(),
+        totals: z
+          .object({
+            assessments: z.number().int().nonnegative(),
+            notes: z.number().int().nonnegative(),
+            guidances: z.number().int().nonnegative(),
+            timeline: z.number().int().nonnegative(),
+          })
+          .strict(),
+        hasMore: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const professionalAssessmentSchema = z.object({
   patientId: z.number().int().positive(),
   objective: z.string().trim().min(3).max(4000),

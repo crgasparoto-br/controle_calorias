@@ -381,6 +381,28 @@ describe("professional patient workspace audit corrections", () => {
     });
   });
 
+  it("exposes persistent accessible labels for guidance and private notes", () => {
+    location = "/professional/patients/41/guidance";
+    recordData = recordFixture({ guidances: [] });
+    const view = render(<ProfessionalPatientWorkspace />);
+
+    expect(
+      screen.getByRole("textbox", { name: "Título da orientação" })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("textbox", {
+        name: "Conteúdo da orientação ao paciente",
+      })
+    ).toBeTruthy();
+
+    location = "/professional/patients/41/notes";
+    recordData = recordFixture({ notes: [] });
+    view.rerender(<ProfessionalPatientWorkspace />);
+    expect(
+      screen.getByRole("textbox", { name: "Conteúdo da anotação privada" })
+    ).toBeTruthy();
+  });
+
   it("clears the preserved draft after an explicit discard", async () => {
     const user = userEvent.setup();
     location = "/professional/patients/41/notes";

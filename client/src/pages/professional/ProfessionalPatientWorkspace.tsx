@@ -100,6 +100,14 @@ export function professionalPatientHeaderActionSections(
   return allowed.filter(section => section !== currentSection);
 }
 
+export function professionalPatientSectionsForTracking(
+  trackingStatus: "not_started" | "active" | "paused" | "ended"
+) {
+  return trackingStatus === "ended"
+    ? sections.filter(item => item.section === "history")
+    : sections;
+}
+
 const historyEventLabels: Record<string, string> = {
   access_requested: "Acesso profissional solicitado",
   access_approved: "Acesso profissional aprovado",
@@ -448,17 +456,19 @@ function PatientSubnav({
   activeSection,
   navigate,
   patientId,
+  trackingStatus,
 }: {
   activeSection: ProfessionalPatientSection;
   navigate: (path: string) => void;
   patientId: number;
+  trackingStatus: "not_started" | "active" | "paused" | "ended";
 }) {
   return (
     <nav
       aria-label="Áreas do paciente"
       className="flex gap-1 overflow-x-auto rounded-2xl border bg-card p-1"
     >
-      {sections.map(item => {
+      {professionalPatientSectionsForTracking(trackingStatus).map(item => {
         const active = item.section === activeSection;
         return (
           <Button
@@ -882,17 +892,25 @@ function GuidanceSection({
               estiver ativo.
             </p>
           ) : null}
-          <Input
-            placeholder="Título"
-            value={title}
-            onChange={event => onTitleChange(event.target.value)}
-          />
-          <textarea
-            className="min-h-40 rounded-md border bg-background p-3"
-            value={content}
-            onChange={event => onContentChange(event.target.value)}
-            placeholder="Escreva a orientação que ficará disponível para o paciente."
-          />
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Título da orientação</span>
+            <Input
+              placeholder="Ex.: Ajustes para o café da manhã"
+              value={title}
+              onChange={event => onTitleChange(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">
+              Conteúdo da orientação ao paciente
+            </span>
+            <textarea
+              className="min-h-40 rounded-md border bg-background p-3"
+              value={content}
+              onChange={event => onContentChange(event.target.value)}
+              placeholder="Escreva a orientação que ficará disponível para o paciente."
+            />
+          </label>
           {create.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {create.error?.message}
@@ -999,12 +1017,15 @@ function NotesSection({
               estiver ativo.
             </p>
           ) : null}
-          <textarea
-            className="min-h-48 rounded-md border bg-background p-3"
-            value={content}
-            onChange={event => onContentChange(event.target.value)}
-            placeholder="Registre observações internas do acompanhamento."
-          />
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Conteúdo da anotação privada</span>
+            <textarea
+              className="min-h-48 rounded-md border bg-background p-3"
+              value={content}
+              onChange={event => onContentChange(event.target.value)}
+              placeholder="Registre observações internas do acompanhamento."
+            />
+          </label>
           {create.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {create.error?.message}
@@ -1316,9 +1337,10 @@ export default function ProfessionalPatientWorkspace() {
     "not_started";
   const active = trackingStatus === "active";
   const transition = (nextStatus: "active" | "paused" | "ended") => {
-    if (!professionalRecord) return;
+    const accessId = selectedPatient.authorizationId;
+    if (!professionalRecord || !accessId) return;
     transitionTracking.mutate({
-      accessId: professionalRecord.patient.authorizationId,
+      accessId,
       status: nextStatus,
       reason: transitionReason || undefined,
     });
@@ -1432,6 +1454,7 @@ export default function ProfessionalPatientWorkspace() {
         activeSection={section}
         navigate={navigate}
         patientId={patientId}
+        trackingStatus={trackingStatus}
       />
 
       {section === "record" ? (

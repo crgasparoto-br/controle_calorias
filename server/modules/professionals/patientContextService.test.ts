@@ -7,9 +7,7 @@ const mocks = vi.hoisted(() => ({
   getProfessionalProfile: vi.fn(),
 }));
 
-vi.mock("../../db", () => ({
-  getDb: mocks.getDb,
-}));
+vi.mock("../../db", () => ({ getDb: mocks.getDb }));
 vi.mock("./entitlementAccess", () => ({
   assertProfessionalResourceAccess: mocks.assertProfessionalResourceAccess,
 }));
@@ -18,6 +16,9 @@ vi.mock("./service", () => ({
 }));
 
 import { getProfessionalPatientContext } from "./patientContextService";
+
+const professionalActivityAt = new Date("2026-07-24T15:30:00.000Z");
+const unrelatedMealActivityAt = new Date("2026-07-20T08:00:00.000Z");
 
 beforeEach(() => {
   mocks.assertProfessionalResourceAccess.mockReset();
@@ -34,7 +35,8 @@ beforeEach(() => {
         patientName: "Ana",
         patientEmail: "ana@example.com",
         trackingStatus: "paused",
-        lastActivityAt: new Date("2026-07-24T15:30:00.000Z"),
+        lastActivityAt: unrelatedMealActivityAt,
+        lastProfessionalActivityAt: professionalActivityAt,
         nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
       },
     ],
@@ -42,7 +44,7 @@ beforeEach(() => {
 });
 
 describe("getProfessionalPatientContext", () => {
-  it("checks the exact entitlement requested by the route", async () => {
+  it("checks the exact entitlement and uses the canonical professional timeline for activity", async () => {
     const result = await getProfessionalPatientContext(7, {
       patientId: 41,
       resource: "professional_reports",
@@ -57,10 +59,11 @@ describe("getProfessionalPatientContext", () => {
       authorizationId: "authorization-1",
       displayName: "Ana",
       authorizationStatus: "approved",
-      lastActivityAt: Date.parse("2026-07-24T15:30:00.000Z"),
+      lastActivityAt: professionalActivityAt.getTime(),
       nextReviewAt: Date.parse("2026-08-05T12:00:00.000Z"),
       trackingStatus: "paused",
     });
+    expect(result.lastActivityAt).not.toBe(unrelatedMealActivityAt.getTime());
   });
 
   it("returns explicit nulls when stable header metadata is absent", async () => {
@@ -72,7 +75,7 @@ describe("getProfessionalPatientContext", () => {
           patientName: "Ana",
           patientEmail: "ana@example.com",
           trackingStatus: "active",
-          lastActivityAt: null,
+          lastProfessionalActivityAt: null,
           nextReviewAt: null,
         },
       ],
@@ -91,9 +94,39 @@ describe("getProfessionalPatientContext", () => {
     });
   });
 
+  it("minimizes the public context after tracking ends", async () => {
+    mocks.execute.mockResolvedValueOnce([
+      [
+        {
+          authorizationId: "authorization-sensitive",
+          patientUserId: 41,
+          patientName: "Ana",
+          patientEmail: "ana@example.com",
+          trackingStatus: "ended",
+          lastProfessionalActivityAt: professionalActivityAt,
+          nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const result = await getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+
+    expect(result).toEqual({
+      patientId: 41,
+      displayName: "Ana",
+      authorizationStatus: "approved",
+      trackingStatus: "ended",
+    });
+    expect(result).not.toHaveProperty("authorizationId");
+    expect(result).not.toHaveProperty("lastActivityAt");
+    expect(result).not.toHaveProperty("nextReviewAt");
+  });
+
   it("does not query authorization when the professional profile is inactive", async () => {
     mocks.getProfessionalProfile.mockResolvedValue({ active: false });
-
     await expect(
       getProfessionalPatientContext(7, {
         patientId: 41,
@@ -106,7 +139,6 @@ describe("getProfessionalPatientContext", () => {
 
   it("returns the same safe error for absent or revoked authorizations", async () => {
     mocks.execute.mockResolvedValue([[]]);
-
     await expect(
       getProfessionalPatientContext(7, {
         patientId: 999,
@@ -117,7 +149,6 @@ describe("getProfessionalPatientContext", () => {
 
   it("fails closed when the canonical database is unavailable", async () => {
     mocks.getDb.mockResolvedValue(null);
-
     await expect(
       getProfessionalPatientContext(7, {
         patientId: 41,

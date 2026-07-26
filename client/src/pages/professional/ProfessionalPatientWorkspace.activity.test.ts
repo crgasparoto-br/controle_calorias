@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { professionalPatientHeaderActionSections } from "./ProfessionalPatientWorkspace";
+import {
+  professionalPatientHeaderActionSections,
+  professionalPatientSectionsForTracking,
+} from "./ProfessionalPatientWorkspace";
 
 describe("workspace patient header actions", () => {
   it("offers active clinical shortcuts without repeating the current section", () => {
@@ -25,6 +28,9 @@ describe("workspace patient header actions", () => {
     expect(professionalPatientHeaderActionSections("ended", "history")).toEqual(
       []
     );
+    expect(
+      professionalPatientSectionsForTracking("ended").map(item => item.section)
+    ).toEqual(["history"]);
   });
 
   it("routes not-started tracking back to the summary before intervention", () => {

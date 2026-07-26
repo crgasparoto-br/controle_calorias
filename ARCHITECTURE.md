@@ -54,7 +54,7 @@ A decisão de produto canônica está em `docs/product-specs/product-experience-
 - Deve validar no backend o perfil profissional, o vínculo vigente, o consentimento e o paciente alvo.
 - Não deve importar páginas pessoais para simular a sessão do paciente nem usar impersonação.
 - Toda mutação profissional deve carregar ator profissional e paciente afetado de forma separada.
-- A tela única com abas existente deve ser preservada durante a transição, mas a direção arquitetural é evoluir para páginas próprias de dashboard, carteira, prontuário, acompanhamento, mensagens, relatórios e configurações.
+- A transição foi concluída: dashboard, carteira, workspace contextual do paciente, mensagens, relatórios e configurações usam rotas próprias. As antigas telas concentradas permanecem apenas como redirecionamentos seguros e não devem ser reintroduzidas.
 
 ### Serviços compartilhados
 

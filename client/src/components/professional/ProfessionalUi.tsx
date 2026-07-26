@@ -292,10 +292,15 @@ export function ProfessionalPatientHeader({
         : trackingStatus === "active"
           ? "Paciente em acompanhamento"
           : "Acompanhamento não iniciado";
+  const historyOnly = trackingStatus === "ended";
   return (
     <section
       aria-label="Contexto do paciente"
-      className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))] lg:items-center"
+      className={`grid min-w-0 gap-4 rounded-2xl border bg-card p-4 shadow-sm ${
+        historyOnly
+          ? ""
+          : "lg:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))] lg:items-center"
+      }`}
     >
       <div className="min-w-0">
         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
@@ -315,18 +320,22 @@ export function ProfessionalPatientHeader({
           />
         </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">Última atividade</p>
-        <p className="mt-1 break-words text-sm font-medium">
-          {format(lastActivityAt, "Não informado")}
-        </p>
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">Próxima revisão</p>
-        <p className="mt-1 break-words text-sm font-medium">
-          {format(nextReviewAt, "Sem revisão agendada")}
-        </p>
-      </div>
+      {!historyOnly ? (
+        <>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Última atividade</p>
+            <p className="mt-1 break-words text-sm font-medium">
+              {format(lastActivityAt, "Não informado")}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Próxima revisão</p>
+            <p className="mt-1 break-words text-sm font-medium">
+              {format(nextReviewAt, "Sem revisão agendada")}
+            </p>
+          </div>
+        </>
+      ) : null}
       {actions ? (
         <div
           aria-label="Ações permitidas para o paciente"

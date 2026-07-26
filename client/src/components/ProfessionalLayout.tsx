@@ -48,7 +48,7 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
 export type ProfessionalPatientContext = {
   patientId: number;
-  authorizationId: string;
+  authorizationId?: string;
   displayName: string;
   authorizationStatus?: "approved";
   lastActivityAt?: number | null;

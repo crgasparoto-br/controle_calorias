@@ -4,6 +4,7 @@ import {
   professionalAssessmentSchema,
   professionalGuidanceSchema,
   professionalNoteSchema,
+  professionalRecordOutputSchema,
   professionalRecordSchema,
   professionalTrackingTransitionSchema,
   professionalOfficialGoalSchema,
@@ -42,7 +43,10 @@ import {
   professionalRecordProcedure,
   professionalReportsProcedure,
 } from "./entitledProcedure";
-import { professionalPatientContextSchema } from "./patientContextSchemas";
+import {
+  professionalPatientContextOutputSchema,
+  professionalPatientContextSchema,
+} from "./patientContextSchemas";
 import { professionalPatientContextRouterError } from "./patientContextRouterError";
 import { getProfessionalPatientContext } from "./patientContextService";
 
@@ -52,6 +56,7 @@ export const professionalRecordRouter = router({
   settings: professionalSettingsRouter,
   context: protectedProcedure
     .input(professionalPatientContextSchema)
+    .output(professionalPatientContextOutputSchema)
     .query(async ({ ctx, input }) => {
       try {
         return await getProfessionalPatientContext(ctx.user.id, input);
@@ -67,6 +72,7 @@ export const professionalRecordRouter = router({
     }),
   get: professionalRecordProcedure
     .input(professionalRecordSchema)
+    .output(professionalRecordOutputSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),
   saveAssessment: professionalRecordProcedure
     .input(professionalAssessmentSchema)

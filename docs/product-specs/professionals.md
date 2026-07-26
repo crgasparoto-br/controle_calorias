@@ -24,14 +24,14 @@ O repositório já possui uma primeira capacidade profissional baseada em:
 
 - perfil profissional adicional à conta pessoal;
 - solicitação, aprovação, rejeição e revogação de acesso;
-- uma tela profissional concentrada em abas;
+- rotas profissionais contextuais para dashboard, carteira e workspace individual do paciente;
 - visualização autorizada de dados do paciente;
 - comentários;
 - sugestões de metas e refeições;
 - perguntas com IA sobre uma pessoa acompanhada;
 - rastreabilidade básica por profissional e paciente.
 
-Essa capacidade é a linha de base funcional. A evolução não deve removê-la, quebrar vínculos existentes ou exigir migração manual dos pacientes. A tela única com abas não é a arquitetura de experiência alvo.
+Essa capacidade é a linha de base funcional de domínio. A evolução não deve quebrar vínculos existentes nem exigir migração manual dos pacientes. A antiga tela única com abas foi aposentada; bookmarks legados redirecionam para as rotas profissionais canônicas.
 
 Dados profissionais críticos não devem continuar apenas em memória ou em formatos inadequados para múltiplas instâncias. Prontuário, orientações, mensagens, alertas e auditoria dependem de persistência canônica e migração segura.
 
@@ -132,7 +132,7 @@ Ao selecionar um paciente, o profissional entra em contexto dedicado e clarament
 - alertas e pendências;
 - histórico do vínculo e do acompanhamento.
 
-Abas podem ser usadas dentro do prontuário de um paciente. Elas não devem continuar sendo a única estrutura de todo o módulo profissional.
+A navegação interna do paciente reflete a URL e pode usar subnav responsiva. Quando o acompanhamento está encerrado, somente a rota de histórico permanece disponível: o contrato público omite autorização interna, e-mail, metadados operacionais, avaliações, notas e orientações.
 
 ### Acompanhamento
 

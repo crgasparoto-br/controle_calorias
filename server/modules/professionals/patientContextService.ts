@@ -44,11 +44,11 @@ export async function getProfessionalPatientContext(
       COALESCE(t.status, 'not_started') AS trackingStatus,
       t.nextReviewAt,
       (
-        SELECT MAX(m.occurredAt)
-        FROM meals m
-        WHERE m.userId = a.patientUserId
-          AND m.status = 'confirmed'
-      ) AS lastActivityAt
+        SELECT MAX(h.occurredAt)
+        FROM professionalHistoryEvents h
+        WHERE h.professionalUserId = ${professionalUserId}
+          AND h.patientUserId = a.patientUserId
+      ) AS lastProfessionalActivityAt
     FROM professionalPatientAuthorizations a
     INNER JOIN users u ON u.id = a.patientUserId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
@@ -64,20 +64,29 @@ export async function getProfessionalPatientContext(
     throw new Error("O acesso a este paciente não está mais disponível.");
   }
 
-  return {
+  const trackingStatus = String(context.trackingStatus) as
+    | "not_started"
+    | "active"
+    | "paused"
+    | "ended";
+  const shared = {
     patientId: Number(context.patientUserId),
-    authorizationId: String(context.authorizationId),
     displayName:
       (context.patientName ? String(context.patientName) : null) ??
       (context.patientEmail ? String(context.patientEmail) : null) ??
       `Paciente ${input.patientId}`,
     authorizationStatus: "approved" as const,
-    lastActivityAt: timestamp(context.lastActivityAt),
+    trackingStatus,
+  };
+
+  if (trackingStatus === "ended") {
+    return shared;
+  }
+
+  return {
+    ...shared,
+    authorizationId: String(context.authorizationId),
+    lastActivityAt: timestamp(context.lastProfessionalActivityAt),
     nextReviewAt: timestamp(context.nextReviewAt),
-    trackingStatus: String(context.trackingStatus) as
-      | "not_started"
-      | "active"
-      | "paused"
-      | "ended",
   };
 }
