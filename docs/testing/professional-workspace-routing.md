@@ -82,7 +82,9 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 
 ## Evidência visual automatizada
 
-O workflow `Professional workspace visual evidence` deve renderizar, no head exato da pull request, as superfícies agregadas e o workspace individual real em rotas canônicas. Para a issue #880, o artefato precisa incluir resumo, avaliação, orientações, anotações e histórico, além dos estados pausado, encerrado, carregando e erro recuperável.
+O workflow `Professional workspace visual evidence` deve renderizar, no head exato da pull request, as superfícies agregadas e o workspace individual real em rotas canônicas. Para a issue #880, o artefato precisa incluir resumo, avaliação, metas, orientações, anotações e histórico, além dos estados pausado, encerrado, carregando e erro recuperável.
+
+A rota `/professional/patients/:patientId/goals` deve ser capturada em acompanhamento ativo e pausado nos viewports 1440 × 900, 1366 × 768, 1024 × 768 e 390 × 844. O cenário cria uma exceção por dia antes da captura e, no estado pausado, preserva essa exceção durante a transição para provar que inputs, selects, remoção, ativação e retry de notificação ficam bloqueados. As asserções também verificam labels acessíveis, contenção dos controles e ausência de overflow horizontal.
 
 As capturas obrigatórias cobrem 1440 × 900, 1366 × 768, 1024 × 768, 390 × 844 e 390 × 1200. O manifesto do artefato individual registra separadamente `head_sha` e `checkout_sha`, porque o checkout de eventos `pull_request` pode usar o merge preview. As asserções de DOM verificam ausência de overflow horizontal da página, contenção da subnavegação e rolagem horizontal da subnav no mobile.
 
@@ -109,6 +111,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
 18. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.
 19. Conferir que a linha do tempo apresenta rótulos de domínio legíveis e nunca expõe o identificador técnico cru de um evento desconhecido.
+20. Abrir Metas em acompanhamento ativo, criar uma exceção e confirmar que a ação principal pode ser habilitada; em seguida pausar o acompanhamento sem desmontar a rota e confirmar que todos os controles mutáveis, inclusive a exceção e o retry de notificação, ficam desabilitados.
 
 ## Cabeçalho contextual
 
