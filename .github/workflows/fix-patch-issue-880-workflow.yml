@@ -6,6 +6,7 @@ on:
       - develop
     paths:
       - ".github/workflows/fix-patch-issue-880-workflow.yml"
+  workflow_dispatch:
 
 permissions:
   actions: write
