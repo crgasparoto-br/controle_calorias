@@ -32,6 +32,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Package issue 880 source files
+        run: |
+          mkdir -p artifacts/issue-880-source/client/src/pages/professional
+          mkdir -p artifacts/issue-880-source/docs/testing
+          cp client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            artifacts/issue-880-source/client/src/pages/professional/ProfessionalPatientWorkspace.tsx
+          cp docs/testing/professional-workspace-routing.md \
+            artifacts/issue-880-source/docs/testing/professional-workspace-routing.md
+          printf '%s\n' \
+            "head_sha=${GITHUB_HEAD_SHA}" \
+            "checkout_sha=${GITHUB_SHA}" \
+            > artifacts/issue-880-source/manifest.txt
+      - name: Upload issue 880 source files
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-880-source-${{ github.event.pull_request.head.sha }}
+          path: artifacts/issue-880-source
+          if-no-files-found: error
+          retention-days: 3
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node.js
