@@ -175,7 +175,51 @@ function operationalAlertsQuery() {
   ]);
 }
 
+function officialGoalQuery() {
+  return querySuccess({
+    current: {
+      id: "goal-visual-3",
+      version: 3,
+      calories: 2345,
+      proteinGrams: 187,
+      carbsGrams: 301,
+      fatGrams: 79,
+      includeExerciseCalories: true,
+      effectiveFrom: "2026-07-01",
+    },
+    reviewRequests: [
+      {
+        id: "review-visual-1",
+        status: "open",
+      },
+    ],
+    notifications: [
+      {
+        goalId: "goal-visual-3",
+        status: "failed",
+        attempts: 2,
+      },
+    ],
+  });
+}
+
 const trpc = baseTrpc as any;
+const baseUseUtils = trpc.useUtils;
+trpc.useUtils = () => {
+  const utils = baseUseUtils();
+  return {
+    ...utils,
+    nutrition: {
+      ...utils.nutrition,
+      goals: { get: { invalidate: resolved } },
+      reports: { invalidate: resolved },
+    },
+    professionalRecord: {
+      ...utils.professionalRecord,
+      get: { ...utils.professionalRecord.get, invalidate: resolved },
+    },
+  };
+};
 
 Object.assign(trpc.professionalRecord, {
   context: {
@@ -192,6 +236,11 @@ Object.assign(trpc.professionalRecord, {
   createNote: { useMutation: () => mutation() },
   createGuidance: { useMutation: () => mutation() },
   transitionTracking: { useMutation: () => mutation() },
+  officialGoal: {
+    professionalState: { useQuery: () => officialGoalQuery() },
+    activate: { useMutation: () => mutation() },
+    retryNotification: { useMutation: () => mutation() },
+  },
   operationalAlerts: {
     list: { useQuery: () => operationalAlertsQuery() },
     close: { useMutation: () => mutation() },
