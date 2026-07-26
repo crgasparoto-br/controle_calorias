@@ -1,22 +1,30 @@
 from pathlib import Path
 
 
-def replace_once(path: str, old: str, new: str) -> None:
+def insert_before_last_closure(path: str, addition: str, sentinel: str) -> None:
     file = Path(path)
     content = file.read_text(encoding="utf-8")
-    if old not in content:
-        raise SystemExit(f"Expected block not found in {path}")
-    file.write_text(content.replace(old, new, 1), encoding="utf-8")
-
-
-def insert_before_last_closure(path: str, addition: str) -> None:
-    file = Path(path)
-    content = file.read_text(encoding="utf-8")
+    if sentinel in content:
+        print(f"{path}: addition already present")
+        return
     marker = "\n});\n"
     position = content.rfind(marker)
     if position < 0:
         raise SystemExit(f"Final describe closure not found in {path}")
     file.write_text(content[:position] + addition + content[position:], encoding="utf-8")
+    print(f"{path}: tests added")
+
+
+def replace_required(path: str, old: str, new: str) -> None:
+    file = Path(path)
+    content = file.read_text(encoding="utf-8")
+    if new in content:
+        print(f"{path}: replacement already present")
+        return
+    if old not in content:
+        raise SystemExit(f"Expected text not found in {path}: {old[:80]!r}")
+    file.write_text(content.replace(old, new, 1), encoding="utf-8")
+    print(f"{path}: replacement applied")
 
 
 Path("server/modules/whatsapp/replacementCommandDetection.ts").write_text(
@@ -44,42 +52,43 @@ export function hasMultipleWhatsappFoodReplacementCommands(text: string) {
 ''',
     encoding="utf-8",
 )
+print("replacementCommandDetection.ts: canonical detector written")
 
-replace_once(
-    "server/modules/whatsapp/contextualFoodReplacementIntent.ts",
-    'import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";\n',
-    'import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";\nimport {\n  isWhatsappFoodReplacementCommandStart,\n  WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN,\n} from "./replacementCommandDetection";\n',
-)
+contextual_path = Path("server/modules/whatsapp/contextualFoodReplacementIntent.ts")
+contextual = contextual_path.read_text(encoding="utf-8")
+import_line = 'import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";\n'
+import_block = import_line + '''import {
+  isWhatsappFoodReplacementCommandStart,
+  WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN,
+} from "./replacementCommandDetection";
+'''
+if "WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN" not in contextual:
+    if import_line not in contextual:
+        raise SystemExit("contextualFoodReplacementIntent.ts: import anchor not found")
+    contextual = contextual.replace(import_line, import_block, 1)
 
-replace_once(
-    "server/modules/whatsapp/contextualFoodReplacementIntent.ts",
-    '''const REPLACEMENT_COMMAND_START_PATTERN =
-  "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s|$)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b)";
-const REPLACEMENT_COMMAND_BOUNDARY_PATTERN =
-  "(?:(?:n[aã]o)\\s+(?:é|e|era)(?=\\s)|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\\b(?=\\s+))";
-const REPLACEMENT_COMMAND_START = new RegExp(
-  `^\\s*${REPLACEMENT_COMMAND_START_PATTERN}`,
-  "i"
-);
-const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
-  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${REPLACEMENT_COMMAND_BOUNDARY_PATTERN})`,
-  "i"
-);
-''',
-    '''const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
+start_marker = "const REPLACEMENT_COMMAND_START_PATTERN ="
+end_marker = "const QUANTITY_ADJUSTMENT_TARGET ="
+if start_marker in contextual:
+    start = contextual.index(start_marker)
+    end = contextual.index(end_marker, start)
+    separator_block = '''const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
   `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})`,
   "i"
 );
-''',
-)
+'''
+    contextual = contextual[:start] + separator_block + contextual[end:]
+elif "WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN" not in contextual:
+    raise SystemExit("contextualFoodReplacementIntent.ts: parser constants not found")
 
-contextual = Path("server/modules/whatsapp/contextualFoodReplacementIntent.ts")
-content = contextual.read_text(encoding="utf-8")
-content = content.replace(
+contextual = contextual.replace(
     "REPLACEMENT_COMMAND_START.test(segment)",
     "isWhatsappFoodReplacementCommandStart(segment)",
 )
-contextual.write_text(content, encoding="utf-8")
+if "REPLACEMENT_COMMAND_START" in contextual:
+    raise SystemExit("contextualFoodReplacementIntent.ts: legacy detector remains")
+contextual_path.write_text(contextual, encoding="utf-8")
+print("contextualFoodReplacementIntent.ts: parser centralized")
 
 insert_before_last_closure(
     "server/modules/whatsapp/contextualFoodReplacementIntent.multiline.test.ts",
@@ -177,6 +186,7 @@ insert_before_last_closure(
     );
   });
 ''',
+    "nova linha termina em 'não é'",
 )
 
 insert_before_last_closure(
@@ -265,6 +275,7 @@ insert_before_last_closure(
     ).toHaveBeenCalledOnce();
   });
 ''',
+    "issue-918-simulator-incomplete-line",
 )
 
 insert_before_last_closure(
@@ -318,9 +329,10 @@ insert_before_last_closure(
     }
   );
 ''',
+    "wamid-issue-918-webhook-incomplete-line",
 )
 
-replace_once(
+replace_required(
     "docs/testing/whatsapp-response-contract-regression.md",
     "| Substituições multiline preservam todos os pares e bloqueiam lote incompleto | `contextualFoodReplacementIntent.multiline.test.ts`; smoke equivalente no simulador e webhook |",
     "| Substituições multiline preservam todos os pares e bloqueiam lote incompleto, inclusive quando o novo comando termina no próprio verbo (`não é`, `trocar` ou `substituir`) | `contextualFoodReplacementIntent.multiline.test.ts`; smoke equivalente no simulador e webhook |",
