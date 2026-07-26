@@ -1,0 +1,1 @@
+Trigger final official pull-request gates after fixing the Vitest hoisted mock.
