@@ -30,6 +30,7 @@ jobs:
       - name: Checkout candidate parent
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Capture parent identity
@@ -102,6 +103,8 @@ jobs:
 
       - name: Assemble exact candidate tree
         run: |
+          cp -R artifacts/professional-patient-workspace /tmp/issue-880-builder/visual-evidence
+          rm -rf artifacts/professional-patient-workspace
           rm -f .orchestrator/issue-880-corrections.py
           rm -rf .orchestrator/issue-880-correction-parts
           rm -f .github/workflows/issue-880-correction-builder.yml
@@ -116,7 +119,6 @@ jobs:
           git format-patch -1 --stdout HEAD > /tmp/issue-880-builder/candidate.patch
           git bundle create /tmp/issue-880-builder/candidate.bundle HEAD
           git archive --format=tar.gz -o /tmp/issue-880-builder/candidate-source.tar.gz HEAD
-          cp -R artifacts/professional-patient-workspace /tmp/issue-880-builder/visual-evidence
 
       - name: Upload correction candidate
         uses: actions/upload-artifact@v4
