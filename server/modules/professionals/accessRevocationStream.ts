@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Request, Response } from "express";
-import { createContext } from "../../_core/context";
+import { sdk } from "../../_core/sdk";
 import { getDb } from "../../db";
 import {
   professionalPatientContextResourceSchema,
@@ -140,7 +140,7 @@ export function createProfessionalAccessRevocationStreamHandler(
     let checkingPersistedState = false;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let crossInstanceCheck: ReturnType<typeof setInterval> | null = null;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
 
     const close = () => {
       if (closed) return;
@@ -185,7 +185,13 @@ export function createProfessionalAccessRevocationStreamHandler(
 
 export const handleProfessionalAccessRevocationStream =
   createProfessionalAccessRevocationStreamHandler({
-    authenticate: async (req, res) => (await createContext({ req, res })).user,
+    authenticate: async req => {
+      try {
+        return await sdk.authenticateRequest(req);
+      } catch {
+        return null;
+      }
+    },
     authorize: getProfessionalPatientContext,
     subscribe: subscribeProfessionalAccessRevocations,
     findPersistedRevocation,
