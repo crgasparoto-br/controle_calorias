@@ -103,6 +103,7 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
 async function logAndReturnInterpretedIntent(
   userId: number,
   interpreted: {
+    handled?: boolean;
     action: string;
     eventType: string;
     detail: string;
