@@ -1,0 +1,74 @@
+name: Orchestrator issue 880 resilient diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+    paths:
+      - .github/workflows/orchestrator-issue-880-diagnostic3.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Run resilient correction script
+        shell: bash
+        run: |
+          ruby -ryaml -e '
+            workflow = YAML.load_file(".github/workflows/orchestrator-issue-880.yml")
+            step = workflow.fetch("jobs").fetch("apply-corrections").fetch("steps").find { |item| item["name"] == "Apply issue 880 corrections" }
+            abort("apply step not found") unless step && step["run"]
+            File.write("/tmp/apply-issue-880.sh", step["run"])
+          '
+          python <<'PY'
+          from pathlib import Path
+          shell = Path("/tmp/apply-issue-880.sh").read_text(encoding="utf-8")
+          start_marker = "python <<'PY'\n"
+          end_marker = "\nPY\n"
+          start = shell.index(start_marker) + len(start_marker)
+          end = shell.index(end_marker, start)
+          script = shell[start:end]
+          needle = '''    count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:120]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")'''
+          replacement = '''    count = text.count(old)
+              if count == 0 and "\\n" in old:
+                  lines = old.splitlines()
+                  adjusted = "\\n".join(
+                      [lines[0], *(f"  {line}" if line else line for line in lines[1:])]
+                  )
+                  adjusted_count = text.count(adjusted)
+                  if adjusted_count == 1:
+                      old = adjusted
+                      count = adjusted_count
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:120]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")'''
+          if script.count(needle) != 1:
+              raise SystemExit("replace_once implementation anchor not found")
+          Path("/tmp/apply-issue-880.py").write_text(script.replace(needle, replacement, 1) + "\n", encoding="utf-8")
+          PY
+          set +e
+          python /tmp/apply-issue-880.py > orchestrator-issue-880-resilient-diagnostic.txt 2>&1
+          status=$?
+          printf '\nexit_code=%s\n' "$status" >> orchestrator-issue-880-resilient-diagnostic.txt
+          cat orchestrator-issue-880-resilient-diagnostic.txt
+          exit 0
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-issue-880-resilient-diagnostic-${{ github.sha }}
+          path: orchestrator-issue-880-resilient-diagnostic.txt
+          if-no-files-found: error
