@@ -18,10 +18,11 @@ on:
       - "visual-tests/professional-patient-workspace/**"
       - "scripts/render-professional-home-visual.sh"
       - "scripts/render-professional-patient-workspace-visual.sh"
+      - "scripts/apply-issue-880-draft-guard-fix.py"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   visual-evidence:
@@ -30,27 +31,11 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=4096
       GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - name: Checkout repository
+      - name: Checkout correction branch
         uses: actions/checkout@v4
-      - name: Package issue 880 source files
-        run: |
-          mkdir -p artifacts/issue-880-source/client/src/pages/professional
-          mkdir -p artifacts/issue-880-source/docs/testing
-          cp client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
-            artifacts/issue-880-source/client/src/pages/professional/ProfessionalPatientWorkspace.tsx
-          cp docs/testing/professional-workspace-routing.md \
-            artifacts/issue-880-source/docs/testing/professional-workspace-routing.md
-          printf '%s\n' \
-            "head_sha=${GITHUB_HEAD_SHA}" \
-            "checkout_sha=${GITHUB_SHA}" \
-            > artifacts/issue-880-source/manifest.txt
-      - name: Upload issue 880 source files
-        uses: actions/upload-artifact@v4
         with:
-          name: issue-880-source-${{ github.event.pull_request.head.sha }}
-          path: artifacts/issue-880-source
-          if-no-files-found: error
-          retention-days: 3
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node.js
@@ -60,6 +45,25 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Apply issue 880 correction
+        run: python scripts/apply-issue-880-draft-guard-fix.py
+      - name: Validate focused draft navigation behavior
+        run: |
+          git diff --check
+          pnpm exec vitest run \
+            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
+            client/src/pages/ProfessionalAreaPage.draftDiscard.test.tsx \
+            --maxWorkers=1 --minWorkers=1
+          pnpm check
+          pnpm docs:check
+      - name: Commit corrected implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: protect all workspace draft exits (#880)"
+          git push origin HEAD:feat/875-professional-context-routes
       - name: Render professional aggregate evidence
         run: bash scripts/render-professional-home-visual.sh
       - name: Render professional patient workspace evidence
