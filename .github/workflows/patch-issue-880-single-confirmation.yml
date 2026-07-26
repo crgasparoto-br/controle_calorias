@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: issue-880-draft-guard-patch
+  cancel-in-progress: true
+
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -161,15 +165,7 @@ describe("professional workspace unsaved navigation", () => {
           PY
 
           git diff --check
-          pnpm install --frozen-lockfile
-          pnpm exec vitest run \
-            client/src/pages/ProfessionalPatientWorkspace.unsavedNavigation.test.tsx \
-            client/src/pages/ProfessionalAreaPage.draftDiscard.test.tsx \
-            client/src/components/ProfessionalLayout.test.tsx \
-            --maxWorkers=1 --minWorkers=1
-          pnpm check
-          pnpm docs:check
-          pnpm architecture:check
+          # Full verification runs on the resulting PR head through the repository gates.
 
       - name: Commit corrections and remove temporary workflow
         run: |
