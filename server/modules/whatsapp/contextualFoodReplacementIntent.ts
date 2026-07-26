@@ -28,6 +28,10 @@ const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
 type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMeal = Meal & { items: MealItemInput[] };
 type FoodReplacementIntent = { fromFood: string; toFood: string };
+type ReplacementParseResult =
+  | { kind: "not_replacement" }
+  | { kind: "invalid_replacement" }
+  | { kind: "replacements"; replacements: FoodReplacementIntent[] };
 type LatestFoodCorrectionIntent = {
   toFood: string;
   quantity?: number;
@@ -87,12 +91,28 @@ function parseReplacement(segment: string): FoodReplacementIntent | null {
   return fromFood && toFood && !/\d/.test(toFood) ? { fromFood, toFood } : null;
 }
 
-function parseReplacements(text: string) {
-  const segments = text.split(/\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i);
-  const replacements = segments
-    .map(segment => parseReplacement(segment.trim()))
-    .filter((value): value is FoodReplacementIntent => Boolean(value));
-  return replacements.length ? replacements : null;
+const REPLACEMENT_COMMAND_START =
+  /^\s*(?:(?:n[aã]o)\s+(?:é|e|era)\b|(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b)/i;
+const REPLACEMENT_SEGMENT_SEPARATOR =
+  /(?:[ \t]*\r?\n[ \t]*)+|\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i;
+
+function parseReplacements(text: string): ReplacementParseResult {
+  const segments = text
+    .split(REPLACEMENT_SEGMENT_SEPARATOR)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+  if (!segments.some(segment => REPLACEMENT_COMMAND_START.test(segment))) {
+    return { kind: "not_replacement" };
+  }
+
+  const replacements = segments.map(parseReplacement);
+  if (!replacements.length || replacements.some(value => !value)) {
+    return { kind: "invalid_replacement" };
+  }
+  return {
+    kind: "replacements",
+    replacements: replacements as FoodReplacementIntent[],
+  };
 }
 
 export function parseLatestFoodCorrection(
@@ -262,7 +282,20 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
-  const replacements = parseReplacements(text);
+  const parsedReplacements = parseReplacements(text);
+  if (parsedReplacements.kind === "invalid_replacement") {
+    return {
+      action: "clarification_needed",
+      reply:
+        "Não consegui entender todas as substituições. Reenvie cada correção completa, por exemplo: “Não é arroz, é batata”.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição com segmento incompleto.",
+    };
+  }
+  const replacements =
+    parsedReplacements.kind === "replacements"
+      ? parsedReplacements.replacements
+      : null;
   const latestCorrection = replacements
     ? null
     : parseLatestFoodCorrection(text);
