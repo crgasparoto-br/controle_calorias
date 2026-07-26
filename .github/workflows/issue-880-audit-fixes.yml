@@ -1,9 +1,9 @@
 name: Apply issue 880 audit fixes
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/875-professional-context-routes
+      - develop
     paths:
       - .github/workflows/issue-880-audit-fixes.yml
 
