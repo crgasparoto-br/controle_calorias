@@ -45,12 +45,16 @@ vi.mock("./foodAssistant", () => ({
 }));
 
 const { clearWhatsappConversationContext } = await import("./conversationContext");
+const { __resetWhatsappInboundIdempotencyForTests } = await import(
+  "./inboundIdempotencyGuard"
+);
 const { simulateWhatsappInbound } = await import("./service");
 
 describe("simulateWhatsappInbound com substituições multiline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearWhatsappConversationContext();
+    __resetWhatsappInboundIdempotencyForTests();
     getDbMock.mockResolvedValue(null);
     executeWhatsappDatedFoodAdditionIntentMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
