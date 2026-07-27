@@ -26,6 +26,11 @@ export type AiProviderTextRequest = {
   tools?: AiProviderTextTool[];
 };
 
+export type AiProviderRequestOptions = {
+  /** Propagated to the provider SDK/HTTP client; never treated as prompt data. */
+  signal?: AbortSignal;
+};
+
 export type AiProviderUsage = {
   inputTokens?: number;
   outputTokens?: number;
@@ -36,6 +41,20 @@ export type AiProviderUsage = {
 export type AiProviderTextResponse = {
   id: string;
   outputText: string;
+  usage?: AiProviderUsage;
+  raw: unknown;
+};
+
+export type AiProviderEmbeddingInput = string | string[] | number[] | number[][];
+
+export type AiProviderEmbeddingRequest = {
+  model: string;
+  input: AiProviderEmbeddingInput;
+  dimensions?: number;
+};
+
+export type AiProviderEmbeddingResponse = {
+  embeddings: number[][];
   usage?: AiProviderUsage;
   raw: unknown;
 };
@@ -92,12 +111,19 @@ export type AiProviderImageGenerationResponse = {
 export interface AiProvider {
   createTextResponse(
     request: AiProviderTextRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse>;
+  createEmbeddings(
+    request: AiProviderEmbeddingRequest,
+    options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse>;
   createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse>;
   createImageGeneration(
     request: AiProviderImageGenerationRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse>;
 }
 
@@ -121,6 +147,10 @@ function isOpenAiClientFactory(
   client: OpenAI | OpenAiClientFactory,
 ): client is OpenAiClientFactory {
   return typeof client === "function";
+}
+
+function openAiRequestOptions(options?: AiProviderRequestOptions) {
+  return options?.signal ? { signal: options.signal } : undefined;
 }
 
 function buildTranscriptionResponse(
@@ -178,6 +208,17 @@ function normalizeOpenAiUsage(response: OpenAiResponse): AiProviderUsage | undef
   };
 }
 
+function normalizeOpenAiEmbeddingUsage(response: {
+  usage?: { prompt_tokens?: number; total_tokens?: number };
+}): AiProviderUsage | undefined {
+  if (!response.usage) return undefined;
+  return {
+    inputTokens: response.usage.prompt_tokens,
+    totalTokens: response.usage.total_tokens,
+    raw: response.usage,
+  };
+}
+
 export class OpenAiProvider implements AiProvider {
   private resolvedClient: OpenAI | null = null;
 
@@ -194,6 +235,7 @@ export class OpenAiProvider implements AiProvider {
 
   async createTextResponse(
     request: AiProviderTextRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
     const payload: ResponseCreateParamsNonStreaming = {
       model: request.model,
@@ -207,7 +249,10 @@ export class OpenAiProvider implements AiProvider {
     const text = buildTextConfig(request.format);
     if (text) payload.text = text;
 
-    const response = (await this.getClient().responses.create(payload)) as OpenAiResponse;
+    const response = (await this.getClient().responses.create(
+      payload,
+      openAiRequestOptions(options),
+    )) as OpenAiResponse;
     return {
       id: response.id,
       outputText: response.output_text ?? "",
@@ -216,39 +261,71 @@ export class OpenAiProvider implements AiProvider {
     };
   }
 
+  async createEmbeddings(
+    request: AiProviderEmbeddingRequest,
+    options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse> {
+    const response = await this.getClient().embeddings.create(
+      {
+        model: request.model,
+        input: request.input,
+        encoding_format: "float",
+        ...(request.dimensions ? { dimensions: request.dimensions } : {}),
+      },
+      openAiRequestOptions(options),
+    );
+    return {
+      embeddings: response.data.map(item => item.embedding),
+      usage: normalizeOpenAiEmbeddingUsage(response),
+      raw: response,
+    };
+  }
+
   async createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {
-    const response = await this.getClient().audio.transcriptions.create({
-      file: request.file,
-      model: request.model,
-      response_format: "verbose_json",
-      ...(request.language ? { language: request.language } : {}),
-      ...(request.prompt ? { prompt: request.prompt } : {}),
-    });
+    const response = await this.getClient().audio.transcriptions.create(
+      {
+        file: request.file,
+        model: request.model,
+        response_format: "verbose_json",
+        ...(request.language ? { language: request.language } : {}),
+        ...(request.prompt ? { prompt: request.prompt } : {}),
+      },
+      openAiRequestOptions(options),
+    );
     return buildTranscriptionResponse(response);
   }
 
   async createImageGeneration(
     request: AiProviderImageGenerationRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
     const sourceImage = request.originalImages?.find(image => image.b64Json);
     const client = this.getClient();
+    const requestOptions = openAiRequestOptions(options);
     const response = sourceImage
-      ? await client.images.edit({
-          model: request.model,
-          image: buildImageEditFile(sourceImage),
-          prompt: request.prompt,
-          ...(request.size ? { size: request.size } : {}),
-          ...(request.quality ? { quality: request.quality } : {}),
-        })
-      : await client.images.generate({
-          model: request.model,
-          prompt: request.prompt,
-          ...(request.size ? { size: request.size } : {}),
-          ...(request.quality ? { quality: request.quality } : {}),
-          ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
-        });
+      ? await client.images.edit(
+          {
+            model: request.model,
+            image: buildImageEditFile(sourceImage),
+            prompt: request.prompt,
+            ...(request.size ? { size: request.size } : {}),
+            ...(request.quality ? { quality: request.quality } : {}),
+          },
+          requestOptions,
+        )
+      : await client.images.generate(
+          {
+            model: request.model,
+            prompt: request.prompt,
+            ...(request.size ? { size: request.size } : {}),
+            ...(request.quality ? { quality: request.quality } : {}),
+            ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+          },
+          requestOptions,
+        );
 
     const imageData = firstImageData(response);
     if (!imageData) throw new Error("OpenAI image provider returned no image data.");
