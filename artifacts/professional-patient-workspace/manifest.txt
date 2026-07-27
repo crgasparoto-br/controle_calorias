@@ -1,8 +1,0 @@
-routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history
-head_sha=7a42713c45eb57dc4ac94b564221edc808046bc5
-checkout_sha=7a42713c45eb57dc4ac94b564221edc808046bc5
-scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
-viewports=1440x900,1366x768,1024x768,390x844,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
-interaction=canonical patient deep links, internal workspace composition, goal exception creation and active-to-paused transition
-assertions=patient identity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
