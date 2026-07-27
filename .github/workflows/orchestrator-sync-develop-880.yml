@@ -1,0 +1,44 @@
+name: Sync develop for issue 880
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-develop:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Merge current develop without automatic conflict choices
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          git config user.name 'solverit-orchestrator'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin develop
+          if git merge --no-commit --no-ff origin/develop; then
+            rm .github/workflows/orchestrator-sync-develop-880.yml
+            git add -A
+            git commit -m 'merge: sync develop into professional workspace branch'
+            git push origin HEAD:feat/875-professional-context-routes
+          else
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            gh pr comment 888 --body "## Conflitos ao sincronizar develop\n\nA integração automática foi interrompida sem escolher lados. Arquivos em conflito:\n\n\`\`\`text\n${conflicts}\n\`\`\`"
+            git merge --abort
+            rm .github/workflows/orchestrator-sync-develop-880.yml
+            git add -A
+            git commit -m 'chore: remove develop sync helper'
+            git push origin HEAD:feat/875-professional-context-routes
+          fi
