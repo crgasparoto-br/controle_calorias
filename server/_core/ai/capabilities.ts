@@ -39,7 +39,7 @@ export type AiCapabilityDefinition = {
   description: string;
   /** Operations this capability requires from a compatible adapter. */
   requiredOperations: readonly AiOperation[];
-  /** Whether this capability currently has a production consumer. */
+  /** Whether this capability currently has a production consumer, migrated or legacy. */
   hasConsumer: boolean;
 };
 
@@ -64,8 +64,8 @@ export const AI_CAPABILITY_REGISTRY: Record<AiCapabilityId, AiCapabilityDefiniti
   },
   QUESTION: {
     id: "QUESTION",
-    description: "Assistente de perguntas do usuário",
-    requiredOperations: ["text"],
+    description: "Assistente de perguntas do usuário com pesquisa web",
+    requiredOperations: ["text", "web_search"],
     hasConsumer: true,
   },
   NUTRITION_SEARCH: {
@@ -78,7 +78,7 @@ export const AI_CAPABILITY_REGISTRY: Record<AiCapabilityId, AiCapabilityDefiniti
     id: "EMBEDDING",
     description: "Geração de embeddings para busca semântica",
     requiredOperations: ["embeddings"],
-    hasConsumer: false,
+    hasConsumer: true,
   },
   TRANSCRIPTION: {
     id: "TRANSCRIPTION",
