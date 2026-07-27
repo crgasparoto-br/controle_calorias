@@ -1,11 +1,12 @@
 import {
-  GoogleGenerativeAI,
+  GoogleGenAI,
+  Type,
   type Content,
-  type GenerationConfig,
+  type ContentListUnion,
+  type GenerateContentConfig,
   type Part,
   type Schema,
-  SchemaType,
-} from "@google/generative-ai";
+} from "@google/genai";
 import type {
   AiProvider,
   AiProviderAudioTranscriptionRequest,
@@ -15,6 +16,27 @@ import type {
   AiProviderTextRequest,
   AiProviderTextResponse,
 } from "./aiProvider";
+
+/**
+ * Gemini adapter, built on the current `@google/genai` SDK (migrated from the
+ * legacy `@google/generative-ai` SDK in issue #921). This adapter uses the
+ * `models.generateContent` surface of the SDK (see ARCHITECTURE.md for the
+ * rationale) — the simpler request/response surface, sufficient for the
+ * text/vision/structured-output usage this project needs today. The
+ * `Interactions`/session-oriented surface was not adopted: this project's
+ * calls are stateless, single-turn requests per capability invocation, so
+ * `generateContent` maps directly without extra session bookkeeping.
+ *
+ * Behavior preserved from the legacy adapter: same request/response shape
+ * translation, same best-effort JSON Schema → Gemini Schema conversion, same
+ * "no image/audio generation, no transcription" limitations. What changed
+ * with the SDK migration: usage metadata is now surfaced on the response,
+ * multimodal input translation is unified for text and inline image parts,
+ * and the schema converter now validates unsupported schema constructs
+ * up front instead of silently degrading them (see
+ * `assertRepresentableSchema` below), so incompatible requests fail fast
+ * before hitting the network.
+ */
 
 // ---------------------------------------------------------------------------
 // Helpers: convert AiProvider request format → Gemini SDK types
@@ -94,9 +116,10 @@ function buildSystemInstruction(instructions: string | undefined): Content | und
 }
 
 /**
- * Convert an AiProviderResponseFormat json_schema into a Gemini Schema object.
- * Gemini uses its own Schema type (not JSON Schema draft-07), so we do a
- * best-effort conversion of the most common constructs used in this project.
+ * Best-effort JSON Schema (draft-07-ish, as used by this project's
+ * structured outputs) → Gemini `Schema` conversion. Gemini's schema dialect
+ * is a strict subset of JSON Schema, so unsupported constructs are validated
+ * up front (see `assertRepresentableSchema`) rather than silently dropped.
  */
 function convertJsonSchemaToGeminiSchema(schema: Record<string, unknown>): Schema {
   const type = schema.type as string | undefined;
@@ -104,15 +127,13 @@ function convertJsonSchemaToGeminiSchema(schema: Record<string, unknown>): Schem
   const required = schema.required as string[] | undefined;
   const items = schema.items as Record<string, unknown> | undefined;
   const enumValues = schema.enum as string[] | undefined;
-  const minimum = schema.minimum as number | undefined;
-  const maximum = schema.maximum as number | undefined;
 
   if (enumValues) {
     return {
-      type: SchemaType.STRING,
+      type: Type.STRING,
       enum: enumValues,
       format: "enum",
-    } as Schema;
+    };
   }
 
   if (type === "object" && properties) {
@@ -121,7 +142,7 @@ function convertJsonSchemaToGeminiSchema(schema: Record<string, unknown>): Schem
       geminiProperties[key] = convertJsonSchemaToGeminiSchema(value);
     }
     return {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       properties: geminiProperties,
       required,
     };
@@ -129,43 +150,84 @@ function convertJsonSchemaToGeminiSchema(schema: Record<string, unknown>): Schem
 
   if (type === "array" && items) {
     return {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: convertJsonSchemaToGeminiSchema(items),
     };
   }
 
   if (type === "string") {
-    return { type: SchemaType.STRING };
+    return { type: Type.STRING };
   }
 
   if (type === "number") {
-    // Gemini's NumberSchema does not expose min/max in the TypeScript types;
-    // we cast to Schema to avoid the type error while preserving the intent.
-    return { type: SchemaType.NUMBER } as Schema;
+    return { type: Type.NUMBER };
   }
 
   if (type === "boolean") {
-    return { type: SchemaType.BOOLEAN };
+    return { type: Type.BOOLEAN };
   }
 
   if (type === "integer") {
-    return { type: SchemaType.INTEGER };
+    return { type: Type.INTEGER };
   }
 
   // Fallback: treat as string
-  return { type: SchemaType.STRING };
+  return { type: Type.STRING };
+}
+
+const UNSUPPORTED_SCHEMA_KEYWORDS = [
+  "oneOf",
+  "anyOf",
+  "allOf",
+  "not",
+  "$ref",
+  "additionalProperties",
+  "patternProperties",
+] as const;
+
+/**
+ * Validates that a JSON Schema does not use constructs Gemini's Schema
+ * dialect cannot represent, so incompatible requests are rejected locally
+ * before making a network call, instead of being silently degraded.
+ */
+function assertRepresentableSchema(schema: Record<string, unknown>, path = "$"): void {
+  for (const keyword of UNSUPPORTED_SCHEMA_KEYWORDS) {
+    if (keyword in schema) {
+      throw new Error(
+        `GeminiProvider: JSON Schema keyword "${keyword}" at ${path} is not representable by the Gemini structured output schema.`,
+      );
+    }
+  }
+
+  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (properties) {
+    for (const [key, value] of Object.entries(properties)) {
+      assertRepresentableSchema(value, `${path}.${key}`);
+    }
+  }
+
+  const items = schema.items as Record<string, unknown> | undefined;
+  if (items) {
+    assertRepresentableSchema(items, `${path}[]`);
+  }
 }
 
 function buildGenerationConfig(
   request: AiProviderTextRequest,
-): GenerationConfig {
-  const config: GenerationConfig = {
+): GenerateContentConfig {
+  const config: GenerateContentConfig = {
     maxOutputTokens: 8192,
   };
 
   if (request.format && request.format.type === "json_schema") {
+    assertRepresentableSchema(request.format.schema);
     config.responseMimeType = "application/json";
     config.responseSchema = convertJsonSchemaToGeminiSchema(request.format.schema);
+  }
+
+  const systemInstruction = buildSystemInstruction(request.instructions);
+  if (systemInstruction) {
+    config.systemInstruction = systemInstruction;
   }
 
   return config;
@@ -176,33 +238,31 @@ function buildGenerationConfig(
 // ---------------------------------------------------------------------------
 
 export class GeminiProvider implements AiProvider {
-  private readonly client: GoogleGenerativeAI;
+  private readonly client: GoogleGenAI;
 
   constructor(apiKey: string) {
-    this.client = new GoogleGenerativeAI(apiKey);
+    this.client = new GoogleGenAI({ apiKey });
   }
 
   async createTextResponse(
     request: AiProviderTextRequest,
   ): Promise<AiProviderTextResponse> {
     const generationConfig = buildGenerationConfig(request);
-    const systemInstruction = buildSystemInstruction(request.instructions);
-
-    const model = this.client.getGenerativeModel({
-      model: request.model,
-      generationConfig,
-      ...(systemInstruction ? { systemInstruction } : {}),
-    });
-
     const parts = buildGeminiParts(request.input);
 
     if (!parts.length) {
       throw new Error("GeminiProvider: no content parts could be extracted from the request input.");
     }
 
-    const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-    const response = result.response;
-    const outputText = response.text();
+    const contents: ContentListUnion = [{ role: "user", parts }];
+
+    const response = await this.client.models.generateContent({
+      model: request.model,
+      contents,
+      config: generationConfig,
+    });
+
+    const outputText = response.text ?? "";
 
     return {
       id: `gemini-${Date.now()}`,

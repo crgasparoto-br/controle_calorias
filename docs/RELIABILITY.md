@@ -110,6 +110,19 @@ pnpm db:check-integrity
 - Falha de leitura da preferência de imagem anotada deve degradar para o estado desabilitado, com diagnóstico sanitizado e sem impedir análise, persistência da foto original, registro ou resposta textual.
 - Rodar smoke test web e WhatsApp antes de ativar em produção.
 
+## Fundação multi-provider de IA por capacidade (#921)
+
+`server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor por capacidade e executor comum de política — ver `ARCHITECTURE.md`) define a classificação de erro e a política de retry/fallback que os consumidores migrados usarão:
+
+- **Falha operacional recuperável** (timeout, rede, rate limit recuperável, saída vazia, JSON/payload inválido) é elegível para retry (até `AI_<CAPABILITY>_MAX_ATTEMPTS`, contagem total de chamadas do primário) e, se esgotada, para no máximo **uma** chamada de fallback quando a política estiver elegível.
+- **Erro não elegível para fallback** (segredo ausente, autenticação inválida, modelo inexistente, combinação operação/adapter incompatível, bloqueio de segurança, config inválida, ou resultado funcional válido) nunca aciona retry nem fallback — é propagado imediatamente.
+- **Escalonamento de qualidade** (chamar um modelo melhor após um resultado funcionalmente válido mas de baixa qualidade) é uma política distinta, com tipo/gancho preparado (`AiQualityEscalationHook`) mas não implementada nem ativada nesta issue.
+- O executor comum nunca executa primário e fallback em paralelo, nunca volta ao primário após o fallback e nunca encadeia um terceiro modelo/provider — no máximo uma chamada extra (fallback) por invocação.
+- Fallback é desabilitado por padrão em toda capacidade; habilitar em uma capacidade nunca afeta outra. Fallback para um provider diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito — sem isso, nenhum dado é enviado ao segundo provider e a capacidade fica em estado `degraded` (primário continua operando).
+- **Degradação funcional local** (ex.: busca semântica caindo para busca não semântica quando embeddings falham, anotação de imagem em modo local) é responsabilidade da capacidade consumidora, é uma estratégia de resiliência de produto — não é fallback de provider e não deve ser confundida com ele nem contabilizada como uma "segunda chamada" do executor comum. Não foi implementada nesta issue.
+- Diagnóstico do resolvedor é sempre sanitizado: nunca inclui valor de segredo, payload, prompt ou mídia — apenas identificadores de capacidade/provider e a razão do estado.
+- Nenhum consumidor existente foi migrado para este resolvedor nesta issue; a matriz acima passa a valer para cada capacidade somente quando sua subissue de migração (épica #917) a adotar.
+
 ## Mutações multirrefeição pelo WhatsApp
 
 Solicitações compostas de ajuste ou substituição usam uma unidade lógica compensável:

@@ -26,8 +26,9 @@ server/modules/*               -> regra de negócio por domínio
 server/modules/timeZone/service.ts -> resolução central do timezone efetivo por dono dos dados
 server/repositories/*          -> acesso a dados reutilizável por domínio
 server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
-server/_core/geminiProvider.ts -> implementação do provider Gemini (Google Generative AI)
-server/_core/aiProvider.ts     -> interface interna e factory que seleciona o provider ativo
+server/_core/geminiProvider.ts -> implementação do provider Gemini, sobre o SDK @google/genai
+server/_core/aiProvider.ts     -> interface interna e factory global legada que seleciona o provider ativo (AI_VISION_PROVIDER)
+server/_core/ai/               -> fundação multi-provider (#921): registro de capacidades, matriz de suporte, resolvedor por capacidade e executor comum de política
 server/_core/voiceTranscription.ts -> helper de transcrição baseado no provider interno
 server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
 server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
@@ -101,6 +102,22 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsAppWebhook`, `verifyWhatsAppWebhook`, `__resetWhatsAppWebhookDeduplicationForTests`) deve ser preservada ao mover código para esses módulos.
 
 Fluxos de comunicação profissional devem reutilizar o contrato central de mensagens e o transporte oficial. Não criar cliente, formatter ou fila paralela somente para a Área Profissional.
+
+## Fundação multi-provider de IA (#921)
+
+`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para uma configuração independente por capacidade de produto. Esta issue cria a fundação e migra apenas o SDK do Gemini; **nenhum consumidor existente foi migrado** para este resolvedor (meal, WhatsApp, busca, transcrição, imagem continuam usando `server/_core/aiProvider.ts` / `AI_VISION_PROVIDER` / clientes diretos como antes). A migração de cada consumidor é escopo das subissues seguintes de #917.
+
+- `capabilities.ts` — registro tipado das capacidades do produto (`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION`, `FOOD_CLASSIFICATION`). Cada capacidade declara as operações (`AiOperation`) que precisa de um adapter: `text`, `vision`, `structured_output`, `web_search`, `embeddings`, `transcription`, `image_generation`, `image_edit`. `FOOD_CLASSIFICATION` é reservada — por decisão registrada em #922, a classificação NOVA continua embutida no structured output de `MEAL_TEXT`/`MEAL_VISION` e não tem consumidor próprio ainda.
+- `supportMatrix.ts` — matriz de suporte por adapter (`openai`, `gemini`, `openai-compatible`), declarada como dado e nunca inferida do nome do provider ou prefixo do modelo. Para `openai-compatible` (quando `OPENAI_BASE_URL` aponta para um endpoint compatível), só operações listadas explicitamente em `AI_OPENAI_COMPATIBLE_OPERATIONS` são consideradas suportadas — nada é assumido por padrão (Structured Outputs, Web Search, embeddings, áudio e imagem ficam indisponíveis até validação explícita).
+- `policyDefaults.ts` — módulo único com os defaults de timeout (`30000ms`) e tentativas (`1`, equivalente ao baseline sem retry), reaproveitado por todo o resolvedor.
+- `configResolver.ts` — resolvedor por capacidade. Para cada capacidade: seleciona primeiro o adapter (provider) e só então resolve o modelo; aplica a precedência `AI_<CAPABILITY>_* novo` > `variável legada compatível` > `default equivalente ao baseline`; valida se o adapter resolvido suporta as operações exigidas pela capacidade (rejeitando localmente quando não suporta); resolve política de fallback própria da capacidade (desabilitada por padrão; cross-provider exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito, senão nenhum dado é enviado ao segundo provider); produz um dos estados `ready` / `degraded` / `disabled` / `invalid` com diagnóstico sanitizado (nunca inclui segredo, payload, prompt ou mídia). Alterar a política de uma capacidade nunca altera outra.
+- `policyExecutor.ts` — fronteira comum reutilizável para retry/timeout/fallback: executa o primário, aplica só os retries permitidos por `maxAttempts` (contagem total de chamadas do primário, incluindo a primeira), e — apenas se o fallback resolvido estiver elegível — executa no máximo uma chamada de fallback após o primário se esgotar. Nunca volta ao primário, nunca encadeia um terceiro modelo/provider e nunca executa primário e fallback em paralelo. Distingue `AiOperationalError` (timeout, rede, rate limit recuperável, saída vazia, JSON/payload inválido — elegível a retry/fallback) de `AiNonRetryableError` (segredo ausente, autenticação inválida, modelo inexistente, combinação incompatível, bloqueio de segurança, config inválida, ou resultado funcional válido — nunca elegível). Um tipo `AiQualityEscalationHook` fica preparado para uma futura política de escalonamento de qualidade explicitamente configurada, mas não é invocado por este executor.
+
+**Distinção importante**: degradação funcional (ex.: busca cair para modo não semântico quando embeddings falham, anotação de imagem em modo local) é responsabilidade da capacidade consumidora, não é fallback de provider e não é implementada por este resolvedor/executor — apenas o conceito está documentado aqui para não ser confundido com o fallback entre providers.
+
+**Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` (SDK atual do Google), adotando a superfície `models.generateContent` — chamadas single-turn sem estado, suficientes para o uso atual do projeto (texto, visão, structured output); a superfície de Interactions/sessão não foi adotada por não haver necessidade de estado entre chamadas. `@google/generative-ai` (SDK legado) foi removido do `package.json`. O comportamento observável dos consumidores atuais (`mealAiExtraction`, WhatsApp) foi preservado.
+
+**Compatibilidade legada**: `ENV.visionModel`, `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as demais variáveis legadas continuam funcionando sem alteração — nenhuma foi removida. Quando uma capacidade é resolvida por variável legada, o resolvedor registra um aviso de depreciação sanitizado (log), nunca uma exceção.
 
 ## Regras de dependência
 

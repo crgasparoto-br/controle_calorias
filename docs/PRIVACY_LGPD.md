@@ -74,6 +74,16 @@ O assistente alimentar não deve enviar nome, e-mail ou identificador interno do
 
 Foto, áudio e transcrição podem envolver serviços externos de transcrição, visão ou LLM. Sempre que o fluxo usar mídia com IA, mantenha o comportamento documentado, evite retenção acidental e prefira URLs com expiração quando houver necessidade de acesso externo.
 
+### Segundo envio a provider (fallback) e diagnósticos sanitizados (#921)
+
+A fundação multi-provider por capacidade (`server/_core/ai/`) introduz um "segundo envio" possível — o fallback de um provider para outro dentro da mesma capacidade — e formaliza os limites de privacidade aplicáveis:
+
+- Fallback é desabilitado por padrão em toda capacidade; quando habilitado, é uma única chamada adicional ao provider de fallback, nunca paralela ao primário e nunca encadeada com um terceiro provider.
+- Enviar dados a um provider de fallback diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito por capacidade. Sem essa flag, nenhum payload, prompt ou mídia é enviado ao segundo provider — a capacidade opera apenas com o primário (estado `degraded`).
+- O diagnóstico produzido pelo resolvedor (`ResolvedCapabilityConfig.diagnostics`) é sempre sanitizado: contém apenas identificadores de capacidade/provider e a razão do estado, nunca o conteúdo de um prompt, payload, imagem, áudio ou segredo.
+- Degradação funcional local (ex.: busca semântica caindo para busca não semântica, anotação de imagem em modo local) não envolve um segundo provider externo e não deve ser confundida com o fallback acima ao avaliar exposição de dados a terceiros.
+- Nenhum consumidor foi migrado para este resolvedor nesta issue, portanto o comportamento de retenção/envio de dados hoje em produção permanece o documentado nas seções anteriores até que cada capacidade seja migrada.
+
 ## Riscos conhecidos e cuidados recorrentes
 
 - Novos `console.*` ou logs de objetos crus podem vazar dados sensíveis se não forem revisados.

@@ -86,6 +86,16 @@ O projeto suporta a troca de provedor de IA via variável de ambiente, sem neces
 
 *Nota: A transcrição de áudio (Whisper) e a geração de imagem anotada continuam usando OpenAI independentemente do provedor selecionado. Portanto, `OPENAI_API_KEY` deve ser mantida.*
 
+## Fundação multi-provider por capacidade (#921)
+
+A seleção acima (`AI_VISION_PROVIDER`) continua funcionando como está e nenhum consumidor foi migrado ainda. Em paralelo, `server/_core/ai/` introduz uma fundação para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
+
+- **matriz de suporte por adapter**: cada provider (`openai`, `gemini`, `openai-compatible`) declara explicitamente quais operações suporta (texto, visão, structured output, web search, embeddings, transcrição, geração/edição de imagem); nada é inferido do nome do provider ou do modelo;
+- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*` — precedência é sempre variável nova > variável legada compatível > default equivalente ao baseline atual;
+- **fallback por capacidade, desabilitado por padrão**: habilitar fallback numa capacidade nunca afeta outra, e usar um provider de fallback diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito — sem isso, nenhum dado é enviado ao segundo provider.
+
+Detalhes completos em `ARCHITECTURE.md` (seção "Fundação multi-provider de IA (#921)") e `.env.example`. A migração de cada consumidor para este resolvedor é escopo de subissues futuras de #917.
+
 ## Variáveis de ambiente obrigatórias
 
 Configure estas variáveis no backend/runtime responsável pela API:

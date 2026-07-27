@@ -1,8 +1,8 @@
-# Plano de migracao: IA do sistema para OpenAI
+# Plano de migracao: IA do sistema para OpenAI e fundação multi-provider
 
-Status: ativo.
+Status: ativo — em transição da orientação centrada em OpenAI (fases 1-7, concluídas) para a arquitetura multi-provider por capacidade da épica #917 (fase 8 em diante).
 
-Este documento registra a estratégia para migrar a camada de IA do sistema para OpenAI de forma incremental e segura. O Codex deve ler este arquivo antes de implementar qualquer etapa da migração.
+Este documento registra a estratégia para migrar a camada de IA do sistema, primeiro consolidando um provider OpenAI isolado no backend (fases 1-7, concluídas) e, a partir da fase 8, evoluindo a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade de produto (épica #917). Não crie um plano concorrente para a evolução multi-provider — incorpore a este mesmo arquivo. O Codex deve ler este arquivo antes de implementar qualquer etapa da migração.
 
 ## Leitura obrigatória
 
@@ -58,6 +58,7 @@ Serviços de domínio devem depender da interface interna do provider, não do S
 - Fase 5 concluída: a geração visual auxiliar foi migrada para helper OpenAI opcional e não bloqueante.
 - Fase 6 concluída: transcrição e inferência nutricional ficaram livres do provider legado; o único uso legado remanescente ficou documentado no assistente educativo.
 - Fase 7 está preparada: checklist operacional e smoke tests foram organizados para Render, Vercel e validação de canais.
+- Fase 8 concluída (#921): fundação multi-provider criada em `server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor por capacidade, executor comum de política) e SDK do Gemini migrado para `@google/genai`. Nenhum consumidor foi migrado para o novo resolvedor nesta fase.
 
 ## Fases
 
@@ -106,6 +107,21 @@ Objetivos do rollout:
 - validar web e WhatsApp com smoke tests;
 - monitorar somente erros sanitizados;
 - confirmar que dashboard e relatórios permanecem consistentes.
+
+### Fase 8 - Fundação multi-provider por capacidade (#921, épica #917)
+
+Status: concluída para a fundação; migração de consumidores é escopo das subissues seguintes de #917.
+
+- Criado `server/_core/ai/capabilities.ts` com o registro tipado de capacidades (`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION`, `FOOD_CLASSIFICATION` reservada — ver #922).
+- Criado `server/_core/ai/supportMatrix.ts` com a matriz de suporte por adapter (`openai`, `gemini`, `openai-compatible`), declarada como dado, nunca inferida do nome do provider/modelo.
+- Criado `server/_core/ai/configResolver.ts`: resolução por capacidade (adapter primeiro, depois modelo), precedência `AI_<CAPABILITY>_* novo > variável legada > default do baseline`, estados `ready`/`degraded`/`disabled`/`invalid`, fallback independente por capacidade e desabilitado por padrão, cross-provider exige opt-in explícito.
+- Criado `server/_core/ai/policyExecutor.ts`: fronteira comum de retry/timeout/fallback (retry limitado, no máximo uma chamada de fallback, sem paralelismo nem encadeamento), com classificação de erro operacional vs. não elegível para fallback.
+- `server/_core/geminiProvider.ts` migrado de `@google/generative-ai` para `@google/genai` (superfície `models.generateContent`), preservando comportamento; dependência legada removida do `package.json`.
+- Nenhum consumidor existente (`mealAiExtraction`, `aiQuestionAssistant`, `catalogSemanticSearch`, `intentInterpreter`, `assistant/service.ts`) foi alterado nesta fase. `AI_PROVIDER` e o assistente Forge legado não foram tocados.
+- Variáveis legadas (`AI_VISION_PROVIDER`, `ENV.visionModel`, `GEMINI_MODEL`, `OPENAI_MODEL`, etc.) continuam funcionando; resolução por variável legada emite aviso de depreciação sanitizado (log, não exceção).
+- Degradação funcional (ex.: busca caindo para modo não semântico, anotação de imagem local) é responsabilidade da capacidade consumidora e é distinta do fallback de provider implementado aqui; não foi implementada nesta fase.
+
+Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeWithPolicy`, uma capacidade por vez, preservando o comportamento atual até que a migração de cada uma seja validada.
 
 ## Gates
 

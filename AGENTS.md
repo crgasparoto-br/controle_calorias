@@ -22,7 +22,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 | Posicionamento, areas do produto ou classificacao de issues          | `docs/product-specs/product-experience-model.md`                                                                                     |
 | Registro de refeicao, rascunho ou confirmacao                        | `docs/product-specs/meal-registration.md`, `docs/design-docs/nutrition-engine.md`                                                    |
 | WhatsApp, webhook ou resposta conversacional                         | `docs/product-specs/whatsapp-flow.md`, `docs/design-docs/whatsapp-ingestion.md`                                                      |
-| Migracao da IA para OpenAI                                           | `docs/exec-plans/active/migrate-ai-to-openai.md`, `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
+| Migracao da IA para OpenAI e fundação multi-provider por capacidade (#917) | `docs/exec-plans/active/migrate-ai-to-openai.md`, `ARCHITECTURE.md` (seção "Fundação multi-provider de IA"), `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md` |
 | Metas, dashboard ou relatorios do paciente                           | `docs/product-specs/goals-and-reports.md`, `docs/product-specs/product-experience-model.md`                                          |
 | Area Profissional, pacientes, prontuario ou comunicacao profissional | `docs/product-specs/product-experience-model.md`, `docs/product-specs/professionals.md`                                              |
 | Billing, planos, assinatura ou elegibilidade                         | `docs/product-specs/product-experience-model.md`, issue/epica de billing vigente                                                     |
@@ -65,6 +65,7 @@ Regras:
 - O router tRPC deve apenas compor autenticacao, schema, chamada de servico e eventos analiticos seguros.
 - Dados de saude, textos crus, transcricoes, midia e prompts sao sensiveis. Nao registrar valores crus em logs, analytics ou mensagens de erro.
 - Toda alteracao em IA, WhatsApp, storage, privacidade, banco ou autenticacao deve atualizar documentacao e avaliar riscos em `docs/RELIABILITY.md`, `docs/SECURITY.md` ou `docs/PRIVACY_LGPD.md`.
+- A selecao de IA esta em transicao de global (`AI_VISION_PROVIDER`) para configuracao por capacidade em `server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor, executor comum — ver #921/#917). Novas capacidades ou adapters devem ser declarados la, nunca inferidos do nome do provider ou do modelo. Migrar um consumidor existente para o novo resolvedor exige subissue propria da epica #917; nao migre silenciosamente.
 - Nao crie documentos paralelos de planejamento quando a informacao puder ser incorporada a uma especificacao canonica, design doc, runbook ou plano ativo existente. Planos temporarios devem ser removidos ou arquivados quando forem implementados.
 - Novas telas profissionais devem consumir servicos e contratos compartilhados sem duplicar calculos de metas, relatorios, timezone ou autorizacao.
 - Alteracoes profissionais relevantes devem preservar autoria e historico auditavel.
