@@ -117,7 +117,7 @@ Fluxos de comunicação profissional devem reutilizar o contrato central de mens
 
 **Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` (SDK atual do Google), adotando a superfície `models.generateContent` — chamadas single-turn sem estado, suficientes para o uso atual do projeto (texto, visão, structured output); a superfície de Interactions/sessão não foi adotada por não haver necessidade de estado entre chamadas. `@google/generative-ai` (SDK legado) foi removido do `package.json`. O comportamento observável dos consumidores atuais (`mealAiExtraction`, WhatsApp) foi preservado.
 
-**Compatibilidade legada**: `ENV.visionModel`, `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as demais variáveis legadas continuam funcionando sem alteração — nenhuma foi removida. Quando uma capacidade é resolvida por variável legada, o resolvedor registra um aviso de depreciação sanitizado (log), nunca uma exceção.
+**Compatibilidade legada**: `ENV.visionModel`, `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as demais variáveis legadas continuam funcionando sem alteração — nenhuma foi removida. Quando uma capacidade é resolvida por variável legada, o resolvedor inclui um item `[deprecated]` sanitizado em `diagnostics` (o array retornado por `resolveCapabilityConfig`), nunca uma exceção. Nesta subissue nenhum consumidor chama o resolvedor, portanto esse diagnóstico ainda não é emitido como log de aplicação — cabe à subissue que migrar cada consumidor decidir onde e como reportá-lo (ex.: log estruturado, métrica).
 
 ## Regras de dependência
 
