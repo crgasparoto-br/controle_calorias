@@ -146,7 +146,9 @@ function buildTextConfig(
   };
 }
 
-function translateOpenAiTextTool(tool: unknown): Record<string, unknown> {
+type OpenAiSdkTextTool = NonNullable<ResponseCreateParamsNonStreaming["tools"]>[number];
+
+function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
   if (typeof tool !== "object" || tool === null || !("type" in tool)) {
     throw new AiNonRetryableError(
       "OpenAiProvider: text tool must declare a supported type before network access.",
@@ -157,7 +159,7 @@ function translateOpenAiTextTool(tool: unknown): Record<string, unknown> {
 
   const type = (tool as { type?: unknown }).type;
   if (type === "web_search" || type === "web_search_preview") {
-    return { type };
+    return { type: "web_search_preview" };
   }
 
   throw new AiNonRetryableError(
@@ -171,7 +173,7 @@ function buildOpenAiTools(
   tools: readonly AiProviderTextTool[] | undefined,
 ): ResponseCreateParamsNonStreaming["tools"] | undefined {
   if (!tools?.length) return undefined;
-  return tools.map(translateOpenAiTextTool) as ResponseCreateParamsNonStreaming["tools"];
+  return tools.map(translateOpenAiTextTool);
 }
 
 type OpenAiClientFactory = () => OpenAI;
