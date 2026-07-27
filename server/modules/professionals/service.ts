@@ -63,6 +63,7 @@ import {
   type ProfessionalProfileInput,
   type ProfessionalTrackingTransitionInput,
   type ProfessionalPortfolioInput,
+  type ProfessionalPortfolioReportInput,
   type RequestPatientAccessInput,
 } from "./schemas";
 
@@ -960,6 +961,14 @@ export async function listProfessionalPortfolio(
     pendingPage,
     portfolio,
   });
+}
+
+export async function getProfessionalPortfolioReport(
+  professionalUserId: number,
+  input: ProfessionalPortfolioReportInput
+) {
+  await assertActiveProfessionalProfile(professionalUserId);
+  return professionalPortfolioRepository.report(professionalUserId, input);
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {

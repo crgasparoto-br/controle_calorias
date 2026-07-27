@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let enabledResources: string[] = [];
 const generateMutate = vi.fn();
 const saveMutate = vi.fn();
+const invalidateMessages = vi.fn(async () => undefined);
 const setLocation = vi.fn();
 const saveMutationOptions = {
   current: null as null | {
@@ -42,7 +43,7 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
       professionalRecord: {
-        messages: { list: { invalidate: vi.fn(async () => undefined) } },
+        messages: { list: { invalidate: invalidateMessages } },
       },
     }),
     professionalRecord: {
@@ -100,6 +101,8 @@ beforeEach(() => {
   enabledResources = ["professional_reports"];
   setLocation.mockClear();
   saveMutate.mockClear();
+  invalidateMessages.mockReset();
+  invalidateMessages.mockResolvedValue(undefined);
   generateMutate.mockReset();
   saveMutationOptions.current = null;
   generateMutate.mockImplementation(
@@ -207,6 +210,39 @@ describe("ProfessionalAiAssistant entitlement", () => {
         periodRange={periodRange}
       />
     );
+    await act(async () => {
+      await saveMutationOptions.current?.onSuccess?.({}, savedVariables);
+    });
+
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients/41/messages"
+    );
+  });
+
+  it("opens the persisted patient conversation even when cache invalidation fails", async () => {
+    enabledResources = [
+      "professional_reports",
+      "professional_ai_assistance",
+      "professional_messages",
+    ];
+    invalidateMessages.mockRejectedValueOnce(new Error("cache unavailable"));
+    const { default: ProfessionalAiAssistant } = await import(
+      "./ProfessionalAiAssistant"
+    );
+    render(
+      <ProfessionalAiAssistant patient={patient} periodRange={periodRange} />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Gerar assistência" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e abrir conversa" })
+    );
+    const savedVariables = saveMutate.mock.calls[0]?.[0] as {
+      patientId: number;
+    };
+
     await act(async () => {
       await saveMutationOptions.current?.onSuccess?.({}, savedVariables);
     });

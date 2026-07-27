@@ -5,6 +5,7 @@ import {
   professionalProfileSchema,
   requestPatientAccessSchema,
   professionalPortfolioSchema,
+  professionalPortfolioReportSchema,
 } from "./schemas";
 
 describe("professional schemas", () => {
@@ -115,5 +116,31 @@ describe("professional schemas", () => {
       reportRecords: "without_records",
       nextWeighing: "overdue",
     });
+  });
+
+  it("requires a bounded period only for the activity report block", () => {
+    expect(
+      professionalPortfolioReportSchema.parse({
+        block: "activity",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toMatchObject({ block: "activity" });
+    expect(() =>
+      professionalPortfolioReportSchema.parse({ block: "activity" })
+    ).toThrow("Informe o início e o fim");
+    expect(() =>
+      professionalPortfolioReportSchema.parse({
+        block: "activity",
+        reportStartDate: "2026-01-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toThrow("Escolha um período de até 90 dias");
+    expect(
+      professionalPortfolioReportSchema.parse({ block: "schedule" })
+    ).toEqual({ block: "schedule" });
+    expect(
+      professionalPortfolioReportSchema.parse({ block: "tracking" })
+    ).toEqual({ block: "tracking" });
   });
 });

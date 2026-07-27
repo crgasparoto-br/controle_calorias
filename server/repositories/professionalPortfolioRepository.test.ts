@@ -302,4 +302,71 @@ describe("professionalPortfolioRepository", () => {
       },
     });
   });
+
+  it("loads aggregate report blocks independently without paginating the portfolio", async () => {
+    const dialect = new MySqlDialect();
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const db = {
+      execute: vi.fn(async query => {
+        const compiled = dialect.sqlToQuery(query);
+        queries.push(compiled);
+        if (compiled.sql.includes("activeWithRecentRecords")) {
+          return [[{ activeWithRecentRecords: 3, withoutRecentActivity: 4 }]];
+        }
+        if (compiled.sql.includes("pendingReviews")) {
+          return [[{ pendingReviews: 2, pendingWeighings: 1 }]];
+        }
+        return [[{ active: 5, paused: 1, ended: 2, notStarted: 3 }]];
+      }),
+    };
+    const repository = createProfessionalPortfolioRepository({
+      getDb: async () => db,
+      onWarning: vi.fn(),
+    });
+
+    const activity = await repository.report(101, {
+      block: "activity",
+      reportStartDate: "2026-07-01",
+      reportEndDate: "2026-07-20",
+    });
+    const schedule = await repository.report(101, { block: "schedule" });
+    const tracking = await repository.report(101, { block: "tracking" });
+
+    expect(queries).toHaveLength(3);
+    expect(queries.every(query => query.params.includes(101))).toBe(true);
+    expect(queries.every(query => !query.sql.includes("LIMIT"))).toBe(true);
+    expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
+    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.`occurredAt`");
+    expect(queries[1].sql).not.toContain("periodMeals");
+    expect(queries[2].sql).not.toContain("periodMeals");
+    expect(activity.summary).toMatchObject({
+      activeWithRecentRecords: 3,
+      withoutRecentActivity: 4,
+      pendingReviews: null,
+    });
+    expect(schedule.summary).toMatchObject({
+      pendingReviews: 2,
+      pendingWeighings: 1,
+      active: null,
+    });
+    expect(tracking.summary).toMatchObject({
+      active: 5,
+      paused: 1,
+      ended: 2,
+      notStarted: 3,
+      activeWithRecentRecords: null,
+    });
+  });
+
+  it("represents unavailable report persistence separately from a real zero", async () => {
+    const repository = createProfessionalPortfolioRepository({
+      getDb: async () => null,
+      onWarning: vi.fn(),
+    });
+
+    const unavailable = await repository.report(101, { block: "schedule" });
+
+    expect(unavailable.summary.pendingReviews).toBeNull();
+    expect(unavailable.summary.pendingWeighings).toBeNull();
+  });
 });

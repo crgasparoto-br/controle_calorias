@@ -1,7 +1,10 @@
 import { sql } from "drizzle-orm";
 import { DEFAULT_APP_TIME_ZONE } from "../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../db";
-import type { ProfessionalPortfolioInput } from "../modules/professionals/schemas";
+import type {
+  ProfessionalPortfolioInput,
+  ProfessionalPortfolioReportInput,
+} from "../modules/professionals/schemas";
 
 export type ProfessionalPortfolioItem = {
   authorizationId: string;
@@ -41,6 +44,23 @@ export type ProfessionalPortfolioResult = {
   generatedAt: number;
 };
 
+export type ProfessionalPortfolioReportSummary = {
+  active: number | null;
+  paused: number | null;
+  ended: number | null;
+  notStarted: number | null;
+  activeWithRecentRecords: number | null;
+  withoutRecentActivity: number | null;
+  pendingReviews: number | null;
+  pendingWeighings: number | null;
+};
+
+export type ProfessionalPortfolioReportResult = {
+  block: ProfessionalPortfolioReportInput["block"];
+  summary: ProfessionalPortfolioReportSummary;
+  generatedAt: number;
+};
+
 type Row = Record<string, unknown>;
 
 function rowsFromResult(result: unknown): Row[] {
@@ -57,6 +77,39 @@ function asTimestamp(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function reportPeriodWindow(reportStartDate: string, reportEndDate: string) {
+  const [startYear, startMonth, startDay] = reportStartDate
+    .split("-")
+    .map(Number);
+  const [endYear, endMonth, endDay] = reportEndDate.split("-").map(Number);
+  const coarseStart = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+  coarseStart.setUTCHours(coarseStart.getUTCHours() - 14);
+  const coarseEnd = new Date(
+    Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999)
+  );
+  coarseEnd.setUTCHours(coarseEnd.getUTCHours() + 14);
+  return { coarseStart, coarseEnd };
+}
+
+function emptyReportSummary(): ProfessionalPortfolioReportSummary {
+  return {
+    active: null,
+    paused: null,
+    ended: null,
+    notStarted: null,
+    activeWithRecentRecords: null,
+    withoutRecentActivity: null,
+    pendingReviews: null,
+    pendingWeighings: null,
+  };
+}
+
+function unavailableReportResult(
+  block: ProfessionalPortfolioReportInput["block"]
+): ProfessionalPortfolioReportResult {
+  return { block, summary: emptyReportSummary(), generatedAt: Date.now() };
 }
 
 export function mapProfessionalPortfolioItem(
@@ -130,18 +183,10 @@ export function createProfessionalPortfolioRepository(
       input.reportStartDate ??
       new Date(now.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
     const reportEndDate = input.reportEndDate ?? now.toISOString().slice(0, 10);
-    const [startYear, startMonth, startDay] = reportStartDate
-      .split("-")
-      .map(Number);
-    const [endYear, endMonth, endDay] = reportEndDate.split("-").map(Number);
-    const reportCoarseStart = new Date(
-      Date.UTC(startYear, startMonth - 1, startDay)
-    );
-    reportCoarseStart.setUTCHours(reportCoarseStart.getUTCHours() - 14);
-    const reportCoarseEnd = new Date(
-      Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999)
-    );
-    reportCoarseEnd.setUTCHours(reportCoarseEnd.getUTCHours() + 14);
+    const {
+      coarseStart: reportCoarseStart,
+      coarseEnd: reportCoarseEnd,
+    } = reportPeriodWindow(reportStartDate, reportEndDate);
     const offset = Math.max(
       0,
       window.offset ?? (input.page - 1) * input.pageSize
@@ -291,7 +336,99 @@ export function createProfessionalPortfolioRepository(
     }
   }
 
-  return { list };
+  async function report(
+    professionalUserId: number,
+    input: ProfessionalPortfolioReportInput
+  ): Promise<ProfessionalPortfolioReportResult> {
+    const db = await deps.getDb();
+    if (!db) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "Os indicadores profissionais estão temporariamente indisponíveis."
+        );
+      }
+      return unavailableReportResult(input.block);
+    }
+
+    const now = new Date();
+    const summary = emptyReportSummary();
+
+    try {
+      if (input.block === "activity") {
+        const reportStartDate = input.reportStartDate!;
+        const reportEndDate = input.reportEndDate!;
+        const { coarseStart, coarseEnd } = reportPeriodWindow(
+          reportStartDate,
+          reportEndDate
+        );
+        const result = await db.execute(sql`
+          SELECT
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0 THEN 1 END) AS \`activeWithRecentRecords\`,
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0 THEN 1 END) AS \`withoutRecentActivity\`
+          FROM \`professionalPatientAuthorizations\` a
+          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+          LEFT JOIN (
+            SELECT periodMeals.\`userId\`, COUNT(*) AS \`periodRecordCount\`
+            FROM \`meals\` periodMeals
+            INNER JOIN \`professionalPatientAuthorizations\` periodAccess
+              ON periodAccess.\`patientUserId\` = periodMeals.\`userId\`
+              AND periodAccess.\`professionalUserId\` = ${professionalUserId}
+              AND periodAccess.\`status\` = 'approved'
+            LEFT JOIN \`userProfiles\` periodProfile ON periodProfile.\`userId\` = periodMeals.\`userId\`
+            WHERE periodMeals.\`status\` = 'confirmed'
+              AND periodMeals.\`occurredAt\` >= ${coarseStart}
+              AND periodMeals.\`occurredAt\` <= ${coarseEnd}
+              AND DATE_FORMAT(CONVERT_TZ(periodMeals.\`occurredAt\`, '+00:00', COALESCE(periodProfile.\`timezone\`, ${DEFAULT_APP_TIME_ZONE})), '%Y-%m-%d')
+                BETWEEN ${reportStartDate} AND ${reportEndDate}
+            GROUP BY periodMeals.\`userId\`
+          ) pm ON pm.\`userId\` = a.\`patientUserId\`
+          WHERE a.\`professionalUserId\` = ${professionalUserId}
+        `);
+        const row = rowsFromResult(result)[0] ?? {};
+        summary.activeWithRecentRecords = asNumber(
+          row.activeWithRecentRecords
+        );
+        summary.withoutRecentActivity = asNumber(row.withoutRecentActivity);
+      } else if (input.block === "schedule") {
+        const result = await db.execute(sql`
+          SELECT
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextReviewAt\` IS NOT NULL AND t.\`nextReviewAt\` <= ${now} THEN 1 END) AS \`pendingReviews\`,
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextWeighingAt\` IS NOT NULL AND t.\`nextWeighingAt\` <= ${now} THEN 1 END) AS \`pendingWeighings\`
+          FROM \`professionalPatientAuthorizations\` a
+          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+          WHERE a.\`professionalUserId\` = ${professionalUserId}
+        `);
+        const row = rowsFromResult(result)[0] ?? {};
+        summary.pendingReviews = asNumber(row.pendingReviews);
+        summary.pendingWeighings = asNumber(row.pendingWeighings);
+      } else {
+        const result = await db.execute(sql`
+          SELECT
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' THEN 1 END) AS \`active\`,
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'paused' THEN 1 END) AS \`paused\`,
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'ended' THEN 1 END) AS \`ended\`,
+            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`id\` IS NULL THEN 1 END) AS \`notStarted\`
+          FROM \`professionalPatientAuthorizations\` a
+          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+          WHERE a.\`professionalUserId\` = ${professionalUserId}
+        `);
+        const row = rowsFromResult(result)[0] ?? {};
+        summary.active = asNumber(row.active);
+        summary.paused = asNumber(row.paused);
+        summary.ended = asNumber(row.ended);
+        summary.notStarted = asNumber(row.notStarted);
+      }
+
+      return { block: input.block, summary, generatedAt: now.getTime() };
+    } catch (error) {
+      deps.onWarning(`professional_portfolio_report_${input.block}`, error);
+      throw new Error(
+        "Não foi possível carregar este bloco de indicadores profissionais."
+      );
+    }
+  }
+
+  return { list, report };
 }
 
 function emptyResult(

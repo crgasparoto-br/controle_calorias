@@ -11,7 +11,7 @@ import {
   professionalGoalNotificationRetrySchema,
   patientProfessionalGoalReviewSchema,
   patientAdoptProfessionalGoalSchema,
-  professionalPortfolioSchema,
+  professionalPortfolioReportSchema,
 } from "./schemas";
 import {
   createProfessionalGuidance,
@@ -21,7 +21,7 @@ import {
   saveProfessionalAssessment,
 } from "./recordService";
 import {
-  listProfessionalPortfolio,
+  getProfessionalPortfolioReport,
   transitionPatientTracking,
 } from "./service";
 import {
@@ -65,11 +65,10 @@ export const professionalRecordRouter = router({
       }
     }),
   portfolioReport: professionalReportsProcedure
-    .input(professionalPortfolioSchema)
-    .query(async ({ ctx, input }) => {
-      const result = await listProfessionalPortfolio(ctx.user.id, input);
-      return { summary: result.summary };
-    }),
+    .input(professionalPortfolioReportSchema)
+    .query(({ ctx, input }) =>
+      getProfessionalPortfolioReport(ctx.user.id, input)
+    ),
   get: professionalRecordProcedure
     .input(professionalRecordSchema)
     .output(professionalRecordOutputSchema)

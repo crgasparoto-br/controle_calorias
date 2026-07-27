@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reportsExperience = vi.fn(
@@ -25,7 +31,20 @@ const reportsExperience = vi.fn(
   )
 );
 const portfolioInput = vi.fn();
+const activityRefetch = vi.fn();
+const scheduleRefetch = vi.fn();
+const trackingRefetch = vi.fn();
 const setLocation = vi.fn();
+type ReportBlock = "activity" | "schedule" | "tracking";
+type ReportState = {
+  data?: {
+    summary: Record<string, number | null>;
+  };
+  isLoading: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+};
+let reportStates: Record<ReportBlock, ReportState>;
 let selectedPatient:
   | {
       patientId: number;
@@ -73,32 +92,9 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     professionalRecord: {
       portfolioReport: {
-        useQuery: (input: unknown) => {
+        useQuery: (input: { block: ReportBlock }) => {
           portfolioInput(input);
-          return {
-            data: {
-              items: [],
-              pagination: {
-                page: 1,
-                pageSize: 20,
-                total: 0,
-                totalPages: 1,
-              },
-              summary: {
-                active: 1,
-                paused: 2,
-                ended: 3,
-                notStarted: 4,
-                activeWithRecentRecords: 8,
-                withoutRecentActivity: 5,
-                pendingReviews: 6,
-                pendingWeighings: 7,
-              },
-            },
-            isLoading: false,
-            isError: false,
-            refetch: vi.fn(),
-          };
+          return reportStates[input.block];
         },
       },
     },
@@ -111,7 +107,39 @@ beforeEach(() => {
   selectedPatient = null;
   reportsExperience.mockClear();
   portfolioInput.mockClear();
+  activityRefetch.mockReset();
+  scheduleRefetch.mockReset();
+  trackingRefetch.mockReset();
   setLocation.mockClear();
+  reportStates = {
+    activity: {
+      data: {
+        summary: {
+          activeWithRecentRecords: 8,
+          withoutRecentActivity: 5,
+        },
+      },
+      isLoading: false,
+      isError: false,
+      refetch: activityRefetch,
+    },
+    schedule: {
+      data: {
+        summary: { pendingReviews: 6, pendingWeighings: 7 },
+      },
+      isLoading: false,
+      isError: false,
+      refetch: scheduleRefetch,
+    },
+    tracking: {
+      data: {
+        summary: { active: 1, paused: 2, ended: 3, notStarted: 4 },
+      },
+      isLoading: false,
+      isError: false,
+      refetch: trackingRefetch,
+    },
+  };
 });
 
 describe("ProfessionalReportsWorkspace", () => {
@@ -130,7 +158,63 @@ describe("ProfessionalReportsWorkspace", () => {
       screen.getByText(/prioridades globais ficam centralizadas no Início/)
     ).toBeTruthy();
     expect(reportsExperience).not.toHaveBeenCalled();
-    expect(portfolioInput).toHaveBeenCalled();
+    expect(portfolioInput).toHaveBeenCalledTimes(3);
+    expect(portfolioInput).toHaveBeenCalledWith(
+      expect.objectContaining({ block: "activity" })
+    );
+    expect(portfolioInput).toHaveBeenCalledWith({ block: "schedule" });
+    expect(portfolioInput).toHaveBeenCalledWith({ block: "tracking" });
+  });
+
+  it("keeps healthy aggregate blocks visible and retries only the failed block", async () => {
+    reportStates.activity = {
+      isLoading: false,
+      isError: true,
+      refetch: activityRefetch,
+    };
+    const { default: ProfessionalReportsWorkspace } = await import(
+      "./ProfessionalReportsWorkspace"
+    );
+    render(<ProfessionalReportsWorkspace />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Não foi possível carregar os registros do período",
+      })
+    ).toBeTruthy();
+    expect(screen.getByText("6")).toBeTruthy();
+    expect(screen.getByText("1")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(activityRefetch).toHaveBeenCalledTimes(1);
+    expect(scheduleRefetch).not.toHaveBeenCalled();
+    expect(trackingRefetch).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes unavailable aggregate data from a real zero", async () => {
+    reportStates.activity.data = {
+      summary: {
+        activeWithRecentRecords: null,
+        withoutRecentActivity: 0,
+      },
+    };
+    const { default: ProfessionalReportsWorkspace } = await import(
+      "./ProfessionalReportsWorkspace"
+    );
+    render(<ProfessionalReportsWorkspace />);
+
+    const unavailableCard = screen
+      .getByText("Ativos com registros no período")
+      .closest('[data-slot="card"]');
+    const zeroCard = screen
+      .getByText("Sem registros no período")
+      .closest('[data-slot="card"]');
+    expect(unavailableCard).toBeTruthy();
+    expect(zeroCard).toBeTruthy();
+    expect(
+      within(unavailableCard as HTMLElement).getByText("Não informado")
+    ).toBeTruthy();
+    expect(within(zeroCard as HTMLElement).getByText("0")).toBeTruthy();
   });
 
   it("uses only the patient provided by the URL-backed workspace context", async () => {
@@ -246,8 +330,11 @@ describe("ProfessionalReportsWorkspace", () => {
       target: { value: "2026-07-10" },
     });
 
-    expect(portfolioInput).toHaveBeenLastCalledWith(
-      expect.objectContaining({ reportStartDate: "2026-07-10" })
+    expect(portfolioInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        block: "activity",
+        reportStartDate: "2026-07-10",
+      })
     );
   });
 });

@@ -327,6 +327,38 @@ export const professionalPortfolioSchema = z
     { message: "Escolha um período de até 90 dias." }
   );
 
+export const professionalPortfolioReportSchema = z
+  .object({
+    block: z.enum(["activity", "schedule", "tracking"]),
+    reportStartDate: dateKeySchema.optional(),
+    reportEndDate: dateKeySchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.block !== "activity") return;
+    if (!input.reportStartDate || !input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informe o início e o fim do período da carteira.",
+      });
+      return;
+    }
+    if (input.reportStartDate > input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O fim do período deve ser igual ou posterior ao início.",
+      });
+      return;
+    }
+    const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+    const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+    if ((end.getTime() - start.getTime()) / 86_400_000 + 1 > 90) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Escolha um período de até 90 dias.",
+      });
+    }
+  });
+
 export const patientPeriodBundleSchema =
   boundedReportDateRangeSchema.safeExtend({
     patientId: z.number().int().positive(),
@@ -406,6 +438,9 @@ export type PatientAdoptProfessionalGoalInput = z.infer<
 >;
 export type ProfessionalPortfolioInput = z.infer<
   typeof professionalPortfolioSchema
+>;
+export type ProfessionalPortfolioReportInput = z.infer<
+  typeof professionalPortfolioReportSchema
 >;
 export type PatientPeriodBundleInput = z.infer<
   typeof patientPeriodBundleSchema
