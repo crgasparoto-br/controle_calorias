@@ -11,11 +11,23 @@ import { AI_OPERATIONS, type AiOperation } from "./capabilities";
 export const AI_PROVIDERS = ["openai", "gemini", "openai-compatible"] as const;
 export type AiProviderId = (typeof AI_PROVIDERS)[number];
 
-const OPENAI_OPERATIONS: readonly AiOperation[] = [...AI_OPERATIONS];
+// Keep this list explicit. Each entry must correspond to a method/translation
+// implemented by OpenAiProvider and covered by an adapter test.
+const OPENAI_OPERATIONS: readonly AiOperation[] = [
+  "text",
+  "vision",
+  "structured_output",
+  "web_search",
+  "embeddings",
+  "transcription",
+  "image_generation",
+  "image_edit",
+];
 
 // This matrix describes methods actually exposed by GeminiProvider today.
-// Embeddings must remain unsupported until the adapter implements and tests an
-// embedding operation instead of only relying on the upstream SDK capability.
+// Web search remains unsupported until the internal tool contract is translated
+// to Google Search. Embeddings remain unsupported until a dedicated adapter
+// method and integration test exist.
 const GEMINI_OPERATIONS: readonly AiOperation[] = [
   "text",
   "vision",
