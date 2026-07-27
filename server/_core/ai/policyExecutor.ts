@@ -1,9 +1,9 @@
 /**
  * Common execution boundary for timeout, retry, fallback and error
- * classification. Callbacks receive an AbortSignal and must stop their outbound
- * operation when it is aborted. A retry/fallback is never started until the
- * previous call has settled; if cancellation is not acknowledged within the
- * grace window, the executor fails closed and suppresses further calls.
+ * classification. Callbacks receive an AbortSignal and must propagate it to the
+ * provider adapter/SDK. A retry/fallback is never started until the previous
+ * call has settled; if cancellation is not acknowledged within the grace
+ * window, the executor fails closed and suppresses further calls.
  */
 
 import { DEFAULT_ABORT_GRACE_MS } from "./policyDefaults";
@@ -148,7 +148,10 @@ export type AiPolicyExecutionResult<T> = {
   usedFallback: boolean;
 };
 
+export type AiExecutableState = "ready" | "degraded" | "disabled" | "invalid";
+
 export type AiExecutablePolicy = {
+  state: AiExecutableState;
   maxAttempts: number;
   timeoutMs: number;
   fallback: {
@@ -245,6 +248,40 @@ export function createJsonOutputValidator<T>(
   };
 }
 
+function assertExecutablePolicy<T>(
+  policy: AiExecutablePolicy,
+  callFallback?: AiPolicyCall<T>,
+): void {
+  if (policy.state !== "ready" && policy.state !== "degraded") {
+    throw new AiNonRetryableError(
+      `AI capability configuration is not executable (state=${String(policy.state)})`,
+      undefined,
+      "invalid_configuration",
+    );
+  }
+  if (!Number.isFinite(policy.timeoutMs) || !Number.isInteger(policy.timeoutMs) || policy.timeoutMs <= 0) {
+    throw new AiNonRetryableError(
+      "AI capability timeout must be a positive integer",
+      undefined,
+      "invalid_configuration",
+    );
+  }
+  if (!Number.isFinite(policy.maxAttempts) || !Number.isInteger(policy.maxAttempts) || policy.maxAttempts <= 0) {
+    throw new AiNonRetryableError(
+      "AI capability maxAttempts must be a positive integer",
+      undefined,
+      "invalid_configuration",
+    );
+  }
+  if (policy.fallback.effectivelyEnabled && !callFallback) {
+    throw new AiNonRetryableError(
+      "AI capability fallback is enabled but no fallback callback was provided",
+      undefined,
+      "invalid_configuration",
+    );
+  }
+}
+
 async function executeAttempt<T>(
   call: AiPolicyCall<T>,
   context: Omit<AiAttemptContext, "signal">,
@@ -296,8 +333,8 @@ export async function executeWithPolicy<T>(
   callFallback?: AiPolicyCall<T>,
   options: AiPolicyExecutionOptions<T> = {},
 ): Promise<AiPolicyExecutionResult<T>> {
-  const maxAttempts = Math.max(1, Math.floor(policy.maxAttempts));
-  const timeoutMs = Math.max(1, Math.floor(policy.timeoutMs));
+  assertExecutablePolicy(policy, callFallback);
+  const { maxAttempts, timeoutMs } = policy;
   let attempts = 0;
   let lastOperationalError: AiOperationalError | null = null;
 
