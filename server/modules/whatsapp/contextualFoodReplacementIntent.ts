@@ -51,12 +51,7 @@ type Candidate = {
 };
 
 export type WhatsappContextualFoodReplacementResult = {
-  handled?: true;
-  action:
-    | "meal_item_replaced"
-    | "clarification_needed"
-    | "multi_action_confirmation_needed"
-    | "multi_action_clarification_needed";
+  action: "meal_item_replaced" | "clarification_needed";
   reply: string;
   eventType: string;
   detail: string;
@@ -315,7 +310,12 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     text,
     temporalContext: null,
   });
-  if (mixedAction) return mixedAction;
+  if (mixedAction) {
+    // Os entrypoints aceitam o envelope funcional mais amplo do parser multi-ação.
+    // O tipo público legado permanece restrito para não ampliar contratos de callers
+    // que só invocam a correção contextual do último alimento.
+    return mixedAction as unknown as WhatsappContextualFoodReplacementResult;
+  }
 
   const latestCorrection = parseLatestFoodCorrection(text);
   const parsedReplacements = latestCorrection
