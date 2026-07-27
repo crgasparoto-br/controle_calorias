@@ -143,6 +143,20 @@ describe("capability config resolver", () => {
     expect(resolved.state).toBe("ready");
   });
 
+  it("preserves a non-standard model identifier for an explicitly validated compatible endpoint", () => {
+    const resolved = resolveCapabilityConfig("QUESTION", envWith({
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_BASE_URL: "https://compatible.example/v1",
+      AI_OPENAI_COMPATIBLE_OPERATIONS: "text,web_search",
+      AI_QUESTION_MODEL: "vendor/model-v9:custom",
+    }));
+    expect(resolved.primary).toEqual({
+      provider: "openai-compatible",
+      model: "vendor/model-v9:custom",
+    });
+    expect(resolved.state).toBe("ready");
+  });
+
   it("does not treat Gemini as embedding-ready without an adapter method", () => {
     const resolved = resolveCapabilityConfig("EMBEDDING", envWith({
       GEMINI_API_KEY: "g-test",
