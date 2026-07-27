@@ -187,6 +187,7 @@ type PatientDraftSnapshot = {
   note: string;
   guidanceTitle: string;
   guidance: string;
+  pages: RecordPages;
 };
 
 const initialRecordPages: RecordPages = {
@@ -202,6 +203,7 @@ function createEmptyPatientDraft(): PatientDraftSnapshot {
     note: "",
     guidanceTitle: "",
     guidance: "",
+    pages: { ...initialRecordPages },
   };
 }
 
@@ -1125,7 +1127,7 @@ export default function ProfessionalPatientWorkspace() {
   );
   const [guidance, setGuidance] = useState(initialDraft.guidance);
   const [transitionReason, setTransitionReason] = useState("");
-  const [pages, setPages] = useState<RecordPages>(initialRecordPages);
+  const [pages, setPages] = useState<RecordPages>(initialDraft.pages);
 
   const updateAssessment = useCallback<
     React.Dispatch<React.SetStateAction<AssessmentDraft>>
@@ -1177,7 +1179,12 @@ export default function ProfessionalPatientWorkspace() {
     [draftScope]
   );
   const discardDraft = useCallback(() => {
+    const stored = getPatientDraftSnapshot(draftScope);
     clearStoredProfessionalPatientDraftSnapshot(draftScope);
+    storePatientDraftSnapshot(draftScope, {
+      ...createEmptyPatientDraft(),
+      pages: stored.pages,
+    });
     setAssessment({ ...emptyAssessment });
     setNote("");
     setGuidanceTitle("");
@@ -1204,9 +1211,16 @@ export default function ProfessionalPatientWorkspace() {
   );
   const setPageForSection = useCallback(
     (targetSection: PaginatedRecordSection, page: number) => {
-      setPages(current => ({ ...current, [targetSection]: Math.max(1, page) }));
+      setPages(current => {
+        const next = { ...current, [targetSection]: Math.max(1, page) };
+        storePatientDraftSnapshot(draftScope, {
+          ...getPatientDraftSnapshot(draftScope),
+          pages: next,
+        });
+        return next;
+      });
     },
-    []
+    [draftScope]
   );
 
   useEffect(() => {
@@ -1216,7 +1230,7 @@ export default function ProfessionalPatientWorkspace() {
     setGuidanceTitle(stored.guidanceTitle);
     setGuidance(stored.guidance);
     setTransitionReason("");
-    setPages(initialRecordPages);
+    setPages(stored.pages);
   }, [draftScope]);
 
   const dirty = useMemo(

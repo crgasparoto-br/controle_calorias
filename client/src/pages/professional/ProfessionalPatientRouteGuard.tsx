@@ -43,6 +43,8 @@ export default function ProfessionalPatientRouteGuard() {
     );
   }
 
-  const pathname = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
-  return <ProfessionalPatientWorkspace key={pathname} />;
+  const workspaceKey = selectedPatient.authorizationId
+    ? `${selectedPatient.patientId}:${selectedPatient.authorizationId}`
+    : `${selectedPatient.patientId}:${selectedPatient.trackingStatus}`;
+  return <ProfessionalPatientWorkspace key={workspaceKey} />;
 }

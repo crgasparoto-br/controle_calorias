@@ -311,14 +311,13 @@ export default function ProfessionalLayout({
   );
 
   const profileValidated = Boolean(
-    profile.isSuccess && profile.isFetchedAfterMount && !profile.isFetching
+    profile.isFetchedAfterMount && profile.data !== undefined
   );
   const patientContextValidated = Boolean(
     routePatientId &&
-      patientContext.isSuccess &&
       patientContext.isFetchedAfterMount &&
-      !patientContext.isFetching &&
-      patientContext.data?.patientId === routePatientId
+      patientContext.data !== undefined &&
+      patientContext.data.patientId === routePatientId
   );
 
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
@@ -471,7 +470,6 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     const refreshAccess = () => {
-      invalidatePatientContext();
       void Promise.all([
         refreshAuth(),
         profile.refetch(),
@@ -482,14 +480,7 @@ export default function ProfessionalLayout({
     };
     window.addEventListener("focus", refreshAccess);
     return () => window.removeEventListener("focus", refreshAccess);
-  }, [
-    hasActiveProfile,
-    invalidatePatientContext,
-    patientContext,
-    profile,
-    refreshAuth,
-    routePatientId,
-  ]);
+  }, [hasActiveProfile, patientContext, profile, refreshAuth, routePatientId]);
 
   useEffect(() => {
     const generation = transitionGenerationRef.current + 1;
@@ -585,7 +576,7 @@ export default function ProfessionalLayout({
     [clearPatient, selectedPatient]
   );
 
-  if (authLoading || (user && !profileValidated && !profile.isError)) {
+  if ((authLoading && !user) || (user && !profileValidated && !profile.isError)) {
     return <DashboardLayoutSkeleton />;
   }
 
@@ -602,7 +593,7 @@ export default function ProfessionalLayout({
     );
   }
 
-  if (profile.isError) {
+  if (profile.isError && !profileValidated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div
@@ -655,7 +646,17 @@ export default function ProfessionalLayout({
       isProfessionalPatientAccessUnavailableError(patientContext.error)
   );
   const patientAccessUnavailable = Boolean(
-    routePatientId && patientContext.isError && !revokedPatientAccess
+    routePatientId &&
+      patientContext.isError &&
+      !revokedPatientAccess &&
+      !patientContextValidated
+  );
+  const backgroundAccessValidationError = Boolean(
+    (profile.isError && profileValidated) ||
+      (routePatientId &&
+        patientContext.isError &&
+        !revokedPatientAccess &&
+        patientContextValidated)
   );
   const patientContextLoading = Boolean(
     routePatientId &&
@@ -775,6 +776,33 @@ export default function ProfessionalLayout({
               >
                 O acesso a esse paciente não está mais disponível. A carteira
                 foi atualizada e nenhum dado anterior permaneceu visível.
+              </div>
+            ) : null}
+
+            {backgroundAccessValidationError ? (
+              <div
+                role="status"
+                className="mb-4 flex flex-col gap-3 rounded-2xl border bg-card p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span>
+                  Não foi possível atualizar a validação de acesso agora. O
+                  contexto já validado permanece aberto.
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    void Promise.all([
+                      profile.refetch(),
+                      routePatientId && hasActiveProfile
+                        ? patientContext.refetch()
+                        : Promise.resolve(),
+                    ])
+                  }
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar novamente
+                </Button>
               </div>
             ) : null}
 

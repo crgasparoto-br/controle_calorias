@@ -64,8 +64,8 @@ Quando o acompanhamento está `ended`, qualquer rota individual diferente de `/h
 Avaliação, orientação, anotação e mensagem devem pedir confirmação antes de trocar de rota, paciente, usar voltar/avançar ou fechar a página quando houver conteúdo não salvo.
 
 - Ao escolher permanecer, o workspace e seus campos devem continuar montados com o rascunho preservado. Em navegadores com Navigation API, o evento `navigate` do tipo `traverse` é cancelado antes da troca de rota; o fallback legado restaura a entrada atual quando essa API não existe.
-- Ao confirmar o descarte, a navegação deve remontar o workspace da rota de destino antes de exibir o próximo formulário, eliminando os estados não salvos da rota anterior.
-- A troca de `patientId` sempre deve remontar o workspace, mesmo quando a seção da URL permanecer igual, para impedir reutilização de rascunho entre pacientes.
+- Ao confirmar o descarte, os campos não salvos são eliminados e a navegação interna prossegue sem exigir remount quando `patientId` e `authorizationId` permanecem iguais. A paginação independente das coleções continua preservada.
+- A troca de `patientId` ou de `authorizationId` sempre remonta o workspace, mesmo quando a seção da URL permanecer igual, para impedir reutilização de rascunho ou estado transitório entre pacientes e ciclos de autorização.
 - Salvar ou descartar deve permitir a navegação que encerra aquele rascunho. Se o profissional iniciar uma nova edição na mesma rota, o guard é rearmado e volta a exigir confirmação.
 - A paginação do histórico é derivada exclusivamente do total da timeline; avaliações, orientações ou anotações adicionais não podem criar páginas vazias na linha do tempo.
 
@@ -112,6 +112,8 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 18. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.
 19. Conferir que a linha do tempo apresenta rótulos de domínio legíveis e nunca expõe o identificador técnico cru de um evento desconhecido.
 20. Abrir Metas em acompanhamento ativo, criar uma exceção e confirmar que a ação principal pode ser habilitada; em seguida pausar o acompanhamento sem desmontar a rota e confirmar que todos os controles mutáveis, inclusive a exceção e o retry de notificação, ficam desabilitados.
+21. Avançar avaliações para a página 2, alternar por anotações, relatório e mensagens e retornar à avaliação; a página 2 deve permanecer associada ao mesmo `authorizationId`/`patientId`.
+22. Com um paciente já validado e visível, iniciar refetch de perfil e contexto, inclusive por foco e intervalo; cabeçalho, workspace e paginação devem permanecer montados. Repetir com erro transitório para confirmar aviso recuperável e com `FORBIDDEN` para confirmar limpeza imediata.
 
 ## Cabeçalho contextual
 
@@ -121,5 +123,5 @@ A última atividade do cabeçalho vem do primeiro evento da timeline canônica j
 
 - Toda saída visível do workspace, incluindo **Minha alimentação**, subnavegação, navegação principal, retorno à carteira e troca de paciente, participa do mesmo contrato de proteção de rascunho.
 - A confirmação ocorre no máximo uma vez por tentativa de navegação. Uma confirmação já aceita pelo interceptor é reutilizada pelo handler da mesma transição.
-- Cancelar preserva rota, paciente e campos montados; confirmar o descarte permite a navegação e o remount da rota de destino; após salvar, não há diálogo.
+- Cancelar preserva rota, paciente e campos montados; confirmar o descarte limpa somente os campos não salvos e permite a navegação. Se paciente e autorização não mudarem, o workspace permanece montado e conserva paginações; após salvar, não há diálogo.
 - Os testes unitários verificam cliques e eventos `navigate` canceláveis. O gate visual executa `history.back()` e `history.forward()` no Chromium real com um formulário controlado preenchido: cancelar deve manter a URL e o valor; confirmar deve alcançar o destino, desmontar o formulário e eliminar o rascunho.

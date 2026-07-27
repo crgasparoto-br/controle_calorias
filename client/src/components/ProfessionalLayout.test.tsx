@@ -299,25 +299,47 @@ describe("ProfessionalLayout", () => {
     });
   });
 
-  it("keeps cached authorization protected until refetch finishes", async () => {
+  it("keeps a validated patient visible during a background context refetch", async () => {
     location = "/professional/patients/10/messages";
     fetchingPatientContext();
-    const view = renderPatientLayout();
-
-    expect(screen.queryByText("Ana")).toBeNull();
-    expect(
-      screen.getByText("Preparando o contexto seguro do paciente...")
-    ).toBeTruthy();
-
-    freshPatientContext();
-    view.rerender(
-      <ProfessionalLayout>
-        <PatientFixture />
-      </ProfessionalLayout>
-    );
+    renderPatientLayout();
 
     await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(
+      screen.queryByText("Preparando o contexto seguro do paciente...")
+    ).toBeNull();
     expect(document.title).toBe("Mensagens | Área Profissional");
+  });
+
+  it("keeps the shell visible during background auth and profile refresh", async () => {
+    location = "/professional/patients/10";
+    authState.loading = true;
+    profileState = { ...profileState, isFetching: true };
+
+    renderPatientLayout();
+
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+  });
+
+  it("keeps validated content visible after a non-authoritative background error", async () => {
+    location = "/professional/patients/10";
+    patientContextState = {
+      ...patientContextState,
+      isFetching: false,
+      isError: true,
+      isSuccess: false,
+      error: new Error("Falha temporária de conexão"),
+    };
+
+    renderPatientLayout();
+
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(
+      screen.getByText(
+        "Não foi possível atualizar a validação de acesso agora. O contexto já validado permanece aberto."
+      )
+    ).toBeTruthy();
+    expect(setLocation).not.toHaveBeenCalled();
   });
 
   it("waits for previous-patient cancellation and removal before showing the next patient", async () => {
@@ -542,7 +564,7 @@ describe("ProfessionalLayout", () => {
     expect(refreshAuth).toHaveBeenCalledTimes(1);
     expect(profileRefetch).toHaveBeenCalledTimes(1);
     expect(contextRefetch).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
+    expect(screen.getByText("Ana")).toBeTruthy();
   });
 
   it("clears patient caches before returning to the personal area", async () => {
