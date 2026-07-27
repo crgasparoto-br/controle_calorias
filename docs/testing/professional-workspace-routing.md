@@ -118,7 +118,11 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 
 ## Cabeçalho contextual
 
-A última atividade do cabeçalho vem do primeiro evento da timeline canônica já ordenada pelo backend, nunca da próxima revisão. O fallback `Não informado` é usado somente sem atividade.
+A última atividade do cabeçalho vem do primeiro evento da timeline canônica ordenada pelo backend por `occurredAt DESC, id DESC`, nunca da próxima revisão. O teste deve usar tipos e datas divergentes e comprovar que o cabeçalho exibe o rótulo semântico antes do timestamp; uma implementação que retorne somente a data deve falhar. O fallback `Não informado` é usado somente sem atividade.
+
+## Fechamento semântico da timeline
+
+O catálogo público do backend é o inventário obrigatório dos tipos canônicos que podem chegar a `professionalRecord.get`. Testes devem provar que cada item do inventário recebe rótulo específico e diferente de **Evento profissional registrado**, enquanto um tipo futuro realmente desconhecido permanece sanitizado pelo fallback. A regressão mínima inclui `official_goal_review_requested`, `professional_message_drafted` e `professional_message_response_received`, além de verificar que os nomes técnicos crus nunca aparecem no DOM.
 
 ## Proteção completa das saídas com rascunho — issue #880
 

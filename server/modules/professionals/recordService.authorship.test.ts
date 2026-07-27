@@ -131,6 +131,7 @@ describe("getProfessionalRecord authorship", () => {
     expect(result.timeline[0]).toEqual({
       id: "history-1",
       eventType: "private_note_created",
+      label: "Anotação privada registrada",
       occurredAt: new Date("2026-07-22T12:00:00Z").getTime(),
     });
     expect(result.timeline[0]).not.toHaveProperty("entityType");
@@ -185,6 +186,7 @@ describe("getProfessionalRecord authorship", () => {
       {
         id: "history-ended",
         eventType: "tracking_ended",
+        label: "Acompanhamento encerrado",
         occurredAt: new Date("2026-07-23T12:00:00Z").getTime(),
       },
     ]);

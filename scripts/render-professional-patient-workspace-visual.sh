@@ -120,6 +120,7 @@ assert_dom \
   "$BASE_URL" \
   "Workspace do paciente" \
   "Mariana de Almeida Vasconcelos e Silva" \
+  "Orientação ao paciente registrada" \
   "Próximas ações" \
   "Pendências operacionais" \
   "Registro que exige revisão" \
@@ -175,7 +176,9 @@ assert_dom \
   "history" \
   "$HISTORY_URL" \
   "Linha do tempo profissional" \
-  "Orientação registrada para o paciente" \
+  "Orientação ao paciente registrada" \
+  "Nova versão da avaliação registrada" \
+  "Acompanhamento iniciado" \
   "Página 1"
 assert_dom \
   "paused" \
@@ -288,7 +291,7 @@ scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,gui
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
 interaction=canonical patient deep links, internal workspace composition, goal exception creation and active-to-paused transition
-assertions=patient identity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

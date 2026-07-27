@@ -51,6 +51,22 @@ describe("shared professional states", () => {
     expect(html).not.toContain("Próxima revisão");
   });
 
+  it("shows the activity meaning before its timestamp", () => {
+    const html = renderToString(
+      <ProfessionalPatientHeader
+        displayName="Ana"
+        trackingStatus="active"
+        lastActivityLabel="Revisão da meta oficial solicitada"
+        lastActivityAt={Date.UTC(2026, 6, 24, 15, 30)}
+      />
+    );
+    expect(html).toContain("Revisão da meta oficial solicitada");
+    expect(html).toContain("24/07/2026");
+    expect(html.indexOf("Revisão da meta oficial solicitada")).toBeLessThan(
+      html.indexOf("24/07/2026")
+    );
+  });
+
   it("describes paused tracking explicitly", () => {
     const html = renderToString(
       <ProfessionalPatientHeader displayName="Ana" trackingStatus="paused" />

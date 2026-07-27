@@ -20,6 +20,22 @@ import { getProfessionalPatientContext } from "./patientContextService";
 const professionalActivityAt = new Date("2026-07-24T15:30:00.000Z");
 const unrelatedMealActivityAt = new Date("2026-07-20T08:00:00.000Z");
 
+function collectStrings(
+  value: unknown,
+  seen = new WeakSet<object>()
+): string[] {
+  if (typeof value === "string") return [value];
+  if (!value || typeof value !== "object") return [];
+  if (seen.has(value)) return [];
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.flatMap(item => collectStrings(item, seen));
+  }
+  return Object.values(value as Record<string, unknown>).flatMap(item =>
+    collectStrings(item, seen)
+  );
+}
+
 beforeEach(() => {
   mocks.assertProfessionalResourceAccess.mockReset();
   mocks.execute.mockReset();
@@ -37,6 +53,7 @@ beforeEach(() => {
         trackingStatus: "paused",
         lastActivityAt: unrelatedMealActivityAt,
         lastProfessionalActivityAt: professionalActivityAt,
+        lastProfessionalActivityType: "official_goal_review_requested",
         nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
       },
     ],
@@ -60,10 +77,14 @@ describe("getProfessionalPatientContext", () => {
       displayName: "Ana",
       authorizationStatus: "approved",
       lastActivityAt: professionalActivityAt.getTime(),
+      lastActivityLabel: "Revisão da meta oficial solicitada",
       nextReviewAt: Date.parse("2026-08-05T12:00:00.000Z"),
       trackingStatus: "paused",
     });
     expect(result.lastActivityAt).not.toBe(unrelatedMealActivityAt.getTime());
+    const queryText = collectStrings(mocks.execute.mock.calls[0]?.[0]).join(" ");
+    expect(queryText).toContain("ORDER BY h.occurredAt DESC, h.id DESC");
+    expect(queryText).toContain("lastHistory.eventType");
   });
 
   it("returns explicit nulls when stable header metadata is absent", async () => {
@@ -76,6 +97,7 @@ describe("getProfessionalPatientContext", () => {
           patientEmail: "ana@example.com",
           trackingStatus: "active",
           lastProfessionalActivityAt: null,
+          lastProfessionalActivityType: null,
           nextReviewAt: null,
         },
       ],
@@ -89,6 +111,7 @@ describe("getProfessionalPatientContext", () => {
     ).resolves.toMatchObject({
       authorizationStatus: "approved",
       lastActivityAt: null,
+      lastActivityLabel: null,
       nextReviewAt: null,
       trackingStatus: "active",
     });
@@ -104,6 +127,7 @@ describe("getProfessionalPatientContext", () => {
           patientEmail: "ana@example.com",
           trackingStatus: "ended",
           lastProfessionalActivityAt: professionalActivityAt,
+          lastProfessionalActivityType: "tracking_ended",
           nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
         },
       ],
@@ -122,6 +146,7 @@ describe("getProfessionalPatientContext", () => {
     });
     expect(result).not.toHaveProperty("authorizationId");
     expect(result).not.toHaveProperty("lastActivityAt");
+    expect(result).not.toHaveProperty("lastActivityLabel");
     expect(result).not.toHaveProperty("nextReviewAt");
   });
 

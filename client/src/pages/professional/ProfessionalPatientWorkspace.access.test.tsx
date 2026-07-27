@@ -28,6 +28,7 @@ vi.mock("@/components/ProfessionalLayout", () => ({
       displayName: "Paciente autorizado",
       authorizationStatus: "approved",
       lastActivityAt: Date.UTC(2026, 6, 24, 15, 30),
+      lastActivityLabel: "Revisão da meta oficial solicitada",
       nextReviewAt: Date.UTC(2026, 7, 5, 12),
       trackingStatus: "active",
     },
@@ -87,17 +88,20 @@ vi.mock("@/components/professional/ProfessionalUi", () => ({
   ProfessionalPatientHeader: ({
     actions,
     lastActivityAt,
+    lastActivityLabel,
     nextReviewAt,
     trackingStatus,
   }: {
     actions?: React.ReactNode;
     lastActivityAt?: number | null;
+    lastActivityLabel?: string | null;
     nextReviewAt?: number | null;
     trackingStatus: string;
   }) => (
     <div>
       <span>Estado do paciente: {trackingStatus}</span>
-      <span>Última atividade estável: {lastActivityAt}</span>
+      <span>Última atividade resumida: {lastActivityLabel}</span>
+      <span>Data da última atividade: {lastActivityAt}</span>
       <span>Próxima revisão estável: {nextReviewAt}</span>
       {actions}
     </div>
@@ -207,11 +211,13 @@ function recordFixture() {
       {
         id: "history-1",
         eventType: "private_note_created",
+        label: "Anotação privada registrada",
         occurredAt: Date.UTC(2026, 6, 21, 12),
       },
       {
         id: "history-2",
         eventType: "unknown_internal_event",
+        label: "Evento profissional registrado",
         occurredAt: Date.UTC(2026, 6, 20, 12),
       },
     ],
@@ -239,7 +245,7 @@ describe("ProfessionalPatientWorkspace access isolation", () => {
     expect(screen.getByText("Estado do paciente: active")).toBeTruthy();
     expect(
       screen.getByText(
-        `Última atividade estável: ${Date.UTC(2026, 6, 24, 15, 30)}`
+        "Última atividade resumida: Revisão da meta oficial solicitada"
       )
     ).toBeTruthy();
     expect(
@@ -261,7 +267,7 @@ describe("ProfessionalPatientWorkspace access isolation", () => {
     expect(screen.getByText("Conversa individual carregada")).toBeTruthy();
     expect(
       screen.getByText(
-        `Última atividade estável: ${Date.UTC(2026, 6, 24, 15, 30)}`
+        "Última atividade resumida: Revisão da meta oficial solicitada"
       )
     ).toBeTruthy();
     expect(

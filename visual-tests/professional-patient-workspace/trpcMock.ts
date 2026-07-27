@@ -64,6 +64,8 @@ function patientContextQuery(input: { patientId: number }) {
     displayName: "Mariana de Almeida Vasconcelos e Silva",
     authorizationStatus: "approved" as const,
     lastActivityAt: now - 45 * 60_000,
+    lastActivityLabel:
+      trackingStatus === "ended" ? undefined : "Orientação ao paciente registrada",
     nextReviewAt: now + 12 * 86_400_000,
     trackingStatus,
   });
@@ -105,19 +107,19 @@ function recordQuery(input: {
     {
       id: "timeline-guidance",
       eventType: "guidance_created",
-      label: "Orientação registrada para o paciente",
+      label: "Orientação ao paciente registrada",
       occurredAt: now - 45 * 60_000,
     },
     {
       id: "timeline-assessment",
       eventType: "assessment_version_created",
-      label: "Nova versão da avaliação criada",
+      label: "Nova versão da avaliação registrada",
       occurredAt: now - 2 * 86_400_000,
     },
     {
       id: "timeline-tracking",
       eventType: "tracking_started",
-      label: "Acompanhamento profissional iniciado",
+      label: "Acompanhamento iniciado",
       occurredAt: now - 15 * 86_400_000,
     },
   ];

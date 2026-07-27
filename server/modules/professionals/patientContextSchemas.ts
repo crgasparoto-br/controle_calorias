@@ -18,6 +18,7 @@ export const professionalPatientContextOutputSchema = z
     displayName: z.string().min(1),
     authorizationStatus: z.literal("approved"),
     lastActivityAt: z.number().int().nonnegative().nullable().optional(),
+    lastActivityLabel: z.string().min(1).nullable().optional(),
     nextReviewAt: z.number().int().nonnegative().nullable().optional(),
     trackingStatus: z.enum(["not_started", "active", "paused", "ended"]),
   })

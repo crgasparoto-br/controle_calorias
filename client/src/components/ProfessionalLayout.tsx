@@ -52,6 +52,7 @@ export type ProfessionalPatientContext = {
   displayName: string;
   authorizationStatus?: "approved";
   lastActivityAt?: number | null;
+  lastActivityLabel?: string | null;
   nextReviewAt?: number | null;
   trackingStatus: "not_started" | "active" | "paused" | "ended";
 };
@@ -383,6 +384,7 @@ export default function ProfessionalLayout({
             displayName: patientContext.data.displayName,
             authorizationStatus: patientContext.data.authorizationStatus,
             lastActivityAt: patientContext.data.lastActivityAt,
+            lastActivityLabel: patientContext.data.lastActivityLabel,
             nextReviewAt: patientContext.data.nextReviewAt,
             trackingStatus: patientContext.data.trackingStatus,
           }
@@ -403,6 +405,8 @@ export default function ProfessionalLayout({
           currentPatientContext.authorizationStatus &&
         previous.patient.lastActivityAt ===
           currentPatientContext.lastActivityAt &&
+        previous.patient.lastActivityLabel ===
+          currentPatientContext.lastActivityLabel &&
         previous.patient.nextReviewAt === currentPatientContext.nextReviewAt &&
         previous.patient.trackingStatus ===
           currentPatientContext.trackingStatus

@@ -111,42 +111,8 @@ export function professionalPatientSectionsForTracking(
     : sections;
 }
 
-const historyEventLabels: Record<string, string> = {
-  access_requested: "Acesso profissional solicitado",
-  access_approved: "Acesso profissional aprovado",
-  access_rejected: "Acesso profissional recusado",
-  access_revoked: "Acesso profissional revogado",
-  access_authorization_whatsapp_sent: "Autorização enviada pelo WhatsApp",
-  access_authorization_whatsapp_failed:
-    "Falha ao enviar autorização pelo WhatsApp",
-  tracking_started: "Acompanhamento iniciado",
-  tracking_resumed: "Acompanhamento retomado",
-  tracking_paused: "Acompanhamento pausado",
-  tracking_ended: "Acompanhamento encerrado",
-  tracking_status_changed: "Situação do acompanhamento alterada",
-  tracking_transitioned: "Situação do acompanhamento alterada",
-  assessment_version_created: "Nova versão da avaliação registrada",
-  private_note_created: "Anotação privada registrada",
-  guidance_created: "Orientação ao paciente registrada",
-  official_goal_activated: "Meta oficial ativada",
-  official_goal_revised: "Nova versão da meta oficial ativada",
-  official_goal_notification_sent: "Notificação da meta enviada",
-  official_goal_notification_failed: "Falha na notificação da meta",
-  professional_message_created: "Mensagem profissional registrada",
-  professional_message_sent: "Mensagem profissional enviada",
-  professional_message_failed: "Falha no envio da mensagem profissional",
-  professional_message_received: "Mensagem do paciente recebida",
-};
-
-function historyEventLabel(item: {
-  label?: string | null;
-  eventType?: string | null;
-}) {
-  if (item.label?.trim()) return item.label;
-  if (item.eventType && historyEventLabels[item.eventType]) {
-    return historyEventLabels[item.eventType];
-  }
-  return "Evento profissional registrado";
+function historyEventLabel(item: { label?: string | null }) {
+  return item.label?.trim() || "Evento profissional registrado";
 }
 
 type AssessmentDraft = {
@@ -1536,6 +1502,7 @@ export default function ProfessionalPatientWorkspace() {
         displayName={selectedPatient.displayName}
         trackingStatus={trackingStatus}
         lastActivityAt={selectedPatient.lastActivityAt ?? null}
+        lastActivityLabel={selectedPatient.lastActivityLabel ?? null}
         nextReviewAt={selectedPatient.nextReviewAt ?? null}
       />
       <PatientSubnav

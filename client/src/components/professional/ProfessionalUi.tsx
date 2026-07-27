@@ -267,6 +267,7 @@ export function ProfessionalPatientHeader({
   authorizationStatus = "approved",
   displayName,
   lastActivityAt,
+  lastActivityLabel,
   nextReviewAt,
   trackingStatus,
 }: {
@@ -274,6 +275,7 @@ export function ProfessionalPatientHeader({
   authorizationStatus?: string;
   displayName: string;
   lastActivityAt?: number | null;
+  lastActivityLabel?: string | null;
   nextReviewAt?: number | null;
   trackingStatus?: string | null;
 }) {
@@ -325,8 +327,13 @@ export function ProfessionalPatientHeader({
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Última atividade</p>
             <p className="mt-1 break-words text-sm font-medium">
-              {format(lastActivityAt, "Não informado")}
+              {lastActivityLabel ?? "Não informado"}
             </p>
+            {lastActivityLabel && lastActivityAt != null ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {format(lastActivityAt, "Não informado")}
+              </p>
+            ) : null}
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Próxima revisão</p>

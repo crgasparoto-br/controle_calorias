@@ -7,6 +7,7 @@ import type {
   ProfessionalNoteInput,
   ProfessionalRecordInput,
 } from "./schemas";
+import { getProfessionalHistoryEventLabel } from "./historyPresentation";
 import { getProfessionalOperationalDefaults } from "./settingsService";
 
 export type ProfessionalRecordState =
@@ -123,6 +124,7 @@ export async function getProfessionalRecord(
       timeline: rows(timelineResult).map(row => ({
         id: String(row.id),
         eventType: String(row.eventType),
+        label: getProfessionalHistoryEventLabel(String(row.eventType)),
         occurredAt: timestamp(row.occurredAt),
       })),
       pagination: {
@@ -278,6 +280,7 @@ export async function getProfessionalRecord(
     timeline: rows(timelineResult).map(row => ({
       id: String(row.id),
       eventType: String(row.eventType),
+      label: getProfessionalHistoryEventLabel(String(row.eventType)),
       occurredAt: timestamp(row.occurredAt),
     })),
     pagination: {

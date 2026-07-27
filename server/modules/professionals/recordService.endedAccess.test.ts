@@ -59,6 +59,7 @@ describe("professional record ended tracking boundary", () => {
       {
         id: "event-1",
         eventType: "tracking_ended",
+        label: "Acompanhamento encerrado",
         occurredAt: Date.parse("2026-07-24T15:30:00.000Z"),
       },
     ]);

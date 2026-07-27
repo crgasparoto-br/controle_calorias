@@ -382,41 +382,71 @@ describe("professional patient workspace audit corrections", () => {
     );
   });
 
-  it("renders canonical labels for goal revisions and tracking transitions", () => {
+  it("renders every audited canonical event with its server-sanitized label", () => {
     location = "/professional/patients/41/history";
     recordData = recordFixture({
       timeline: [
         {
           id: "goal",
           eventType: "official_goal_revised",
+          label: "Nova versão da meta oficial ativada",
           occurredAt: Date.now(),
         },
         {
           id: "tracking",
           eventType: "tracking_transitioned",
+          label: "Situação do acompanhamento alterada",
+          occurredAt: Date.now(),
+        },
+        {
+          id: "goal-review",
+          eventType: "official_goal_review_requested",
+          label: "Revisão da meta oficial solicitada",
+          occurredAt: Date.now(),
+        },
+        {
+          id: "message-draft",
+          eventType: "professional_message_drafted",
+          label: "Rascunho de mensagem registrado",
+          occurredAt: Date.now(),
+        },
+        {
+          id: "message-response",
+          eventType: "professional_message_response_received",
+          label: "Resposta do paciente recebida",
           occurredAt: Date.now(),
         },
       ],
       pagination: {
-        totals: { assessments: 0, notes: 0, guidances: 0, timeline: 2 },
+        totals: { assessments: 0, notes: 0, guidances: 0, timeline: 5 },
         hasMore: false,
       },
     });
 
     render(<ProfessionalPatientWorkspace />);
 
-    expect(
-      screen.getByText("Nova versão da meta oficial ativada")
-    ).toBeTruthy();
-    expect(
-      screen.getByText("Situação do acompanhamento alterada")
-    ).toBeTruthy();
+    for (const label of [
+      "Nova versão da meta oficial ativada",
+      "Situação do acompanhamento alterada",
+      "Revisão da meta oficial solicitada",
+      "Rascunho de mensagem registrado",
+      "Resposta do paciente recebida",
+    ]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
     expect(
       screen.getByRole("navigation", { name: "Paginação de histórico" })
     ).toBeTruthy();
     expect(screen.getByText("Página 1 de 1")).toBeTruthy();
-    expect(screen.queryByText("official_goal_revised")).toBeNull();
-    expect(screen.queryByText("tracking_transitioned")).toBeNull();
+    for (const eventType of [
+      "official_goal_revised",
+      "tracking_transitioned",
+      "official_goal_review_requested",
+      "professional_message_drafted",
+      "professional_message_response_received",
+    ]) {
+      expect(screen.queryByText(eventType)).toBeNull();
+    }
   });
 
   it("restores a draft after a cancelled popstate fallback remount without leaking it to another patient", async () => {

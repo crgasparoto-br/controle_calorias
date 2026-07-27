@@ -124,6 +124,10 @@ describe("professional record service", () => {
       timeline: 1,
     });
     expect(result.pagination.hasMore).toBe(false);
+    expect(result.timeline[0]).toMatchObject({
+      eventType: "guidance_created",
+      label: "Orientação ao paciente registrada",
+    });
     expect(execute).toHaveBeenCalledTimes(10);
   });
 

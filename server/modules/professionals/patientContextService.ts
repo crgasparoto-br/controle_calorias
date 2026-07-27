@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { assertProfessionalResourceAccess } from "./entitlementAccess";
 import type { ProfessionalPatientContextInput } from "./patientContextSchemas";
+import { getProfessionalHistoryEventLabel } from "./historyPresentation";
 import { getProfessionalProfile } from "./service";
 
 type Row = Record<string, unknown>;
@@ -43,15 +44,19 @@ export async function getProfessionalPatientContext(
       u.email AS patientEmail,
       COALESCE(t.status, 'not_started') AS trackingStatus,
       t.nextReviewAt,
-      (
-        SELECT MAX(h.occurredAt)
-        FROM professionalHistoryEvents h
-        WHERE h.professionalUserId = ${professionalUserId}
-          AND h.patientUserId = a.patientUserId
-      ) AS lastProfessionalActivityAt
+      lastHistory.occurredAt AS lastProfessionalActivityAt,
+      lastHistory.eventType AS lastProfessionalActivityType
     FROM professionalPatientAuthorizations a
     INNER JOIN users u ON u.id = a.patientUserId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
+    LEFT JOIN professionalHistoryEvents lastHistory ON lastHistory.id = (
+      SELECT h.id
+      FROM professionalHistoryEvents h
+      WHERE h.professionalUserId = ${professionalUserId}
+        AND h.patientUserId = a.patientUserId
+      ORDER BY h.occurredAt DESC, h.id DESC
+      LIMIT 1
+    )
     WHERE a.professionalUserId = ${professionalUserId}
       AND a.patientUserId = ${input.patientId}
       AND a.status = 'approved'
@@ -83,10 +88,19 @@ export async function getProfessionalPatientContext(
     return shared;
   }
 
+  const lastActivityAt = timestamp(context.lastProfessionalActivityAt);
+  const lastActivityType = context.lastProfessionalActivityType
+    ? String(context.lastProfessionalActivityType)
+    : null;
+
   return {
     ...shared,
     authorizationId: String(context.authorizationId),
-    lastActivityAt: timestamp(context.lastProfessionalActivityAt),
+    lastActivityAt,
+    lastActivityLabel:
+      lastActivityAt !== null && lastActivityType
+        ? getProfessionalHistoryEventLabel(lastActivityType)
+        : null,
     nextReviewAt: timestamp(context.nextReviewAt),
   };
 }
