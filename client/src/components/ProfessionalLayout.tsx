@@ -392,9 +392,27 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     if (!patientIdentityKey || !currentPatientContext) return;
-    setRetainedPatientContext({
-      key: patientIdentityKey,
-      patient: currentPatientContext,
+    setRetainedPatientContext(previous => {
+      if (
+        previous?.key === patientIdentityKey &&
+        previous.patient.patientId === currentPatientContext.patientId &&
+        previous.patient.authorizationId ===
+          currentPatientContext.authorizationId &&
+        previous.patient.displayName === currentPatientContext.displayName &&
+        previous.patient.authorizationStatus ===
+          currentPatientContext.authorizationStatus &&
+        previous.patient.lastActivityAt ===
+          currentPatientContext.lastActivityAt &&
+        previous.patient.nextReviewAt === currentPatientContext.nextReviewAt &&
+        previous.patient.trackingStatus ===
+          currentPatientContext.trackingStatus
+      ) {
+        return previous;
+      }
+      return {
+        key: patientIdentityKey,
+        patient: currentPatientContext,
+      };
     });
   }, [currentPatientContext, patientIdentityKey]);
 
