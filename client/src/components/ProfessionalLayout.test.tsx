@@ -301,10 +301,17 @@ describe("ProfessionalLayout", () => {
 
   it("keeps a validated patient visible during a background context refetch", async () => {
     location = "/professional/patients/10/messages";
-    fetchingPatientContext();
-    renderPatientLayout();
-
+    const view = renderPatientLayout();
     await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
+    fetchingPatientContext();
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    expect(screen.getByText("Ana")).toBeTruthy();
     expect(
       screen.queryByText("Preparando o contexto seguro do paciente...")
     ).toBeNull();
@@ -313,16 +320,25 @@ describe("ProfessionalLayout", () => {
 
   it("keeps the shell visible during background auth and profile refresh", async () => {
     location = "/professional/patients/10";
+    const view = renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
     authState.loading = true;
     profileState = { ...profileState, isFetching: true };
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
 
-    renderPatientLayout();
-
-    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(screen.getByText("Ana")).toBeTruthy();
   });
 
   it("keeps validated content visible after a non-authoritative background error", async () => {
     location = "/professional/patients/10";
+    const view = renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
     patientContextState = {
       ...patientContextState,
       isFetching: false,
@@ -330,10 +346,13 @@ describe("ProfessionalLayout", () => {
       isSuccess: false,
       error: new Error("Falha temporária de conexão"),
     };
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
 
-    renderPatientLayout();
-
-    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    expect(screen.getByText("Ana")).toBeTruthy();
     expect(
       screen.getByText(
         "Não foi possível atualizar a validação de acesso agora. O contexto já validado permanece aberto."
@@ -534,11 +553,10 @@ describe("ProfessionalLayout", () => {
     expect(removeQueries).not.toHaveBeenCalled();
   });
 
-  it("keeps patient content protected on a temporary authorization failure", () => {
+  it("does not trust retained cache when the first authorization revalidation fails", () => {
     location = "/professional/patients/10";
     patientContextState = {
       ...patientContextState,
-      data: undefined,
       isFetching: false,
       isError: true,
       isSuccess: false,
@@ -550,6 +568,25 @@ describe("ProfessionalLayout", () => {
 
     expect(screen.getByRole("alert").textContent).toContain(
       "Não foi possível confirmar a autorização do paciente"
+    );
+    expect(screen.queryByText("Ana")).toBeNull();
+  });
+
+  it("does not trust a cached profile when the first profile revalidation fails", () => {
+    location = "/professional/patients/10";
+    profileState = {
+      ...profileState,
+      isFetching: false,
+      isError: true,
+      isSuccess: false,
+      isFetchedAfterMount: true,
+      error: new Error("Falha temporária de conexão"),
+    };
+
+    renderPatientLayout();
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Não foi possível confirmar seu acesso"
     );
     expect(screen.queryByText("Ana")).toBeNull();
   });

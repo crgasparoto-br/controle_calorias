@@ -207,6 +207,23 @@ function isActiveRoute(location: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
+function useRetainedSuccessfulValidation(
+  resetKey: string | null,
+  succeeded: boolean
+) {
+  const [validatedKey, setValidatedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!resetKey) {
+      setValidatedKey(null);
+      return;
+    }
+    if (succeeded) setValidatedKey(resetKey);
+  }, [resetKey, succeeded]);
+
+  return Boolean(resetKey && (succeeded || validatedKey === resetKey));
+}
+
 function routeTitle(location: string) {
   const patientRoute = parseProfessionalPatientRoute(location);
   if (patientRoute.kind === "patient") {
@@ -310,14 +327,37 @@ export default function ProfessionalLayout({
     }
   );
 
-  const profileValidated = Boolean(
-    profile.isFetchedAfterMount && profile.data !== undefined
+  const profileValidationKey = user ? `user:${user.id}` : null;
+  const profileValidationSucceeded = Boolean(
+    profile.isSuccess &&
+      profile.isFetchedAfterMount &&
+      !profile.isFetching &&
+      profile.data !== undefined
   );
-  const patientContextValidated = Boolean(
+  const profileValidated = useRetainedSuccessfulValidation(
+    profileValidationKey,
+    profileValidationSucceeded
+  );
+  const patientContextValidationKey =
+    user && routePatientId && patientResource
+      ? `user:${user.id}:patient:${routePatientId}:resource:${patientResource}`
+      : null;
+  const patientContextValidationSucceeded = Boolean(
     routePatientId &&
+      patientContext.isSuccess &&
       patientContext.isFetchedAfterMount &&
+      !patientContext.isFetching &&
       patientContext.data !== undefined &&
       patientContext.data.patientId === routePatientId
+  );
+  const patientContextValidated = useRetainedSuccessfulValidation(
+    patientContextValidationKey,
+    patientContextValidationSucceeded
+  );
+  const patientContextAccessRevoked = Boolean(
+    routePatientId &&
+      patientContext.isError &&
+      isProfessionalPatientAccessUnavailableError(patientContext.error)
   );
 
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
@@ -325,6 +365,7 @@ export default function ProfessionalLayout({
       !hasActiveProfile ||
       !routePatientId ||
       !patientContextValidated ||
+      patientContextAccessRevoked ||
       readyPatientId !== routePatientId ||
       !patientContext.data
     ) {
@@ -342,6 +383,7 @@ export default function ProfessionalLayout({
   }, [
     hasActiveProfile,
     patientContext.data,
+    patientContextAccessRevoked,
     patientContextValidated,
     readyPatientId,
     routePatientId,
@@ -640,11 +682,7 @@ export default function ProfessionalLayout({
     );
   }
 
-  const revokedPatientAccess = Boolean(
-    routePatientId &&
-      patientContext.isError &&
-      isProfessionalPatientAccessUnavailableError(patientContext.error)
-  );
+  const revokedPatientAccess = patientContextAccessRevoked;
   const patientAccessUnavailable = Boolean(
     routePatientId &&
       patientContext.isError &&
