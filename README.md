@@ -66,41 +66,41 @@ Situação atual:
 - Inferência nutricional de texto e imagem usa a factory legada selecionada por `AI_VISION_PROVIDER`, com saída estruturada e validação Zod.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
 
-## Seleção legada de provider de visão e texto
+## Seleção legada de Provider de IA (Visão e Texto)
 
-A seleção global abaixo permanece por compatibilidade enquanto os consumidores são migrados nas subissues da épica #917:
+A seleção global abaixo continua funcionando durante a migração por capacidade. Ela se aplica ao consumidor legado de inferência nutricional de texto/imagem; outros fluxos, como perguntas, embeddings, transcrição e imagem anotada, mantêm seus caminhos próprios até as subissues correspondentes.
 
-- **OpenAI (padrão):**
+- **OpenAI (Padrão):**
   ```env
   AI_VISION_PROVIDER=openai
   OPENAI_API_KEY=<sua_chave_openai>
-  OPENAI_MODEL=gpt-4.1-mini
+  OPENAI_MODEL=gpt-4.1-mini # opcional
   ```
 
 - **Gemini:**
   ```env
   AI_VISION_PROVIDER=gemini
   GEMINI_API_KEY=<sua_chave_google_ai_studio>
-  GEMINI_MODEL=gemini-2.5-flash
+  GEMINI_MODEL=gemini-2.5-flash # opcional
   ```
 
-Essa variável global não roteia automaticamente todos os fluxos de IA. Perguntas, embeddings, transcrição e imagem possuem caminhos legados próprios até suas subissues de migração. Transcrição e imagem anotada continuam dependendo de OpenAI no baseline atual.
+*Nota: A transcrição de áudio (Whisper) e a geração de imagem anotada continuam usando OpenAI independentemente do provedor selecionado. Portanto, `OPENAI_API_KEY` deve ser mantida.*
 
 ## Fundação multi-provider por capacidade (#921)
 
-`server/_core/ai/` permite configurar independentemente `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada):
+A seleção acima (`AI_VISION_PROVIDER`) continua funcionando como está e nenhum consumidor foi migrado ainda. Em paralelo, `server/_core/ai/` introduz uma fundação para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
 
-- **operações distintas:** `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige embeddings;
-- **matriz baseada no adapter real:** Gemini declara texto, visão e Structured Output; embeddings Gemini não ficam disponíveis antes de existir método dedicado no adapter;
-- **resolução por capacidade:** variável nova > variável legada compatível > default equivalente ao baseline. `OPENAI_MODEL` e `GEMINI_MODEL` são preservados conforme o provider efetivo;
-- **endpoint compatível fail-closed:** `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`; somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis;
-- **fallback independente:** desabilitado por padrão, cross-provider exige opt-in explícito e usa modelo próprio do provider de destino;
-- **timeout sem sobreposição:** cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar. Se o cancelamento não for reconhecido, a execução termina sem segundo provider;
-- **erros normalizados:** timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
-- **Gemini compatível com o schema real:** o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados no fluxo de refeições;
-- **usage normalizado:** respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
+- **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings;
+- **matriz baseada no adapter real**: cada provider declara somente operações implementadas no projeto; Gemini declara texto, visão e Structured Output nesta fase, sem anunciar embeddings antes de existir método dedicado;
+- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
+- **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
+- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` e usa modelo próprio do provider de destino;
+- **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
+- **erros e saídas normalizados**: timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
+- **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
+- **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Nenhum consumidor existente foi migrado para o novo resolvedor nesta issue. Detalhes completos estão em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`.
+Detalhes completos em `ARCHITECTURE.md` (seção "Fundação multi-provider de IA (#921)"), `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. A migração de cada consumidor para este resolvedor é escopo das subissues seguintes de #917.
 
 ## Variáveis de ambiente obrigatórias
 
@@ -130,11 +130,11 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | Feature | Variáveis | Comportamento quando ausentes |
 |---|---|---|
 | OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
-| Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS` | São opcionais nesta fase; quando usadas, configuração inválida produz estado `invalid`/`disabled` e não habilita fallback implicitamente. |
+| Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS` | Configuração inválida produz estado `invalid`/`disabled`; fallback nunca é habilitado implicitamente. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
-| Criptografia dedicada de segredos | `APP_SECRETS_ENCRYPTION_KEY` | Quando ausente, segredos persistidos continuam sendo criptografados com chave derivada de `JWT_SECRET`, acoplando rotação de sessão à leitura de segredos. |
+| Criptografia dedicada de segredos | `APP_SECRETS_ENCRYPTION_KEY` | Quando ausente, segredos persistidos (ex.: token do WhatsApp em `appSecrets`) continuam sendo criptografados com uma chave derivada de `JWT_SECRET` (fallback legado), acoplando rotação de sessão à leitura de segredos. |
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, `APP_SECRETS_ENCRYPTION_KEY`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
@@ -148,11 +148,11 @@ O token de acesso do WhatsApp gravado em `appSecrets.valueEncrypted` é criptogr
 Estratégia de migração:
 
 1. Defina `APP_SECRETS_ENCRYPTION_KEY` com um valor aleatório forte (ex.: `openssl rand -hex 32`) em todos os ambientes.
-2. A partir do próximo deploy, novos segredos passam a usar a chave dedicada automaticamente.
-3. Segredos ainda não reescritos continuam sendo lidos com a chave legada. Reescreva-os antes de rotacionar `JWT_SECRET`.
-4. Nenhum valor de chave ou segredo decriptado é logado; falhas de decriptação retornam erro sanitizado.
+2. A partir do próximo deploy, novos segredos (ou atualizações de segredos existentes, como reconexão do WhatsApp) passam a usar a chave dedicada automaticamente — não há script de reescrita obrigatório.
+3. Segredos ainda não reescritos continuam sendo lidos com a chave legada derivada de `JWT_SECRET`. Rotacionar `JWT_SECRET` antes de reescrever esses segredos os torna ilegíveis — force a reescrita (ex.: reenviando o token do WhatsApp) antes de rotacionar `JWT_SECRET` se a chave dedicada ainda não estiver configurada.
+4. Risco residual: enquanto algum segredo persistido não tiver sido reescrito com a chave dedicada, ele permanece dependente de `JWT_SECRET`. Nenhum valor de chave ou segredo decriptado é logado; falhas de decriptação retornam erro sanitizado.
 
-`OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para autenticação nem login web.
+`OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para a autenticação nem para o login web.
 
 Durante o startup, o backend registra aviso para features opcionais sem configuração suficiente. Esses avisos não exibem valores de segredos.
 
@@ -163,7 +163,7 @@ A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUM
 O webhook localiza o usuário pelo telefone de origem, processa a refeição no contexto desse usuário e responde pelo mesmo canal oficial configurado no ambiente.
 
 **Inteligência do WhatsApp:**
-O canal possui um classificador de intenções (LLM) que atua antes do pipeline nutricional para evitar registros acidentais. Ele avalia o histórico conversacional recente do usuário para resolver ambiguidades. O sistema também conta com aprendizado silencioso de aliases pessoais, associando apelidos informais aos nomes canônicos do catálogo após registros bem-sucedidos.
+O canal possui um classificador de intenções (LLM) que atua antes do pipeline nutricional para evitar registros acidentais. Ele avalia o histórico conversacional recente do usuário para resolver ambiguidades (ex: distinguir "frango grelhado" como consulta vs. registro). O sistema também conta com aprendizado silencioso de aliases pessoais, associando automaticamente apelidos informais aos nomes canônicos do catálogo após registros bem-sucedidos.
 
 A evolução da comunicação profissional deve reutilizar esse canal e o contrato central de mensagens, distinguindo conteúdo automático, sugestão da IA e mensagem enviada pelo nutricionista. Não deve existir transporte paralelo exclusivo para a Área Profissional.
 
@@ -171,29 +171,31 @@ A evolução da comunicação profissional deve reutilizar esse canal e o contra
 
 A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde externa inicia a autorização, redireciona o usuário para login/autorização no Strava e o callback em `/api/health-integrations/strava/callback` conclui a conexão.
 
-`STRAVA_REDIRECT_URI` deve apontar para o callback público da API, por exemplo `https://api.seudominio.com/api/health-integrations/strava/callback`. `STRAVA_APP_REDIRECT_BASE_URL` deve apontar para o domínio do app web onde o usuário está logado. Depois de salvar o vínculo, o callback usa essa base para devolver o usuário ao frontend em `/health-integrations`.
+`STRAVA_REDIRECT_URI` deve apontar para o callback público da API, por exemplo `https://api.seudominio.com/api/health-integrations/strava/callback`. `STRAVA_APP_REDIRECT_BASE_URL` deve apontar para o domínio do app web onde o usuário está logado, por exemplo `https://app.seudominio.com`. Depois de salvar o vínculo, o callback usa essa base para devolver o usuário ao frontend em `/health-integrations`.
 
-Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime. O callback não importa atividades automaticamente. A importação automática acontece somente pelo webhook do Strava; para histórico ou atualização forçada, use a sincronização manual.
+Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime. O callback não importa atividades automaticamente. A importação automática acontece somente pelo webhook do Strava; quando o usuário quiser trazer histórico ou forçar uma atualização, deve acionar a sincronização manual pela tela/API.
 
-A importação manual lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. O webhook usa o mesmo caminho de persistência. Cada exercício importado recebe a referência `strava:<activityId>` para evitar duplicidade.
+A importação manual lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. O webhook processa os eventos recebidos do Strava e usa o mesmo caminho de persistência de exercícios. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que importações futuras atualizem ou ignorem o mesmo exercício em vez de duplicar o registro.
 
-Quando uma atividade já importada reaparece, essa referência localiza o exercício existente. Se já contém calorias confiáveis do Strava, o valor é preservado e não é substituído por estimativa local.
+Quando uma atividade já importada reaparece em uma janela de sincronização ou em novo evento, a referência `strava:<activityId>` é usada para localizar o exercício existente. Se esse exercício já contém calorias confiáveis do Strava nas notas (`Calorias: N kcal`), esse valor é preservado e não é substituído por estimativa local.
 
-`STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` controla quantas chamadas de detalhe cada importação pode fazer para atividades cuja listagem não trouxe calorias válidas. O padrão `5` preserva cota; `all` tenta enriquecer todas as atividades elegíveis antes de estimativa local.
+`STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` controla quantas chamadas de detalhe `/activities/{id}` cada importação manual ou processamento de webhook pode fazer para atividades cuja listagem não trouxe calorias válidas. O padrão `5` preserva cota. Configure `all` para tentar enriquecer todas as atividades elegíveis antes de qualquer estimativa local; nesse modo, limites 429 ou falhas temporárias no detalhe interrompem a importação para permitir nova tentativa sem salvar estimativas prematuras.
 
-Tokens de acesso e refresh do Strava continuam restritos ao backend, armazenados criptografados e nunca expostos ao frontend.
+Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 
 ## Compatibilidade de schema em runtime
 
-O backend chama `ensureRuntimeSchemaCompatibility()` durante o startup para proteger ambientes locais ou de teste que ainda tenham bases antigas. A rotina cobre somente compatibilidade conhecida e idempotente.
+O backend chama `ensureRuntimeSchemaCompatibility()` durante o startup para proteger ambientes locais ou de teste que ainda tenham bases antigas. A rotina cobre apenas compatibilidade conhecida e idempotente: colunas esperadas em `users`, `nutritionGoals`, `foodCatalog`, `mealItems` e `userProfiles`, a tabela `whatsapp_onboarding_leads` e o formato de `nutritionGoals.weekday` como `NOT NULL DEFAULT -1`.
 
-Em `NODE_ENV=production`, essa rotina opera somente em verificação. Não executa alterações estruturais; se encontrar pendência, o startup falha orientando aplicar migrations versionadas.
+Em `NODE_ENV=production`, essa rotina opera somente em modo de verificação. Ela não executa `ALTER TABLE`, `CREATE TABLE`, `UPDATE` ou qualquer ajuste estrutural amplo. Se encontrar coluna, tabela ou formato pendente, o startup falha com uma mensagem orientando executar as migrations versionadas do Drizzle antes de iniciar o servidor.
 
-Em desenvolvimento e teste, a rotina pode aplicar reparos idempotentes para bancos locais legados. Mudanças permanentes continuam pertencendo a `drizzle/schema.ts` e ao fluxo de migration.
+Em desenvolvimento e teste, a rotina pode aplicar esses reparos idempotentes para destravar bancos locais legados. Mudanças estruturais permanentes continuam pertencendo ao `drizzle/schema.ts` e ao fluxo de migration (`pnpm db:push` ou pipeline equivalente). Em uma base já atualizada, a validação de startup deve retornar sem itens `added`, `updated` ou `pending`.
 
 ## Qualidade e gates
 
-A política completa de validação antes de PR/merge fica em `CONTRIBUTING.md`.
+A política completa de validação antes de PR/merge fica em `CONTRIBUTING.md`. Use a tabela desse guia para escolher o gate mínimo por tipo de mudança.
+
+Resumo dos comandos disponíveis neste repositório:
 
 ```bash
 pnpm check
@@ -205,17 +207,27 @@ pnpm agent:check
 pnpm db:check-integrity
 ```
 
-Mudanças em áreas sensíveis exigem `pnpm agent:check` e `pnpm build`, além da validação manual específica quando houver integração externa ou fluxo de usuário afetado.
+Mudanças em áreas sensíveis, como autenticação, segredos, banco, WhatsApp, OpenAI, Strava ou fluxo nutricional, exigem `pnpm agent:check` e `pnpm build`, além de validação manual específica quando houver integração externa ou fluxo de usuário afetado.
 
 ## Rollout
 
 Resumo do rollout:
 
 - configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
-- executar migrations antes do deploy quando houver alteração de schema;
-- manter frontend/Vercel sem chaves e segredos de backend;
-- configurar credenciais do Strava apenas no backend;
-- validar OAuth, webhook, sincronização manual e idempotência do Strava;
+- executar as migrations do Drizzle antes do deploy quando houver alteração de schema;
+- validar que `NODE_ENV=production` falha o startup sem `DATABASE_URL` ou com conexão de banco inválida;
+- configurar OpenAI apenas no backend do Render ou runtime equivalente;
+- manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
+- configurar as credenciais do Strava apenas no backend;
+- configurar `STRAVA_REDIRECT_URI` com o domínio público da API;
+- configurar `STRAVA_APP_REDIRECT_BASE_URL` com o domínio público do frontend;
+- validar o redirect URI público do Strava apontando para `/api/health-integrations/strava/callback`;
+- validar que o usuário volta do Strava para o frontend já autenticado;
+- validar que o callback OAuth do Strava conecta a conta sem importar exercícios;
+- validar que o webhook do Strava importa novas atividades automaticamente;
+- validar que a sincronização manual do Strava importa apenas exercícios dos últimos 2 meses;
+- validar que reprocessar uma atividade já importada pelo webhook não duplica o exercício nem troca calorias confiáveis por estimativa local;
+- validar que o vínculo Strava continua conectado após restart do backend com banco ativo;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
-- monitorar somente erros sanitizados, sem senha, hash, token ou cookie em logs.
+- monitorar apenas erros sanitizados, sem senha, hash, token ou cookie em logs.
