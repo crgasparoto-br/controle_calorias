@@ -156,18 +156,12 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 function PatientFixture() {
-  const { retryRouteAccess, routeAccessStatus, selectedPatient } =
-    useProfessionalWorkspace();
+  const { routeAccessStatus, selectedPatient } = useProfessionalWorkspace();
   return (
     <div>
       <span>{selectedPatient?.displayName ?? "sem paciente"}</span>
       <span data-testid="route-access-status">{routeAccessStatus}</span>
       <input aria-label="Rascunho da área" defaultValue="" />
-      {routeAccessStatus === "error" ? (
-        <button type="button" onClick={retryRouteAccess}>
-          Tentar novamente
-        </button>
-      ) : null}
     </div>
   );
 }
