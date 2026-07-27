@@ -1,0 +1,61 @@
+name: Orchestrator repository handoff
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/orchestrator-repository-handoff.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package-clean-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Create clean candidate without this temporary workflow
+        id: candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/orchestrator-repository-handoff.yml
+          git commit -m "chore: remove temporary orchestrator handoff"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Remove checkout credentials before packaging
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin https://github.com/${GITHUB_REPOSITORY}.git
+          if git config --local --get-regexp 'extraheader|authorization|token'; then
+            echo "Credential-like Git configuration remained after cleanup."
+            exit 1
+          fi
+
+      - name: Package clean repository candidate
+        run: |
+          mkdir -p /tmp/orchestrator-repository-handoff
+          printf '{"schema_version":1,"repository":"%s","issue":880,"source_head_sha":"%s","candidate_sha":"%s","base_ref":"develop","branch":"feat/875-professional-context-routes"}\n' \
+            "$GITHUB_REPOSITORY" "${{ github.event.pull_request.head.sha }}" "${{ steps.candidate.outputs.sha }}" \
+            > /tmp/orchestrator-repository-handoff/manifest.json
+          tar \
+            --exclude='./node_modules' \
+            --exclude='./dist' \
+            --exclude='./artifacts' \
+            --exclude='./.vite' \
+            -czf /tmp/orchestrator-repository-handoff/repository.tgz .
+          test -s /tmp/orchestrator-repository-handoff/repository.tgz
+
+      - name: Upload clean repository candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-repository-issue-880-${{ steps.candidate.outputs.sha }}
+          path: /tmp/orchestrator-repository-handoff
+          if-no-files-found: error
+          retention-days: 1
