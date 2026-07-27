@@ -31,6 +31,17 @@ function daysBetween(start: string, end: string) {
   return Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
 }
 
+export function professionalPortfolioDetailPath(
+  filters: Record<string, string | undefined>
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return `/professional/patients${query ? `?${query}` : ""}`;
+}
+
 function AggregateReports() {
   const [, setLocation] = useLocation();
   const [startDate, setStartDate] = useState(() =>
@@ -45,7 +56,9 @@ function AggregateReports() {
       authorizationStatus: "all",
       trackingStatus: "all",
       activity: "all",
+      reportRecords: "all",
       nextReview: "all",
+      nextWeighing: "all",
       page: 1,
       pageSize: 20,
       reportStartDate: startDate,
@@ -62,26 +75,88 @@ function AggregateReports() {
   const summary = query.data?.summary;
   const cards = useMemo(
     () => [
-      [
-        "Ativos com registros no período",
-        summary?.activeWithRecentRecords,
-        "/professional/patients?authorization=approved&tracking=active",
-      ],
-      [
-        "Sem registros no período",
-        summary?.withoutRecentActivity,
-        "/professional/patients?authorization=approved&activity=inactive",
-      ],
-      [
-        "Revisões pendentes",
-        summary?.pendingReviews,
-        "/professional/patients?authorization=approved&review=overdue",
-      ],
-      [
-        "Pesagens pendentes",
-        summary?.pendingWeighings,
-        "/professional/patients?authorization=approved",
-      ],
+      {
+        label: "Ativos com registros no período",
+        value: summary?.activeWithRecentRecords,
+        description:
+          "Acompanhamentos ativos com ao menos uma refeição confirmada no período selecionado.",
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          tracking: "active",
+          records: "with_records",
+          reportStart: startDate,
+          reportEnd: endDate,
+        }),
+      },
+      {
+        label: "Sem registros no período",
+        value: summary?.withoutRecentActivity,
+        description:
+          "Autorizações aprovadas sem refeição confirmada no período selecionado.",
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          records: "without_records",
+          reportStart: startDate,
+          reportEnd: endDate,
+        }),
+      },
+      {
+        label: "Revisões pendentes",
+        value: summary?.pendingReviews,
+        description:
+          "Pacientes com próxima revisão registrada e vencida até agora.",
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          review: "overdue",
+        }),
+      },
+      {
+        label: "Pesagens pendentes",
+        value: summary?.pendingWeighings,
+        description:
+          "Pacientes com próxima pesagem registrada e vencida até agora.",
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          weighing: "overdue",
+        }),
+      },
+    ],
+    [endDate, startDate, summary]
+  );
+  const trackingDistribution = useMemo(
+    () => [
+      {
+        label: "Ativos",
+        value: summary?.active,
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          tracking: "active",
+        }),
+      },
+      {
+        label: "Pausados",
+        value: summary?.paused,
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          tracking: "paused",
+        }),
+      },
+      {
+        label: "Encerrados",
+        value: summary?.ended,
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          tracking: "ended",
+        }),
+      },
+      {
+        label: "Não iniciados",
+        value: summary?.notStarted,
+        route: professionalPortfolioDetailPath({
+          authorization: "approved",
+          tracking: "not_started",
+        }),
+      },
     ],
     [summary]
   );
@@ -138,21 +213,24 @@ function AggregateReports() {
       ) : query.data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {cards.map(([label, value, route]) => (
-              <Card key={String(label)}>
+            {cards.map(card => (
+              <Card key={card.label}>
                 <CardHeader className="pb-2">
-                  <CardDescription>{label}</CardDescription>
+                  <CardDescription>{card.label}</CardDescription>
                   <CardTitle className="text-3xl">
-                    {value === null || value === undefined
+                    {card.value === null || card.value === undefined
                       ? "Não informado"
-                      : value}
+                      : card.value}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {card.description}
+                  </p>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setLocation(String(route))}
+                    onClick={() => setLocation(card.route)}
                   >
                     Ver pacientes
                   </Button>
@@ -171,19 +249,22 @@ function AggregateReports() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ["Ativos", summary?.active],
-                ["Pausados", summary?.paused],
-                ["Encerrados", summary?.ended],
-                ["Não iniciados", summary?.notStarted],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="rounded-xl border p-3">
-                  <p className="text-sm text-muted-foreground">{label}</p>
+              {trackingDistribution.map(item => (
+                <div key={item.label} className="rounded-xl border p-3">
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
                   <p className="mt-1 text-2xl font-semibold">
-                    {value === null || value === undefined
+                    {item.value === null || item.value === undefined
                       ? "Não informado"
-                      : value}
+                      : item.value}
                   </p>
+                  <Button
+                    className="mt-3"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setLocation(item.route)}
+                  >
+                    Ver pacientes
+                  </Button>
                 </div>
               ))}
             </CardContent>
@@ -244,7 +325,10 @@ function IndividualReport({
 export default function ProfessionalReportsWorkspace() {
   const { selectedPatient } = useProfessionalWorkspace();
   return selectedPatient ? (
-    <IndividualReport patient={selectedPatient} />
+    <IndividualReport
+      key={selectedPatient.patientId}
+      patient={selectedPatient}
+    />
   ) : (
     <AggregateReports />
   );

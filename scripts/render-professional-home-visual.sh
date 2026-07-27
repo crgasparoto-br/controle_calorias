@@ -32,21 +32,53 @@ if [ -z "$CHROME_BIN" ]; then
   exit 1
 fi
 
+CHROME_COMMON_ARGS=(
+  --headless=new
+  --no-sandbox
+  --disable-gpu
+  --disable-dev-shm-usage
+)
+
+print_chrome_diagnostics() {
+  local name="$1"
+  local attempt="$2"
+  local log_file="$3"
+  echo "Chrome attempt ${attempt} failed for ${name}." >&2
+  if [ -s "$log_file" ]; then
+    tail -n 80 "$log_file" >&2
+  fi
+}
+
 capture() {
   local name="$1"
   local size="$2"
   local url="$3"
-  "$CHROME_BIN" \
-    --headless=new \
-    --no-sandbox \
-    --disable-gpu \
-    --hide-scrollbars \
-    --force-device-scale-factor=1 \
-    --virtual-time-budget=1800 \
-    --window-size="$size" \
-    --screenshot="$OUTPUT_DIR/$name.png" \
-    "$url"
-  test -s "$OUTPUT_DIR/$name.png"
+  local output="$OUTPUT_DIR/$name.png"
+  local log_file="$OUTPUT_DIR/$name.chrome.log"
+
+  for attempt in 1 2 3; do
+    local profile_dir
+    profile_dir="$(mktemp -d)"
+    rm -f "$output" "$log_file"
+    if "$CHROME_BIN" \
+      "${CHROME_COMMON_ARGS[@]}" \
+      --hide-scrollbars \
+      --force-device-scale-factor=1 \
+      --virtual-time-budget=1800 \
+      --window-size="$size" \
+      --user-data-dir="$profile_dir" \
+      --screenshot="$output" \
+      "$url" > "$log_file" 2>&1 && test -s "$output"; then
+      rm -rf "$profile_dir" "$log_file"
+      return 0
+    fi
+    rm -rf "$profile_dir"
+    print_chrome_diagnostics "$name" "$attempt" "$log_file"
+    sleep "$attempt"
+  done
+
+  echo "Chrome could not capture $name after 3 attempts." >&2
+  exit 1
 }
 
 assert_dom() {
@@ -62,14 +94,33 @@ assert_dom_at_size() {
   local url="$3"
   shift 3
   local output="$OUTPUT_DIR/$name.html"
-  "$CHROME_BIN" \
-    --headless=new \
-    --no-sandbox \
-    --disable-gpu \
-    --virtual-time-budget=1800 \
-    --window-size="$size" \
-    --dump-dom \
-    "$url" > "$output"
+  local temporary_output="$output.tmp"
+  local log_file="$OUTPUT_DIR/$name.chrome.log"
+
+  for attempt in 1 2 3; do
+    local profile_dir
+    profile_dir="$(mktemp -d)"
+    rm -f "$output" "$temporary_output" "$log_file"
+    if "$CHROME_BIN" \
+      "${CHROME_COMMON_ARGS[@]}" \
+      --virtual-time-budget=1800 \
+      --window-size="$size" \
+      --user-data-dir="$profile_dir" \
+      --dump-dom \
+      "$url" > "$temporary_output" 2> "$log_file" && test -s "$temporary_output"; then
+      mv "$temporary_output" "$output"
+      rm -rf "$profile_dir" "$log_file"
+      break
+    fi
+    rm -rf "$profile_dir"
+    print_chrome_diagnostics "$name" "$attempt" "$log_file"
+    if [ "$attempt" -eq 3 ]; then
+      echo "Chrome could not render DOM for $name after 3 attempts." >&2
+      exit 1
+    fi
+    sleep "$attempt"
+  done
+
   for expected in "$@"; do
     if ! grep -Fq "$expected" "$output"; then
       echo "Expected DOM content was not rendered for $name: $expected"
@@ -93,6 +144,7 @@ assert_dom_not_contains() {
 
 BASE_URL="http://127.0.0.1:${PORT}/professional"
 PATIENTS_URL="http://127.0.0.1:${PORT}/professional/patients"
+REPORTS_URL="http://127.0.0.1:${PORT}/professional/reports"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
 capture "main-tablet-1024x768" "1024,768" "$BASE_URL"
@@ -111,6 +163,10 @@ capture "patients-tablet-1024x768" "1024,768" "$PATIENTS_URL"
 capture "patients-mobile-390x844" "390,844" "$PATIENTS_URL"
 capture "patients-empty-mobile-390x844" "390,844" "$PATIENTS_URL?state=empty"
 capture "patients-error-desktop-1366x768" "1366,768" "$PATIENTS_URL?state=portfolio-error"
+capture "reports-desktop-1440x900" "1440,900" "$REPORTS_URL"
+capture "reports-notebook-1366x768" "1366,768" "$REPORTS_URL"
+capture "reports-tablet-1024x768" "1024,768" "$REPORTS_URL"
+capture "reports-mobile-390x844" "390,844" "$REPORTS_URL"
 
 assert_dom \
   "complete-page-3" \
@@ -138,6 +194,22 @@ assert_dom_not_contains \
   "João Pereira" \
   "Beatriz Fernandes" \
   "Carlos Henrique"
+assert_dom \
+  "reports-aggregate" \
+  "$REPORTS_URL" \
+  "Relatórios da carteira" \
+  "Ativos com registros no período" \
+  "Sem registros no período" \
+  "Revisões pendentes" \
+  "Pesagens pendentes" \
+  "Distribuição do acompanhamento" \
+  "Acompanhamentos ativos com ao menos uma refeição confirmada" \
+  "Autorizações aprovadas sem refeição confirmada"
+assert_dom_at_size \
+  "reports-mobile-layout" \
+  "390,844" \
+  "$REPORTS_URL" \
+  'data-visual-horizontal-overflow="false"'
 assert_dom_at_size \
   "patients-tablet-layout" \
   "1024,768" \
@@ -153,13 +225,13 @@ assert_dom_at_size \
   'data-visual-patient-cards-contained="true"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional,/professional/patients
+routes=/professional,/professional/patients,/professional/reports
 commit=${GITHUB_SHA:-local}
-scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatients with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
-assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, no horizontal overflow and visible patient action at tablet width
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, aggregate report definitions and no horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

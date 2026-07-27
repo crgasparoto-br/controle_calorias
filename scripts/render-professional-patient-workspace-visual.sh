@@ -85,6 +85,7 @@ GOALS_PAUSED_URL="${GOALS_URL}?goal-transition=paused"
 GUIDANCE_URL="${BASE_URL}/guidance"
 NOTES_URL="${BASE_URL}/notes"
 HISTORY_URL="${BASE_URL}/history"
+REPORTS_URL="${BASE_URL}/reports"
 DRAFT_BACK_CANCEL_URL="${ASSESSMENT_URL}?draft-history=back-cancel"
 DRAFT_BACK_ACCEPT_URL="${ASSESSMENT_URL}?draft-history=back-accept"
 DRAFT_FORWARD_CANCEL_URL="${ASSESSMENT_URL}?draft-history=forward-cancel"
@@ -98,6 +99,10 @@ capture "assessment-desktop-1440x900" "1440,900" "$ASSESSMENT_URL"
 capture "guidance-notebook-1366x768" "1366,768" "$GUIDANCE_URL"
 capture "notes-mobile-390x1200" "390,1200" "$NOTES_URL"
 capture "history-desktop-1366x768" "1366,768" "$HISTORY_URL"
+capture "reports-desktop-1440x900" "1440,900" "$REPORTS_URL"
+capture "reports-notebook-1366x768" "1366,768" "$REPORTS_URL"
+capture "reports-tablet-1024x768" "1024,768" "$REPORTS_URL"
+capture "reports-mobile-390x1200" "390,1200" "$REPORTS_URL"
 capture "paused-assessment-1366x768" "1366,768" "$ASSESSMENT_URL?state=paused"
 capture "ended-history-390x1200" "390,1200" "$HISTORY_URL?state=ended"
 capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=patient-loading"
@@ -186,6 +191,22 @@ assert_dom \
   "Nova versão da avaliação registrada" \
   "Acompanhamento iniciado" \
   "Página 1"
+assert_dom \
+  "reports-individual" \
+  "$REPORTS_URL" \
+  "Relatório individual" \
+  "Análise de Mariana de Almeida Vasconcelos e Silva" \
+  "Diagnóstico nutricional do período" \
+  "Pendências operacionais" \
+  "Assistência por IA" \
+  "Período analisado" \
+  "A IA não envia mensagens nem altera dados automaticamente"
+assert_dom_at_size \
+  "reports-individual-mobile-layout" \
+  "390,1200" \
+  "$REPORTS_URL" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-patient-subnav-contained="true"'
 assert_dom \
   "paused" \
   "$ASSESSMENT_URL?state=paused" \
@@ -290,14 +311,14 @@ assert_dom_at_size \
   'data-visual-draft-history-preserved="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history
+routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history,/professional/patients/1/reports
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
-scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
+scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatientWorkspace with deterministic auth and tRPC transport fixtures
-interaction=canonical patient deep links, internal workspace composition, goal exception creation and active-to-paused transition
-assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatientWorkspace and ProfessionalReportsWorkspace with deterministic auth and tRPC transport fixtures
+interaction=canonical patient deep links, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
+assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history-only routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

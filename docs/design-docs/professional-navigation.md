@@ -52,6 +52,8 @@ A visão inicial da fila consulta onze pacientes, exibe no máximo os dez primei
 
 A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, e recebe somente o resumo necessário. Ela não devolve a lista da carteira nem exige `professional_portfolio` como dependência indireta.
 
+Os links de detalhamento da rota agregada reutilizam `/professional/patients` com filtros explícitos. Contagens de registros carregam `records=with_records|without_records` junto de `reportStart` e `reportEnd`, de modo que a carteira aplique a mesma janela local por paciente usada no agregado. Revisões e pesagens vencidas usam `review=overdue` e `weighing=overdue`; a distribuição do acompanhamento usa `tracking=active|paused|ended|not_started`. Parâmetros de período inválidos, incompletos, invertidos ou superiores a 90 dias são descartados pela interface e rejeitados pelo schema do backend.
+
 A ordenação da carteira identificável é estável por identificação exibível, solicitação decrescente e ID do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros. Todas as consultas SQL, inclusive totais, incluem o profissional autenticado. Vínculo pendente, rejeitado ou revogado nunca habilita **Abrir paciente**.
 
 ## Autorização e isolamento

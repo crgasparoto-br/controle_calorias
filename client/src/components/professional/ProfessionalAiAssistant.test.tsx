@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let enabledResources: string[] = [];
 const generateMutate = vi.fn();
 const saveMutate = vi.fn();
 const setLocation = vi.fn();
+const saveMutationOptions = {
+  current: null as null | {
+    onSuccess?: (
+      result: unknown,
+      variables: { patientId: number }
+    ) => Promise<void> | void;
+  },
+};
 
 vi.mock("wouter", () => ({
   useLocation: () => ["/professional/patients/41/reports", setLocation],
@@ -59,10 +67,18 @@ vi.mock("@/lib/trpc", () => ({
       },
       messages: {
         create: {
-          useMutation: () => ({
-            mutate: saveMutate,
-            isPending: false,
-          }),
+          useMutation: (options: {
+            onSuccess?: (
+              result: unknown,
+              variables: { patientId: number }
+            ) => Promise<void> | void;
+          }) => {
+            saveMutationOptions.current = options;
+            return {
+              mutate: saveMutate,
+              isPending: false,
+            };
+          },
         },
       },
     },
@@ -85,6 +101,7 @@ beforeEach(() => {
   setLocation.mockClear();
   saveMutate.mockClear();
   generateMutate.mockReset();
+  saveMutationOptions.current = null;
   generateMutate.mockImplementation(
     (_input: unknown, options?: { onSuccess?: (data: unknown) => void }) => {
       options?.onSuccess?.(generatedDraft);
@@ -157,5 +174,45 @@ describe("ProfessionalAiAssistant entitlement", () => {
     expect(
       screen.getByRole("button", { name: "Salvar e abrir conversa" })
     ).toBeTruthy();
+  });
+
+  it("opens the conversation for the patient persisted by the completed mutation", async () => {
+    enabledResources = [
+      "professional_reports",
+      "professional_ai_assistance",
+      "professional_messages",
+    ];
+    const { default: ProfessionalAiAssistant } = await import(
+      "./ProfessionalAiAssistant"
+    );
+    const view = render(
+      <ProfessionalAiAssistant patient={patient} periodRange={periodRange} />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Gerar assistência" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e abrir conversa" })
+    );
+
+    const savedVariables = saveMutate.mock.calls[0]?.[0] as {
+      patientId: number;
+    };
+    expect(savedVariables.patientId).toBe(41);
+
+    view.rerender(
+      <ProfessionalAiAssistant
+        patient={{ patientId: 42, displayName: "Bia" }}
+        periodRange={periodRange}
+      />
+    );
+    await act(async () => {
+      await saveMutationOptions.current?.onSuccess?.({}, savedVariables);
+    });
+
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients/41/messages"
+    );
   });
 });

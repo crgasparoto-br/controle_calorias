@@ -83,6 +83,7 @@ Em todos os tamanhos, validar sidebar expandida e recolhida, ordem de foco, text
 ## Evidência visual automatizada
 
 O workflow `Professional workspace visual evidence` deve renderizar, no head exato da pull request, as superfícies agregadas e o workspace individual real em rotas canônicas. Para a issue #880, o artefato precisa incluir resumo, avaliação, metas, orientações, anotações e histórico, além dos estados pausado, encerrado, carregando e erro recuperável.
+Para a issue #881, o mesmo gate deve capturar `/professional/reports` e `/professional/patients/:patientId/reports` nos viewports suportados. A evidência agregada verifica definições e links de detalhamento dos indicadores sem overflow; a evidência individual verifica paciente, período, relatório canônico, alertas e painel de IA no mesmo contexto.
 
 A rota `/professional/patients/:patientId/goals` deve ser capturada em acompanhamento ativo e pausado nos viewports 1440 × 900, 1366 × 768, 1024 × 768 e 390 × 844. O cenário cria uma exceção por dia antes da captura e, no estado pausado, preserva essa exceção durante a transição para provar que inputs, selects, remoção, ativação e retry de notificação ficam bloqueados. As asserções também verificam labels acessíveis, contenção dos controles e ausência de overflow horizontal.
 
@@ -106,7 +107,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 12. Criar rascunho, cancelar a navegação e confirmar sua preservação; repetir confirmando descarte e verificar que o formulário retorna vazio ao voltar, inclusive em subnav, sidebar e voltar/avançar.
 13. Trocar de paciente com rascunho e confirmar que o novo paciente nunca recebe os campos do anterior.
 14. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
-15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário.
+15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário. Em cada indicador agregado, abrir **Ver pacientes** e confirmar que a carteira reproduz exatamente o critério contado: período e presença/ausência de registros, revisão vencida, pesagem vencida ou situação do acompanhamento.
 16. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
 17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.
 18. Conferir autoria e data nas versões de avaliação, orientações e anotações privadas.
@@ -117,6 +118,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 23. Em Metas, alterar alvo, vigência, justificativa e exceções; navegar para Relatórios e Mensagens enquanto a validação do entitlement exato permanece pendente. O cabeçalho e a instância do workspace devem continuar montados, o conteúdo da nova seção não pode aparecer antes da autorização, e ao retornar a Metas todo o rascunho deve ser restaurado. Repetir com falha transitória para confirmar retry sem perda e com `FORBIDDEN` para confirmar limpeza imediata do contexto e do snapshot.
 24. Persistir duas ou mais metas oficiais com valores, vigências e justificativas deliberadamente diferentes. Em **Metas**, confirmar versão atual e anteriores, autoria, origem, intervalo de vigência, exceções, ajuste por exercício e a relação “substitui a versão N”. IDs internos não podem aparecer e a paginação local deve permitir alcançar todas as versões retornadas.
 25. Usar datas divergentes entre `latestAssessment.nextReviewAt` e `professionalPatientTrackings.nextReviewAt`. O cabeçalho e o resumo **Situação atual** devem exibir exclusivamente a data canônica do tracking; a data antiga da avaliação não pode reaparecer como próxima revisão.
+26. No relatório individual, alterar o período do paciente A e trocar diretamente a URL para o paciente B; antes do novo carregamento, período, alertas e IA do paciente A devem desaparecer. Repetir salvando um rascunho enquanto ocorre a troca e confirmar que a conclusão abre a conversa do paciente presente na mutação original.
 
 ## Cabeçalho contextual
 

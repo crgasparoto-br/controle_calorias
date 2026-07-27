@@ -60,6 +60,8 @@ Um rascunho permanece apenas na tela até o nutricionista escolher **Salvar em M
 
 O envio pela web ou WhatsApp continua exigindo uma segunda ação explícita na página de Mensagens.
 
+A navegação após salvar usa o `patientId` confirmado nas variáveis da mutação concluída; uma troca de paciente enquanto a requisição está em andamento não pode redirecionar o rascunho para outra conversa.
+
 ## Perguntas livres com foco estruturado
 
 Perguntas são classificadas antes da geração:
@@ -161,3 +163,4 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - telemetria sem pergunta, prompt, resposta ou conteúdo do paciente;
 - confirmação explícita antes de persistir um rascunho;
 - descarte de resposta atrasada após troca de paciente, período ou modo.
+- salvamento concluído após troca de contexto navegando para a conversa do paciente efetivamente persistido.

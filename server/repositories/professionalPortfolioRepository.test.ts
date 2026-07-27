@@ -7,7 +7,9 @@ const input = {
   authorizationStatus: "approved" as const,
   trackingStatus: "active" as const,
   activity: "recent" as const,
+  reportRecords: "all" as const,
   nextReview: "scheduled" as const,
+  nextWeighing: "all" as const,
   page: 2,
   pageSize: 10,
   reportStartDate: "2026-07-14",
@@ -134,6 +136,45 @@ describe("professionalPortfolioRepository", () => {
     expect(queries[2].sql).not.toContain("MAX(scopedMeals.`occurredAt`)");
   });
 
+  it.each(["with_records", "without_records"] as const)(
+    "applies the %s report-period filter to the same timezone-aware count used by the indicator",
+    async reportRecords => {
+      const dialect = new MySqlDialect();
+      const queries: Array<{ sql: string; params: unknown[] }> = [];
+      const db = {
+        execute: vi.fn(async query => {
+          queries.push(dialect.sqlToQuery(query));
+          return [[]];
+        }),
+      };
+      const repository = createProfessionalPortfolioRepository({
+        getDb: async () => db,
+        onWarning: vi.fn(),
+      });
+
+      await repository.list(101, {
+        ...input,
+        search: "",
+        trackingStatus: "all",
+        activity: "all",
+        reportRecords,
+        nextReview: "all",
+        page: 1,
+      });
+
+      expect(queries[0].params).toContain(reportRecords);
+      expect(queries[0].sql).toContain(
+        "COALESCE(pm.`periodRecordCount`, 0)"
+      );
+      expect(queries[0].sql).toContain(
+        reportRecords === "with_records" ? "> 0" : "= 0"
+      );
+      expect(queries[0].sql).toContain(
+        "CONVERT_TZ(periodMeals.`occurredAt`"
+      );
+    }
+  );
+
   it.each(["scheduled", "due_soon", "overdue", "unavailable"] as const)(
     "applies the %s review filter at the canonical tracking boundary",
     async nextReview => {
@@ -165,12 +206,54 @@ describe("professionalPortfolioRepository", () => {
       if (nextReview === "scheduled") {
         expect(queries[0].sql).toContain("t.`nextReviewAt` IS NOT NULL");
       } else if (nextReview === "due_soon") {
-        expect(queries[0].sql).toContain("t.`nextReviewAt` >=");
+        expect(queries[0].sql).toContain("t.`nextReviewAt` >");
         expect(queries[0].sql).toContain("t.`nextReviewAt` <=");
       } else if (nextReview === "overdue") {
-        expect(queries[0].sql).toContain("t.`nextReviewAt` <");
+        expect(queries[0].sql).toContain("t.`nextReviewAt` <=");
       } else {
         expect(queries[0].sql).toContain("t.`nextReviewAt` IS NULL");
+      }
+    }
+  );
+
+  it.each(["scheduled", "due_soon", "overdue", "unavailable"] as const)(
+    "applies the %s weighing filter at the canonical tracking boundary",
+    async nextWeighing => {
+      const dialect = new MySqlDialect();
+      const queries: Array<{ sql: string; params: unknown[] }> = [];
+      const db = {
+        execute: vi.fn(async query => {
+          queries.push(dialect.sqlToQuery(query));
+          return [[]];
+        }),
+      };
+      const repository = createProfessionalPortfolioRepository({
+        getDb: async () => db,
+        onWarning: vi.fn(),
+      });
+
+      await repository.list(101, {
+        ...input,
+        search: "",
+        trackingStatus: "all",
+        activity: "all",
+        nextReview: "all",
+        nextWeighing,
+        page: 1,
+      });
+
+      expect(queries[0].sql).toContain("t.`nextWeighingAt`");
+      expect(queries[0].params).toContain(nextWeighing);
+      expect(queries[0].sql).toContain("a.`status` = 'approved'");
+      if (nextWeighing === "scheduled") {
+        expect(queries[0].sql).toContain("t.`nextWeighingAt` IS NOT NULL");
+      } else if (nextWeighing === "due_soon") {
+        expect(queries[0].sql).toContain("t.`nextWeighingAt` >");
+        expect(queries[0].sql).toContain("t.`nextWeighingAt` <=");
+      } else if (nextWeighing === "overdue") {
+        expect(queries[0].sql).toContain("t.`nextWeighingAt` <=");
+      } else {
+        expect(queries[0].sql).toContain("t.`nextWeighingAt` IS NULL");
       }
     }
   );

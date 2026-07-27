@@ -184,6 +184,8 @@ function portfolioQuery() {
         paused: 4,
         ended: 6,
         pendingRequests: 3,
+        activeWithRecentRecords: 18,
+        withoutRecentActivity: 6,
         pendingReviews: 7,
         pendingWeighings: 5,
       },
@@ -228,6 +230,9 @@ export const trpc = {
     },
   }),
   professionalRecord: {
+    portfolioReport: {
+      useQuery: () => portfolioQuery(),
+    },
     context: {
       useQuery: () => ({
         data: null,
@@ -271,6 +276,24 @@ export const trpc = {
     },
   },
   nutrition: {
+    onboarding: {
+      timeZone: {
+        useQuery: () => ({
+          data: {
+            timeZone: "America/Sao_Paulo",
+            source: "profile",
+            fallbackReason: null,
+          },
+          status: "success",
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+          isSuccess: true,
+          error: null,
+          refetch: resolved,
+        }),
+      },
+    },
     professionals: {
       profile: {
         useQuery: () => ({

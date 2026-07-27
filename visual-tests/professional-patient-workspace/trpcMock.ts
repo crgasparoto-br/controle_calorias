@@ -198,6 +198,78 @@ function operationalAlertsQuery() {
   ]);
 }
 
+function reportBundleQuery() {
+  const daily = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now - (6 - index) * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    return {
+      date,
+      label: date,
+      calories: 1_760 + index * 35,
+      protein: 118 + index * 2,
+      carbs: 205 + index * 3,
+      fat: 58 + index,
+      goalCalories: 2_050,
+      adjustedGoalCalories: 2_150,
+      goalProtein: 130,
+      goalCarbs: 230,
+      goalFat: 65,
+      exerciseCalories: index % 2 === 0 ? 100 : 0,
+      calorieDelta: 1_760 + index * 35 - 2_150,
+      adherencePercent: ((1_760 + index * 35) / 2_150) * 100,
+      waterConsumedMl: 1_800 + index * 100,
+      waterGoalMl: 2_500,
+      quality: {
+        proteinGrams: 118 + index * 2,
+        fiberGrams: 24,
+        waterMl: 1_800 + index * 100,
+        fruitServings: 2,
+        vegetableServings: 3,
+        ultraProcessedServings: 1,
+        mealCount: 4,
+        regularityScore: 82,
+        foodQualityItems: [],
+      },
+    };
+  });
+  return querySuccess({
+    daily,
+    totals: daily.reduce(
+      (total, day) => ({
+        calories: total.calories + day.calories,
+        protein: total.protein + day.protein,
+        carbs: total.carbs + day.carbs,
+        fat: total.fat + day.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    ),
+    analytics: {
+      adherence: {
+        adherencePercent: 91,
+        daysWithinRange: 5,
+        dayCount: 7,
+      },
+      plannedMacros: { protein: 910, carbs: 1_610, fat: 455 },
+    },
+    habitAnalytics: {
+      water: {
+        totalConsumedMl: 14_700,
+        totalGoalMl: 17_500,
+        goalHitDays: 2,
+      },
+      exercise: { activeDays: 4, totalCalories: 400 },
+    },
+    weightTrend: {
+      entries: [
+        { date: daily[0].date, weightKg: 68.4 },
+        { date: daily[6].date, weightKg: 67.9 },
+      ],
+    },
+    mealsByDate: [],
+  });
+}
+
 function officialGoalQuery() {
   const history = [
     {
@@ -305,6 +377,22 @@ trpc.useUtils = () => {
   };
 };
 
+Object.assign(trpc.nutrition.professionals, {
+  patientTimeZone: {
+    useQuery: () => querySuccess({ timeZone: "America/Sao_Paulo" }),
+  },
+  patientPeriodBundle: {
+    useQuery: () => reportBundleQuery(),
+  },
+});
+Object.assign(trpc.nutrition, {
+  reports: {
+    weekly: { useQuery: () => querySuccess(null) },
+    bundle: { useQuery: () => querySuccess(null) },
+    periodBundle: { useQuery: () => querySuccess(null) },
+  },
+});
+
 Object.assign(trpc.professionalRecord, {
   context: {
     useQuery: (input: { patientId: number }) => {
@@ -330,6 +418,13 @@ Object.assign(trpc.professionalRecord, {
     professionalState: { useQuery: () => officialGoalQuery() },
     activate: { useMutation: () => mutation() },
     retryNotification: { useMutation: () => mutation() },
+  },
+  ai: {
+    ...trpc.professionalRecord.ai,
+    generate: { useMutation: () => mutation() },
+  },
+  messages: {
+    create: { useMutation: () => mutation() },
   },
   operationalAlerts: {
     list: { useQuery: () => operationalAlertsQuery() },

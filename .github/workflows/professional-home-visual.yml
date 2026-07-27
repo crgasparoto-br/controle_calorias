@@ -8,6 +8,8 @@ on:
       - "client/src/pages/ProfessionalAreaPage.tsx"
       - "client/src/pages/professional/ProfessionalHome.tsx"
       - "client/src/pages/professional/ProfessionalPatients.tsx"
+      - "client/src/components/ProfessionalReportsWorkspace.tsx"
+      - "client/src/components/professional/ProfessionalAiAssistant.tsx"
       - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
       - "client/src/components/ProfessionalLayout.tsx"
       - "client/src/components/ProfessionalOfficialGoalCard.tsx"

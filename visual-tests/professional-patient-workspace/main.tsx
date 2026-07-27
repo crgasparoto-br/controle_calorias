@@ -41,6 +41,35 @@ async function prepareDraftHistoryScenario() {
   });
 }
 
+class VisualRuntimeBoundary extends React.Component<
+  React.PropsWithChildren,
+  { error: string | null }
+> {
+  state = { error: null as string | null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  componentDidCatch(error: unknown) {
+    document.documentElement.dataset.visualRuntimeError =
+      error instanceof Error ? error.message : String(error);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <pre data-visual-runtime-error className="p-4 whitespace-pre-wrap">
+          {this.state.error}
+        </pre>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false },
@@ -246,6 +275,8 @@ function VisualProfessionalPatientWorkspace() {
 
 void prepareDraftHistoryScenario().then(() => {
   createRoot(document.getElementById("root")!).render(
-    <VisualProfessionalPatientWorkspace />
+    <VisualRuntimeBoundary>
+      <VisualProfessionalPatientWorkspace />
+    </VisualRuntimeBoundary>
   );
 });

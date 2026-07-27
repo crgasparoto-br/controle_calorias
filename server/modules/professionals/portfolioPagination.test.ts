@@ -12,7 +12,9 @@ const baseInput: ProfessionalPortfolioInput = {
   authorizationStatus: "all",
   trackingStatus: "all",
   activity: "all",
+  reportRecords: "all",
   nextReview: "all",
+  nextWeighing: "all",
   page: 1,
   pageSize: 20,
   includeHistoricalActivity: true,
@@ -128,5 +130,19 @@ describe("professional portfolio pagination", () => {
         authorizationStatus: "pending",
       })
     ).toBe(true);
+    expect(
+      portfolioIncludesOpaquePendingReceipts({
+        ...baseInput,
+        reportRecords: "with_records",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-07",
+      })
+    ).toBe(false);
+    expect(
+      portfolioIncludesOpaquePendingReceipts({
+        ...baseInput,
+        nextWeighing: "overdue",
+      })
+    ).toBe(false);
   });
 });

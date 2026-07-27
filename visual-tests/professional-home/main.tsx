@@ -27,9 +27,9 @@ function writeVisualDiagnostics() {
   });
   root.dataset.visualPatientCardsContained = String(cardsContained);
 
-  const primaryAction = Array.from(
-    document.querySelectorAll<HTMLButtonElement>("[data-patient-action]")
-  ).find(button => button.textContent?.trim() === "Abrir paciente");
+  const primaryAction = document.querySelector<HTMLButtonElement>(
+    'button[aria-expanded]'
+  );
   if (primaryAction) {
     const rect = primaryAction.getBoundingClientRect();
     root.dataset.visualPrimaryActionVisible = String(

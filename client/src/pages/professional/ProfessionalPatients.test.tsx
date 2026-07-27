@@ -150,36 +150,61 @@ afterEach(() => {
 describe("ProfessionalPatients URL contract", () => {
   it("restores all valid filters and pagination from the URL", () => {
     const filters = filtersFromLocation(
-      "/professional/patients?search=ana&authorization=approved&tracking=paused&activity=inactive&review=overdue&page=3"
+      "/professional/patients?search=ana&authorization=approved&tracking=paused&activity=inactive&records=without_records&review=overdue&weighing=due_soon&reportStart=2026-07-01&reportEnd=2026-07-07&page=3"
     );
     expect(filters).toEqual({
       search: "ana",
       authorizationStatus: "approved",
       trackingStatus: "paused",
       activity: "inactive",
+      reportRecords: "without_records",
       nextReview: "overdue",
+      nextWeighing: "due_soon",
+      reportStartDate: "2026-07-01",
+      reportEndDate: "2026-07-07",
       page: 3,
       pageSize: 20,
     });
     expect(filtersToLocation(filters)).toBe(
-      "/professional/patients?search=ana&authorization=approved&tracking=paused&activity=inactive&review=overdue&page=3"
+      "/professional/patients?search=ana&authorization=approved&tracking=paused&activity=inactive&records=without_records&review=overdue&weighing=due_soon&reportStart=2026-07-01&reportEnd=2026-07-07&page=3"
     );
   });
 
   it("normalizes invalid query values without preserving unsafe state", () => {
     expect(
       filtersFromLocation(
-        "/professional/patients?authorization=unknown&tracking=wrong&activity=x&review=y&page=-2"
+        "/professional/patients?authorization=unknown&tracking=wrong&activity=x&records=with_records&review=y&weighing=z&reportStart=2026-01-01&reportEnd=2026-07-20&page=-2"
       )
     ).toEqual({
       search: "",
       authorizationStatus: "all",
       trackingStatus: "all",
       activity: "all",
+      reportRecords: "all",
       nextReview: "all",
+      nextWeighing: "all",
+      reportStartDate: undefined,
+      reportEndDate: undefined,
       page: 1,
       pageSize: 20,
     });
+  });
+
+  it("restores exact report-period and weighing drill-down filters", () => {
+    const filters = filtersFromLocation(
+      "/professional/patients?authorization=approved&records=with_records&weighing=overdue&reportStart=2026-07-01&reportEnd=2026-07-31"
+    );
+
+    expect(filters).toMatchObject({
+      authorizationStatus: "approved",
+      reportRecords: "with_records",
+      nextWeighing: "overdue",
+      reportStartDate: "2026-07-01",
+      reportEndDate: "2026-07-31",
+    });
+    expect(filtersToLocation(filters)).toBe(
+      "/professional/patients?authorization=approved&records=with_records&weighing=overdue&reportStart=2026-07-01&reportEnd=2026-07-31"
+    );
   });
 });
 
@@ -198,6 +223,43 @@ describe("ProfessionalPatients filter interactions", () => {
       expect.objectContaining({ authorizationStatus: "approved", page: 1 }),
       expect.any(Object)
     );
+  });
+
+  it("keeps report-period and weighing filters visible and queryable", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/professional/patients?authorization=approved&records=without_records&weighing=overdue&reportStart=2026-07-01&reportEnd=2026-07-07"
+    );
+    render(<ProfessionalPatients />);
+
+    expect(
+      (screen.getByRole("combobox", {
+        name: "Filtrar registros no período",
+      }) as HTMLSelectElement).value
+    ).toBe("without_records");
+    expect(
+      (screen.getByRole("combobox", {
+        name: "Filtrar próxima pesagem",
+      }) as HTMLSelectElement).value
+    ).toBe("overdue");
+    expect(screen.getByText(/Registros alimentares entre/)).toBeTruthy();
+    expect(portfolioUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        reportRecords: "without_records",
+        nextWeighing: "overdue",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-07",
+      }),
+      expect.any(Object)
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpar período" }));
+    await waitFor(() => {
+      expect(window.location.search).toBe(
+        "?authorization=approved&weighing=overdue"
+      );
+    });
   });
 
   it("updates pagination without being reverted by the previous URL", async () => {
@@ -302,7 +364,9 @@ describe("ProfessionalPatients filter interactions", () => {
         authorizationStatus: "pending",
         trackingStatus: "all",
         activity: "all",
+        reportRecords: "all",
         nextReview: "all",
+        nextWeighing: "all",
         page: 1,
       }),
       expect.any(Object)
@@ -376,7 +440,9 @@ describe("ProfessionalPatients filter interactions", () => {
         authorizationStatus: "approved",
         trackingStatus: "all",
         activity: "all",
+        reportRecords: "all",
         nextReview: "all",
+        nextWeighing: "all",
         page: 1,
       }),
       expect.any(Object)

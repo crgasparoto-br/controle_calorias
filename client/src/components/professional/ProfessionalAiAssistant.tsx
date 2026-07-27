@@ -80,9 +80,9 @@ export default function ProfessionalAiAssistant({
   const activeSignatureRef = useRef("");
   const generate = trpc.professionalRecord.ai.generate.useMutation();
   const saveDraft = trpc.professionalRecord.messages.create.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
       await utils.professionalRecord.messages.list.invalidate();
-      setLocation(professionalPatientPath(patient.patientId, "messages"));
+      setLocation(professionalPatientPath(variables.patientId, "messages"));
     },
   });
 

@@ -14,7 +14,9 @@ export function portfolioIncludesOpaquePendingReceipts(
       input.authorizationStatus === "pending") &&
     input.trackingStatus === "all" &&
     input.activity === "all" &&
-    input.nextReview === "all"
+    input.reportRecords === "all" &&
+    input.nextReview === "all" &&
+    input.nextWeighing === "all"
   );
 }
 

@@ -4,11 +4,28 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reportsExperience = vi.fn(
-  ({ subjectUserId }: { subjectUserId: number }) => (
-    <div>Relatório canônico {subjectUserId}</div>
+  ({
+    subjectUserId,
+    onRangeChange,
+  }: {
+    subjectUserId: number;
+    onRangeChange: (range: { start: string; end: string }) => void;
+  }) => (
+    <div>
+      Relatório canônico {subjectUserId}
+      <button
+        type="button"
+        onClick={() =>
+          onRangeChange({ start: "2026-01-01", end: "2026-01-07" })
+        }
+      >
+        Definir período de teste
+      </button>
+    </div>
   )
 );
 const portfolioInput = vi.fn();
+const setLocation = vi.fn();
 let selectedPatient:
   | {
       patientId: number;
@@ -26,7 +43,20 @@ vi.mock("@/components/professional/ProfessionalAiAssistant", () => ({
   ),
 }));
 vi.mock("@/components/professional/ProfessionalReportRecoveryGate", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: ({
+    children,
+    patientId,
+    range,
+  }: {
+    children: React.ReactNode;
+    patientId: number;
+    range: { start: string; end: string };
+  }) => (
+    <div>
+      <span>{`Gate ${patientId}: ${range.start} a ${range.end}`}</span>
+      {children}
+    </div>
+  ),
 }));
 vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
   default: ({ patientId }: { patientId?: number }) => (
@@ -37,7 +67,7 @@ vi.mock("@/features/reports/ReportsExperience", () => ({
   default: reportsExperience,
 }));
 vi.mock("wouter", () => ({
-  useLocation: () => ["/professional/reports", vi.fn()],
+  useLocation: () => ["/professional/reports", setLocation],
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -81,6 +111,7 @@ beforeEach(() => {
   selectedPatient = null;
   reportsExperience.mockClear();
   portfolioInput.mockClear();
+  setLocation.mockClear();
 });
 
 describe("ProfessionalReportsWorkspace", () => {
@@ -138,6 +169,71 @@ describe("ProfessionalReportsWorkspace", () => {
     expect(
       screen.getByRole("heading", { name: "Relatórios da carteira" })
     ).toBeTruthy();
+  });
+
+  it("opens exact portfolio filters for report-period, review, weighing, and tracking indicators", async () => {
+    const { default: ProfessionalReportsWorkspace } = await import(
+      "./ProfessionalReportsWorkspace"
+    );
+    render(<ProfessionalReportsWorkspace />);
+
+    fireEvent.change(screen.getByLabelText("Início do período"), {
+      target: { value: "2026-07-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Fim do período"), {
+      target: { value: "2026-07-07" },
+    });
+
+    const detailButtons = screen.getAllByRole("button", {
+      name: "Ver pacientes",
+    });
+    fireEvent.click(detailButtons[0]);
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients?authorization=approved&tracking=active&records=with_records&reportStart=2026-07-01&reportEnd=2026-07-07"
+    );
+    fireEvent.click(detailButtons[1]);
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients?authorization=approved&records=without_records&reportStart=2026-07-01&reportEnd=2026-07-07"
+    );
+    fireEvent.click(detailButtons[2]);
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients?authorization=approved&review=overdue"
+    );
+    fireEvent.click(detailButtons[3]);
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients?authorization=approved&weighing=overdue"
+    );
+    fireEvent.click(detailButtons[4]);
+    expect(setLocation).toHaveBeenLastCalledWith(
+      "/professional/patients?authorization=approved&tracking=active"
+    );
+  });
+
+  it("remounts individual report state when the URL patient changes", async () => {
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "active",
+    };
+    const { default: ProfessionalReportsWorkspace } = await import(
+      "./ProfessionalReportsWorkspace"
+    );
+    const view = render(<ProfessionalReportsWorkspace />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Definir período de teste" })
+    );
+    expect(screen.getByText("Gate 41: 2026-01-01 a 2026-01-07")).toBeTruthy();
+
+    selectedPatient = {
+      patientId: 42,
+      displayName: "Bia",
+      trackingStatus: "active",
+    };
+    view.rerender(<ProfessionalReportsWorkspace />);
+
+    expect(screen.getByText("Relatório canônico 42")).toBeTruthy();
+    expect(screen.queryByText("Gate 42: 2026-01-01 a 2026-01-07")).toBeNull();
   });
 
   it("recalculates aggregate indicators when the configured period changes", async () => {

@@ -275,7 +275,15 @@ export const professionalPortfolioSchema = z
       .enum(["all", "recent", "inactive", "unavailable"])
       .optional()
       .default("all"),
+    reportRecords: z
+      .enum(["all", "with_records", "without_records"])
+      .optional()
+      .default("all"),
     nextReview: z
+      .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+      .optional()
+      .default("all"),
+    nextWeighing: z
       .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
       .optional()
       .default("all"),
@@ -289,6 +297,15 @@ export const professionalPortfolioSchema = z
     input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate),
     {
       message: "Informe o início e o fim do período da carteira.",
+    }
+  )
+  .refine(
+    input =>
+      input.reportRecords === "all" ||
+      Boolean(input.reportStartDate && input.reportEndDate),
+    {
+      message: "Informe o período usado para filtrar os registros.",
+      path: ["reportRecords"],
     }
   )
   .refine(

@@ -197,11 +197,19 @@ export function createProfessionalPortfolioRepository(
           OR (a.\`status\` = 'approved' AND ${input.activity} = 'recent' AND m.\`lastFoodActivityAt\` >= ${inactiveBefore})
           OR (a.\`status\` = 'approved' AND ${input.activity} = 'inactive' AND (m.\`lastFoodActivityAt\` < ${inactiveBefore} OR m.\`lastFoodActivityAt\` IS NULL))
           OR (a.\`status\` = 'approved' AND ${input.activity} = 'unavailable' AND m.\`lastFoodActivityAt\` IS NULL))
+        AND (${input.reportRecords} = 'all'
+          OR (a.\`status\` = 'approved' AND ${input.reportRecords} = 'with_records' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0)
+          OR (a.\`status\` = 'approved' AND ${input.reportRecords} = 'without_records' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0))
         AND (${input.nextReview} = 'all'
           OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'scheduled' AND t.\`nextReviewAt\` IS NOT NULL)
-          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'due_soon' AND t.\`nextReviewAt\` >= ${now} AND t.\`nextReviewAt\` <= ${dueSoonUntil})
-          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'overdue' AND t.\`nextReviewAt\` < ${now})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'due_soon' AND t.\`nextReviewAt\` > ${now} AND t.\`nextReviewAt\` <= ${dueSoonUntil})
+          OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'overdue' AND t.\`nextReviewAt\` <= ${now})
           OR (a.\`status\` = 'approved' AND ${input.nextReview} = 'unavailable' AND t.\`nextReviewAt\` IS NULL))
+        AND (${input.nextWeighing} = 'all'
+          OR (a.\`status\` = 'approved' AND ${input.nextWeighing} = 'scheduled' AND t.\`nextWeighingAt\` IS NOT NULL)
+          OR (a.\`status\` = 'approved' AND ${input.nextWeighing} = 'due_soon' AND t.\`nextWeighingAt\` > ${now} AND t.\`nextWeighingAt\` <= ${dueSoonUntil})
+          OR (a.\`status\` = 'approved' AND ${input.nextWeighing} = 'overdue' AND t.\`nextWeighingAt\` <= ${now})
+          OR (a.\`status\` = 'approved' AND ${input.nextWeighing} = 'unavailable' AND t.\`nextWeighingAt\` IS NULL))
       `;
       const baseFrom = sql`
         FROM \`professionalPatientAuthorizations\` a

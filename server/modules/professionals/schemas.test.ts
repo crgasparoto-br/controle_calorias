@@ -100,5 +100,20 @@ describe("professional schemas", () => {
     expect(() =>
       professionalPortfolioSchema.parse({ reportStartDate: "2026-07-20" })
     ).toThrow("Informe o início e o fim");
+    expect(() =>
+      professionalPortfolioSchema.parse({ reportRecords: "with_records" })
+    ).toThrow("Informe o período usado para filtrar os registros");
+
+    expect(
+      professionalPortfolioSchema.parse({
+        reportRecords: "without_records",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+        nextWeighing: "overdue",
+      })
+    ).toMatchObject({
+      reportRecords: "without_records",
+      nextWeighing: "overdue",
+    });
   });
 });

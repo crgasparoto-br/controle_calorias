@@ -38,19 +38,25 @@ type AuthorizationStatus =
   | "revoked";
 type TrackingStatus = "all" | "not_started" | "active" | "paused" | "ended";
 type ActivityFilter = "all" | "recent" | "inactive" | "unavailable";
+type ReportRecordsFilter = "all" | "with_records" | "without_records";
 type ReviewFilter =
   | "all"
   | "scheduled"
   | "due_soon"
   | "overdue"
   | "unavailable";
+type WeighingFilter = ReviewFilter;
 
 type Filters = {
   search: string;
   authorizationStatus: AuthorizationStatus;
   trackingStatus: TrackingStatus;
   activity: ActivityFilter;
+  reportRecords: ReportRecordsFilter;
   nextReview: ReviewFilter;
+  nextWeighing: WeighingFilter;
+  reportStartDate?: string;
+  reportEndDate?: string;
   page: number;
   pageSize: number;
 };
@@ -78,9 +84,33 @@ function validValue<T extends string>(
   return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+function validDateKey(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    ? undefined
+    : value;
+}
+
+function validReportRange(start: string | undefined, end: string | undefined) {
+  if (!start || !end || start > end) return false;
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  return (endDate.getTime() - startDate.getTime()) / 86_400_000 + 1 <= 90;
+}
+
+function formatReportDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+    new Date(`${value}T12:00:00Z`)
+  );
+}
+
 export function filtersFromLocation(location: string): Filters {
   const params = new URLSearchParams(location.split("?")[1] ?? "");
   const page = Number(params.get("page"));
+  const reportStartDate = validDateKey(params.get("reportStart"));
+  const reportEndDate = validDateKey(params.get("reportEnd"));
+  const hasValidReportRange = validReportRange(reportStartDate, reportEndDate);
   return {
     search: params.get("search") ?? "",
     authorizationStatus: validValue(
@@ -98,11 +128,25 @@ export function filtersFromLocation(location: string): Filters {
       ["all", "recent", "inactive", "unavailable"] as const,
       "all"
     ),
+    reportRecords: hasValidReportRange
+      ? validValue(
+          params.get("records"),
+          ["all", "with_records", "without_records"] as const,
+          "all"
+        )
+      : "all",
     nextReview: validValue(
       params.get("review"),
       ["all", "scheduled", "due_soon", "overdue", "unavailable"] as const,
       "all"
     ),
+    nextWeighing: validValue(
+      params.get("weighing"),
+      ["all", "scheduled", "due_soon", "overdue", "unavailable"] as const,
+      "all"
+    ),
+    reportStartDate: hasValidReportRange ? reportStartDate : undefined,
+    reportEndDate: hasValidReportRange ? reportEndDate : undefined,
     page: Number.isInteger(page) && page > 0 ? page : 1,
     pageSize: 20,
   };
@@ -118,7 +162,17 @@ export function filtersToLocation(filters: Filters) {
     params.set("tracking", filters.trackingStatus);
   }
   if (filters.activity !== "all") params.set("activity", filters.activity);
+  if (filters.reportRecords !== "all") {
+    params.set("records", filters.reportRecords);
+  }
   if (filters.nextReview !== "all") params.set("review", filters.nextReview);
+  if (filters.nextWeighing !== "all") {
+    params.set("weighing", filters.nextWeighing);
+  }
+  if (filters.reportStartDate && filters.reportEndDate) {
+    params.set("reportStart", filters.reportStartDate);
+    params.set("reportEnd", filters.reportEndDate);
+  }
   if (filters.page > 1) params.set("page", String(filters.page));
   const query = params.toString();
   return `/professional/patients${query ? `?${query}` : ""}`;
@@ -482,7 +536,7 @@ export default function ProfessionalPatients() {
 
       <section
         aria-label="Filtros da carteira"
-        className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(150px,1fr))]"
+        className="grid min-w-0 gap-3 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
       >
         <label className="relative min-w-0">
           <span className="sr-only">Buscar paciente</span>
@@ -545,6 +599,22 @@ export default function ProfessionalPatients() {
           <option value="unavailable">Atividade não informada</option>
         </select>
         <select
+          aria-label="Filtrar registros no período"
+          className="h-10 min-w-0 rounded-md border bg-background px-3 text-sm"
+          value={filters.reportRecords}
+          disabled={!filters.reportStartDate || !filters.reportEndDate}
+          onChange={event =>
+            updateFilters({
+              reportRecords: event.target.value as ReportRecordsFilter,
+              page: 1,
+            })
+          }
+        >
+          <option value="all">Qualquer registro no período</option>
+          <option value="with_records">Com registros no período</option>
+          <option value="without_records">Sem registros no período</option>
+        </select>
+        <select
           aria-label="Filtrar próxima revisão"
           className="h-10 min-w-0 rounded-md border bg-background px-3 text-sm"
           value={filters.nextReview}
@@ -561,6 +631,47 @@ export default function ProfessionalPatients() {
           <option value="overdue">Revisão atrasada</option>
           <option value="unavailable">Sem revisão agendada</option>
         </select>
+        <select
+          aria-label="Filtrar próxima pesagem"
+          className="h-10 min-w-0 rounded-md border bg-background px-3 text-sm"
+          value={filters.nextWeighing}
+          onChange={event =>
+            updateFilters({
+              nextWeighing: event.target.value as WeighingFilter,
+              page: 1,
+            })
+          }
+        >
+          <option value="all">Qualquer pesagem</option>
+          <option value="scheduled">Pesagem agendada</option>
+          <option value="due_soon">Próximos 7 dias</option>
+          <option value="overdue">Pesagem atrasada</option>
+          <option value="unavailable">Sem pesagem agendada</option>
+        </select>
+        {filters.reportStartDate && filters.reportEndDate ? (
+          <div className="flex min-w-0 flex-col gap-2 rounded-xl bg-muted p-3 text-sm md:col-span-2 xl:col-span-3 2xl:col-span-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 break-words text-muted-foreground">
+              Registros alimentares entre {formatReportDate(
+                filters.reportStartDate
+              )} e {formatReportDate(filters.reportEndDate)}.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                updateFilters({
+                  reportRecords: "all",
+                  reportStartDate: undefined,
+                  reportEndDate: undefined,
+                  page: 1,
+                })
+              }
+            >
+              Limpar período
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {openError ? (
