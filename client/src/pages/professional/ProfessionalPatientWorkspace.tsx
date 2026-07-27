@@ -1,5 +1,8 @@
 import ProfessionalMessagesPanel from "@/components/ProfessionalMessagesPanel";
-import ProfessionalOfficialGoalCard from "@/components/ProfessionalOfficialGoalCard";
+import ProfessionalOfficialGoalCard, {
+  createEmptyProfessionalOfficialGoalDraft,
+  type ProfessionalOfficialGoalDraft,
+} from "@/components/ProfessionalOfficialGoalCard";
 import ProfessionalOperationalAlertsPanel from "@/components/ProfessionalOperationalAlertsPanel";
 import ProfessionalReportsWorkspace from "@/components/ProfessionalReportsWorkspace";
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
@@ -187,6 +190,7 @@ type PatientDraftSnapshot = {
   note: string;
   guidanceTitle: string;
   guidance: string;
+  officialGoal: ProfessionalOfficialGoalDraft;
   pages: RecordPages;
 };
 
@@ -203,15 +207,38 @@ function createEmptyPatientDraft(): PatientDraftSnapshot {
     note: "",
     guidanceTitle: "",
     guidance: "",
+    officialGoal: createEmptyProfessionalOfficialGoalDraft(),
     pages: { ...initialRecordPages },
   };
 }
 
 function getPatientDraftSnapshot(scope: ProfessionalPatientDraftScope | null) {
-  return readProfessionalPatientDraftSnapshot<PatientDraftSnapshot>(
+  const snapshot = readProfessionalPatientDraftSnapshot<
+    Partial<PatientDraftSnapshot>
+  >(
     scope,
     createEmptyPatientDraft
   );
+  const empty = createEmptyPatientDraft();
+  return {
+    ...empty,
+    ...snapshot,
+    assessment: { ...empty.assessment, ...(snapshot.assessment ?? {}) },
+    officialGoal: snapshot.officialGoal
+      ? {
+          ...empty.officialGoal,
+          ...snapshot.officialGoal,
+          target: {
+            ...empty.officialGoal.target,
+            ...(snapshot.officialGoal.target ?? {}),
+          },
+          exceptions: snapshot.officialGoal.exceptions?.map(item => ({
+            ...item,
+          })) ?? [],
+        }
+      : empty.officialGoal,
+    pages: { ...empty.pages, ...(snapshot.pages ?? {}) },
+  };
 }
 
 function storePatientDraftSnapshot(
@@ -221,6 +248,11 @@ function storePatientDraftSnapshot(
   persistProfessionalPatientDraftSnapshot(scope, {
     ...snapshot,
     assessment: { ...snapshot.assessment },
+    officialGoal: {
+      ...snapshot.officialGoal,
+      target: { ...snapshot.officialGoal.target },
+      exceptions: snapshot.officialGoal.exceptions.map(item => ({ ...item })),
+    },
   });
 }
 
@@ -1106,7 +1138,11 @@ function HistorySection({
 }
 
 export default function ProfessionalPatientWorkspace() {
-  const { selectedPatient } = useProfessionalWorkspace();
+  const {
+    selectedPatient,
+    routeAccessStatus = "ready",
+    retryRouteAccess = () => undefined,
+  } = useProfessionalWorkspace();
   const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const parsedRoute = parseProfessionalPatientRoute(location);
@@ -1126,6 +1162,9 @@ export default function ProfessionalPatientWorkspace() {
     initialDraft.guidanceTitle
   );
   const [guidance, setGuidance] = useState(initialDraft.guidance);
+  const [officialGoalDraft, setOfficialGoalDraft] = useState(
+    initialDraft.officialGoal
+  );
   const [transitionReason, setTransitionReason] = useState("");
   const [pages, setPages] = useState<RecordPages>(initialDraft.pages);
 
@@ -1178,6 +1217,22 @@ export default function ProfessionalPatientWorkspace() {
     },
     [draftScope]
   );
+  const updateOfficialGoalDraft = useCallback<
+    React.Dispatch<React.SetStateAction<ProfessionalOfficialGoalDraft>>
+  >(
+    nextDraft => {
+      setOfficialGoalDraft(current => {
+        const value =
+          typeof nextDraft === "function" ? nextDraft(current) : nextDraft;
+        storePatientDraftSnapshot(draftScope, {
+          ...getPatientDraftSnapshot(draftScope),
+          officialGoal: value,
+        });
+        return value;
+      });
+    },
+    [draftScope]
+  );
   const discardDraft = useCallback(() => {
     const stored = getPatientDraftSnapshot(draftScope);
     clearStoredProfessionalPatientDraftSnapshot(draftScope);
@@ -1189,6 +1244,7 @@ export default function ProfessionalPatientWorkspace() {
     setNote("");
     setGuidanceTitle("");
     setGuidance("");
+    setOfficialGoalDraft(createEmptyProfessionalOfficialGoalDraft());
   }, [draftScope]);
   const clearDraftSection = useCallback(
     (draftSection: "assessment" | "notes" | "guidance") => {
@@ -1229,6 +1285,7 @@ export default function ProfessionalPatientWorkspace() {
     setNote(stored.note);
     setGuidanceTitle(stored.guidanceTitle);
     setGuidance(stored.guidance);
+    setOfficialGoalDraft(stored.officialGoal);
     setTransitionReason("");
     setPages(stored.pages);
   }, [draftScope]);
@@ -1250,7 +1307,10 @@ export default function ProfessionalPatientWorkspace() {
   const record = trpc.professionalRecord.get.useQuery(
     { patientId, page, pageSize: RECORD_PAGE_SIZE },
     {
-      enabled: patientId > 0 && requiresProfessionalRecord,
+      enabled:
+        patientId > 0 &&
+        requiresProfessionalRecord &&
+        routeAccessStatus === "ready",
       retry: false,
       refetchOnWindowFocus: true,
       refetchInterval: requiresProfessionalRecord ? 10_000 : false,
@@ -1325,25 +1385,6 @@ export default function ProfessionalPatientWorkspace() {
       </ProfessionalPage>
     );
   }
-  if (requiresProfessionalRecord && record.isLoading) {
-    return (
-      <ProfessionalPage>
-        <ProfessionalLoadingState label="Carregando prontuário e contexto do paciente..." />
-      </ProfessionalPage>
-    );
-  }
-  if (requiresProfessionalRecord && (record.isError || !record.data)) {
-    return (
-      <ProfessionalPage>
-        <ProfessionalAsyncState
-          title="Não foi possível carregar o prontuário"
-          description="O contexto permanece protegido. Seus dados não salvos foram preservados quando possível."
-          onRetry={() => void record.refetch()}
-        />
-      </ProfessionalPage>
-    );
-  }
-
   const professionalRecord = record.data;
   const trackingStatus =
     professionalRecord?.patient.trackingStatus ??
@@ -1361,7 +1402,34 @@ export default function ProfessionalPatientWorkspace() {
   };
 
   let content: React.ReactNode;
-  if (section === "assessment") {
+  if (routeAccessStatus === "validating") {
+    content = (
+      <ProfessionalLoadingState label="Validando o acesso a esta área sem fechar o workspace..." />
+    );
+  } else if (routeAccessStatus === "error") {
+    content = (
+      <ProfessionalAsyncState
+        title="Não foi possível confirmar o acesso a esta área"
+        description="O paciente e os rascunhos permanecem abertos. Tente novamente para liberar somente esta seção."
+        onRetry={retryRouteAccess}
+      />
+    );
+  } else if (requiresProfessionalRecord && record.isLoading) {
+    content = (
+      <ProfessionalLoadingState label="Carregando prontuário e contexto do paciente..." />
+    );
+  } else if (
+    requiresProfessionalRecord &&
+    (record.isError || !professionalRecord)
+  ) {
+    content = (
+      <ProfessionalAsyncState
+        title="Não foi possível carregar o prontuário"
+        description="O contexto permanece protegido. Seus dados não salvos foram preservados quando possível."
+        onRetry={() => void record.refetch()}
+      />
+    );
+  } else if (section === "assessment") {
     content = (
       <AssessmentSection
         active={active}
@@ -1376,7 +1444,13 @@ export default function ProfessionalPatientWorkspace() {
     );
   } else if (section === "goals") {
     content = (
-      <ProfessionalOfficialGoalCard patientId={patientId} disabled={!active} />
+      <ProfessionalOfficialGoalCard
+        patientId={patientId}
+        disabled={!active}
+        draft={officialGoalDraft}
+        onDraftChange={updateOfficialGoalDraft}
+        onSaved={guard.markSaved}
+      />
     );
   } else if (section === "guidance") {
     content = (

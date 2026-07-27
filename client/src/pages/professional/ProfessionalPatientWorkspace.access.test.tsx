@@ -43,6 +43,20 @@ vi.mock("@/components/ProfessionalReportsWorkspace", () => ({
 }));
 
 vi.mock("@/components/ProfessionalOfficialGoalCard", () => ({
+  createEmptyProfessionalOfficialGoalDraft: () => ({
+    target: {
+      calories: "",
+      proteinGrams: "",
+      carbsGrams: "",
+      fatGrams: "",
+    },
+    effectiveFrom: "2026-07-27",
+    justification: "",
+    includeExerciseCalories: true,
+    exceptions: [],
+    sourceGoalId: null,
+    touched: false,
+  }),
   default: () => <div>Metas profissionais</div>,
 }));
 

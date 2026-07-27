@@ -114,6 +114,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 20. Abrir Metas em acompanhamento ativo, criar uma exceção e confirmar que a ação principal pode ser habilitada; em seguida pausar o acompanhamento sem desmontar a rota e confirmar que todos os controles mutáveis, inclusive a exceção e o retry de notificação, ficam desabilitados.
 21. Avançar avaliações para a página 2, alternar por anotações, relatório e mensagens e retornar à avaliação; a página 2 deve permanecer associada ao mesmo `authorizationId`/`patientId`.
 22. Com um paciente já validado e visível, iniciar refetch de perfil e contexto, inclusive por foco e intervalo; cabeçalho, workspace e paginação devem permanecer montados. Repetir com erro transitório para confirmar aviso recuperável e com `FORBIDDEN` para confirmar limpeza imediata.
+23. Em Metas, alterar alvo, vigência, justificativa e exceções; navegar para Relatórios e Mensagens enquanto a validação do entitlement exato permanece pendente. O cabeçalho e a instância do workspace devem continuar montados, o conteúdo da nova seção não pode aparecer antes da autorização, e ao retornar a Metas todo o rascunho deve ser restaurado. Repetir com falha transitória para confirmar retry sem perda e com `FORBIDDEN` para confirmar limpeza imediata do contexto e do snapshot.
 
 ## Cabeçalho contextual
 
@@ -124,4 +125,5 @@ A última atividade do cabeçalho vem do primeiro evento da timeline canônica j
 - Toda saída visível do workspace, incluindo **Minha alimentação**, subnavegação, navegação principal, retorno à carteira e troca de paciente, participa do mesmo contrato de proteção de rascunho.
 - A confirmação ocorre no máximo uma vez por tentativa de navegação. Uma confirmação já aceita pelo interceptor é reutilizada pelo handler da mesma transição.
 - Cancelar preserva rota, paciente e campos montados; confirmar o descarte limpa somente os campos não salvos e permite a navegação. Se paciente e autorização não mudarem, o workspace permanece montado e conserva paginações; após salvar, não há diálogo.
+- O formulário de meta oficial usa o mesmo snapshot transitório do paciente e da autorização. Ele não amplia o diálogo de descarte destinado a avaliação, anotação e orientação, mas deve sobreviver a toda navegação interna e a revalidações de entitlement do mesmo workspace. Ativação bem-sucedida, descarte explícito, revogação ou troca de ciclo eliminam esse rascunho.
 - Os testes unitários verificam cliques e eventos `navigate` canceláveis. O gate visual executa `history.back()` e `history.forward()` no Chromium real com um formulário controlado preenchido: cancelar deve manter a URL e o valor; confirmar deve alcançar o destino, desmontar o formulário e eliminar o rascunho.

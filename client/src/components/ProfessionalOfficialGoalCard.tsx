@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Plus, RotateCcw, Stethoscope, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type DraftException = {
+export type ProfessionalOfficialGoalDraftException = {
   weekday: number;
   durationType: "1_week" | "2_weeks" | "3_weeks" | "always";
   calories: string;
@@ -20,12 +20,42 @@ type DraftException = {
   carbsGrams: string;
   fatGrams: string;
 };
-const emptyTarget = {
+
+export type ProfessionalOfficialGoalTarget = {
+  calories: string;
+  proteinGrams: string;
+  carbsGrams: string;
+  fatGrams: string;
+};
+
+const emptyTarget: ProfessionalOfficialGoalTarget = {
   calories: "",
   proteinGrams: "",
   carbsGrams: "",
   fatGrams: "",
 };
+
+export type ProfessionalOfficialGoalDraft = {
+  target: ProfessionalOfficialGoalTarget;
+  effectiveFrom: string;
+  justification: string;
+  includeExerciseCalories: boolean;
+  exceptions: ProfessionalOfficialGoalDraftException[];
+  sourceGoalId: string | null;
+  touched: boolean;
+};
+
+export function createEmptyProfessionalOfficialGoalDraft(): ProfessionalOfficialGoalDraft {
+  return {
+    target: { ...emptyTarget },
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+    justification: "",
+    includeExerciseCalories: true,
+    exceptions: [],
+    sourceGoalId: null,
+    touched: false,
+  };
+}
 
 function tomorrowAfter(value?: string | null) {
   const today = new Date().toISOString().slice(0, 10);
@@ -38,34 +68,43 @@ function tomorrowAfter(value?: string | null) {
 export default function ProfessionalOfficialGoalCard({
   patientId,
   disabled,
+  draft,
+  onDraftChange,
+  onSaved,
 }: {
   patientId: number;
   disabled: boolean;
+  draft: ProfessionalOfficialGoalDraft;
+  onDraftChange: React.Dispatch<
+    React.SetStateAction<ProfessionalOfficialGoalDraft>
+  >;
+  onSaved?: () => void;
 }) {
   const utils = trpc.useUtils();
   const state = trpc.professionalRecord.officialGoal.professionalState.useQuery(
     { patientId },
     { enabled: patientId > 0, retry: false }
   );
-  const [target, setTarget] = useState(emptyTarget);
-  const [effectiveFrom, setEffectiveFrom] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [justification, setJustification] = useState("");
-  const [includeExerciseCalories, setIncludeExerciseCalories] = useState(true);
-  const [exceptions, setExceptions] = useState<DraftException[]>([]);
   const current = state.data?.current;
   useEffect(() => {
-    if (!current) return;
-    setTarget({
-      calories: String(current.calories),
-      proteinGrams: String(current.proteinGrams),
-      carbsGrams: String(current.carbsGrams),
-      fatGrams: String(current.fatGrams),
-    });
-    setIncludeExerciseCalories(current.includeExerciseCalories);
-    setEffectiveFrom(tomorrowAfter(current.effectiveFrom));
-  }, [current?.id]);
+    if (!current || draft.touched || draft.sourceGoalId === current.id) return;
+    onDraftChange(existing => ({
+      ...existing,
+      target: {
+        calories: String(current.calories),
+        proteinGrams: String(current.proteinGrams),
+        carbsGrams: String(current.carbsGrams),
+        fatGrams: String(current.fatGrams),
+      },
+      effectiveFrom: tomorrowAfter(current.effectiveFrom),
+      includeExerciseCalories: current.includeExerciseCalories,
+      sourceGoalId: current.id,
+      touched: false,
+    }));
+  }, [current, draft.sourceGoalId, draft.touched, onDraftChange]);
+  const { target, effectiveFrom, justification, includeExerciseCalories } =
+    draft;
+  const exceptions = draft.exceptions;
   const valid = useMemo(
     () =>
       Object.values(target).every(value => Number(value) > 0) &&
@@ -83,8 +122,9 @@ export default function ProfessionalOfficialGoalCard({
   };
   const activate = trpc.professionalRecord.officialGoal.activate.useMutation({
     onSuccess: async result => {
+      onDraftChange(createEmptyProfessionalOfficialGoalDraft());
+      onSaved?.();
       await refresh();
-      setJustification("");
       toast.success(
         result.notification.status === "sent"
           ? "Meta oficial ativada e paciente notificado."
@@ -105,13 +145,28 @@ export default function ProfessionalOfficialGoalCard({
       },
       onError: error => toast.error(error.message),
     });
+  const updateDraft = (
+    updater: (
+      currentDraft: ProfessionalOfficialGoalDraft
+    ) => ProfessionalOfficialGoalDraft
+  ) =>
+    onDraftChange(currentDraft => ({
+      ...updater(currentDraft),
+      touched: true,
+    }));
   const updateTarget = (field: keyof typeof target, value: string) =>
-    setTarget(currentTarget => ({ ...currentTarget, [field]: value }));
+    updateDraft(currentDraft => ({
+      ...currentDraft,
+      target: { ...currentDraft.target, [field]: value },
+    }));
   const addException = () =>
-    setExceptions(items => [
-      ...items,
-      { weekday: 0, durationType: "always", ...target },
-    ]);
+    updateDraft(currentDraft => ({
+      ...currentDraft,
+      exceptions: [
+        ...currentDraft.exceptions,
+        { weekday: 0, durationType: "always", ...currentDraft.target },
+      ],
+    }));
 
   return (
     <Card className="border-primary/30">
@@ -190,7 +245,12 @@ export default function ProfessionalOfficialGoalCard({
             <Input
               type="date"
               value={effectiveFrom}
-              onChange={event => setEffectiveFrom(event.target.value)}
+              onChange={event =>
+                updateDraft(currentDraft => ({
+                  ...currentDraft,
+                  effectiveFrom: event.target.value,
+                }))
+              }
               disabled={disabled}
             />
           </label>
@@ -199,7 +259,10 @@ export default function ProfessionalOfficialGoalCard({
               type="checkbox"
               checked={includeExerciseCalories}
               onChange={event =>
-                setIncludeExerciseCalories(event.target.checked)
+                updateDraft(currentDraft => ({
+                  ...currentDraft,
+                  includeExerciseCalories: event.target.checked,
+                }))
               }
               disabled={disabled}
             />
@@ -211,7 +274,12 @@ export default function ProfessionalOfficialGoalCard({
           <textarea
             className="min-h-24 rounded-md border bg-background p-3"
             value={justification}
-            onChange={event => setJustification(event.target.value)}
+            onChange={event =>
+              updateDraft(currentDraft => ({
+                ...currentDraft,
+                justification: event.target.value,
+              }))
+            }
             maxLength={2000}
             disabled={disabled}
           />
@@ -249,13 +317,15 @@ export default function ProfessionalOfficialGoalCard({
                 value={item.weekday}
                 disabled={disabled}
                 onChange={event =>
-                  setExceptions(values =>
-                    values.map((value, itemIndex) =>
-                      itemIndex === index
-                        ? { ...value, weekday: Number(event.target.value) }
-                        : value
-                    )
-                  )
+                  updateDraft(currentDraft => ({
+                    ...currentDraft,
+                    exceptions: currentDraft.exceptions.map(
+                      (value, itemIndex) =>
+                        itemIndex === index
+                          ? { ...value, weekday: Number(event.target.value) }
+                          : value
+                    ),
+                  }))
                 }
               >
                 {[
@@ -278,17 +348,19 @@ export default function ProfessionalOfficialGoalCard({
                 value={item.durationType}
                 disabled={disabled}
                 onChange={event =>
-                  setExceptions(values =>
-                    values.map((value, itemIndex) =>
-                      itemIndex === index
-                        ? {
-                            ...value,
-                            durationType: event.target
-                              .value as DraftException["durationType"],
-                          }
-                        : value
-                    )
-                  )
+                  updateDraft(currentDraft => ({
+                    ...currentDraft,
+                    exceptions: currentDraft.exceptions.map(
+                      (value, itemIndex) =>
+                        itemIndex === index
+                          ? {
+                              ...value,
+                              durationType: event.target
+                                .value as ProfessionalOfficialGoalDraftException["durationType"],
+                            }
+                          : value
+                    ),
+                  }))
                 }
               >
                 <option value="1_week">1 semana</option>
@@ -307,13 +379,15 @@ export default function ProfessionalOfficialGoalCard({
                   value={item[field]}
                   disabled={disabled}
                   onChange={event =>
-                    setExceptions(values =>
-                      values.map((value, itemIndex) =>
-                        itemIndex === index
-                          ? { ...value, [field]: event.target.value }
-                          : value
-                      )
-                    )
+                    updateDraft(currentDraft => ({
+                      ...currentDraft,
+                      exceptions: currentDraft.exceptions.map(
+                        (value, itemIndex) =>
+                          itemIndex === index
+                            ? { ...value, [field]: event.target.value }
+                            : value
+                      ),
+                    }))
                   }
                 />
               ))}
@@ -323,9 +397,12 @@ export default function ProfessionalOfficialGoalCard({
                 size="icon"
                 disabled={disabled}
                 onClick={() =>
-                  setExceptions(values =>
-                    values.filter((_, itemIndex) => itemIndex !== index)
-                  )
+                  updateDraft(currentDraft => ({
+                    ...currentDraft,
+                    exceptions: currentDraft.exceptions.filter(
+                      (_, itemIndex) => itemIndex !== index
+                    ),
+                  }))
                 }
               >
                 <Trash2 className="h-4 w-4" />

@@ -7,10 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let location = "/professional/patients/41/assessment";
 let selectedPatientId = 41;
 let selectedAuthorizationId = "authorization-41";
+let routeAccessStatus: "ready" | "validating" | "error" = "ready";
 let recordData: any;
 const setLocation = vi.fn();
 const getQuery = vi.fn();
 const contextInvalidate = vi.fn(async () => undefined);
+const retryRouteAccess = vi.fn();
 
 const mutation = vi.hoisted(() => () => ({
   mutate: vi.fn(),
@@ -34,15 +36,76 @@ vi.mock("@/components/ProfessionalLayout", () => ({
       nextReviewAt: null,
       trackingStatus: "active",
     },
+    routeAccessStatus,
+    retryRouteAccess,
   }),
 }));
 
 vi.mock("@/components/ProfessionalMessagesPanel", () => ({
   default: () => <div>Mensagens</div>,
 }));
-vi.mock("@/components/ProfessionalOfficialGoalCard", () => ({
-  default: () => <div>Metas</div>,
-}));
+vi.mock("@/components/ProfessionalOfficialGoalCard", () => {
+  const createEmptyProfessionalOfficialGoalDraft = () => ({
+    target: {
+      calories: "",
+      proteinGrams: "",
+      carbsGrams: "",
+      fatGrams: "",
+    },
+    effectiveFrom: "2026-07-27",
+    justification: "",
+    includeExerciseCalories: true,
+    exceptions: [],
+    sourceGoalId: null,
+    touched: false,
+  });
+  return {
+    createEmptyProfessionalOfficialGoalDraft,
+    default: ({ draft, onDraftChange }: any) => (
+      <div>
+        <label>
+          Justificativa da meta
+          <textarea
+            aria-label="Justificativa da meta"
+            value={draft.justification}
+            onChange={event =>
+              onDraftChange((current: any) => ({
+                ...current,
+                justification: event.target.value,
+                touched: true,
+              }))
+            }
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() =>
+            onDraftChange((current: any) => ({
+              ...current,
+              exceptions: [
+                ...current.exceptions,
+                {
+                  weekday: 0,
+                  durationType: "always",
+                  calories: "2000",
+                  proteinGrams: "120",
+                  carbsGrams: "250",
+                  fatGrams: "70",
+                },
+              ],
+              touched: true,
+            }))
+          }
+        >
+          Adicionar exceção da meta
+        </button>
+        <span data-testid="goal-exception-count">
+          {draft.exceptions.length}
+        </span>
+      </div>
+    ),
+  };
+});
 vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
   default: () => <div>Alertas</div>,
 }));
@@ -51,7 +114,22 @@ vi.mock("@/components/ProfessionalReportsWorkspace", () => ({
 }));
 
 vi.mock("@/components/professional/ProfessionalUi", () => ({
-  ProfessionalAsyncState: ({ title }: { title: string }) => <div>{title}</div>,
+  ProfessionalAsyncState: ({
+    onRetry,
+    title,
+  }: {
+    onRetry?: () => void;
+    title: string;
+  }) => (
+    <div>
+      {title}
+      {onRetry ? (
+        <button type="button" onClick={onRetry}>
+          Tentar novamente
+        </button>
+      ) : null}
+    </div>
+  ),
   ProfessionalLoadingState: ({ label }: { label: string }) => (
     <div>{label}</div>
   ),
@@ -202,8 +280,10 @@ beforeEach(() => {
   location = "/professional/patients/41/assessment";
   selectedPatientId = 41;
   selectedAuthorizationId = "authorization-41";
+  routeAccessStatus = "ready";
   recordData = recordFixture();
   contextInvalidate.mockClear();
+  retryRouteAccess.mockClear();
   getQuery.mockReset();
   setLocation.mockReset();
   vi.restoreAllMocks();
@@ -217,6 +297,54 @@ afterEach(() => {
 });
 
 describe("professional patient workspace audit corrections", () => {
+  it("keeps the header mounted, blocks the new section until its entitlement is ready and restores the goal draft", async () => {
+    const user = userEvent.setup();
+    location = "/professional/patients/41/goals";
+    const view = render(<ProfessionalPatientWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Justificativa da meta"),
+      "Ajuste para novo ciclo"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Adicionar exceção da meta" })
+    );
+    expect(screen.getByTestId("goal-exception-count").textContent).toBe("1");
+
+    location = "/professional/patients/41/reports";
+    routeAccessStatus = "validating";
+    view.rerender(<ProfessionalPatientWorkspace />);
+
+    expect(screen.getByRole("heading", { name: "Paciente 41" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Validando o acesso a esta área sem fechar o workspace..."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText("Relatório")).toBeNull();
+
+    routeAccessStatus = "error";
+    view.rerender(<ProfessionalPatientWorkspace />);
+    expect(screen.getByRole("heading", { name: "Paciente 41" })).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", { name: "Tentar novamente" })
+    );
+    expect(retryRouteAccess).toHaveBeenCalledTimes(1);
+
+    routeAccessStatus = "ready";
+    view.rerender(<ProfessionalPatientWorkspace />);
+    expect(screen.getByText("Relatório")).toBeTruthy();
+
+    location = "/professional/patients/41/goals";
+    view.rerender(<ProfessionalPatientWorkspace />);
+
+    expect(
+      (screen.getByLabelText("Justificativa da meta") as HTMLTextAreaElement)
+        .value
+    ).toBe("Ajuste para novo ciclo");
+    expect(screen.getByTestId("goal-exception-count").textContent).toBe("1");
+  });
+
   it("keeps independent pagination for assessment, notes, guidance and history", async () => {
     const user = userEvent.setup();
     const view = render(<ProfessionalPatientWorkspace />);
@@ -360,6 +488,29 @@ describe("professional patient workspace audit corrections", () => {
         ) as HTMLTextAreaElement
       ).value
     ).toBe("");
+  });
+
+  it("does not restore an official goal draft in a new authorization cycle", async () => {
+    const user = userEvent.setup();
+    location = "/professional/patients/41/goals";
+    const view = render(<ProfessionalPatientWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Justificativa da meta"),
+      "Rascunho da autorização anterior"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Adicionar exceção da meta" })
+    );
+    view.unmount();
+
+    selectedAuthorizationId = "authorization-41-renewed";
+    render(<ProfessionalPatientWorkspace />);
+    expect(
+      (screen.getByLabelText("Justificativa da meta") as HTMLTextAreaElement)
+        .value
+    ).toBe("");
+    expect(screen.getByTestId("goal-exception-count").textContent).toBe("0");
   });
 
   it("redirects immediately to history and refreshes canonical context when tracking ends", async () => {

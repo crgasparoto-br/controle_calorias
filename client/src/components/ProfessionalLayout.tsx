@@ -59,6 +59,8 @@ export type ProfessionalPatientContext = {
 type ProfessionalWorkspaceContextValue = {
   selectedPatient: ProfessionalPatientContext | null;
   clearPatient: () => void;
+  routeAccessStatus: "ready" | "validating" | "error";
+  retryRouteAccess: () => void;
 };
 
 const ProfessionalWorkspaceContext =
@@ -354,37 +356,71 @@ export default function ProfessionalLayout({
     patientContextValidationKey,
     patientContextValidationSucceeded
   );
+  const patientIdentityKey =
+    user && routePatientId
+      ? `user:${user.id}:patient:${routePatientId}`
+      : null;
+  const patientShellValidated = useRetainedSuccessfulValidation(
+    patientIdentityKey,
+    patientContextValidationSucceeded
+  );
+  const [retainedPatientContext, setRetainedPatientContext] = useState<{
+    key: string;
+    patient: ProfessionalPatientContext;
+  } | null>(null);
   const patientContextAccessRevoked = Boolean(
     routePatientId &&
       patientContext.isError &&
       isProfessionalPatientAccessUnavailableError(patientContext.error)
   );
 
+  const currentPatientContext = useMemo<ProfessionalPatientContext | null>(
+    () =>
+      patientContextValidationSucceeded && patientContext.data
+        ? {
+            patientId: patientContext.data.patientId,
+            authorizationId: patientContext.data.authorizationId,
+            displayName: patientContext.data.displayName,
+            authorizationStatus: patientContext.data.authorizationStatus,
+            lastActivityAt: patientContext.data.lastActivityAt,
+            nextReviewAt: patientContext.data.nextReviewAt,
+            trackingStatus: patientContext.data.trackingStatus,
+          }
+        : null,
+    [patientContext.data, patientContextValidationSucceeded]
+  );
+
+  useEffect(() => {
+    if (!patientIdentityKey || !currentPatientContext) return;
+    setRetainedPatientContext({
+      key: patientIdentityKey,
+      patient: currentPatientContext,
+    });
+  }, [currentPatientContext, patientIdentityKey]);
+
+  const patientShellContext =
+    currentPatientContext ??
+    (patientIdentityKey && retainedPatientContext?.key === patientIdentityKey
+      ? retainedPatientContext.patient
+      : null);
+
   const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
     if (
       !hasActiveProfile ||
       !routePatientId ||
-      !patientContextValidated ||
+      !patientShellValidated ||
       patientContextAccessRevoked ||
       readyPatientId !== routePatientId ||
-      !patientContext.data
+      !patientShellContext
     ) {
       return null;
     }
-    return {
-      patientId: patientContext.data.patientId,
-      authorizationId: patientContext.data.authorizationId,
-      displayName: patientContext.data.displayName,
-      authorizationStatus: patientContext.data.authorizationStatus,
-      lastActivityAt: patientContext.data.lastActivityAt,
-      nextReviewAt: patientContext.data.nextReviewAt,
-      trackingStatus: patientContext.data.trackingStatus,
-    };
+    return patientShellContext;
   }, [
     hasActiveProfile,
-    patientContext.data,
     patientContextAccessRevoked,
-    patientContextValidated,
+    patientShellContext,
+    patientShellValidated,
     readyPatientId,
     routePatientId,
   ]);
@@ -416,6 +452,7 @@ export default function ProfessionalLayout({
     transitionGenerationRef.current += 1;
     patientReadyAtRef.current = 0;
     setReadyPatientId(null);
+    setRetainedPatientContext(null);
   }, []);
 
   const revokePatientContext = useCallback(() => {
@@ -542,7 +579,7 @@ export default function ProfessionalLayout({
         await clearPatientQueries();
       }
       if (
-        patientContextValidated &&
+        patientShellValidated &&
         transitionGenerationRef.current === generation &&
         previousPatientIdRef.current === routePatientId
       ) {
@@ -554,8 +591,7 @@ export default function ProfessionalLayout({
     void preparePatientContext();
   }, [
     clearPatientQueries,
-    patientContextValidated,
-    patientResource,
+    patientShellValidated,
     routePatientId,
   ]);
 
@@ -611,11 +647,6 @@ export default function ProfessionalLayout({
       previousPatientIdRef.current = null;
     },
     [clearPatientQueries]
-  );
-
-  const contextValue = useMemo(
-    () => ({ selectedPatient, clearPatient }),
-    [clearPatient, selectedPatient]
   );
 
   if ((authLoading && !user) || (user && !profileValidated && !profile.isError)) {
@@ -687,23 +718,38 @@ export default function ProfessionalLayout({
     routePatientId &&
       patientContext.isError &&
       !revokedPatientAccess &&
-      !patientContextValidated
+      !patientContextValidated &&
+      !selectedPatient
   );
   const backgroundAccessValidationError = Boolean(
     (profile.isError && profileValidated) ||
       (routePatientId &&
         patientContext.isError &&
         !revokedPatientAccess &&
-        patientContextValidated)
+        Boolean(selectedPatient))
   );
   const patientContextLoading = Boolean(
     routePatientId &&
       !patientAccessUnavailable &&
       !revokedPatientAccess &&
       (!profileValidated ||
-        !patientContextValidated ||
+        !patientShellValidated ||
         readyPatientId !== routePatientId)
   );
+  const routeAccessStatus: ProfessionalWorkspaceContextValue["routeAccessStatus"] =
+    !routePatientId || patientContextValidated
+      ? "ready"
+      : patientContext.isError && !revokedPatientAccess
+        ? "error"
+        : "validating";
+  const contextValue: ProfessionalWorkspaceContextValue = {
+    selectedPatient,
+    clearPatient,
+    routeAccessStatus,
+    retryRouteAccess: () => {
+      void patientContext.refetch();
+    },
+  };
   const invalidPatientRoute = patientRoute.kind === "invalid";
   const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
     "notice"

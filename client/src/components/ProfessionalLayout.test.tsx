@@ -156,8 +156,20 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 function PatientFixture() {
-  const { selectedPatient } = useProfessionalWorkspace();
-  return <span>{selectedPatient?.displayName ?? "sem paciente"}</span>;
+  const { retryRouteAccess, routeAccessStatus, selectedPatient } =
+    useProfessionalWorkspace();
+  return (
+    <div>
+      <span>{selectedPatient?.displayName ?? "sem paciente"}</span>
+      <span data-testid="route-access-status">{routeAccessStatus}</span>
+      <input aria-label="Rascunho da área" defaultValue="" />
+      {routeAccessStatus === "error" ? (
+        <button type="button" onClick={retryRouteAccess}>
+          Tentar novamente
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function deferred() {
@@ -199,6 +211,19 @@ function fetchingPatientContext() {
     ...patientContextState,
     isFetching: true,
     isSuccess: true,
+  };
+}
+
+function pendingPatientContext() {
+  patientContextState = {
+    data: undefined,
+    isLoading: true,
+    isFetching: true,
+    isError: false,
+    isSuccess: false,
+    isFetchedAfterMount: false,
+    error: null,
+    refetch: contextRefetch,
   };
 }
 
@@ -316,6 +341,106 @@ describe("ProfessionalLayout", () => {
       screen.queryByText("Preparando o contexto seguro do paciente...")
     ).toBeNull();
     expect(document.title).toBe("Mensagens | Área Profissional");
+  });
+
+  it("keeps the patient shell and local state mounted while a different route entitlement is revalidated", async () => {
+    const user = userEvent.setup();
+    location = "/professional/patients/10/goals";
+    const view = renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+    await user.type(screen.getByLabelText("Rascunho da área"), "preservado");
+    expect(screen.getByTestId("route-access-status").textContent).toBe("ready");
+
+    location = "/professional/patients/10/reports";
+    pendingPatientContext();
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    expect(screen.getByText("Ana")).toBeTruthy();
+    expect(screen.getByTestId("route-access-status").textContent).toBe(
+      "validating"
+    );
+    expect(
+      (screen.getByLabelText("Rascunho da área") as HTMLInputElement).value
+    ).toBe("preservado");
+    expect(
+      screen.queryByText("Preparando o contexto seguro do paciente...")
+    ).toBeNull();
+    expect(contextInput).toHaveBeenLastCalledWith({
+      patientId: 10,
+      resource: "professional_reports",
+    });
+
+    freshPatientContext(10, "Ana");
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("route-access-status").textContent).toBe(
+        "ready"
+      )
+    );
+    expect(
+      (screen.getByLabelText("Rascunho da área") as HTMLInputElement).value
+    ).toBe("preservado");
+  });
+
+  it("keeps the shell mounted on a transient cross-entitlement failure and still clears it on FORBIDDEN", async () => {
+    location = "/professional/patients/10/goals";
+    const view = renderPatientLayout();
+    await waitFor(() => expect(screen.getByText("Ana")).toBeTruthy());
+
+    location = "/professional/patients/10/messages";
+    patientContextState = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      isError: true,
+      isSuccess: false,
+      isFetchedAfterMount: true,
+      error: new Error("Falha temporária de conexão"),
+      refetch: contextRefetch,
+    };
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    expect(screen.getByText("Ana")).toBeTruthy();
+    expect(screen.getByTestId("route-access-status").textContent).toBe("error");
+    expect(
+      screen.getByText(
+        "Não foi possível atualizar a validação de acesso agora. O contexto já validado permanece aberto."
+      )
+    ).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Tentar novamente" })
+    );
+    expect(contextRefetch).toHaveBeenCalled();
+
+    patientContextState = {
+      ...patientContextState,
+      error: forbiddenError(),
+    };
+    view.rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    await waitFor(() =>
+      expect(setLocation).toHaveBeenCalledWith(
+        "/professional/patients?notice=patient-access-unavailable"
+      )
+    );
+    await waitFor(() => expect(screen.queryByText("Ana")).toBeNull());
   });
 
   it("keeps the shell visible during background auth and profile refresh", async () => {
