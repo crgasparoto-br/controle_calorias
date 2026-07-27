@@ -90,7 +90,29 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(config.responseSchema).toBeUndefined();
   });
 
-  it("rejects a genuinely unsupported schema keyword before network access", async () => {
+  it.each(["patternProperties", "minLength", "exclusiveMinimum"])(
+    "rejects unsupported JSON Schema keyword %s before network access",
+    async keyword => {
+      const provider = new GeminiProvider("fake-key");
+      await expect(provider.createTextResponse({
+        model: "gemini-2.5-flash",
+        input: [{ role: "user", content: "oi" }],
+        format: {
+          type: "json_schema",
+          name: "invalid",
+          schema: {
+            type: "object",
+            properties: {
+              value: { type: "string", [keyword]: keyword === "minLength" ? 1 : {} },
+            },
+          },
+        },
+      })).rejects.toMatchObject({ code: "incompatible_operation" });
+      expect(generateContentMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects oneOf because Gemini weakens it to anyOf", async () => {
     const provider = new GeminiProvider("fake-key");
     await expect(provider.createTextResponse({
       model: "gemini-2.5-flash",
@@ -99,11 +121,29 @@ describe("GeminiProvider (@google/genai)", () => {
         type: "json_schema",
         name: "invalid",
         schema: {
-          type: "object",
-          patternProperties: { "^x": { type: "string" } },
+          oneOf: [{ type: "string" }, { type: "number" }],
         },
       },
-    })).rejects.toThrow(/not representable/);
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-$ siblings next to $ref before network access", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "oi" }],
+      format: {
+        type: "json_schema",
+        name: "invalid",
+        schema: {
+          $defs: { value: { type: "string" } },
+          properties: {
+            value: { $ref: "#/$defs/value", description: "not allowed with $ref" },
+          },
+        },
+      },
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
