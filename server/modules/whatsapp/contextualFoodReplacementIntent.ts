@@ -21,6 +21,11 @@ import {
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";
+import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
+import {
+  isWhatsappFoodReplacementCommandStart,
+  WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN,
+} from "./replacementCommandDetection";
 
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
@@ -28,6 +33,10 @@ const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
 type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMeal = Meal & { items: MealItemInput[] };
 type FoodReplacementIntent = { fromFood: string; toFood: string };
+type ReplacementParseResult =
+  | { kind: "not_replacement" }
+  | { kind: "invalid_replacement" }
+  | { kind: "replacements"; replacements: FoodReplacementIntent[] };
 type LatestFoodCorrectionIntent = {
   toFood: string;
   quantity?: number;
@@ -87,12 +96,43 @@ function parseReplacement(segment: string): FoodReplacementIntent | null {
   return fromFood && toFood && !/\d/.test(toFood) ? { fromFood, toFood } : null;
 }
 
-function parseReplacements(text: string) {
-  const segments = text.split(/\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i);
-  const replacements = segments
-    .map(segment => parseReplacement(segment.trim()))
-    .filter((value): value is FoodReplacementIntent => Boolean(value));
-  return replacements.length ? replacements : null;
+const REPLACEMENT_SEGMENT_SEPARATOR = new RegExp(
+  `(?:[ \\t]*\\r?\\n[ \\t]*)+|\\s*[,;]\\s*(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})|\\s+e\\s+(?=n[aã]o\\b)|\\s+(?=${WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN})`,
+  "i"
+);
+const QUANTITY_ADJUSTMENT_TARGET =
+  /\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|ml|l|litros?|un|unidade|unidades|fatia|fatias|porcao|porcoes|porção|porções)\s*[.,;:!?]*$/i;
+
+function isQuantityAdjustmentSegment(segment: string) {
+  return (
+    isWhatsappFoodReplacementCommandStart(segment) &&
+    QUANTITY_ADJUSTMENT_TARGET.test(segment)
+  );
+}
+
+function parseReplacements(text: string): ReplacementParseResult {
+  const segments = text
+    .split(REPLACEMENT_SEGMENT_SEPARATOR)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+  if (!segments.some(segment => isWhatsappFoodReplacementCommandStart(segment))) {
+    return { kind: "not_replacement" };
+  }
+
+  const replacements = segments.map(parseReplacement);
+  if (!replacements.length || replacements.some(value => !value)) {
+    if (
+      replacements.every(value => !value) &&
+      segments.every(isQuantityAdjustmentSegment)
+    ) {
+      return { kind: "not_replacement" };
+    }
+    return { kind: "invalid_replacement" };
+  }
+  return {
+    kind: "replacements",
+    replacements: replacements as FoodReplacementIntent[],
+  };
 }
 
 export function parseLatestFoodCorrection(
@@ -262,10 +302,38 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
-  const replacements = parseReplacements(text);
-  const latestCorrection = replacements
-    ? null
-    : parseLatestFoodCorrection(text);
+
+  // O parser multi-ação é a fonte canônica para lotes mistos. Lotes formados
+  // somente por substituições retornam null e seguem para o fluxo contextual
+  // abaixo, que preserva seleção persistente, compensação e resposta canônica.
+  const mixedAction = executeWhatsappMultiActionIntent({
+    text,
+    temporalContext: null,
+  });
+  if (mixedAction) {
+    // Os entrypoints aceitam o envelope funcional mais amplo do parser multi-ação.
+    // O tipo público legado permanece restrito para não ampliar contratos de callers
+    // que só invocam a correção contextual do último alimento.
+    return mixedAction as unknown as WhatsappContextualFoodReplacementResult;
+  }
+
+  const latestCorrection = parseLatestFoodCorrection(text);
+  const parsedReplacements = latestCorrection
+    ? ({ kind: "not_replacement" } as const)
+    : parseReplacements(text);
+  if (parsedReplacements.kind === "invalid_replacement") {
+    return {
+      action: "clarification_needed",
+      reply:
+        "Não consegui entender todas as substituições. Reenvie cada correção completa, por exemplo: “Não é arroz, é batata”.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição com segmento incompleto.",
+    };
+  }
+  const replacements =
+    parsedReplacements.kind === "replacements"
+      ? parsedReplacements.replacements
+      : null;
   if (!replacements && !latestCorrection) return null;
 
   const meals = recentMeals(

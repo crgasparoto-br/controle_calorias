@@ -19,6 +19,7 @@ import {
   resolveWhatsappConversationContext,
 } from "./conversationContext";
 import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
+import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
@@ -38,6 +39,7 @@ import {
 } from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
+import { hasMultipleWhatsappFoodReplacementCommands } from "./replacementCommandDetection";
 import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
 import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
@@ -101,6 +103,7 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
 async function logAndReturnInterpretedIntent(
   userId: number,
   interpreted: {
+    handled?: boolean;
     action: string;
     eventType: string;
     detail: string;
@@ -314,6 +317,22 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return contextResult;
   }
 
+  if (text && hasMultipleWhatsappFoodReplacementCommands(text)) {
+    const contextualReplacement =
+      await executeWhatsappContextualFoodReplacementIntent(userId, {
+        text,
+        receivedAt,
+        userTimezone,
+      });
+    if (contextualReplacement) {
+      return logAndReturnInterpretedIntent(
+        userId,
+        { handled: true, ...contextualReplacement },
+        { text, receivedAt },
+      );
+    }
+  }
+
   const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
   if (multiActionPreview) {
     const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
@@ -431,7 +450,10 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const waterCorrectionMatch = text ? /\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i.exec(text) : null;
-  if (waterCorrectionMatch) {
+  if (
+    waterCorrectionMatch &&
+    !hasMultipleWhatsappFoodReplacementCommands(text ?? "")
+  ) {
     const fromText = waterCorrectionMatch[1].trim();
     const toText = waterCorrectionMatch[2].trim();
     if (isWhatsAppWaterOnlyText(fromText) && toText) {

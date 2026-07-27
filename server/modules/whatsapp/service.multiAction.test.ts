@@ -10,6 +10,7 @@ const processMealDraftMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
 const executeWhatsappTextIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
+const executeWhatsappContextualFoodReplacementIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
@@ -37,6 +38,11 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+vi.mock("./contextualFoodReplacementIntent", () => ({
+  executeWhatsappContextualFoodReplacementIntent:
+    executeWhatsappContextualFoodReplacementIntentMock,
+}));
+
 const { clearWhatsappConversationContext } = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
 
@@ -53,31 +59,46 @@ describe("simulateWhatsappInbound multi-action routing", () => {
     executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    executeWhatsappContextualFoodReplacementIntentMock.mockReset();
     getDbMock.mockResolvedValue(null);
     listMealsMock.mockResolvedValue([]);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
     executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
+    executeWhatsappContextualFoodReplacementIntentMock.mockResolvedValue(null);
   });
 
-  it("detecta multiplas trocas sem acionar LLM, texto ou parser nutricional", async () => {
+  it("detecta multiplas trocas pelo handler contextual sem acionar fallback", async () => {
+    const text = "Não é peixe é frango, não é mandioquinha é batata doce";
+    executeWhatsappContextualFoodReplacementIntentMock.mockResolvedValueOnce({
+      action: "meal_item_replaced",
+      reply: "substituições aplicadas",
+      eventType: "whatsapp.intent.meal_item_replaced",
+      detail: "2 alimento(s) substituído(s) com estado atual recarregado.",
+      data: { mealIds: [10] },
+    });
+
     const result = await simulateWhatsappInbound(4220, {
-      text: "Não é peixe é frango, não é mandioquinha é batata doce",
+      text,
       messageId: "multi-action-1",
     });
 
+    expect(executeWhatsappContextualFoodReplacementIntentMock).toHaveBeenCalledWith(
+      4220,
+      expect.objectContaining({ text })
+    );
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
       handled: true,
-      action: "multi_action_confirmation_needed",
-      data: expect.objectContaining({ actionCount: 2 }),
+      action: "meal_item_replaced",
+      data: expect.objectContaining({ mealIds: [10] }),
     }));
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 4220,
       origin: "whatsapp",
-      eventType: "whatsapp.multi_action.confirmation_needed",
+      eventType: "whatsapp.intent.meal_item_replaced",
     }));
   });
 

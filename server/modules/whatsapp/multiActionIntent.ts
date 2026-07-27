@@ -399,6 +399,13 @@ export function executeWhatsappMultiActionIntent(input: ExecuteWhatsappMultiActi
     return null;
   }
 
+  // Lotes formados somente por substituições já possuem execução, seleção
+  // persistente e compensação próprias. Deixe o handler contextual canônico
+  // processá-los para manter paridade entre webhook e simulador (#918).
+  if (parsedActions.every(action => action.actionType === "trocar_alimento")) {
+    return null;
+  }
+
   const extractedActions: WhatsappMultiActionExtractedAction[] = parsedActions.map((action, index) => {
     const validation = validateAction(action);
     return {
