@@ -34,6 +34,19 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(generateContentMock.mock.calls[0][0].contents[0].parts[0]).toEqual({ text: "oi" });
   });
 
+  it("propagates AbortSignal to generateContent config", async () => {
+    generateContentMock.mockResolvedValue({ text: "ok" });
+    const controller = new AbortController();
+    await new GeminiProvider("fake-key").createTextResponse(
+      {
+        model: "gemini-2.5-flash",
+        input: [{ role: "user", content: "oi" }],
+      },
+      { signal: controller.signal },
+    );
+    expect(generateContentMock.mock.calls[0][0].config.abortSignal).toBe(controller.signal);
+  });
+
   it("translates inline base64 image input", async () => {
     generateContentMock.mockResolvedValue({ text: "{}" });
     await new GeminiProvider("fake-key").createTextResponse({
@@ -94,8 +107,22 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
+  it("rejects tools before network access until an explicit Google Search translation exists", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "preço atual" }],
+      tools: [{ type: "web_search_preview" }],
+    })).rejects.toThrow(/tools are not representable/);
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported adapter operations locally", async () => {
     const provider = new GeminiProvider("fake-key");
+    await expect(provider.createEmbeddings({
+      input: "banana",
+      model: "text-embedding-3-small",
+    })).rejects.toThrow(/does not support embeddings/);
     await expect(provider.createAudioTranscription({
       file: new File([], "audio.ogg"),
       model: "whisper-1",
