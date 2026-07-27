@@ -84,43 +84,170 @@ function buildSystemInstruction(instructions: string | undefined): Content | und
   return { role: "user", parts: [{ text: instructions }] };
 }
 
-// Supported responseJsonSchema keywords are documented by @google/genai.
-// These constructs are deliberately rejected because the selected
-// generateContent surface cannot represent them reliably for this project.
-const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
-  "allOf",
-  "not",
-  "patternProperties",
-  "dependencies",
-  "dependentRequired",
-  "dependentSchemas",
-  "if",
-  "then",
-  "else",
-  "unevaluatedItems",
-  "unevaluatedProperties",
-  "contains",
-  "const",
+const SUPPORTED_SCHEMA_KEYWORDS = new Set([
+  "$id",
+  "$defs",
+  "$ref",
+  "$anchor",
+  "type",
+  "format",
+  "title",
+  "description",
+  "enum",
+  "items",
+  "prefixItems",
+  "minItems",
+  "maxItems",
+  "minimum",
+  "maximum",
+  "anyOf",
+  "properties",
+  "additionalProperties",
+  "required",
+  "propertyOrdering",
+]);
+
+const SUPPORTED_SCHEMA_TYPES = new Set([
+  "string",
+  "number",
+  "integer",
+  "boolean",
+  "object",
+  "array",
+  "null",
 ]);
 
 function incompatibleOperation(message: string): AiNonRetryableError {
   return new AiNonRetryableError(message, undefined, "incompatible_operation");
 }
 
-function assertRepresentableSchema(value: unknown, path = "$"): void {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => assertRepresentableSchema(item, `${path}[${index}]`));
-    return;
-  }
-  if (typeof value !== "object" || value === null) return;
+function schemaError(path: string, message: string): never {
+  throw incompatibleOperation(`GeminiProvider: JSON Schema at ${path} ${message}`);
+}
 
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (UNSUPPORTED_SCHEMA_KEYWORDS.has(key)) {
-      throw incompatibleOperation(
-        `GeminiProvider: JSON Schema keyword "${key}" at ${path} is not representable by the selected Gemini structured-output contract.`,
-      );
+function assertString(value: unknown, path: string, keyword: string): void {
+  if (typeof value !== "string" || !value.trim()) {
+    schemaError(path, `requires a non-empty string for "${keyword}".`);
+  }
+}
+
+function assertStringArray(value: unknown, path: string, keyword: string): void {
+  if (!Array.isArray(value) || value.some(item => typeof item !== "string" || !item.trim())) {
+    schemaError(path, `requires an array of non-empty strings for "${keyword}".`);
+  }
+}
+
+function assertNonNegativeInteger(value: unknown, path: string, keyword: string): void {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    schemaError(path, `requires a non-negative integer for "${keyword}".`);
+  }
+}
+
+function assertFiniteNumber(value: unknown, path: string, keyword: string): void {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    schemaError(path, `requires a finite number for "${keyword}".`);
+  }
+}
+
+function assertSchemaType(value: unknown, path: string): void {
+  const values = Array.isArray(value) ? value : [value];
+  if (
+    values.length === 0 ||
+    values.some(item => typeof item !== "string" || !SUPPORTED_SCHEMA_TYPES.has(item)) ||
+    new Set(values).size !== values.length
+  ) {
+    schemaError(path, "declares an unsupported or duplicated type.");
+  }
+}
+
+function assertSchemaMap(value: unknown, path: string, keyword: string): void {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    schemaError(path, `requires an object for "${keyword}".`);
+  }
+  for (const [name, schema] of Object.entries(value as Record<string, unknown>)) {
+    assertRepresentableSchema(schema, `${path}.${keyword}.${name}`);
+  }
+}
+
+function assertSchemaArray(value: unknown, path: string, keyword: string): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    schemaError(path, `requires a non-empty schema array for "${keyword}".`);
+  }
+  value.forEach((schema, index) => assertRepresentableSchema(schema, `${path}.${keyword}[${index}]`));
+}
+
+/**
+ * `responseJsonSchema` accepts only an explicit subset of JSON Schema. Validate
+ * that subset rather than maintaining a denylist so a newly observed keyword
+ * fails closed before content is sent to Gemini. `oneOf` is deliberately
+ * rejected because Gemini interprets it as `anyOf`, which would weaken the
+ * caller's contract.
+ */
+function assertRepresentableSchema(value: unknown, path = "$"): void {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    schemaError(path, "must be an object.");
+  }
+
+  const schema = value as Record<string, unknown>;
+  if ("oneOf" in schema) {
+    schemaError(path, 'uses "oneOf", which Gemini interprets as "anyOf" and would change validation semantics.');
+  }
+
+  for (const key of Object.keys(schema)) {
+    if (!SUPPORTED_SCHEMA_KEYWORDS.has(key)) {
+      schemaError(path, `uses unsupported keyword "${key}".`);
     }
-    assertRepresentableSchema(child, `${path}.${key}`);
+  }
+
+  if ("$ref" in schema) {
+    assertString(schema.$ref, path, "$ref");
+    const incompatibleSibling = Object.keys(schema).find(key => !key.startsWith("$"));
+    if (incompatibleSibling) {
+      schemaError(path, `combines "$ref" with non-$ sibling "${incompatibleSibling}".`);
+    }
+  }
+
+  if ("$id" in schema) assertString(schema.$id, path, "$id");
+  if ("$anchor" in schema) assertString(schema.$anchor, path, "$anchor");
+  if ("format" in schema) assertString(schema.format, path, "format");
+  if ("title" in schema && typeof schema.title !== "string") schemaError(path, 'requires a string for "title".');
+  if ("description" in schema && typeof schema.description !== "string") {
+    schemaError(path, 'requires a string for "description".');
+  }
+  if ("type" in schema) assertSchemaType(schema.type, path);
+
+  if ("enum" in schema) {
+    if (
+      !Array.isArray(schema.enum) ||
+      schema.enum.length === 0 ||
+      schema.enum.some(item =>
+        (typeof item !== "string" && typeof item !== "number") ||
+        (typeof item === "number" && !Number.isFinite(item)))
+    ) {
+      schemaError(path, 'requires a non-empty string/number array for "enum".');
+    }
+  }
+
+  if ("minItems" in schema) assertNonNegativeInteger(schema.minItems, path, "minItems");
+  if ("maxItems" in schema) assertNonNegativeInteger(schema.maxItems, path, "maxItems");
+  if ("minimum" in schema) assertFiniteNumber(schema.minimum, path, "minimum");
+  if ("maximum" in schema) assertFiniteNumber(schema.maximum, path, "maximum");
+  if ("required" in schema) assertStringArray(schema.required, path, "required");
+  if ("propertyOrdering" in schema) {
+    assertStringArray(schema.propertyOrdering, path, "propertyOrdering");
+  }
+
+  if ("$defs" in schema) assertSchemaMap(schema.$defs, path, "$defs");
+  if ("properties" in schema) assertSchemaMap(schema.properties, path, "properties");
+  if ("items" in schema) assertRepresentableSchema(schema.items, `${path}.items`);
+  if ("prefixItems" in schema) assertSchemaArray(schema.prefixItems, path, "prefixItems");
+  if ("anyOf" in schema) assertSchemaArray(schema.anyOf, path, "anyOf");
+
+  if ("additionalProperties" in schema) {
+    const additionalProperties = schema.additionalProperties;
+    if (typeof additionalProperties !== "boolean") {
+      assertRepresentableSchema(additionalProperties, `${path}.additionalProperties`);
+    }
   }
 }
 
@@ -140,8 +267,6 @@ function buildGenerationConfig(
   if (request.format?.type === "json_schema") {
     assertRepresentableSchema(request.format.schema);
     config.responseMimeType = "application/json";
-    // responseJsonSchema preserves nullable types, additionalProperties=false,
-    // numeric limits and array constraints used by the project's real schemas.
     config.responseJsonSchema = request.format.schema;
   }
 
