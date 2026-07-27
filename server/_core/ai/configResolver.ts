@@ -1,18 +1,10 @@
 /**
  * Per-capability AI configuration resolver.
  *
- * For each capability in the registry, resolves: adapter first, then model;
- * primary provider/model, timeout, attempts and fallback — all independent
- * per capability. Precedence is always: new `AI_<CAPABILITY>_*` variable >
- * legacy compatible variable (when one exists for that capability) > default
- * equivalent to the pre-#921 baseline behavior.
- *
- * The resolver never infers provider from a model name/prefix. It only reads
- * explicit provider identifiers from env variables and the per-capability
- * defaults table below.
- *
- * Output is a `ready` / `degraded` / `disabled` / `invalid` state plus a
- * sanitized diagnostic list — never a secret value, prompt, payload or media.
+ * Resolution order is adapter first, model second. Provider support is explicit
+ * and no decision is inferred from a model name. A non-empty OPENAI_BASE_URL is
+ * treated conservatively as an OpenAI-compatible endpoint and therefore uses
+ * only operations explicitly validated in AI_OPENAI_COMPATIBLE_OPERATIONS.
  */
 
 import type { AiCapabilityId } from "./capabilities";
@@ -37,9 +29,7 @@ export type ResolvedProviderModel = {
 };
 
 export type ResolvedFallbackPolicy = {
-  /** Whether the capability owner asked for a fallback via env. */
   requested: boolean;
-  /** Whether the fallback is actually eligible to run (secret present, cross-provider rule satisfied). */
   effectivelyEnabled: boolean;
   provider: AiProviderId | null;
   model: string | null;
@@ -53,73 +43,93 @@ export type ResolvedCapabilityConfig = {
   timeoutMs: number;
   maxAttempts: number;
   fallback: ResolvedFallbackPolicy;
-  /** Sanitized diagnostics: no secret value, prompt, payload or media is ever included. */
+  /** Sanitized diagnostics: never include secret values, prompts, payloads or media. */
   diagnostics: string[];
   usedLegacyVariables: boolean;
 };
 
 type LegacyMapping = {
-  /** Legacy env var that selects the provider for this capability, if any existed pre-#921. */
   legacyProviderEnv?: string;
-  /** Legacy env var that selects the model for this capability, if any existed pre-#921. */
-  legacyModelEnv?: string;
+  legacyModelEnvByProvider?: Partial<Record<AiProviderId, string>>;
   defaultProvider: AiProviderId;
   defaultModelByProvider: Partial<Record<AiProviderId, string>>;
 };
 
-/**
- * Baseline-equivalent legacy mapping per capability. Only capabilities that
- * had an existing, distinguishable legacy configuration path get one here;
- * capabilities without a prior consumer default straight to the OpenAI
- * baseline default, matching pre-#921 behavior of "OpenAI unless told
- * otherwise via AI_VISION_PROVIDER".
- */
+const TEXT_MODEL_DEFAULTS = {
+  openai: "gpt-4.1-mini",
+  "openai-compatible": "gpt-4.1-mini",
+  gemini: "gemini-2.5-flash",
+} satisfies Partial<Record<AiProviderId, string>>;
+
+const TEXT_MODEL_LEGACY_ENVS = {
+  openai: "OPENAI_MODEL",
+  "openai-compatible": "OPENAI_MODEL",
+  gemini: "GEMINI_MODEL",
+} satisfies Partial<Record<AiProviderId, string>>;
+
 const LEGACY_MAPPING: Record<AiCapabilityId, LegacyMapping> = {
   MEAL_TEXT: {
     legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnv: undefined,
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   MEAL_VISION: {
     legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnv: undefined,
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   FOOD_CLASSIFICATION: {
     legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnv: undefined,
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   WHATSAPP_INTENT: {
-    legacyModelEnv: "OPENAI_MODEL",
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-4.1-mini" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   QUESTION: {
-    legacyModelEnv: "OPENAI_MODEL",
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-4.1-mini" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   NUTRITION_SEARCH: {
+    legacyProviderEnv: "AI_VISION_PROVIDER",
+    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "text-embedding-3-small" },
+    defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   EMBEDDING: {
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "text-embedding-3-small" },
+    defaultModelByProvider: {
+      openai: "text-embedding-3-small",
+      "openai-compatible": "text-embedding-3-small",
+    },
   },
   TRANSCRIPTION: {
-    legacyModelEnv: "OPENAI_TRANSCRIPTION_MODEL",
+    legacyModelEnvByProvider: {
+      openai: "OPENAI_TRANSCRIPTION_MODEL",
+      "openai-compatible": "OPENAI_TRANSCRIPTION_MODEL",
+    },
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "whisper-1" },
+    defaultModelByProvider: {
+      openai: "whisper-1",
+      "openai-compatible": "whisper-1",
+    },
   },
   IMAGE_ANNOTATION: {
-    legacyModelEnv: "OPENAI_IMAGE_MODEL",
+    legacyModelEnvByProvider: {
+      openai: "OPENAI_IMAGE_MODEL",
+      "openai-compatible": "OPENAI_IMAGE_MODEL",
+    },
     defaultProvider: "openai",
-    defaultModelByProvider: { openai: "gpt-image-1" },
+    defaultModelByProvider: {
+      openai: "gpt-image-1",
+      "openai-compatible": "gpt-image-1",
+    },
   },
 };
 
@@ -131,21 +141,32 @@ function providerSecretPresent(provider: AiProviderId, env: NodeJS.ProcessEnv): 
   if (provider === "openai" || provider === "openai-compatible") {
     return readTrimmed(env, "OPENAI_API_KEY").length > 0;
   }
-  if (provider === "gemini") {
-    return readTrimmed(env, "GEMINI_API_KEY").length > 0;
-  }
-  return false;
+  return readTrimmed(env, "GEMINI_API_KEY").length > 0;
 }
 
 function parsePositiveInt(raw: string): number | null {
   if (!raw) return null;
   const value = Number(raw);
-  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) return null;
-  return value;
+  return Number.isFinite(value) && Number.isInteger(value) && value > 0 ? value : null;
 }
 
 function parseBoolean(raw: string): boolean {
   return raw.trim().toLowerCase() === "true";
+}
+
+function applyEndpointPolicy(
+  capability: AiCapabilityId,
+  provider: string,
+  env: NodeJS.ProcessEnv,
+  diagnostics: string[],
+): string {
+  if (provider === "openai" && readTrimmed(env, "OPENAI_BASE_URL")) {
+    diagnostics.push(
+      `capability=${capability} custom OPENAI_BASE_URL configured; applying openai-compatible operation allowlist`,
+    );
+    return "openai-compatible";
+  }
+  return provider;
 }
 
 function resolveProvider(
@@ -154,42 +175,49 @@ function resolveProvider(
   diagnostics: string[],
 ): { provider: string; usedLegacy: boolean; invalid: boolean } {
   const mapping = LEGACY_MAPPING[capability];
-  const newVar = `AI_${capability}_PROVIDER`;
-  const newValue = readTrimmed(env, newVar).toLowerCase();
-  if (newValue) {
-    return { provider: newValue, usedLegacy: false, invalid: !isKnownProvider(newValue) };
-  }
+  const newValue = readTrimmed(env, `AI_${capability}_PROVIDER`).toLowerCase();
 
-  if (mapping.legacyProviderEnv) {
-    const legacyValue = readTrimmed(env, mapping.legacyProviderEnv).toLowerCase();
-    if (legacyValue) {
-      return { provider: legacyValue, usedLegacy: true, invalid: !isKnownProvider(legacyValue) };
-    }
+  let provider = newValue;
+  let usedLegacy = false;
+  if (!provider && mapping.legacyProviderEnv) {
+    provider = readTrimmed(env, mapping.legacyProviderEnv).toLowerCase();
+    usedLegacy = Boolean(provider);
   }
+  if (!provider) provider = mapping.defaultProvider;
 
-  return { provider: mapping.defaultProvider, usedLegacy: false, invalid: false };
+  provider = applyEndpointPolicy(capability, provider, env, diagnostics);
+  return { provider, usedLegacy, invalid: !isKnownProvider(provider) };
 }
 
 function resolveModel(
   capability: AiCapabilityId,
   provider: AiProviderId,
   env: NodeJS.ProcessEnv,
-): { model: string; usedLegacy: boolean } {
+): { model: string; usedLegacy: boolean; legacyEnv?: string } {
   const mapping = LEGACY_MAPPING[capability];
-  const newVar = `AI_${capability}_MODEL`;
-  const newValue = readTrimmed(env, newVar);
-  if (newValue) {
-    return { model: newValue, usedLegacy: false };
+  const newValue = readTrimmed(env, `AI_${capability}_MODEL`);
+  if (newValue) return { model: newValue, usedLegacy: false };
+
+  const legacyEnv = mapping.legacyModelEnvByProvider?.[provider];
+  if (legacyEnv) {
+    const legacyValue = readTrimmed(env, legacyEnv);
+    if (legacyValue) return { model: legacyValue, usedLegacy: true, legacyEnv };
   }
 
-  if (mapping.legacyModelEnv) {
-    const legacyValue = readTrimmed(env, mapping.legacyModelEnv);
-    if (legacyValue) {
-      return { model: legacyValue, usedLegacy: true };
-    }
-  }
+  return {
+    model: mapping.defaultModelByProvider[provider]?.trim() ?? "",
+    usedLegacy: false,
+  };
+}
 
-  return { model: mapping.defaultModelByProvider[provider] ?? "", usedLegacy: false };
+function emptyFallback(requested = false): ResolvedFallbackPolicy {
+  return {
+    requested,
+    effectivelyEnabled: false,
+    provider: null,
+    model: null,
+    crossProviderEnabled: false,
+  };
 }
 
 export function resolveCapabilityConfig(
@@ -198,7 +226,6 @@ export function resolveCapabilityConfig(
 ): ResolvedCapabilityConfig {
   const diagnostics: string[] = [];
   let usedLegacyVariables = false;
-
   const definition = AI_CAPABILITY_REGISTRY[capability];
 
   const providerResolution = resolveProvider(capability, env, diagnostics);
@@ -217,13 +244,7 @@ export function resolveCapabilityConfig(
       primary: null,
       timeoutMs: DEFAULT_TIMEOUT_MS,
       maxAttempts: DEFAULT_MAX_ATTEMPTS,
-      fallback: {
-        requested: false,
-        effectivelyEnabled: false,
-        provider: null,
-        model: null,
-        crossProviderEnabled: false,
-      },
+      fallback: emptyFallback(),
       diagnostics,
       usedLegacyVariables,
     };
@@ -234,8 +255,14 @@ export function resolveCapabilityConfig(
   if (modelResolution.usedLegacy) {
     usedLegacyVariables = true;
     diagnostics.push(
-      `[deprecated] capability=${capability} resolved model via legacy variable ${LEGACY_MAPPING[capability].legacyModelEnv}; migrate to AI_${capability}_MODEL`,
+      `[deprecated] capability=${capability} resolved model via legacy variable ${modelResolution.legacyEnv}; migrate to AI_${capability}_MODEL`,
     );
+  }
+
+  let state: AiCapabilityState = "ready";
+  if (!modelResolution.model) {
+    diagnostics.push(`capability=${capability} provider=${provider} has no model configured`);
+    state = "invalid";
   }
 
   const unsupported = findUnsupportedOperations(provider, definition.requiredOperations, env);
@@ -243,28 +270,14 @@ export function resolveCapabilityConfig(
     diagnostics.push(
       `capability=${capability} provider=${provider} does not support required operation(s): ${unsupported.join(", ")}`,
     );
-    return {
-      capability,
-      state: "invalid",
-      primary: { provider, model: modelResolution.model },
-      timeoutMs: DEFAULT_TIMEOUT_MS,
-      maxAttempts: DEFAULT_MAX_ATTEMPTS,
-      fallback: {
-        requested: false,
-        effectivelyEnabled: false,
-        provider: null,
-        model: null,
-        crossProviderEnabled: false,
-      },
-      diagnostics,
-      usedLegacyVariables,
-    };
+    state = "invalid";
   }
 
   const timeoutRaw = readTrimmed(env, `AI_${capability}_TIMEOUT_MS`);
   const timeoutParsed = parsePositiveInt(timeoutRaw);
   if (timeoutRaw && timeoutParsed === null) {
     diagnostics.push(`capability=${capability} invalid AI_${capability}_TIMEOUT_MS value`);
+    state = "invalid";
   }
   const timeoutMs = timeoutParsed ?? DEFAULT_TIMEOUT_MS;
 
@@ -272,94 +285,104 @@ export function resolveCapabilityConfig(
   const attemptsParsed = parsePositiveInt(attemptsRaw);
   if (attemptsRaw && attemptsParsed === null) {
     diagnostics.push(`capability=${capability} invalid AI_${capability}_MAX_ATTEMPTS value`);
+    state = "invalid";
   }
   const maxAttempts = attemptsParsed ?? DEFAULT_MAX_ATTEMPTS;
+
+  const primarySecretPresent = providerSecretPresent(provider, env);
+  if (!primarySecretPresent) {
+    diagnostics.push(`capability=${capability} provider=${provider} missing required secret`);
+    if (state !== "invalid") state = "disabled";
+  }
 
   const fallbackEnabledRaw = readTrimmed(env, `AI_${capability}_FALLBACK_ENABLED`);
   const fallbackRequested = fallbackEnabledRaw
     ? parseBoolean(fallbackEnabledRaw)
     : DEFAULT_FALLBACK_ENABLED;
 
-  let fallback: ResolvedFallbackPolicy = {
-    requested: fallbackRequested,
-    effectivelyEnabled: false,
-    provider: null,
-    model: null,
-    crossProviderEnabled: false,
-  };
-
-  let state: AiCapabilityState = "ready";
-
-  const primarySecretPresent = providerSecretPresent(provider, env);
-  if (!primarySecretPresent) {
-    diagnostics.push(`capability=${capability} provider=${provider} missing required secret`);
-    state = "disabled";
-  }
-
+  let fallback = emptyFallback(fallbackRequested);
   if (fallbackRequested) {
-    const fallbackProviderRaw = readTrimmed(env, `AI_${capability}_FALLBACK_PROVIDER`).toLowerCase();
-    const fallbackProvider = (fallbackProviderRaw || provider) as string;
-    const fallbackModelRaw = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
+    const rawFallbackProvider =
+      readTrimmed(env, `AI_${capability}_FALLBACK_PROVIDER`).toLowerCase() || provider;
+    const normalizedFallbackProvider = applyEndpointPolicy(
+      capability,
+      rawFallbackProvider,
+      env,
+      diagnostics,
+    );
     const crossProviderEnabled = parseBoolean(
       readTrimmed(env, `AI_${capability}_CROSS_PROVIDER_FALLBACK_ENABLED`) ||
         String(DEFAULT_CROSS_PROVIDER_FALLBACK_ENABLED),
     );
 
-    if (!isKnownProvider(fallbackProvider)) {
+    if (!isKnownProvider(normalizedFallbackProvider)) {
       diagnostics.push(`capability=${capability} fallback provider identifier unknown`);
       fallback = {
-        requested: true,
-        effectivelyEnabled: false,
-        provider: null,
-        model: null,
+        ...emptyFallback(true),
         crossProviderEnabled,
       };
       if (state === "ready") state = "degraded";
-    } else if (fallbackProvider !== provider && !crossProviderEnabled) {
-      // Cross-provider fallback requires explicit opt-in; never send data to
-      // the second provider without it. The config stays degraded: primary
-      // still runs, fallback is not eligible.
-      diagnostics.push(
-        `capability=${capability} fallback provider=${fallbackProvider} differs from primary=${provider} but AI_${capability}_CROSS_PROVIDER_FALLBACK_ENABLED is not true; fallback disabled`,
-      );
-      fallback = {
-        requested: true,
-        effectivelyEnabled: false,
-        provider: fallbackProvider,
-        model: fallbackModelRaw || null,
-        crossProviderEnabled: false,
-      };
-      if (state === "ready") state = "degraded";
     } else {
-      const fallbackSecretPresent = providerSecretPresent(fallbackProvider, env);
-      const fallbackUnsupported = findUnsupportedOperations(
-        fallbackProvider,
-        definition.requiredOperations,
-        env,
-      );
+      const fallbackProvider = normalizedFallbackProvider;
+      const isCrossProvider = fallbackProvider !== provider;
+      const fallbackModelRaw = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
       const fallbackModel =
-        fallbackModelRaw || LEGACY_MAPPING[capability].defaultModelByProvider[fallbackProvider] || modelResolution.model;
+        fallbackModelRaw ||
+        LEGACY_MAPPING[capability].defaultModelByProvider[fallbackProvider]?.trim() ||
+        (isCrossProvider ? "" : modelResolution.model);
 
-      if (!fallbackSecretPresent) {
-        diagnostics.push(`capability=${capability} fallback provider=${fallbackProvider} missing required secret`);
-      }
-      if (fallbackUnsupported.length > 0) {
+      if (isCrossProvider && !crossProviderEnabled) {
         diagnostics.push(
-          `capability=${capability} fallback provider=${fallbackProvider} does not support required operation(s): ${fallbackUnsupported.join(", ")}`,
+          `capability=${capability} fallback provider=${fallbackProvider} differs from primary=${provider} but AI_${capability}_CROSS_PROVIDER_FALLBACK_ENABLED is not true; fallback disabled`,
         );
-      }
+        fallback = {
+          requested: true,
+          effectivelyEnabled: false,
+          provider: fallbackProvider,
+          model: fallbackModel || null,
+          crossProviderEnabled: false,
+        };
+        if (state === "ready") state = "degraded";
+      } else {
+        const fallbackSecretPresent = providerSecretPresent(fallbackProvider, env);
+        const fallbackUnsupported = findUnsupportedOperations(
+          fallbackProvider,
+          definition.requiredOperations,
+          env,
+        );
 
-      const fallbackEligible = fallbackSecretPresent && fallbackUnsupported.length === 0;
-      fallback = {
-        requested: true,
-        effectivelyEnabled: fallbackEligible,
-        provider: fallbackProvider,
-        model: fallbackModel,
-        crossProviderEnabled: fallbackProvider !== provider ? crossProviderEnabled : false,
-      };
+        if (!fallbackModel) {
+          diagnostics.push(
+            `capability=${capability} fallback provider=${fallbackProvider} has no model configured`,
+          );
+        }
+        if (!fallbackSecretPresent) {
+          diagnostics.push(
+            `capability=${capability} fallback provider=${fallbackProvider} missing required secret`,
+          );
+        }
+        if (fallbackUnsupported.length > 0) {
+          diagnostics.push(
+            `capability=${capability} fallback provider=${fallbackProvider} does not support required operation(s): ${fallbackUnsupported.join(", ")}`,
+          );
+        }
 
-      if (!fallbackEligible && state === "ready") {
-        state = "degraded";
+        const primaryRunnable = state === "ready" || state === "degraded";
+        const fallbackEligible =
+          primaryRunnable &&
+          Boolean(fallbackModel) &&
+          fallbackSecretPresent &&
+          fallbackUnsupported.length === 0;
+
+        fallback = {
+          requested: true,
+          effectivelyEnabled: fallbackEligible,
+          provider: fallbackProvider,
+          model: fallbackModel || null,
+          crossProviderEnabled: isCrossProvider ? crossProviderEnabled : false,
+        };
+
+        if (!fallbackEligible && state === "ready") state = "degraded";
       }
     }
   }
