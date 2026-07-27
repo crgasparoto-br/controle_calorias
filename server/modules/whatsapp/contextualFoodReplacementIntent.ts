@@ -21,6 +21,7 @@ import {
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 import { requestWhatsappLatestFoodCorrectionQuantity } from "./foodQuantityClarification";
+import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
 import {
   isWhatsappFoodReplacementCommandStart,
   WHATSAPP_FOOD_REPLACEMENT_COMMAND_PATTERN,
@@ -50,7 +51,12 @@ type Candidate = {
 };
 
 export type WhatsappContextualFoodReplacementResult = {
-  action: "meal_item_replaced" | "clarification_needed";
+  handled?: true;
+  action:
+    | "meal_item_replaced"
+    | "clarification_needed"
+    | "multi_action_confirmation_needed"
+    | "multi_action_clarification_needed";
   reply: string;
   eventType: string;
   detail: string;
@@ -301,6 +307,16 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
+
+  // O parser multi-ação é a fonte canônica para lotes mistos. Lotes formados
+  // somente por substituições retornam null e seguem para o fluxo contextual
+  // abaixo, que preserva seleção persistente, compensação e resposta canônica.
+  const mixedAction = executeWhatsappMultiActionIntent({
+    text,
+    temporalContext: null,
+  });
+  if (mixedAction) return mixedAction;
+
   const latestCorrection = parseLatestFoodCorrection(text);
   const parsedReplacements = latestCorrection
     ? ({ kind: "not_replacement" } as const)
