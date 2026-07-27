@@ -9,10 +9,11 @@ Examples covered by this layer:
 - `Não é peixe é frango, não é mandioquinha é batata doce`
 - `adiciona arroz, troca o frango por peixe e remove a cerveja`
 - `no almoço foi arroz, feijão, frango; tira o feijão`
+- `Não é arroz, é batata` seguido de `Corrigir feijão para 150 g` em outra linha
 
 ## Pipeline position
 
-The multi-action interpreter runs in `simulateWhatsappInbound` after:
+In `simulateWhatsappInbound`, the multi-action interpreter runs after:
 
 1. inbound idempotency;
 2. active conversation context resolution;
@@ -20,13 +21,16 @@ The multi-action interpreter runs in `simulateWhatsappInbound` after:
 
 It runs before the generic intent router, professional access flow, hydration split, record adjustment parser, LLM interpretation, text actions, food assistant, and nutritional fallback.
 
-This order keeps short follow-up replies bound to pending context, preserves date/meal-slot hints, and blocks composed action messages before they can create an unsafe draft.
+The contextual replacement handler also invokes the same deterministic interpreter before parsing a replacement batch. This makes webhook and simulator converge when text starts with a food replacement but contains another complete action family, such as quantity adjustment, addition, or removal. A batch made only of replacements returns to the contextual replacement core, which preserves its own selection, compensation, and canonical reply contracts.
+
+This order keeps short follow-up replies bound to pending context, preserves date/meal-slot hints, and blocks composed action messages before they can create an unsafe draft. An incomplete companion action does not become a valid mixed batch and remains fail-closed in the contextual parser.
 
 ## Extraction model
 
 The interpreter splits only at clear action boundaries:
 
 - semicolons;
+- line breaks;
 - commas followed by another action verb;
 - conjunctions such as `e`, `depois` or `então` when followed by another action verb.
 
@@ -56,6 +60,8 @@ Supported persistent-style action families are mapped into the backend validatio
 Removal is recognized and marked as requiring confirmation because the runtime persistence schema does not yet expose a direct removal intent.
 
 The transaction mode is always `all_or_nothing` and `partialSuccessAllowed` is always `false`. If any extracted action needs clarification, the whole message is held for clarification and nothing is applied. If all actions are structurally clear, the user receives a confirmation prompt and nothing is applied until confirmation support consumes that pending context.
+
+A complete action from another family must never be treated as an incomplete replacement merely because the same message also contains a replacement. Conversely, a command that only starts an action verb without its required target remains invalid and cannot reach nutritional fallback.
 
 ## Replies and audit trail
 
