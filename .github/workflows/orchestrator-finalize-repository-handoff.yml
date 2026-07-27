@@ -1,0 +1,65 @@
+name: Orchestrator finalize repository handoff
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/orchestrator-finalize-repository-handoff.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-and-package-clean-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Create clean final candidate
+        id: candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/orchestrator-finalize-repository-handoff.yml
+          git commit -m "chore: remove temporary final orchestrator handoff"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish exact clean candidate
+        run: git push origin HEAD:feat/875-professional-context-routes
+
+      - name: Remove checkout credentials before packaging
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin https://github.com/${GITHUB_REPOSITORY}.git
+          if git config --local --get-regexp 'extraheader|authorization|token'; then
+            echo "Credential-like Git configuration remained after cleanup."
+            exit 1
+          fi
+
+      - name: Package exact published repository
+        run: |
+          mkdir -p /tmp/orchestrator-final-repository
+          test "$(git rev-parse HEAD)" = "${{ steps.candidate.outputs.sha }}"
+          printf '{"schema_version":1,"repository":"%s","issue":880,"source_head_sha":"%s","candidate_sha":"%s","base_ref":"develop","branch":"feat/875-professional-context-routes"}\n' \
+            "$GITHUB_REPOSITORY" "${{ github.event.pull_request.head.sha }}" "${{ steps.candidate.outputs.sha }}" \
+            > /tmp/orchestrator-final-repository/manifest.json
+          tar \
+            --exclude='./node_modules' \
+            --exclude='./dist' \
+            --exclude='./artifacts' \
+            --exclude='./.vite' \
+            -czf /tmp/orchestrator-final-repository/repository.tgz .
+          test -s /tmp/orchestrator-final-repository/repository.tgz
+
+      - name: Upload exact published repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-final-repository-issue-880-${{ steps.candidate.outputs.sha }}
+          path: /tmp/orchestrator-final-repository
+          if-no-files-found: error
+          retention-days: 1
