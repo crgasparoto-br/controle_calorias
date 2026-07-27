@@ -1,19 +1,9 @@
 /**
  * Typed registry of AI capabilities used by the product.
  *
- * A "capability" is a product-facing AI use case (e.g. extracting a meal from
- * text, answering a WhatsApp question). Each capability declares which
- * low-level operations it needs from an underlying provider adapter
- * (text generation, vision input, structured output, ...). The config
- * resolver (`configResolver.ts`) and the adapter support matrix
- * (`supportMatrix.ts`) use this declaration to pick and validate providers
- * per capability, independently from one another.
- *
- * FOOD_CLASSIFICATION is reserved: per the decision in issue #922, food
- * classification (NOVA) stays embedded in the MEAL_TEXT / MEAL_VISION
- * structured output for now and has no dedicated consumer yet. It is listed
- * here so the registry is complete and future work does not need to touch
- * this module again to add it.
+ * A capability is a product-facing AI use case. Each capability declares the
+ * low-level adapter operations it requires. Provider/model resolution validates
+ * these requirements before any network call is allowed.
  */
 
 export const AI_CAPABILITIES = [
@@ -30,10 +20,6 @@ export const AI_CAPABILITIES = [
 
 export type AiCapabilityId = (typeof AI_CAPABILITIES)[number];
 
-/**
- * Low-level operations a provider adapter may support. Capabilities declare
- * which of these they require; adapters declare which they implement.
- */
 export const AI_OPERATIONS = [
   "text",
   "vision",
@@ -49,7 +35,7 @@ export type AiOperation = (typeof AI_OPERATIONS)[number];
 
 export type AiCapabilityDefinition = {
   id: AiCapabilityId;
-  /** Short human-readable description for diagnostics/logging (no PII). */
+  /** Short human-readable description for sanitized diagnostics. */
   description: string;
   /** Operations this capability requires from a compatible adapter. */
   requiredOperations: readonly AiOperation[];
@@ -72,25 +58,25 @@ export const AI_CAPABILITY_REGISTRY: Record<AiCapabilityId, AiCapabilityDefiniti
   },
   WHATSAPP_INTENT: {
     id: "WHATSAPP_INTENT",
-    description: "Interpretação de intenção de mensagens do WhatsApp",
+    description: "Interpretação estruturada de intenção do WhatsApp",
     requiredOperations: ["text", "structured_output"],
     hasConsumer: true,
   },
   QUESTION: {
     id: "QUESTION",
-    description: "Assistente de perguntas do usuário (WhatsApp)",
+    description: "Assistente de perguntas do usuário",
     requiredOperations: ["text"],
     hasConsumer: true,
   },
   NUTRITION_SEARCH: {
     id: "NUTRITION_SEARCH",
-    description: "Busca semântica no catálogo de alimentos",
-    requiredOperations: ["embeddings"],
+    description: "Pesquisa nutricional com ferramenta de busca web",
+    requiredOperations: ["text", "structured_output", "web_search"],
     hasConsumer: true,
   },
   EMBEDDING: {
     id: "EMBEDDING",
-    description: "Geração de embeddings de propósito geral",
+    description: "Geração de embeddings para busca semântica",
     requiredOperations: ["embeddings"],
     hasConsumer: false,
   },
@@ -102,14 +88,14 @@ export const AI_CAPABILITY_REGISTRY: Record<AiCapabilityId, AiCapabilityDefiniti
   },
   IMAGE_ANNOTATION: {
     id: "IMAGE_ANNOTATION",
-    description: "Geração de imagem anotada da refeição confirmada",
+    description: "Geração ou edição de imagem anotada da refeição",
     requiredOperations: ["image_generation", "image_edit"],
     hasConsumer: true,
   },
   FOOD_CLASSIFICATION: {
     id: "FOOD_CLASSIFICATION",
     description:
-      "Reservado (#922): classificação NOVA hoje embutida no structured output de MEAL_TEXT/MEAL_VISION, sem consumidor próprio nesta fase",
+      "Reservado (#922): classificação NOVA embutida em MEAL_TEXT/MEAL_VISION, sem consumidor próprio nesta fase",
     requiredOperations: ["text", "structured_output"],
     hasConsumer: false,
   },
