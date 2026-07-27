@@ -367,7 +367,7 @@ export function resolveCapabilityConfig(
           );
         }
 
-        const primaryRunnable = state === "ready" || state === "degraded";
+        const primaryRunnable = state === "ready";
         const fallbackEligible =
           primaryRunnable &&
           Boolean(fallbackModel) &&
