@@ -1,0 +1,88 @@
+name: Orchestrator issue 880 visual context
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/orchestrator-issue-880-visual-context.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      GITHUB_HEAD_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout full branch history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/875-professional-context-routes
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Apply visual context correction
+        run: python scripts/apply-issue-880-visual-context-fix.py
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run focused route and context tests
+        env:
+          NODE_ENV: test
+        run: >-
+          pnpm exec vitest run
+          client/src/components/ProfessionalLayout.test.tsx
+          client/src/pages/ProfessionalAreaPage.draftDiscard.test.tsx
+          client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx
+          client/src/pages/professional/ProfessionalPatientWorkspace.auditCorrections.test.tsx
+          --maxWorkers=1 --minWorkers=1
+
+      - name: Render professional patient workspace evidence
+        run: bash scripts/render-professional-patient-workspace-visual.sh
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Remove temporary orchestrator files
+        run: |
+          rm scripts/apply-issue-880-visual-context-fix.py
+          rm .github/workflows/orchestrator-issue-880-visual-context.yml
+
+      - name: Commit visual context correction
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test: align professional visual authorization lifecycle (#880)"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-issue-880-visual-${{ steps.commit.outputs.sha }}
+          path: artifacts/professional-patient-workspace
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Push corrected branch
+        run: git push origin HEAD:feat/875-professional-context-routes
