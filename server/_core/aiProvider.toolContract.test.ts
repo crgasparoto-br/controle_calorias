@@ -13,7 +13,7 @@ function buildClient(create: ReturnType<typeof vi.fn>) {
 
 describe("OpenAiProvider text tool contract", () => {
   it.each(["web_search", "web_search_preview"] as const)(
-    "translates the supported %s tool through the explicit adapter contract",
+    "translates the supported internal %s tool to the SDK web-search contract",
     async type => {
       const create = vi.fn().mockResolvedValue({ id: "resp_1", output_text: "ok" });
       const provider = new OpenAiProvider(buildClient(create));
@@ -25,7 +25,7 @@ describe("OpenAiProvider text tool contract", () => {
       });
 
       expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ tools: [{ type }] }),
+        expect.objectContaining({ tools: [{ type: "web_search_preview" }] }),
         undefined,
       );
     },
