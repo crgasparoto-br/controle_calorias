@@ -22,6 +22,13 @@ describe("AI capability registry", () => {
     }
   });
 
+  it("derives QUESTION requirements from the real WhatsApp consumer", () => {
+    expect(AI_CAPABILITY_REGISTRY.QUESTION.requiredOperations).toEqual([
+      "text",
+      "web_search",
+    ]);
+  });
+
   it("keeps nutrition search separate from embeddings", () => {
     expect(AI_CAPABILITY_REGISTRY.NUTRITION_SEARCH.requiredOperations).toEqual([
       "text",
@@ -29,6 +36,10 @@ describe("AI capability registry", () => {
       "web_search",
     ]);
     expect(AI_CAPABILITY_REGISTRY.EMBEDDING.requiredOperations).toEqual(["embeddings"]);
+  });
+
+  it("recognizes the existing legacy embedding consumer", () => {
+    expect(AI_CAPABILITY_REGISTRY.EMBEDDING.hasConsumer).toBe(true);
   });
 
   it("marks FOOD_CLASSIFICATION as reserved with no independent consumer", () => {
