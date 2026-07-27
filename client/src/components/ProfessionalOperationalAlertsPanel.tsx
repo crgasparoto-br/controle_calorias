@@ -56,12 +56,31 @@ export default function ProfessionalOperationalAlertsPanel({
   onOpenPatient?: (patient: { patientId: number; displayName: string }) => void;
   periodRange?: { start: string; end: string };
 }) {
-  const query = trpc.professionalRecord.operationalAlerts.list.useQuery(
-    patientId ? { patientId, startDate: periodRange?.start, endDate: periodRange?.end } : {},
-    {
+  const entitlements =
+    trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
       retry: false,
-      refetchInterval: 30_000,
+      staleTime: 30_000,
       refetchOnWindowFocus: true,
+    });
+  const alertsEnabled = Boolean(
+    entitlements.data?.allowed &&
+      entitlements.data.enabledResources.includes(
+        "professional_operational_alerts"
+      )
+  );
+  const query = trpc.professionalRecord.operationalAlerts.list.useQuery(
+    patientId
+      ? {
+          patientId,
+          startDate: periodRange?.start,
+          endDate: periodRange?.end,
+        }
+      : {},
+    {
+      enabled: alertsEnabled,
+      retry: false,
+      refetchInterval: alertsEnabled ? 30_000 : false,
+      refetchOnWindowFocus: alertsEnabled,
     }
   );
   const close = trpc.professionalRecord.operationalAlerts.close.useMutation({
@@ -79,6 +98,49 @@ export default function ProfessionalOperationalAlertsPanel({
       },
       onError: error => toast.error(error.message),
     });
+
+  if (entitlements.isLoading) {
+    return (
+      <div
+        role="status"
+        className="rounded-md border p-4 text-sm text-muted-foreground"
+      >
+        Verificando acesso às pendências operacionais...
+      </div>
+    );
+  }
+
+  if (entitlements.isError) {
+    return (
+      <div
+        role="alert"
+        className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 p-4 text-sm"
+      >
+        <span>Não foi possível verificar o acesso às pendências.</span>
+        <Button variant="outline" onClick={() => void entitlements.refetch()}>
+          <RefreshCw className="h-4 w-4" />
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
+  if (!alertsEnabled) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Pendências operacionais
+          </CardTitle>
+          <CardDescription>
+            Esta capacidade não está incluída no acesso profissional atual. O
+            restante do contexto autorizado permanece disponível.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   if (query.isLoading) {
     return (
@@ -160,13 +222,13 @@ export default function ProfessionalOperationalAlertsPanel({
                   <dl className="grid gap-1 text-xs text-muted-foreground">
                     <div>
                       <dt className="inline font-medium text-foreground/70">
-                        Período: {" "}
+                        Período:{" "}
                       </dt>
                       <dd className="inline">{formatPeriod(alert.period)}</dd>
                     </div>
                     <div>
                       <dt className="inline font-medium text-foreground/70">
-                        Origem: {" "}
+                        Origem:{" "}
                       </dt>
                       <dd className="inline break-all">
                         {originLabels[alert.origin.type] ?? alert.origin.type}
@@ -175,7 +237,7 @@ export default function ProfessionalOperationalAlertsPanel({
                     </div>
                     <div>
                       <dt className="inline font-medium text-foreground/70">
-                        Ação sugerida: {" "}
+                        Ação sugerida:{" "}
                       </dt>
                       <dd className="inline">{alert.suggestedAction}</dd>
                     </div>
@@ -187,7 +249,16 @@ export default function ProfessionalOperationalAlertsPanel({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {!patientId && onOpenPatient ? (
-                  <Button size="sm" variant="outline" onClick={() => onOpenPatient({ patientId: alert.patientUserId, displayName: alert.patientName })}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      onOpenPatient({
+                        patientId: alert.patientUserId,
+                        displayName: alert.patientName,
+                      })
+                    }
+                  >
                     Abrir paciente
                   </Button>
                 ) : null}

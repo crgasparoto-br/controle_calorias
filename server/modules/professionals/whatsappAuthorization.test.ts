@@ -12,6 +12,7 @@ vi.mock("../whatsapp/webhookUtils", () => ({
 import { upsertUserWhatsappConnection } from "../../db";
 import { sendWhatsAppInteractiveButtonsMessage, sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   buildProfessionalAccessAuthorizationMessage,
   buildProfessionalAccessDecisionCode,
   parseProfessionalAccessWhatsappDecision,
@@ -20,6 +21,8 @@ import {
   listProfessionalAccesses,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 const mockedSendWhatsAppInteractiveButtonsMessage = vi.mocked(sendWhatsAppInteractiveButtonsMessage);
 const mockedSendWhatsAppTextMessage = vi.mocked(sendWhatsAppTextMessage);

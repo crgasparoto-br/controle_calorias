@@ -12,6 +12,8 @@ on:
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
+      - "scripts/test-professional-access-receipts-tidb.ts"
+      - "scripts/test-professional-access-public-boundary-tidb.ts"
       - "package.json"
       - ".github/workflows/professional-persistence-tidb.yml"
   workflow_dispatch:
@@ -36,6 +38,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: mkdir -p artifacts
 
       - name: Start TiDB
         run: |
@@ -74,7 +77,7 @@ jobs:
 
       - name: Validate professional migration and repository
         run: |
-          log_file=/tmp/professional-persistence.log
+          log_file=artifacts/professional-persistence.log
           setsid pnpm db:test:professionals >"$log_file" 2>&1 &
           test_pid=$!
           success_marker='"event":"professional.persistence.integration.passed"'
@@ -114,6 +117,51 @@ jobs:
           wait "$test_pid" 2>/dev/null || true
           echo "Professional persistence integration timed out before its success marker."
           exit 1
+
+      - name: Validate privacy-safe access receipts
+        run: |
+          log_file=artifacts/professional-access-receipts.log
+          set +e
+          timeout --signal=TERM --kill-after=5s 120s \
+            pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts \
+            >"$log_file" 2>&1
+          test_status=$?
+          set -e
+          cat "$log_file"
+          if grep -q '"event":"professional.access_receipts.integration.passed"' "$log_file"; then
+            echo "Professional access receipt integration completed successfully."
+            exit 0
+          fi
+          echo "Professional access receipt integration failed before its success marker."
+          if [ "$test_status" -eq 0 ]; then exit 1; fi
+          exit "$test_status"
+
+      - name: Validate public access boundary by email and phone
+        run: |
+          log_file=artifacts/professional-access-public-boundary.log
+          set +e
+          timeout --signal=TERM --kill-after=5s 150s \
+            pnpm exec tsx scripts/test-professional-access-public-boundary-tidb.ts \
+            >"$log_file" 2>&1
+          test_status=$?
+          set -e
+          cat "$log_file"
+          if grep -q '"event":"professional.access_public_boundary.integration.passed"' "$log_file"; then
+            echo "Professional public access boundary integration completed successfully."
+            exit 0
+          fi
+          echo "Professional public access boundary integration failed before its success marker."
+          if [ "$test_status" -eq 0 ]; then exit 1; fi
+          exit "$test_status"
+
+      - name: Preserve access boundary diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: professional-access-boundary-${{ github.sha }}
+          path: artifacts/*.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Validate backfill command idempotency
         run: |

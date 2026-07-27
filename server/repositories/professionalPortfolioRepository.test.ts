@@ -20,14 +20,15 @@ function rowFor(professionalUserId: number) {
     authorizationId: `access-${professionalUserId}`,
     patientUserId: professionalUserId === 101 ? 41 : 42,
     patientName: professionalUserId === 101 ? "Ana" : "Beatriz",
-    patientEmail: professionalUserId === 101 ? "ana@example.com" : "bia@example.com",
+    patientEmail:
+      professionalUserId === 101 ? "ana@example.com" : "bia@example.com",
     authorizationStatus: "approved",
     trackingStatus: "active",
     requestedAt: new Date("2026-07-01T12:00:00Z"),
     lastFoodActivityAt: new Date("2026-07-18T12:00:00Z"),
     lastProfessionalInteractionAt: null,
-    nextReviewAt: new Date("2026-07-25T12:00:00Z"),
-    nextWeighingAt: null,
+    nextReviewAt: new Date("2026-07-27T12:00:00Z"),
+    nextWeighingAt: new Date("2026-07-28T12:00:00Z"),
   };
 }
 
@@ -43,17 +44,21 @@ describe("professionalPortfolioRepository", () => {
         call += 1;
         if (call === 1) return [[rowFor(101)]];
         if (call === 2) return [[{ total: 21 }]];
-        return [[{
-          active: 4,
-          paused: 2,
-          ended: 1,
-          notStarted: 3,
-          pendingRequests: 5,
-          activeWithRecentRecords: 7,
-          withoutRecentActivity: 6,
-          pendingReviews: 2,
-          pendingWeighings: 1,
-        }]];
+        return [
+          [
+            {
+              active: 4,
+              paused: 2,
+              ended: 1,
+              notStarted: 3,
+              pendingRequests: 5,
+              activeWithRecentRecords: 7,
+              withoutRecentActivity: 6,
+              pendingReviews: 2,
+              pendingWeighings: 1,
+            },
+          ],
+        ];
       }),
     };
     const repository = createProfessionalPortfolioRepository({
@@ -66,19 +71,30 @@ describe("professionalPortfolioRepository", () => {
     expect(queries).toHaveLength(3);
     expect(queries.every(query => query.params.includes(101))).toBe(true);
     expect(queries.some(query => query.params.includes(202))).toBe(false);
-    expect(queries[0].sql).toContain("ORDER BY COALESCE(u.name");
+    expect(queries[0].sql).toContain("ORDER BY COALESCE(u.`name`");
     expect(queries[0].sql).toContain("LIMIT ? OFFSET ?");
-    expect(queries[0].sql).toContain("nextReviewAt");
-    expect(queries[0].sql).toContain("periodMeals.occurredAt >=");
-    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.occurredAt");
-    expect(queries[0].sql).toContain("periodAccess.professionalUserId");
-    expect(queries[2].sql).toContain("COALESCE(pm.periodRecordCount, 0)");
-    expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 21, totalPages: 3 });
+    expect(queries[0].sql).toContain("t.`nextReviewAt`");
+    expect(queries[0].sql).toContain("t.`nextWeighingAt`");
+    expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
+    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.`occurredAt`");
+    expect(queries[0].sql).toContain("periodAccess.`professionalUserId`");
+    expect(queries[0].sql).toContain("a.`status` <> 'pending'");
+    expect(queries[0].sql).toContain("a.`status` = 'approved' AND");
+    expect(queries[2].sql).toContain("COALESCE(pm.`periodRecordCount`, 0)");
+    expect(queries[2].sql).toContain("t.`nextReviewAt` IS NOT NULL");
+    expect(queries[2].sql).toContain("t.`nextWeighingAt` IS NOT NULL");
+    expect(result.pagination).toEqual({
+      page: 2,
+      pageSize: 10,
+      total: 21,
+      totalPages: 3,
+    });
     expect(result.items[0]).toMatchObject({
       patientUserId: 41,
       patientName: "Ana",
       trackingStatus: "active",
-      nextReviewAt: new Date("2026-07-25T12:00:00Z").getTime(),
+      nextReviewAt: new Date("2026-07-27T12:00:00Z").getTime(),
+      nextWeighingAt: new Date("2026-07-28T12:00:00Z").getTime(),
     });
     expect(result.summary).toEqual({
       active: 4,
@@ -113,16 +129,59 @@ describe("professionalPortfolioRepository", () => {
       includeHistoricalActivity: false,
     });
 
-    expect(queries[0].sql).not.toContain("MAX(scopedMeals.occurredAt)");
-    expect(queries[0].sql).toContain("periodMeals.occurredAt >=");
-    expect(queries[2].sql).not.toContain("MAX(scopedMeals.occurredAt)");
+    expect(queries[0].sql).not.toContain("MAX(scopedMeals.`occurredAt`)");
+    expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
+    expect(queries[2].sql).not.toContain("MAX(scopedMeals.`occurredAt`)");
   });
+
+  it.each(["scheduled", "due_soon", "overdue", "unavailable"] as const)(
+    "applies the %s review filter at the canonical tracking boundary",
+    async nextReview => {
+      const dialect = new MySqlDialect();
+      const queries: Array<{ sql: string; params: unknown[] }> = [];
+      const db = {
+        execute: vi.fn(async query => {
+          queries.push(dialect.sqlToQuery(query));
+          return [[]];
+        }),
+      };
+      const repository = createProfessionalPortfolioRepository({
+        getDb: async () => db,
+        onWarning: vi.fn(),
+      });
+
+      await repository.list(101, {
+        ...input,
+        search: "",
+        trackingStatus: "all",
+        activity: "all",
+        nextReview,
+        page: 1,
+      });
+
+      expect(queries[0].sql).toContain("t.`nextReviewAt`");
+      expect(queries[0].params).toContain(nextReview);
+      expect(queries[0].sql).toContain("a.`status` = 'approved'");
+      if (nextReview === "scheduled") {
+        expect(queries[0].sql).toContain("t.`nextReviewAt` IS NOT NULL");
+      } else if (nextReview === "due_soon") {
+        expect(queries[0].sql).toContain("t.`nextReviewAt` >=");
+        expect(queries[0].sql).toContain("t.`nextReviewAt` <=");
+      } else if (nextReview === "overdue") {
+        expect(queries[0].sql).toContain("t.`nextReviewAt` <");
+      } else {
+        expect(queries[0].sql).toContain("t.`nextReviewAt` IS NULL");
+      }
+    }
+  );
 
   it("isolates two professionals and never returns the other professional patient", async () => {
     const dialect = new MySqlDialect();
     const execute = vi.fn(async query => {
       const compiled = dialect.sqlToQuery(query);
-      const professionalUserId = compiled.params.find(value => value === 101 || value === 202) as number;
+      const professionalUserId = compiled.params.find(
+        value => value === 101 || value === 202
+      ) as number;
       const callIndex = execute.mock.calls.length % 3;
       if (callIndex === 1) return [[rowFor(professionalUserId)]];
       if (callIndex === 2) return [[{ total: 1 }]];
@@ -152,7 +211,12 @@ describe("professionalPortfolioRepository", () => {
     await expect(repository.list(101, input)).resolves.toMatchObject({
       items: [],
       pagination: { total: 0, totalPages: 0 },
-      summary: { active: 0, pendingRequests: 0, pendingReviews: 0, pendingWeighings: 0 },
+      summary: {
+        active: 0,
+        pendingRequests: 0,
+        pendingReviews: 0,
+        pendingWeighings: 0,
+      },
     });
   });
 });

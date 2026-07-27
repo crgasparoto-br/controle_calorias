@@ -63,7 +63,7 @@ A validação local deve ser registrada na PR com os comandos executados e o res
 
 Além dos comandos automatizados, use smoke tests manuais quando a mudança tocar fluxos de usuário ou integrações externas. Exemplos: login/logout para autenticação, envio e recebimento de webhook para WhatsApp, OAuth/callback para Strava, inferência de refeição para OpenAI ou cálculo de metas/refeições para o fluxo nutricional.
 
-O CI atual executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Ele valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
+O CI atual executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Ele valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. Em PRs, o mesmo job publica um bundle Git do `head_sha` e da base observada, permitindo reconstruir localmente exatamente a identidade validada sem incluir credenciais do checkout. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
 
 Se algum gate crítico deixar de existir no CI ou não cobrir um comando obrigatório, registre a lacuna na PR e abra uma issue separada para automatizar o check antes de tratar a automação como garantida.
 

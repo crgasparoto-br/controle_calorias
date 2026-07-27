@@ -32,8 +32,15 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { professionalRepository } from "./persistenceService";
+import { professionalAccessRequestReceiptRepository } from "./accessRequestReceiptRepository";
+import {
+  buildProfessionalPortfolioWindow,
+  combineProfessionalPortfolioPage,
+  portfolioIncludesOpaquePendingReceipts,
+} from "./portfolioPagination";
 import { professionalContentRepository } from "./contentPersistenceService";
 import { professionalPortfolioRepository } from "../../repositories/professionalPortfolioRepository";
+import { publishProfessionalAccessRevoked } from "./accessRevocationEvents";
 import type { CanonicalProfessionalAuthorization } from "./persistence";
 import type {
   AppendProfessionalHistoryInput,
@@ -105,6 +112,13 @@ type AuthorizationSendResult = {
 
 type AccessOwner = "professional" | "patient";
 const BRAZIL_COUNTRY_CODE = "55";
+let syntheticUserLookupEnabledForTests = false;
+
+export function _forTestOnly_setProfessionalSyntheticUserLookup(
+  enabled: boolean
+) {
+  syntheticUserLookupEnabledForTests = enabled;
+}
 
 function pushHistory(
   event: Omit<AppendProfessionalHistoryInput, "id" | "occurredAt">
@@ -617,7 +631,7 @@ async function getUserSummaryByEmail(
   const db = await getDb();
   const normalizedEmail = email.trim().toLowerCase();
   if (!db) {
-    if (process.env.NODE_ENV === "test") {
+    if (syntheticUserLookupEnabledForTests) {
       const syntheticUserId = /^user-(\d+)@example\.com$/.exec(
         normalizedEmail
       )?.[1];
@@ -715,6 +729,22 @@ async function assertApprovedAccess(
     );
   }
   await assertActiveProfessionalProfile(professionalUserId);
+  return access;
+}
+
+async function assertOpenProfessionalAccess(
+  professionalUserId: number,
+  patientUserId: number
+) {
+  const access = await assertApprovedAccess(professionalUserId, patientUserId);
+  const tracking = await professionalRepository.getTrackingByAuthorization(
+    access.id
+  );
+  if (tracking?.status === "ended") {
+    throw new Error(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+  }
   return access;
 }
 
@@ -890,7 +920,46 @@ export async function listProfessionalPortfolio(
   input: ProfessionalPortfolioInput
 ) {
   await assertActiveProfessionalProfile(professionalUserId);
-  return professionalPortfolioRepository.list(professionalUserId, input);
+
+  const includesPending = portfolioIncludesOpaquePendingReceipts(input);
+  const combinedOffset = (input.page - 1) * input.pageSize;
+  const pendingPage =
+    await professionalAccessRequestReceiptRepository.listActiveReceiptsPage(
+      professionalUserId,
+      {
+        offset: includesPending ? combinedOffset : 0,
+        limit: includesPending ? input.pageSize : 1,
+      }
+    );
+
+  if (!includesPending) {
+    const portfolio = await professionalPortfolioRepository.list(
+      professionalUserId,
+      input
+    );
+    return {
+      ...portfolio,
+      summary: {
+        ...portfolio.summary,
+        pendingRequests: pendingPage.total,
+      },
+    };
+  }
+
+  const portfolio = await professionalPortfolioRepository.list(
+    professionalUserId,
+    input,
+    buildProfessionalPortfolioWindow(
+      input,
+      pendingPage.total,
+      pendingPage.items.length
+    )
+  );
+  return combineProfessionalPortfolioPage({
+    portfolioInput: input,
+    pendingPage,
+    portfolio,
+  });
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {
@@ -954,12 +1023,22 @@ export async function revokePatientAccess(
     "revoked",
     "web"
   );
-  await pushHistory({
-    actorUserId: patientUserId,
-    professionalUserId: access.professionalUserId,
-    patientUserId,
-    eventType: "access_revoked",
-  });
+  try {
+    await pushHistory({
+      actorUserId: patientUserId,
+      professionalUserId: access.professionalUserId,
+      patientUserId,
+      eventType: "access_revoked",
+    });
+  } finally {
+    publishProfessionalAccessRevoked({
+      type: "access_revoked",
+      professionalUserId: access.professionalUserId,
+      patientUserId,
+      authorizationId: access.id,
+      occurredAt: revoked.revokedAt ?? Date.now(),
+    });
+  }
   return publicAccess(revoked);
 }
 
@@ -987,7 +1066,7 @@ export async function getProfessionalPatientTimeZone(
   professionalUserId: number,
   patientUserId: number
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   return resolveEffectiveUserTimeZone(patientUserId);
 }
 
@@ -996,7 +1075,7 @@ export async function getProfessionalPatientDashboard(
   patientUserId: number,
   weekOffset = 0
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   const timeZone = await getEffectiveUserTimeZone(patientUserId);
   const [
     bundle,
@@ -1074,7 +1153,7 @@ export async function getProfessionalPatientPeriodBundle(
   patientUserId: number,
   range: { startDate: string; endDate: string }
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertOpenProfessionalAccess(professionalUserId, patientUserId);
   const timeZone = await getEffectiveUserTimeZone(patientUserId);
   return getPeriodReportBundle(patientUserId, range, timeZone);
 }
@@ -1083,7 +1162,7 @@ export async function addProfessionalComment(
   professionalUserId: number,
   input: ProfessionalCommentInput
 ) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createComment({
     id: crypto.randomUUID(),
     professionalUserId,
@@ -1096,7 +1175,7 @@ export async function suggestGoalAdjustment(
   professionalUserId: number,
   input: ProfessionalGoalSuggestionInput
 ): Promise<GoalSuggestion> {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createGoalSuggestion({
     id: crypto.randomUUID(),
     professionalUserId,
@@ -1111,7 +1190,7 @@ export async function suggestMealPlan(
   professionalUserId: number,
   input: ProfessionalMealSuggestionInput
 ): Promise<MealSuggestion> {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertOpenProfessionalAccess(professionalUserId, input.patientId);
   return professionalContentRepository.createMealSuggestion({
     id: crypto.randomUUID(),
     professionalUserId,

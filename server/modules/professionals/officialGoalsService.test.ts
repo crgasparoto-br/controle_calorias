@@ -19,6 +19,7 @@ vi.mock("../whatsapp/logicalReplyDelivery", () => ({
 import {
   activateProfessionalOfficialGoal,
   deliverProfessionalGoalNotification,
+  getProfessionalOfficialGoalState,
   ProfessionalGoalConflictError,
   requestProfessionalGoalReview,
   resolveProfessionalGoalRowsForDate,
@@ -299,6 +300,79 @@ describe("official professional goals", () => {
       id: "review-1",
       status: "open",
       idempotent: true,
+    });
+  });
+
+  it("projects the complete professional history with authorship, origin and supersession", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([
+        [{ authorizationId: "authorization-1", trackingStatus: "active" }],
+      ])
+      .mockResolvedValueOnce([
+        [
+          row({
+            id: "goal-v2",
+            version: 2,
+            status: "active",
+            calories: 2150,
+            proteinGrams: 150,
+            carbsGrams: 235,
+            fatGrams: 70,
+            justification: "Revisão para o segundo ciclo",
+            supersedesGoalId: "goal-v1",
+            professionalDisplayName: "Nutricionista Auditora",
+            effectiveFrom: new Date("2026-08-01T00:00:00Z"),
+            createdAt: new Date("2026-07-30T12:00:00Z"),
+          }),
+          row({
+            id: "goal-v1",
+            activePatientKey: null,
+            status: "superseded",
+            version: 1,
+            calories: 1900,
+            proteinGrams: 130,
+            carbsGrams: 205,
+            fatGrams: 60,
+            justification: "Meta inicial",
+            supersedesGoalId: null,
+            professionalDisplayName: "Nutricionista Auditora",
+            effectiveFrom: new Date("2026-07-01T00:00:00Z"),
+            effectiveUntil: new Date("2026-08-01T00:00:00Z"),
+            createdAt: new Date("2026-06-30T12:00:00Z"),
+          }),
+        ],
+      ])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]]);
+    dbMocks.getDb.mockResolvedValue({ execute });
+
+    await expect(getProfessionalOfficialGoalState(10, 20)).resolves.toMatchObject({
+      current: {
+        id: "goal-v2",
+        version: 2,
+        calories: 2150,
+        professionalName: "Nutricionista Auditora",
+        origin: "professional",
+        supersedesGoalId: "goal-v1",
+      },
+      history: [
+        {
+          id: "goal-v2",
+          version: 2,
+          calories: 2150,
+          professionalName: "Nutricionista Auditora",
+          origin: "professional",
+          supersedesGoalId: "goal-v1",
+        },
+        {
+          id: "goal-v1",
+          version: 1,
+          calories: 1900,
+          status: "superseded",
+          supersedesGoalId: null,
+        },
+      ],
     });
   });
 });

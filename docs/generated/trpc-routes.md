@@ -26,8 +26,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
-| `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
-| `professionalRecord.messages` | 4 | 2 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
+| `professionalRecord` | 14 | 6 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord.messages` | 6 | 4 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
@@ -223,6 +223,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `context` | query | protected |
+| `portfolioReport` | query | professional-entitled |
 | `get` | query | professional-entitled |
 | `saveAssessment` | mutation | professional-entitled |
 | `createNote` | mutation | professional-entitled |
@@ -240,6 +242,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `templates` | query | professional-entitled |
+| `recipients` | query | professional-entitled |
 | `list` | query | professional-entitled |
 | `create` | mutation | professional-entitled |
 | `retry` | mutation | professional-entitled |

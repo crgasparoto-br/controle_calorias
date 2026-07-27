@@ -1,0 +1,10 @@
+@import "../../client/src/index.css";
+@source "../../client/src";
+@source ".";
+
+.visual-no-motion *,
+.visual-no-motion *::before,
+.visual-no-motion *::after {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}

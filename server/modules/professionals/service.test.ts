@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
   buildPhoneLookupCandidates,
+  getProfessionalPatientPeriodBundle,
   getProfessionalPatientTimeZone,
   getProfessionalProfile,
   listPatientAccessRequests,
@@ -9,8 +11,11 @@ import {
   requestPatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 function goalInput(calories = 1800) {
   return {
@@ -331,5 +336,39 @@ describe("professional meal suggestions", () => {
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("ended professional tracking", () => {
+  it("blocks patient data surfaces while preserving the separate audit history contract", async () => {
+    const professionalUserId = 24980;
+    const patientUserId = 24981;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Nutricionista Auditora",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await transitionPatientTracking(professionalUserId, {
+      accessId: access.id,
+      status: "ended",
+    });
+
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+    await expect(
+      getProfessionalPatientPeriodBundle(professionalUserId, patientUserId, {
+        startDate: "2026-07-01",
+        endDate: "2026-07-07",
+      })
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
   });
 });

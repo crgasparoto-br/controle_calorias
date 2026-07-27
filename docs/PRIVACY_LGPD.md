@@ -4,6 +4,10 @@
 
 Mensagens de acompanhamento são dados pessoais potencialmente sensíveis. A finalidade é permitir orientação e acompanhamento individual autorizado. O conteúdo não pode ser enviado a analytics nem logs; eventos operacionais registram apenas estado, canal, identificadores internos e erro sanitizado. Revogação bloqueia novas leituras pelo profissional, sem apagar automaticamente o histórico auditável nem substituir o fluxo de exportação/exclusão do titular.
 
+Solicitações profissionais por e-mail ou celular usam minimização antes do consentimento. O profissional recebe apenas um comprovante opaco `pending`, independentemente de a pessoa existir, não existir ou coincidir com a própria conta. Contato, nome, telefone, e-mail, `patientUserId`, objeto de paciente, erro de entrega e eventos internos de resolução não atravessam `requestAccess`, `myAccesses`, `portfolio` ou `history` enquanto não houver autorização aprovada. Busca identificável na carteira é restrita a vínculos aprovados.
+
+Comprovantes são persistidos em `professionalHistoryEvents` sem contato nem motivo. Cada tentativa aceita gera um comprovante próprio, tanto para alvo resolvido quanto não resolvido, para que repetição e contagem não confirmem a existência da conta. A associação interna com uma autorização canônica serve somente para validar uma decisão do próprio paciente e para deixar de exibir os comprovantes quando o vínculo sai de `pending`; ela não é exposta ao profissional. Comprovantes sem vínculo resolvido expiram da carteira após trinta dias. Eles não constituem autorização, cadastro paralelo ou base para leitura de dados do titular.
+
 Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudança em IA, WhatsApp, mídia, logs, analytics, exportação, exclusão, acesso profissional e integrações de saúde como mudança sensível.
 
 ## Dados pessoais e sensíveis
@@ -27,6 +31,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Segurança: logs, analytics e mensagens de erro devem ser sanitizados.
 - Retenção: dados brutos de IA, mídia, logs, contexto conversacional e integrações externas devem ter retenção intencional, não acidental.
 - Consentimento: fluxos de profissional, WhatsApp, IA multimodal e integrações externas devem respeitar autorização explícita ou ação consciente do usuário.
+- Não enumeração: superfícies de convite não devem confirmar cadastro, elegibilidade ou identidade antes do consentimento por diferenças de payload, status público, metadados, totais, repetição ou consultas auxiliares.
 
 ## Regras práticas
 
@@ -46,6 +51,10 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
 - Justificativas de metas profissionais e motivos de revisão são dados nutricionais sensíveis: permanecem no banco e nas telas autorizadas, não entram em logs, analytics nem na notificação ao paciente quando a justificativa for privada.
 - Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
+- Eventos internos de comprovante de acesso não podem ser retornados por históricos públicos nem conter o contato solicitado.
+- A resolução de comprovante em aprovação ou revogação deve validar que o usuário autenticado é o paciente dono da autorização; comprovantes apresentados por terceiros não podem revelar associação ou existência.
+- O stream SSE de revogação profissional exige sessão autenticada e autorização vigente na abertura, isola conexões por profissional e paciente e transmite somente `patientId` e instante da revogação; nome, contato, conteúdo clínico, motivo e identificador da autorização não atravessam o stream.
+- Rascunhos profissionais não salvos permanecem somente em memória e são isolados pelo identificador da autorização e do paciente. Revogação, perda do perfil profissional, encerramento da sessão ou desmontagem do shell removem esse conteúdo antes que outro contexto possa ser exibido.
 
 ## Contexto persistente do WhatsApp
 
@@ -91,6 +100,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) introduz um "seg
 - Mídias em storage externo podem exigir lifecycle policy ou rotina de deleção por chave para alinhamento completo com exclusão de conta.
 - `mealInferences.sourceText`, transcrições e contexto conversacional armazenam conteúdo alimentar sensível; alterações nessa área devem avaliar minimização e retenção curta.
 - Integrações de saúde devem manter rastreabilidade externa suficiente para evitar duplicidade sem expor identificadores sensíveis em logs.
+- Convites profissionais podem voltar a enumerar contas se uma nova superfície expuser diferenças entre alvo existente e inexistente; toda rota auxiliar deve reutilizar a política pública canônica.
 
 ## Checklist para PRs sensíveis
 
@@ -99,4 +109,5 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) introduz um "seg
 - [ ] Exportação e exclusão continuam coerentes?
 - [ ] Logs e analytics foram sanitizados?
 - [ ] Dados de IA, mídia, WhatsApp e integrações externas têm retenção intencional?
+- [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas, inclusive totais e repetição?
 - [ ] Documentação canônica foi atualizada?
