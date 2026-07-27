@@ -7,6 +7,7 @@ import {
 } from "../policyExecutor";
 
 const basePolicy = {
+  state: "ready" as const,
   maxAttempts: 3,
   timeoutMs: 1000,
   fallback: { effectivelyEnabled: false },
@@ -20,6 +21,52 @@ describe("common AI policy executor", () => {
       source: "primary",
       attempts: 1,
       usedFallback: false,
+    });
+  });
+
+  it.each(["disabled", "invalid"] as const)(
+    "blocks state=%s before any primary or fallback outbound",
+    async state => {
+      const primary = vi.fn(async () => "must-not-run");
+      const fallback = vi.fn(async () => "must-not-run");
+      await expect(executeWithPolicy(
+        { ...basePolicy, state, fallback: { effectivelyEnabled: true } },
+        primary,
+        fallback,
+      )).rejects.toMatchObject({ code: "invalid_configuration" });
+      expect(primary).not.toHaveBeenCalled();
+      expect(fallback).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { timeoutMs: 0, maxAttempts: 1 },
+    { timeoutMs: Number.NaN, maxAttempts: 1 },
+    { timeoutMs: 1000, maxAttempts: 0 },
+    { timeoutMs: 1000, maxAttempts: 1.5 },
+  ])("rejects malformed execution limits before outbound: %o", async invalidPolicy => {
+    const primary = vi.fn(async () => "must-not-run");
+    await expect(executeWithPolicy(
+      { ...basePolicy, ...invalidPolicy },
+      primary,
+    )).rejects.toMatchObject({ code: "invalid_configuration" });
+    expect(primary).not.toHaveBeenCalled();
+  });
+
+  it("rejects enabled fallback without a callback before outbound", async () => {
+    const primary = vi.fn(async () => "must-not-run");
+    await expect(executeWithPolicy(
+      { ...basePolicy, fallback: { effectivelyEnabled: true } },
+      primary,
+    )).rejects.toMatchObject({ code: "invalid_configuration" });
+    expect(primary).not.toHaveBeenCalled();
+  });
+
+  it("allows degraded state when the primary remains runnable", async () => {
+    const primary = vi.fn(async () => "ok");
+    await expect(executeWithPolicy({ ...basePolicy, state: "degraded" }, primary)).resolves.toMatchObject({
+      value: "ok",
+      source: "primary",
     });
   });
 
@@ -128,7 +175,12 @@ describe("common AI policy executor", () => {
     });
 
     const result = await executeWithPolicy(
-      { maxAttempts: 2, timeoutMs: 10, fallback: { effectivelyEnabled: true } },
+      {
+        state: "ready",
+        maxAttempts: 2,
+        timeoutMs: 10,
+        fallback: { effectivelyEnabled: true },
+      },
       primary,
       fallback,
       { abortGraceMs: 50 },
@@ -151,7 +203,12 @@ describe("common AI policy executor", () => {
     const primary = vi.fn(async () => new Promise<string>(() => {}));
     const fallback = vi.fn(async () => "must-not-run");
     await expect(executeWithPolicy(
-      { maxAttempts: 3, timeoutMs: 5, fallback: { effectivelyEnabled: true } },
+      {
+        state: "ready",
+        maxAttempts: 3,
+        timeoutMs: 5,
+        fallback: { effectivelyEnabled: true },
+      },
       primary,
       fallback,
       { abortGraceMs: 5 },
@@ -164,7 +221,12 @@ describe("common AI policy executor", () => {
     const primary = vi.fn(async () => { throw new AiOperationalError("primary down"); });
     const fallback = vi.fn(async () => { throw new AiOperationalError("fallback down"); });
     await expect(executeWithPolicy(
-      { maxAttempts: 1, timeoutMs: 1000, fallback: { effectivelyEnabled: true } },
+      {
+        state: "ready",
+        maxAttempts: 1,
+        timeoutMs: 1000,
+        fallback: { effectivelyEnabled: true },
+      },
       primary,
       fallback,
     )).rejects.toThrow("fallback down");
