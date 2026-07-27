@@ -1,0 +1,34 @@
+name: Orchestrator cleanup issue 880 artifacts
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/orchestrator-cleanup-issue-880-artifacts.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full branch history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/875-professional-context-routes
+
+      - name: Remove generated evidence from source history
+        run: |
+          git rm -r artifacts/professional-patient-workspace
+          rm .github/workflows/orchestrator-cleanup-issue-880-artifacts.yml
+
+      - name: Commit clean source tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: remove generated professional visual evidence"
+          git push origin HEAD:feat/875-professional-context-routes
