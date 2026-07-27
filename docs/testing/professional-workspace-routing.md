@@ -88,7 +88,7 @@ A rota `/professional/patients/:patientId/goals` deve ser capturada em acompanha
 
 As capturas obrigatórias cobrem 1440 × 900, 1366 × 768, 1024 × 768, 390 × 844 e 390 × 1200. O manifesto do artefato individual registra separadamente `head_sha` e `checkout_sha`, porque o checkout de eventos `pull_request` pode usar o merge preview. As asserções de DOM verificam ausência de overflow horizontal da página, contenção da subnavegação e rolagem horizontal da subnav no mobile.
 
-O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatientWorkspace` reais, substituindo somente autenticação e transporte tRPC por fixtures determinísticas. Ele comprova composição, responsividade e estados visuais; autorização, persistência e contratos de backend permanecem cobertos pelos gates funcionais próprios.
+O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatientWorkspace` reais, substituindo somente autenticação e transporte tRPC por fixtures determinísticas. Os estados ativo e pausado fornecem o mesmo `authorizationId`, reproduzindo um único ciclo de acompanhamento; o estado encerrado respeita o contrato público mínimo sem esse identificador. Ele comprova composição, responsividade e estados visuais; autorização, persistência e contratos de backend permanecem cobertos pelos gates funcionais próprios.
 
 ## Regressão manual mínima
 

@@ -56,13 +56,16 @@ function mutation() {
 }
 
 function patientContextQuery(input: { patientId: number }) {
+  const trackingStatus = trackingStatusForState();
   return querySuccess({
     patientId: input.patientId,
+    authorizationId:
+      trackingStatus === "ended" ? undefined : "authorization-visual-1",
     displayName: "Mariana de Almeida Vasconcelos e Silva",
     authorizationStatus: "approved" as const,
     lastActivityAt: now - 45 * 60_000,
     nextReviewAt: now + 12 * 86_400_000,
-    trackingStatus: trackingStatusForState(),
+    trackingStatus,
   });
 }
 
