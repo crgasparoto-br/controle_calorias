@@ -5,6 +5,7 @@ import {
   type GenerateContentConfig,
   type Part,
 } from "@google/genai";
+import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
 import type {
   AiProvider,
   AiProviderAudioTranscriptionRequest,
@@ -28,6 +29,10 @@ import type {
  */
 
 function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] {
+  if (typeof contentItems === "string") {
+    return contentItems.trim() ? [{ text: contentItems }] : [];
+  }
+
   const parts: Part[] = [];
   const inputArray = contentItems as unknown[];
   if (!Array.isArray(inputArray)) return parts;
@@ -98,6 +103,10 @@ const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
   "const",
 ]);
 
+function incompatibleOperation(message: string): AiNonRetryableError {
+  return new AiNonRetryableError(message, undefined, "incompatible_operation");
+}
+
 function assertRepresentableSchema(value: unknown, path = "$"): void {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertRepresentableSchema(item, `${path}[${index}]`));
@@ -107,7 +116,7 @@ function assertRepresentableSchema(value: unknown, path = "$"): void {
 
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (UNSUPPORTED_SCHEMA_KEYWORDS.has(key)) {
-      throw new Error(
+      throw incompatibleOperation(
         `GeminiProvider: JSON Schema keyword "${key}" at ${path} is not representable by the selected Gemini structured-output contract.`,
       );
     }
@@ -117,7 +126,7 @@ function assertRepresentableSchema(value: unknown, path = "$"): void {
 
 function assertRepresentableTools(request: AiProviderTextRequest): void {
   if (!request.tools?.length) return;
-  throw new Error(
+  throw incompatibleOperation(
     "GeminiProvider: request tools are not representable by the current adapter. Google Search translation must be implemented explicitly before network access.",
   );
 }
@@ -156,7 +165,11 @@ export class GeminiProvider implements AiProvider {
     assertRepresentableTools(request);
     const parts = buildGeminiParts(request.input);
     if (!parts.length) {
-      throw new Error("GeminiProvider: no content parts could be extracted from the request input.");
+      throw new AiOperationalError(
+        "GeminiProvider: no content parts could be extracted from the request input.",
+        undefined,
+        "invalid_payload",
+      );
     }
 
     const contents: ContentListUnion = [{ role: "user", parts }];
@@ -188,7 +201,7 @@ export class GeminiProvider implements AiProvider {
     _request: AiProviderEmbeddingRequest,
     _options?: AiProviderRequestOptions,
   ): Promise<AiProviderEmbeddingResponse> {
-    throw new Error(
+    throw incompatibleOperation(
       "GeminiProvider does not support embeddings in this project. Configure an adapter that explicitly supports embeddings.",
     );
   }
@@ -197,7 +210,7 @@ export class GeminiProvider implements AiProvider {
     _request: AiProviderAudioTranscriptionRequest,
     _options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {
-    throw new Error(
+    throw incompatibleOperation(
       "GeminiProvider does not support audio transcription. Configure an adapter that explicitly supports transcription.",
     );
   }
@@ -206,7 +219,7 @@ export class GeminiProvider implements AiProvider {
     _request: AiProviderImageGenerationRequest,
     _options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
-    throw new Error(
+    throw incompatibleOperation(
       "GeminiProvider does not support image generation or editing in this project.",
     );
   }
