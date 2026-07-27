@@ -1,8 +1,10 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { listMeals } from "../meals/service";
+import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import { handleQuantityCorrectionIntent } from "./intent/gramsAdjustmentHandlers";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
+import { hasMultipleWhatsappFoodReplacementCommands } from "./replacementCommandDetection";
 import type { WhatsAppLogicalReply } from "./replyContract";
 
 export type WhatsappRecordAdjustmentInput = {
@@ -96,6 +98,22 @@ export async function executeWhatsappRecordAdjustmentIntent(
 ): Promise<WhatsappRecordAdjustmentResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
+
+  if (hasMultipleWhatsappFoodReplacementCommands(text)) {
+    const contextualReplacement =
+      await executeWhatsappContextualFoodReplacementIntent(userId, {
+        text,
+        receivedAt: input.receivedAt,
+        userTimezone: input.userTimezone ?? undefined,
+      });
+    if (contextualReplacement) {
+      return {
+        handled: true,
+        ...contextualReplacement,
+      };
+    }
+  }
+
   const intent = detectAdjustmentIntent(text);
   if (!intent) return null;
   if (intent.kind === "incomplete") return clarification("Comando de ajuste sem alvo suficiente.");

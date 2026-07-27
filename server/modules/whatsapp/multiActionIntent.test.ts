@@ -3,70 +3,16 @@ import { describe, expect, it } from "vitest";
 import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
 
 describe("executeWhatsappMultiActionIntent", () => {
-  it("decompoe multiplas trocas preservando ordem e modo transacional", () => {
-    const result = executeWhatsappMultiActionIntent({
-      text: "Não é peixe é frango, não é mandioquinha é batata doce",
-    });
-
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "multi_action_confirmation_needed",
-      eventType: "whatsapp.multi_action.confirmation_needed",
-      data: expect.objectContaining({
-        actionCount: 2,
-        transactionMode: "all_or_nothing",
-        partialSuccessAllowed: false,
-      }),
-    }));
-    expect(result?.data.extractedActions).toEqual([
-      expect.objectContaining({
-        order: 1,
-        actionType: "trocar_alimento",
-        sourceFood: "peixe",
-        targetFood: "frango",
-        validationStatus: "needs_confirmation",
-      }),
-      expect.objectContaining({
-        order: 2,
-        actionType: "trocar_alimento",
-        sourceFood: "mandioquinha",
-        targetFood: "batata doce",
-        validationStatus: "needs_confirmation",
-      }),
-    ]);
-  });
-
-  it("decompoe trocas repetidas mesmo sem virgula antes da segunda correcao", () => {
-    const result = executeWhatsappMultiActionIntent({
-      text: "Não é pão francês é pão de milho Não é mortadela é peito de peru",
-    });
-
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "multi_action_confirmation_needed",
-      data: expect.objectContaining({
-        actionCount: 2,
-        transactionMode: "all_or_nothing",
-        partialSuccessAllowed: false,
-      }),
-    }));
-    expect(result?.data.extractedActions).toEqual([
-      expect.objectContaining({
-        order: 1,
-        actionType: "trocar_alimento",
-        sourceFood: "pão francês",
-        targetFood: "pão de milho",
-        validationStatus: "needs_confirmation",
-      }),
-      expect.objectContaining({
-        order: 2,
-        actionType: "trocar_alimento",
-        sourceFood: "mortadela",
-        targetFood: "peito de peru",
-        validationStatus: "needs_confirmation",
-      }),
-    ]);
-  });
+  it.each([
+    "Não é peixe é frango, não é mandioquinha é batata doce",
+    "Não é pão francês é pão de milho Não é mortadela é peito de peru",
+    "Não é requeijão, é maionese.\nNão é presunto, é mortadela defumada",
+  ])(
+    "delega lotes formados somente por trocas ao handler contextual: %s",
+    text => {
+      expect(executeWhatsappMultiActionIntent({ text })).toBeNull();
+    }
+  );
 
   it("decompoe multiplas remocoes em uma unica resposta segura", () => {
     const result = executeWhatsappMultiActionIntent({
