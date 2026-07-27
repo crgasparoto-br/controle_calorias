@@ -3,6 +3,7 @@ import type {
   Response as OpenAiResponse,
   ResponseCreateParamsNonStreaming,
 } from "openai/resources/responses/responses";
+import { AiNonRetryableError } from "./ai/policyExecutor";
 import { ENV } from "./env";
 import { GeminiProvider } from "./geminiProvider";
 import { createOpenAiClient } from "./openaiClient";
@@ -16,7 +17,11 @@ export type AiProviderResponseFormat =
       strict?: boolean;
     };
 
-export type AiProviderTextTool = Record<string, unknown>;
+export type AiProviderWebSearchTool = {
+  type: "web_search" | "web_search_preview";
+};
+
+export type AiProviderTextTool = AiProviderWebSearchTool;
 
 export type AiProviderTextRequest = {
   model: string;
@@ -141,6 +146,34 @@ function buildTextConfig(
   };
 }
 
+function translateOpenAiTextTool(tool: unknown): Record<string, unknown> {
+  if (typeof tool !== "object" || tool === null || !("type" in tool)) {
+    throw new AiNonRetryableError(
+      "OpenAiProvider: text tool must declare a supported type before network access.",
+      undefined,
+      "incompatible_operation",
+    );
+  }
+
+  const type = (tool as { type?: unknown }).type;
+  if (type === "web_search" || type === "web_search_preview") {
+    return { type };
+  }
+
+  throw new AiNonRetryableError(
+    `OpenAiProvider: text tool type ${String(type)} is not supported by the internal adapter contract.`,
+    undefined,
+    "incompatible_operation",
+  );
+}
+
+function buildOpenAiTools(
+  tools: readonly AiProviderTextTool[] | undefined,
+): ResponseCreateParamsNonStreaming["tools"] | undefined {
+  if (!tools?.length) return undefined;
+  return tools.map(translateOpenAiTextTool) as ResponseCreateParamsNonStreaming["tools"];
+}
+
 type OpenAiClientFactory = () => OpenAI;
 
 function isOpenAiClientFactory(
@@ -243,9 +276,8 @@ export class OpenAiProvider implements AiProvider {
       stream: false,
     };
     if (request.instructions) payload.instructions = request.instructions;
-    if (request.tools?.length) {
-      (payload as unknown as { tools?: AiProviderTextTool[] }).tools = request.tools;
-    }
+    const tools = buildOpenAiTools(request.tools);
+    if (tools) payload.tools = tools;
     const text = buildTextConfig(request.format);
     if (text) payload.text = text;
 
