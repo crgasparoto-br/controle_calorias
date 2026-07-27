@@ -73,6 +73,25 @@ describe("capability config resolver", () => {
     expect(resolveCapabilityConfig("MEAL_TEXT", env).fallback.requested).toBe(false);
   });
 
+  it("degrades only the requested capability when the fallback key is absent", () => {
+    const env = envWith({
+      OPENAI_API_KEY: "sk-primary",
+      AI_MEAL_TEXT_FALLBACK_ENABLED: "true",
+      AI_MEAL_TEXT_FALLBACK_PROVIDER: "gemini",
+      AI_MEAL_TEXT_FALLBACK_MODEL: "gemini-2.5-flash",
+      AI_MEAL_TEXT_CROSS_PROVIDER_FALLBACK_ENABLED: "true",
+    });
+
+    const mealText = resolveCapabilityConfig("MEAL_TEXT", env);
+    expect(mealText.state).toBe("degraded");
+    expect(mealText.fallback.effectivelyEnabled).toBe(false);
+    expect(mealText.diagnostics.some(item => item.includes("fallback provider=gemini missing required secret"))).toBe(true);
+
+    const question = resolveCapabilityConfig("QUESTION", env);
+    expect(question.state).toBe("ready");
+    expect(question.fallback.requested).toBe(false);
+  });
+
   it("rejects cross-provider fallback without explicit opt-in", () => {
     const resolved = resolveCapabilityConfig("QUESTION", envWith({
       OPENAI_API_KEY: "sk-test",
