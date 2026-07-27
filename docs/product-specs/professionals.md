@@ -281,6 +281,7 @@ Ao encerrar ou revogar:
 - Solicitações de revisão do paciente são persistentes e idempotentes por meta, não alteram valores e são resolvidas quando o profissional ativa nova versão.
 - A ativação cria uma entrega WhatsApp persistente com chave idempotente. Falha ou ausência de canal não reverte a meta; status, tentativas e erro sanitizado permanecem disponíveis para retry profissional.
 - A notificação contém autor, versão, valores e vigência, mas nunca a justificativa profissional privada.
+- A área **Metas** do workspace profissional apresenta a versão atual e o histórico somente leitura com valores nutricionais, vigência, autoria, origem profissional, justificativa, exceções e relação de supersessão. A interface converte `supersedesGoalId` em referência à versão anterior e não expõe identificadores internos.
 - Sugestões legadas continuam separadas e nenhuma delas é promovida automaticamente a meta oficial.
 
 ## Alertas iniciais

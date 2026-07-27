@@ -144,6 +144,12 @@ assert_dom \
   "$GOALS_URL" \
   "Meta profissional oficial" \
   "Versão 3 ativa" \
+  "Histórico de metas oficiais" \
+  "Nutricionista de validação" \
+  "Origem: Profissional" \
+  "Substitui a versão 2" \
+  "Segunda-feira · 2 semanas" \
+  "2450 kcal · 192 g proteínas · 315 g carboidratos · 82 g gorduras" \
   "O paciente solicitou revisão desta meta." \
   "Exceções por dia" \
   "Dia da exceção 1" \

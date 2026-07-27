@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Plus, RotateCcw, Stethoscope, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -65,6 +65,55 @@ function tomorrowAfter(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
+const GOAL_HISTORY_PAGE_SIZE = 5;
+
+function formatDate(value?: string | number | Date | null) {
+  if (!value) return "Não informado";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Não informado";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function goalStatusLabel(status: string) {
+  if (status === "active") return "Ativa";
+  if (status === "superseded") return "Substituída";
+  if (status === "ended") return "Encerrada";
+  return "Não informado";
+}
+
+const WEEKDAY_LABELS = [
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+  "Domingo",
+] as const;
+
+function weekdayLabel(weekday: number) {
+  return WEEKDAY_LABELS[weekday] ?? "Dia não informado";
+}
+
+function durationLabel(durationType: string) {
+  if (durationType === "1_week") return "1 semana";
+  if (durationType === "2_weeks") return "2 semanas";
+  if (durationType === "3_weeks") return "3 semanas";
+  if (durationType === "always") return "Sempre";
+  return "Duração não informada";
+}
+
+function goalOriginLabel(origin: string) {
+  return origin === "professional" ? "Profissional" : "Não informada";
+}
+
 export default function ProfessionalOfficialGoalCard({
   patientId,
   disabled,
@@ -86,6 +135,26 @@ export default function ProfessionalOfficialGoalCard({
     { enabled: patientId > 0, retry: false }
   );
   const current = state.data?.current;
+  const history = state.data?.history ?? [];
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyTotalPages = Math.max(
+    1,
+    Math.ceil(history.length / GOAL_HISTORY_PAGE_SIZE)
+  );
+  const visibleHistory = history.slice(
+    (historyPage - 1) * GOAL_HISTORY_PAGE_SIZE,
+    historyPage * GOAL_HISTORY_PAGE_SIZE
+  );
+  const versionByGoalId = useMemo(
+    () => new Map(history.map(item => [item.id, item.version])),
+    [history]
+  );
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [patientId]);
+  useEffect(() => {
+    setHistoryPage(currentPage => Math.min(currentPage, historyTotalPages));
+  }, [historyTotalPages]);
   useEffect(() => {
     if (!current || draft.touched || draft.sourceGoalId === current.id) return;
     onDraftChange(existing => ({
@@ -214,6 +283,190 @@ export default function ProfessionalOfficialGoalCard({
             resolvida quando uma nova versão for ativada.
           </div>
         ) : null}
+        <section
+          aria-labelledby="professional-official-goal-history-title"
+          className="space-y-3 rounded-xl border p-4"
+        >
+          <div>
+            <h3
+              id="professional-official-goal-history-title"
+              className="font-semibold"
+            >
+              Histórico de metas oficiais
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Consulte valores, vigência, autoria, origem e a relação entre as
+              versões sem alterar registros anteriores.
+            </p>
+          </div>
+          {visibleHistory.length ? (
+            <div className="grid gap-3">
+              {visibleHistory.map(item => {
+                const supersededVersion = item.supersedesGoalId
+                  ? versionByGoalId.get(item.supersedesGoalId)
+                  : null;
+                return (
+                  <article
+                    key={item.id}
+                    className="grid min-w-0 gap-3 rounded-lg border bg-muted/10 p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">
+                          Versão {item.version} · {goalStatusLabel(item.status)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Criada em {formatDate(item.createdAt)} por{" "}
+                          {item.professionalName}
+                        </p>
+                      </div>
+                      <span className="rounded-full border px-2 py-1 text-xs font-medium">
+                        Origem: {goalOriginLabel(item.origin)}
+                      </span>
+                    </div>
+                    <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Calorias
+                        </dt>
+                        <dd className="font-medium">{item.calories} kcal</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Proteínas
+                        </dt>
+                        <dd className="font-medium">{item.proteinGrams} g</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Carboidratos
+                        </dt>
+                        <dd className="font-medium">{item.carbsGrams} g</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Gorduras
+                        </dt>
+                        <dd className="font-medium">{item.fatGrams} g</dd>
+                      </div>
+                    </dl>
+                    <dl className="grid gap-2 sm:grid-cols-2">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Vigência
+                        </dt>
+                        <dd className="font-medium">
+                          {formatDate(item.effectiveFrom)} até{" "}
+                          {item.effectiveUntil
+                            ? formatDate(item.effectiveUntil)
+                            : "vigente"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Relação entre versões
+                        </dt>
+                        <dd className="font-medium">
+                          {supersededVersion
+                            ? `Substitui a versão ${supersededVersion}`
+                            : "Primeira versão oficial"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Ajuste por exercícios
+                        </dt>
+                        <dd className="font-medium">
+                          {item.includeExerciseCalories
+                            ? "Incluído na meta ajustada"
+                            : "Não incluído na meta ajustada"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Exceções
+                        </dt>
+                        <dd className="font-medium">
+                          {item.exceptions.length
+                            ? `${item.exceptions.length} configurada(s)`
+                            : "Nenhuma"}
+                        </dd>
+                      </div>
+                    </dl>
+                    {item.exceptions.length ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Valores das exceções históricas
+                        </p>
+                        <ul className="grid gap-2 sm:grid-cols-2">
+                          {item.exceptions.map((exception, index) => (
+                            <li
+                              key={`${item.id}-${exception.weekday}-${
+                                exception.startDate ?? index
+                              }`}
+                              className="rounded-md border bg-background p-2"
+                            >
+                              <p className="font-medium">
+                                {weekdayLabel(exception.weekday)} ·{" "}
+                                {durationLabel(exception.durationType)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {exception.calories} kcal ·{" "}
+                                {exception.proteinGrams} g proteínas ·{" "}
+                                {exception.carbsGrams} g carboidratos ·{" "}
+                                {exception.fatGrams} g gorduras
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        Justificativa profissional
+                      </p>
+                      <p className="break-words font-medium">
+                        {item.justification || "Não informada"}
+                      </p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              Nenhuma versão oficial foi registrada.
+            </p>
+          )}
+          {history.length > GOAL_HISTORY_PAGE_SIZE ? (
+            <nav
+              aria-label="Paginação do histórico de metas oficiais"
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                disabled={historyPage <= 1}
+                onClick={() => setHistoryPage(page => Math.max(1, page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Página {historyPage} de {historyTotalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={historyPage >= historyTotalPages}
+                onClick={() =>
+                  setHistoryPage(page => Math.min(historyTotalPages, page + 1))
+                }
+              >
+                Próxima
+              </Button>
+            </nav>
+          ) : null}
+        </section>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {(
             ["calories", "proteinGrams", "carbsGrams", "fatGrams"] as const

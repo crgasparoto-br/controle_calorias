@@ -115,10 +115,14 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 21. Avançar avaliações para a página 2, alternar por anotações, relatório e mensagens e retornar à avaliação; a página 2 deve permanecer associada ao mesmo `authorizationId`/`patientId`.
 22. Com um paciente já validado e visível, iniciar refetch de perfil e contexto, inclusive por foco e intervalo; cabeçalho, workspace e paginação devem permanecer montados. Repetir com erro transitório para confirmar aviso recuperável e com `FORBIDDEN` para confirmar limpeza imediata.
 23. Em Metas, alterar alvo, vigência, justificativa e exceções; navegar para Relatórios e Mensagens enquanto a validação do entitlement exato permanece pendente. O cabeçalho e a instância do workspace devem continuar montados, o conteúdo da nova seção não pode aparecer antes da autorização, e ao retornar a Metas todo o rascunho deve ser restaurado. Repetir com falha transitória para confirmar retry sem perda e com `FORBIDDEN` para confirmar limpeza imediata do contexto e do snapshot.
+24. Persistir duas ou mais metas oficiais com valores, vigências e justificativas deliberadamente diferentes. Em **Metas**, confirmar versão atual e anteriores, autoria, origem, intervalo de vigência, exceções, ajuste por exercício e a relação “substitui a versão N”. IDs internos não podem aparecer e a paginação local deve permitir alcançar todas as versões retornadas.
+25. Usar datas divergentes entre `latestAssessment.nextReviewAt` e `professionalPatientTrackings.nextReviewAt`. O cabeçalho e o resumo **Situação atual** devem exibir exclusivamente a data canônica do tracking; a data antiga da avaliação não pode reaparecer como próxima revisão.
 
 ## Cabeçalho contextual
 
 A última atividade do cabeçalho vem do primeiro evento da timeline canônica ordenada pelo backend por `occurredAt DESC, id DESC`, nunca da próxima revisão. O teste deve usar tipos e datas divergentes e comprovar que o cabeçalho exibe o rótulo semântico antes do timestamp; uma implementação que retorne somente a data deve falhar. O fallback `Não informado` é usado somente sem atividade.
+
+A próxima revisão exibida no cabeçalho, na carteira e no resumo do workspace vem exclusivamente de `professionalPatientTrackings.nextReviewAt`. `latestAssessment.nextReviewAt` registra o valor informado naquela versão da avaliação, mas não substitui a agenda canônica após reagendamento ou atualização do acompanhamento.
 
 ## Fechamento semântico da timeline
 

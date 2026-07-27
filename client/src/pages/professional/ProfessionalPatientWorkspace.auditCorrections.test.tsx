@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let location = "/professional/patients/41/assessment";
 let selectedPatientId = 41;
 let selectedAuthorizationId = "authorization-41";
+let selectedNextReviewAt: number | null = null;
 let routeAccessStatus: "ready" | "validating" | "error" = "ready";
 let recordData: any;
 const setLocation = vi.fn();
@@ -33,7 +34,7 @@ vi.mock("@/components/ProfessionalLayout", () => ({
       displayName: `Paciente ${selectedPatientId}`,
       authorizationStatus: "approved",
       lastActivityAt: null,
-      nextReviewAt: null,
+      nextReviewAt: selectedNextReviewAt,
       trackingStatus: "active",
     },
     routeAccessStatus,
@@ -280,6 +281,7 @@ beforeEach(() => {
   location = "/professional/patients/41/assessment";
   selectedPatientId = 41;
   selectedAuthorizationId = "authorization-41";
+  selectedNextReviewAt = null;
   routeAccessStatus = "ready";
   recordData = recordFixture();
   contextInvalidate.mockClear();
@@ -447,6 +449,26 @@ describe("professional patient workspace audit corrections", () => {
     ]) {
       expect(screen.queryByText(eventType)).toBeNull();
     }
+  });
+
+  it("uses the canonical tracking review date in the workspace summary", () => {
+    location = "/professional/patients/41";
+    selectedNextReviewAt = Date.UTC(2026, 8, 15, 12);
+    recordData = recordFixture({
+      latestAssessment: {
+        id: "assessment-latest",
+        version: 4,
+        objective: "Reduzir gordura corporal",
+        assessedAt: Date.UTC(2026, 6, 20, 12),
+        nextReviewAt: Date.UTC(2026, 7, 1, 12),
+        authorName: "Nutricionista",
+      },
+    });
+
+    render(<ProfessionalPatientWorkspace />);
+
+    expect(screen.getByText(/15\/09\/2026/)).toBeTruthy();
+    expect(screen.queryByText(/01\/08\/2026/)).toBeNull();
   });
 
   it("restores a draft after a cancelled popstate fallback remount without leaking it to another patient", async () => {

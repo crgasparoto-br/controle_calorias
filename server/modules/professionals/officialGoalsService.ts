@@ -692,7 +692,11 @@ export async function getProfessionalOfficialGoalState(
     );
   const [goalResult, reviewResult, notificationResult] = await Promise.all([
     db.execute(
-      sql`SELECT * FROM professionalOfficialGoals WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${patientUserId} ORDER BY version DESC LIMIT 100`
+      sql`SELECT g.*, p.displayName AS professionalDisplayName
+      FROM professionalOfficialGoals g
+      LEFT JOIN professionalProfiles p ON p.userId = g.professionalUserId
+      WHERE g.professionalUserId = ${professionalUserId} AND g.patientUserId = ${patientUserId}
+      ORDER BY g.version DESC LIMIT 100`
     ),
     db.execute(
       sql`SELECT id, goalId, reason, status, createdAt FROM professionalGoalReviewRequests WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${patientUserId} ORDER BY createdAt DESC LIMIT 100`
@@ -714,6 +718,13 @@ export async function getProfessionalOfficialGoalState(
     effectiveFrom: dateKey(row.effectiveFrom),
     effectiveUntil: dateKey(row.effectiveUntil),
     justification: String(row.justification ?? ""),
+    professionalName: String(
+      row.professionalDisplayName ?? "Profissional responsável"
+    ),
+    origin: "professional" as const,
+    supersedesGoalId: row.supersedesGoalId
+      ? String(row.supersedesGoalId)
+      : null,
     createdAt: timestamp(row.createdAt),
     active: Boolean(row.activePatientKey),
   }));

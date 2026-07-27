@@ -536,11 +536,13 @@ function SummarySection({
   active,
   patientId,
   record,
+  nextReviewAt,
   navigate,
 }: {
   active: boolean;
   patientId: number;
   record: any;
+  nextReviewAt?: number | null;
   navigate: (path: string) => void;
 }) {
   const latest = record.latestAssessment;
@@ -614,8 +616,8 @@ function SummarySection({
             <div className="rounded-xl border p-3">
               <p className="text-xs text-muted-foreground">Próxima revisão</p>
               <p className="mt-1 font-medium">
-                {latest?.nextReviewAt
-                  ? formatDate(latest.nextReviewAt)
+                {nextReviewAt
+                  ? formatDate(nextReviewAt)
                   : "Sem revisão agendada"}
               </p>
             </div>
@@ -1468,6 +1470,7 @@ export default function ProfessionalPatientWorkspace() {
         active={active}
         patientId={patientId}
         record={professionalRecord}
+        nextReviewAt={selectedPatient.nextReviewAt ?? null}
         navigate={navigate}
       />
     );

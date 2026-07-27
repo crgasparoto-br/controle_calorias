@@ -199,17 +199,78 @@ function operationalAlertsQuery() {
 }
 
 function officialGoalQuery() {
-  return querySuccess({
-    current: {
+  const history = [
+    {
       id: "goal-visual-3",
       version: 3,
+      status: "active",
       calories: 2345,
       proteinGrams: 187,
       carbsGrams: 301,
       fatGrams: 79,
+      exceptions: [
+        {
+          weekday: 0,
+          durationType: "2_weeks",
+          calories: 2450,
+          proteinGrams: 192,
+          carbsGrams: 315,
+          fatGrams: 82,
+          startDate: "2026-07-01",
+        },
+      ],
       includeExerciseCalories: true,
       effectiveFrom: "2026-07-01",
+      effectiveUntil: null,
+      justification: "Revisão oficial para o ciclo atual",
+      professionalName: "Nutricionista de validação",
+      origin: "professional",
+      supersedesGoalId: "goal-visual-2",
+      createdAt: now - 2 * 86_400_000,
+      active: true,
     },
+    {
+      id: "goal-visual-2",
+      version: 2,
+      status: "superseded",
+      calories: 2190,
+      proteinGrams: 172,
+      carbsGrams: 280,
+      fatGrams: 74,
+      exceptions: [],
+      includeExerciseCalories: false,
+      effectiveFrom: "2026-06-01",
+      effectiveUntil: "2026-07-01",
+      justification: "Meta oficial do ciclo anterior",
+      professionalName: "Nutricionista de validação",
+      origin: "professional",
+      supersedesGoalId: "goal-visual-1",
+      createdAt: now - 32 * 86_400_000,
+      active: false,
+    },
+    {
+      id: "goal-visual-1",
+      version: 1,
+      status: "superseded",
+      calories: 2050,
+      proteinGrams: 160,
+      carbsGrams: 260,
+      fatGrams: 70,
+      exceptions: [],
+      includeExerciseCalories: false,
+      effectiveFrom: "2026-05-01",
+      effectiveUntil: "2026-06-01",
+      justification: "Primeira meta oficial registrada",
+      professionalName: "Nutricionista de validação",
+      origin: "professional",
+      supersedesGoalId: null,
+      createdAt: now - 62 * 86_400_000,
+      active: false,
+    },
+  ];
+  return querySuccess({
+    current: history[0],
+    history,
     reviewRequests: [
       {
         id: "review-visual-1",
