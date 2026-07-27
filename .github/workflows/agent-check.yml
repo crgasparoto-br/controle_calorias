@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -144,8 +146,8 @@ jobs:
       - name: Create exact-head repository bundle
         run: |
           mkdir -p /tmp/agent-first-repository
-          git fetch --no-tags --depth=1 origin "${VERIFICATION_HEAD_SHA}"
-          git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git fetch --no-tags origin "${VERIFICATION_HEAD_SHA}"
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref || github.ref_name }}"
           git update-ref refs/orchestrator/head "${VERIFICATION_HEAD_SHA}"
           git update-ref refs/orchestrator/base "origin/${{ github.event.pull_request.base.ref || github.ref_name }}"
           git bundle create /tmp/agent-first-repository/repository.bundle \
