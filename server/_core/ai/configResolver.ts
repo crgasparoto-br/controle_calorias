@@ -210,6 +210,32 @@ function resolveModel(
   };
 }
 
+function resolveFallbackModel(
+  capability: AiCapabilityId,
+  provider: AiProviderId,
+  primaryProvider: AiProviderId,
+  primaryModel: string,
+  env: NodeJS.ProcessEnv,
+): { model: string; usedLegacy: boolean; legacyEnv?: string } {
+  const explicitModel = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
+  if (explicitModel) return { model: explicitModel, usedLegacy: false };
+
+  const mapping = LEGACY_MAPPING[capability];
+  const legacyEnv = mapping.legacyModelEnvByProvider?.[provider];
+  if (legacyEnv) {
+    const legacyModel = readTrimmed(env, legacyEnv);
+    if (legacyModel) return { model: legacyModel, usedLegacy: true, legacyEnv };
+  }
+
+  const defaultModel = mapping.defaultModelByProvider[provider]?.trim() ?? "";
+  if (defaultModel) return { model: defaultModel, usedLegacy: false };
+
+  return {
+    model: provider === primaryProvider ? primaryModel : "",
+    usedLegacy: false,
+  };
+}
+
 function emptyFallback(requested = false): ResolvedFallbackPolicy {
   return {
     requested,
@@ -325,11 +351,21 @@ export function resolveCapabilityConfig(
     } else {
       const fallbackProvider = normalizedFallbackProvider;
       const isCrossProvider = fallbackProvider !== provider;
-      const fallbackModelRaw = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
-      const fallbackModel =
-        fallbackModelRaw ||
-        LEGACY_MAPPING[capability].defaultModelByProvider[fallbackProvider]?.trim() ||
-        (isCrossProvider ? "" : modelResolution.model);
+      const fallbackModelResolution = resolveFallbackModel(
+        capability,
+        fallbackProvider,
+        provider,
+        modelResolution.model,
+        env,
+      );
+      const fallbackModel = fallbackModelResolution.model;
+
+      if (fallbackModelResolution.usedLegacy) {
+        usedLegacyVariables = true;
+        diagnostics.push(
+          `[deprecated] capability=${capability} resolved fallback model via legacy variable ${fallbackModelResolution.legacyEnv}; migrate to AI_${capability}_FALLBACK_MODEL`,
+        );
+      }
 
       if (isCrossProvider && !crossProviderEnabled) {
         diagnostics.push(
