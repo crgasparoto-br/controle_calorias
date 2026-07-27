@@ -26,9 +26,17 @@ export type AiProviderTextRequest = {
   tools?: AiProviderTextTool[];
 };
 
+export type AiProviderUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  raw: unknown;
+};
+
 export type AiProviderTextResponse = {
   id: string;
   outputText: string;
+  usage?: AiProviderUsage;
   raw: unknown;
 };
 
@@ -96,10 +104,7 @@ export interface AiProvider {
 function buildTextConfig(
   format: AiProviderResponseFormat | undefined,
 ): ResponseCreateParamsNonStreaming["text"] | undefined {
-  if (!format || format.type === "text") {
-    return undefined;
-  }
-
+  if (!format || format.type === "text") return undefined;
   return {
     format: {
       type: "json_schema",
@@ -122,7 +127,6 @@ function buildTranscriptionResponse(
   response: unknown,
 ): AiProviderAudioTranscriptionResponse {
   const data = response as Partial<AiProviderAudioTranscriptionResponse>;
-
   return {
     task: "transcribe",
     language: typeof data.language === "string" ? data.language : "",
@@ -138,10 +142,7 @@ function buildTranscriptionResponse(
 function mimeTypeFromOutputFormat(
   outputFormat: AiProviderImageGenerationRequest["outputFormat"] = "png",
 ) {
-  if (outputFormat === "jpeg") {
-    return "image/jpeg";
-  }
-
+  if (outputFormat === "jpeg") return "image/jpeg";
   return `image/${outputFormat}`;
 }
 
@@ -164,6 +165,19 @@ function firstImageData(response: { data?: Array<{ b64_json?: string }> }) {
   return response.data?.[0]?.b64_json;
 }
 
+function normalizeOpenAiUsage(response: OpenAiResponse): AiProviderUsage | undefined {
+  const usage = (response as unknown as {
+    usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+  }).usage;
+  if (!usage) return undefined;
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    totalTokens: usage.total_tokens,
+    raw: usage,
+  };
+}
+
 export class OpenAiProvider implements AiProvider {
   private resolvedClient: OpenAI | null = null;
 
@@ -175,7 +189,6 @@ export class OpenAiProvider implements AiProvider {
         ? this.client()
         : this.client;
     }
-
     return this.resolvedClient;
   }
 
@@ -187,27 +200,18 @@ export class OpenAiProvider implements AiProvider {
       input: request.input,
       stream: false,
     };
-
-    if (request.instructions) {
-      payload.instructions = request.instructions;
-    }
-
+    if (request.instructions) payload.instructions = request.instructions;
     if (request.tools?.length) {
       (payload as unknown as { tools?: AiProviderTextTool[] }).tools = request.tools;
     }
-
     const text = buildTextConfig(request.format);
-    if (text) {
-      payload.text = text;
-    }
+    if (text) payload.text = text;
 
-    const response = (await this.getClient().responses.create(
-      payload,
-    )) as OpenAiResponse;
-
+    const response = (await this.getClient().responses.create(payload)) as OpenAiResponse;
     return {
       id: response.id,
       outputText: response.output_text ?? "",
+      usage: normalizeOpenAiUsage(response),
       raw: response,
     };
   }
@@ -222,7 +226,6 @@ export class OpenAiProvider implements AiProvider {
       ...(request.language ? { language: request.language } : {}),
       ...(request.prompt ? { prompt: request.prompt } : {}),
     });
-
     return buildTranscriptionResponse(response);
   }
 
@@ -248,10 +251,7 @@ export class OpenAiProvider implements AiProvider {
         });
 
     const imageData = firstImageData(response);
-    if (!imageData) {
-      throw new Error("OpenAI image provider returned no image data.");
-    }
-
+    if (!imageData) throw new Error("OpenAI image provider returned no image data.");
     return {
       b64Json: imageData,
       mimeType: mimeTypeFromOutputFormat(request.outputFormat),
@@ -277,9 +277,7 @@ const geminiProviderFactory: AiProviderFactory = () => {
 };
 
 const defaultAiProviderFactory: AiProviderFactory = () => {
-  if (ENV.aiVisionProvider === "gemini") {
-    return geminiProviderFactory();
-  }
+  if (ENV.aiVisionProvider === "gemini") return geminiProviderFactory();
   return openAiProviderFactory();
 };
 
