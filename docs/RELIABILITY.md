@@ -114,19 +114,21 @@ pnpm db:check-integrity
 
 `server/_core/ai/` define o registro de capacidades, a matriz de suporte, o resolvedor e o executor comum:
 
-- `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
-- A matriz representa somente operações implementadas no adapter do projeto. Gemini suporta hoje texto, visão e Structured Output; embeddings permanecem indisponíveis até existir método dedicado e teste de integração.
+- `QUESTION` exige geração textual e pesquisa web porque o consumidor legado de perguntas sempre envia `web_search_preview`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente com consumidor legado direto. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
+- A matriz representa somente operações implementadas no adapter do projeto. OpenAI expõe métodos explícitos para texto/multimodal, embeddings, transcrição e imagem; Gemini suporta hoje texto, visão e Structured Output. Pesquisa web e embeddings Gemini permanecem indisponíveis até existir tradução/método e teste de integração.
+- Todo campo aceito pelo request comum precisa ser traduzido ou rejeitado localmente. O Gemini rejeita requests com `tools` antes da rede enquanto a tradução para Google Search não estiver implementada; nunca descarta a ferramenta silenciosamente.
 - `OPENAI_BASE_URL` não vazio ativa automaticamente o modo `openai-compatible`; o endpoint começa sem operações suportadas e exige allowlist explícita em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
 - Timeout e tentativas inválidos tornam a capacidade `invalid`; não são aceitos como configuração pronta.
+- O executor rejeita estados `invalid` e `disabled`, limites não positivos/não inteiros e fallback habilitado sem callback antes de qualquer chamada. Estado `degraded` só executa quando o primário continua válido.
 - Variáveis novas prevalecem sobre variáveis legadas. Para os fluxos de texto/visão, a compatibilidade preserva `OPENAI_MODEL` ou `GEMINI_MODEL` conforme o provider efetivo.
 - O fallback usa modelo próprio do provider de destino. Um modelo do primário nunca é reutilizado silenciosamente em provider diferente.
 - Erros concretos de SDK/HTTP/rede são classificados pelo executor. Timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem acionar a política limitada; autenticação, modelo ausente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam segundo provider.
-- Cada callback recebe `AbortSignal`. Depois do timeout, o executor aguarda o encerramento da chamada antes de retry/fallback; se a chamada não reconhecer o cancelamento na janela definida, a execução termina sem nova chamada.
+- Cada tentativa recebe `AbortSignal`; o contrato `AiProvider` e os adapters OpenAI/Gemini propagam o sinal para a chamada do SDK. Depois do timeout, o executor aguarda o encerramento local da chamada antes de retry/fallback; se a chamada não reconhecer o cancelamento na janela definida, a execução termina sem nova chamada. O cancelamento do cliente não deve ser interpretado como garantia de interrupção do processamento remoto ou de ausência de cobrança pelo provider.
 - `MAX_ATTEMPTS` é o total de chamadas do primário. Depois delas, existe no máximo uma chamada de fallback, sem retorno ao primário e sem cadeia adicional.
 - Escalonamento de qualidade é política separada e não é ativado nesta fase.
 - Degradação funcional local, como busca não semântica ou anotação local, não é fallback de provider.
-- O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui teste de integração com seu schema completo.
-- Respostas textuais podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
+- O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui testes pelo entrypoint real para texto e para o data URL inline de imagem produzido pelo WhatsApp.
+- Respostas textuais e de embeddings podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
 - Nenhum consumidor existente foi migrado para o novo resolvedor nesta issue.
 
 ## Mutações multirrefeição pelo WhatsApp
