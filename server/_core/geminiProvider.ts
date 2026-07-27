@@ -9,8 +9,11 @@ import type {
   AiProvider,
   AiProviderAudioTranscriptionRequest,
   AiProviderAudioTranscriptionResponse,
+  AiProviderEmbeddingRequest,
+  AiProviderEmbeddingResponse,
   AiProviderImageGenerationRequest,
   AiProviderImageGenerationResponse,
+  AiProviderRequestOptions,
   AiProviderTextRequest,
   AiProviderTextResponse,
 } from "./aiProvider";
@@ -20,8 +23,8 @@ import type {
  *
  * Structured output uses `responseJsonSchema` so the JSON Schema used by the
  * existing meal consumer is preserved instead of being lossy-converted to the
- * smaller OpenAPI-style `Schema` type. Unsupported constructs are rejected
- * locally before any network call.
+ * smaller OpenAPI-style `Schema` type. Unsupported constructs and tools are
+ * rejected locally before any network call.
  */
 
 function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] {
@@ -112,7 +115,17 @@ function assertRepresentableSchema(value: unknown, path = "$"): void {
   }
 }
 
-function buildGenerationConfig(request: AiProviderTextRequest): GenerateContentConfig {
+function assertRepresentableTools(request: AiProviderTextRequest): void {
+  if (!request.tools?.length) return;
+  throw new Error(
+    "GeminiProvider: request tools are not representable by the current adapter. Google Search translation must be implemented explicitly before network access.",
+  );
+}
+
+function buildGenerationConfig(
+  request: AiProviderTextRequest,
+  options?: AiProviderRequestOptions,
+): GenerateContentConfig {
   const config: GenerateContentConfig = { maxOutputTokens: 8192 };
 
   if (request.format?.type === "json_schema") {
@@ -120,12 +133,12 @@ function buildGenerationConfig(request: AiProviderTextRequest): GenerateContentC
     config.responseMimeType = "application/json";
     // responseJsonSchema preserves nullable types, additionalProperties=false,
     // numeric limits and array constraints used by the project's real schemas.
-    (config as GenerateContentConfig & { responseJsonSchema?: unknown }).responseJsonSchema =
-      request.format.schema;
+    config.responseJsonSchema = request.format.schema;
   }
 
   const systemInstruction = buildSystemInstruction(request.instructions);
   if (systemInstruction) config.systemInstruction = systemInstruction;
+  if (options?.signal) config.abortSignal = options.signal;
   return config;
 }
 
@@ -136,7 +149,11 @@ export class GeminiProvider implements AiProvider {
     this.client = new GoogleGenAI({ apiKey });
   }
 
-  async createTextResponse(request: AiProviderTextRequest): Promise<AiProviderTextResponse> {
+  async createTextResponse(
+    request: AiProviderTextRequest,
+    options?: AiProviderRequestOptions,
+  ): Promise<AiProviderTextResponse> {
+    assertRepresentableTools(request);
     const parts = buildGeminiParts(request.input);
     if (!parts.length) {
       throw new Error("GeminiProvider: no content parts could be extracted from the request input.");
@@ -146,7 +163,7 @@ export class GeminiProvider implements AiProvider {
     const response = await this.client.models.generateContent({
       model: request.model,
       contents,
-      config: buildGenerationConfig(request),
+      config: buildGenerationConfig(request, options),
     });
 
     const usageMetadata = response.usageMetadata;
@@ -167,8 +184,18 @@ export class GeminiProvider implements AiProvider {
     } as AiProviderTextResponse;
   }
 
+  async createEmbeddings(
+    _request: AiProviderEmbeddingRequest,
+    _options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse> {
+    throw new Error(
+      "GeminiProvider does not support embeddings in this project. Configure an adapter that explicitly supports embeddings.",
+    );
+  }
+
   async createAudioTranscription(
     _request: AiProviderAudioTranscriptionRequest,
+    _options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {
     throw new Error(
       "GeminiProvider does not support audio transcription. Configure an adapter that explicitly supports transcription.",
@@ -177,6 +204,7 @@ export class GeminiProvider implements AiProvider {
 
   async createImageGeneration(
     _request: AiProviderImageGenerationRequest,
+    _options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
     throw new Error(
       "GeminiProvider does not support image generation or editing in this project.",
