@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
 import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import {
+  ensureProfessionalRuntimeSchemaCompatibility,
+} from "../server/modules/professionals/runtimeSchemaCompatibility";
+import {
   cancelProfessionalOperationalRequest,
   closeProfessionalOperationalAlert,
   createProfessionalOperationalRequest,
@@ -170,6 +173,8 @@ async function findRequestAlert(
 }
 
 async function main() {
+  await ensureProfessionalRuntimeSchemaCompatibility();
+
   const connection = await mysql.createConnection(
     shouldEnableRuntimeDatabaseSsl(databaseUrl)
       ? { uri: databaseUrl, ssl: { minVersion: "TLSv1.2" } }
