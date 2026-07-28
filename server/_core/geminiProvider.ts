@@ -35,6 +35,14 @@ function invalidPayload(message: string): AiOperationalError {
   return new AiOperationalError(message, undefined, "invalid_payload");
 }
 
+const SUPPORTED_INLINE_IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+
 function buildInlineImagePart(imageUrl: string, path: string): Part {
   const commaIndex = imageUrl.indexOf(",");
   if (commaIndex < 0) {
@@ -50,7 +58,14 @@ function buildInlineImagePart(imageUrl: string, path: string): Part {
     );
   }
 
-  return { inlineData: { mimeType: headerMatch[1], data } };
+  const mimeType = headerMatch[1].toLowerCase();
+  if (!SUPPORTED_INLINE_IMAGE_MIME_TYPES.has(mimeType)) {
+    throw incompatibleOperation(
+      `GeminiProvider: ${path} uses unsupported image MIME type ${mimeType}.`,
+    );
+  }
+
+  return { inlineData: { mimeType, data } };
 }
 
 function buildGeminiMessageParts(content: unknown, messagePath: string): Part[] {
