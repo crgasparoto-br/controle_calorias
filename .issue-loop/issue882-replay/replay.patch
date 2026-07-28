@@ -1,0 +1,121 @@
+--- a/server/modules/professionals/messageService.ts
++++ b/server/modules/professionals/messageService.ts
+@@ -216,6 +216,13 @@
+   input: ProfessionalMessageCreateInput
+ ) {
+   const scope = await professionalScope(professionalUserId, input.patientId);
++  const existing = await recoverIdempotentCreate(
++    scope.db,
++    professionalUserId,
++    scope.authorizationId,
++    input
++  );
++  if (existing) return existing;
+   assertCanCreate(scope.trackingStatus, input.messageType);
+   if (input.origin === "automatic" && input.action !== "save_draft")
+     throw new Error(
+--- a/server/modules/professionals/messageService.idempotency.test.ts
++++ b/server/modules/professionals/messageService.idempotency.test.ts
+@@ -28,13 +28,16 @@
+   idempotencyKey: "professional-message-key-123",
+ };
+ 
+-function scopeRow(authorizationId = "authorization-41") {
++function scopeRow(
++  authorizationId = "authorization-41",
++  trackingStatus = "active"
++) {
+   return [
+     [
+       {
+         authorizationId,
+         authorizationStatus: "approved",
+-        trackingStatus: "active",
++        trackingStatus,
+         profileActive: 1,
+       },
+     ],
+@@ -66,8 +69,11 @@
+ function duplicateDb(options: {
+   scopedRow: Record<string, unknown> | null;
+   collisionExists?: boolean;
++  trackingStatus?: string;
+ }) {
+-  const execute = vi.fn().mockResolvedValueOnce(scopeRow());
++  const execute = vi
++    .fn()
++    .mockResolvedValueOnce(scopeRow("authorization-41", options.trackingStatus));
+   execute.mockResolvedValueOnce(
+     options.scopedRow ? [[options.scopedRow]] : [[]]
+   );
+@@ -75,6 +81,9 @@
+     execute.mockResolvedValueOnce(
+       options.collisionExists ? [[{ id: "message-collision" }]] : [[]]
+     );
++    if (!options.collisionExists) {
++      execute.mockResolvedValueOnce([[]]).mockResolvedValueOnce([[]]);
++    }
+   }
+   const txExecute = vi
+     .fn()
+@@ -107,6 +116,21 @@
+       state: "draft",
+     });
+     expect(db.execute).toHaveBeenCalledTimes(2);
++    expect(db.transaction).not.toHaveBeenCalled();
++  });
++
++  it("returns an equivalent replay after tracking has ended without creating again", async () => {
++    const db = duplicateDb({
++      scopedRow: existingRow(),
++      trackingStatus: "ended",
++    });
++    mocks.getDb.mockResolvedValue(db);
++
++    await expect(createProfessionalMessage(7, baseInput)).resolves.toMatchObject({
++      id: "message-existing",
++      requestedAction: "save_draft",
++    });
++    expect(db.transaction).not.toHaveBeenCalled();
+   });
+ 
+   it.each([
+@@ -132,6 +156,7 @@
+         conflictMessage
+       );
+       expect(db.execute).toHaveBeenCalledTimes(3);
++      expect(db.transaction).not.toHaveBeenCalled();
+     }
+   );
+ 
+--- a/scripts/test-professional-message-idempotency-tidb.ts
++++ b/scripts/test-professional-message-idempotency-tidb.ts
+@@ -216,11 +216,27 @@
+       ids.professional,
+       originalInput
+     );
++    await connection.query(
++      `UPDATE professionalPatientTrackings SET status = 'ended', endedAt = NOW(),
++        lastTransitionAt = NOW(), lastTransitionByUserId = ?
++       WHERE authorizationId = 'authorization-message-a'`,
++      [ids.professional]
++    );
+     const replay = await createProfessionalMessage(
+       ids.professional,
+       originalInput
+     );
+-    assert.equal(replay.id, original.id, "equivalent replay must reuse the logical message");
++    assert.equal(
++      replay.id,
++      original.id,
++      "equivalent replay must reuse the logical message after tracking changes"
++    );
++    await connection.query(
++      `UPDATE professionalPatientTrackings SET status = 'active', endedAt = NULL,
++        lastTransitionAt = NOW(), lastTransitionByUserId = ?
++       WHERE authorizationId = 'authorization-message-a'`,
++      [ids.professional]
++    );
+ 
+     await expectSafeConflict(() =>
+       createProfessionalMessage(ids.professional, {
