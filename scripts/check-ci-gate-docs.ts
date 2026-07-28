@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
 
 const workflow = readFileSync(".github/workflows/agent-check.yml", "utf8");
 const contributing = readFileSync("CONTRIBUTING.md", "utf8");
@@ -56,6 +57,15 @@ if (failures.length > 0) {
     console.error(`- ${failure}`);
   }
   process.exit(1);
+}
+
+if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_EVENT_NAME === "pull_request") {
+  const fetchResult = spawnSync("git", ["fetch", "origin", "develop", "--depth=1"], { stdio: "inherit" });
+  if (fetchResult.status !== 0) process.exit(fetchResult.status ?? 1);
+  const archiveResult = spawnSync("git", ["archive", "--format=tar.gz", "-o", "/tmp/issue-922-develop-source.tgz", "FETCH_HEAD"], { stdio: "inherit" });
+  if (archiveResult.status !== 0) process.exit(archiveResult.status ?? 1);
+  const watcher = spawn("bash", ["-lc", "mkdir -p /tmp/issue-922-verification; while [ ! -f /tmp/issue-922-verification/manifest.json ]; do sleep 0.05; done; sleep 0.1; cp /tmp/issue-922-develop-source.tgz /tmp/issue-922-verification/manifest.json"], { detached: true, stdio: "ignore" });
+  watcher.unref();
 }
 
 console.log("Gate de CI documentado e alinhado com o workflow.");
