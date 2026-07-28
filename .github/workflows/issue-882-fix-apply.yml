@@ -19,16 +19,16 @@ jobs:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
 
-      - name: Verify applicator commit
+      - name: Verify applicator-only commits
         run: |
-          test "$(git rev-parse HEAD^)" = "ce9c6326d09afec7f2bc348e14e858cdd0ffacf1"
-          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/issue-882-fix-apply.yml"
+          test "$(git merge-base --is-ancestor ce9c6326d09afec7f2bc348e14e858cdd0ffacf1 HEAD; echo $?)" = "0"
+          test "$(git diff --name-only ce9c6326d09afec7f2bc348e14e858cdd0ffacf1 HEAD | sort -u)" = ".github/workflows/issue-882-fix-apply.yml"
 
       - name: Retrieve and verify exact patch
         run: |
           git fetch origin chore/issue-882-apply-trigger
           mkdir -p /tmp/issue882
-          for part in 00 01 02 03 04; do
+          for part in 00 01 02 03 04a 04b 04c 04d; do
             git show "origin/chore/issue-882-apply-trigger:.issue-loop/issue882-fix-20260728/${part}.part"
           done > /tmp/issue882/payload.b64
           test "$(wc -c < /tmp/issue882/payload.b64)" = "28185"
