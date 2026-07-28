@@ -78,11 +78,13 @@ describe("professionalPortfolioRepository", () => {
     expect(queries[0].sql).toContain("t.`nextReviewAt`");
     expect(queries[0].sql).toContain("t.`nextWeighingAt`");
     expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
-    expect(queries[0].sql).toContain("COALESCE(CONVERT_TZ");
+    expect(queries[0].sql).toMatch(/COALESCE\s*\(\s*CONVERT_TZ\s*\(/);
     expect(queries[0].sql).toContain(
       "NULLIF(TRIM(periodProfile.`timezone`), '')"
     );
-    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.`occurredAt`");
+    expect(queries[0].sql).toMatch(
+      /CONVERT_TZ\s*\(\s*periodMeals\.`occurredAt`/
+    );
     expect(queries[0].params).toContain("America/Sao_Paulo");
     expect(queries[0].sql).toContain("periodAccess.`professionalUserId`");
     expect(queries[0].sql).toContain("a.`status` <> 'pending'");
@@ -174,8 +176,8 @@ describe("professionalPortfolioRepository", () => {
       expect(queries[0].sql).toContain(
         reportRecords === "with_records" ? "> 0" : "= 0"
       );
-      expect(queries[0].sql).toContain(
-        "CONVERT_TZ(periodMeals.`occurredAt`"
+      expect(queries[0].sql).toMatch(
+        /CONVERT_TZ\s*\(\s*periodMeals\.`occurredAt`/
       );
     }
   );
@@ -341,11 +343,13 @@ describe("professionalPortfolioRepository", () => {
     expect(queries.every(query => query.params.includes(101))).toBe(true);
     expect(queries.every(query => !query.sql.includes("LIMIT"))).toBe(true);
     expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
-    expect(queries[0].sql).toContain("COALESCE(CONVERT_TZ");
+    expect(queries[0].sql).toMatch(/COALESCE\s*\(\s*CONVERT_TZ\s*\(/);
     expect(queries[0].sql).toContain(
       "NULLIF(TRIM(periodProfile.`timezone`), '')"
     );
-    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.`occurredAt`");
+    expect(queries[0].sql).toMatch(
+      /CONVERT_TZ\s*\(\s*periodMeals\.`occurredAt`/
+    );
     expect(queries[0].params).toContain("America/Sao_Paulo");
     expect(queries[1].sql).not.toContain("periodMeals");
     expect(queries[2].sql).not.toContain("periodMeals");
