@@ -19,7 +19,8 @@ jobs:
           fetch-depth: 0
       - name: Apply exact implementation patch
         run: |
-          cat .issue-loop/issue882-patch.part-* | base64 -d | xz -d > /tmp/issue-882.patch
+          git fetch origin chore/issue-882-apply-trigger
+          git show origin/chore/issue-882-apply-trigger:.issue-loop/issue882-payload.b64 | base64 -d | xz -d > /tmp/issue-882.patch
           git apply --check /tmp/issue-882.patch
           git apply /tmp/issue-882.patch
           git show 2a0bcd74928c85ff38211c62e7d52d1d847d827c:.github/workflows/professional-home-visual.yml > .github/workflows/professional-home-visual.yml
