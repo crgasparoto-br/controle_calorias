@@ -5,26 +5,53 @@
   "repository": "crgasparoto-br/controle_calorias",
   "base_ref": "develop",
   "branch": "feat/922-ai-capabilities-meal-whatsapp",
-  "cycle": 4,
+  "cycle": 5,
   "cycle_limit": 10,
-  "state": "frozen",
+  "state": "blocked-external",
   "baseline_sha": "07bfe16f688b9a541a30817398457bcd26a273f2",
-  "validated_functional_sha": "131cf1a79e689d2d94f826c498412d6e697079d2",
-  "validated_merge_preview_sha": "b3423ecb2a731b1496ec3b086f2bca2fd3ae31e6",
+  "validated_functional_sha": "7039473bd54029d56defd676c33f563b9b88b969",
+  "validated_merge_preview_sha": "2c7bbf1dced3fbc68e5cc3ba3db983f2d5847fd9",
   "blocking_findings": [
     "AUD-922-001: live provider smoke remains unavailable because no OpenAI or Gemini credential is configured in GitHub Actions"
   ],
   "regression_ledger": [
-    {"cycle":1,"finding":"domain boundary assertion matched quantity.raw","resolution":"assertion narrowed to response.raw and usage.raw"},
-    {"cycle":1,"finding":"long-list nutrition regression exceeded default five-second test budget","resolution":"explicit 15-second timeout for the 11-item load scenario"},
-    {"cycle":4,"finding":"OpenAI Structured Output schema could reach the SDK without local representability validation","resolution":"added fail-closed preflight and negative tests before network access"}
+    {
+      "cycle": 1,
+      "finding": "domain boundary assertion matched quantity.raw",
+      "resolution": "assertion narrowed to response.raw and usage.raw"
+    },
+    {
+      "cycle": 1,
+      "finding": "long-list nutrition regression exceeded default five-second test budget",
+      "resolution": "explicit 15-second timeout for the 11-item load scenario"
+    },
+    {
+      "cycle": 4,
+      "finding": "OpenAI Structured Output schema could reach the SDK without local representability validation",
+      "resolution": "added fail-closed preflight and negative tests before network access"
+    },
+    {
+      "cycle": 5,
+      "finding": "WHATSAPP_INTENT lost the legacy 8-second timeout, one retry, and OPENAI_TEXT_MODEL precedence",
+      "resolution": "restored capability-specific legacy defaults and model precedence with six regression controls while leaving other capabilities unchanged"
+    }
   ],
   "validations": [
-    {"name":"Agent-first gate baseline","run_id":30378041419,"conclusion":"success"},
-    {"name":"WhatsApp context TiDB gate baseline","run_id":30378041447,"conclusion":"success"}
+    {
+      "name": "Agent-first gate cycle 5",
+      "run_id": 30390760235,
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate cycle 5",
+      "run_id": 30390760714,
+      "conclusion": "success"
+    }
   ],
   "limitations": [
-    "External live-provider smoke is not executable without a provider credential configured in GitHub Actions; no secret or production configuration was changed by this loop."
+    "External live-provider smoke is not executable without a provider credential configured in GitHub Actions; no secret or production configuration was changed by this loop.",
+    "The local execution environment could not resolve github.com, so code publication and verification used GitHub objects and remote CI."
   ],
-  "implementation_summary": "Cycle 4 added a fail-closed OpenAI Structured Output schema preflight before SDK access, covered valid and invalid schemas, documented the boundary, preserved the shared capability executor and left the live-provider smoke as the only external limitation."
+  "implementation_summary": "Cycle 5 restored the WHATSAPP_INTENT legacy runtime baseline (8-second timeout and one retry/two primary attempts), restored OPENAI_TEXT_MODEL precedence only for OpenAI/OpenAI-compatible providers, added six regression controls, preserved the common resolver behavior for other capabilities, aligned canonical documentation, and removed the temporary remediation workflow. All executable gates passed; live-provider smoke remains the only external blocker.",
+  "final_cycle_delta": "Only this traceability record changed after the validated functional tree."
 }
