@@ -2,18 +2,27 @@
 set -euo pipefail
 
 OUTPUT_DIR="artifacts/professional-messages"
-PORT="4176"
+PORT="4175"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
+printf 'stage=initialized\n' > "$OUTPUT_DIR/stage.log"
 
 pnpm exec vite build --config visual-tests/professional-patient-workspace/vite.config.ts
+printf 'stage=built\n' >> "$OUTPUT_DIR/stage.log"
 pnpm exec vite preview \
   --config visual-tests/professional-patient-workspace/vite.config.ts \
   --host 127.0.0.1 \
   --port "$PORT" \
   > /tmp/professional-messages-visual-server.log 2>&1 &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+cleanup() {
+  status=$?
+  cp /tmp/professional-messages-visual-server.log "$OUTPUT_DIR/server.log" 2>/dev/null || true
+  printf 'stage=exit status=%s\n' "$status" >> "$OUTPUT_DIR/stage.log"
+  kill "$SERVER_PID" 2>/dev/null || true
+  exit "$status"
+}
+trap cleanup EXIT
 
 for attempt in $(seq 1 30); do
   if curl --fail --silent "http://127.0.0.1:${PORT}/professional/messages" > /dev/null; then
@@ -25,6 +34,7 @@ for attempt in $(seq 1 30); do
   fi
   sleep 1
 done
+printf 'stage=server-ready\n' >> "$OUTPUT_DIR/stage.log"
 
 CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
 if [ -z "$CHROME_BIN" ]; then
@@ -85,12 +95,14 @@ INBOX_URL="http://127.0.0.1:${PORT}/professional/messages"
 ACTIVE_URL="http://127.0.0.1:${PORT}/professional/patients/1/messages"
 ENDED_URL="${ACTIVE_URL}?state=ended"
 
+printf 'stage=capturing\n' >> "$OUTPUT_DIR/stage.log"
 capture "messages-inbox-desktop-1440x900" "1440,900" "$INBOX_URL"
 capture "messages-inbox-mobile-390x1200" "390,1200" "$INBOX_URL"
 capture "messages-active-desktop-1440x900" "1440,900" "$ACTIVE_URL"
 capture "messages-active-mobile-390x1200" "390,1200" "$ACTIVE_URL"
 capture "messages-ended-mobile-390x1200" "390,1200" "$ENDED_URL"
 
+printf 'stage=asserting\n' >> "$OUTPUT_DIR/stage.log"
 assert_dom_at_size \
   "messages-inbox-desktop" \
   "1440,900" \
@@ -152,6 +164,7 @@ assert_dom_at_size \
   'data-visual-ended-message-draft-disabled="true"' \
   'data-visual-ended-message-retry-absent="true"'
 
+printf 'stage=manifest\n' >> "$OUTPUT_DIR/stage.log"
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
 routes=/professional/messages,/professional/patients/1/messages
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
