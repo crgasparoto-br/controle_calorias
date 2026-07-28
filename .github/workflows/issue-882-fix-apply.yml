@@ -1,0 +1,49 @@
+name: Apply issue 882 audited fix
+
+on:
+  pull_request:
+    branches:
+      - feat/875-professional-context-routes
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'chore/issue-882-apply-trigger'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Verify applicator commit
+        run: |
+          test "$(git rev-parse HEAD^)" = "ce9c6326d09afec7f2bc348e14e858cdd0ffacf1"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/issue-882-fix-apply.yml"
+
+      - name: Retrieve and verify exact patch
+        run: |
+          git fetch origin chore/issue-882-apply-trigger
+          mkdir -p /tmp/issue882
+          for part in 00 01 02 03 04; do
+            git show "origin/chore/issue-882-apply-trigger:.issue-loop/issue882-fix-20260728/${part}.part"
+          done > /tmp/issue882/payload.b64
+          test "$(wc -c < /tmp/issue882/payload.b64)" = "28185"
+          echo '314da145cf22fb46fdbea3e6d110a0077e16f6bc97cf68cb706e6e45967b916e  /tmp/issue882/payload.b64' | sha256sum -c -
+          base64 -d /tmp/issue882/payload.b64 | xz -d > /tmp/issue882/fix.patch
+          test "$(wc -c < /tmp/issue882/fix.patch)" = "265579"
+          echo '0ece2bab71646d0d1faf97630e41e2e740cf635e5d492dd14544cbc2834c6841  /tmp/issue882/fix.patch' | sha256sum -c -
+          git apply --check /tmp/issue882/fix.patch
+          git apply /tmp/issue882/fix.patch
+
+      - name: Commit fix and remove temporary applicator
+        run: |
+          rm -f .github/workflows/issue-882-fix-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: scope professional message idempotency'
+          git push origin HEAD:feat/875-professional-context-routes
