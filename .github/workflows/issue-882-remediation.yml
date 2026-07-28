@@ -1,4 +1,5 @@
 name: Apply issue 882 remediation
+# Trigger revision 2 after the workflow exists on the branch.
 
 on:
   push:
