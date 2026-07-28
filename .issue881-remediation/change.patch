@@ -1,0 +1,257 @@
+diff --git a/docs/design-docs/professional-ai-assistance.md b/docs/design-docs/professional-ai-assistance.md
+index 850f40e4..7ff2ffa8 100644
+--- a/docs/design-docs/professional-ai-assistance.md
++++ b/docs/design-docs/professional-ai-assistance.md
+@@ -115,6 +115,7 @@ Se qualquer camada falhar, a resposta do provedor é descartada integralmente. T
+ - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
+ - O catálogo exibido na interface corresponde aos sinais enviados ao provedor completo, permitindo conferência do período atual e do anterior.
+ - A telemetria registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
++- O modelo e demais metadados do provedor permanecem restritos à telemetria sanitizada. O payload público de `professionalRecord.ai.generate` não serializa `providerModel`, uso de tokens, motivo interno do fallback nem identificadores do provedor.
+ 
+ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
+ 
+diff --git a/docs/design-docs/professional-navigation.md b/docs/design-docs/professional-navigation.md
+index fdd48c97..2003ecfd 100644
+--- a/docs/design-docs/professional-navigation.md
++++ b/docs/design-docs/professional-navigation.md
+@@ -50,7 +50,7 @@ A rota `/professional` exige apenas `professional_dashboard`. O resumo da cartei
+ 
+ A visão inicial da fila consulta onze pacientes, exibe no máximo os dez primeiros e usa o décimo primeiro apenas para indicar a existência da visão completa. A visão completa preserva a mesma ordenação determinística e usa páginas de cinquenta pacientes com um item adicional de lookahead; `offset` e `limit` permitem alcançar toda a fila sem um corte fixo de cem pacientes.
+ 
+-A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, e recebe somente o resumo necessário. A interface consulta separadamente os blocos `activity`, `schedule` e `tracking`; cada chamada executa apenas a agregação correspondente, sem paginar a carteira, carregar comprovantes pendentes ou buscar bundles nutricionais individuais. Assim, falha ou retry de um bloco não remove os demais. Uma resposta bem-sucedida com contagem `0` representa zero real; campo `null` ou estado de erro é apresentado como dado não informado/indisponível, nunca como zero. A rota não exige `professional_portfolio` como dependência indireta.
++A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, como adaptador de saída sobre a consulta paginada canônica da carteira. Cada bloco (`activity`, `schedule` e `tracking`) executa `professionalPortfolioRepository.list` com página limitada, sem histórico alimentar e sem carregar bundles nutricionais individuais; o adaptador devolve somente os campos de resumo do bloco solicitado. Assim, a mesma janela timezone-aware, os mesmos campos de acompanhamento e a mesma fonte operacional da carteira permanecem canônicos, enquanto falha ou retry de um bloco não remove os demais. Uma resposta bem-sucedida com contagem `0` representa zero real; campo `null` ou estado de erro é apresentado como dado não informado/indisponível, nunca como zero. A rota não exige `professional_portfolio` como dependência indireta e não mantém uma segunda implementação de agregação.
+ 
+ Os links de detalhamento da rota agregada reutilizam `/professional/patients` com filtros explícitos. Contagens de registros carregam `records=with_records|without_records` junto de `reportStart` e `reportEnd`, de modo que a carteira aplique a mesma janela local por paciente usada no agregado. Revisões e pesagens vencidas usam `review=overdue` e `weighing=overdue`; a distribuição do acompanhamento usa `tracking=active|paused|ended|not_started`. Parâmetros de período inválidos, incompletos, invertidos ou superiores a 90 dias são descartados pela interface e rejeitados pelo schema do backend.
+ 
+diff --git a/server/modules/professionals/aiAdversarialRegression.test.ts b/server/modules/professionals/aiAdversarialRegression.test.ts
+index a117b0f0..7a30c702 100644
+--- a/server/modules/professionals/aiAdversarialRegression.test.ts
++++ b/server/modules/professionals/aiAdversarialRegression.test.ts
+@@ -355,7 +355,7 @@ describe("professional AI adversarial regressions", () => {
+       "professional_ai_question_focus"
+     );
+     expect(result.fallbackUsed).toBe(false);
+-    expect(result.providerModel).toBe("focus-model");
++    expect(result).not.toHaveProperty("providerModel");
+     expect(result.title).toBe("Evolução de peso");
+     expect(result.summarySourceKeys).toEqual(["current_weight"]);
+     expect(result.interpretationSourceKeys).toEqual([["current_weight"]]);
+diff --git a/server/modules/professionals/aiService.test.ts b/server/modules/professionals/aiService.test.ts
+index d6e72898..8fc3dbbc 100644
+--- a/server/modules/professionals/aiService.test.ts
++++ b/server/modules/professionals/aiService.test.ts
+@@ -182,7 +182,7 @@ describe("professionalAiService", () => {
+     expect(providerPayload).toContain("current_record_frequency");
+     expect(providerPayload).not.toContain("currentPeriod");
+     expect(providerPayload).not.toContain("previousPeriod");
+-    expect(result.providerModel).toBe("test-model");
++    expect(result).not.toHaveProperty("providerModel");
+     expect(deps.getTimeZone).toHaveBeenCalledTimes(2);
+   });
+ 
+diff --git a/server/modules/professionals/aiService.ts b/server/modules/professionals/aiService.ts
+index e3a13f25..1e59cb1b 100644
+--- a/server/modules/professionals/aiService.ts
++++ b/server/modules/professionals/aiService.ts
+@@ -500,7 +500,6 @@ export function createProfessionalAiService(
+       period: range,
+       timeZone: timeZoneState.timeZone,
+       fallbackUsed,
+-      providerModel,
+       sourceSignals,
+     };
+   }
+diff --git a/server/repositories/professionalPortfolioRepository.test.ts b/server/repositories/professionalPortfolioRepository.test.ts
+index f10c1921..08b007d8 100644
+--- a/server/repositories/professionalPortfolioRepository.test.ts
++++ b/server/repositories/professionalPortfolioRepository.test.ts
+@@ -310,20 +310,31 @@ describe("professionalPortfolioRepository", () => {
+     });
+   });
+ 
+-  it("loads aggregate report blocks independently without paginating the portfolio", async () => {
++  it("loads aggregate report blocks through the canonical paginated portfolio query", async () => {
+     const dialect = new MySqlDialect();
+     const queries: Array<{ sql: string; params: unknown[] }> = [];
++    let call = 0;
+     const db = {
+       execute: vi.fn(async query => {
+         const compiled = dialect.sqlToQuery(query);
+         queries.push(compiled);
+-        if (compiled.sql.includes("activeWithRecentRecords")) {
+-          return [[{ activeWithRecentRecords: 3, withoutRecentActivity: 4 }]];
+-        }
+-        if (compiled.sql.includes("pendingReviews")) {
+-          return [[{ pendingReviews: 2, pendingWeighings: 1 }]];
+-        }
+-        return [[{ active: 5, paused: 1, ended: 2, notStarted: 3 }]];
++        call += 1;
++        if (call % 3 === 1) return [[]];
++        if (call % 3 === 2) return [[{ total: 0 }]];
++        return [
++          [
++            {
++              active: 5,
++              paused: 1,
++              ended: 2,
++              notStarted: 3,
++              activeWithRecentRecords: 3,
++              withoutRecentActivity: 4,
++              pendingReviews: 2,
++              pendingWeighings: 1,
++            },
++          ],
++        ];
+       }),
+     };
+     const repository = createProfessionalPortfolioRepository({
+@@ -339,20 +350,28 @@ describe("professionalPortfolioRepository", () => {
+     const schedule = await repository.report(101, { block: "schedule" });
+     const tracking = await repository.report(101, { block: "tracking" });
+ 
+-    expect(queries).toHaveLength(3);
++    expect(queries).toHaveLength(9);
+     expect(queries.every(query => query.params.includes(101))).toBe(true);
+-    expect(queries.every(query => !query.sql.includes("LIMIT"))).toBe(true);
++    expect(
++      queries.filter(query => query.sql.includes("LIMIT ? OFFSET ?"))
++    ).toHaveLength(3);
++    expect(
++      queries.filter(query => query.sql.includes("SELECT COUNT(*)"))
++    ).toHaveLength(3);
++    expect(
++      queries.filter(query => query.sql.includes("activeWithRecentRecords"))
++    ).toHaveLength(3);
++    expect(
++      queries.every(
++        query => !query.sql.includes("MAX(scopedMeals.`occurredAt`)")
++      )
++    ).toBe(true);
+     expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
+     expect(queries[0].sql).toMatch(/COALESCE\s*\(\s*CONVERT_TZ\s*\(/);
+     expect(queries[0].sql).toContain(
+       "NULLIF(TRIM(periodProfile.`timezone`), '')"
+     );
+-    expect(queries[0].sql).toMatch(
+-      /CONVERT_TZ\s*\(\s*periodMeals\.`occurredAt`/
+-    );
+     expect(queries[0].params).toContain("America/Sao_Paulo");
+-    expect(queries[1].sql).not.toContain("periodMeals");
+-    expect(queries[2].sql).not.toContain("periodMeals");
+     expect(activity.summary).toMatchObject({
+       activeWithRecentRecords: 3,
+       withoutRecentActivity: 4,
+diff --git a/server/repositories/professionalPortfolioRepository.ts b/server/repositories/professionalPortfolioRepository.ts
+index 5bdbae94..0ad5d36f 100644
+--- a/server/repositories/professionalPortfolioRepository.ts
++++ b/server/repositories/professionalPortfolioRepository.ts
+@@ -368,76 +368,45 @@ export function createProfessionalPortfolioRepository(
+       return unavailableReportResult(input.block);
+     }
+ 
+-    const now = new Date();
+-    const summary = emptyReportSummary();
+-
+     try {
++      const portfolio = await list(professionalUserId, {
++        search: "",
++        authorizationStatus: "all",
++        trackingStatus: "all",
++        activity: "all",
++        reportRecords: "all",
++        nextReview: "all",
++        nextWeighing: "all",
++        page: 1,
++        pageSize: 10,
++        reportStartDate:
++          input.block === "activity" ? input.reportStartDate : undefined,
++        reportEndDate:
++          input.block === "activity" ? input.reportEndDate : undefined,
++        includeHistoricalActivity: false,
++      });
++      const summary = emptyReportSummary();
++
+       if (input.block === "activity") {
+-        const reportStartDate = input.reportStartDate!;
+-        const reportEndDate = input.reportEndDate!;
+-        const { coarseStart, coarseEnd } = reportPeriodWindow(
+-          reportStartDate,
+-          reportEndDate
+-        );
+-        const result = await db.execute(sql`
+-          SELECT
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0 THEN 1 END) AS \`activeWithRecentRecords\`,
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0 THEN 1 END) AS \`withoutRecentActivity\`
+-          FROM \`professionalPatientAuthorizations\` a
+-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+-          LEFT JOIN (
+-            SELECT periodMeals.\`userId\`, COUNT(*) AS \`periodRecordCount\`
+-            FROM \`meals\` periodMeals
+-            INNER JOIN \`professionalPatientAuthorizations\` periodAccess
+-              ON periodAccess.\`patientUserId\` = periodMeals.\`userId\`
+-              AND periodAccess.\`professionalUserId\` = ${professionalUserId}
+-              AND periodAccess.\`status\` = 'approved'
+-            LEFT JOIN \`userProfiles\` periodProfile ON periodProfile.\`userId\` = periodMeals.\`userId\`
+-            WHERE periodMeals.\`status\` = 'confirmed'
+-              AND periodMeals.\`occurredAt\` >= ${coarseStart}
+-              AND periodMeals.\`occurredAt\` <= ${coarseEnd}
+-              AND ${periodMealLocalDateSql()}
+-                BETWEEN ${reportStartDate} AND ${reportEndDate}
+-            GROUP BY periodMeals.\`userId\`
+-          ) pm ON pm.\`userId\` = a.\`patientUserId\`
+-          WHERE a.\`professionalUserId\` = ${professionalUserId}
+-        `);
+-        const row = rowsFromResult(result)[0] ?? {};
+-        summary.activeWithRecentRecords = asNumber(
+-          row.activeWithRecentRecords
+-        );
+-        summary.withoutRecentActivity = asNumber(row.withoutRecentActivity);
++        summary.activeWithRecentRecords =
++          portfolio.summary.activeWithRecentRecords;
++        summary.withoutRecentActivity =
++          portfolio.summary.withoutRecentActivity;
+       } else if (input.block === "schedule") {
+-        const result = await db.execute(sql`
+-          SELECT
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextReviewAt\` IS NOT NULL AND t.\`nextReviewAt\` <= ${now} THEN 1 END) AS \`pendingReviews\`,
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextWeighingAt\` IS NOT NULL AND t.\`nextWeighingAt\` <= ${now} THEN 1 END) AS \`pendingWeighings\`
+-          FROM \`professionalPatientAuthorizations\` a
+-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+-          WHERE a.\`professionalUserId\` = ${professionalUserId}
+-        `);
+-        const row = rowsFromResult(result)[0] ?? {};
+-        summary.pendingReviews = asNumber(row.pendingReviews);
+-        summary.pendingWeighings = asNumber(row.pendingWeighings);
++        summary.pendingReviews = portfolio.summary.pendingReviews;
++        summary.pendingWeighings = portfolio.summary.pendingWeighings;
+       } else {
+-        const result = await db.execute(sql`
+-          SELECT
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' THEN 1 END) AS \`active\`,
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'paused' THEN 1 END) AS \`paused\`,
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'ended' THEN 1 END) AS \`ended\`,
+-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`id\` IS NULL THEN 1 END) AS \`notStarted\`
+-          FROM \`professionalPatientAuthorizations\` a
+-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
+-          WHERE a.\`professionalUserId\` = ${professionalUserId}
+-        `);
+-        const row = rowsFromResult(result)[0] ?? {};
+-        summary.active = asNumber(row.active);
+-        summary.paused = asNumber(row.paused);
+-        summary.ended = asNumber(row.ended);
+-        summary.notStarted = asNumber(row.notStarted);
++        summary.active = portfolio.summary.active;
++        summary.paused = portfolio.summary.paused;
++        summary.ended = portfolio.summary.ended;
++        summary.notStarted = portfolio.summary.notStarted;
+       }
+ 
+-      return { block: input.block, summary, generatedAt: now.getTime() };
++      return {
++        block: input.block,
++        summary,
++        generatedAt: portfolio.generatedAt,
++      };
+     } catch (error) {
+       deps.onWarning(`professional_portfolio_report_${input.block}`, error);
+       throw new Error(
