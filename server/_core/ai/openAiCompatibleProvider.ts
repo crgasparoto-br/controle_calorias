@@ -11,20 +11,85 @@ import type {
   AiProviderTextResponse,
 } from "../aiProvider";
 import type { AiOperation } from "./capabilities";
-import { AiNonRetryableError } from "./policyExecutor";
+import { AiNonRetryableError, AiOperationalError } from "./policyExecutor";
 
-function containsInputImage(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(containsInputImage);
-  if (typeof value !== "object" || value === null) return false;
+function invalidPayload(message: string): AiOperationalError {
+  return new AiOperationalError(message, undefined, "invalid_payload");
+}
 
-  const record = value as Record<string, unknown>;
-  if (record.type === "input_image") return true;
-  return Object.values(record).some(containsInputImage);
+function inspectContentPart(
+  value: unknown,
+  path: string,
+  required: Set<AiOperation>,
+): void {
+  if (typeof value === "string") {
+    if (!value.trim()) throw invalidPayload(`${path} must not be empty.`);
+    return;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw invalidPayload(`${path} is not a valid compatible endpoint content part.`);
+  }
+
+  const part = value as Record<string, unknown>;
+  if (part.type === "input_text") {
+    if (typeof part.text !== "string" || !part.text.trim()) {
+      throw invalidPayload(`${path}.text must be a non-empty string.`);
+    }
+    return;
+  }
+  if (part.type === "input_image") {
+    if (typeof part.image_url !== "string" || !part.image_url.trim()) {
+      throw invalidPayload(`${path}.image_url must be a non-empty string.`);
+    }
+    required.add("vision");
+    return;
+  }
+
+  throw new AiNonRetryableError(
+    `OpenAI-compatible endpoint cannot represent content part type ${String(part.type)}.`,
+    undefined,
+    "incompatible_operation",
+  );
+}
+
+function inspectTextInput(value: unknown, required: Set<AiOperation>): void {
+  if (typeof value === "string") {
+    if (!value.trim()) throw invalidPayload("OpenAI-compatible text input must not be empty.");
+    return;
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw invalidPayload("OpenAI-compatible text input must contain at least one message.");
+  }
+
+  value.forEach((item, itemIndex) => {
+    const path = `input[${itemIndex}]`;
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw invalidPayload(`${path} is not a valid message.`);
+    }
+
+    const message = item as Record<string, unknown>;
+    if (message.type !== undefined && message.type !== "message") {
+      throw new AiNonRetryableError(
+        `OpenAI-compatible endpoint cannot represent input item type ${String(message.type)}.`,
+        undefined,
+        "incompatible_operation",
+      );
+    }
+    if (!("content" in message)) {
+      throw invalidPayload(`${path} must declare content.`);
+    }
+
+    const content = message.content;
+    const parts = Array.isArray(content) ? content : [content];
+    if (parts.length === 0) throw invalidPayload(`${path}.content must not be empty.`);
+    parts.forEach((part, partIndex) =>
+      inspectContentPart(part, `${path}.content[${partIndex}]`, required));
+  });
 }
 
 function requiredTextOperations(request: AiProviderTextRequest): AiOperation[] {
   const required = new Set<AiOperation>(["text"]);
-  if (containsInputImage(request.input)) required.add("vision");
+  inspectTextInput(request.input, required);
   if (request.format?.type === "json_schema") required.add("structured_output");
   if (request.tools?.length) required.add("web_search");
   return [...required];
@@ -34,9 +99,9 @@ function requiredTextOperations(request: AiProviderTextRequest): AiOperation[] {
  * Adapter guard for OpenAI-compatible endpoints.
  *
  * The underlying SDK surface is intentionally broader than the endpoint's
- * validated contract. Every operation is checked again at the adapter boundary
- * so a consumer cannot bypass the capability resolver and send unsupported
- * payloads to the compatible endpoint.
+ * validated contract. Every operation and input family is checked again at the
+ * adapter boundary so a consumer cannot bypass the capability resolver and send
+ * unsupported payloads to the compatible endpoint.
  */
 export class OpenAiCompatibleProvider implements AiProvider {
   private readonly allowedOperations: ReadonlySet<AiOperation>;
@@ -87,11 +152,11 @@ export class OpenAiCompatibleProvider implements AiProvider {
     request: AiProviderImageGenerationRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
-    this.assertAllowed([
-      request.originalImages?.some(image => Boolean(image.b64Json))
-        ? "image_edit"
-        : "image_generation",
-    ]);
+    const isEdit = Boolean(request.originalImages?.length);
+    this.assertAllowed([isEdit ? "image_edit" : "image_generation"]);
+    if (isEdit && request.originalImages?.some(image => !image.b64Json.trim())) {
+      throw invalidPayload("OpenAI-compatible image edit requires non-empty original images.");
+    }
     return this.delegate.createImageGeneration(request, options);
   }
 }
