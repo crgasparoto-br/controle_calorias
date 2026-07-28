@@ -8,10 +8,14 @@ on:
       - "server/repositories/professionalRepository.ts"
       - "server/repositories/professionalContentRepository.ts"
       - "server/repositories/professionalGoalPrivacyRepository.ts"
+      - "server/repositories/professionalPortfolioRepository.ts"
+      - "server/repositories/professionalPortfolioRepository.test.ts"
       - "server/modules/goals/**"
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
+      - "scripts/test-professional-operational-alerts-tidb.ts"
+      - "scripts/test-professional-portfolio-report-timezone-tidb.ts"
       - "scripts/test-professional-access-receipts-tidb.ts"
       - "scripts/test-professional-access-public-boundary-tidb.ts"
       - "package.json"
@@ -80,7 +84,7 @@ jobs:
           log_file=artifacts/professional-persistence.log
           setsid pnpm db:test:professionals >"$log_file" 2>&1 &
           test_pid=$!
-          success_marker='"event":"professional.persistence.integration.passed"'
+          success_marker='"event":"professional.portfolio_report_timezone.integration.passed"'
 
           for attempt in $(seq 1 150); do
             if grep -q "$success_marker" "$log_file"; then
@@ -89,7 +93,7 @@ jobs:
               sleep 2
               kill -KILL -- "-$test_pid" 2>/dev/null || true
               wait "$test_pid" 2>/dev/null || true
-              echo "Professional persistence integration completed successfully."
+              echo "Professional persistence and portfolio timezone integrations completed successfully."
               exit 0
             fi
 
@@ -100,7 +104,7 @@ jobs:
               set -e
               cat "$log_file"
               if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
-                echo "Professional persistence integration completed successfully."
+                echo "Professional persistence and portfolio timezone integrations completed successfully."
                 exit 0
               fi
               echo "Professional persistence integration exited before its success marker."
