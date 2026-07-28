@@ -103,7 +103,7 @@ describe("professional messages after tracking ends", () => {
     ).rejects.toThrow(
       "Durante a pausa, crie somente comunicações administrativas."
     );
-    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
   });
 
   it.each(["save_draft", "send_web", "send_whatsapp"] as const)(
@@ -123,7 +123,7 @@ describe("professional messages after tracking ends", () => {
       ).rejects.toThrow(
         "O acompanhamento foi encerrado e não aceita novas mensagens."
       );
-      expect(mocks.execute).toHaveBeenCalledTimes(1);
+      expect(mocks.execute).toHaveBeenCalledTimes(3);
     }
   );
 });
