@@ -74,6 +74,21 @@ describe("OpenAiCompatibleProvider operation allowlist", () => {
     expect(target.createTextResponse).not.toHaveBeenCalled();
   });
 
+  it("rejects unmodeled input content before delegating", async () => {
+    const target = delegate();
+    const provider = new OpenAiCompatibleProvider(target, ["text"]);
+
+    await expect(provider.createTextResponse({
+      model: "vendor/model",
+      input: [{
+        role: "user",
+        content: [{ type: "input_file", file_id: "file-1" } as never],
+      }],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+
+    expect(target.createTextResponse).not.toHaveBeenCalled();
+  });
+
   it("blocks embeddings, transcription, generation and editing independently", async () => {
     const target = delegate();
     const provider = new OpenAiCompatibleProvider(target, ["text"]);
@@ -102,6 +117,27 @@ describe("OpenAiCompatibleProvider operation allowlist", () => {
     expect(target.createEmbeddings).not.toHaveBeenCalled();
     expect(target.createAudioTranscription).not.toHaveBeenCalled();
     expect(target.createImageGeneration).not.toHaveBeenCalled();
+  });
+
+  it("never downgrades an edit request with an empty original image to generation", async () => {
+    const generationTarget = delegate();
+    const generationOnly = new OpenAiCompatibleProvider(generationTarget, ["image_generation"]);
+
+    await expect(generationOnly.createImageGeneration({
+      model: "image-model",
+      prompt: "annotate",
+      originalImages: [{ b64Json: "", mimeType: "image/png" }],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generationTarget.createImageGeneration).not.toHaveBeenCalled();
+
+    const editTarget = delegate();
+    const editAllowed = new OpenAiCompatibleProvider(editTarget, ["image_edit"]);
+    await expect(editAllowed.createImageGeneration({
+      model: "image-model",
+      prompt: "annotate",
+      originalImages: [{ b64Json: "", mimeType: "image/png" }],
+    })).rejects.toMatchObject({ code: "invalid_payload" });
+    expect(editTarget.createImageGeneration).not.toHaveBeenCalled();
   });
 
   it("distinguishes image generation from image editing", async () => {
