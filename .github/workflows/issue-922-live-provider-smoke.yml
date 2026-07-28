@@ -1,0 +1,82 @@
+name: Issue 922 live provider smoke
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  live-provider-smoke:
+    if: github.event.pull_request.number == 929
+    name: live-provider-smoke
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_WHATSAPP_INTENT_ENABLED: "true"
+      AI_MEAL_TEXT_MAX_ATTEMPTS: "1"
+      AI_MEAL_VISION_MAX_ATTEMPTS: "1"
+      AI_WHATSAPP_INTENT_MAX_ATTEMPTS: "1"
+      AI_MEAL_TEXT_FALLBACK_ENABLED: "false"
+      AI_MEAL_VISION_FALLBACK_ENABLED: "false"
+      AI_WHATSAPP_INTENT_FALLBACK_ENABLED: "false"
+
+    steps:
+      - name: Checkout pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify pull request head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select available provider
+        run: |
+          set -euo pipefail
+          if [ -n "${OPENAI_API_KEY}" ]; then
+            echo "SMOKE_PROVIDER=openai" >> "${GITHUB_ENV}"
+            echo "SMOKE_MODEL=gpt-4.1-mini" >> "${GITHUB_ENV}"
+          elif [ -n "${GEMINI_API_KEY}" ]; then
+            echo "SMOKE_PROVIDER=gemini" >> "${GITHUB_ENV}"
+            echo "SMOKE_MODEL=gemini-2.5-flash" >> "${GITHUB_ENV}"
+          else
+            echo "Neither OPENAI_API_KEY nor GEMINI_API_KEY is configured for GitHub Actions." >&2
+            exit 1
+          fi
+
+      - name: Configure capability pairs
+        run: |
+          set -euo pipefail
+          {
+            echo "AI_MEAL_TEXT_PROVIDER=${SMOKE_PROVIDER}"
+            echo "AI_MEAL_TEXT_MODEL=${SMOKE_MODEL}"
+            echo "AI_MEAL_VISION_PROVIDER=${SMOKE_PROVIDER}"
+            echo "AI_MEAL_VISION_MODEL=${SMOKE_MODEL}"
+            echo "AI_WHATSAPP_INTENT_PROVIDER=${SMOKE_PROVIDER}"
+            echo "AI_WHATSAPP_INTENT_MODEL=${SMOKE_MODEL}"
+            echo "OPENAI_WHATSAPP_INTENT_RETRIES=0"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run live text, photo and intent smoke
+        run: pnpm exec tsx scripts/issue-922-live-provider-smoke.ts
