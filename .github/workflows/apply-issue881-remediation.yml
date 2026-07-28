@@ -1,0 +1,44 @@
+name: Apply issue 881 remediation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".issue881-remediation/ready"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-remediation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Apply audited remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .issue881-remediation/ready
+          git apply --check .issue881-remediation/change.patch
+          git apply .issue881-remediation/change.patch
+          git rm -r .issue881-remediation
+          git rm .github/workflows/apply-issue881-remediation.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/design-docs/professional-ai-assistance.md \
+            docs/design-docs/professional-navigation.md \
+            server/modules/professionals/aiAdversarialRegression.test.ts \
+            server/modules/professionals/aiService.test.ts \
+            server/modules/professionals/aiService.ts \
+            server/repositories/professionalPortfolioRepository.test.ts \
+            server/repositories/professionalPortfolioRepository.ts
+          git commit -m 'fix: remediate issue 881 audit findings'
+          git push origin HEAD:${GITHUB_REF_NAME}
