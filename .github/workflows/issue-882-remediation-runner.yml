@@ -16,8 +16,9 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-      EXPECTED_PARENT_SHA: 7163b3ca72fd730d378c8d76dabfc89dcff00684
-      PATCH_BLOB_SHA: df969d56fda13ca6aa10a19545cbaec5f4557e6c
+      EXPECTED_PARENT_SHA: 5f13667844dadc69f43f6b3b104038f82f8fc6fb
+      PATCH_BLOB_SHA: a747807ec53f6b899b85f27c447675816ed7121a
+      FIX_BLOB_SHA: 0449431f56443e4318257fdeacfc8debac1cc51d
     steps:
       - name: Checkout target branch
         uses: actions/checkout@v4
@@ -42,15 +43,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Download and apply verified patch
+      - name: Download and apply verified patches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api -H "Accept: application/vnd.github.raw" \
             "repos/${GITHUB_REPOSITORY}/git/blobs/${PATCH_BLOB_SHA}" > /tmp/issue-882-remediation.patch.gz
           gzip -dc /tmp/issue-882-remediation.patch.gz > /tmp/issue-882-remediation.patch
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/${GITHUB_REPOSITORY}/git/blobs/${FIX_BLOB_SHA}" > /tmp/issue-882-test-fix.patch
           git apply --check /tmp/issue-882-remediation.patch
           git apply /tmp/issue-882-remediation.patch
+          git apply --check /tmp/issue-882-test-fix.patch
+          git apply /tmp/issue-882-test-fix.patch
           git diff --check
 
       - name: Focused regression tests
