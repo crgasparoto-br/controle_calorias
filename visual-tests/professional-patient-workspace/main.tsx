@@ -9,6 +9,25 @@ const searchParams = new URLSearchParams(window.location.search);
 const draftHistoryScenario = searchParams.get("draft-history");
 const goalTransitionScenario = searchParams.get("goal-transition");
 
+// Visual evidence exercises message layout with a deliberately dirty composer.
+// Suppress only the browser-exit prompt in this isolated harness so headless Chrome
+// can finish screenshot capture; navigation guards remain active and are covered by
+// the real component tests.
+if (window.location.pathname.endsWith("/messages")) {
+  const nativeWindowAddEventListener = window.addEventListener;
+  window.addEventListener = (function (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions
+  ) {
+    if (type === "beforeunload") {
+      document.documentElement.dataset.visualBeforeUnloadSuppressed = "true";
+      return;
+    }
+    nativeWindowAddEventListener.call(window, type, listener, options);
+  }) as typeof window.addEventListener;
+}
+
 async function prepareDraftHistoryScenario() {
   if (!draftHistoryScenario) return;
 

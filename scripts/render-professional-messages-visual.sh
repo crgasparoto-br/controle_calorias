@@ -56,6 +56,16 @@ run_chrome_until_output() {
     --no-sandbox \
     --disable-gpu \
     --disable-dev-shm-usage \
+    --disable-background-networking \
+    --disable-component-update \
+    --disable-default-apps \
+    --disable-extensions \
+    --disable-features=MediaRouter,OptimizationHints,Translate \
+    --disable-sync \
+    --metrics-recording-only \
+    --mute-audio \
+    --no-first-run \
+    --safebrowsing-disable-auto-update \
     --user-data-dir="$profile" \
     "$@" >"$stdout_target" 2>"$log" &
   chrome_pid=$!
@@ -174,7 +184,8 @@ assert_dom_at_size \
   'data-visual-active-message-composer-editable="true"' \
   'data-visual-active-message-retry-visible="true"' \
   'data-visual-active-message-actions-enabled="true"' \
-  'data-visual-active-message-controls-contained="true"'
+  'data-visual-active-message-controls-contained="true"' \
+  'data-visual-before-unload-suppressed="true"'
 assert_dom_at_size \
   "messages-active-mobile" \
   "390,1200" \
@@ -204,7 +215,7 @@ head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
 scenarios=messages-inbox,messages-active,messages-ended-read-only
 viewports=1440x900,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalMessagesExperience with deterministic auth and tRPC transport fixtures
+source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalMessagesExperience with deterministic auth and tRPC transport fixtures; the isolated visual harness suppresses only beforeunload browser-exit prompts while functional tests cover the real navigation guard
 assertions=aggregate inbox without composer, patient conversation links and filters, active conversation with editable composer and retry, ended conversation read-only, no page-level horizontal overflow
 MANIFEST
 
