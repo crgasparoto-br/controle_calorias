@@ -1,12 +1,11 @@
 name: Finalize issue 882 remediation
 
 on:
-  push:
+  pull_request:
     branches:
       - feat/875-professional-context-routes
     paths:
-      - ".audit/issue-882-remediation/messageService.patch"
-      - ".github/workflows/issue-882-finalize-remediation.yml"
+      - ".audit/issue-882-remediation-trigger.txt"
 
 permissions:
   contents: write
@@ -17,7 +16,7 @@ concurrency:
 
 jobs:
   finalize:
-    if: github.ref_name == 'feat/875-professional-context-routes'
+    if: github.event.pull_request.head.ref == 'chore/issue-882-remediation-trigger'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout target branch
