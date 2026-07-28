@@ -260,11 +260,14 @@ function writeVisualDiagnostics() {
     const composer = document.querySelector<HTMLTextAreaElement>(
       'textarea[aria-label="Conteúdo da mensagem"]'
     );
-    const controls = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        'textarea[aria-label="Conteúdo da mensagem"], select[aria-label="Tipo da mensagem"], select[aria-label="Origem da mensagem"], button'
-      )
+    const messageExperience = document.querySelector<HTMLElement>(
+      "[data-professional-messages-experience]"
     );
+    const controls = messageExperience
+      ? Array.from(
+          messageExperience.querySelectorAll<HTMLElement>("textarea, select, button")
+        )
+      : [];
     root.dataset.visualActiveMessageComposerEditable = String(
       Boolean(composer && !composer.disabled)
     );

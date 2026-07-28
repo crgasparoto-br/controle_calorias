@@ -321,7 +321,7 @@ export default function ProfessionalMessagesExperience() {
   }, [items, search, stateFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-professional-messages-experience>
       <ProfessionalPageHeader
         eyebrow={patientId ? "Conversa do paciente" : "Comunicação da carteira"}
         title={patientId ? "Mensagens" : "Caixa de mensagens"}
