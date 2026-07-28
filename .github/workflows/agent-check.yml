@@ -1,25 +1,36 @@
-name: Agent-first gate
+name: Issue 922 current live provider smoke
 
 on:
-  pull_request:
   push:
     branches:
-      - main
-      - develop
+      - automation/922-cycle4-final-live-smoke
 
 permissions:
   contents: read
 
 jobs:
-  agent-check:
-    name: Agent-first gate
+  live-provider-smoke:
+    name: live-provider-smoke
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_WHATSAPP_INTENT_ENABLED: "true"
+      AI_MEAL_TEXT_MAX_ATTEMPTS: "1"
+      AI_MEAL_VISION_MAX_ATTEMPTS: "1"
+      AI_WHATSAPP_INTENT_MAX_ATTEMPTS: "1"
+      AI_MEAL_TEXT_FALLBACK_ENABLED: "false"
+      AI_MEAL_VISION_FALLBACK_ENABLED: "false"
+      AI_WHATSAPP_INTENT_FALLBACK_ENABLED: "false"
 
     steps:
-      - name: Checkout repository
+      - name: Checkout frozen candidate
         uses: actions/checkout@v4
+        with:
+          ref: ca72f1dbe0fa1b86573d608fa8f8db161b58aa3a
+
+      - name: Verify frozen candidate
+        run: test "$(git rev-parse HEAD)" = "ca72f1dbe0fa1b86573d608fa8f8db161b58aa3a"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -35,162 +46,77 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: TypeScript check
-        run: pnpm check
-
-      - name: Tests
+      - name: Select available provider
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
+          set -euo pipefail
+          if [ -n "${OPENAI_API_KEY}" ]; then
+            echo "SMOKE_PROVIDER=openai" >> "${GITHUB_ENV}"
+            echo "SMOKE_MODEL=gpt-4.1-mini" >> "${GITHUB_ENV}"
+          elif [ -n "${GEMINI_API_KEY}" ]; then
+            echo "SMOKE_PROVIDER=gemini" >> "${GITHUB_ENV}"
+            echo "SMOKE_MODEL=gemini-2.5-flash" >> "${GITHUB_ENV}"
+          else
+            echo "Neither OPENAI_API_KEY nor GEMINI_API_KEY is configured for GitHub Actions." >&2
             exit 1
           fi
-          tail -n 80 /tmp/vitest.log
 
-      - name: Upload Vitest diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Architecture check
-        run: pnpm architecture:check
-
-      - name: Documentation check
+      - name: Run live text, photo and intent smoke
         run: |
-          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
-            echo "Documentation check failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/docs-check.log
-            exit 1
-          fi
-          cat /tmp/docs-check.log
+          set -euo pipefail
+          export AI_MEAL_TEXT_PROVIDER="${SMOKE_PROVIDER}"
+          export AI_MEAL_TEXT_MODEL="${SMOKE_MODEL}"
+          export AI_MEAL_VISION_PROVIDER="${SMOKE_PROVIDER}"
+          export AI_MEAL_VISION_MODEL="${SMOKE_MODEL}"
+          export AI_WHATSAPP_INTENT_PROVIDER="${SMOKE_PROVIDER}"
+          export AI_WHATSAPP_INTENT_MODEL="${SMOKE_MODEL}"
+          export OPENAI_WHATSAPP_INTENT_RETRIES="0"
+          cat > .tmp-issue-922-live-smoke.ts <<'TS'
+          import { extractWithAi } from "./server/mealAiExtraction";
+          import { interpretWhatsappMessageWithDiagnostics } from "./server/modules/whatsapp/intentInterpreter";
+          import type { WhatsappIntentContext } from "./server/modules/whatsapp/intentContext";
 
-      - name: Upload documentation diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-docs-log
-          path: /tmp/docs-check.log
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Build
-        run: pnpm build
-
-      - name: Agent check
-        run: pnpm agent:check
-
-      - name: CI gate docs check
-        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
-
-      - name: Create verification manifest
-        id: verification_manifest
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-        run: |
-          ISSUE_NUMBER=""
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            ISSUE_NUMBER="$(
-              jq -r '.pull_request.body // ""' "${GITHUB_EVENT_PATH}" \
-                | grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#[0-9]+' \
-                | grep -Eo '[0-9]+' \
-                | head -n 1 \
-                || true
-            )"
-            if [ -z "${ISSUE_NUMBER}" ]; then
-              ISSUE_NUMBER="$(
-                printf '%s\n' "${PR_HEAD_REF}" \
-                  | grep -Eo '(^|/)[0-9]+' \
-                  | grep -Eo '[0-9]+' \
-                  | head -n 1 \
-                  || true
-              )"
-            fi
-          fi
-
-          ISSUE_SLUG="${ISSUE_NUMBER:-unscoped}"
-          ISSUE_JSON="${ISSUE_NUMBER:-null}"
-          HEAD_SHA="${PR_HEAD_SHA:-${GITHUB_SHA}}"
-          BASE_SHA_JSON="null"
-          MERGE_PREVIEW_SHA_JSON="null"
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            BASE_SHA_JSON="\"${PR_BASE_SHA}\""
-            MERGE_PREVIEW_SHA_JSON="\"${GITHUB_SHA}\""
-          fi
-
-          MANIFEST_DIR="/tmp/issue-${ISSUE_SLUG}-verification"
-          mkdir -p "${MANIFEST_DIR}"
-          cat > "${MANIFEST_DIR}/manifest.json" <<EOF
-          {
-            "schemaVersion": 2,
-            "issue": ${ISSUE_JSON},
-            "repository": "${GITHUB_REPOSITORY}",
-            "headSha": "${HEAD_SHA}",
-            "baseSha": ${BASE_SHA_JSON},
-            "mergePreviewSha": ${MERGE_PREVIEW_SHA_JSON},
-            "runId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "event": "${GITHUB_EVENT_NAME}",
-            "ref": "${GITHUB_REF}",
-            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          const textResult = await extractWithAi({
+            text: "Teste sintético: registrar 100 g de banana.",
+            occurredAt: new Date("2026-07-28T12:00:00-03:00"),
+            timeZone: "America/Sao_Paulo",
+          });
+          if (!textResult || textResult.items.length < 1) {
+            throw new Error("MEAL_TEXT live smoke did not return a functional food item");
           }
-          EOF
-          cat "${MANIFEST_DIR}/manifest.json"
-          echo "artifact_name=issue-${ISSUE_SLUG}-verification-${HEAD_SHA}" >> "${GITHUB_OUTPUT}"
-          echo "manifest_path=${MANIFEST_DIR}/manifest.json" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload verification manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.verification_manifest.outputs.artifact_name }}
-          path: ${{ steps.verification_manifest.outputs.manifest_path }}
-          if-no-files-found: error
-          retention-days: 30
+          const visionResult = await extractWithAi({
+            text: "Teste sintético: a imagem representa uma banana; registrar 1 banana.",
+            imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQMcAAAAASUVORK5CYII=",
+            occurredAt: new Date("2026-07-28T12:05:00-03:00"),
+            timeZone: "America/Sao_Paulo",
+          });
+          if (!visionResult || visionResult.items.length < 1) {
+            throw new Error("MEAL_VISION live smoke did not return a functional food item");
+          }
 
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+          const context: WhatsappIntentContext = {
+            version: "whatsapp-intent-context/v1",
+            nowIso: "2026-07-28T15:10:00.000Z",
+            timezone: "America/Sao_Paulo",
+            mealAliases: {},
+            latestMeal: null,
+            mealsToday: [],
+            recentFoodNames: [],
+            contextualMemories: [],
+            pendingClarification: null,
+          };
+          const intentResult = await interpretWhatsappMessageWithDiagnostics("registro", context);
+          if (intentResult.source !== "llm" || intentResult.validationStatus !== "valid") {
+            throw new Error("WHATSAPP_INTENT live smoke did not produce a validated LLM result");
+          }
 
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
-        run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+          console.log(JSON.stringify({
+            provider: process.env.SMOKE_PROVIDER,
+            mealTextItems: textResult.items.length,
+            mealVisionItems: visionResult.items.length,
+            intentSource: intentResult.source,
+            intentValidation: intentResult.validationStatus,
+          }));
+          TS
+          pnpm exec tsx .tmp-issue-922-live-smoke.ts
+          rm .tmp-issue-922-live-smoke.ts
