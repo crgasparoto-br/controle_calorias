@@ -1,0 +1,1 @@
+Trigger trusted-user final validation for issue #882.
