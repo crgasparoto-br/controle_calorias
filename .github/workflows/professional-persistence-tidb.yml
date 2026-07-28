@@ -14,6 +14,7 @@ on:
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
+      - "scripts/test-professional-message-idempotency-tidb.ts"
       - "scripts/test-professional-operational-alerts-tidb.ts"
       - "scripts/test-professional-portfolio-report-timezone-tidb.ts"
       - "scripts/test-professional-access-receipts-tidb.ts"
@@ -135,6 +136,10 @@ jobs:
             scripts/test-professional-persistence-tidb.ts \
             '"event":"professional.persistence.integration.passed"' \
             professional-persistence
+          run_integration \
+            scripts/test-professional-message-idempotency-tidb.ts \
+            '"event":"professional.message_idempotency.integration.passed"' \
+            professional-message-idempotency
           run_integration \
             scripts/test-professional-operational-alerts-tidb.ts \
             '"event":"professional.operational-alerts.integration.passed"' \
