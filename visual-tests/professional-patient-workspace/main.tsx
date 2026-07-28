@@ -10,10 +10,16 @@ const draftHistoryScenario = searchParams.get("draft-history");
 const goalTransitionScenario = searchParams.get("goal-transition");
 
 // Visual evidence exercises message layout with a deliberately dirty composer.
-// Suppress only the browser-exit prompt in this isolated harness so headless Chrome
-// can finish screenshot capture; navigation guards remain active and are covered by
-// the real component tests.
+// Disable the long-lived revocation stream and suppress only the browser-exit prompt
+// in this isolated harness so headless Chrome can finish deterministic capture. The
+// production stream and navigation guards remain covered by their functional tests.
 if (window.location.pathname.endsWith("/messages")) {
+  Object.defineProperty(window, "EventSource", {
+    configurable: true,
+    value: undefined,
+  });
+  document.documentElement.dataset.visualRevocationStreamDisabled = "true";
+
   const nativeWindowAddEventListener = window.addEventListener;
   window.addEventListener = (function (
     type: string,

@@ -185,7 +185,8 @@ assert_dom_at_size \
   'data-visual-active-message-retry-visible="true"' \
   'data-visual-active-message-actions-enabled="true"' \
   'data-visual-active-message-controls-contained="true"' \
-  'data-visual-before-unload-suppressed="true"'
+  'data-visual-before-unload-suppressed="true"' \
+  'data-visual-revocation-stream-disabled="true"'
 assert_dom_at_size \
   "messages-active-mobile" \
   "390,1200" \
@@ -215,7 +216,7 @@ head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
 scenarios=messages-inbox,messages-active,messages-ended-read-only
 viewports=1440x900,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalMessagesExperience with deterministic auth and tRPC transport fixtures; the isolated visual harness suppresses only beforeunload browser-exit prompts while functional tests cover the real navigation guard
+source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalMessagesExperience with deterministic auth and tRPC transport fixtures; the isolated visual harness disables the long-lived revocation EventSource and suppresses beforeunload browser-exit prompts while functional tests cover both production behaviors
 assertions=aggregate inbox without composer, patient conversation links and filters, active conversation with editable composer and retry, ended conversation read-only, no page-level horizontal overflow
 MANIFEST
 
