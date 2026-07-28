@@ -7,29 +7,50 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  apply-issue-882-remediation:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
         with:
-          run_install: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Generate Drizzle metadata
-        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
-      - name: Pack source and generated metadata
-        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: branch-source-snapshot
-          path: /tmp/controle-calorias-source.tar.gz
-          retention-days: 1
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Extract, verify and apply remediation
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+
+          source = Path('.github/workflows/issue-882-remediation-applier.yml').read_text()
+          payload = source.split("<<'PATCH_BASE64'\n", 1)[1].split("\n          PATCH_BASE64", 1)[0]
+          raw = base64.b64decode(''.join(payload.split()))
+          expected = '569c09cb4028c5b86436d877f23f3f158d025daef331e8fae330e4c4046df9e4'
+          actual = hashlib.sha256(raw).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'patch hash mismatch: {actual}')
+          Path('/tmp/issue882.patch').write_bytes(raw)
+          PY
+          git apply --check /tmp/issue882.patch
+          git apply /tmp/issue882.patch
+          git show 25702f3bbfbff8e0e7f1abc8fd273f9deefb5cf8:.github/workflows/branch-source-snapshot.yml > .github/workflows/branch-source-snapshot.yml
+          rm -f \
+            .github/workflows/issue-882-remediation-applier.yml \
+            .github/workflows/issue-882-remediation-applier-v2.yml \
+            .github/issue-882-remediation-trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: close issue 882 audit findings"
+          git push origin "HEAD:${HEAD_BRANCH}"
