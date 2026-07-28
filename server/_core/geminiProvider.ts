@@ -72,7 +72,7 @@ function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] 
       throw invalidPayload(`GeminiProvider: ${messagePath} must declare content.`);
     }
 
-    const content = (message as Record<string, unknown>).content;
+    const content = (message as unknown as Record<string, unknown>).content;
     const items = Array.isArray(content) ? content : [content];
     if (items.length === 0) {
       throw invalidPayload(`GeminiProvider: ${messagePath}.content must not be empty.`);
