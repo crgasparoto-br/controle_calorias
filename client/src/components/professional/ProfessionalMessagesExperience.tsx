@@ -129,8 +129,9 @@ export default function ProfessionalMessagesExperience() {
   const [items, setItems] = useState<MessageItem[]>([]);
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
-  const dirtyRef = useRef(false);
-  dirtyRef.current = Boolean(content.trim());
+  const dirty = Boolean(content.trim());
+  const allowNavigationRef = useRef(false);
+  const restoringHistoryRef = useRef(false);
 
   const clearComposer = useCallback(() => {
     setContent("");
@@ -155,13 +156,26 @@ export default function ProfessionalMessagesExperience() {
   }, [patientId, search, stateFilter]);
 
   useEffect(() => {
+    allowNavigationRef.current = false;
+  }, [location]);
+
+  useEffect(() => {
+    if (dirty) allowNavigationRef.current = false;
+  }, [dirty]);
+
+  useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!dirtyRef.current) return;
+      if (!dirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
+
+  useEffect(() => {
     const guardNavigation = (event: MouseEvent) => {
-      if (!dirtyRef.current) return;
+      if (!dirty || allowNavigationRef.current) return;
       const target = event.target as HTMLElement | null;
       const navigation = target?.closest(
         "[data-professional-navigation], [data-sidebar='footer'] button, nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
@@ -171,27 +185,81 @@ export default function ProfessionalMessagesExperience() {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-      } else {
-        clearComposer();
+        return;
       }
+      clearComposer();
+      allowNavigationRef.current = true;
     };
-    const guardBack = () => {
-      if (!dirtyRef.current) return;
-      if (!window.confirm(UNSAVED_MESSAGE)) {
-        window.history.pushState({ professionalMessageDraft: true }, "", location);
-      } else {
-        clearComposer();
-      }
-    };
-    window.addEventListener("beforeunload", beforeUnload);
-    window.addEventListener("popstate", guardBack);
     document.addEventListener("click", guardNavigation, true);
-    return () => {
-      window.removeEventListener("beforeunload", beforeUnload);
-      window.removeEventListener("popstate", guardBack);
-      document.removeEventListener("click", guardNavigation, true);
+    return () => document.removeEventListener("click", guardNavigation, true);
+  }, [clearComposer, dirty]);
+
+  useEffect(() => {
+    const navigation = (
+      window as Window & {
+        navigation?: EventTarget;
+      }
+    ).navigation;
+    if (!navigation) return;
+
+    const guardTraversal = (event: Event) => {
+      const navigateEvent = event as Event & { navigationType?: string };
+      if (
+        !dirty ||
+        allowNavigationRef.current ||
+        navigateEvent.navigationType !== "traverse"
+      ) {
+        return;
+      }
+      if (!window.confirm(UNSAVED_MESSAGE)) {
+        if (event.cancelable) {
+          event.preventDefault();
+          return;
+        }
+        window.history.pushState(
+          { professionalMessageDraft: true },
+          "",
+          location
+        );
+        return;
+      }
+      clearComposer();
+      allowNavigationRef.current = true;
     };
-  }, [clearComposer, location]);
+
+    navigation.addEventListener("navigate", guardTraversal);
+    return () => navigation.removeEventListener("navigate", guardTraversal);
+  }, [clearComposer, dirty, location]);
+
+  useEffect(() => {
+    const navigation = (
+      window as Window & {
+        navigation?: EventTarget;
+      }
+    ).navigation;
+    if (navigation) return;
+
+    const guardBack = () => {
+      if (restoringHistoryRef.current) {
+        restoringHistoryRef.current = false;
+        return;
+      }
+      if (!dirty || allowNavigationRef.current) return;
+      if (!window.confirm(UNSAVED_MESSAGE)) {
+        const restorationState = { professionalMessageDraft: true };
+        restoringHistoryRef.current = true;
+        window.history.pushState(restorationState, "", location);
+        window.dispatchEvent(
+          new PopStateEvent("popstate", { state: restorationState })
+        );
+        return;
+      }
+      clearComposer();
+      allowNavigationRef.current = true;
+    };
+    window.addEventListener("popstate", guardBack);
+    return () => window.removeEventListener("popstate", guardBack);
+  }, [clearComposer, dirty, location]);
 
   const templatesQuery = trpc.professionalRecord.messages.templates.useQuery(
     undefined,

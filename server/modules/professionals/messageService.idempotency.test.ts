@@ -142,7 +142,7 @@ describe("professional message creation idempotency", () => {
     expect(db.transaction).not.toHaveBeenCalled();
   });
 
-  it("completes an interrupted equivalent web delivery without creating another message", async () => {
+  it("completes an interrupted equivalent web delivery only after revalidating the locked scope", async () => {
     const input: ProfessionalMessageCreateInput = {
       ...baseInput,
       action: "send_web",
@@ -157,17 +157,88 @@ describe("professional message creation idempotency", () => {
       .fn()
       .mockResolvedValueOnce(scopeRow())
       .mockResolvedValueOnce([[pending]])
-      .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[{ ...pending, state: "sent", sentAt: new Date() }]]);
-    const transaction = vi.fn();
+    const txExecute = vi
+      .fn()
+      .mockResolvedValueOnce([[{ authorizationId: "authorization-41" }]])
+      .mockResolvedValueOnce([[{ status: "active" }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => unknown) =>
+        callback({ execute: txExecute })
+    );
     mocks.getDb.mockResolvedValue({ execute, transaction });
 
     await expect(createProfessionalMessage(7, input)).resolves.toMatchObject({
       id: "message-existing",
       state: "sent",
     });
-    expect(transaction).not.toHaveBeenCalled();
-    expect(execute).toHaveBeenCalledTimes(4);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(txExecute).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("blocks an interrupted web replay when authorization is revoked after the initial scope read", async () => {
+    const input: ProfessionalMessageCreateInput = {
+      ...baseInput,
+      action: "send_web",
+      idempotencyKey: "professional-message-web-revoked",
+    };
+    const pending = existingRow({
+      state: "pending",
+      requestedAction: "send_web",
+      idempotencyKey: input.idempotencyKey,
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[pending]]);
+    const txExecute = vi.fn().mockResolvedValueOnce([[]]);
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => unknown) =>
+        callback({ execute: txExecute })
+    );
+    mocks.getDb.mockResolvedValue({ execute, transaction });
+
+    await expect(createProfessionalMessage(7, input)).rejects.toThrow(
+      "O acesso a este paciente não está mais disponível."
+    );
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(txExecute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks an interrupted web replay when tracking ends after the initial scope read", async () => {
+    const input: ProfessionalMessageCreateInput = {
+      ...baseInput,
+      action: "send_web",
+      idempotencyKey: "professional-message-web-ended",
+    };
+    const pending = existingRow({
+      state: "pending",
+      requestedAction: "send_web",
+      idempotencyKey: input.idempotencyKey,
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[pending]]);
+    const txExecute = vi
+      .fn()
+      .mockResolvedValueOnce([[{ authorizationId: "authorization-41" }]])
+      .mockResolvedValueOnce([[{ status: "ended" }]]);
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => unknown) =>
+        callback({ execute: txExecute })
+    );
+    mocks.getDb.mockResolvedValue({ execute, transaction });
+
+    await expect(createProfessionalMessage(7, input)).rejects.toThrow(
+      "O acompanhamento foi encerrado e não aceita novas mensagens."
+    );
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(txExecute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(2);
   });
 
   it("resumes an interrupted equivalent WhatsApp delivery on the same logical message", async () => {

@@ -40,6 +40,15 @@ function setMessages(
   messageResult = { items, nextCursor };
 }
 
+function traversalEvent() {
+  const event = new Event("navigate", { cancelable: true });
+  Object.defineProperty(event, "navigationType", {
+    configurable: true,
+    value: "traverse",
+  });
+  return event;
+}
+
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
     selectedPatient: patientSelected
@@ -95,6 +104,7 @@ vi.mock("@/lib/trpc", () => ({
 
 afterEach(() => {
   cleanup();
+  Reflect.deleteProperty(window, "navigation");
   vi.restoreAllMocks();
 });
 
@@ -352,6 +362,127 @@ describe("ProfessionalMessagesExperience", () => {
     );
     expect(confirm).toHaveBeenCalledTimes(2);
     expect(setLocation).toHaveBeenCalledWith("/today");
+  });
+
+  it("blocks navigation to a different patient until the unsaved draft is explicitly discarded", async () => {
+    const confirm = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(
+      <>
+        <Experience />
+        <button
+          type="button"
+          data-professional-navigation
+          onClick={() => setLocation("/professional/patients/42/messages")}
+        >
+          Abrir mensagens de Bruno
+        </button>
+      </>
+    );
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho exclusivo da paciente Ana" },
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Abrir mensagens de Bruno" })
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(setLocation).not.toHaveBeenCalled();
+    expect(
+      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+        .value
+    ).toBe("Rascunho exclusivo da paciente Ana");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Abrir mensagens de Bruno" })
+    );
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(setLocation).toHaveBeenCalledWith(
+      "/professional/patients/42/messages"
+    );
+    expect(
+      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+        .value
+    ).toBe("");
+  });
+
+  it("prevents browser back or forward when the unsaved message draft is kept", async () => {
+    const navigation = new EventTarget();
+    Object.defineProperty(window, "navigation", {
+      configurable: true,
+      value: navigation,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho protegido no histórico" },
+    });
+    const event = traversalEvent();
+    const notCancelled = navigation.dispatchEvent(event);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(notCancelled).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(
+      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+        .value
+    ).toBe("Rascunho protegido no histórico");
+  });
+
+  it("allows browser back or forward only after discarding the unsaved message draft", async () => {
+    const navigation = new EventTarget();
+    Object.defineProperty(window, "navigation", {
+      configurable: true,
+      value: navigation,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho a descartar antes de voltar" },
+    });
+    const event = traversalEvent();
+    const notCancelled = navigation.dispatchEvent(event);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(notCancelled).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(
+      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+        .value
+    ).toBe("");
+  });
+
+  it("registers the browser-exit guard while the message draft is unsaved", async () => {
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho protegido no fechamento" },
+    });
+    const event = new Event("beforeunload", {
+      bubbles: false,
+      cancelable: true,
+    });
+    const notCancelled = window.dispatchEvent(event);
+
+    expect(notCancelled).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it("rearms the unsaved draft guard when a confirmed click stays on the same route", async () => {

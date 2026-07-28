@@ -285,7 +285,7 @@ async function recoverIdempotentCreate(
 async function reconcileIdempotentCreate(
   db: Awaited<ReturnType<typeof dbRequired>>,
   professionalUserId: number,
-  trackingStatus: string,
+  authorizationId: string,
   input: ProfessionalMessageCreateInput,
   existing: Row
 ) {
@@ -293,15 +293,23 @@ async function reconcileIdempotentCreate(
   let shouldReload = false;
 
   if (input.action === "send_web" && String(existing.state) === "pending") {
-    try {
-      assertCanCreate(trackingStatus, input.messageType);
-    } catch {
-      return serialize(existing);
-    }
-    await db.execute(sql`UPDATE professionalMessages
-      SET state = 'sent', sentAt = COALESCE(sentAt, NOW()), lastError = NULL
-      WHERE id = ${messageId} AND professionalUserId = ${professionalUserId}
-        AND state = 'pending' AND requestedAction = 'send_web'`);
+    await db.transaction(async tx => {
+      await lockProfessionalScope(
+        query => tx.execute(query),
+        professionalUserId,
+        input.patientId,
+        authorizationId,
+        input.messageType
+      );
+      await tx.execute(sql`UPDATE professionalMessages
+        SET state = 'sent', sentAt = COALESCE(sentAt, NOW()), lastError = NULL
+        WHERE id = ${messageId}
+          AND authorizationId = ${authorizationId}
+          AND professionalUserId = ${professionalUserId}
+          AND patientUserId = ${input.patientId}
+          AND state = 'pending'
+          AND requestedAction = 'send_web'`);
+    });
     shouldReload = true;
   } else if (
     input.action === "send_whatsapp" &&
@@ -354,7 +362,7 @@ export async function createProfessionalMessage(
     return reconcileIdempotentCreate(
       scope.db,
       professionalUserId,
-      scope.trackingStatus,
+      scope.authorizationId,
       normalizedInput,
       existing
     );
@@ -426,7 +434,7 @@ export async function createProfessionalMessage(
       return reconcileIdempotentCreate(
         scope.db,
         professionalUserId,
-        scope.trackingStatus,
+        scope.authorizationId,
         normalizedInput,
         recovered
       );
