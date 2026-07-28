@@ -24,8 +24,8 @@ import type {
  *
  * Structured output uses `responseJsonSchema` so the JSON Schema used by the
  * existing meal consumer is preserved instead of being lossy-converted to the
- * smaller OpenAPI-style `Schema` type. Unsupported constructs, input parts and
- * tools are rejected locally before any network call.
+ * smaller OpenAPI-style `Schema` type. Unsupported constructs, input parts,
+ * message roles and tools are rejected locally before any network call.
  */
 function incompatibleOperation(message: string): AiNonRetryableError {
   return new AiNonRetryableError(message, undefined, "incompatible_operation");
@@ -53,80 +53,99 @@ function buildInlineImagePart(imageUrl: string, path: string): Part {
   return { inlineData: { mimeType: headerMatch[1], data } };
 }
 
-function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] {
+function buildGeminiMessageParts(content: unknown, messagePath: string): Part[] {
+  const items = Array.isArray(content) ? content : [content];
+  if (items.length === 0) {
+    throw invalidPayload(`GeminiProvider: ${messagePath}.content must not be empty.`);
+  }
+
+  const parts: Part[] = [];
+  for (const [itemIndex, item] of items.entries()) {
+    const itemPath = `${messagePath}.content[${itemIndex}]`;
+    if (typeof item === "string") {
+      if (!item.trim()) {
+        throw invalidPayload(`GeminiProvider: ${itemPath} must not be empty.`);
+      }
+      parts.push({ text: item });
+      continue;
+    }
+
+    if (typeof item !== "object" || item === null) {
+      throw invalidPayload(`GeminiProvider: ${itemPath} is not a valid content part.`);
+    }
+
+    const part = item as Record<string, unknown>;
+    if (part.type === "input_text") {
+      if (typeof part.text !== "string" || !part.text.trim()) {
+        throw invalidPayload(`GeminiProvider: ${itemPath}.text must be a non-empty string.`);
+      }
+      parts.push({ text: part.text });
+      continue;
+    }
+
+    if (part.type === "input_image") {
+      if (typeof part.image_url !== "string" || !part.image_url.trim()) {
+        throw invalidPayload(`GeminiProvider: ${itemPath}.image_url must be a non-empty string.`);
+      }
+
+      const imageUrl = part.image_url;
+      if (imageUrl.startsWith("data:")) {
+        parts.push(buildInlineImagePart(imageUrl, `${itemPath}.image_url`));
+      } else {
+        parts.push({
+          fileData: {
+            mimeType: "image/jpeg",
+            fileUri: imageUrl,
+          },
+        });
+      }
+      continue;
+    }
+
+    throw incompatibleOperation(
+      `GeminiProvider: ${itemPath} uses unsupported content part type ${String(part.type)}.`,
+    );
+  }
+
+  return parts;
+}
+
+function translateGeminiRole(role: unknown, messagePath: string): "user" | "model" {
+  if (role === "user") return "user";
+  if (role === "assistant") return "model";
+  throw incompatibleOperation(
+    `GeminiProvider: ${messagePath}.role ${String(role)} is not representable by the current adapter.`,
+  );
+}
+
+function buildGeminiContents(contentItems: AiProviderTextRequest["input"]): ContentListUnion {
   if (typeof contentItems === "string") {
     if (!contentItems.trim()) {
       throw invalidPayload("GeminiProvider: direct text input must not be empty.");
     }
-    return [{ text: contentItems }];
+    return [{ role: "user", parts: [{ text: contentItems }] }];
   }
 
   if (!Array.isArray(contentItems) || contentItems.length === 0) {
     throw invalidPayload("GeminiProvider: request input must contain at least one message.");
   }
 
-  const parts: Part[] = [];
-  for (const [messageIndex, message] of contentItems.entries()) {
+  return contentItems.map((message, messageIndex): Content => {
     const messagePath = `input[${messageIndex}]`;
     if (typeof message !== "object" || message === null || !("content" in message)) {
       throw invalidPayload(`GeminiProvider: ${messagePath} must declare content.`);
     }
 
-    const content = (message as unknown as Record<string, unknown>).content;
-    const items = Array.isArray(content) ? content : [content];
-    if (items.length === 0) {
-      throw invalidPayload(`GeminiProvider: ${messagePath}.content must not be empty.`);
+    const messageRecord = message as unknown as Record<string, unknown>;
+    if (!("role" in messageRecord)) {
+      throw invalidPayload(`GeminiProvider: ${messagePath} must declare role.`);
     }
 
-    for (const [itemIndex, item] of items.entries()) {
-      const itemPath = `${messagePath}.content[${itemIndex}]`;
-      if (typeof item === "string") {
-        if (!item.trim()) {
-          throw invalidPayload(`GeminiProvider: ${itemPath} must not be empty.`);
-        }
-        parts.push({ text: item });
-        continue;
-      }
-
-      if (typeof item !== "object" || item === null) {
-        throw invalidPayload(`GeminiProvider: ${itemPath} is not a valid content part.`);
-      }
-
-      const part = item as Record<string, unknown>;
-      if (part.type === "input_text") {
-        if (typeof part.text !== "string" || !part.text.trim()) {
-          throw invalidPayload(`GeminiProvider: ${itemPath}.text must be a non-empty string.`);
-        }
-        parts.push({ text: part.text });
-        continue;
-      }
-
-      if (part.type === "input_image") {
-        if (typeof part.image_url !== "string" || !part.image_url.trim()) {
-          throw invalidPayload(`GeminiProvider: ${itemPath}.image_url must be a non-empty string.`);
-        }
-
-        const imageUrl = part.image_url;
-        if (imageUrl.startsWith("data:")) {
-          parts.push(buildInlineImagePart(imageUrl, `${itemPath}.image_url`));
-        } else {
-          parts.push({
-            fileData: {
-              mimeType: "image/jpeg",
-              fileUri: imageUrl,
-            },
-          });
-        }
-        continue;
-      }
-
-      throw incompatibleOperation(
-        `GeminiProvider: ${itemPath} uses unsupported content part type ${String(part.type)}.`,
-      );
-    }
-  }
-
-  return parts;
+    return {
+      role: translateGeminiRole(messageRecord.role, messagePath),
+      parts: buildGeminiMessageParts(messageRecord.content, messagePath),
+    };
+  });
 }
 
 function buildSystemInstruction(instructions: string | undefined): Content | undefined {
@@ -459,8 +478,7 @@ export class GeminiProvider implements AiProvider {
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
     assertRepresentableTools(request);
-    const parts = buildGeminiParts(request.input);
-    const contents: ContentListUnion = [{ role: "user", parts }];
+    const contents = buildGeminiContents(request.input);
     const response = await this.client.models.generateContent({
       model: request.model,
       contents,
