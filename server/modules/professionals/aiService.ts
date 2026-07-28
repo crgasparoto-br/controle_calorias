@@ -500,7 +500,6 @@ export function createProfessionalAiService(
       period: range,
       timeZone: timeZoneState.timeZone,
       fallbackUsed,
-      providerModel,
       sourceSignals,
     };
   }

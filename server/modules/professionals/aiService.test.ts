@@ -182,7 +182,7 @@ describe("professionalAiService", () => {
     expect(providerPayload).toContain("current_record_frequency");
     expect(providerPayload).not.toContain("currentPeriod");
     expect(providerPayload).not.toContain("previousPeriod");
-    expect(result.providerModel).toBe("test-model");
+    expect(result).not.toHaveProperty("providerModel");
     expect(deps.getTimeZone).toHaveBeenCalledTimes(2);
   });
 

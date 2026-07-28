@@ -115,6 +115,7 @@ Se qualquer camada falhar, a resposta do provedor é descartada integralmente. T
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
 - O catálogo exibido na interface corresponde aos sinais enviados ao provedor completo, permitindo conferência do período atual e do anterior.
 - A telemetria registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
+- O modelo e demais metadados do provedor permanecem restritos à telemetria sanitizada. O payload público de `professionalRecord.ai.generate` não serializa `providerModel`, uso de tokens, motivo interno do fallback nem identificadores do provedor.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 

@@ -310,20 +310,31 @@ describe("professionalPortfolioRepository", () => {
     });
   });
 
-  it("loads aggregate report blocks independently without paginating the portfolio", async () => {
+  it("loads aggregate report blocks through the canonical paginated portfolio query", async () => {
     const dialect = new MySqlDialect();
     const queries: Array<{ sql: string; params: unknown[] }> = [];
+    let call = 0;
     const db = {
       execute: vi.fn(async query => {
         const compiled = dialect.sqlToQuery(query);
         queries.push(compiled);
-        if (compiled.sql.includes("activeWithRecentRecords")) {
-          return [[{ activeWithRecentRecords: 3, withoutRecentActivity: 4 }]];
-        }
-        if (compiled.sql.includes("pendingReviews")) {
-          return [[{ pendingReviews: 2, pendingWeighings: 1 }]];
-        }
-        return [[{ active: 5, paused: 1, ended: 2, notStarted: 3 }]];
+        call += 1;
+        if (call % 3 === 1) return [[]];
+        if (call % 3 === 2) return [[{ total: 0 }]];
+        return [
+          [
+            {
+              active: 5,
+              paused: 1,
+              ended: 2,
+              notStarted: 3,
+              activeWithRecentRecords: 3,
+              withoutRecentActivity: 4,
+              pendingReviews: 2,
+              pendingWeighings: 1,
+            },
+          ],
+        ];
       }),
     };
     const repository = createProfessionalPortfolioRepository({
@@ -339,20 +350,28 @@ describe("professionalPortfolioRepository", () => {
     const schedule = await repository.report(101, { block: "schedule" });
     const tracking = await repository.report(101, { block: "tracking" });
 
-    expect(queries).toHaveLength(3);
+    expect(queries).toHaveLength(9);
     expect(queries.every(query => query.params.includes(101))).toBe(true);
-    expect(queries.every(query => !query.sql.includes("LIMIT"))).toBe(true);
+    expect(
+      queries.filter(query => query.sql.includes("LIMIT ? OFFSET ?"))
+    ).toHaveLength(3);
+    expect(
+      queries.filter(query => query.sql.includes("SELECT COUNT(*)"))
+    ).toHaveLength(3);
+    expect(
+      queries.filter(query => query.sql.includes("activeWithRecentRecords"))
+    ).toHaveLength(3);
+    expect(
+      queries.every(
+        query => !query.sql.includes("MAX(scopedMeals.`occurredAt`)")
+      )
+    ).toBe(true);
     expect(queries[0].sql).toContain("periodMeals.`occurredAt` >=");
     expect(queries[0].sql).toMatch(/COALESCE\s*\(\s*CONVERT_TZ\s*\(/);
     expect(queries[0].sql).toContain(
       "NULLIF(TRIM(periodProfile.`timezone`), '')"
     );
-    expect(queries[0].sql).toMatch(
-      /CONVERT_TZ\s*\(\s*periodMeals\.`occurredAt`/
-    );
     expect(queries[0].params).toContain("America/Sao_Paulo");
-    expect(queries[1].sql).not.toContain("periodMeals");
-    expect(queries[2].sql).not.toContain("periodMeals");
     expect(activity.summary).toMatchObject({
       activeWithRecentRecords: 3,
       withoutRecentActivity: 4,

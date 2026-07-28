@@ -368,76 +368,45 @@ export function createProfessionalPortfolioRepository(
       return unavailableReportResult(input.block);
     }
 
-    const now = new Date();
-    const summary = emptyReportSummary();
-
     try {
+      const portfolio = await list(professionalUserId, {
+        search: "",
+        authorizationStatus: "all",
+        trackingStatus: "all",
+        activity: "all",
+        reportRecords: "all",
+        nextReview: "all",
+        nextWeighing: "all",
+        page: 1,
+        pageSize: 10,
+        reportStartDate:
+          input.block === "activity" ? input.reportStartDate : undefined,
+        reportEndDate:
+          input.block === "activity" ? input.reportEndDate : undefined,
+        includeHistoricalActivity: false,
+      });
+      const summary = emptyReportSummary();
+
       if (input.block === "activity") {
-        const reportStartDate = input.reportStartDate!;
-        const reportEndDate = input.reportEndDate!;
-        const { coarseStart, coarseEnd } = reportPeriodWindow(
-          reportStartDate,
-          reportEndDate
-        );
-        const result = await db.execute(sql`
-          SELECT
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' AND COALESCE(pm.\`periodRecordCount\`, 0) > 0 THEN 1 END) AS \`activeWithRecentRecords\`,
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND COALESCE(pm.\`periodRecordCount\`, 0) = 0 THEN 1 END) AS \`withoutRecentActivity\`
-          FROM \`professionalPatientAuthorizations\` a
-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
-          LEFT JOIN (
-            SELECT periodMeals.\`userId\`, COUNT(*) AS \`periodRecordCount\`
-            FROM \`meals\` periodMeals
-            INNER JOIN \`professionalPatientAuthorizations\` periodAccess
-              ON periodAccess.\`patientUserId\` = periodMeals.\`userId\`
-              AND periodAccess.\`professionalUserId\` = ${professionalUserId}
-              AND periodAccess.\`status\` = 'approved'
-            LEFT JOIN \`userProfiles\` periodProfile ON periodProfile.\`userId\` = periodMeals.\`userId\`
-            WHERE periodMeals.\`status\` = 'confirmed'
-              AND periodMeals.\`occurredAt\` >= ${coarseStart}
-              AND periodMeals.\`occurredAt\` <= ${coarseEnd}
-              AND ${periodMealLocalDateSql()}
-                BETWEEN ${reportStartDate} AND ${reportEndDate}
-            GROUP BY periodMeals.\`userId\`
-          ) pm ON pm.\`userId\` = a.\`patientUserId\`
-          WHERE a.\`professionalUserId\` = ${professionalUserId}
-        `);
-        const row = rowsFromResult(result)[0] ?? {};
-        summary.activeWithRecentRecords = asNumber(
-          row.activeWithRecentRecords
-        );
-        summary.withoutRecentActivity = asNumber(row.withoutRecentActivity);
+        summary.activeWithRecentRecords =
+          portfolio.summary.activeWithRecentRecords;
+        summary.withoutRecentActivity =
+          portfolio.summary.withoutRecentActivity;
       } else if (input.block === "schedule") {
-        const result = await db.execute(sql`
-          SELECT
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextReviewAt\` IS NOT NULL AND t.\`nextReviewAt\` <= ${now} THEN 1 END) AS \`pendingReviews\`,
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`nextWeighingAt\` IS NOT NULL AND t.\`nextWeighingAt\` <= ${now} THEN 1 END) AS \`pendingWeighings\`
-          FROM \`professionalPatientAuthorizations\` a
-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
-          WHERE a.\`professionalUserId\` = ${professionalUserId}
-        `);
-        const row = rowsFromResult(result)[0] ?? {};
-        summary.pendingReviews = asNumber(row.pendingReviews);
-        summary.pendingWeighings = asNumber(row.pendingWeighings);
+        summary.pendingReviews = portfolio.summary.pendingReviews;
+        summary.pendingWeighings = portfolio.summary.pendingWeighings;
       } else {
-        const result = await db.execute(sql`
-          SELECT
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'active' THEN 1 END) AS \`active\`,
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'paused' THEN 1 END) AS \`paused\`,
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`status\` = 'ended' THEN 1 END) AS \`ended\`,
-            COUNT(CASE WHEN a.\`status\` = 'approved' AND t.\`id\` IS NULL THEN 1 END) AS \`notStarted\`
-          FROM \`professionalPatientAuthorizations\` a
-          LEFT JOIN \`professionalPatientTrackings\` t ON t.\`authorizationId\` = a.\`id\`
-          WHERE a.\`professionalUserId\` = ${professionalUserId}
-        `);
-        const row = rowsFromResult(result)[0] ?? {};
-        summary.active = asNumber(row.active);
-        summary.paused = asNumber(row.paused);
-        summary.ended = asNumber(row.ended);
-        summary.notStarted = asNumber(row.notStarted);
+        summary.active = portfolio.summary.active;
+        summary.paused = portfolio.summary.paused;
+        summary.ended = portfolio.summary.ended;
+        summary.notStarted = portfolio.summary.notStarted;
       }
 
-      return { block: input.block, summary, generatedAt: now.getTime() };
+      return {
+        block: input.block,
+        summary,
+        generatedAt: portfolio.generatedAt,
+      };
     } catch (error) {
       deps.onWarning(`professional_portfolio_report_${input.block}`, error);
       throw new Error(
