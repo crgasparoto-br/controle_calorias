@@ -1,0 +1,1 @@
+Trigger controlled CDP visual remediation for issue #882.
