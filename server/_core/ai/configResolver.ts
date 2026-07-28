@@ -87,6 +87,7 @@ const LEGACY_MAPPING: Record<AiCapabilityId, LegacyMapping> = {
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   WHATSAPP_INTENT: {
+    legacyProviderEnv: "AI_VISION_PROVIDER",
     legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
