@@ -1,0 +1,1 @@
+Second trigger marker for the controlled issue #882 applicator.
