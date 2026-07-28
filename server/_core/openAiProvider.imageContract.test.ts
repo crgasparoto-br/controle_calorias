@@ -23,7 +23,7 @@ describe("OpenAiProvider image contract", () => {
       outputFormat: "webp",
       originalImages: [
         { b64Json: "QUFBQQ==", mimeType: "image/jpeg" },
-        { b64Json: "QkJCQg==", mimeType: "image/png" },
+        { b64Json: "QkJCQg", mimeType: "image/png" },
       ],
     }, { signal: controller.signal });
 
@@ -70,7 +70,11 @@ describe("OpenAiProvider image contract", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed non-empty base64 image data before outbound", async () => {
+  it.each([
+    "not-base64!",
+    "AAAA==",
+    "A",
+  ])("rejects malformed non-empty base64 image data before outbound: %s", async b64Json => {
     const edit = vi.fn();
     const generate = vi.fn();
     const provider = new OpenAiProvider(buildClient(edit, generate));
@@ -78,7 +82,7 @@ describe("OpenAiProvider image contract", () => {
     await expect(provider.createImageGeneration({
       model: "gpt-image-1",
       prompt: "anote",
-      originalImages: [{ b64Json: "not-base64!", mimeType: "image/png" }],
+      originalImages: [{ b64Json, mimeType: "image/png" }],
     })).rejects.toMatchObject({ code: "invalid_payload" });
 
     expect(edit).not.toHaveBeenCalled();
