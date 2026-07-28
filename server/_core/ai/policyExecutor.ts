@@ -91,10 +91,50 @@ function readMessage(error: unknown): string {
   return "AI provider call failed";
 }
 
+function isAuthenticationFailure(status: number | null, normalizedMessage: string): boolean {
+  if (status === 401) return true;
+  if (normalizedMessage.includes("authentication")) return true;
+  if (!normalizedMessage.includes("api key")) return false;
+  return ["invalid", "missing", "required", "not configured", "unauthorized"].some(token =>
+    normalizedMessage.includes(token));
+}
+
+function isModelFailure(status: number | null, normalizedMessage: string): boolean {
+  return status === 404 ||
+    normalizedMessage.includes("model not found") ||
+    normalizedMessage.includes("unknown model");
+}
+
+function isSafetyFailure(normalizedMessage: string): boolean {
+  return normalizedMessage.includes("safety") ||
+    normalizedMessage.includes("blocked") ||
+    normalizedMessage.includes("content policy");
+}
+
+function classifyKnownEmptyOrInvalidOutput(
+  message: string,
+  normalizedMessage: string,
+  error: unknown,
+): AiOperationalError | null {
+  if (
+    normalizedMessage.includes("returned no image data") ||
+    normalizedMessage.includes("returned no embedding data") ||
+    normalizedMessage.includes("empty output") ||
+    normalizedMessage.includes("empty response")
+  ) {
+    return new AiOperationalError(message, error, "empty_output");
+  }
+  if (normalizedMessage.includes("invalid payload")) {
+    return new AiOperationalError(message, error, "invalid_payload");
+  }
+  return null;
+}
+
 /**
  * Maps concrete SDK/HTTP/network errors to the common policy taxonomy. Unknown
  * errors fail closed as non-retryable so they never trigger an unintended
- * second provider call.
+ * second provider call. Explicit authentication, model and safety signals take
+ * precedence over generic recoverable HTTP status codes.
  */
 export function classifyAiError(error: unknown): AiOperationalError | AiNonRetryableError {
   if (error instanceof AiOperationalError || error instanceof AiNonRetryableError) {
@@ -108,6 +148,19 @@ export function classifyAiError(error: unknown): AiOperationalError | AiNonRetry
   const message = readMessage(error);
   const normalizedMessage = message.toLowerCase();
 
+  if (isAuthenticationFailure(status, normalizedMessage)) {
+    return new AiNonRetryableError(message, error, "authentication");
+  }
+  if (isModelFailure(status, normalizedMessage)) {
+    return new AiNonRetryableError(message, error, "model_not_found");
+  }
+  if (isSafetyFailure(normalizedMessage)) {
+    return new AiNonRetryableError(message, error, "safety_block");
+  }
+
+  const outputFailure = classifyKnownEmptyOrInvalidOutput(message, normalizedMessage, error);
+  if (outputFailure) return outputFailure;
+
   if (status === 429) {
     return new AiOperationalError(message, error, "rate_limit");
   }
@@ -116,20 +169,6 @@ export function classifyAiError(error: unknown): AiOperationalError | AiNonRetry
   }
   if (NETWORK_ERROR_CODES.has(code) || name === "TimeoutError") {
     return new AiOperationalError(message, error, code === "ETIMEDOUT" ? "timeout" : "network");
-  }
-
-  if (status === 401 || normalizedMessage.includes("api key") || normalizedMessage.includes("authentication")) {
-    return new AiNonRetryableError(message, error, "authentication");
-  }
-  if (status === 404 || normalizedMessage.includes("model not found") || normalizedMessage.includes("unknown model")) {
-    return new AiNonRetryableError(message, error, "model_not_found");
-  }
-  if (
-    normalizedMessage.includes("safety") ||
-    normalizedMessage.includes("blocked") ||
-    normalizedMessage.includes("content policy")
-  ) {
-    return new AiNonRetryableError(message, error, "safety_block");
   }
   if (status !== null && status >= 400 && status < 500) {
     return new AiNonRetryableError(message, error, "invalid_configuration");
@@ -199,6 +238,52 @@ function extractOutputText(value: unknown): string | null {
   return null;
 }
 
+function validateEmbeddingResult(result: Record<string, unknown>): void {
+  if (!("embeddings" in result)) return;
+  if (!Array.isArray(result.embeddings)) {
+    throw new AiOperationalError("AI provider returned an invalid embeddings payload", undefined, "invalid_payload");
+  }
+  if (result.embeddings.length === 0) {
+    throw new AiOperationalError("AI provider returned no embedding data", undefined, "empty_output");
+  }
+  const invalidVector = result.embeddings.some(vector =>
+    !Array.isArray(vector) ||
+    vector.length === 0 ||
+    vector.some(component => typeof component !== "number" || !Number.isFinite(component)));
+  if (invalidVector) {
+    throw new AiOperationalError("AI provider returned an invalid embeddings payload", undefined, "invalid_payload");
+  }
+}
+
+function validateImageResult(result: Record<string, unknown>): void {
+  if (!("b64Json" in result)) return;
+  if (typeof result.b64Json !== "string") {
+    throw new AiOperationalError("AI provider returned an invalid image payload", undefined, "invalid_payload");
+  }
+  if (!result.b64Json.trim()) {
+    throw new AiOperationalError("AI provider returned no image data", undefined, "empty_output");
+  }
+}
+
+function validateTranscriptionResult(result: Record<string, unknown>): void {
+  const isTranscription = result.task === "transcribe" || "segments" in result || "duration" in result;
+  if (!isTranscription) return;
+  if (typeof result.text !== "string") {
+    throw new AiOperationalError("AI provider returned an invalid transcription payload", undefined, "invalid_payload");
+  }
+  if (!result.text.trim()) {
+    throw new AiOperationalError("AI provider returned empty transcription output", undefined, "empty_output");
+  }
+}
+
+function validateKnownResultShapes(value: unknown): void {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return;
+  const result = value as Record<string, unknown>;
+  validateEmbeddingResult(result);
+  validateImageResult(result);
+  validateTranscriptionResult(result);
+}
+
 function validateCommonResult<T>(value: T, validateResult?: AiResultValidator<T>): void {
   if (value === null || value === undefined) {
     throw new AiOperationalError("AI provider returned an invalid empty payload", undefined, "invalid_payload");
@@ -208,6 +293,8 @@ function validateCommonResult<T>(value: T, validateResult?: AiResultValidator<T>
   if (outputText !== null && outputText.trim().length === 0) {
     throw new AiOperationalError("AI provider returned empty output", undefined, "empty_output");
   }
+
+  validateKnownResultShapes(value);
 
   if (validateResult) {
     try {
