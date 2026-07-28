@@ -56,4 +56,4 @@ A consulta permite filtrar por intenção, erro, baixa confiança e motivo de fa
 
 ## Fronteira de execução #922
 
-`intentInterpreter.ts` usa `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry. A compatibilidade do baseline legado é aplicada somente a `WHATSAPP_INTENT` antes da execução comum; outras capacidades mantêm os defaults globais do resolvedor.
+`intentInterpreter.ts` usa diretamente `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. Toda a precedência legada de modelo, timeout e tentativas fica centralizada em `server/_core/ai/configResolver.ts`; o consumidor não altera a política resolvida. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry; outras capacidades mantêm os defaults globais do resolvedor.

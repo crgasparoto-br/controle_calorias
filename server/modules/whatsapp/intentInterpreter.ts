@@ -1,5 +1,5 @@
 import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "../../_core/ai/capabilityExecutor";
-import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";
+import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
 import { createDomainTextResponse } from "../../_core/ai/domainTextResponse";
 import {
   AiNonRetryableError,
@@ -42,7 +42,6 @@ export type WhatsappMessageInterpretation = {
   operationalTrace: WhatsappIntentOperationalTrace;
 };
 
-const MAX_LLM_RETRIES = 2;
 const MEAL_SUGGESTION_CLARIFICATION = "Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?";
 const LEARNED_ALIAS_INTENTS = new Set<WhatsappIntentName>([
   "daily_summary",
@@ -406,67 +405,6 @@ function isWhatsappLlmEnabled(options: InterpretOptions) {
   return !["0", "false", "no", "off"].includes(flag.trim().toLowerCase());
 }
 
-function readPositiveIntegerEnv(name: string): number | null {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
-}
-
-function resolveWhatsappIntentPolicy(): ResolvedCapabilityConfig {
-  const config = resolveCapabilityConfig("WHATSAPP_INTENT");
-  if (!config.primary || config.state === "disabled" || config.state === "invalid") {
-    return config;
-  }
-
-  const diagnostics = [...config.diagnostics];
-  let usedLegacyVariables = config.usedLegacyVariables;
-  let model = config.primary.model;
-
-  const hasNewModel = Boolean(process.env.AI_WHATSAPP_INTENT_MODEL?.trim());
-  const legacyOpenAiModel = process.env.OPENAI_WHATSAPP_INTENT_MODEL?.trim();
-  const usesOpenAiWire = config.primary.provider === "openai" || config.primary.provider === "openai-compatible";
-  if (!hasNewModel && usesOpenAiWire && legacyOpenAiModel) {
-    model = legacyOpenAiModel;
-    usedLegacyVariables = true;
-    diagnostics.push(
-      "[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable OPENAI_WHATSAPP_INTENT_MODEL; migrate to AI_WHATSAPP_INTENT_MODEL",
-    );
-  }
-
-  const legacyTimeout = !process.env.AI_WHATSAPP_INTENT_TIMEOUT_MS?.trim()
-    ? readPositiveIntegerEnv("OPENAI_WHATSAPP_INTENT_TIMEOUT_MS")
-    : null;
-  const timeoutMs = legacyTimeout ?? config.timeoutMs;
-  if (legacyTimeout !== null) {
-    usedLegacyVariables = true;
-    diagnostics.push(
-      "[deprecated] capability=WHATSAPP_INTENT resolved timeout via legacy variable OPENAI_WHATSAPP_INTENT_TIMEOUT_MS; migrate to AI_WHATSAPP_INTENT_TIMEOUT_MS",
-    );
-  }
-
-  const legacyRetriesRaw = Number(process.env.OPENAI_WHATSAPP_INTENT_RETRIES);
-  const hasLegacyRetries = !process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS?.trim()
-    && Number.isFinite(legacyRetriesRaw)
-    && legacyRetriesRaw >= 0;
-  const maxAttempts = hasLegacyRetries
-    ? Math.min(Math.floor(legacyRetriesRaw), MAX_LLM_RETRIES) + 1
-    : config.maxAttempts;
-  if (hasLegacyRetries) {
-    usedLegacyVariables = true;
-    diagnostics.push(
-      "[deprecated] capability=WHATSAPP_INTENT resolved attempts via legacy variable OPENAI_WHATSAPP_INTENT_RETRIES; migrate to AI_WHATSAPP_INTENT_MAX_ATTEMPTS",
-    );
-  }
-
-  return {
-    ...config,
-    primary: { provider: config.primary.provider, model },
-    timeoutMs,
-    maxAttempts,
-    diagnostics,
-    usedLegacyVariables,
-  };
-}
-
 async function callWhatsappIntentClassifier(
   attempt: ResolvedCapabilityAttemptContext,
   context: WhatsappIntentContext,
@@ -601,7 +539,7 @@ export async function interpretWhatsappMessageWithDiagnostics(
     );
   }
 
-  const policy = resolveWhatsappIntentPolicy();
+  const policy = resolveCapabilityConfig("WHATSAPP_INTENT");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
     return deterministicInterpretation(
       text,

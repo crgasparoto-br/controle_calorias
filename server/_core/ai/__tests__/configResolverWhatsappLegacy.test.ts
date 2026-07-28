@@ -36,6 +36,18 @@ describe("WHATSAPP_INTENT legacy baseline compatibility", () => {
     expect(config.maxAttempts).toBe(3);
   });
 
+
+it("prefers the specific legacy WhatsApp model in the canonical resolver", () => {
+  const config = resolveCapabilityConfig("WHATSAPP_INTENT", openAiEnv({
+    OPENAI_WHATSAPP_INTENT_MODEL: "gpt-whatsapp-specific",
+    OPENAI_TEXT_MODEL: "gpt-text-legacy",
+  }));
+
+  expect(config.primary).toEqual({ provider: "openai", model: "gpt-whatsapp-specific" });
+  expect(config.usedLegacyVariables).toBe(true);
+  expect(config.diagnostics).toContainEqual(expect.stringContaining("OPENAI_WHATSAPP_INTENT_MODEL"));
+});
+
   it("uses OPENAI_TEXT_MODEL only for an OpenAI wire when no more specific model exists", () => {
     const config = resolveCapabilityConfig("WHATSAPP_INTENT", openAiEnv({
       OPENAI_TEXT_MODEL: "gpt-text-legacy",
