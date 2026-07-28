@@ -89,16 +89,12 @@ function buildGeminiMessageParts(content: unknown, messagePath: string): Part[] 
       }
 
       const imageUrl = part.image_url;
-      if (imageUrl.startsWith("data:")) {
-        parts.push(buildInlineImagePart(imageUrl, `${itemPath}.image_url`));
-      } else {
-        parts.push({
-          fileData: {
-            mimeType: "image/jpeg",
-            fileUri: imageUrl,
-          },
-        });
+      if (!imageUrl.startsWith("data:")) {
+        throw incompatibleOperation(
+          `GeminiProvider: ${itemPath}.image_url must use an inline base64 data URL; external image URIs are not supported by the current models.generateContent adapter.`,
+        );
       }
+      parts.push(buildInlineImagePart(imageUrl, `${itemPath}.image_url`));
       continue;
     }
 
