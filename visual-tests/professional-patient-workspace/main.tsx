@@ -195,15 +195,73 @@ function writeVisualDiagnostics() {
     );
   }
 
-  if (
-    window.location.pathname.endsWith("/messages") &&
-    new URLSearchParams(window.location.search).get("state") === "ended"
-  ) {
+  const isMessagesRoute = window.location.pathname.endsWith("/messages");
+  const isMessagesInbox = window.location.pathname === "/professional/messages";
+  const messageState = new URLSearchParams(window.location.search).get("state");
+  if (isMessagesRoute && messageState === "ended") {
     root.dataset.visualEndedMessageDraftDisabled = String(
       Boolean(findButton("Salvar rascunho")?.disabled)
     );
     root.dataset.visualEndedMessageRetryAbsent = String(
       !findButton("Tentar novamente")
+    );
+  }
+  if (isMessagesInbox) {
+    const conversationButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("button")
+    ).filter(button => button.textContent?.includes("Abrir conversa"));
+    root.dataset.visualMessagesInboxComposerAbsent = String(
+      !findButton("Salvar rascunho") &&
+        !findButton("Disponibilizar na web") &&
+        !findButton("Enviar por WhatsApp")
+    );
+    root.dataset.visualMessagesInboxConversationLinks = String(
+      conversationButtons.length >= 2
+    );
+    root.dataset.visualMessagesInboxFilters = String(
+      Boolean(
+        document.querySelector<HTMLInputElement>(
+          'input[placeholder="Buscar paciente ou conteúdo"]'
+        )
+      ) &&
+        Boolean(
+          document.querySelector<HTMLSelectElement>(
+            'select[aria-label="Filtrar estado da mensagem"]'
+          )
+        )
+    );
+  }
+  if (isMessagesRoute && !isMessagesInbox && messageState !== "ended") {
+    const composer = document.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Conteúdo da mensagem"]'
+    );
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'textarea[aria-label="Conteúdo da mensagem"], select[aria-label="Tipo da mensagem"], select[aria-label="Origem da mensagem"], button'
+      )
+    );
+    root.dataset.visualActiveMessageComposerEditable = String(
+      Boolean(composer && !composer.disabled)
+    );
+    root.dataset.visualActiveMessageRetryVisible = String(
+      Boolean(findButton("Tentar novamente"))
+    );
+    root.dataset.visualActiveMessageActionsEnabled = String(
+      Boolean(findButton("Salvar rascunho") && !findButton("Salvar rascunho")?.disabled) &&
+        Boolean(
+          findButton("Disponibilizar na web") &&
+            !findButton("Disponibilizar na web")?.disabled
+        ) &&
+        Boolean(
+          findButton("Enviar por WhatsApp") &&
+            !findButton("Enviar por WhatsApp")?.disabled
+        )
+    );
+    root.dataset.visualActiveMessageControlsContained = String(
+      controls.every(control => {
+        const rect = control.getBoundingClientRect();
+        return rect.left >= 0 && rect.right <= window.innerWidth;
+      })
     );
   }
 
@@ -255,6 +313,38 @@ function VisualProfessionalPatientWorkspace() {
         );
       }, 800);
     }, 600);
+
+    return () => window.clearTimeout(run);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !window.location.pathname.endsWith("/messages") ||
+      window.location.pathname === "/professional/messages" ||
+      new URLSearchParams(window.location.search).get("state") === "ended"
+    )
+      return;
+
+    const run = window.setTimeout(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Conteúdo da mensagem"]'
+      );
+      if (!composer || composer.disabled) {
+        document.documentElement.dataset.visualActiveMessageError =
+          "composer-not-editable";
+        return;
+      }
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set;
+      valueSetter?.call(
+        composer,
+        "Rascunho visual revisado antes de qualquer ação de entrega."
+      );
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      window.setTimeout(writeVisualDiagnostics, 500);
+    }, 650);
 
     return () => window.clearTimeout(run);
   }, []);

@@ -570,6 +570,11 @@ export const professionalMessages = mysqlTable(
       "failed",
       "received",
     ]).notNull(),
+    requestedAction: mysqlEnum("requestedAction", [
+      "save_draft",
+      "send_web",
+      "send_whatsapp",
+    ]),
     idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
     responseCode: varchar("responseCode", { length: 32 }),
     inReplyToMessageId: varchar("inReplyToMessageId", { length: 64 }),

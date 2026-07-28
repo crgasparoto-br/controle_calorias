@@ -12,6 +12,7 @@ import {
   deliverProfessionalMessage,
   listPatientProfessionalMessages,
   listProfessionalMessages,
+  ProfessionalMessageIdempotencyConflictError,
 } from "./messageService";
 import {
   assertProfessionalMessageRetryAccess,
@@ -45,9 +46,19 @@ export const professionalMessageRouter = router({
     .query(({ ctx, input }) => listProfessionalMessages(ctx.user.id, input)),
   create: professionalMessagesProcedure
     .input(professionalMessageCreateSchema)
-    .mutation(({ ctx, input }) =>
-      createProfessionalMessage(ctx.user.id, input)
-    ),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createProfessionalMessage(ctx.user.id, input);
+      } catch (error) {
+        if (error instanceof ProfessionalMessageIdempotencyConflictError) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    }),
   retry: professionalMessagesProcedure
     .input(professionalMessageRetrySchema)
     .mutation(async ({ ctx, input }) => {

@@ -121,6 +121,82 @@ function serialize(row: Row) {
   };
 }
 
+const IDEMPOTENCY_CONFLICT_MESSAGE =
+  "Esta chave de operação já foi usada em outra mensagem. Recarregue a conversa e tente novamente.";
+
+export class ProfessionalMessageIdempotencyConflictError extends Error {
+  constructor() {
+    super(IDEMPOTENCY_CONFLICT_MESSAGE);
+    this.name = "ProfessionalMessageIdempotencyConflictError";
+  }
+}
+
+function nullableText(value: unknown) {
+  return value === null || value === undefined ? null : String(value);
+}
+
+function matchesIdempotentCreate(
+  row: Row,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput
+) {
+  return (
+    Number(row.professionalUserId) === professionalUserId &&
+    Number(row.patientUserId) === input.patientId &&
+    Number(row.authorUserId) === professionalUserId &&
+    String(row.authorizationId) === authorizationId &&
+    String(row.direction) === "professional_to_patient" &&
+    String(row.origin) === input.origin &&
+    String(row.messageType) === input.messageType &&
+    String(row.content ?? "") === input.content &&
+    String(row.requestedAction) === input.action &&
+    nullableText(row.relatedGuidanceId) === (input.relatedGuidanceId ?? null) &&
+    nullableText(row.supersedesMessageId) ===
+      (input.supersedesMessageId ?? null)
+  );
+}
+
+async function recoverIdempotentCreate(
+  db: Awaited<ReturnType<typeof dbRequired>>,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput
+) {
+  const scopedResult = await db.execute(
+    sql`SELECT * FROM professionalMessages
+      WHERE idempotencyKey = ${input.idempotencyKey}
+        AND professionalUserId = ${professionalUserId}
+        AND patientUserId = ${input.patientId}
+        AND authorUserId = ${professionalUserId}
+        AND authorizationId = ${authorizationId}
+        AND direction = 'professional_to_patient'
+      LIMIT 1`
+  );
+  const scopedExisting = rows(scopedResult)[0];
+  if (scopedExisting) {
+    if (
+      matchesIdempotentCreate(
+        scopedExisting,
+        professionalUserId,
+        authorizationId,
+        input
+      )
+    ) {
+      return serialize(scopedExisting);
+    }
+    throw new ProfessionalMessageIdempotencyConflictError();
+  }
+
+  const collisionResult = await db.execute(
+    sql`SELECT id FROM professionalMessages WHERE idempotencyKey = ${input.idempotencyKey} LIMIT 1`
+  );
+  if (rows(collisionResult)[0]) {
+    throw new ProfessionalMessageIdempotencyConflictError();
+  }
+  return null;
+}
+
 async function history(
   db: Awaited<ReturnType<typeof dbRequired>>,
   input: {
@@ -161,16 +237,19 @@ export async function createProfessionalMessage(
         rows(conversationResult)[0]?.id ?? conversationId
       );
       await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId,
-        authorUserId, direction, origin, messageType, content, state, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId)
+        authorUserId, direction, origin, messageType, content, state, requestedAction, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId)
         VALUES (${messageId}, ${canonicalConversationId}, ${scope.authorizationId}, ${professionalUserId}, ${input.patientId},
-        ${professionalUserId}, 'professional_to_patient', ${input.origin}, ${input.messageType}, ${input.content}, ${state},
+        ${professionalUserId}, 'professional_to_patient', ${input.origin}, ${input.messageType}, ${input.content}, ${state}, ${input.action},
         ${input.idempotencyKey}, ${code}, ${input.relatedGuidanceId ?? null}, ${input.supersedesMessageId ?? null})`);
     });
   } catch (error) {
-    const existing = await scope.db.execute(
-      sql`SELECT * FROM professionalMessages WHERE idempotencyKey = ${input.idempotencyKey} LIMIT 1`
+    const recovered = await recoverIdempotentCreate(
+      scope.db,
+      professionalUserId,
+      scope.authorizationId,
+      input
     );
-    if (rows(existing)[0]) return serialize(rows(existing)[0]);
+    if (recovered) return recovered;
     throw error;
   }
   await history(scope.db, {

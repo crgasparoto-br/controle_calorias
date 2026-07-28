@@ -58,7 +58,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalGoalReviewRequests` | `professionalGoalReviewRequests` | 11 | Requer atenção |
 | `professionalGoalNotifications` | `professionalGoalNotifications` | 13 | Requer atenção |
 | `professionalConversations` | `professionalConversations` | 7 | Requer atenção |
-| `professionalMessages` | `professionalMessages` | 24 | Requer atenção |
+| `professionalMessages` | `professionalMessages` | 25 | Requer atenção |
 | `professionalMessageDeliveryAttempts` | `professionalMessageDeliveryAttempts` | 12 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas

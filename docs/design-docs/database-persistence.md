@@ -136,6 +136,7 @@ A migration `0032_professional_official_goals.sql` cria o modelo versionado da i
 ## Validação
 
 - Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
+- A migration `0037_professional_message_idempotency_scope.sql` adiciona `professionalMessages.requestedAction` e reconstrói a ação histórica de mensagens profissionais a partir do estado e das tentativas WhatsApp. A criação idempotente usa esse campo para aceitar apenas repetição semanticamente equivalente e rejeitar reutilização da chave em outro profissional, autorização, paciente ou payload.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
 - `server/repositories/whatsappPendingOperationRepository.productionFallback.test.ts` cobre indisponibilidade do banco em produção, reinício/segunda instância, exceção do provider e preservação do fallback apenas em teste.

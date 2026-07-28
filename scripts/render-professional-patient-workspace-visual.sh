@@ -86,6 +86,7 @@ GUIDANCE_URL="${BASE_URL}/guidance"
 NOTES_URL="${BASE_URL}/notes"
 HISTORY_URL="${BASE_URL}/history"
 MESSAGES_URL="${BASE_URL}/messages"
+MESSAGES_INBOX_URL="http://127.0.0.1:${PORT}/professional/messages"
 REPORTS_URL="${BASE_URL}/reports"
 DRAFT_BACK_CANCEL_URL="${ASSESSMENT_URL}?draft-history=back-cancel"
 DRAFT_BACK_ACCEPT_URL="${ASSESSMENT_URL}?draft-history=back-accept"
@@ -106,6 +107,10 @@ capture "reports-tablet-1024x768" "1024,768" "$REPORTS_URL"
 capture "reports-mobile-390x1200" "390,1200" "$REPORTS_URL"
 capture "paused-assessment-1366x768" "1366,768" "$ASSESSMENT_URL?state=paused"
 capture "ended-history-390x1200" "390,1200" "$HISTORY_URL?state=ended"
+capture "messages-inbox-desktop-1440x900" "1440,900" "$MESSAGES_INBOX_URL"
+capture "messages-inbox-mobile-390x1200" "390,1200" "$MESSAGES_INBOX_URL"
+capture "messages-active-desktop-1440x900" "1440,900" "$MESSAGES_URL"
+capture "messages-active-mobile-390x1200" "390,1200" "$MESSAGES_URL"
 capture "ended-messages-390x1200" "390,1200" "$MESSAGES_URL?state=ended"
 capture "loading-tablet-1024x768" "1024,768" "$BASE_URL?state=patient-loading"
 capture "error-desktop-1366x768" "1366,768" "$BASE_URL?state=patient-error"
@@ -230,6 +235,55 @@ assert_dom \
   "Encerrado" \
   "Linha do tempo profissional" \
   "Histórico"
+assert_dom_at_size \
+  "messages-inbox-desktop" \
+  "1440,900" \
+  "$MESSAGES_INBOX_URL" \
+  "Caixa de mensagens" \
+  "Mariana de Almeida Vasconcelos e Silva" \
+  "Carlos Eduardo Ribeiro" \
+  "Abrir conversa" \
+  "Falhas no envio" \
+  "Sugestão da IA revisada" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-messages-inbox-composer-absent="true"' \
+  'data-visual-messages-inbox-conversation-links="true"' \
+  'data-visual-messages-inbox-filters="true"'
+assert_dom_at_size \
+  "messages-inbox-mobile" \
+  "390,1200" \
+  "$MESSAGES_INBOX_URL" \
+  "Caixa de mensagens" \
+  "Abrir conversa" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-messages-inbox-composer-absent="true"'
+assert_dom_at_size \
+  "messages-active-desktop" \
+  "1440,900" \
+  "$MESSAGES_URL" \
+  "Conversa com Mariana de Almeida Vasconcelos e Silva" \
+  "Nova mensagem" \
+  "Mensagem do paciente" \
+  "Por Nutricionista de validação" \
+  "Tentar novamente" \
+  "Salvar rascunho" \
+  "Disponibilizar na web" \
+  "Enviar por WhatsApp" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-active-message-composer-editable="true"' \
+  'data-visual-active-message-retry-visible="true"' \
+  'data-visual-active-message-actions-enabled="true"' \
+  'data-visual-active-message-controls-contained="true"'
+assert_dom_at_size \
+  "messages-active-mobile" \
+  "390,1200" \
+  "$MESSAGES_URL" \
+  "Nova mensagem" \
+  "Mensagem do paciente" \
+  'data-visual-horizontal-overflow="false"' \
+  'data-visual-active-message-composer-editable="true"' \
+  'data-visual-active-message-controls-contained="true"'
+
 assert_dom \
   "ended-messages" \
   "$MESSAGES_URL?state=ended" \
@@ -334,14 +388,14 @@ assert_dom_at_size \
   'data-visual-draft-history-preserved="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history,/professional/patients/1/messages,/professional/patients/1/reports
+routes=/professional/messages,/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history,/professional/patients/1/messages,/professional/patients/1/reports
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
-scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,messages-ended-read-only,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
+scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,messages-inbox,messages-active,messages-ended-read-only,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatientWorkspace and ProfessionalReportsWorkspace with deterministic auth and tRPC transport fixtures
-interaction=canonical patient deep links, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
-assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended read-only messages and history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+interaction=canonical patient deep links, aggregate message inbox, active patient composer and retry, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
+assertions=patient identity, aggregate message inbox without composer, active patient conversation with editable composer and retry, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended read-only messages and history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"
