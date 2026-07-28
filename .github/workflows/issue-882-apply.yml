@@ -27,13 +27,13 @@ jobs:
           base64 -d /tmp/issue882-payload.b64 | xz -d > /tmp/issue-882.patch
           test "$(wc -c < /tmp/issue-882.patch)" = "54086"
           echo 'dc03a1b13792b3070c80fb083e744cdc4026a9bc9c5c01a2431c21223bc7bc23  /tmp/issue-882.patch' | sha256sum -c -
-      - name: Verify and apply patch
+      - name: Normalize baseline and apply patch
         run: |
+          git checkout 2a0bcd74928c85ff38211c62e7d52d1d847d827c -- .
           git apply --check /tmp/issue-882.patch
           git apply /tmp/issue-882.patch
       - name: Remove staging artifacts
         run: |
-          git show 2a0bcd74928c85ff38211c62e7d52d1d847d827c:.github/workflows/professional-home-visual.yml > .github/workflows/professional-home-visual.yml
           rm -rf .issue-loop
           rm .github/workflows/issue-882-apply.yml
       - name: Commit exact implementation
