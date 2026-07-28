@@ -369,36 +369,43 @@ function assertSupportedReferenceCycles(root: JsonSchemaRecord): void {
   const visit = (
     schema: JsonSchemaRecord,
     path: string,
-    active: Set<JsonSchemaRecord>,
-    optionalEdgeSeen: boolean,
+    activeOptionalEdgeCounts: Map<JsonSchemaRecord, number>,
+    optionalEdgeCount: number,
   ): void => {
-    if (active.has(schema)) {
-      if (!optionalEdgeSeen) {
+    const activeOptionalEdgeCount = activeOptionalEdgeCounts.get(schema);
+    if (activeOptionalEdgeCount !== undefined) {
+      if (optionalEdgeCount === activeOptionalEdgeCount) {
         schemaError(path, "contains a reference cycle reachable only through required schema edges.");
       }
       return;
     }
 
-    active.add(schema);
+    activeOptionalEdgeCounts.set(schema, optionalEdgeCount);
     if (typeof schema.$ref === "string") {
       const target = resolveLocalSchemaRef(root, schema.$ref, path);
-      if (active.has(target)) {
-        if (!optionalEdgeSeen) {
+      const targetOptionalEdgeCount = activeOptionalEdgeCounts.get(target);
+      if (targetOptionalEdgeCount !== undefined) {
+        if (optionalEdgeCount === targetOptionalEdgeCount) {
           schemaError(path, `contains required recursive reference "${schema.$ref}".`);
         }
       } else {
-        visit(target, `${path} -> ${schema.$ref}`, active, optionalEdgeSeen);
+        visit(target, `${path} -> ${schema.$ref}`, activeOptionalEdgeCounts, optionalEdgeCount);
       }
-      active.delete(schema);
+      activeOptionalEdgeCounts.delete(schema);
       return;
     }
 
     visitChildSchemas(schema, path, (child, childPath, optionalEdge) =>
-      visit(child, childPath, active, optionalEdgeSeen || optionalEdge));
-    active.delete(schema);
+      visit(
+        child,
+        childPath,
+        activeOptionalEdgeCounts,
+        optionalEdgeCount + (optionalEdge ? 1 : 0),
+      ));
+    activeOptionalEdgeCounts.delete(schema);
   };
 
-  visit(root, "$", new Set(), false);
+  visit(root, "$", new Map(), 0);
 }
 
 /**
