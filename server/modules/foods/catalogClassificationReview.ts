@@ -6,6 +6,7 @@ import {
 } from "./classificationReview";
 
 export const FOOD_CATALOG_CLASSIFICATION_SOURCE_VERSION = "food-catalog-v1";
+const DEFAULT_MINIMUM_CLASSIFICATION_CONFIDENCE = 0.72;
 
 function caloriesPer100Grams(row: FoodCatalogRow) {
   if (!Number.isFinite(row.gramsPerServing) || row.gramsPerServing <= 0) {
@@ -16,6 +17,21 @@ function caloriesPer100Grams(row: FoodCatalogRow) {
 
 function isAiEstimated(row: FoodCatalogRow) {
   return row.classificationSource === "ai_estimated" || row.dataSource === "ai_estimated";
+}
+
+export function catalogRowRequiresClassificationReview(
+  row: FoodCatalogRow,
+  policy: FoodClassificationReviewPolicy = {},
+) {
+  const minimumConfidence = policy.minimumConfidence ?? DEFAULT_MINIMUM_CLASSIFICATION_CONFIDENCE;
+  const confidence = Number(row.classificationConfidence);
+
+  return row.status === "deprecated"
+    || !row.processingLevel
+    || !row.classificationSource
+    || !Number.isFinite(confidence)
+    || confidence < minimumConfidence
+    || isAiEstimated(row);
 }
 
 export function toFoodCatalogClassificationReviewFood(
@@ -63,7 +79,9 @@ export function buildCatalogClassificationReviewQueue(
   policy: FoodClassificationReviewPolicy = {},
 ) {
   return buildFoodClassificationReviewQueue(
-    rows.map(toFoodCatalogClassificationReviewFood),
+    rows
+      .filter(row => catalogRowRequiresClassificationReview(row, policy))
+      .map(toFoodCatalogClassificationReviewFood),
     policy,
   );
 }
