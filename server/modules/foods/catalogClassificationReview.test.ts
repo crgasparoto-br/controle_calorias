@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FoodCatalogRow } from "../../repositories/foodCatalogRepository";
 import {
   buildCatalogClassificationReviewQueue,
+  catalogRowRequiresClassificationReview,
   toFoodCatalogClassificationReviewFood,
 } from "./catalogClassificationReview";
 
@@ -87,6 +88,17 @@ describe("food catalog classification review integration", () => {
         "missing_classification_origin",
       ]),
     }));
+  });
+
+  it("does not enqueue a complete high-confidence non-estimated catalog classification", () => {
+    const row = buildCatalogRow({
+      dataSource: "tbca",
+      classificationSource: "tbca",
+      classificationConfidence: 0.95,
+    });
+
+    expect(catalogRowRequiresClassificationReview(row)).toBe(false);
+    expect(buildCatalogClassificationReviewQueue([row])).toEqual([]);
   });
 
   it("normalizes calories to a 100 gram review basis", () => {
