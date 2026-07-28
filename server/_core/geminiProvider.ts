@@ -72,7 +72,7 @@ function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] 
       throw invalidPayload(`GeminiProvider: ${messagePath} must declare content.`);
     }
 
-    const content = (message as Record<string, unknown>).content;
+    const content = (message as unknown as Record<string, unknown>).content;
     const items = Array.isArray(content) ? content : [content];
     if (items.length === 0) {
       throw invalidPayload(`GeminiProvider: ${messagePath}.content must not be empty.`);
@@ -229,279 +229,4 @@ function assertSchemaArrayShape(value: unknown, path: string, keyword: string): 
   value.forEach((schema, index) => assertSchemaShape(schema, `${path}.${keyword}[${index}]`));
 }
 
-function assertSchemaShape(value: unknown, path = "$"): void {
-  const schema = asSchemaRecord(value, path);
-  if ("oneOf" in schema) {
-    schemaError(path, 'uses "oneOf", which Gemini interprets as "anyOf" and would change validation semantics.');
-  }
-
-  for (const key of Object.keys(schema)) {
-    if (!SUPPORTED_SCHEMA_KEYWORDS.has(key)) {
-      schemaError(path, `uses unsupported keyword "${key}".`);
-    }
-  }
-
-  if ("$ref" in schema) {
-    assertString(schema.$ref, path, "$ref");
-    const incompatibleSibling = Object.keys(schema).find(key => !key.startsWith("$"));
-    if (incompatibleSibling) {
-      schemaError(path, `combines "$ref" with non-$ sibling "${incompatibleSibling}".`);
-    }
-  }
-
-  if ("$id" in schema) assertString(schema.$id, path, "$id");
-  if ("$anchor" in schema) assertString(schema.$anchor, path, "$anchor");
-  if ("format" in schema) assertString(schema.format, path, "format");
-  if ("title" in schema && typeof schema.title !== "string") schemaError(path, 'requires a string for "title".');
-  if ("description" in schema && typeof schema.description !== "string") {
-    schemaError(path, 'requires a string for "description".');
-  }
-  if ("type" in schema) assertSchemaType(schema.type, path);
-
-  if ("enum" in schema) {
-    if (
-      !Array.isArray(schema.enum) ||
-      schema.enum.length === 0 ||
-      schema.enum.some(item =>
-        (typeof item !== "string" && typeof item !== "number") ||
-        (typeof item === "number" && !Number.isFinite(item)))
-    ) {
-      schemaError(path, 'requires a non-empty string/number array for "enum".');
-    }
-  }
-
-  if ("minItems" in schema) assertNonNegativeInteger(schema.minItems, path, "minItems");
-  if ("maxItems" in schema) assertNonNegativeInteger(schema.maxItems, path, "maxItems");
-  if ("minimum" in schema) assertFiniteNumber(schema.minimum, path, "minimum");
-  if ("maximum" in schema) assertFiniteNumber(schema.maximum, path, "maximum");
-  if ("required" in schema) assertStringArray(schema.required, path, "required");
-  if ("propertyOrdering" in schema) assertStringArray(schema.propertyOrdering, path, "propertyOrdering");
-
-  if ("$defs" in schema) assertSchemaMapShape(schema.$defs, path, "$defs");
-  if ("properties" in schema) assertSchemaMapShape(schema.properties, path, "properties");
-  if ("items" in schema) assertSchemaShape(schema.items, `${path}.items`);
-  if ("prefixItems" in schema) assertSchemaArrayShape(schema.prefixItems, path, "prefixItems");
-  if ("anyOf" in schema) assertSchemaArrayShape(schema.anyOf, path, "anyOf");
-
-  if ("additionalProperties" in schema && typeof schema.additionalProperties !== "boolean") {
-    assertSchemaShape(schema.additionalProperties, `${path}.additionalProperties`);
-  }
-}
-
-function decodePointerSegment(segment: string, path: string): string {
-  try {
-    return decodeURIComponent(segment).replace(/~1/g, "/").replace(/~0/g, "~");
-  } catch {
-    schemaError(path, "contains an invalid URI-encoded JSON Pointer segment.");
-  }
-}
-
-function resolveLocalSchemaRef(root: JsonSchemaRecord, ref: string, path: string): JsonSchemaRecord {
-  if (ref === "#") return root;
-  if (!ref.startsWith("#/")) {
-    schemaError(path, `uses external or unsupported reference "${ref}".`);
-  }
-
-  let current: unknown = root;
-  for (const rawSegment of ref.slice(2).split("/")) {
-    const segment = decodePointerSegment(rawSegment, path);
-    if (typeof current !== "object" || current === null || Array.isArray(current) || !(segment in current)) {
-      schemaError(path, `references missing target "${ref}".`);
-    }
-    current = (current as JsonSchemaRecord)[segment];
-  }
-
-  return asSchemaRecord(current, `${path} -> ${ref}`);
-}
-
-function visitChildSchemas(
-  schema: JsonSchemaRecord,
-  path: string,
-  visitor: (child: JsonSchemaRecord, childPath: string, optionalEdge: boolean) => void,
-): void {
-  const required = new Set(
-    Array.isArray(schema.required)
-      ? schema.required.filter((item): item is string => typeof item === "string")
-      : [],
-  );
-
-  if (typeof schema.properties === "object" && schema.properties !== null && !Array.isArray(schema.properties)) {
-    for (const [name, child] of Object.entries(schema.properties as JsonSchemaRecord)) {
-      visitor(asSchemaRecord(child, `${path}.properties.${name}`), `${path}.properties.${name}`, !required.has(name));
-    }
-  }
-  if (schema.items !== undefined) {
-    visitor(asSchemaRecord(schema.items, `${path}.items`), `${path}.items`, false);
-  }
-  if (Array.isArray(schema.prefixItems)) {
-    schema.prefixItems.forEach((child, index) =>
-      visitor(asSchemaRecord(child, `${path}.prefixItems[${index}]`), `${path}.prefixItems[${index}]`, false));
-  }
-  if (Array.isArray(schema.anyOf)) {
-    schema.anyOf.forEach((child, index) =>
-      visitor(asSchemaRecord(child, `${path}.anyOf[${index}]`), `${path}.anyOf[${index}]`, false));
-  }
-  if (typeof schema.additionalProperties === "object" && schema.additionalProperties !== null) {
-    visitor(
-      asSchemaRecord(schema.additionalProperties, `${path}.additionalProperties`),
-      `${path}.additionalProperties`,
-      false,
-    );
-  }
-}
-
-function assertAllReferencesResolve(schema: JsonSchemaRecord, root: JsonSchemaRecord, path = "$"): void {
-  const normalizedPath = path.trim();
-  if (typeof schema.$ref === "string") {
-    resolveLocalSchemaRef(root, schema.$ref, normalizedPath);
-  }
-
-  if (typeof schema.$defs === "object" && schema.$defs !== null && !Array.isArray(schema.$defs)) {
-    for (const [name, child] of Object.entries(schema.$defs as JsonSchemaRecord)) {
-      assertAllReferencesResolve(asSchemaRecord(child, `${normalizedPath}.$defs.${name}`), root, `${normalizedPath}.$defs.${name}`);
-    }
-  }
-  visitChildSchemas(schema, normalizedPath, (child, childPath) =>
-    assertAllReferencesResolve(child, root, childPath));
-}
-
-function assertSupportedReferenceCycles(root: JsonSchemaRecord): void {
-  const visit = (
-    schema: JsonSchemaRecord,
-    path: string,
-    active: Set<JsonSchemaRecord>,
-    optionalEdgeSeen: boolean,
-  ): void => {
-    if (active.has(schema)) {
-      if (!optionalEdgeSeen) {
-        schemaError(path, "contains a reference cycle reachable only through required schema edges.");
-      }
-      return;
-    }
-
-    active.add(schema);
-    if (typeof schema.$ref === "string") {
-      const target = resolveLocalSchemaRef(root, schema.$ref, path);
-      if (active.has(target)) {
-        if (!optionalEdgeSeen) {
-          schemaError(path, `contains required recursive reference "${schema.$ref}".`);
-        }
-      } else {
-        visit(target, `${path} -> ${schema.$ref}`, active, optionalEdgeSeen);
-      }
-      active.delete(schema);
-      return;
-    }
-
-    visitChildSchemas(schema, path, (child, childPath, optionalEdge) =>
-      visit(child, childPath, active, optionalEdgeSeen || optionalEdge));
-    active.delete(schema);
-  };
-
-  visit(root, "$", new Set(), false);
-}
-
-/**
- * `responseJsonSchema` accepts only an explicit subset of JSON Schema. Validate
- * that subset rather than maintaining a denylist so a newly observed keyword
- * fails closed before content is sent to Gemini. References must be local and
- * resolvable; recursive references are accepted only when the cycle crosses an
- * optional property, matching the representability constraint of the SDK.
- */
-function assertRepresentableSchema(value: unknown): void {
-  assertSchemaShape(value);
-  const root = asSchemaRecord(value, "$");
-  assertAllReferencesResolve(root, root);
-  assertSupportedReferenceCycles(root);
-}
-
-function assertRepresentableTools(request: AiProviderTextRequest): void {
-  if (!request.tools?.length) return;
-  throw incompatibleOperation(
-    "GeminiProvider: request tools are not representable by the current adapter. Google Search translation must be implemented explicitly before network access.",
-  );
-}
-
-function buildGenerationConfig(
-  request: AiProviderTextRequest,
-  options?: AiProviderRequestOptions,
-): GenerateContentConfig {
-  const config: GenerateContentConfig = { maxOutputTokens: 8192 };
-
-  if (request.format?.type === "json_schema") {
-    assertRepresentableSchema(request.format.schema);
-    config.responseMimeType = "application/json";
-    config.responseJsonSchema = request.format.schema;
-  }
-
-  const systemInstruction = buildSystemInstruction(request.instructions);
-  if (systemInstruction) config.systemInstruction = systemInstruction;
-  if (options?.signal) config.abortSignal = options.signal;
-  return config;
-}
-
-export class GeminiProvider implements AiProvider {
-  private readonly client: GoogleGenAI;
-
-  constructor(apiKey: string) {
-    this.client = new GoogleGenAI({ apiKey });
-  }
-
-  async createTextResponse(
-    request: AiProviderTextRequest,
-    options?: AiProviderRequestOptions,
-  ): Promise<AiProviderTextResponse> {
-    assertRepresentableTools(request);
-    const parts = buildGeminiParts(request.input);
-    const contents: ContentListUnion = [{ role: "user", parts }];
-    const response = await this.client.models.generateContent({
-      model: request.model,
-      contents,
-      config: buildGenerationConfig(request, options),
-    });
-
-    const usageMetadata = response.usageMetadata;
-    return {
-      id: `gemini-${Date.now()}`,
-      outputText: response.text ?? "",
-      raw: response,
-      ...(usageMetadata
-        ? {
-            usage: {
-              inputTokens: usageMetadata.promptTokenCount,
-              outputTokens: usageMetadata.candidatesTokenCount,
-              totalTokens: usageMetadata.totalTokenCount,
-              raw: usageMetadata,
-            },
-          }
-        : {}),
-    } as AiProviderTextResponse;
-  }
-
-  async createEmbeddings(
-    _request: AiProviderEmbeddingRequest,
-    _options?: AiProviderRequestOptions,
-  ): Promise<AiProviderEmbeddingResponse> {
-    throw incompatibleOperation(
-      "GeminiProvider does not support embeddings in this project. Configure an adapter that explicitly supports embeddings.",
-    );
-  }
-
-  async createAudioTranscription(
-    _request: AiProviderAudioTranscriptionRequest,
-    _options?: AiProviderRequestOptions,
-  ): Promise<AiProviderAudioTranscriptionResponse> {
-    throw incompatibleOperation(
-      "GeminiProvider does not support audio transcription. Configure an adapter that explicitly supports transcription.",
-    );
-  }
-
-  async createImageGeneration(
-    _request: AiProviderImageGenerationRequest,
-    _options?: AiProviderRequestOptions,
-  ): Promise<AiProviderImageGenerationResponse> {
-    throw incompatibleOperation(
-      "GeminiProvider does not support image generation or editing in this project.",
-    );
-  }
-}
+function assertSchemaShape(value: unknown, path = "$"²È="25˜€ôôô€ˆŒˆ¤É•ÑÕÉ¸É½½Ðì(€¥˜€ …É•˜¹ÍÑ…ÉÑÍ]¥Ñ  ˆŒ¼ˆ¤¤ì(€€€Í¡•µ…ÉÉ½È¡Á…Ñ °ÕÍ•Ì•áÑ•É¹…°½ÈÕ¹ÍÕÁÁ½ÉÑ•É•™•É•¹”€ˆ‘íÉ•™ôˆ¹€¤ì(€ô((€±•ÐÕÉÉ•¹ÐèÕ¹­¹½Ý¸€ôÉ½½Ðì(€™½È€¡½¹ÍÐÉ…ÝM•µ•¹Ð½˜É•˜¹Í±¥” È¤¹ÍÁ±¥Ð ˆ¼ˆ¤¤ì(€€€½¹ÍÐÍ•µ•¹Ð€ô‘•½‘•A½¥¹Ñ•ÉM•µ•¹Ð¡É…ÝM•µ•¹Ð°Á…Ñ ¤ì(€€€¥˜€¡ÑåÁ•½˜ÕÉÉ•¹Ð€„ôô€‰½‰©•ÐˆñðÕÉÉ•¹Ð€ôôô¹Õ±°ñðÉÉ…ä¹¥ÍÉÉ…ä¡ÕÉÉ•¹Ð¤ñð€„¡Í•µ•¹Ð¥¸ÕÉÉ•¹Ð¤¤ì(€€€€€Í¡•µ…ÉÉ½È¡Á…Ñ °É•™•É•¹•Ìµ¥ÍÍ¥¹œÑ…É•Ð€ˆ‘íÉ•™ôˆ¹€¤ì(€€€ô(€€€ÕÉÉ•¹Ð€ô€¡ÕÉÉ•¹Ð…Ì)Í½¹M¡•µ…I•½É¥mÍ•µ•¹Ñtì(€ô((€É•ÑÕÉ¸…ÍM¡•µ…I•½É¡ÕÉÉ•¹Ð°€‘íÁ…Ñ¡ô€´ø€‘íÉ•™õ€¤ì)ô()™Õ¹Ñ¥½¸Ù¥Í¥Ñ¡¥±‘M¡•µ…Ì (€Í¡•µ„è)Í½¹M¡•µ…I•½É°(€Á…Ñ èÍÑÉ¥¹œ°(€Ù¥Í¥Ñ½Èè€¡¡¥±è)Í½¹M¡•µ…I•½É°¡¥±‘A…Ñ èÍÑÉ¥¹œ°½ÁÑ¥½¹…±‘”è‰½½±•…¸¤€ôøÙ½¥°(¤èÙ½¥ì(€½¹ÍÐÉ•ÅÕ¥É•€ô¹•ÜM•Ð (€€€ÉÉ…ä¹¥ÍÉÉ…ä¡Í¡•µ„¹É•ÅÕ¥É•¤(€€€€€€üÍ¡•µ„¹É•ÅÕ¥É•¹™¥±Ñ•È ¡¥Ñ•´¤è¥Ñ•´¥ÌÍÑÉ¥¹œ€ôøÑåÁ•½˜¥Ñ•´€ôôô€‰ÍÑÉ¥¹œˆ¤(€€€€€€èmt°(€€¤ì((€¥˜€¡ÑåÁ•½˜Í¡•µ„¹ÁÉ½Á•ÉÑ¥•Ì€ôôô€‰½‰©•Ðˆ€˜˜Í¡•µ„¹ÁÉ½Á•ÉÑ¥•Ì€„ôô¹Õ±°€˜˜€…ÉÉ…ä¹¥ÍÉÉ…ä¡Í¡•µ„¹ÁÉ½Á•ÉÑ¥•Ì¤¤ì(€€€™½È€¡½¹ÍÐm¹…µ”°¡¥±‘t½˜=‰©•Ð¹•¹ÑÉ¥•Ì¡Í¡•µ„¹ÁÉ½Á•ÉÑ¥•Ì…Ì)Í½¹M¡•µ…I•½É¤¤ì(€€€€€Ù¥Í¥Ñ½È¡…ÍM¡•µ…I•½É¡¡¥±°€‘íÁ…Ñ¡ô¹ÁÉ½Á•ÉÑ¥•Ì¸‘í¹…µ•õ€¤°€‘íÁ…Ñ¡ô¹ÁÉ½Á•ÉÑ¥•Ì¸‘í¹…µ•õ€°€…É•ÅÕ¥É•¹¡…Ì¡¹…µ”¤¤ì(€€€ô(€ô(€¥˜€¡Í¡•µ„¹¥Ñ•µÌ€„ôôÕ¹‘•™¥¹•¤ì(€€€Ù¥Í¥Ñ½È¡…ÍM¡•µ…I•½É¡Í¡•µ„¹¥Ñ•µÌ°€‘íÁ…Ñ¡ô¹¥Ñ•µÍ€¤°€‘íÁ…Ñ¡ô¹¥Ñ•µÍ€°™…±Í”¤ì(€ô(€¥˜€¡ÉÉ…ä¹¥ÍÉÉ…ä¡Í¡•µ„¹ÁÉ•™¥á%Ñ•µÌ¤¤ì(€€€Í¡•µ„¹ÁÉ•™¥á%Ñ•µÌ¹™½É…  ¡¡¥±°¥¹‘•à¤€ôø(€€€€€Ù¥Í¥Ñ½È¡…ÍM¡•µ…I•½É¡¡¥±°€‘íÁ…Ñ¡ô¹ÁÉ•™¥á%Ñ•µÍl‘í¥¹‘•áõu€¤°€‘íÁ…Ñ¡ô¹ÁÉ•™¥á%Ñ•µÍl‘í¥¹‘•áõu€°™…±Í”¤¤ì(€ô(€¥˜€¡ÉÉ…ä¹¥ÍÉÉ…ä¡Í¡•µ„¹…¹å=˜¤¤ì(€€€Í¡•µ„¹…¹å=˜¹™½É…  ¡¡¥±°¥¹‘•à¤€ôø(€€€€€Ù¥Í¥Ñ½È¡…ÍM¡•µ…I•½É¡¡¥±°€‘íÁ…Ñ¡ô¹…¹å=™l‘í¥¹‘•áõu€¤°€‘íÁ…Ñ¡ô¹…¹å=™l‘í¥¹‘•áõu€°™…±Í”¤¤ì(€ô(€¥˜€¡ÑåÁ•½˜Í¡•µ„¹…‘‘¥Ñ¥½¹…±AÉ½Á•ÉÑ¥•Ì€ôôô€‰½‰©•Ðˆ€˜˜Í¡•µ„¹…‘‘¥Ñ¥½¹…±AÉ½Á•ÉÑ¥•Ì€„ôô¹Õ±°¤ì(€€€Ù¥Í¥Ñ½È (€€€€€…ÍM¡•µ…I•½É¡Í¡•µ„¹…‘‘¥Ñ¥½¹…±AÉ½Á•ÉÑ¥•Ì°€‘íÁ…Ñ¡ô¹…‘‘¥Ñ¥½¹…±AÉ½Á•ÉÑ¥•Í€¤°(€€€€€€‘íÁ…Ñ¡ô¹…‘‘¥Ñ¥½¹…±AÉ½Á•ÉÑ¥•Í€°(€€€€€™…±Í”°(€€€€¤ì(€ô)ô()™Õ¹Ñ¥½¸…ÍÍ•ÉÑ±±I•™•É•¹•ÍI•Í½±Ù”¡Í¡•µ„è)Í½¹M¡•µ…I•½É°É½½Ðè)Í½¹M¡•µ…I•½É°Á…Ñ €ô€ˆˆ¤èÙ½¥ì(€½¹ÍÐ¹½Éµ…±¥é•‘A…Ñ €ôÁ…Ñ ¹ÑÉ¥´ ¤ì(€¥˜€¡ÑåÁ•½˜Í¡•µ„¸‘É•˜€ôôô€‰ÍÑÉ¥¹œˆ¤ì(€€€É•Í½±Ù•1½…±M¡•µ…I•˜¡É½½Ð°Í¡•µ„¸‘É•˜°¹½Éµ…±¥é•‘A…Ñ ¤ì(€ô((€¥˜€¡ÑåÁ•½˜Í¡•µ„¸‘‘•™Ì€ôôô€‰½‰©•Ðˆ€˜˜Í¡•µ„¸‘‘•™Ì€„ôô¹Õ±°€˜˜€…ÉÉ…ä¹¥ÍÉÉ…ä¡Í¡•µ„¸‘‘•™Ì¤¤ì(€€€™½È€¡½¹ÍÐm¹…µ”°¡¥±‘t½˜=‰©•Ð¹•¹ÑÉ¥•Ì¡Í¡•µ„¸‘‘•™Ì…Ì)Í½¹M¡•µ…I•½É¤¤ì(€€€€€…ÍÍ•ÉÑ±±I•™•É•¹•ÍI•Í½±Ù”¡…ÍM¡•µ…I•½É¡¡¥±°€‘í¹½Éµ…±¥é•‘A…Ñ¡ô¸‘‘•™Ì¸‘í¹…µ•õ€¤°É½½Ð°€‘í¹½Éµ…±¥é•‘A…Ñ¡ô¸‘‘•™Ì¸‘í¹…µ•õ€¤ì(€€€ô(€ô(€Ù¥Í¥Ñ¡¥±‘M¡•µ…Ì¡Í¡•µ„°¹½Éµ…±¥é•‘A…Ñ °€¡¡¥±°¡¥±‘A…Ñ ¤€ôø(€€€…ÍÍ•ÉÑ±±I•™•É•¹•ÍI•Í½±Ù”¡¡¥±°É½½Ð°¡¥±‘A…Ñ ¤¤ì)ô()™Õ¹Ñ¥½¸…ÍÍ•ÉÑMÕÁÁ½ÉÑ•‘I•™•É•¹•å±•Ì¡É½½Ðè)Í½¹M¡•µ…I•½É¤èÙ½¥ì(€½¹ÍÐÙ¥Í¥Ð€ô€ (€€€Í¡•µ„è)Í½¹M¡•µ…I•½É°(€€€Á…Ñ èÍÑÉ¥¹œ°(€€€…Ñ¥Ù”èM•Ðñ)Í½¹M¡•µ…I•½Éø°(€€€½ÁÑ¥½¹…±‘•M••¸è‰½½±•…¸°(€€¤èÙ½¥€ôøì(€€€¥˜€¡…Ñ¥Ù”¹¡…Ì¡Í¡•µ„¤¤ì(€€€€€¥˜€ …½ÁÑ¥½¹…±‘•M••¸¤ì(€€€€€€€Í¡•µ…ÉÉ½È¡Á…Ñ °€‰½¹Ñ…¥¹Ì„É•™•É•¹”å±”É•…¡…‰±”½¹±äÑ¡É½Õ É•ÅÕ¥É•Í¡•µ„•‘•Ì¸ˆ¤ì(€€€€€ô(€€€€€É•ÑÕÉ¸ì(€€€ô((€€€…Ñ¥Ù”¹…‘¡Í¡•µ„¤ì(€€€¥˜€¡ÑåÁ•½˜Í¡•µ„¸‘É•˜€ôôô€‰ÍÑÉ¥¹œˆ¤ì(€€€€€½¹ÍÐÑ…É•Ð€ôÉ•Í½±Ù•1½…±M¡•µ…I•˜¡É½½Ð°Í¡•µ„¸‘É•˜°Á…Ñ ¤ì(€€€€€¥˜€¡…Ñ¥Ù”¹¡…Ì¡Ñ…É•Ð¤¤ì(€€€€€€€¥˜€ …½ÁÑ¥½¹…±‘•M••¸¤ì(€€€€€€€€€Í¡•µ…ÉÉ½È¡Á…Ñ °½¹Ñ…¥¹ÌÉ•ÅÕ¥É•É•ÕÉÍ¥Ù”É•™•É•¹”€ˆ‘íÍ¡•µ„¸‘É•™ôˆ¹€¤ì(€€€€€€€ô(€€€€€ô•±Í”ì(€€€€€€€Ù¥Í¥Ð¡Ñ…É•Ð°€‘íÁ…Ñ¡ô€´ø€‘íÍ¡•µ„¸‘É•™õ€°…Ñ¥Ù”°½ÁÑ¥½¹…±‘•M••¸¤ì(€€€€€ô(€€€€€…Ñ¥Ù”¹‘•±•Ñ”¡Í¡•µ„¤ì(€€€€€É•ÑÕÉ¸ì(€€€ô((€€€Ù¥Í¥Ñ¡¥±‘M¡•µ…Ì¡Í¡•µ„°Á…Ñ °€¡¡¥±°¡¥±‘A…Ñ °½ÁÑ¥½¹…±‘”¤€ôø(€€€€€Ù¥Í¥Ð¡¡¥±°¡¥±‘A…Ñ °…Ñ¥Ù”°½ÁÑ¥½¹…±‘•M••¸ñð½ÁÑ¥½¹…±‘”¤¤ì(€€€…Ñ¥Ù”¹‘•±•Ñ”¡Í¡•µ„¤ì(€ôì((€Ù¥Í¥Ð¡É½½Ð°€ˆˆ°¹•ÜM•Ð ¤°™…±Í”¤ì)ô((¼¨¨(€¨É•ÍÁ½¹Í•)Í½¹M¡•µ…€…•ÁÑÌ½¹±ä…¸•áÁ±¥¥ÐÍÕ‰Í•Ð½˜)M=8M¡•µ„¸Y…±¥‘…Ñ”(€¨Ñ¡…ÐÍÕ‰Í•ÐÉ…Ñ¡•ÈÑ¡…¸µ…¥¹Ñ…¥¹¥¹œ„‘•¹å±¥ÍÐÍ¼„¹•Ý±ä½‰Í•ÉÙ•­•åÝ½É(€¨™…¥±Ì±½Í•‰•™½É”½¹Ñ•¹Ð¥ÌÍ•¹ÐÑ¼•µ¥¹¤¸I•™•É•¹•ÌµÕÍÐ‰”±½…°…¹(€¨É•Í½±Ù…‰±”ìÉ•ÕÉÍ¥Ù”É•™•É•¹•Ì…É”…•ÁÑ•½¹±äÝ¡•¸Ñ¡”å±”É½ÍÍ•Ì…¸(€¨½ÁÑ¥½¹…°ÁÉ½Á•ÉÑä°µ…Ñ¡¥¹œÑ¡”É•ÁÉ•Í•¹Ñ…‰¥±¥Ñä½¹ÍÑÉ…¥¹Ð½˜Ñ¡”M,¸(€¨¼)™Õ¹Ñ¥½¸…ÍÍ•ÉÑI•ÁÉ•Í•¹Ñ…‰±•M¡•µ„¡Ù…±Õ”èÕ¹­¹½Ý¸¤èÙ½¥ì(€…ÍÍ•ÉÑM¡•µ…M¡…Á”¡Ù…±Õ”¤ì(€½¹ÍÐÉ½½Ð€ô…ÍM¡•µ…I•½É¡Ù…±Õ”°€ˆˆ¤ì(€…ÍÍ•ÉÑ±±I•™•É•¹•ÍI•Í½±Ù”¡É½½Ð°É½½Ð¤ì(€…ÍÍ•ÉÑMÕÁÁ½ÉÑ•‘I•™•É•¹•å±•Ì¡É½½Ð¤ì)ô()™Õ¹Ñ¥½¸…ÍÍ•ÉÑI•ÁÉ•Í•¹Ñ…‰±•Q½½±Ì¡É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•ÉQ•áÑI•ÅÕ•ÍÐ¤èÙ½¥ì(€¥˜€ …É•ÅÕ•ÍÐ¹Ñ½½±Ìü¹±•¹Ñ ¤É•ÑÕÉ¸ì(€Ñ¡É½Ü¥¹½µÁ…Ñ¥‰±•=Á•É…Ñ¥½¸ (€€€€‰•µ¥¹¥AÉ½Ù¥‘•ÈèÉ•ÅÕ•ÍÐÑ½½±Ì…É”¹½ÐÉ•ÁÉ•Í•¹Ñ…‰±”‰äÑ¡”ÕÉÉ•¹Ð…‘…ÁÑ•È¸½½±”M•…É ÑÉ…¹Í±…Ñ¥½¸µÕÍÐ‰”¥µÁ±•µ•¹Ñ••áÁ±¥¥Ñ±ä‰•™½É”¹•ÑÝ½É¬…•ÍÌ¸ˆ°(€€¤ì)ô()™Õ¹Ñ¥½¸‰Õ¥±‘•¹•É…Ñ¥½¹½¹™¥œ (€É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•ÉQ•áÑI•ÅÕ•ÍÐ°(€½ÁÑ¥½¹Ìüè¥AÉ½Ù¥‘•ÉI•ÅÕ•ÍÑ=ÁÑ¥½¹Ì°(¤è•¹•É…Ñ•½¹Ñ•¹Ñ½¹™¥œì(€½¹ÍÐ½¹™¥œè•¹•É…Ñ•½¹Ñ•¹Ñ½¹™¥œ€ôìµ…á=ÕÑÁÕÑQ½­•¹Ìè€àÄäÈôì((€¥˜€¡É•ÅÕ•ÍÐ¹™½Éµ…Ðü¹ÑåÁ”€ôôô€‰©Í½¹}Í¡•µ„ˆ¤ì(€€€…ÍÍ•ÉÑI•ÁÉ•Í•¹Ñ…‰±•M¡•µ„¡É•ÅÕ•ÍÐ¹™½Éµ…Ð¹Í¡•µ„¤ì(€€€½¹™¥œ¹É•ÍÁ½¹Í•5¥µ•QåÁ”€ô€‰…ÁÁ±¥…Ñ¥½¸½©Í½¸ˆì(€€€½¹™¥œ¹É•ÍÁ½¹Í•)Í½¹M¡•µ„€ôÉ•ÅÕ•ÍÐ¹™½Éµ…Ð¹Í¡•µ„ì(€ô((€½¹ÍÐÍåÍÑ•µ%¹ÍÑÉÕÑ¥½¸€ô‰Õ¥±‘MåÍÑ•µ%¹ÍÑÉÕÑ¥½¸¡É•ÅÕ•ÍÐ¹¥¹ÍÑÉÕÑ¥½¹Ì¤ì(€¥˜€¡ÍåÍÑ•µ%¹ÍÑÉÕÑ¥½¸¤½¹™¥œ¹ÍåÍÑ•µ%¹ÍÑÉÕÑ¥½¸€ôÍåÍÑ•µ%¹ÍÑÉÕÑ¥½¸ì(€¥˜€¡½ÁÑ¥½¹Ìü¹Í¥¹…°¤½¹™¥œ¹…‰½ÉÑM¥¹…°€ô½ÁÑ¥½¹Ì¹Í¥¹…°ì(€É•ÑÕÉ¸½¹™¥œì)ô()•áÁ½ÉÐ±…ÍÌ•µ¥¹¥AÉ½Ù¥‘•È¥µÁ±•µ•¹ÑÌ¥AÉ½Ù¥‘•Èì(€ÁÉ¥Ù…Ñ”É•…‘½¹±ä±¥•¹Ðè½½±••¹$ì((€½¹ÍÑÉÕÑ½È¡…Á¥-•äèÍÑÉ¥¹œ¤ì(€€€Ñ¡¥Ì¹±¥•¹Ð€ô¹•Ü½½±••¹$¡ì…Á¥-•äô¤ì(€ô((€…Íå¹ŒÉ•…Ñ•Q•áÑI•ÍÁ½¹Í” (€€€É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•ÉQ•áÑI•ÅÕ•ÍÐ°(€€€½ÁÑ¥½¹Ìüè¥AÉ½Ù¥‘•ÉI•ÅÕ•ÍÑ=ÁÑ¥½¹Ì°(€€¤èAÉ½µ¥Í”ñ¥AÉ½Ù¥‘•ÉQ•áÑI•ÍÁ½¹Í”øì(€€€…ÍÍ•ÉÑI•ÁÉ•Í•¹Ñ…‰±•Q½½±Ì¡É•ÅÕ•ÍÐ¤ì(€€€½¹ÍÐÁ…ÉÑÌ€ô‰Õ¥±‘•µ¥¹¥A…ÉÑÌ¡É•ÅÕ•ÍÐ¹¥¹ÁÕÐ¤ì(€€€½¹ÍÐ½¹Ñ•¹ÑÌè½¹Ñ•¹Ñ1¥ÍÑU¹¥½¸€ômìÉ½±”è€‰ÕÍ•Èˆ°Á…ÉÑÌõtì(€€€½¹ÍÐÉ•ÍÁ½¹Í”€ô…Ý…¥ÐÑ¡¥Ì¹±¥•¹Ð¹µ½‘•±Ì¹•¹•É…Ñ•½¹Ñ•¹Ð¡ì(€€€€€µ½‘•°èÉ•ÅÕ•ÍÐ¹µ½‘•°°(€€€€€½¹Ñ•¹ÑÌ°(€€€€€½¹™¥œè‰Õ¥±‘•¹•É…Ñ¥½¹½¹™¥œ¡É•ÅÕ•ÍÐ°½ÁÑ¥½¹Ì¤°(€€€ô¤ì((€€€½¹ÍÐÕÍ…•5•Ñ…‘…Ñ„€ôÉ•ÍÁ½¹Í”¹ÕÍ…•5•Ñ…‘…Ñ„ì(€€€É•ÑÕÉ¸ì(€€€€€¥è•µ¥¹¤´‘í…Ñ”¹¹½Ü ¥õ€°(€€€€€½ÕÑÁÕÑQ•áÐèÉ•ÍÁ½¹Í”¹Ñ•áÐ€üü€ˆˆ°(€€€€€É…ÜèÉ•ÍÁ½¹Í”°(€€€€€€¸¸¸¡ÕÍ…•5•Ñ…‘…Ñ„(€€€€€€€€üì(€€€€€€€€€€€ÕÍ…”èì(€€€€€€€€€€€€€¥¹ÁÕÑQ½­•¹ÌèÕÍ…•5•Ñ…‘…Ñ„¹ÁÉ½µÁÑQ½­•¹½Õ¹Ð°(€€€€€€€€€€€€€½ÕÑÁÕÑQ½­•¹ÌèÕÍ…•5•Ñ…‘…Ñ„¹…¹‘¥‘…Ñ•ÍQ½­•¹½Õ¹Ð°(€€€€€€€€€€€€€Ñ½Ñ…±Q½­•¹ÌèÕÍ…•5•Ñ…‘…Ñ„¹Ñ½Ñ…±Q½­•¹½Õ¹Ð°(€€€€€€€€€€€€€É…ÜèÕÍ…•5•Ñ…‘…Ñ„°(€€€€€€€€€€€ô°(€€€€€€€€€ô(€€€€€€€€èíô¤°(€€€ô…Ì¥AÉ½Ù¥‘•ÉQ•áÑI•ÍÁ½¹Í”ì(€ô((€…Íå¹ŒÉ•…Ñ•µ‰•‘‘¥¹Ì (€€€}É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•Éµ‰•‘‘¥¹I•ÅÕ•ÍÐ°(€€€}½ÁÑ¥½¹Ìüè¥AÉ½Ù¥‘•ÉI•ÅÕ•ÍÑ=ÁÑ¥½¹Ì°(€€¤èAÉ½µ¥Í”ñ¥AÉ½Ù¥‘•Éµ‰•‘‘¥¹I•ÍÁ½¹Í”øì(€€€Ñ¡É½Ü¥¹½µÁ…Ñ¥‰±•=Á•É…Ñ¥½¸ (€€€€€€‰•µ¥¹¥AÉ½Ù¥‘•È‘½•Ì¹½ÐÍÕÁÁ½ÉÐ•µ‰•‘‘¥¹Ì¥¸Ñ¡¥ÌÁÉ½©•Ð¸½¹™¥ÕÉ”…¸…‘…ÁÑ•ÈÑ¡…Ð•áÁ±¥¥Ñ±äÍÕÁÁ½ÉÑÌ•µ‰•‘‘¥¹Ì¸ˆ°(€€€€¤ì(€ô((€…Íå¹ŒÉ•…Ñ•Õ‘¥½QÉ…¹ÍÉ¥ÁÑ¥½¸ (€€€}É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•ÉÕ‘¥½QÉ…¹ÍÉ¥ÁÑ¥½¹I•ÅÕ•ÍÐ°(€€€}½ÁÑ¥½¹Ìüè¥AÉ½Ù¥‘•ÉI•ÅÕ•ÍÑ=ÁÑ¥½¹Ì°(€€¤èAÉ½µ¥Í”ñ¥AÉ½Ù¥‘•ÉÕ‘¥½QÉ…¹ÍÉ¥ÁÑ¥½¹I•ÍÁ½¹Í”øì(€€€Ñ¡É½Ü¥¹½µÁ…Ñ¥‰±•=Á•É…Ñ¥½¸ (€€€€€€‰•µ¥¹¥AÉ½Ù¥‘•È‘½•Ì¹½ÐÍÕÁÁ½ÉÐ…Õ‘¥¼ÑÉ…¹ÍÉ¥ÁÑ¥½¸¸½¹™¥ÕÉ”…¸…‘…ÁÑ•ÈÑ¡…Ð•áÁ±¥¥Ñ±äÍÕÁÁ½ÉÑÌÑÉ…¹ÍÉ¥ÁÑ¥½¸¸ˆ°(€€€€¤ì(€ô((€…Íå¹ŒÉ•…Ñ•%µ…••¹•É…Ñ¥½¸ (€€€}É•ÅÕ•ÍÐè¥AÉ½Ù¥‘•É%µ…••¹•É…Ñ¥½¹I•ÅÕ•ÍÐ°(€€€}½ÁÑ¥½¹Ìüè¥AÉ½Ù¥‘•ÉI•ÅÕ•ÍÑ=ÁÑ¥½¹Ì°(€€¤èAÉ½µ¥Í”ñ¥AÉ½Ù¥‘•É%µ…••¹•É…Ñ¥½¹I•ÍÁ½¹Í”øì(€€€Ñ¡É½Ü¥¹½µÁ…Ñ¥‰±•=Á•É…Ñ¥½¸ (€€€€€€‰•µ¥¹¥AÉ½Ù¥‘•È‘½•Ì¹½ÐÍÕÁÁ½ÉÐ¥µ…”•¹•É…Ñ¥½¸½È•‘¥Ñ¥¹œ¥¸Ñ¡¥ÌÁÉ½©•Ð¸ˆ°(€€€€¤ì(€ô)ô
