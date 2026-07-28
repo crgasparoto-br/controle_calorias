@@ -1,9 +1,9 @@
 name: Issue 882 remediation runner
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/875-professional-context-routes
+      - develop
     paths:
       - .github/workflows/issue-882-remediation-runner.yml
 
@@ -12,12 +12,11 @@ permissions:
 
 jobs:
   apply-validate-publish:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-      EXPECTED_PARENT_SHA: 9aae9f3ad64d920d4591317f8e4d36a40b2c73cb
+      EXPECTED_PARENT_SHA: c2c5c7e007eeb3f535ee321df23ad0859043e94e
       PATCH_BLOB_SHA: a747807ec53f6b899b85f27c447675816ed7121a
     steps:
       - name: Checkout target branch
