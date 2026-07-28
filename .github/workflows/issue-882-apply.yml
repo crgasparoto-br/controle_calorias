@@ -27,20 +27,48 @@ jobs:
           base64 -d /tmp/issue882-payload.b64 | xz -d > /tmp/issue-882.patch
           test "$(wc -c < /tmp/issue-882.patch)" = "54086"
           echo 'dc03a1b13792b3070c80fb083e744cdc4026a9bc9c5c01a2431c21223bc7bc23  /tmp/issue-882.patch' | sha256sum -c -
-      - name: Normalize baseline and apply patch
+      - name: Normalize target files and apply patch
         run: |
-          git checkout 2a0bcd74928c85ff38211c62e7d52d1d847d827c -- .
+          git checkout 2a0bcd74928c85ff38211c62e7d52d1d847d827c -- \
+            client/src/components/professional/ProfessionalMessagesExperience.test.tsx \
+            client/src/components/professional/ProfessionalMessagesExperience.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            docs/design-docs/professional-navigation.md \
+            docs/product-specs/professionals.md \
+            docs/testing/professional-workspace-routing.md \
+            scripts/render-professional-patient-workspace-visual.sh \
+            server/modules/professionals/messageService.endedAccess.test.ts \
+            server/modules/professionals/messageService.ts \
+            server/modules/professionals/patientContextService.test.ts \
+            server/modules/professionals/patientContextService.ts \
+            visual-tests/professional-patient-workspace/main.tsx \
+            visual-tests/professional-patient-workspace/trpcMock.ts
           git apply --check /tmp/issue-882.patch
           git apply /tmp/issue-882.patch
-      - name: Remove staging artifacts
-        run: |
-          rm -rf .issue-loop
-          rm .github/workflows/issue-882-apply.yml
-      - name: Commit exact implementation
+      - name: Commit implementation files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add \
+            client/src/components/professional/ProfessionalMessagesExperience.test.tsx \
+            client/src/components/professional/ProfessionalMessagesExperience.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.test.tsx \
+            client/src/pages/professional/ProfessionalPatientRouteGuard.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.activity.test.ts \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            docs/design-docs/professional-navigation.md \
+            docs/product-specs/professionals.md \
+            docs/testing/professional-workspace-routing.md \
+            scripts/render-professional-patient-workspace-visual.sh \
+            server/modules/professionals/messageService.endedAccess.test.ts \
+            server/modules/professionals/messageService.ts \
+            server/modules/professionals/patientContextService.test.ts \
+            server/modules/professionals/patientContextService.ts \
+            visual-tests/professional-patient-workspace/main.tsx \
+            visual-tests/professional-patient-workspace/trpcMock.ts
           git commit -m 'feat: complete contextual professional messaging'
       - name: Push target branch
         run: git push origin HEAD:feat/875-professional-context-routes
