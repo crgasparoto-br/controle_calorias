@@ -140,3 +140,8 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 - falha intermediária restaura todas as refeições tentadas em ordem inversa e reconstrói novamente o estado derivado;
 - falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
 - a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.
+
+
+### Consumidores migrados em #922
+
+`MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam exclusivamente `executeResolvedCapability`; não mantêm loops locais de timeout/retry. Saída vazia, JSON inválido e payload inválido são recuperáveis dentro dos limites configurados. Erros de autenticação, modelo inexistente, incompatibilidade, segurança, configuração ou desconhecidos falham fechado sem retry/fallback. `items: []` válido encerra a execução na primeira resposta.

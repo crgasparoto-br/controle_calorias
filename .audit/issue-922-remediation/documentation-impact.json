@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "mode": "implementation",
+  "base_ref": "develop",
+  "categories": [
+    "architecture",
+    "environment",
+    "reliability",
+    "security",
+    "privacy",
+    "meal-registration",
+    "whatsapp"
+  ],
+  "canonical_sources": [
+    "README.md",
+    "ARCHITECTURE.md",
+    ".env.example",
+    "docs/exec-plans/active/migrate-ai-to-openai.md",
+    "docs/design-docs/nutrition-engine.md",
+    "docs/design-docs/whatsapp-ingestion.md",
+    "docs/product-specs/meal-registration.md",
+    "docs/product-specs/whatsapp-flow.md",
+    "docs/RELIABILITY.md",
+    "docs/SECURITY.md",
+    "docs/PRIVACY_LGPD.md",
+    "docs/design-docs/whatsapp-llm-intents.md"
+  ],
+  "last_scanned_head": "4b01dfede7ef32cd5a77899ca5408a27a4719065",
+  "validation_run_id": 30372107664,
+  "status": "validated",
+  "final_cycle_delta": "Only traceability records changed after the validated functional tree."
+}

@@ -227,3 +227,10 @@ A especificação detalhada e o contrato consumível pela #858 estão em [whatsa
 A entrada canônica cria um escopo temporal request-scoped. Após identificar o usuário e confirmar que a mensagem não é uma reentrega já processada, o sistema resolve o timezone efetivo uma vez e o propaga por todo o pipeline. O timestamp recebido permanece absoluto; data lógica, rótulo de refeição, água, peso, relatórios, perguntas com `/` e agrupamentos usam o timezone resolvido.
 
 Falha técnica ao consultar o perfil interrompe a mensagem com erro recuperável e não aciona o fallback nutricional. A ordem de idempotência e os vínculos de domínio permanecem inalterados.
+
+
+### Executor de intenção por capacidade (#922)
+
+A classificação genérica usa `WHATSAPP_INTENT` somente depois do gate de precedência e dos comandos determinísticos. O consumidor chama `executeResolvedCapability`; cada tentativa recebe provider e modelo já pareados e usa a fronteira sanitizada de resposta, sem `raw` do SDK no domínio. Compatibilidade `OPENAI_WHATSAPP_INTENT_MODEL` aplica-se apenas quando o provider resolvido usa o protocolo OpenAI; Gemini permanece associado a `GEMINI_MODEL` ou `AI_WHATSAPP_INTENT_MODEL`.
+
+A migração não altera estados persistidos, interação pendente, correlação inbound, expiração, cancelamento, idempotência nem isolamento por usuário. Botão/lista são resolvidos no gate antes do classificador; áudio transcrito e texto equivalente continuam convergindo para o mesmo contrato de domínio quando chegam à etapa de intenção.

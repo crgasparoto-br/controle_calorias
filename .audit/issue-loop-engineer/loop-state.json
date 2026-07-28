@@ -1,0 +1,27 @@
+{
+  "schema_version": 3,
+  "controller_context_id": "issue-loop-922-20260728",
+  "issue": 922,
+  "repository": "crgasparoto-br/controle_calorias",
+  "base_ref": "develop",
+  "branch": "feat/922-ai-capabilities-meal-whatsapp",
+  "cycle": 3,
+  "cycle_limit": 10,
+  "state": "frozen",
+  "baseline_sha": "07bfe16f688b9a541a30817398457bcd26a273f2",
+  "validated_functional_sha": "4b01dfede7ef32cd5a77899ca5408a27a4719065",
+  "validated_merge_preview_sha": "63e337a092676141b3d993467d50d7a23b3c08bd",
+  "blocking_findings": [],
+  "regression_ledger": [
+    {"cycle":1,"finding":"domain boundary assertion matched quantity.raw","resolution":"assertion narrowed to response.raw and usage.raw"},
+    {"cycle":1,"finding":"long-list nutrition regression exceeded default five-second test budget","resolution":"explicit 15-second timeout for the 11-item load scenario"}
+  ],
+  "validations": [
+    {"name":"Agent-first gate","run_id":30372107664,"conclusion":"success"},
+    {"name":"WhatsApp context TiDB gate","run_id":30372105992,"conclusion":"success"}
+  ],
+  "limitations": [
+    "External live-provider smoke was not executable without provider credentials in this context."
+  ],
+  "implementation_summary": "Rebuilt #922 on current develop using the shared capability executor, sanitized domain response boundary, no independent NOVA inference, provider/model pairing, provider-specific error taxonomy, Gemini real-schema parity tests, and preserved WhatsApp precedence/state contracts."
+}

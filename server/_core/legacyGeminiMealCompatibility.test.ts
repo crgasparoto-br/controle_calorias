@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { extractWithAi } from "../mealAiExtraction";
-import { resetAiProviderFactory, setAiProviderFactory } from "./aiProvider";
-import { GeminiProvider } from "./geminiProvider";
+import { interpretWhatsappMessageWithDiagnostics } from "../modules/whatsapp/intentInterpreter";
+import type { WhatsappIntentContext } from "../modules/whatsapp/intentContext";
 
 const generateContentMock = vi.fn();
 
@@ -46,15 +46,18 @@ function mockMealResponse() {
 describe("legacy meal consumer remains compatible with Gemini after SDK migration", () => {
   afterEach(() => {
     generateContentMock.mockReset();
-    resetAiProviderFactory();
     delete process.env.AI_VISION_PROVIDER;
     delete process.env.GEMINI_MODEL;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.AI_WHATSAPP_INTENT_PROVIDER;
+    delete process.env.AI_WHATSAPP_INTENT_MODEL;
+    delete process.env.OPENAI_WHATSAPP_INTENT_MODEL;
   });
 
   it("executes mealAiExtraction with its real schema, including additionalProperties and nullable brand", async () => {
     process.env.AI_VISION_PROVIDER = "gemini";
     process.env.GEMINI_MODEL = "gemini-legacy-custom";
-    setAiProviderFactory(() => new GeminiProvider("fake-key"));
+    process.env.GEMINI_API_KEY = "fake-key";
     mockMealResponse();
 
     const result = await extractWithAi({
@@ -76,7 +79,7 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
   it("passes the real inline WhatsApp image format through mealAiExtraction to Gemini", async () => {
     process.env.AI_VISION_PROVIDER = "gemini";
     process.env.GEMINI_MODEL = "gemini-legacy-custom";
-    setAiProviderFactory(() => new GeminiProvider("fake-key"));
+    process.env.GEMINI_API_KEY = "fake-key";
     mockMealResponse();
 
     const result = await extractWithAi({
@@ -93,4 +96,48 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
     ]));
     expect(request.config.responseJsonSchema.additionalProperties).toBe(false);
   });
+
+  it("executes WHATSAPP_INTENT with its real anyOf/additionalProperties schema on Gemini", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    process.env.AI_WHATSAPP_INTENT_PROVIDER = "gemini";
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gemini-intent";
+    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-must-not-leak";
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify({
+        intent: "list_meal_records",
+        confidence: 0.91,
+        date: null,
+        meal: null,
+        items: [],
+        sourceFood: null,
+        targetFood: null,
+        quantity: null,
+        requiresConfirmation: false,
+        clarificationQuestion: null,
+        possibleIntents: [],
+        reason: "Consulta de registros.",
+      }),
+    });
+    const context: WhatsappIntentContext = {
+      version: "whatsapp-intent-context/v1",
+      nowIso: "2026-07-28T12:00:00.000Z",
+      timezone: "America/Sao_Paulo",
+      mealAliases: {},
+      latestMeal: null,
+      mealsToday: [],
+      recentFoodNames: [],
+      contextualMemories: [],
+      pendingClarification: null,
+    };
+
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+
+    expect(result.source).toBe("llm");
+    const request = generateContentMock.mock.calls[0][0];
+    expect(request.model).toBe("gemini-intent");
+    expect(request.config.responseJsonSchema.additionalProperties).toBe(false);
+    expect(request.config.responseJsonSchema.properties.meal.anyOf).toHaveLength(2);
+    expect(request.config.responseJsonSchema.properties.quantity.anyOf).toHaveLength(2);
+  });
+
 });

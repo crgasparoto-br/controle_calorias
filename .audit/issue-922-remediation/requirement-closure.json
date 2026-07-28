@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "cycle": 3,
+  "requirements": [
+    {"id":"REQ-001","requirement":"MEAL_TEXT e MEAL_VISION independentes","status":"implemented","evidence":["server/mealAiExtraction.ts","server/mealAiExtraction.test.ts"]},
+    {"id":"REQ-002","requirement":"WHATSAPP_INTENT usa resolvedor/executor comum com provider/modelo pareados","status":"implemented","evidence":["server/modules/whatsapp/intentInterpreter.ts","server/modules/whatsapp/intentInterpreter.test.ts"]},
+    {"id":"REQ-003","requirement":"Structured Output real e Zod em OpenAI/Gemini","status":"implemented","evidence":["server/_core/legacyGeminiMealCompatibility.test.ts"]},
+    {"id":"REQ-004","requirement":"items vazio é funcional e não dispara segunda chamada","status":"implemented","evidence":["server/mealAiExtraction.test.ts"]},
+    {"id":"REQ-005","requirement":"NOVA embutida sem consumidor FOOD_CLASSIFICATION","status":"implemented","evidence":["server/mealAiExtraction.ts","scripts/backfill-food-classification.ts","server/_core/ai/__tests__/foodClassificationReservation.test.ts"]},
+    {"id":"REQ-006","requirement":"erros não elegíveis não geram retry/fallback","status":"implemented","evidence":["server/mealAiExtraction.test.ts","server/modules/whatsapp/intentInterpreter.test.ts","server/_core/ai/policyExecutor.ts"]},
+    {"id":"REQ-007","requirement":"raw de SDK não cruza a fronteira de domínio","status":"implemented","evidence":["server/_core/ai/domainTextResponse.ts","server/_core/ai/domainTextResponse.test.ts","server/_core/ai/__tests__/domainBoundaryConsumers.test.ts"]},
+    {"id":"REQ-008","requirement":"precedência conversacional e estados persistentes preservados","status":"implemented","evidence":["server/whatsappIntentWebhook.ts","server/modules/whatsapp/intentInterpreter.ts","docs/design-docs/whatsapp-ingestion.md","workflow-run:30372105992"]},
+    {"id":"REQ-009","requirement":"documentação canônica atualizada","status":"implemented","evidence":[".audit/issue-922-remediation/documentation-impact.json","workflow-run:30372107664"]},
+    {"id":"REQ-010","requirement":"gates oficiais e smoke tests","status":"implemented_with_external_smoke_limitation","evidence":["workflow-run:30372107664","workflow-run:30372105992","artifact:8693465218"],"limitation":"Smoke externo contra provedores reais não foi executado porque nenhuma credencial de provider foi disponibilizada ao contexto de implementação; contratos outbound, schemas reais e falhas foram validados na fronteira do SDK."}
+  ]
+}
