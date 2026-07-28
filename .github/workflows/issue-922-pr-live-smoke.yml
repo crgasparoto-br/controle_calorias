@@ -3,6 +3,7 @@ name: Issue 922 current live provider smoke
 on:
   pull_request:
     types:
+      - opened
       - reopened
       - synchronize
 
