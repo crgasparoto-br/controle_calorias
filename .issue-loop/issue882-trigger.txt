@@ -1,1 +1,1 @@
-Trigger the controlled issue #882 applicator workflow.
+Trigger the controlled issue #882 applicator workflow, attempt 2.
