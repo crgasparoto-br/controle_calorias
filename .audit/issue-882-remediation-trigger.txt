@@ -1,0 +1,1 @@
+Trigger the controlled remediation applicator for issue #882.
