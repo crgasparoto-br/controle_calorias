@@ -336,17 +336,18 @@ export class OpenAiProvider implements AiProvider {
     request: AiProviderImageGenerationRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
-    const sourceImage = request.originalImages?.find(image => image.b64Json);
+    const sourceImages = request.originalImages?.filter(image => image.b64Json) ?? [];
     const client = this.getClient();
     const requestOptions = openAiRequestOptions(options);
-    const response = sourceImage
+    const response = sourceImages.length > 0
       ? await client.images.edit(
           {
             model: request.model,
-            image: buildImageEditFile(sourceImage),
+            image: sourceImages.map(buildImageEditFile),
             prompt: request.prompt,
             ...(request.size ? { size: request.size } : {}),
             ...(request.quality ? { quality: request.quality } : {}),
+            ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
           },
           requestOptions,
         )
