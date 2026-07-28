@@ -229,6 +229,32 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a required recursive cycle even when reached through an optional ancestor", async () => {
+    const provider = new GeminiProvider("fake-key");
+    const schema = {
+      type: "object",
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            child: { $ref: "#/$defs/node" },
+          },
+          required: ["child"],
+        },
+      },
+      properties: {
+        optionalRoot: { $ref: "#/$defs/node" },
+      },
+    };
+
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: "oi",
+      format: { type: "json_schema", name: "recursive", schema },
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     "#/$defs/missing",
     "https://example.com/schema.json#/$defs/value",
