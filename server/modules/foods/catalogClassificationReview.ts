@@ -19,17 +19,23 @@ function isAiEstimated(row: FoodCatalogRow) {
   return row.classificationSource === "ai_estimated" || row.dataSource === "ai_estimated";
 }
 
+function readClassificationConfidence(row: FoodCatalogRow) {
+  return typeof row.classificationConfidence === "number" && Number.isFinite(row.classificationConfidence)
+    ? row.classificationConfidence
+    : null;
+}
+
 export function catalogRowRequiresClassificationReview(
   row: FoodCatalogRow,
   policy: FoodClassificationReviewPolicy = {},
 ) {
   const minimumConfidence = policy.minimumConfidence ?? DEFAULT_MINIMUM_CLASSIFICATION_CONFIDENCE;
-  const confidence = Number(row.classificationConfidence);
+  const confidence = readClassificationConfidence(row);
 
   return row.status === "deprecated"
     || !row.processingLevel
     || !row.classificationSource
-    || !Number.isFinite(confidence)
+    || confidence === null
     || confidence < minimumConfidence
     || isAiEstimated(row);
 }
@@ -37,7 +43,7 @@ export function catalogRowRequiresClassificationReview(
 export function toFoodCatalogClassificationReviewFood(
   row: FoodCatalogRow,
 ): FoodClassificationReviewFood {
-  const sourceSlug = row.classificationSource ?? row.dataSource;
+  const sourceSlug = row.dataSource;
   const estimated = isAiEstimated(row);
 
   return {
@@ -63,8 +69,8 @@ export function toFoodCatalogClassificationReviewFood(
         isUltraProcessed: row.isUltraProcessed === 1,
         isBrandedProduct: row.foodType === "branded",
       },
-      confidence: row.classificationConfidence,
-      origin: sourceSlug,
+      confidence: readClassificationConfidence(row),
+      origin: row.classificationSource,
       sourceVersion: FOOD_CATALOG_CLASSIFICATION_SOURCE_VERSION,
       status: estimated ? "pending" : null,
       reviewedAt: null,
