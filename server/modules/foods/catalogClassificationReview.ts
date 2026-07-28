@@ -1,0 +1,69 @@
+import type { FoodCatalogRow } from "../../repositories/foodCatalogRepository";
+import {
+  buildFoodClassificationReviewQueue,
+  type FoodClassificationReviewFood,
+  type FoodClassificationReviewPolicy,
+} from "./classificationReview";
+
+export const FOOD_CATALOG_CLASSIFICATION_SOURCE_VERSION = "food-catalog-v1";
+
+function caloriesPer100Grams(row: FoodCatalogRow) {
+  if (!Number.isFinite(row.gramsPerServing) || row.gramsPerServing <= 0) {
+    return Number.isFinite(row.calories) ? row.calories : null;
+  }
+  return (row.calories * 100) / row.gramsPerServing;
+}
+
+function isAiEstimated(row: FoodCatalogRow) {
+  return row.classificationSource === "ai_estimated" || row.dataSource === "ai_estimated";
+}
+
+export function toFoodCatalogClassificationReviewFood(
+  row: FoodCatalogRow,
+): FoodClassificationReviewFood {
+  const sourceSlug = row.classificationSource ?? row.dataSource;
+  const estimated = isAiEstimated(row);
+
+  return {
+    id: row.id,
+    name: row.name,
+    ownerUserId: row.createdByUserId,
+    brandName: row.brandName,
+    status: row.status === "deprecated" ? "deprecated" : "active",
+    caloriesKcalPer100g: caloriesPer100Grams(row),
+    source: {
+      slug: sourceSlug,
+      name: sourceSlug,
+      version: FOOD_CATALOG_CLASSIFICATION_SOURCE_VERSION,
+      status: row.status === "deprecated" ? "deprecated" : "active",
+    },
+    classification: {
+      foodGroup: null,
+      foodQuality: null,
+      processingLevel: row.processingLevel,
+      flags: {
+        isFruit: row.isFruit === 1,
+        isVegetable: row.isVegetable === 1,
+        isUltraProcessed: row.isUltraProcessed === 1,
+        isBrandedProduct: row.foodType === "branded",
+      },
+      confidence: row.classificationConfidence,
+      origin: sourceSlug,
+      sourceVersion: FOOD_CATALOG_CLASSIFICATION_SOURCE_VERSION,
+      status: estimated ? "pending" : null,
+      reviewedAt: null,
+      ruleVersion: null,
+      isEstimated: estimated,
+    },
+  };
+}
+
+export function buildCatalogClassificationReviewQueue(
+  rows: FoodCatalogRow[],
+  policy: FoodClassificationReviewPolicy = {},
+) {
+  return buildFoodClassificationReviewQueue(
+    rows.map(toFoodCatalogClassificationReviewFood),
+    policy,
+  );
+}
