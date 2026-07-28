@@ -201,6 +201,16 @@ assert_dom \
   "Assistência por IA" \
   "Período analisado" \
   "A IA não envia mensagens nem altera dados automaticamente"
+for spec in "desktop-1440x900|1440,900" "notebook-1366x768|1366,768"; do
+  IFS='|' read -r label size <<< "$spec"
+  assert_dom_at_size \
+    "reports-individual-title-layout-${label}" \
+    "$size" \
+    "$REPORTS_URL" \
+    'data-visual-report-title-contained="true"' \
+    'data-visual-report-title-not-overlapped="true"' \
+    'data-visual-report-selector-contained="true"'
+done
 assert_dom_at_size \
   "reports-individual-mobile-layout" \
   "390,1200" \

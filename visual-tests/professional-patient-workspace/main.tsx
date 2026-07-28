@@ -166,6 +166,35 @@ function writeVisualDiagnostics() {
     );
   }
 
+  const reportTitle = Array.from(document.querySelectorAll<HTMLElement>("h1")).find(
+    element => element.textContent?.trim() === "Diagnóstico nutricional do período"
+  );
+  const periodSelector = document.querySelector<HTMLElement>(
+    "[data-period-scope-selector]"
+  );
+  const reportIntro = reportTitle?.closest<HTMLElement>("section") ?? null;
+  if (reportTitle && periodSelector && reportIntro) {
+    const titleRect = reportTitle.getBoundingClientRect();
+    const selectorRect = periodSelector.getBoundingClientRect();
+    const introRect = reportIntro.getBoundingClientRect();
+    const intersects = !(
+      titleRect.right <= selectorRect.left ||
+      selectorRect.right <= titleRect.left ||
+      titleRect.bottom <= selectorRect.top ||
+      selectorRect.bottom <= titleRect.top
+    );
+    root.dataset.visualReportTitleContained = String(
+      titleRect.left >= introRect.left &&
+        titleRect.right <= introRect.right &&
+        titleRect.top >= introRect.top &&
+        titleRect.bottom <= introRect.bottom
+    );
+    root.dataset.visualReportTitleNotOverlapped = String(!intersects);
+    root.dataset.visualReportSelectorContained = String(
+      selectorRect.left >= introRect.left && selectorRect.right <= introRect.right
+    );
+  }
+
   writeGoalDiagnostics(root);
 }
 
