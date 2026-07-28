@@ -29,8 +29,16 @@ describe("adapter support matrix", () => {
     expect(getSupportedOperations("openai-compatible", env)).toEqual([]);
   });
 
+  it("keeps compatible operations disabled when the allowlist exists without an endpoint", () => {
+    const env = {
+      AI_OPENAI_COMPATIBLE_OPERATIONS: "text, structured_output",
+    } as NodeJS.ProcessEnv;
+    expect(getSupportedOperations("openai-compatible", env)).toEqual([]);
+  });
+
   it("enables only explicitly validated compatible operations without duplicates", () => {
     const env = {
+      OPENAI_BASE_URL: "https://compatible.example/v1",
       AI_OPENAI_COMPATIBLE_OPERATIONS: "text, structured_output, text, bogus",
     } as NodeJS.ProcessEnv;
     expect(getSupportedOperations("openai-compatible", env)).toEqual([
