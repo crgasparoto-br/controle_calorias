@@ -2,8 +2,12 @@ import { ENV } from "../env";
 import { GeminiProvider } from "../geminiProvider";
 import { OpenAiProvider, type AiProvider, type AiProviderFactory } from "../aiProvider";
 import { createOpenAiClient } from "../openaiClient";
+import { OpenAiCompatibleProvider } from "./openAiCompatibleProvider";
 import { AiNonRetryableError } from "./policyExecutor";
-import type { AiProviderId } from "./supportMatrix";
+import {
+  readOpenAiCompatibleValidatedOperations,
+  type AiProviderId,
+} from "./supportMatrix";
 
 export type AiProviderFactoryMap = Record<AiProviderId, AiProviderFactory>;
 
@@ -19,7 +23,13 @@ const createOpenAiCompatibleAdapter: AiProviderFactory = () => {
       "invalid_configuration",
     );
   }
-  return new OpenAiProvider(() => createOpenAiClient({ baseURL }));
+
+  const allowedOperations = readOpenAiCompatibleValidatedOperations({
+    ...process.env,
+    OPENAI_BASE_URL: baseURL,
+  });
+  const delegate = new OpenAiProvider(() => createOpenAiClient({ baseURL }));
+  return new OpenAiCompatibleProvider(delegate, allowedOperations);
 };
 
 const createGeminiAdapter: AiProviderFactory = () => {
