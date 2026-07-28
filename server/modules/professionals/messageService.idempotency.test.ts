@@ -2,15 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
+  getUserWhatsappConnection: vi.fn(),
+  send: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
   getDb: mocks.getDb,
-  getUserWhatsappConnection: vi.fn(),
-  logPersistenceWarning: vi.fn(),
+  getUserWhatsappConnection: mocks.getUserWhatsappConnection,
+  logPersistenceWarning: mocks.logPersistenceWarning,
 }));
 vi.mock("../whatsapp/logicalReplyDelivery", () => ({
-  sendWhatsAppStandaloneLogicalReply: vi.fn(),
+  sendWhatsAppStandaloneLogicalReply: mocks.send,
 }));
 
 import { createProfessionalMessage } from "./messageService";
@@ -101,6 +104,11 @@ function duplicateDb(options: {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getUserWhatsappConnection.mockResolvedValue({
+    status: "active",
+    phoneNumber: "5511999999999",
+  });
+  mocks.send.mockResolvedValue({ result: { primaryOk: true } });
 });
 
 describe("professional message creation idempotency", () => {
@@ -130,6 +138,73 @@ describe("professional message creation idempotency", () => {
       id: "message-existing",
     });
     expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("completes an interrupted equivalent web delivery without creating another message", async () => {
+    const input: ProfessionalMessageCreateInput = {
+      ...baseInput,
+      action: "send_web",
+      idempotencyKey: "professional-message-web-replay",
+    };
+    const pending = existingRow({
+      state: "pending",
+      requestedAction: "send_web",
+      idempotencyKey: input.idempotencyKey,
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[pending]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[{ ...pending, state: "sent", sentAt: new Date() }]]);
+    const transaction = vi.fn();
+    mocks.getDb.mockResolvedValue({ execute, transaction });
+
+    await expect(createProfessionalMessage(7, input)).resolves.toMatchObject({
+      id: "message-existing",
+      state: "sent",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledTimes(4);
+  });
+
+  it("resumes an interrupted equivalent WhatsApp delivery on the same logical message", async () => {
+    const input: ProfessionalMessageCreateInput = {
+      ...baseInput,
+      action: "send_whatsapp",
+      idempotencyKey: "professional-message-whatsapp-replay",
+    };
+    const pending = existingRow({
+      state: "pending",
+      requestedAction: "send_whatsapp",
+      idempotencyKey: input.idempotencyKey,
+      authorName: "Nutricionista",
+    });
+    const sent = { ...pending, state: "sent", sentAt: new Date() };
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[pending]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[pending]])
+      .mockResolvedValueOnce([[{ number: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[sent]]);
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof execute }) => unknown) =>
+        callback({ execute })
+    );
+    mocks.getDb.mockResolvedValue({ execute, transaction });
+
+    await expect(createProfessionalMessage(7, input)).resolves.toMatchObject({
+      id: "message-existing",
+      state: "sent",
+    });
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledTimes(1);
   });
 
   it.each([

@@ -2,9 +2,10 @@
 
 ## Mensagens profissionais
 
-- Persistir a mensagem lógica antes da entrega.
+- Persistir a mensagem lógica antes da entrega; disponibilidade na web e evento de criação ficam na mesma transação da mensagem.
+- Replay equivalente conclui somente a ação originalmente solicitada quando ela ficou incompleta: `send_web` finaliza o mesmo registro e `send_whatsapp` retoma a entrega pendente sem criar outra mensagem lógica.
 - Claims e números de tentativa vivem no banco para suportar múltiplas instâncias.
-- Retry manual reutiliza o mesmo identificador lógico e cria apenas nova tentativa física.
+- Retry manual reutiliza o mesmo identificador lógico, exige uma entrega WhatsApp anterior em `failed` e cria apenas nova tentativa física; rascunhos nunca são convertidos em primeira entrega pelo endpoint de retry.
 - Falha de canal mantém o conteúdo disponível na web com estado `failed` e detalhe sanitizado.
 - Respostas repetidas usam o identificador externo do inbound como chave idempotente.
 

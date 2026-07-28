@@ -134,7 +134,7 @@ export default function ProfessionalMessagesExperience() {
       if (!dirtyRef.current || allowNavigationRef.current) return;
       const target = event.target as HTMLElement | null;
       const navigation = target?.closest(
-        "[data-professional-navigation], nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
+        "[data-professional-navigation], [data-sidebar='footer'] button, nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
       );
       if (!navigation) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {

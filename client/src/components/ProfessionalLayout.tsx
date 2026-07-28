@@ -831,6 +831,7 @@ export default function ProfessionalLayout({
           <SidebarFooter className="border-t border-sidebar-border/70 p-3">
             <Button
               type="button"
+              data-professional-navigation
               variant="ghost"
               className="w-full justify-start group-data-[collapsible=icon]:justify-center"
               onClick={() => {

@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import mysql from "mysql2/promise";
 import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
-import { createProfessionalMessage } from "../server/modules/professionals/messageService";
+import {
+  createProfessionalMessage,
+  retryProfessionalMessage,
+} from "../server/modules/professionals/messageService";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -236,6 +239,90 @@ async function main() {
         lastTransitionAt = NOW(), lastTransitionByUserId = ?
        WHERE authorizationId = 'authorization-message-a'`,
       [ids.professional]
+    );
+
+    const draftRetry = await retryProfessionalMessage(
+      original.id,
+      ids.professional
+    );
+    assert.equal(
+      draftRetry.status,
+      "unchanged",
+      "retry must not deliver a draft that never had a WhatsApp attempt"
+    );
+    const [draftAttempts] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM professionalMessageDeliveryAttempts WHERE messageId = ?`,
+      [original.id]
+    );
+    assert.equal(Number(draftAttempts[0]?.total), 0);
+
+    const webInput = {
+      ...originalInput,
+      content: "Mensagem web atômica",
+      action: "send_web" as const,
+      idempotencyKey: "professional-message-web-atomic-tidb",
+    };
+    const webMessage = await createProfessionalMessage(
+      ids.professional,
+      webInput
+    );
+    assert.equal(webMessage.state, "sent");
+    const webReplay = await createProfessionalMessage(
+      ids.professional,
+      webInput
+    );
+    assert.equal(webReplay.id, webMessage.id);
+    assert.equal(webReplay.state, "sent");
+
+    const interruptedWhatsappInput = {
+      ...originalInput,
+      content: "Mensagem pendente antes da entrega",
+      messageType: "administrative" as const,
+      action: "send_whatsapp" as const,
+      idempotencyKey: "professional-message-whatsapp-interrupted-tidb",
+    };
+    const interruptedMessageId = "message-whatsapp-interrupted";
+    await connection.query(
+      `INSERT INTO professionalMessages
+        (id, conversationId, authorizationId, professionalUserId, patientUserId,
+         authorUserId, direction, origin, messageType, content, state,
+         requestedAction, idempotencyKey)
+       VALUES (?, 'conversation-message-a', 'authorization-message-a', ?, ?, ?,
+         'professional_to_patient', 'professional', ?, ?, 'pending',
+         'send_whatsapp', ?)`,
+      [
+        interruptedMessageId,
+        ids.professional,
+        ids.patientA,
+        ids.professional,
+        interruptedWhatsappInput.messageType,
+        interruptedWhatsappInput.content,
+        interruptedWhatsappInput.idempotencyKey,
+      ]
+    );
+    const recoveredWhatsapp = await createProfessionalMessage(
+      ids.professional,
+      interruptedWhatsappInput
+    );
+    assert.equal(recoveredWhatsapp.id, interruptedMessageId);
+    assert.equal(
+      recoveredWhatsapp.state,
+      "failed",
+      "equivalent replay must resume the original WhatsApp action"
+    );
+    const retryResult = await retryProfessionalMessage(
+      interruptedMessageId,
+      ids.professional
+    );
+    assert.equal(retryResult.status, "failed");
+    const [whatsappAttempts] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM professionalMessageDeliveryAttempts WHERE messageId = ?`,
+      [interruptedMessageId]
+    );
+    assert.equal(
+      Number(whatsappAttempts[0]?.total),
+      2,
+      "recovery and explicit retry must create physical attempts on one logical message"
     );
 
     await expectSafeConflict(() =>

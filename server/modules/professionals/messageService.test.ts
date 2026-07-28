@@ -18,6 +18,7 @@ vi.mock("../whatsapp/logicalReplyDelivery", () => ({
 
 import {
   deliverProfessionalMessage,
+  retryProfessionalMessage,
   tryAssociateProfessionalWhatsappResponse,
 } from "./messageService";
 
@@ -68,6 +69,40 @@ describe("professional message service", () => {
     await expect(deliverProfessionalMessage(messageRow().id as string, 10)).resolves.toEqual({ status: "sent" });
     await expect(deliverProfessionalMessage(messageRow().id as string, 10)).resolves.toEqual({ status: "unchanged" });
     expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the retry path only for a previously failed physical delivery", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[messageRow({ state: "failed", requestedAction: "send_whatsapp" })]])
+      .mockResolvedValueOnce([[{ number: 2 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const db = {
+      execute,
+      transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+        callback({ execute }),
+    };
+    mocks.getDb.mockResolvedValue(db);
+
+    await expect(
+      retryProfessionalMessage(messageRow().id as string, 10)
+    ).resolves.toEqual({ status: "sent" });
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not turn a draft or non-retryable message into a first delivery", async () => {
+    const execute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }]);
+    mocks.getDb.mockResolvedValue({ execute });
+
+    await expect(
+      retryProfessionalMessage(messageRow().id as string, 10)
+    ).resolves.toEqual({ status: "unchanged" });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 
   it("keeps the message failed and records a sanitized channel error", async () => {

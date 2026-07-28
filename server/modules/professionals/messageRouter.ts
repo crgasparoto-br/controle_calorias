@@ -9,7 +9,7 @@ import {
 } from "./schemas";
 import {
   createProfessionalMessage,
-  deliverProfessionalMessage,
+  retryProfessionalMessage,
   listPatientProfessionalMessages,
   listProfessionalMessages,
   ProfessionalMessageIdempotencyConflictError,
@@ -64,7 +64,7 @@ export const professionalMessageRouter = router({
     .mutation(async ({ ctx, input }) => {
       try {
         await assertProfessionalMessageRetryAccess(ctx.user.id, input.messageId);
-        const result = await deliverProfessionalMessage(
+        const result = await retryProfessionalMessage(
           input.messageId,
           ctx.user.id
         );

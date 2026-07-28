@@ -89,6 +89,7 @@ A ordenação da carteira identificável é estável por identificação exibív
 - O controle da barra lateral possui nome acessível e continua disponível no comportamento responsivo do componente de sidebar.
 - Mudanças de rota atualizam o título do documento e movem o foco programaticamente para o conteúdo principal com `preventScroll`.
 - O contexto do paciente usa região viva para anunciar alterações sem depender apenas de cor ou posição visual.
+- Um rascunho de mensagem não salvo protege todas as saídas do workspace, inclusive a ação **Minha alimentação** no rodapé, navegação interna, voltar/avançar e fechamento da página; cancelamento mantém o conteúdo no mesmo paciente.
 - O cabeçalho nomeia explicitamente acompanhamento não iniciado, ativo, pausado ou encerrado e oferece somente atalhos compatíveis com o estado: ações clínicas durante acompanhamento ativo, comunicação administrativa e histórico durante pausa, e mensagens anteriores mais histórico após encerramento.
 - A subnavegação individual é rolável horizontalmente quando necessário e preserva ações e nomes acessíveis.
 - Controles de paginação usam landmarks próprios, nomes por coleção e anunciam a página atual sem depender somente da posição visual.

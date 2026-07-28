@@ -14,6 +14,7 @@ import type {
 } from "./schemas";
 
 type Row = Record<string, unknown>;
+type DeliveryMode = "initial" | "retry";
 function rows(result: unknown): Row[] {
   return Array.isArray(result)
     ? ((Array.isArray(result[0]) ? result[0] : result) as Row[])
@@ -183,7 +184,7 @@ async function recoverIdempotentCreate(
         input
       )
     ) {
-      return serialize(scopedExisting);
+      return scopedExisting;
     }
     throw new ProfessionalMessageIdempotencyConflictError();
   }
@@ -195,6 +196,42 @@ async function recoverIdempotentCreate(
     throw new ProfessionalMessageIdempotencyConflictError();
   }
   return null;
+}
+
+async function reconcileIdempotentCreate(
+  db: Awaited<ReturnType<typeof dbRequired>>,
+  professionalUserId: number,
+  trackingStatus: string,
+  input: ProfessionalMessageCreateInput,
+  existing: Row
+) {
+  const messageId = String(existing.id);
+  let shouldReload = false;
+
+  if (input.action === "send_web" && String(existing.state) === "pending") {
+    try {
+      assertCanCreate(trackingStatus, input.messageType);
+    } catch {
+      return serialize(existing);
+    }
+    await db.execute(sql`UPDATE professionalMessages
+      SET state = 'sent', sentAt = COALESCE(sentAt, NOW()), lastError = NULL
+      WHERE id = ${messageId} AND professionalUserId = ${professionalUserId}
+        AND state = 'pending' AND requestedAction = 'send_web'`);
+    shouldReload = true;
+  } else if (
+    input.action === "send_whatsapp" &&
+    String(existing.state) === "pending"
+  ) {
+    await deliverProfessionalMessage(messageId, professionalUserId);
+    shouldReload = true;
+  }
+
+  if (!shouldReload) return serialize(existing);
+  const refreshed = await db.execute(
+    sql`SELECT * FROM professionalMessages WHERE id = ${messageId} LIMIT 1`
+  );
+  return serialize(rows(refreshed)[0] ?? existing);
 }
 
 async function history(
@@ -222,7 +259,15 @@ export async function createProfessionalMessage(
     scope.authorizationId,
     input
   );
-  if (existing) return existing;
+  if (existing) {
+    return reconcileIdempotentCreate(
+      scope.db,
+      professionalUserId,
+      scope.trackingStatus,
+      input,
+      existing
+    );
+  }
   assertCanCreate(scope.trackingStatus, input.messageType);
   if (input.origin === "automatic" && input.action !== "save_draft")
     throw new Error(
@@ -230,8 +275,18 @@ export async function createProfessionalMessage(
     );
   const messageId = crypto.randomUUID();
   const conversationId = crypto.randomUUID();
-  const state = input.action === "save_draft" ? "draft" : "pending";
+  const state =
+    input.action === "save_draft"
+      ? "draft"
+      : input.action === "send_web"
+        ? "sent"
+        : "pending";
+  const sentAt = input.action === "send_web" ? new Date() : null;
   const code = isRequest(input.messageType) ? responseCode() : null;
+  const createdEventType =
+    state === "draft"
+      ? "professional_message_drafted"
+      : "professional_message_created";
   try {
     await scope.db.transaction(async tx => {
       await tx.execute(sql`INSERT INTO professionalConversations (id, authorizationId, professionalUserId, patientUserId, lastMessageAt)
@@ -244,10 +299,12 @@ export async function createProfessionalMessage(
         rows(conversationResult)[0]?.id ?? conversationId
       );
       await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId,
-        authorUserId, direction, origin, messageType, content, state, requestedAction, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId)
+        authorUserId, direction, origin, messageType, content, state, requestedAction, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId, sentAt)
         VALUES (${messageId}, ${canonicalConversationId}, ${scope.authorizationId}, ${professionalUserId}, ${input.patientId},
         ${professionalUserId}, 'professional_to_patient', ${input.origin}, ${input.messageType}, ${input.content}, ${state}, ${input.action},
-        ${input.idempotencyKey}, ${code}, ${input.relatedGuidanceId ?? null}, ${input.supersedesMessageId ?? null})`);
+        ${input.idempotencyKey}, ${code}, ${input.relatedGuidanceId ?? null}, ${input.supersedesMessageId ?? null}, ${sentAt})`);
+      await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+        VALUES (${crypto.randomUUID()}, ${professionalUserId}, ${professionalUserId}, ${input.patientId}, ${createdEventType}, 'professional_message', ${messageId}, NOW())`);
     });
   } catch (error) {
     const recovered = await recoverIdempotentCreate(
@@ -256,40 +313,47 @@ export async function createProfessionalMessage(
       scope.authorizationId,
       input
     );
-    if (recovered) return recovered;
+    if (recovered) {
+      return reconcileIdempotentCreate(
+        scope.db,
+        professionalUserId,
+        scope.trackingStatus,
+        input,
+        recovered
+      );
+    }
     throw error;
   }
-  await history(scope.db, {
-    actorUserId: professionalUserId,
-    professionalUserId,
-    patientUserId: input.patientId,
-    eventType:
-      state === "draft"
-        ? "professional_message_drafted"
-        : "professional_message_created",
-    messageId,
-  });
-  if (input.action === "send_web") {
-    await scope.db.execute(
-      sql`UPDATE professionalMessages SET state = 'sent', sentAt = NOW() WHERE id = ${messageId}`
-    );
-  } else if (input.action === "send_whatsapp")
+  if (input.action === "send_whatsapp") {
     await deliverProfessionalMessage(messageId, professionalUserId);
+  }
   const result = await scope.db.execute(
     sql`SELECT * FROM professionalMessages WHERE id = ${messageId}`
   );
   return serialize(rows(result)[0]);
 }
 
-async function claimDelivery(messageId: string, professionalUserId: number) {
+async function claimDelivery(
+  messageId: string,
+  professionalUserId: number,
+  mode: DeliveryMode
+) {
   const db = await dbRequired();
   const token = crypto.randomUUID();
+  const statePolicy =
+    mode === "retry"
+      ? sql`m.state = 'failed' AND EXISTS (
+          SELECT 1 FROM professionalMessageDeliveryAttempts previousAttempt
+          WHERE previousAttempt.messageId = m.id
+        )`
+      : sql`m.state = 'pending'`;
   const update = await db.execute(sql`UPDATE professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
     SET m.state = 'pending', m.lastError = NULL, m.deliveryClaimToken = ${token}, m.deliveryClaimedAt = NOW()
     WHERE m.id = ${messageId} AND m.professionalUserId = ${professionalUserId} AND a.status = 'approved'
-      AND m.direction = 'professional_to_patient' AND m.origin <> 'automatic' AND m.state IN ('draft','pending','failed')
+      AND m.direction = 'professional_to_patient' AND m.origin <> 'automatic'
+      AND m.requestedAction = 'send_whatsapp' AND ${statePolicy}
       AND (m.deliveryClaimToken IS NULL OR m.deliveryClaimedAt < DATE_SUB(NOW(), INTERVAL 5 MINUTE))
       AND (t.status = 'active' OR (t.status = 'paused' AND m.messageType = 'administrative'))`);
   if (!affected(update)) return null;
@@ -306,11 +370,12 @@ async function claimDelivery(messageId: string, professionalUserId: number) {
   return { db, token, attemptId, row: rows(messageResult)[0] };
 }
 
-export async function deliverProfessionalMessage(
+async function deliverProfessionalMessageWithMode(
   messageId: string,
-  professionalUserId: number
+  professionalUserId: number,
+  mode: DeliveryMode
 ) {
-  const claim = await claimDelivery(messageId, professionalUserId);
+  const claim = await claimDelivery(messageId, professionalUserId, mode);
   if (!claim?.row) return { status: "unchanged" as const };
   let status: "sent" | "failed" = "failed";
   let errorCode: string | null = null;
@@ -362,6 +427,28 @@ export async function deliverProfessionalMessage(
     messageId,
   });
   return { status };
+}
+
+export function deliverProfessionalMessage(
+  messageId: string,
+  professionalUserId: number
+) {
+  return deliverProfessionalMessageWithMode(
+    messageId,
+    professionalUserId,
+    "initial"
+  );
+}
+
+export function retryProfessionalMessage(
+  messageId: string,
+  professionalUserId: number
+) {
+  return deliverProfessionalMessageWithMode(
+    messageId,
+    professionalUserId,
+    "retry"
+  );
 }
 
 function cursorSql(cursor?: { createdAt: number; id: string }) {

@@ -81,7 +81,10 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   createMutate.mockReset();
@@ -293,6 +296,40 @@ describe("ProfessionalMessagesExperience", () => {
     expect(articles[0]?.textContent).toContain("Por Ana");
     expect(articles[1]?.textContent).toContain("Mensagem mais nova");
     expect(articles[1]?.textContent).toContain("Por Dra. Beatriz");
+  });
+
+  it("protects the direct personal-area exit while a message draft is unsaved", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(
+      <>
+        <Experience />
+        <div data-sidebar="footer">
+          <button type="button" onClick={() => setLocation("/today")}>
+            Minha alimentação
+          </button>
+        </div>
+      </>
+    );
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho que não pode ser descartado silenciosamente" },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Minha alimentação" })
+    );
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(setLocation).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Minha alimentação" })
+    );
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(setLocation).toHaveBeenCalledWith("/today");
   });
 
   it("uses a safe generic patient label in the portfolio inbox", async () => {

@@ -42,34 +42,64 @@ if [ -z "$CHROME_BIN" ]; then
   exit 1
 fi
 
-run_chrome() {
-  local profile
+run_chrome_until_output() {
+  local output="$1"
+  local completion_pattern="$2"
+  local stdout_target="$3"
+  shift 3
+  local profile log chrome_pid status
   profile="$(mktemp -d)"
-  if ! timeout --signal=TERM --kill-after=5s 90s "$CHROME_BIN" \
+  log="${output}.chrome.log"
+  : > "$output"
+  "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
     --disable-dev-shm-usage \
     --user-data-dir="$profile" \
-    "$@"; then
-    rm -rf "$profile"
-    return 1
-  fi
+    "$@" >"$stdout_target" 2>"$log" &
+  chrome_pid=$!
+  status=1
+  for _ in $(seq 1 180); do
+    if [ -s "$output" ] && { [ -z "$completion_pattern" ] || grep -Fq "$completion_pattern" "$output"; }; then
+      sleep 0.2
+      status=0
+      break
+    fi
+    if ! kill -0 "$chrome_pid" 2>/dev/null; then
+      wait "$chrome_pid" || true
+      if [ -s "$output" ] && { [ -z "$completion_pattern" ] || grep -Fq "$completion_pattern" "$output"; }; then
+        status=0
+      fi
+      break
+    fi
+    sleep 0.5
+  done
+  kill "$chrome_pid" 2>/dev/null || true
+  wait "$chrome_pid" 2>/dev/null || true
   rm -rf "$profile"
+  if [ "$status" -ne 0 ]; then
+    cat "$log" >&2
+  fi
+  return "$status"
 }
 
 capture() {
   local name="$1"
   local size="$2"
   local url="$3"
-  run_chrome \
+  local output="$OUTPUT_DIR/$name.png"
+  run_chrome_until_output \
+    "$output" \
+    "" \
+    /dev/null \
     --hide-scrollbars \
     --force-device-scale-factor=1 \
     --virtual-time-budget=2500 \
     --window-size="$size" \
-    --screenshot="$OUTPUT_DIR/$name.png" \
+    --screenshot="$output" \
     "$url"
-  test -s "$OUTPUT_DIR/$name.png"
+  test -s "$output"
 }
 
 assert_dom_at_size() {
@@ -78,11 +108,14 @@ assert_dom_at_size() {
   local url="$3"
   shift 3
   local output="$OUTPUT_DIR/$name.html"
-  run_chrome \
+  run_chrome_until_output \
+    "$output" \
+    "</html>" \
+    "$output" \
     --virtual-time-budget=2500 \
     --window-size="$size" \
     --dump-dom \
-    "$url" > "$output"
+    "$url"
   for expected in "$@"; do
     if ! grep -Fq "$expected" "$output"; then
       echo "Expected DOM content was not rendered for $name: $expected"

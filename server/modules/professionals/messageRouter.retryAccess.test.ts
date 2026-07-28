@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   assertRetryAccess: vi.fn(),
-  deliver: vi.fn(),
+  retry: vi.fn(),
 }));
 
 vi.mock("./entitledProcedure", async () => {
@@ -19,7 +19,7 @@ vi.mock("./messageRetryAccess", async importOriginal => {
 });
 vi.mock("./messageService", () => ({
   createProfessionalMessage: vi.fn(),
-  deliverProfessionalMessage: mocks.deliver,
+  retryProfessionalMessage: mocks.retry,
   listPatientProfessionalMessages: vi.fn(),
   listProfessionalMessages: vi.fn(),
 }));
@@ -45,7 +45,7 @@ function caller() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.deliver.mockResolvedValue({ status: "unchanged" });
+  mocks.retry.mockResolvedValue({ status: "unchanged" });
 });
 
 describe("professionalMessageRouter.retry", () => {
@@ -58,7 +58,7 @@ describe("professionalMessageRouter.retry", () => {
       code: "FORBIDDEN",
       message: "O acesso a este paciente não está mais disponível.",
     } satisfies Partial<TRPCError>);
-    expect(mocks.deliver).not.toHaveBeenCalled();
+    expect(mocks.retry).not.toHaveBeenCalled();
   });
 
   it("detects revocation that happens between validation and delivery claim", async () => {
@@ -70,7 +70,7 @@ describe("professionalMessageRouter.retry", () => {
       code: "FORBIDDEN",
       message: "O acesso a este paciente não está mais disponível.",
     } satisfies Partial<TRPCError>);
-    expect(mocks.deliver).toHaveBeenCalledWith(messageId, 7);
+    expect(mocks.retry).toHaveBeenCalledWith(messageId, 7);
     expect(mocks.assertRetryAccess).toHaveBeenCalledTimes(2);
   });
 
@@ -80,7 +80,7 @@ describe("professionalMessageRouter.retry", () => {
     await expect(caller().retry({ messageId })).resolves.toEqual({
       status: "unchanged",
     });
-    expect(mocks.deliver).toHaveBeenCalledWith(messageId, 7);
+    expect(mocks.retry).toHaveBeenCalledWith(messageId, 7);
     expect(mocks.assertRetryAccess).toHaveBeenCalledTimes(2);
   });
 });
