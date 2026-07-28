@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PATCH_SHA256: dd51711a2983614f1ee31387e0032666586ea3f421e736d25920c83d9a8ca891
-      PATCH_BLOB: 39d7ce66b055cc4a9fa54e38f36c9610508eed90
+      PATCH_BLOB: 1421156b207f44fae8e1017464bb315bab13e023
     steps:
       - name: Checkout target branch
         uses: actions/checkout@v4
