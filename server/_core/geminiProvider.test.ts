@@ -65,6 +65,36 @@ describe("GeminiProvider (@google/genai)", () => {
     ]);
   });
 
+  it("rejects an unsupported mixed content part instead of silently dropping it", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_text", text: "descreva" },
+          { type: "input_file", file_id: "file-1" } as never,
+        ],
+      }],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed image in mixed input instead of sending text only", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_text", text: "descreva" },
+          { type: "input_image", image_url: "data:image/jpeg;base64" },
+        ],
+      }],
+    })).rejects.toMatchObject({ code: "invalid_payload" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
   it("passes the project's JSON Schema features without lossy conversion", async () => {
     generateContentMock.mockResolvedValue({ text: "{}" });
     const schema = {
@@ -147,6 +177,78 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
+  it("accepts a local recursive reference when the recursive property is optional", async () => {
+    generateContentMock.mockResolvedValue({ text: "{}" });
+    const schema = {
+      type: "object",
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+            child: { $ref: "#/$defs/node" },
+          },
+          required: ["value"],
+        },
+      },
+      properties: { root: { $ref: "#/$defs/node" } },
+      required: ["root"],
+    };
+
+    await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: "oi",
+      format: { type: "json_schema", name: "recursive", schema },
+    });
+    expect(generateContentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a recursive reference reached only through required properties", async () => {
+    const provider = new GeminiProvider("fake-key");
+    const schema = {
+      type: "object",
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+            child: { $ref: "#/$defs/node" },
+          },
+          required: ["value", "child"],
+        },
+      },
+      properties: { root: { $ref: "#/$defs/node" } },
+      required: ["root"],
+    };
+
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: "oi",
+      format: { type: "json_schema", name: "recursive", schema },
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "#/$defs/missing",
+    "https://example.com/schema.json#/$defs/value",
+  ])("rejects unresolved or external reference %s before network access", async ref => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: "oi",
+      format: {
+        type: "json_schema",
+        name: "invalid-ref",
+        schema: {
+          type: "object",
+          properties: { value: { $ref: ref } },
+        },
+      },
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
   it("rejects tools before network access until an explicit Google Search translation exists", async () => {
     const provider = new GeminiProvider("fake-key");
     await expect(provider.createTextResponse({
@@ -177,6 +279,6 @@ describe("GeminiProvider (@google/genai)", () => {
     await expect(new GeminiProvider("fake-key").createTextResponse({
       model: "gemini-2.5-flash",
       input: [],
-    })).rejects.toThrow(/no content parts/);
+    })).rejects.toThrow(/at least one message/);
   });
 });
