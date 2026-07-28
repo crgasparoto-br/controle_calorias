@@ -9,7 +9,8 @@ A camada de intents LLM interpreta mensagens textuais do WhatsApp que não foram
 - `OPENAI_WHATSAPP_INTENT_ENABLED`: permite desligar a camada LLM com `false`, `0`, `no` ou `off`.
 - `AI_WHATSAPP_INTENT_PROVIDER` e `AI_WHATSAPP_INTENT_MODEL`: selecionam provider e modelo como um par. Sem as variáveis novas, o resolvedor usa a compatibilidade do provider (`AI_VISION_PROVIDER`) e o modelo correspondente (`OPENAI_MODEL` ou `GEMINI_MODEL`).
 - `AI_WHATSAPP_INTENT_TIMEOUT_MS`, `AI_WHATSAPP_INTENT_MAX_ATTEMPTS` e `AI_WHATSAPP_INTENT_FALLBACK_*`: configuram a política independente da capacidade; fallback permanece desabilitado por padrão.
-- `OPENAI_WHATSAPP_INTENT_MODEL`, `_TIMEOUT_MS`, `_RETRIES` e `_ENABLED` permanecem temporariamente compatíveis. O modelo específico OpenAI só pode substituir o primário quando o provider resolvido é `openai` ou `openai-compatible`; nunca quando é Gemini.
+- `OPENAI_WHATSAPP_INTENT_MODEL`, `OPENAI_TEXT_MODEL`, `OPENAI_WHATSAPP_INTENT_TIMEOUT_MS`, `OPENAI_WHATSAPP_INTENT_RETRIES` e `_ENABLED` permanecem temporariamente compatíveis. Para providers `openai`/`openai-compatible`, a precedência legada de modelo é `OPENAI_WHATSAPP_INTENT_MODEL` > `OPENAI_TEXT_MODEL` > modelo resolvido; essas variáveis nunca substituem o modelo Gemini.
+- Sem variáveis novas ou legadas de timeout/tentativas, a capacidade preserva o baseline anterior à migração: timeout de 8 segundos e 1 retry, totalizando no máximo 2 chamadas primárias.
 
 ## Fluxo
 
@@ -55,4 +56,4 @@ A consulta permite filtrar por intenção, erro, baixa confiança e motivo de fa
 
 ## Fronteira de execução #922
 
-`intentInterpreter.ts` usa `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry.
+`intentInterpreter.ts` usa `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry. A compatibilidade do baseline legado é aplicada somente a `WHATSAPP_INTENT` antes da execução comum; outras capacidades mantêm os defaults globais do resolvedor.
