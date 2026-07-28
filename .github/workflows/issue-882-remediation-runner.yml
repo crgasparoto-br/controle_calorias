@@ -16,8 +16,8 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-      EXPECTED_PARENT_SHA: c2c5c7e007eeb3f535ee321df23ad0859043e94e
-      PATCH_BLOB_SHA: a747807ec53f6b899b85f27c447675816ed7121a
+      EXPECTED_PARENT_SHA: 7163b3ca72fd730d378c8d76dabfc89dcff00684
+      PATCH_BLOB_SHA: df969d56fda13ca6aa10a19545cbaec5f4557e6c
     steps:
       - name: Checkout target branch
         uses: actions/checkout@v4
