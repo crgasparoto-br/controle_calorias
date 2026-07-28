@@ -177,10 +177,11 @@ function buildInlineImageDataUrl(input: NonNullable<AnalyzeFoodPhotoInput["image
     : `data:${input.mimeType};base64,${input.base64}`;
 }
 
-async function resolveAnalysisImageUrl(
+async function resolveAnalysisImageSources(
   userId: number,
   input: NonNullable<AnalyzeFoodPhotoInput["image"]>,
 ) {
+  const analysisImageUrl = buildInlineImageDataUrl(input);
   const extension = input.mimeType.split("/")[1] || "jpg";
 
   try {
@@ -191,12 +192,14 @@ async function resolveAnalysisImageUrl(
     );
 
     return {
-      imageUrl: upload.url,
+      analysisImageUrl,
+      persistedImageUrl: upload.url,
       usedInlineFallback: false,
     };
   } catch {
     return {
-      imageUrl: buildInlineImageDataUrl(input),
+      analysisImageUrl,
+      persistedImageUrl: analysisImageUrl,
       usedInlineFallback: true,
     };
   }
@@ -251,7 +254,11 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   };
   photoAnalysisStore.set(pending.id, pending);
 
-  const { imageUrl, usedInlineFallback } = await resolveAnalysisImageUrl(
+  const {
+    analysisImageUrl,
+    persistedImageUrl,
+    usedInlineFallback,
+  } = await resolveAnalysisImageSources(
     userId,
     input.image,
   );
@@ -260,7 +267,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
 
   try {
     const processed = await processMealInput({
-      imageUrl,
+      imageUrl: analysisImageUrl,
       habits: await getHabitSnapshots(userId),
     });
     suggestedItems = await Promise.all(processed.items.map(item => toSuggestedItem(userId, item)));
@@ -295,7 +302,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
 
   const supportingImage = await generateImage({
     prompt: buildSupportingImagePrompt(suggestedItems),
-    originalImages: [{ url: imageUrl, mimeType: input.image.mimeType }],
+    originalImages: [{ url: persistedImageUrl, mimeType: input.image.mimeType }],
   });
 
   if (supportingImage.skippedReason === "provider_failed") {
@@ -314,7 +321,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     status: "analyzed",
     suggestedItems,
     supportingImageUrl: supportingImage.url,
-    originalImageUrl: imageUrl,
+    originalImageUrl: persistedImageUrl,
     originalImageMimeType: input.image.mimeType,
     updatedAt: Date.now(),
   };

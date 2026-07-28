@@ -112,17 +112,24 @@ pnpm db:check-integrity
 
 ## Fundação multi-provider de IA por capacidade (#921)
 
-`server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor por capacidade e executor comum de política — ver `ARCHITECTURE.md`) define a classificação de erro e a política de retry/fallback que os consumidores migrados usarão:
+`server/_core/ai/` define o registro de capacidades, a matriz de suporte, o resolvedor e o executor comum:
 
-- **Falha operacional recuperável** (timeout, rede, rate limit recuperável, saída vazia, JSON/payload inválido) é elegível para retry (até `AI_<CAPABILITY>_MAX_ATTEMPTS`, contagem total de chamadas do primário) e, se esgotada, para no máximo **uma** chamada de fallback quando a política estiver elegível.
-- **Erro não elegível para fallback** (segredo ausente, autenticação inválida, modelo inexistente, combinação operação/adapter incompatível, bloqueio de segurança, config inválida, ou resultado funcional válido) nunca aciona retry nem fallback — é propagado imediatamente.
-- O executor só decide olhando para as classes `AiOperationalError`/`AiNonRetryableError`; mapear um erro concreto de SDK/HTTP de um provider para uma dessas classes é responsabilidade do adapter que a subissue consumidora vier a implementar — nenhum mapeamento desse tipo existe ainda nesta issue, pois nenhum consumidor foi migrado.
-- **Escalonamento de qualidade** (chamar um modelo melhor após um resultado funcionalmente válido mas de baixa qualidade) é uma política distinta, com tipo/gancho preparado (`AiQualityEscalationHook`) mas não implementada nem ativada nesta issue.
-- O executor comum nunca executa primário e fallback em paralelo, nunca volta ao primário após o fallback e nunca encadeia um terceiro modelo/provider — no máximo uma chamada extra (fallback) por invocação.
-- Fallback é desabilitado por padrão em toda capacidade; habilitar em uma capacidade nunca afeta outra. Fallback para um provider diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito — sem isso, nenhum dado é enviado ao segundo provider e a capacidade fica em estado `degraded` (primário continua operando).
-- **Degradação funcional local** (ex.: busca semântica caindo para busca não semântica quando embeddings falham, anotação de imagem em modo local) é responsabilidade da capacidade consumidora, é uma estratégia de resiliência de produto — não é fallback de provider e não deve ser confundida com ele nem contabilizada como uma "segunda chamada" do executor comum. Não foi implementada nesta issue.
-- Diagnóstico do resolvedor é sempre sanitizado: nunca inclui valor de segredo, payload, prompt ou mídia — apenas identificadores de capacidade/provider e a razão do estado.
-- Nenhum consumidor existente foi migrado para este resolvedor nesta issue; a matriz acima passa a valer para cada capacidade somente quando sua subissue de migração (épica #917) a adotar.
+- `QUESTION` exige geração textual e pesquisa web porque o consumidor legado de perguntas sempre envia `web_search_preview`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente com consumidor legado direto. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
+- A matriz representa somente operações implementadas no adapter do projeto. OpenAI expõe métodos explícitos para texto/multimodal, embeddings, transcrição e imagem; Gemini suporta hoje texto, visão e Structured Output. Pesquisa web e embeddings Gemini permanecem indisponíveis até existir tradução/método e teste de integração.
+- Todo campo aceito pelo request comum precisa ser traduzido ou rejeitado localmente. O Gemini rejeita requests com `tools` antes da rede enquanto a tradução para Google Search não estiver implementada; nunca descarta a ferramenta silenciosamente.
+- `OPENAI_BASE_URL` não vazio ativa automaticamente o modo `openai-compatible`; o endpoint começa sem operações suportadas e exige allowlist explícita em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
+- Timeout e tentativas inválidos tornam a capacidade `invalid`; não são aceitos como configuração pronta.
+- O executor rejeita estados `invalid` e `disabled`, limites não positivos/não inteiros e fallback habilitado sem callback antes de qualquer chamada. Estado `degraded` só executa quando o primário continua válido.
+- Variáveis novas prevalecem sobre variáveis legadas. Para os fluxos de texto/visão, a compatibilidade preserva `OPENAI_MODEL` ou `GEMINI_MODEL` conforme o provider efetivo.
+- O fallback usa modelo próprio do provider de destino. Um modelo do primário nunca é reutilizado silenciosamente em provider diferente.
+- Erros concretos de SDK/HTTP/rede são classificados pelo executor. Timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem acionar a política limitada; autenticação, modelo ausente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam segundo provider.
+- Cada tentativa recebe `AbortSignal`; o contrato `AiProvider` e os adapters OpenAI/Gemini propagam o sinal para a chamada do SDK. Depois do timeout, o executor aguarda o encerramento local da chamada antes de retry/fallback; se a chamada não reconhecer o cancelamento na janela definida, a execução termina sem nova chamada. O cancelamento do cliente não deve ser interpretado como garantia de interrupção do processamento remoto ou de ausência de cobrança pelo provider.
+- `MAX_ATTEMPTS` é o total de chamadas do primário. Depois delas, existe no máximo uma chamada de fallback, sem retorno ao primário e sem cadeia adicional.
+- Escalonamento de qualidade é política separada e não é ativado nesta fase.
+- Degradação funcional local, como busca não semântica ou anotação local, não é fallback de provider.
+- O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui testes pelo entrypoint real para texto e para o data URL inline de imagem produzido pelo WhatsApp.
+- Respostas textuais e de embeddings podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
+- Nenhum consumidor existente foi migrado para o novo resolvedor nesta issue.
 
 ## Mutações multirrefeição pelo WhatsApp
 

@@ -58,7 +58,7 @@ Serviços de domínio devem depender da interface interna do provider, não do S
 - Fase 5 concluída: a geração visual auxiliar foi migrada para helper OpenAI opcional e não bloqueante.
 - Fase 6 concluída: transcrição e inferência nutricional ficaram livres do provider legado; o único uso legado remanescente ficou documentado no assistente educativo.
 - Fase 7 está preparada: checklist operacional e smoke tests foram organizados para Render, Vercel e validação de canais.
-- Fase 8 concluída (#921): fundação multi-provider criada em `server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor por capacidade, executor comum de política) e SDK do Gemini migrado para `@google/genai`. Nenhum consumidor foi migrado para o novo resolvedor nesta fase.
+- Fase 8 implementada para a fundação (#921) e corrigida após auditoria: registro, matriz vinculada aos métodos dos adapters, resolvedor fail-closed, executor que bloqueia configurações não executáveis, cancelamento propagado até os SDKs e migração Gemini com `responseJsonSchema`. A conclusão permanece condicionada à auditoria independente do SHA final; nenhum consumidor foi migrado para o novo resolvedor nesta fase.
 
 ## Fases
 
@@ -68,7 +68,7 @@ Mapear usos atuais de IA interna, transcrição, geração de imagem, análise d
 
 ### Fase 2 - Provider OpenAI isolado
 
-Adicionar SDK oficial, cliente backend, interface de provider, configuração de ambiente e documentação. O build não deve exigir configuração real quando testes usam mocks.
+Adicionar SDK oficial, cliente backend e interface interna de provider, configuração de ambiente e documentação. O build não deve exigir configuração real quando testes usam mocks.
 
 ### Fase 3 - Transcrição
 
@@ -110,18 +110,24 @@ Objetivos do rollout:
 
 ### Fase 8 - Fundação multi-provider por capacidade (#921, épica #917)
 
-Status: concluída para a fundação; migração de consumidores é escopo das subissues seguintes de #917.
+Status: implementação corretiva preparada; aguarda auditoria independente do SHA final. Migração de consumidores é escopo das subissues seguintes de #917.
 
-- Criado `server/_core/ai/capabilities.ts` com o registro tipado de capacidades (`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION`, `FOOD_CLASSIFICATION` reservada — ver #922).
-- Criado `server/_core/ai/supportMatrix.ts` com a matriz de suporte por adapter (`openai`, `gemini`, `openai-compatible`), declarada como dado, nunca inferida do nome do provider/modelo.
-- Criado `server/_core/ai/configResolver.ts`: resolução por capacidade (adapter primeiro, depois modelo), precedência `AI_<CAPABILITY>_* novo > variável legada > default do baseline`, estados `ready`/`degraded`/`disabled`/`invalid`, fallback independente por capacidade e desabilitado por padrão, cross-provider exige opt-in explícito.
-- Criado `server/_core/ai/policyExecutor.ts`: fronteira comum de retry/timeout/fallback (retry limitado, no máximo uma chamada de fallback, sem paralelismo nem encadeamento), com classificação de erro operacional vs. não elegível para fallback.
-- `server/_core/geminiProvider.ts` migrado de `@google/generative-ai` para `@google/genai` (superfície `models.generateContent`), preservando comportamento; dependência legada removida do `package.json`.
-- Nenhum consumidor existente (`mealAiExtraction`, `aiQuestionAssistant`, `catalogSemanticSearch`, `intentInterpreter`, `assistant/service.ts`) foi alterado nesta fase. `AI_PROVIDER` e o assistente Forge legado não foram tocados.
-- Variáveis legadas (`AI_VISION_PROVIDER`, `ENV.visionModel`, `GEMINI_MODEL`, `OPENAI_MODEL`, etc.) continuam funcionando; resolução por variável legada emite aviso de depreciação sanitizado (log, não exceção).
-- Degradação funcional (ex.: busca caindo para modo não semântico, anotação de imagem local) é responsabilidade da capacidade consumidora e é distinta do fallback de provider implementado aqui; não foi implementada nesta fase.
+- `capabilities.ts` registra todas as capacidades. `QUESTION` exige `text` e `web_search` conforme o consumidor real; `NUTRITION_SEARCH` exige `text`, `structured_output` e `web_search`; `EMBEDDING` exige somente `embeddings` e possui consumidor legado direto; `FOOD_CLASSIFICATION` permanece reservada.
+- `supportMatrix.ts` representa métodos e traduções existentes nos adapters. OpenAI possui métodos explícitos para texto/multimodal, embeddings, transcrição e imagem. Gemini declara texto, visão e Structured Output nesta fase; pesquisa web e embeddings não são anunciados antes de tradução/método dedicado e teste.
+- `configResolver.ts` resolve adapter antes do modelo, aplica variável nova > variável legada compatível > default, preserva `OPENAI_MODEL`/`GEMINI_MODEL`, rejeita modelo vazio e valores inválidos, e seleciona modelo próprio para fallback.
+- `OPENAI_BASE_URL` não vazio é tratado automaticamente como `openai-compatible`. Nenhuma operação é assumida até constar em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
+- `policyExecutor.ts` bloqueia estados `invalid`/`disabled`, limites inválidos e fallback habilitado sem callback antes de qualquer outbound. Depois disso, centraliza classificação de erros HTTP/SDK/rede, saída vazia, JSON inválido e payload inválido. Erro desconhecido é não recuperável e não aciona fallback.
+- Cada tentativa recebe `AbortSignal`; `AiProvider`, `OpenAiProvider` e `GeminiProvider` propagam o sinal até a chamada do SDK. Retry ou fallback somente inicia após a tentativa anterior encerrar localmente; cancelamento não reconhecido termina fail-closed sem nova chamada.
+- Requests comuns são fail-closed. O Gemini rejeita `tools` antes da rede enquanto a tradução para Google Search não existir; nenhum campo operacional é descartado silenciosamente.
+- O fallback permanece desabilitado por padrão, isolado por capacidade, com no máximo uma chamada após as tentativas do primário e sem cadeia.
+- `geminiProvider.ts` usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites presentes nos schemas reais. O consumidor legado de refeição é exercitado pelo entrypoint `mealAiExtraction` nas variantes textual e visual, usando o data URL inline produzido pelo WhatsApp.
+- `OpenAiProvider.createEmbeddings` fecha o suporte declarado pela matriz e normaliza vetores/usage. O consumidor legado de embeddings permanece sem migração para o novo resolvedor.
+- `AiProviderTextResponse.usage` e `AiProviderEmbeddingResponse.usage` normalizam metadados de tokens quando disponíveis.
+- Nenhum consumidor existente (`mealAiExtraction`, `aiQuestionAssistant`, `catalogSemanticSearch`, `intentInterpreter`, `assistant/service.ts`) foi migrado para o resolvedor. `AI_PROVIDER` e o assistente Forge legado não foram alterados.
+- Variáveis legadas continuam funcionando. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics`; nesta fase ele ainda não é emitido como log de aplicação porque nenhum consumidor chama o resolvedor.
+- Degradação funcional local permanece responsabilidade do consumidor e é distinta de fallback entre providers.
 
-Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeWithPolicy`, uma capacidade por vez, preservando o comportamento atual até que a migração de cada uma seja validada.
+Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeResolvedCapability`, uma capacidade por vez. A operação fornecida ao executor deve encaminhar `context.signal` para as opções do método `AiProvider`; `executeWithPolicy` permanece uma primitiva interna de baixo nível e não deve ser chamada diretamente pelos consumidores. Cada migração deve manter validação da saída e teste discriminante pelo entrypoint real.
 
 ## Gates
 

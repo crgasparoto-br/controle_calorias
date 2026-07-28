@@ -36,6 +36,7 @@ describe("cross-provider fallback integration (configResolver -> policyExecutor)
     await expect(
       executeWithPolicy(
         {
+          state: resolved.state,
           maxAttempts: resolved.maxAttempts,
           timeoutMs: resolved.timeoutMs,
           fallback: { effectivelyEnabled: resolved.fallback.effectivelyEnabled },
@@ -61,6 +62,7 @@ describe("cross-provider fallback integration (configResolver -> policyExecutor)
     });
 
     const resolved = resolveCapabilityConfig("MEAL_TEXT", env);
+    expect(resolved.state).toBe("ready");
     expect(resolved.fallback.effectivelyEnabled).toBe(true);
     expect(resolved.fallback.provider).toBe("gemini");
 
@@ -76,6 +78,7 @@ describe("cross-provider fallback integration (configResolver -> policyExecutor)
 
     const result = await executeWithPolicy(
       {
+        state: resolved.state,
         maxAttempts: resolved.maxAttempts,
         timeoutMs: resolved.timeoutMs,
         fallback: { effectivelyEnabled: resolved.fallback.effectivelyEnabled },

@@ -88,7 +88,7 @@ describe("photoAnalysis service", () => {
     logInferenceEventMock.mockReset();
   });
 
-  it("usa o núcleo compartilhado de inferência para analisar foto e anexa visual auxiliar quando disponível", async () => {
+  it("usa mídia inline na inferência e mantém a URL persistida quando o upload funciona", async () => {
     const { analyzeFoodPhoto } = await import("./service");
 
     const result = await analyzeFoodPhoto(42, {
@@ -101,7 +101,7 @@ describe("photoAnalysis service", () => {
 
     expect(storagePutMock).toHaveBeenCalledTimes(1);
     expect(processMealInputMock).toHaveBeenCalledWith({
-      imageUrl: "https://storage.test/42/meal-images/foto.jpg",
+      imageUrl: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
       habits: [
         {
           foodName: "Arroz branco cozido",
@@ -120,6 +120,11 @@ describe("photoAnalysis service", () => {
         }),
       ],
     }));
+    expect(logInferenceEventMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "food_photo.inline_image_used",
+      }),
+    );
     expect(result.suggestedItems).toEqual([
       {
         foodName: "Arroz branco cozido",
@@ -209,6 +214,15 @@ describe("photoAnalysis service", () => {
     expect(processMealInputMock).toHaveBeenCalledWith(
       expect.objectContaining({
         imageUrl: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+      }),
+    );
+    expect(generateImageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalImages: [
+          expect.objectContaining({
+            url: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+          }),
+        ],
       }),
     );
     expect(logInferenceEventMock).toHaveBeenCalledWith(
