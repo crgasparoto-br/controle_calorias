@@ -10,17 +10,32 @@ const invalidateMessages = vi.fn().mockResolvedValue(undefined);
 const refetchMessages = vi.fn();
 const setLocation = vi.fn();
 const emptyTemplates: never[] = [];
-let messageResult: { items: any[]; nextCursor: null } = {
+let messageResult: {
+  items: any[];
+  nextCursor: { createdAt: number; id: string } | null;
+} = {
   items: [],
   nextCursor: null,
 };
+const listUseQuery = vi.fn(
+  (_input?: unknown, _options?: unknown) => ({
+    data: messageResult,
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: refetchMessages,
+  })
+);
 let trackingStatus: "not_started" | "active" | "paused" | "ended" =
   "active";
 let patientSelected = true;
 let currentLocation = "/professional/patients/41/messages";
 
-function setMessages(items: any[]) {
-  messageResult = { items, nextCursor: null };
+function setMessages(
+  items: any[],
+  nextCursor: { createdAt: number; id: string } | null = null
+) {
+  messageResult = { items, nextCursor };
 }
 
 vi.mock("@/components/ProfessionalLayout", () => ({
@@ -51,13 +66,7 @@ vi.mock("@/lib/trpc", () => ({
           useQuery: () => ({ data: emptyTemplates, isError: false }),
         },
         list: {
-          useQuery: () => ({
-            data: messageResult,
-            isLoading: false,
-            isError: false,
-            isFetching: false,
-            refetch: refetchMessages,
-          }),
+          useQuery: listUseQuery,
         },
         create: {
           useMutation: (options: { onSuccess?: () => Promise<void> }) => ({
@@ -91,6 +100,7 @@ beforeEach(() => {
   retryMutate.mockReset();
   invalidateMessages.mockClear();
   refetchMessages.mockReset();
+  listUseQuery.mockClear();
   setLocation.mockReset();
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   setMessages([]);
@@ -130,6 +140,13 @@ describe("ProfessionalMessagesExperience", () => {
     expect(
       (screen.getByLabelText("Origem da mensagem") as HTMLSelectElement).value
     ).toBe("ai_suggested");
+    expect(
+      screen.getByLabelText("Origem da mensagem").hasAttribute("disabled")
+    ).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Origem da mensagem"), {
+      target: { value: "professional" },
+    });
 
     fireEvent.change(editor, {
       target: { value: "Resumo revisado pelo nutricionista" },
@@ -330,6 +347,99 @@ describe("ProfessionalMessagesExperience", () => {
     );
     expect(confirm).toHaveBeenCalledTimes(2);
     expect(setLocation).toHaveBeenCalledWith("/today");
+  });
+
+  it("rearms the unsaved draft guard when a confirmed click stays on the same route", async () => {
+    const confirm = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(
+      <>
+        <Experience />
+        <button
+          type="button"
+          data-professional-navigation
+          onClick={() => setLocation(currentLocation)}
+        >
+          Mensagens atuais
+        </button>
+        <button
+          type="button"
+          data-professional-navigation
+          onClick={() => setLocation("/professional/patients/41/reports")}
+        >
+          Relatórios
+        </button>
+      </>
+    );
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Rascunho ainda não salvo" },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Mensagens atuais" })
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(setLocation).toHaveBeenCalledWith(currentLocation);
+    expect(
+      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+        .value
+    ).toBe("");
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Novo rascunho na mesma rota" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Relatórios" }));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(setLocation).not.toHaveBeenCalledWith(
+      "/professional/patients/41/reports"
+    );
+  });
+
+  it("keeps a latest-page polling query active after loading older messages", async () => {
+    setMessages(
+      [
+        {
+          id: "latest-message",
+          patientUserId: 41,
+          direction: "professional_to_patient",
+          origin: "professional",
+          messageType: "guidance",
+          content: "Mensagem recente",
+          state: "sent",
+          createdAt: Date.now(),
+          authorName: "Nutricionista",
+          patientName: "Ana",
+        },
+      ],
+      { createdAt: Date.now() - 60_000, id: "older-cursor" }
+    );
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Carregar mensagens anteriores" })
+    );
+
+    expect(listUseQuery.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          { patientId: 41, pageSize: 20 },
+          expect.objectContaining({
+            enabled: true,
+            refetchInterval: 30_000,
+            refetchOnWindowFocus: true,
+          }),
+        ],
+      ])
+    );
   });
 
   it("uses a safe generic patient label in the portfolio inbox", async () => {

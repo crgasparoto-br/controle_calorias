@@ -36,79 +36,20 @@ for attempt in $(seq 1 30); do
 done
 printf 'stage=server-ready\n' >> "$OUTPUT_DIR/stage.log"
 
-CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-if [ -z "$CHROME_BIN" ]; then
-  echo "Chrome or Chromium was not found on the runner."
-  exit 1
-fi
-
-run_chrome_until_output() {
-  local output="$1"
-  local completion_pattern="$2"
-  local stdout_target="$3"
-  shift 3
-  local profile log chrome_pid status
-  profile="$(mktemp -d)"
-  log="${output}.chrome.log"
-  : > "$output"
-  "$CHROME_BIN" \
-    --headless=new \
-    --no-sandbox \
-    --disable-gpu \
-    --disable-dev-shm-usage \
-    --disable-background-networking \
-    --disable-component-update \
-    --disable-default-apps \
-    --disable-extensions \
-    --disable-features=MediaRouter,OptimizationHints,Translate \
-    --disable-sync \
-    --metrics-recording-only \
-    --mute-audio \
-    --no-first-run \
-    --safebrowsing-disable-auto-update \
-    --user-data-dir="$profile" \
-    "$@" >"$stdout_target" 2>"$log" &
-  chrome_pid=$!
-  status=1
-  for _ in $(seq 1 180); do
-    if [ -s "$output" ] && { [ -z "$completion_pattern" ] || grep -Fq "$completion_pattern" "$output"; }; then
-      sleep 0.2
-      status=0
-      break
-    fi
-    if ! kill -0 "$chrome_pid" 2>/dev/null; then
-      wait "$chrome_pid" || true
-      if [ -s "$output" ] && { [ -z "$completion_pattern" ] || grep -Fq "$completion_pattern" "$output"; }; then
-        status=0
-      fi
-      break
-    fi
-    sleep 0.5
-  done
-  kill "$chrome_pid" 2>/dev/null || true
-  wait "$chrome_pid" 2>/dev/null || true
-  rm -rf "$profile"
-  if [ "$status" -ne 0 ]; then
-    cat "$log" >&2
-  fi
-  return "$status"
-}
-
 capture() {
   local name="$1"
   local size="$2"
   local url="$3"
+  local width="${size%,*}"
+  local height="${size#*,}"
   local output="$OUTPUT_DIR/$name.png"
-  run_chrome_until_output \
-    "$output" \
-    "" \
-    /dev/null \
-    --hide-scrollbars \
-    --force-device-scale-factor=1 \
-    --virtual-time-budget=2500 \
-    --window-size="$size" \
-    --screenshot="$output" \
-    "$url"
+  node scripts/capture-chrome-cdp.mjs \
+    --mode screenshot \
+    --url "$url" \
+    --output "$output" \
+    --width "$width" \
+    --height "$height" \
+    --wait-expression "document.documentElement.dataset.visualHorizontalOverflow === 'false'"
   test -s "$output"
 }
 
@@ -117,15 +58,16 @@ assert_dom_at_size() {
   local size="$2"
   local url="$3"
   shift 3
+  local width="${size%,*}"
+  local height="${size#*,}"
   local output="$OUTPUT_DIR/$name.html"
-  run_chrome_until_output \
-    "$output" \
-    "</html>" \
-    "$output" \
-    --virtual-time-budget=2500 \
-    --window-size="$size" \
-    --dump-dom \
-    "$url"
+  node scripts/capture-chrome-cdp.mjs \
+    --mode dom \
+    --url "$url" \
+    --output "$output" \
+    --width "$width" \
+    --height "$height" \
+    --wait-expression "document.documentElement.dataset.visualHorizontalOverflow === 'false'"
   for expected in "$@"; do
     if ! grep -Fq "$expected" "$output"; then
       echo "Expected DOM content was not rendered for $name: $expected"

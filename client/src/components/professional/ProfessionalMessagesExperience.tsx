@@ -26,7 +26,13 @@ import {
   Search,
   Send,
 } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation } from "wouter";
 
 const UNSAVED_MESSAGE = "Existe um rascunho não salvo. Deseja descartá-lo?";
@@ -75,6 +81,22 @@ type MessageTemplate = {
   messageType: string;
 };
 
+function mergeMessageItems(
+  current: MessageItem[],
+  incoming: MessageItem[],
+  patientSelected: boolean
+) {
+  const byId = new Map(current.map(item => [item.id, item]));
+  for (const item of incoming) byId.set(item.id, item);
+  const merged = Array.from(byId.values());
+  return merged.sort((left, right) => {
+    const timeDifference =
+      (left.createdAt ?? 0) - (right.createdAt ?? 0) ||
+      left.id.localeCompare(right.id);
+    return patientSelected ? timeDifference : -timeDifference;
+  });
+}
+
 function formatDate(value: number | null | undefined) {
   return value
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -93,6 +115,8 @@ export default function ProfessionalMessagesExperience() {
   const [content, setContent] = useState("");
   const [messageType, setMessageType] = useState<MessageType>("guidance");
   const [origin, setOrigin] = useState<ComposerOrigin>("professional");
+  const [supersededOrigin, setSupersededOrigin] =
+    useState<ComposerOrigin | null>(null);
   const [templateId, setTemplateId] = useState("");
   const [supersedesMessageId, setSupersedesMessageId] = useState<string | null>(
     null
@@ -105,24 +129,23 @@ export default function ProfessionalMessagesExperience() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const dirtyRef = useRef(false);
-  const allowNavigationRef = useRef(false);
   dirtyRef.current = Boolean(content.trim());
 
-  const clearComposer = () => {
+  const clearComposer = useCallback(() => {
     setContent("");
     setMessageType("guidance");
     setOrigin("professional");
+    setSupersededOrigin(null);
     setTemplateId("");
     setSupersedesMessageId(null);
     setIdempotencyKey(crypto.randomUUID());
-  };
+  }, []);
 
   useEffect(() => {
     setCursor(undefined);
     setItems([]);
     clearComposer();
-    allowNavigationRef.current = false;
-  }, [patientId]);
+  }, [clearComposer, patientId]);
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -131,7 +154,7 @@ export default function ProfessionalMessagesExperience() {
       event.returnValue = "";
     };
     const guardNavigation = (event: MouseEvent) => {
-      if (!dirtyRef.current || allowNavigationRef.current) return;
+      if (!dirtyRef.current) return;
       const target = event.target as HTMLElement | null;
       const navigation = target?.closest(
         "[data-professional-navigation], [data-sidebar='footer'] button, nav[aria-label='Navegação da Área Profissional'] button, button[aria-label='Ir para o início da Área Profissional']"
@@ -142,15 +165,15 @@ export default function ProfessionalMessagesExperience() {
         event.stopPropagation();
         event.stopImmediatePropagation();
       } else {
-        allowNavigationRef.current = true;
+        clearComposer();
       }
     };
     const guardBack = () => {
-      if (!dirtyRef.current || allowNavigationRef.current) return;
+      if (!dirtyRef.current) return;
       if (!window.confirm(UNSAVED_MESSAGE)) {
         window.history.pushState({ professionalMessageDraft: true }, "", location);
       } else {
-        allowNavigationRef.current = true;
+        clearComposer();
       }
     };
     window.addEventListener("beforeunload", beforeUnload);
@@ -161,7 +184,7 @@ export default function ProfessionalMessagesExperience() {
       window.removeEventListener("popstate", guardBack);
       document.removeEventListener("click", guardNavigation, true);
     };
-  }, [location]);
+  }, [clearComposer, location]);
 
   const templatesQuery = trpc.professionalRecord.messages.templates.useQuery(
     undefined,
@@ -179,35 +202,44 @@ export default function ProfessionalMessagesExperience() {
       refetchOnWindowFocus: !cursor,
     }
   );
+  const latestMessages = trpc.professionalRecord.messages.list.useQuery(
+    { patientId, pageSize: 20 },
+    {
+      enabled: Boolean(cursor),
+      retry: false,
+      refetchInterval: cursor ? 30_000 : false,
+      refetchOnWindowFocus: Boolean(cursor),
+    }
+  );
 
   useEffect(() => {
     if (!messages.data) return;
     setItems(current => {
-      const combined = cursor
-        ? [...current, ...messages.data.items]
-        : messages.data.items;
-      const ids = new Set<string>();
-      const deduplicated = (combined as MessageItem[]).filter(item => {
-        if (ids.has(item.id)) return false;
-        ids.add(item.id);
-        return true;
-      });
-      return patientId
-        ? deduplicated.sort(
-            (left, right) =>
-              (left.createdAt ?? 0) - (right.createdAt ?? 0) ||
-              left.id.localeCompare(right.id)
-          )
-        : deduplicated;
+      const baseline = cursor ? current : [];
+      return mergeMessageItems(
+        baseline,
+        messages.data.items as MessageItem[],
+        Boolean(patientId)
+      );
     });
   }, [cursor, messages.data, patientId]);
+
+  useEffect(() => {
+    if (!cursor || !latestMessages.data) return;
+    setItems(current =>
+      mergeMessageItems(
+        current,
+        latestMessages.data.items as MessageItem[],
+        Boolean(patientId)
+      )
+    );
+  }, [cursor, latestMessages.data, patientId]);
 
   const templates = (templatesQuery.data ?? []) as MessageTemplate[];
 
   const create = trpc.professionalRecord.messages.create.useMutation({
     onSuccess: async () => {
       clearComposer();
-      allowNavigationRef.current = false;
       setCursor(undefined);
       setItems([]);
       await utils.professionalRecord.messages.list.invalidate();
@@ -222,21 +254,21 @@ export default function ProfessionalMessagesExperience() {
   });
 
   const submit = (action: "save_draft" | "send_web" | "send_whatsapp") => {
-    if (!patientId) return;
+    if (!patientId || !content.trim()) return;
     create.mutate({
       patientId,
       content,
       messageType,
-      origin,
+      origin: supersededOrigin === "ai_suggested" ? "ai_suggested" : origin,
       action,
       idempotencyKey,
       supersedesMessageId: supersedesMessageId ?? undefined,
     });
   };
-
   const applyTemplate = (nextTemplateId: string) => {
     setTemplateId(nextTemplateId);
     setSupersedesMessageId(null);
+    setSupersededOrigin(null);
     const template = templates.find(item => item.id === nextTemplateId);
     if (!template) return;
     setContent(template.content);
@@ -245,217 +277,207 @@ export default function ProfessionalMessagesExperience() {
     setIdempotencyKey(crypto.randomUUID());
   };
 
-  const continueDraft = (item: MessageItem) => {
+  continueDraft = (item: MessageItem) => {
     setContent(item.content);
     setMessageType(item.messageType as MessageType);
     setOrigin(item.origin === "patient" ? "professional" : item.origin);
+    setSupersededOrigin(
+      item.origin === "patient" ? "professional" : item.origin
+    );
     setTemplateId("");
     setSupersedesMessageId(item.id);
     setIdempotencyKey(crypto.randomUUID());
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const visibleItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return items.filter(item => {
+      const matchesSearch =
+        !query ||
+        (item.content ?? "").toLowerCase().includes(query) ||
+        (item.patientName ?? "").toLowerCase().includes(query);
+      const matchesState = stateFilter === "all" || item.state === stateFilter;
+      return matchesSearch && matchesState;
+    });
+  }, [items, search, stateFilter]);
+
   const trackingStatus = selectedPatient?.trackingStatus ?? "not_started";
   const ended = trackingStatus === "ended";
   const paused = trackingStatus === "paused";
   const notStarted = trackingStatus === "not_started";
-  const canCreateMessage =
-    trackingStatus === "active" ||
-    (paused && messageType === "administrative");
-  const canDeliver = canCreateMessage && origin !== "automatic";
+  const canDeliver =
+    !templateId &&
+    !(origin === "automatic" && !supersedesMessageId) &&
+    !(paused && messageType !== "administrative") &&
+    !ended &&
+    !notStarted;
   const canRetry = (item: MessageItem) =>
-    Boolean(patientId) &&
-    item.state === "failed" &&
-    item.origin !== "automatic" &&
+    !!ended &&
+    !!item.lastError &&
+    item.direction === "professional_to_patient" &&
     (trackingStatus === "active" ||
       (paused && item.messageType === "administrative"));
-  const visibleItems = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return items.filter(item => {
-      const patientName = item.patientName ?? "";
-      const matchesSearch =
-        !normalizedSearch ||
-        patientName.toLowerCase().includes(normalizedSearch) ||
-        item.content.toLowerCase().includes(normalizedSearch);
-      return (
-        matchesSearch &&
-        (stateFilter === "all" || item.state === stateFilter)
-      );
-    });
-  }, [items, search, stateFilter]);
 
   return (
     <div className="space-y-6">
       <ProfessionalPageHeader
-        eyebrow={patientId ? "Conversa do paciente" : "Comunicação da carteira"}
-        title={patientId ? "Mensagens" : "Caixa de mensagens"}
+        title={patientId ? `Conversa com ${selectedPatient!.displayName}` : "Caixa de mensagens"}
         description={
           patientId
-            ? `Conversa com ${selectedPatient?.displayName}. Modelos e IA apenas preenchem rascunhos; toda entrega exige sua ação.`
-            : "Acompanhe mensagens recentes da carteira e abra a conversa contextual do paciente."
+            ? "Histórico contextual, rascunhos revisíveis e entregas explícitas."
+            : "Acompanhe conversas recentes da carteira e abra o workspace do paciente para responder."
         }
       />
 
       {patientId ? (
+        <private_variant className="grid gap-4 rounded-2xl border px-4 py-3 text-sm" aria-label="Contexto da conversa">
+          <strong>{selectedPatient!.displayName}</strong>
+          <span className="text-muted-foreground">
+            {trackingStatus === "active"
+              ? "Acompanhamento ativo"
+              : trackingStatus === "paused"
+                ? "Acompanhamento pausado"
+                : trackingStatus === "ended"
+                  ? "Acompanhamento encerrado"
+                  : "Acompanhamento não iniciado"}
+          </span>
+        </private_variant>
+      ) : null}
+
+      {ended ? (
+        <ProfessionalAsyncState
+          variant="panel"
+          title="Acompanhamento encerrado"
+          description="O acompanhamento foi encerrado. As mensagens anteriores permanecem disponíveis somente para consulta."
+        />
+      ) : null}
+
+      {paused ? (
+        <ProfessionalAsyncState
+          variant="panel"
+          title="Comunicação administrativa"
+          description="Durante a pausa, utilize somente mensagens administrativas."
+        />
+      ) : null}
+
+      {notStarted && patientId ? (
+        <ProfessionalAsyncState
+          variant="panel"
+          title="Acompanhamento não iniciado"
+          description="Inicie no Prontuário antes de criar ou publicar mensagens."
+        />
+      ) : null}
+
+      {patientId ? (
         <ProfessionalSplitLayout
-          aside={
+          primary={
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Regras da conversa</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p>Mensagens enviadas não são editadas silenciosamente.</p>
-                <p>
-                  Falhas permanecem no histórico e podem ser reenviadas quando
-                  permitido.
-                </p>
-                <p>Rascunhos automáticos exigem revisão antes da entrega.</p>
-              </CardContent>
-            </Card>
-          }
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {supersedesMessageId ? "Continuar rascunho" : "Nova mensagem"}
-              </CardTitle>
-              <CardDescription>
-                {ended
-                  ? "O acompanhamento foi encerrado. As mensagens anteriores permanecem disponíveis somente para consulta."
-                  : notStarted
-                    ? "Inicie o acompanhamento antes de criar uma mensagem."
-                    : paused
-                      ? "Durante a pausa, somente comunicações administrativas podem ser criadas ou entregues."
-                      : "Escolha um modelo ou escreva uma mensagem do zero."}
-              </CardDescription>
+                <CardTitle>Nova mensagem</CardTitle>
+                <CardDescription>
+                  Modelos e IA apenas preenchem o rascunho. O nutricionista sempre revisa e
+                  confirma a ação final.
+                </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3">
-              {supersedesMessageId ? (
-                <div
-                  role="status"
-                  className="flex flex-col gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+            <CardContent className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <select
+                  aria-label="Modelo de mensagem"
+                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  value={templateId}
+                  disabled={ended || notStarted}
+                  onChange={event => applyTemplate(event.target.value)}
                 >
-                  <p>
-                    Ao salvar ou enviar, uma nova versão será registrada e o
-                    rascunho anterior permanecerá no histórico.
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={clearComposer}
-                  >
-                    Cancelar revisão
-                  </Button>
-                </div>
-              ) : null}
-              {templatesQuery.isError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  Os modelos não puderam ser carregados. Você ainda pode escrever
-                  uma mensagem do zero.
-                </p>
-              ) : null}
-              {templates.length ? (
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium">Modelo de mensagem</span>
-                  <select
-                    aria-label="Modelo de mensagem"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                    value={templateId}
-                    disabled={ended || notStarted}
-                    onChange={event => applyTemplate(event.target.value)}
-                  >
-                    <option value="">Escrever sem modelo</option>
-                    {templates.map(template => (
-                      <option key={template.id} value={template.id}>
-                        {template.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <div className="grid gap-3 sm:grid-cols-2">
+                  <option value="">Sem modelo</option>
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.title}
+                    </option>
+                  ))}
+                </select>
                 <select
                   aria-label="Tipo da mensagem"
                   className="h-10 rounded-md border bg-background px-3 text-sm"
                   value={messageType}
                   disabled={ended || notStarted}
-                  onChange={event => {
-                    setMessageType(event.target.value as MessageType);
-                    setTemplateId("");
-                  }}
+                  onChange={event => setMessageType(event.target.value as MessageType)}
                 >
-                  {Object.entries(messageTypeLabels)
-                    .filter(([key]) => key !== "response")
-                    .map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
+                  <option value="guidance">Orientação</option>
+                  <option value="reminder">Lembrete</option>
+                  <option value="weigh_in_request">Pedido de pesagem</option>
+                  <option value="record_request">Pedido de registro</option>
+                  <option value="administrative">Administrativa</option>
+                  <option value="follow_up_summary">Resumo</option>
                 </select>
                 <select
                   aria-label="Origem da mensagem"
                   className="h-10 rounded-md border bg-background px-3 text-sm"
                   value={origin}
-                  disabled={ended || notStarted}
+                  disabled={
+                    ended || notStarted || supersededOrigin === "ai_suggested"
+                  }
                   onChange={event =>
                     setOrigin(event.target.value as ComposerOrigin)
                   }
                 >
-                  <option value="professional">Escrita pelo nutricionista</option>
-                  <option value="ai_suggested">Sugestão da IA revisada</option>
+                  <option value="professional">Nutricionista</option>
+                  <option value="ai_suggested">Sugestço da IA revisada</option>
                   <option value="automatic">Automática para revisão</option>
                 </select>
               </div>
+              {supersededOrigin === "ai_suggested" ? (
+                <p className="text-xs text-muted-foreground">
+                  A origem da sugestão da IA epreservada nesta nova versão.
+                </p>
+              ) : null}
               <textarea
                 aria-label="Conteúdo da mensagem"
                 className="min-h-36 rounded-md border bg-background p-3"
+                placeholder="Escreva a mensagem para o paciente."
                 value={content}
                 disabled={ended || notStarted}
-                onChange={event => {
-                  setContent(event.target.value);
-                  setTemplateId("");
-                }}
-                placeholder="Escreva a orientação, lembrete ou solicitação..."
-              />
-              {origin === "automatic" ? (
-                <p className="text-xs text-muted-foreground">
-                  Revise o conteúdo e altere a origem antes de disponibilizar ou
-                  enviar esta mensagem.
-                </p>
-              ) : null}
+                onChange={event => setContent(event.target.value)}
+             />
               {create.isError ? (
                 <p role="alert" className="text-sm text-destructive">
-                  Não foi possível registrar a mensagem. Revise as regras do
-                  acompanhamento e tente novamente.
+                  Não foi possível concluir a ção. Recarregue o contexto e tente
+                  novamente.
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  disabled={
-                    !content.trim() || create.isPending || !canCreateMessage
-                  }
-                  onClick={() => submit("save_draft")}
-                >
-                  Salvar rascunho
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={!content.trim() || create.isPending || !canDeliver}
-                  onClick={() => submit("send_web")}
-                >
-                  <Send className="h-4 w-4" />
-                  Disponibilizar na web
-                </Button>
-                <Button
-                  disabled={!content.trim() || create.isPending || !canDeliver}
-                  onClick={() => submit("send_whatsapp")}
-                >
-                  <Send className="h-4 w-4" />
-                  Enviar por WhatsApp
-                </Button>
-              </div>
+            </CardContent>
+            </Card>
+          }
+          secondary={
+            <Card>
+              <CardHeader>
+                <CardTitle>Ações</CardTitle>
+                <CardDescription>
+                  Envio exige uma ação explícita. Os estados do ascompanhamento são respeitados.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              <Button
+                variant="outline"
+                disabled={!content.trim() || create.isPending || ended || notStarted}
+                onClick={() => submit("save_draft")}
+              >
+                Salvar rascunho
+              </Button>
+              <Button
+                disabled={!content.trim() || create.isPending || !canDeliver}
+                onClick={() => submit("send_web")}
+              >
+                <Send className="h-4 w-4" />
+                Disponibilizar na web
+              </Button>
+              <Button
+                disabled={!content.trim() || create.isPending || !canDeliver}
+                onClick={() => submit("send_whatsapp")}
+              >
+                <Send className="h-4 w-4" />
+                Enviar por WhatsApp
+              </Button>
             </CardContent>
           </Card>
         </ProfessionalSplitLayout>

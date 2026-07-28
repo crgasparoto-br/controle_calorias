@@ -13,6 +13,7 @@ import {
   listPatientProfessionalMessages,
   listProfessionalMessages,
   ProfessionalMessageIdempotencyConflictError,
+  ProfessionalMessageSupersessionConflictError,
 } from "./messageService";
 import {
   assertProfessionalMessageRetryAccess,
@@ -50,7 +51,10 @@ export const professionalMessageRouter = router({
       try {
         return await createProfessionalMessage(ctx.user.id, input);
       } catch (error) {
-        if (error instanceof ProfessionalMessageIdempotencyConflictError) {
+        if (
+          error instanceof ProfessionalMessageIdempotencyConflictError ||
+          error instanceof ProfessionalMessageSupersessionConflictError
+        ) {
           throw new TRPCError({
             code: "CONFLICT",
             message: error.message,

@@ -22,6 +22,7 @@ on:
       - "scripts/render-professional-home-visual.sh"
       - "scripts/render-professional-patient-workspace-visual.sh"
       - "scripts/render-professional-messages-visual.sh"
+      - "scripts/capture-chrome-cdp.mjs"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
