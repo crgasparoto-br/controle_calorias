@@ -5,23 +5,26 @@
   "repository": "crgasparoto-br/controle_calorias",
   "base_ref": "develop",
   "branch": "feat/922-ai-capabilities-meal-whatsapp",
-  "cycle": 3,
+  "cycle": 4,
   "cycle_limit": 10,
   "state": "frozen",
   "baseline_sha": "07bfe16f688b9a541a30817398457bcd26a273f2",
-  "validated_functional_sha": "4b01dfede7ef32cd5a77899ca5408a27a4719065",
-  "validated_merge_preview_sha": "63e337a092676141b3d993467d50d7a23b3c08bd",
-  "blocking_findings": [],
+  "validated_functional_sha": "131cf1a79e689d2d94f826c498412d6e697079d2",
+  "validated_merge_preview_sha": "b3423ecb2a731b1496ec3b086f2bca2fd3ae31e6",
+  "blocking_findings": [
+    "AUD-922-001: live provider smoke remains unavailable because no OpenAI or Gemini credential is configured in GitHub Actions"
+  ],
   "regression_ledger": [
     {"cycle":1,"finding":"domain boundary assertion matched quantity.raw","resolution":"assertion narrowed to response.raw and usage.raw"},
-    {"cycle":1,"finding":"long-list nutrition regression exceeded default five-second test budget","resolution":"explicit 15-second timeout for the 11-item load scenario"}
+    {"cycle":1,"finding":"long-list nutrition regression exceeded default five-second test budget","resolution":"explicit 15-second timeout for the 11-item load scenario"},
+    {"cycle":4,"finding":"OpenAI Structured Output schema could reach the SDK without local representability validation","resolution":"added fail-closed preflight and negative tests before network access"}
   ],
   "validations": [
-    {"name":"Agent-first gate","run_id":30372107664,"conclusion":"success"},
-    {"name":"WhatsApp context TiDB gate","run_id":30372105992,"conclusion":"success"}
+    {"name":"Agent-first gate baseline","run_id":30378041419,"conclusion":"success"},
+    {"name":"WhatsApp context TiDB gate baseline","run_id":30378041447,"conclusion":"success"}
   ],
   "limitations": [
-    "External live-provider smoke was not executable without provider credentials in this context."
+    "External live-provider smoke is not executable without a provider credential configured in GitHub Actions; no secret or production configuration was changed by this loop."
   ],
-  "implementation_summary": "Rebuilt #922 on current develop using the shared capability executor, sanitized domain response boundary, no independent NOVA inference, provider/model pairing, provider-specific error taxonomy, Gemini real-schema parity tests, and preserved WhatsApp precedence/state contracts."
+  "implementation_summary": "Cycle 4 added a fail-closed OpenAI Structured Output schema preflight before SDK access, covered valid and invalid schemas, documented the boundary, preserved the shared capability executor and left the live-provider smoke as the only external limitation."
 }
