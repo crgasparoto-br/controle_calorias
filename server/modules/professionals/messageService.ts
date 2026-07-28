@@ -216,6 +216,13 @@ export async function createProfessionalMessage(
   input: ProfessionalMessageCreateInput
 ) {
   const scope = await professionalScope(professionalUserId, input.patientId);
+  const existing = await recoverIdempotentCreate(
+    scope.db,
+    professionalUserId,
+    scope.authorizationId,
+    input
+  );
+  if (existing) return existing;
   assertCanCreate(scope.trackingStatus, input.messageType);
   if (input.origin === "automatic" && input.action !== "save_draft")
     throw new Error(

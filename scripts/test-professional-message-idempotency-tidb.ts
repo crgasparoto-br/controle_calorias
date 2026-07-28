@@ -216,11 +216,27 @@ async function main() {
       ids.professional,
       originalInput
     );
+    await connection.query(
+      `UPDATE professionalPatientTrackings SET status = 'ended', endedAt = NOW(),
+        lastTransitionAt = NOW(), lastTransitionByUserId = ?
+       WHERE authorizationId = 'authorization-message-a'`,
+      [ids.professional]
+    );
     const replay = await createProfessionalMessage(
       ids.professional,
       originalInput
     );
-    assert.equal(replay.id, original.id, "equivalent replay must reuse the logical message");
+    assert.equal(
+      replay.id,
+      original.id,
+      "equivalent replay must reuse the logical message after tracking changes"
+    );
+    await connection.query(
+      `UPDATE professionalPatientTrackings SET status = 'active', endedAt = NULL,
+        lastTransitionAt = NOW(), lastTransitionByUserId = ?
+       WHERE authorizationId = 'authorization-message-a'`,
+      [ids.professional]
+    );
 
     await expectSafeConflict(() =>
       createProfessionalMessage(ids.professional, {

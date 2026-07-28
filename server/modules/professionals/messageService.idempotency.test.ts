@@ -28,13 +28,16 @@ const baseInput: ProfessionalMessageCreateInput = {
   idempotencyKey: "professional-message-key-123",
 };
 
-function scopeRow(authorizationId = "authorization-41") {
+function scopeRow(
+  authorizationId = "authorization-41",
+  trackingStatus = "active"
+) {
   return [
     [
       {
         authorizationId,
         authorizationStatus: "approved",
-        trackingStatus: "active",
+        trackingStatus,
         profileActive: 1,
       },
     ],
@@ -66,8 +69,11 @@ function existingRow(overrides: Record<string, unknown> = {}) {
 function duplicateDb(options: {
   scopedRow: Record<string, unknown> | null;
   collisionExists?: boolean;
+  trackingStatus?: string;
 }) {
-  const execute = vi.fn().mockResolvedValueOnce(scopeRow());
+  const execute = vi
+    .fn()
+    .mockResolvedValueOnce(scopeRow("authorization-41", options.trackingStatus));
   execute.mockResolvedValueOnce(
     options.scopedRow ? [[options.scopedRow]] : [[]]
   );
@@ -75,6 +81,9 @@ function duplicateDb(options: {
     execute.mockResolvedValueOnce(
       options.collisionExists ? [[{ id: "message-collision" }]] : [[]]
     );
+    if (!options.collisionExists) {
+      execute.mockResolvedValueOnce([[]]).mockResolvedValueOnce([[]]);
+    }
   }
   const txExecute = vi
     .fn()
@@ -107,6 +116,21 @@ describe("professional message creation idempotency", () => {
       state: "draft",
     });
     expect(db.execute).toHaveBeenCalledTimes(2);
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("returns an equivalent replay after tracking has ended without creating again", async () => {
+    const db = duplicateDb({
+      scopedRow: existingRow(),
+      trackingStatus: "ended",
+    });
+    mocks.getDb.mockResolvedValue(db);
+
+    await expect(createProfessionalMessage(7, baseInput)).resolves.toMatchObject({
+      id: "message-existing",
+      requestedAction: "save_draft",
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -132,6 +156,7 @@ describe("professional message creation idempotency", () => {
         conflictMessage
       );
       expect(db.execute).toHaveBeenCalledTimes(3);
+      expect(db.transaction).not.toHaveBeenCalled();
     }
   );
 

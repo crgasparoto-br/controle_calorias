@@ -36,16 +36,24 @@ capture() {
   local name="$1"
   local size="$2"
   local url="$3"
-  timeout --signal=TERM --kill-after=5s 45s "$CHROME_BIN" \
+  local profile
+  profile="$(mktemp -d)"
+  if ! timeout --signal=TERM --kill-after=5s 90s "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
+    --disable-dev-shm-usage \
+    --user-data-dir="$profile" \
     --hide-scrollbars \
     --force-device-scale-factor=1 \
     --virtual-time-budget=2500 \
     --window-size="$size" \
     --screenshot="$OUTPUT_DIR/$name.png" \
-    "$url"
+    "$url"; then
+    rm -rf "$profile"
+    return 1
+  fi
+  rm -rf "$profile"
   test -s "$OUTPUT_DIR/$name.png"
 }
 
@@ -62,14 +70,22 @@ assert_dom_at_size() {
   local url="$3"
   shift 3
   local output="$OUTPUT_DIR/$name.html"
-  timeout --signal=TERM --kill-after=5s 45s "$CHROME_BIN" \
+  local profile
+  profile="$(mktemp -d)"
+  if ! timeout --signal=TERM --kill-after=5s 90s "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
+    --disable-dev-shm-usage \
+    --user-data-dir="$profile" \
     --virtual-time-budget=2500 \
     --window-size="$size" \
     --dump-dom \
-    "$url" > "$output"
+    "$url" > "$output"; then
+    rm -rf "$profile"
+    return 1
+  fi
+  rm -rf "$profile"
   for expected in "$@"; do
     if ! grep -Fq "$expected" "$output"; then
       echo "Expected DOM content was not rendered for $name: $expected"
