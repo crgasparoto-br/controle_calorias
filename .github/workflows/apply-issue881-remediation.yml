@@ -1,23 +1,22 @@
 name: Apply issue 881 remediation
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/875-professional-context-routes
-    paths:
-      - ".issue881-remediation/ready"
+      - develop
 
 permissions:
   contents: write
 
 jobs:
   apply-remediation:
+    if: ${{ github.head_ref == 'feat/875-professional-context-routes' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout remediation branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
           token: ${{ github.token }}
 
@@ -41,4 +40,4 @@ jobs:
             server/repositories/professionalPortfolioRepository.test.ts \
             server/repositories/professionalPortfolioRepository.ts
           git commit -m 'fix: remediate issue 881 audit findings'
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin HEAD:${GITHUB_HEAD_REF}
