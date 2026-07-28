@@ -38,15 +38,15 @@ jobs:
         run: |
           set -euo pipefail
           git apply --binary /tmp/issue881.patch
+          git checkout -- .github/workflows/professional-persistence-tidb.yml
           git add -A
           git diff --cached --check
 
-      - name: Remove publisher scaffolding
+      - name: Remove remediation payload
         shell: bash
         run: |
           set -euo pipefail
-          git checkout 1129953e15755530572b00c4d8bea67b9b0e0c59 -- .github/workflows/agent-check.yml
-          git rm -r .issue881-remediation .github/workflows/apply-issue881-remediation.yml
+          git rm -r .issue881-remediation
           git status --short
 
       - name: Commit remediation
