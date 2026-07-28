@@ -73,7 +73,13 @@ type MacroGoalDayWithDate = MacroGoalDay & { date: string };
 type MacroGoalKey = "goalProtein" | "goalCarbs" | "goalFat";
 type QueryLike = { data: unknown; isLoading: boolean; isError: boolean };
 
-export type ReportsExperienceProps = { context?: ReportsExperienceContext; viewerUserId?: number | null; subjectUserId?: number | null; onRangeChange?: (range: DateRange) => void };
+export type ReportsExperienceProps = {
+  context?: ReportsExperienceContext;
+  viewerUserId?: number | null;
+  subjectUserId?: number | null;
+  onRangeChange?: (range: DateRange) => void;
+  onRangeTransitionStart?: () => void;
+};
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
@@ -424,7 +430,12 @@ function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedReg
   );
 }
 
-export function ReportsExperience({ context = "self", subjectUserId, onRangeChange }: ReportsExperienceProps) {
+export function ReportsExperience({
+  context = "self",
+  subjectUserId,
+  onRangeChange,
+  onRangeTransitionStart,
+}: ReportsExperienceProps) {
   const isProfessional = context === "professional";
   const selfTimeZone = useEffectiveUserTimeZone();
   const patientTimeZone = trpc.nutrition.professionals.patientTimeZone.useQuery(
@@ -436,20 +447,92 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
     ? (patientTimeZone.data?.timeZone ?? selfTimeZone.timeZone)
     : selfTimeZone.timeZone;
   const [periodScope, setPeriodScope] = React.useState<PeriodScope>("week");
-  const [selectedDay, setSelectedDay] = React.useState(() => toDateInputValue(new Date(), userTimeZone));
-  const [selectedMonth, setSelectedMonth] = React.useState(() => toMonthInputValue(new Date(), userTimeZone));
-  const [rangeStart, setRangeStart] = React.useState(() => toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
-  const [rangeEnd, setRangeEnd] = React.useState(() => toDateInputValue(new Date(), userTimeZone));
+  const [selectedDay, setSelectedDay] = React.useState(() =>
+    toDateInputValue(new Date(), userTimeZone)
+  );
+  const [selectedMonth, setSelectedMonth] = React.useState(() =>
+    toMonthInputValue(new Date(), userTimeZone)
+  );
+  const [rangeStart, setRangeStart] = React.useState(() =>
+    toDateInputValue(
+      new Date(Date.now() - 13 * 24 * 60 * 60 * 1000),
+      userTimeZone
+    )
+  );
+  const [rangeEnd, setRangeEnd] = React.useState(() =>
+    toDateInputValue(new Date(), userTimeZone)
+  );
   const [showDetails, setShowDetails] = React.useState(false);
+  const resolvedPeriodContextKey = timeZoneReady
+    ? `${isProfessional ? subjectUserId ?? 0 : "self"}:${userTimeZone}`
+    : null;
+  const [initializedPeriodContextKey, setInitializedPeriodContextKey] =
+    React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!timeZoneReady) return;
+    if (!resolvedPeriodContextKey) return;
+    onRangeTransitionStart?.();
     const today = toDateInputValue(new Date(), userTimeZone);
     setSelectedDay(today);
     setSelectedMonth(toMonthInputValue(new Date(), userTimeZone));
-    setRangeStart(toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
+    setRangeStart(
+      toDateInputValue(
+        new Date(Date.now() - 13 * 24 * 60 * 60 * 1000),
+        userTimeZone
+      )
+    );
     setRangeEnd(today);
-  }, [subjectUserId, timeZoneReady, userTimeZone]);
+    setInitializedPeriodContextKey(resolvedPeriodContextKey);
+  }, [
+    onRangeTransitionStart,
+    resolvedPeriodContextKey,
+    subjectUserId,
+    userTimeZone,
+  ]);
+
+  const periodContextReady =
+    Boolean(resolvedPeriodContextKey) &&
+    initializedPeriodContextKey === resolvedPeriodContextKey;
+
+  const beginRangeTransition = React.useCallback(() => {
+    onRangeTransitionStart?.();
+  }, [onRangeTransitionStart]);
+
+  const handleScopeChange = React.useCallback(
+    (nextScope: PeriodScope) => {
+      beginRangeTransition();
+      setPeriodScope(nextScope);
+    },
+    [beginRangeTransition]
+  );
+  const handleSelectedDayChange = React.useCallback(
+    (nextDay: string) => {
+      beginRangeTransition();
+      setSelectedDay(nextDay);
+    },
+    [beginRangeTransition]
+  );
+  const handleSelectedMonthChange = React.useCallback(
+    (nextMonth: string) => {
+      beginRangeTransition();
+      setSelectedMonth(nextMonth);
+    },
+    [beginRangeTransition]
+  );
+  const handleRangeStartChange = React.useCallback(
+    (nextStart: string) => {
+      beginRangeTransition();
+      setRangeStart(nextStart);
+    },
+    [beginRangeTransition]
+  );
+  const handleRangeEndChange = React.useCallback(
+    (nextEnd: string) => {
+      beginRangeTransition();
+      setRangeEnd(nextEnd);
+    },
+    [beginRangeTransition]
+  );
 
   const activeRange = React.useMemo(() => {
     if (periodScope === "day") return { start: selectedDay, end: selectedDay };
@@ -458,7 +541,10 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
     return normalizeDateRange(rangeStart, rangeEnd);
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const activeRangeDayCount = React.useMemo(() => countDaysInRange(activeRange), [activeRange]);
-  React.useEffect(() => { onRangeChange?.(activeRange); }, [activeRange, onRangeChange]);
+  React.useLayoutEffect(() => {
+    if (!periodContextReady) return;
+    onRangeChange?.(activeRange);
+  }, [activeRange, onRangeChange, periodContextReady]);
   const activeRangeLimitMessage = activeRangeDayCount > MAX_REPORT_RANGE_DAYS
     ? `Escolha um período de até ${MAX_REPORT_RANGE_DAYS} dias para carregar os relatórios.`
     : null;
@@ -483,7 +569,14 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
   const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery(
     { patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end },
-    { enabled: timeZoneReady && isProfessional && Boolean(subjectUserId) && !activeRangeLimitMessage },
+    {
+      enabled:
+        timeZoneReady &&
+        periodContextReady &&
+        isProfessional &&
+        Boolean(subjectUserId) &&
+        !activeRangeLimitMessage,
+    },
   ));
 
   const useWeeklySummaryAsPrimary = isWeek && !isProfessional && hasWeeklySummaryQuery && !selfWeeklySummary.isError && weeklySummaryContract.renderable;
@@ -493,6 +586,8 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
     ? professionalBundle
     : (isWeek ? (waitingForWeeklySummary || useWeeklySummaryAsPrimary ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
   const detailsBundle = isProfessional || !isWeek ? activeBundle : selfWeeklyDetails;
+  const professionalBundlePending = isProfessional && !periodContextReady;
+  const activeBundleLoading = activeBundle.isLoading || professionalBundlePending;
   const bundleData = activeBundle.data as any;
   const detailData = detailsBundle.data as any;
 
@@ -568,15 +663,15 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
         actions={(
           <PeriodScopeSelector
             scope={periodScope}
-            onScopeChange={setPeriodScope}
+            onScopeChange={handleScopeChange}
             selectedDay={selectedDay}
-            onSelectedDayChange={setSelectedDay}
+            onSelectedDayChange={handleSelectedDayChange}
             selectedMonth={selectedMonth}
-            onSelectedMonthChange={setSelectedMonth}
+            onSelectedMonthChange={handleSelectedMonthChange}
             rangeStart={rangeStart}
-            onRangeStartChange={setRangeStart}
+            onRangeStartChange={handleRangeStartChange}
             rangeEnd={rangeEnd}
-            onRangeEndChange={setRangeEnd}
+            onRangeEndChange={handleRangeEndChange}
           />
         )}
       />
@@ -584,7 +679,7 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
         <ReportEmptyState text={activeRangeLimitMessage} />
       ) : (
         <>
-          {activeBundle.isLoading ? (
+          {activeBundleLoading ? (
             <div className="grid gap-4 lg:grid-cols-3">
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
@@ -594,7 +689,7 @@ export function ReportsExperience({ context = "self", subjectUserId, onRangeChan
           {activeBundle.isError ? (
             <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} />
           ) : null}
-          {!activeBundle.isLoading && !activeBundle.isError ? (
+          {!activeBundleLoading && !activeBundle.isError ? (
             <>
               <CalorieAdherenceSection trendData={trendData} dayCount={dayCount} />
               <ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} />

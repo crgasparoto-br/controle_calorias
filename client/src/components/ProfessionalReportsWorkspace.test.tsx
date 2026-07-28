@@ -13,22 +13,43 @@ const reportsExperience = vi.fn(
   ({
     subjectUserId,
     onRangeChange,
+    onRangeTransitionStart,
   }: {
     subjectUserId: number;
     onRangeChange: (range: { start: string; end: string }) => void;
-  }) => (
-    <div>
-      Relatório canônico {subjectUserId}
-      <button
-        type="button"
-        onClick={() =>
-          onRangeChange({ start: "2026-01-01", end: "2026-01-07" })
-        }
-      >
-        Definir período de teste
-      </button>
-    </div>
-  )
+    onRangeTransitionStart: () => void;
+  }) => {
+    React.useLayoutEffect(() => {
+      onRangeTransitionStart();
+      onRangeChange({ start: "2026-07-21", end: "2026-07-27" });
+    }, [onRangeChange, onRangeTransitionStart, subjectUserId]);
+
+    return (
+      <div>
+        Relatório canônico {subjectUserId}
+        <button
+          type="button"
+          onClick={() => {
+            onRangeTransitionStart();
+            onRangeChange({ start: "2026-01-01", end: "2026-01-07" });
+          }}
+        >
+          Definir período de teste
+        </button>
+        <button type="button" onClick={onRangeTransitionStart}>
+          Iniciar troca de período
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onRangeChange({ start: "2026-02-01", end: "2026-02-07" })
+          }
+        >
+          Concluir troca de período
+        </button>
+      </div>
+    );
+  }
 );
 const portfolioInput = vi.fn();
 const activityRefetch = vi.fn();
@@ -66,16 +87,31 @@ vi.mock("@/components/professional/ProfessionalReportRecoveryGate", () => ({
     children,
     patientId,
     range,
+    suspended,
   }: {
-    children: React.ReactNode;
+    children: (state: {
+      ready: boolean;
+      feedback: React.ReactNode;
+    }) => React.ReactNode;
     patientId: number;
-    range: { start: string; end: string };
-  }) => (
-    <div>
-      <span>{`Gate ${patientId}: ${range.start} a ${range.end}`}</span>
-      {children}
-    </div>
-  ),
+    range: { start: string; end: string } | null;
+    suspended?: boolean;
+  }) => {
+    const ready = Boolean(range) && !suspended;
+    return (
+      <div>
+        <span>
+          {range
+            ? `Gate ${patientId}: ${range.start} a ${range.end}`
+            : `Gate ${patientId}: período pendente`}
+        </span>
+        {children({
+          ready,
+          feedback: <div>Contexto em atualização</div>,
+        })}
+      </div>
+    );
+  },
 }));
 vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({
   default: ({ patientId }: { patientId?: number }) => (
@@ -232,6 +268,39 @@ describe("ProfessionalReportsWorkspace", () => {
     expect(screen.getByText("Pendências de 41")).toBeTruthy();
     expect(screen.getByText("IA contextual de Ana")).toBeTruthy();
     expect(portfolioInput).not.toHaveBeenCalled();
+  });
+
+
+  it("hides alerts and AI immediately while a new period is being resolved", async () => {
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "active",
+    };
+    const { default: ProfessionalReportsWorkspace } = await import(
+      "./ProfessionalReportsWorkspace"
+    );
+    render(<ProfessionalReportsWorkspace />);
+
+    expect(screen.getByText("Pendências de 41")).toBeTruthy();
+    expect(screen.getByText("IA contextual de Ana")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Iniciar troca de período" })
+    );
+
+    expect(screen.getByText("Relatório canônico 41")).toBeTruthy();
+    expect(screen.queryByText("Pendências de 41")).toBeNull();
+    expect(screen.queryByText("IA contextual de Ana")).toBeNull();
+    expect(screen.getByText("Contexto em atualização")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Concluir troca de período" })
+    );
+
+    expect(screen.getByText("Pendências de 41")).toBeTruthy();
+    expect(screen.getByText("IA contextual de Ana")).toBeTruthy();
+    expect(screen.getByText("Gate 41: 2026-02-01 a 2026-02-07")).toBeTruthy();
   });
 
   it("does not retain an individual report after patient context is cleared", async () => {

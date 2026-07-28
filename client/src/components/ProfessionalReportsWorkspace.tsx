@@ -19,7 +19,7 @@ import {
 import ReportsExperience from "@/features/reports/ReportsExperience";
 import { trpc } from "@/lib/trpc";
 import { CalendarDays } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 
 function dateKey(value: Date) {
@@ -356,14 +356,25 @@ function IndividualReport({
   patient: { patientId: number; displayName: string };
 }) {
   const [range, setRange] = useState<{ start: string; end: string } | null>(null);
-  const fallbackRange = useMemo(
-    () => ({
-      start: dateKey(new Date(Date.now() - 6 * 86_400_000)),
-      end: dateKey(new Date()),
-    }),
+  const [contextSuspended, setContextSuspended] = useState(true);
+
+  const handleRangeTransitionStart = useCallback(() => {
+    setContextSuspended(true);
+  }, []);
+
+  const handleRangeChange = useCallback(
+    (nextRange: { start: string; end: string }) => {
+      setRange(currentRange =>
+        currentRange?.start === nextRange.start &&
+        currentRange.end === nextRange.end
+          ? currentRange
+          : nextRange
+      );
+      setContextSuspended(false);
+    },
     []
   );
-  const activeRange = range ?? fallbackRange;
+
   return (
     <div className="space-y-6">
       <ProfessionalPageHeader
@@ -373,25 +384,35 @@ function IndividualReport({
       />
       <ProfessionalReportRecoveryGate
         patientId={patient.patientId}
-        range={activeRange}
+        range={range}
+        suspended={contextSuspended}
       >
-        <>
-          <ProfessionalSplitLayout
-            aside={
-              <ProfessionalOperationalAlertsPanel
-                patientId={patient.patientId}
-                periodRange={activeRange}
+        {({ ready, feedback }) => (
+          <>
+            <ProfessionalSplitLayout
+              aside={
+                ready && range ? (
+                  <ProfessionalOperationalAlertsPanel
+                    patientId={patient.patientId}
+                    periodRange={range}
+                  />
+                ) : (
+                  feedback
+                )
+              }
+            >
+              <ReportsExperience
+                context="professional"
+                subjectUserId={patient.patientId}
+                onRangeChange={handleRangeChange}
+                onRangeTransitionStart={handleRangeTransitionStart}
               />
-            }
-          >
-            <ReportsExperience
-              context="professional"
-              subjectUserId={patient.patientId}
-              onRangeChange={setRange}
-            />
-          </ProfessionalSplitLayout>
-          <ProfessionalAiAssistant patient={patient} periodRange={activeRange} />
-        </>
+            </ProfessionalSplitLayout>
+            {ready && range ? (
+              <ProfessionalAiAssistant patient={patient} periodRange={range} />
+            ) : null}
+          </>
+        )}
       </ProfessionalReportRecoveryGate>
     </div>
   );

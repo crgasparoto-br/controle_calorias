@@ -79,6 +79,24 @@ function asTimestamp(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
+function periodMealLocalDateSql() {
+  return sql`DATE_FORMAT(
+    COALESCE(
+      CONVERT_TZ(
+        periodMeals.\`occurredAt\`,
+        '+00:00',
+        NULLIF(TRIM(periodProfile.\`timezone\`), '')
+      ),
+      CONVERT_TZ(
+        periodMeals.\`occurredAt\`,
+        '+00:00',
+        ${DEFAULT_APP_TIME_ZONE}
+      )
+    ),
+    '%Y-%m-%d'
+  )`;
+}
+
 function reportPeriodWindow(reportStartDate: string, reportEndDate: string) {
   const [startYear, startMonth, startDay] = reportStartDate
     .split("-")
@@ -221,7 +239,7 @@ export function createProfessionalPortfolioRepository(
           WHERE periodMeals.\`status\` = 'confirmed'
             AND periodMeals.\`occurredAt\` >= ${reportCoarseStart}
             AND periodMeals.\`occurredAt\` <= ${reportCoarseEnd}
-            AND DATE_FORMAT(CONVERT_TZ(periodMeals.\`occurredAt\`, '+00:00', COALESCE(periodProfile.\`timezone\`, ${DEFAULT_APP_TIME_ZONE})), '%Y-%m-%d')
+            AND ${periodMealLocalDateSql()}
               BETWEEN ${reportStartDate} AND ${reportEndDate}
           GROUP BY periodMeals.\`userId\`
         ) pm ON pm.\`userId\` = a.\`patientUserId\`
@@ -378,7 +396,7 @@ export function createProfessionalPortfolioRepository(
             WHERE periodMeals.\`status\` = 'confirmed'
               AND periodMeals.\`occurredAt\` >= ${coarseStart}
               AND periodMeals.\`occurredAt\` <= ${coarseEnd}
-              AND DATE_FORMAT(CONVERT_TZ(periodMeals.\`occurredAt\`, '+00:00', COALESCE(periodProfile.\`timezone\`, ${DEFAULT_APP_TIME_ZONE})), '%Y-%m-%d')
+              AND ${periodMealLocalDateSql()}
                 BETWEEN ${reportStartDate} AND ${reportEndDate}
             GROUP BY periodMeals.\`userId\`
           ) pm ON pm.\`userId\` = a.\`patientUserId\`

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { professionalPatientPath } from "@/lib/professionalRoutes";
 import { trpc } from "@/lib/trpc";
-import { Bot, FileText, Save, Sparkles } from "lucide-react";
+import { AlertTriangle, Bot, FileText, Save, Sparkles } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
@@ -33,7 +33,27 @@ const draftLabels = {
 
 type AiMode = keyof typeof modeLabels;
 type DraftType = keyof typeof draftLabels;
-type SourceSignal = { key: string; label: string; value: string };
+type SourceSignal = {
+  key: string;
+  label: string;
+  value: string;
+  period?: "current" | "previous";
+};
+type ProfessionalAiResult = {
+  title: string;
+  summary: string;
+  summarySourceKeys?: string[];
+  facts?: string[];
+  factSourceKeys?: string[][];
+  interpretations?: string[];
+  interpretationSourceKeys?: string[][];
+  missingData?: string[];
+  cautions?: string[];
+  draft?: { content: string; messageType: DraftType } | null;
+  educationalNotice?: string;
+  fallbackUsed?: boolean;
+  sourceSignals?: SourceSignal[];
+};
 
 function SourceReferences({
   keys,
@@ -74,7 +94,7 @@ export default function ProfessionalAiAssistant({
     useState<DraftType>("follow_up_summary");
   const [resultState, setResultState] = useState<{
     signature: string;
-    data: any;
+    data: ProfessionalAiResult;
   } | null>(null);
   const [draftContent, setDraftContent] = useState("");
   const activeSignatureRef = useRef("");
@@ -131,7 +151,10 @@ export default function ProfessionalAiAssistant({
       {
         onSuccess: data => {
           if (activeSignatureRef.current !== requestSignature) return;
-          setResultState({ signature: requestSignature, data });
+          setResultState({
+            signature: requestSignature,
+            data: data as ProfessionalAiResult,
+          });
           setDraftContent(data.draft?.content ?? "");
         },
       }
@@ -175,6 +198,12 @@ export default function ProfessionalAiAssistant({
     );
   }
 
+  const sourceSignals = result?.sourceSignals ?? [];
+  const facts = result?.facts ?? [];
+  const interpretations = result?.interpretations ?? [];
+  const missingData = result?.missingData ?? [];
+  const cautions = result?.cautions ?? [];
+
   return (
     <section aria-labelledby="professional-ai-title" className="space-y-4">
       <Card>
@@ -216,7 +245,9 @@ export default function ProfessionalAiAssistant({
                 <select
                   className="h-10 rounded-md border bg-background px-3"
                   value={draftType}
-                  onChange={event => setDraftType(event.target.value as DraftType)}
+                  onChange={event =>
+                    setDraftType(event.target.value as DraftType)
+                  }
                 >
                   {Object.entries(draftLabels).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -266,7 +297,9 @@ export default function ProfessionalAiAssistant({
               {result.title}
             </CardTitle>
             <CardDescription>
-              Conteúdo assistido com fontes conferíveis. Revise antes de usar.
+              {result.fallbackUsed
+                ? "Modo seguro determinístico usado. Revise os dados disponíveis antes de decidir qualquer conduta."
+                : "Conteúdo assistido com fontes conferíveis. Revise antes de usar."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -276,19 +309,19 @@ export default function ProfessionalAiAssistant({
               </p>
               <SourceReferences
                 keys={result.summarySourceKeys}
-                sourceSignals={result.sourceSignals ?? []}
+                sourceSignals={sourceSignals}
               />
             </div>
             <div className="grid gap-5 lg:grid-cols-2">
               <div>
                 <h3 className="font-semibold">Fatos calculados</h3>
                 <ul className="mt-2 list-disc space-y-2 pl-5 text-sm">
-                  {(result.facts ?? []).map((fact: string, index: number) => (
+                  {facts.map((fact, index) => (
                     <li key={`${fact}-${index}`}>
                       {fact}
                       <SourceReferences
                         keys={result.factSourceKeys?.[index]}
-                        sourceSignals={result.sourceSignals ?? []}
+                        sourceSignals={sourceSignals}
                       />
                     </li>
                   ))}
@@ -297,24 +330,71 @@ export default function ProfessionalAiAssistant({
               <div>
                 <h3 className="font-semibold">Interpretações assistidas</h3>
                 <ul className="mt-2 list-disc space-y-2 pl-5 text-sm">
-                  {(result.interpretations ?? []).map(
-                    (interpretation: string, index: number) => (
-                      <li key={`${interpretation}-${index}`}>
-                        {interpretation}
-                      </li>
-                    )
-                  )}
+                  {interpretations.map((interpretation, index) => (
+                    <li key={`${interpretation}-${index}`}>
+                      {interpretation}
+                      <SourceReferences
+                        keys={result.interpretationSourceKeys?.[index]}
+                        sourceSignals={sourceSignals}
+                      />
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
+            {missingData.length ? (
+              <div className="rounded-2xl border p-4">
+                <h3 className="font-semibold">Dados ausentes</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {missingData.map(item => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {sourceSignals.length ? (
+              <div className="rounded-2xl border bg-muted/30 p-4">
+                <h3 className="font-semibold">Fontes conferíveis</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  O catálogo contém todos os sinais usados nesta resposta. Cada resumo, fato e interpretação identifica as fontes correspondentes.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {sourceSignals.map(signal => (
+                    <div key={signal.key} className="rounded-lg bg-background p-3">
+                      <p className="text-xs text-muted-foreground">
+                        {signal.label}
+                      </p>
+                      <p className="text-sm font-medium">{signal.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {cautions.length ? (
+              <div className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 dark:bg-amber-950/20">
+                <h3 className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="h-4 w-4" />
+                  Pontos para revisar
+                </h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-200">
+                  {cautions.map(item => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {result.draft ? (
               <div className="space-y-3 rounded-2xl border p-4">
                 <h3 className="font-semibold">Rascunho editável</h3>
                 <textarea
+                  aria-label="Rascunho editável"
                   className="min-h-36 w-full rounded-md border bg-background p-3 text-sm"
                   value={draftContent}
                   onChange={event => setDraftContent(event.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Salvar cria apenas um rascunho. O envio exige uma nova ação explícita na conversa.
+                </p>
                 {messagesEnabled ? (
                   <Button
                     disabled={!draftContent.trim() || saveDraft.isPending}
@@ -322,7 +402,7 @@ export default function ProfessionalAiAssistant({
                       saveDraft.mutate({
                         patientId: patient.patientId,
                         content: draftContent.trim(),
-                        messageType: result.draft.messageType,
+                        messageType: result.draft!.messageType,
                         origin: "ai_suggested",
                         action: "save_draft",
                         idempotencyKey: crypto.randomUUID(),
@@ -330,14 +410,26 @@ export default function ProfessionalAiAssistant({
                     }
                   >
                     <Save className="h-4 w-4" />
-                    Salvar e abrir conversa
+                    {saveDraft.isPending
+                      ? "Salvando..."
+                      : "Salvar e abrir conversa"}
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Salvar este rascunho em uma conversa exige a capacidade de mensagens profissionais.
                   </p>
                 )}
+                {saveDraft.isError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    Não foi possível salvar o rascunho. O texto continua disponível para revisão; tente novamente antes de sair desta página.
+                  </p>
+                ) : null}
               </div>
+            ) : null}
+            {result.educationalNotice ? (
+              <p className="text-xs text-muted-foreground">
+                {result.educationalNotice}
+              </p>
             ) : null}
           </CardContent>
         </Card>

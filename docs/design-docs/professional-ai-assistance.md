@@ -130,6 +130,7 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
 - Mudança de paciente, período, modo, tipo de rascunho ou pergunta: resultado anterior é ocultado imediatamente e resposta atrasada é ignorada.
+- Alertas e assistência permanecem indisponíveis enquanto autorização, entitlement, timezone efetivo ou bundle canônico do novo período estiverem pendentes. O relatório pode manter o seletor montado, mas nenhum resultado contextual anterior é reutilizado durante a transição.
 - Falha ao salvar rascunho: o texto permanece editável na tela e não aparece como enviado.
 - Falha da telemetria: não impede a resposta segura nem substitui um erro de autorização.
 
@@ -162,5 +163,8 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - redirecionamento da rota legada para a experiência atual;
 - telemetria sem pergunta, prompt, resposta ou conteúdo do paciente;
 - confirmação explícita antes de persistir um rascunho;
-- descarte de resposta atrasada após troca de paciente, período ou modo.
+- descarte de resposta atrasada após troca de paciente, período ou modo;
+- bloqueio de alertas e geração enquanto timezone ou bundle do período estiverem pendentes;
+- renderização do catálogo completo, fontes por interpretação, dados ausentes, cautelas, aviso educacional e estado de fallback;
+- preservação do rascunho editável e mensagem de produto após falha de salvamento.
 - salvamento concluído após troca de contexto navegando para a conversa do paciente efetivamente persistido.
