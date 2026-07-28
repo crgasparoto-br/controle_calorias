@@ -21,6 +21,7 @@ on:
       - "visual-tests/professional-patient-workspace/**"
       - "scripts/render-professional-home-visual.sh"
       - "scripts/render-professional-patient-workspace-visual.sh"
+      - "scripts/render-professional-messages-visual.sh"
       - ".github/workflows/professional-home-visual.yml"
 
 permissions:
@@ -56,5 +57,33 @@ jobs:
           path: |
             artifacts/professional-home
             artifacts/professional-patient-workspace
+          if-no-files-found: error
+          retention-days: 30
+
+  messages-visual-evidence:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Render professional messages evidence
+        run: bash scripts/render-professional-messages-visual.sh
+      - name: Upload professional messages screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: professional-messages-visual-${{ github.event.pull_request.head.sha }}
+          path: artifacts/professional-messages
           if-no-files-found: error
           retention-days: 30
