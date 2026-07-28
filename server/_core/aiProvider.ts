@@ -3,7 +3,7 @@ import type {
   Response as OpenAiResponse,
   ResponseCreateParamsNonStreaming,
 } from "openai/resources/responses/responses";
-import { AiNonRetryableError } from "./ai/policyExecutor";
+import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
 import { ENV } from "./env";
 import { GeminiProvider } from "./geminiProvider";
 import { createOpenAiClient } from "./openaiClient";
@@ -217,10 +217,43 @@ function imageFileNameFromMimeType(mimeType = "image/png") {
   return "meal-photo.png";
 }
 
-function buildImageEditFile(image: AiProviderImageInput) {
+function normalizeImageBase64(value: string, path: string): string {
+  const compact = value.replace(/\s+/g, "");
+  if (!compact) {
+    throw new AiOperationalError(
+      `OpenAiProvider: ${path} must contain non-empty base64 image data.`,
+      undefined,
+      "invalid_payload",
+    );
+  }
+
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.slice(0, -2).includes("=")) {
+    throw new AiOperationalError(
+      `OpenAiProvider: ${path} contains malformed base64 image data.`,
+      undefined,
+      "invalid_payload",
+    );
+  }
+
+  const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
+  const decoded = Buffer.from(padded, "base64");
+  const canonical = decoded.toString("base64").replace(/=+$/u, "");
+  if (!decoded.length || canonical !== compact.replace(/=+$/u, "")) {
+    throw new AiOperationalError(
+      `OpenAiProvider: ${path} contains malformed base64 image data.`,
+      undefined,
+      "invalid_payload",
+    );
+  }
+
+  return compact;
+}
+
+function buildImageEditFile(image: AiProviderImageInput, index: number) {
   const mimeType = image.mimeType || "image/png";
+  const b64Json = normalizeImageBase64(image.b64Json, `originalImages[${index}].b64Json`);
   return new File(
-    [Buffer.from(image.b64Json, "base64")],
+    [Buffer.from(b64Json, "base64")],
     imageFileNameFromMimeType(mimeType),
     { type: mimeType },
   );
@@ -336,14 +369,15 @@ export class OpenAiProvider implements AiProvider {
     request: AiProviderImageGenerationRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
-    const sourceImages = request.originalImages?.filter(image => image.b64Json) ?? [];
+    const sourceImages = request.originalImages ?? [];
+    const editFiles = sourceImages.map(buildImageEditFile);
     const client = this.getClient();
     const requestOptions = openAiRequestOptions(options);
-    const response = sourceImages.length > 0
+    const response = editFiles.length > 0
       ? await client.images.edit(
           {
             model: request.model,
-            image: sourceImages.map(buildImageEditFile),
+            image: editFiles,
             prompt: request.prompt,
             ...(request.size ? { size: request.size } : {}),
             ...(request.quality ? { quality: request.quality } : {}),
