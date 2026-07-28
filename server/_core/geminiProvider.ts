@@ -24,46 +24,91 @@ import type {
  *
  * Structured output uses `responseJsonSchema` so the JSON Schema used by the
  * existing meal consumer is preserved instead of being lossy-converted to the
- * smaller OpenAPI-style `Schema` type. Unsupported constructs and tools are
- * rejected locally before any network call.
+ * smaller OpenAPI-style `Schema` type. Unsupported constructs, input parts and
+ * tools are rejected locally before any network call.
  */
+function incompatibleOperation(message: string): AiNonRetryableError {
+  return new AiNonRetryableError(message, undefined, "incompatible_operation");
+}
+
+function invalidPayload(message: string): AiOperationalError {
+  return new AiOperationalError(message, undefined, "invalid_payload");
+}
+
+function buildInlineImagePart(imageUrl: string, path: string): Part {
+  const commaIndex = imageUrl.indexOf(",");
+  if (commaIndex < 0) {
+    throw invalidPayload(`GeminiProvider: ${path} contains a malformed data URL.`);
+  }
+
+  const header = imageUrl.slice(0, commaIndex);
+  const data = imageUrl.slice(commaIndex + 1);
+  const headerMatch = /^data:([^;,]+);base64$/i.exec(header);
+  if (!headerMatch || !data.trim()) {
+    throw invalidPayload(
+      `GeminiProvider: ${path} must contain a non-empty base64 data URL with an explicit MIME type.`,
+    );
+  }
+
+  return { inlineData: { mimeType: headerMatch[1], data } };
+}
 
 function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] {
   if (typeof contentItems === "string") {
-    return contentItems.trim() ? [{ text: contentItems }] : [];
+    if (!contentItems.trim()) {
+      throw invalidPayload("GeminiProvider: direct text input must not be empty.");
+    }
+    return [{ text: contentItems }];
+  }
+
+  if (!Array.isArray(contentItems) || contentItems.length === 0) {
+    throw invalidPayload("GeminiProvider: request input must contain at least one message.");
   }
 
   const parts: Part[] = [];
-  const inputArray = contentItems as unknown[];
-  if (!Array.isArray(inputArray)) return parts;
+  for (const [messageIndex, message] of contentItems.entries()) {
+    const messagePath = `input[${messageIndex}]`;
+    if (typeof message !== "object" || message === null || !("content" in message)) {
+      throw invalidPayload(`GeminiProvider: ${messagePath} must declare content.`);
+    }
 
-  for (const message of inputArray) {
-    if (typeof message !== "object" || message === null || !("content" in message)) continue;
     const content = (message as Record<string, unknown>).content;
     const items = Array.isArray(content) ? content : [content];
+    if (items.length === 0) {
+      throw invalidPayload(`GeminiProvider: ${messagePath}.content must not be empty.`);
+    }
 
-    for (const item of items) {
+    for (const [itemIndex, item] of items.entries()) {
+      const itemPath = `${messagePath}.content[${itemIndex}]`;
       if (typeof item === "string") {
+        if (!item.trim()) {
+          throw invalidPayload(`GeminiProvider: ${itemPath} must not be empty.`);
+        }
         parts.push({ text: item });
         continue;
       }
-      if (typeof item !== "object" || item === null) continue;
+
+      if (typeof item !== "object" || item === null) {
+        throw invalidPayload(`GeminiProvider: ${itemPath} is not a valid content part.`);
+      }
 
       const part = item as Record<string, unknown>;
-      if (part.type === "input_text" && typeof part.text === "string") {
+      if (part.type === "input_text") {
+        if (typeof part.text !== "string" || !part.text.trim()) {
+          throw invalidPayload(`GeminiProvider: ${itemPath}.text must be a non-empty string.`);
+        }
         parts.push({ text: part.text });
         continue;
       }
 
-      if (part.type === "input_image" && typeof part.image_url === "string") {
+      if (part.type === "input_image") {
+        if (typeof part.image_url !== "string" || !part.image_url.trim()) {
+          throw invalidPayload(`GeminiProvider: ${itemPath}.image_url must be a non-empty string.`);
+        }
+
         const imageUrl = part.image_url;
         if (imageUrl.startsWith("data:")) {
-          const commaIndex = imageUrl.indexOf(",");
-          if (commaIndex < 0) continue;
-          const header = imageUrl.slice(0, commaIndex);
-          const data = imageUrl.slice(commaIndex + 1);
-          const mimeType = header.replace("data:", "").replace(";base64", "") || "image/jpeg";
-          parts.push({ inlineData: { mimeType, data } });
+          parts.push(buildInlineImagePart(imageUrl, `${itemPath}.image_url`));
         } else {
           parts.push({
             fileData: {
@@ -72,7 +117,12 @@ function buildGeminiParts(contentItems: AiProviderTextRequest["input"]): Part[] 
             },
           });
         }
+        continue;
       }
+
+      throw incompatibleOperation(
+        `GeminiProvider: ${itemPath} uses unsupported content part type ${String(part.type)}.`,
+      );
     }
   }
 
@@ -117,12 +167,17 @@ const SUPPORTED_SCHEMA_TYPES = new Set([
   "null",
 ]);
 
-function incompatibleOperation(message: string): AiNonRetryableError {
-  return new AiNonRetryableError(message, undefined, "incompatible_operation");
-}
+type JsonSchemaRecord = Record<string, unknown>;
 
 function schemaError(path: string, message: string): never {
   throw incompatibleOperation(`GeminiProvider: JSON Schema at ${path} ${message}`);
+}
+
+function asSchemaRecord(value: unknown, path: string): JsonSchemaRecord {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    schemaError(path, "must be an object.");
+  }
+  return value as JsonSchemaRecord;
 }
 
 function assertString(value: unknown, path: string, keyword: string): void {
@@ -160,35 +215,22 @@ function assertSchemaType(value: unknown, path: string): void {
   }
 }
 
-function assertSchemaMap(value: unknown, path: string, keyword: string): void {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    schemaError(path, `requires an object for "${keyword}".`);
-  }
-  for (const [name, schema] of Object.entries(value as Record<string, unknown>)) {
-    assertRepresentableSchema(schema, `${path}.${keyword}.${name}`);
+function assertSchemaMapShape(value: unknown, path: string, keyword: string): void {
+  const map = asSchemaRecord(value, path);
+  for (const [name, schema] of Object.entries(map)) {
+    assertSchemaShape(schema, `${path}.${keyword}.${name}`);
   }
 }
 
-function assertSchemaArray(value: unknown, path: string, keyword: string): void {
+function assertSchemaArrayShape(value: unknown, path: string, keyword: string): void {
   if (!Array.isArray(value) || value.length === 0) {
     schemaError(path, `requires a non-empty schema array for "${keyword}".`);
   }
-  value.forEach((schema, index) => assertRepresentableSchema(schema, `${path}.${keyword}[${index}]`));
+  value.forEach((schema, index) => assertSchemaShape(schema, `${path}.${keyword}[${index}]`));
 }
 
-/**
- * `responseJsonSchema` accepts only an explicit subset of JSON Schema. Validate
- * that subset rather than maintaining a denylist so a newly observed keyword
- * fails closed before content is sent to Gemini. `oneOf` is deliberately
- * rejected because Gemini interprets it as `anyOf`, which would weaken the
- * caller's contract.
- */
-function assertRepresentableSchema(value: unknown, path = "$"): void {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    schemaError(path, "must be an object.");
-  }
-
-  const schema = value as Record<string, unknown>;
+function assertSchemaShape(value: unknown, path = "$"): void {
+  const schema = asSchemaRecord(value, path);
   if ("oneOf" in schema) {
     schemaError(path, 'uses "oneOf", which Gemini interprets as "anyOf" and would change validation semantics.');
   }
@@ -233,22 +275,144 @@ function assertRepresentableSchema(value: unknown, path = "$"): void {
   if ("minimum" in schema) assertFiniteNumber(schema.minimum, path, "minimum");
   if ("maximum" in schema) assertFiniteNumber(schema.maximum, path, "maximum");
   if ("required" in schema) assertStringArray(schema.required, path, "required");
-  if ("propertyOrdering" in schema) {
-    assertStringArray(schema.propertyOrdering, path, "propertyOrdering");
+  if ("propertyOrdering" in schema) assertStringArray(schema.propertyOrdering, path, "propertyOrdering");
+
+  if ("$defs" in schema) assertSchemaMapShape(schema.$defs, path, "$defs");
+  if ("properties" in schema) assertSchemaMapShape(schema.properties, path, "properties");
+  if ("items" in schema) assertSchemaShape(schema.items, `${path}.items`);
+  if ("prefixItems" in schema) assertSchemaArrayShape(schema.prefixItems, path, "prefixItems");
+  if ("anyOf" in schema) assertSchemaArrayShape(schema.anyOf, path, "anyOf");
+
+  if ("additionalProperties" in schema && typeof schema.additionalProperties !== "boolean") {
+    assertSchemaShape(schema.additionalProperties, `${path}.additionalProperties`);
+  }
+}
+
+function decodePointerSegment(segment: string, path: string): string {
+  try {
+    return decodeURIComponent(segment).replace(/~1/g, "/").replace(/~0/g, "~");
+  } catch {
+    schemaError(path, "contains an invalid URI-encoded JSON Pointer segment.");
+  }
+}
+
+function resolveLocalSchemaRef(root: JsonSchemaRecord, ref: string, path: string): JsonSchemaRecord {
+  if (ref === "#") return root;
+  if (!ref.startsWith("#/")) {
+    schemaError(path, `uses external or unsupported reference "${ref}".`);
   }
 
-  if ("$defs" in schema) assertSchemaMap(schema.$defs, path, "$defs");
-  if ("properties" in schema) assertSchemaMap(schema.properties, path, "properties");
-  if ("items" in schema) assertRepresentableSchema(schema.items, `${path}.items`);
-  if ("prefixItems" in schema) assertSchemaArray(schema.prefixItems, path, "prefixItems");
-  if ("anyOf" in schema) assertSchemaArray(schema.anyOf, path, "anyOf");
+  let current: unknown = root;
+  for (const rawSegment of ref.slice(2).split("/")) {
+    const segment = decodePointerSegment(rawSegment, path);
+    if (typeof current !== "object" || current === null || Array.isArray(current) || !(segment in current)) {
+      schemaError(path, `references missing target "${ref}".`);
+    }
+    current = (current as JsonSchemaRecord)[segment];
+  }
 
-  if ("additionalProperties" in schema) {
-    const additionalProperties = schema.additionalProperties;
-    if (typeof additionalProperties !== "boolean") {
-      assertRepresentableSchema(additionalProperties, `${path}.additionalProperties`);
+  return asSchemaRecord(current, `${path} -> ${ref}`);
+}
+
+function visitChildSchemas(
+  schema: JsonSchemaRecord,
+  path: string,
+  visitor: (child: JsonSchemaRecord, childPath: string, optionalEdge: boolean) => void,
+): void {
+  const required = new Set(
+    Array.isArray(schema.required)
+      ? schema.required.filter((item): item is string => typeof item === "string")
+      : [],
+  );
+
+  if (typeof schema.properties === "object" && schema.properties !== null && !Array.isArray(schema.properties)) {
+    for (const [name, child] of Object.entries(schema.properties as JsonSchemaRecord)) {
+      visitor(asSchemaRecord(child, `${path}.properties.${name}`), `${path}.properties.${name}`, !required.has(name));
     }
   }
+  if (schema.items !== undefined) {
+    visitor(asSchemaRecord(schema.items, `${path}.items`), `${path}.items`, false);
+  }
+  if (Array.isArray(schema.prefixItems)) {
+    schema.prefixItems.forEach((child, index) =>
+      visitor(asSchemaRecord(child, `${path}.prefixItems[${index}]`), `${path}.prefixItems[${index}]`, false));
+  }
+  if (Array.isArray(schema.anyOf)) {
+    schema.anyOf.forEach((child, index) =>
+      visitor(asSchemaRecord(child, `${path}.anyOf[${index}]`), `${path}.anyOf[${index}]`, false));
+  }
+  if (typeof schema.additionalProperties === "object" && schema.additionalProperties !== null) {
+    visitor(
+      asSchemaRecord(schema.additionalProperties, `${path}.additionalProperties`),
+      `${path}.additionalProperties`,
+      false,
+    );
+  }
+}
+
+function assertAllReferencesResolve(schema: JsonSchemaRecord, root: JsonSchemaRecord, path = "$"): void {
+  const normalizedPath = path.trim();
+  if (typeof schema.$ref === "string") {
+    resolveLocalSchemaRef(root, schema.$ref, normalizedPath);
+  }
+
+  if (typeof schema.$defs === "object" && schema.$defs !== null && !Array.isArray(schema.$defs)) {
+    for (const [name, child] of Object.entries(schema.$defs as JsonSchemaRecord)) {
+      assertAllReferencesResolve(asSchemaRecord(child, `${normalizedPath}.$defs.${name}`), root, `${normalizedPath}.$defs.${name}`);
+    }
+  }
+  visitChildSchemas(schema, normalizedPath, (child, childPath) =>
+    assertAllReferencesResolve(child, root, childPath));
+}
+
+function assertSupportedReferenceCycles(root: JsonSchemaRecord): void {
+  const visit = (
+    schema: JsonSchemaRecord,
+    path: string,
+    active: Set<JsonSchemaRecord>,
+    optionalEdgeSeen: boolean,
+  ): void => {
+    if (active.has(schema)) {
+      if (!optionalEdgeSeen) {
+        schemaError(path, "contains a reference cycle reachable only through required schema edges.");
+      }
+      return;
+    }
+
+    active.add(schema);
+    if (typeof schema.$ref === "string") {
+      const target = resolveLocalSchemaRef(root, schema.$ref, path);
+      if (active.has(target)) {
+        if (!optionalEdgeSeen) {
+          schemaError(path, `contains required recursive reference "${schema.$ref}".`);
+        }
+      } else {
+        visit(target, `${path} -> ${schema.$ref}`, active, optionalEdgeSeen);
+      }
+      active.delete(schema);
+      return;
+    }
+
+    visitChildSchemas(schema, path, (child, childPath, optionalEdge) =>
+      visit(child, childPath, active, optionalEdgeSeen || optionalEdge));
+    active.delete(schema);
+  };
+
+  visit(root, "$", new Set(), false);
+}
+
+/**
+ * `responseJsonSchema` accepts only an explicit subset of JSON Schema. Validate
+ * that subset rather than maintaining a denylist so a newly observed keyword
+ * fails closed before content is sent to Gemini. References must be local and
+ * resolvable; recursive references are accepted only when the cycle crosses an
+ * optional property, matching the representability constraint of the SDK.
+ */
+function assertRepresentableSchema(value: unknown): void {
+  assertSchemaShape(value);
+  const root = asSchemaRecord(value, "$");
+  assertAllReferencesResolve(root, root);
+  assertSupportedReferenceCycles(root);
 }
 
 function assertRepresentableTools(request: AiProviderTextRequest): void {
@@ -289,14 +453,6 @@ export class GeminiProvider implements AiProvider {
   ): Promise<AiProviderTextResponse> {
     assertRepresentableTools(request);
     const parts = buildGeminiParts(request.input);
-    if (!parts.length) {
-      throw new AiOperationalError(
-        "GeminiProvider: no content parts could be extracted from the request input.",
-        undefined,
-        "invalid_payload",
-      );
-    }
-
     const contents: ContentListUnion = [{ role: "user", parts }];
     const response = await this.client.models.generateContent({
       model: request.model,
