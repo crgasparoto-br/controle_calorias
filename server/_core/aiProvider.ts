@@ -217,33 +217,39 @@ function imageFileNameFromMimeType(mimeType = "image/png") {
   return "meal-photo.png";
 }
 
+function invalidImagePayload(path: string, reason: string): AiOperationalError {
+  return new AiOperationalError(
+    `OpenAiProvider: ${path} ${reason}.`,
+    undefined,
+    "invalid_payload",
+  );
+}
+
 function normalizeImageBase64(value: string, path: string): string {
   const compact = value.replace(/\s+/g, "");
   if (!compact) {
-    throw new AiOperationalError(
-      `OpenAiProvider: ${path} must contain non-empty base64 image data.`,
-      undefined,
-      "invalid_payload",
-    );
+    throw invalidImagePayload(path, "must contain non-empty base64 image data");
+  }
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
+    throw invalidImagePayload(path, "contains malformed base64 image data");
   }
 
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.slice(0, -2).includes("=")) {
-    throw new AiOperationalError(
-      `OpenAiProvider: ${path} contains malformed base64 image data.`,
-      undefined,
-      "invalid_payload",
-    );
+  const paddingLength = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
+  const dataLength = compact.length - paddingLength;
+  const remainder = dataLength % 4;
+  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
+  if (
+    remainder === 1 ||
+    (paddingLength > 0 && (compact.length % 4 !== 0 || paddingLength !== expectedPadding))
+  ) {
+    throw invalidImagePayload(path, "contains malformed base64 image data");
   }
 
   const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
   const decoded = Buffer.from(padded, "base64");
   const canonical = decoded.toString("base64").replace(/=+$/u, "");
   if (!decoded.length || canonical !== compact.replace(/=+$/u, "")) {
-    throw new AiOperationalError(
-      `OpenAiProvider: ${path} contains malformed base64 image data.`,
-      undefined,
-      "invalid_payload",
-    );
+    throw invalidImagePayload(path, "contains malformed base64 image data");
   }
 
   return compact;
