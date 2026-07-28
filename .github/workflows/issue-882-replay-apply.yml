@@ -1,0 +1,44 @@
+name: Apply issue 882 replay hardening
+
+on:
+  pull_request:
+    branches:
+      - feat/875-professional-context-routes
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'chore/issue-882-apply-trigger'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Verify applicator commit
+        run: |
+          test "$(git rev-parse HEAD^)" = "51dd9ca9ba4ffde07ea2eafdfb7fb7c81efda1ea"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/issue-882-replay-apply.yml"
+
+      - name: Retrieve and verify patch
+        run: |
+          git fetch origin chore/issue-882-apply-trigger
+          git show origin/chore/issue-882-apply-trigger:.issue-loop/issue882-replay/replay.patch > /tmp/issue882-replay.patch
+          test "$(wc -c < /tmp/issue882-replay.patch)" = "3864"
+          echo 'a6504164552b06f217a57a44c08f5e8d5a30b4193b2d90fd069b1bf3399a88d5  /tmp/issue882-replay.patch' | sha256sum -c -
+          git apply --check /tmp/issue882-replay.patch
+          git apply /tmp/issue882-replay.patch
+
+      - name: Commit candidate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server/modules/professionals/messageService.ts \
+            server/modules/professionals/messageService.idempotency.test.ts \
+            scripts/test-professional-message-idempotency-tidb.ts
+          git commit -m 'fix: resolve equivalent message replay before creation rules'
+          git push --force origin HEAD:chore/issue-882-replay-candidate
