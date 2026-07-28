@@ -6,6 +6,13 @@ on:
       - feat/922-ai-capabilities-meal-whatsapp
     paths:
       - .github/workflows/issue-922-controller-remediation.yml
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+    paths:
+      - .github/workflows/issue-922-controller-remediation.yml
 
 permissions:
   contents: write
