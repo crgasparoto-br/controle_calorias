@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listOptions = vi.fn();
 let enabledResources: string[] = [];
+let alertData: unknown[] = [];
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -28,7 +29,7 @@ vi.mock("@/lib/trpc", () => ({
           useQuery: (_input: unknown, options: unknown) => {
             listOptions(options);
             return {
-              data: [],
+              data: alertData,
               isLoading: false,
               isError: false,
               refetch: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("@/lib/trpc", () => ({
 
 beforeEach(() => {
   enabledResources = ["professional_record"];
+  alertData = [];
   listOptions.mockClear();
 });
 
@@ -88,5 +90,34 @@ describe("ProfessionalOperationalAlertsPanel entitlement", () => {
     expect(listOptions).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true })
     );
+  });
+
+  it("uses product labels without exposing severity codes or origin identifiers", async () => {
+    enabledResources = [
+      "professional_record",
+      "professional_operational_alerts",
+    ];
+    alertData = [
+      {
+        id: 9,
+        patientUserId: 41,
+        patientName: "Ana",
+        type: "record_requires_review",
+        reason: "Confira o registro antes do próximo retorno.",
+        period: { start: null, end: null },
+        origin: { type: "meals", id: "meal-visual-1" },
+        suggestedAction: "Revisar o registro com o paciente.",
+        severity: "attention",
+      },
+    ];
+    const { default: ProfessionalOperationalAlertsPanel } = await import(
+      "./ProfessionalOperationalAlertsPanel"
+    );
+    render(<ProfessionalOperationalAlertsPanel patientId={41} />);
+
+    expect(screen.getByText("Atenção")).toBeTruthy();
+    expect(screen.getByText("Registros alimentares")).toBeTruthy();
+    expect(screen.queryByText("attention")).toBeNull();
+    expect(screen.queryByText(/meal-visual-1/)).toBeNull();
   });
 });

@@ -193,6 +193,8 @@ describe("ProfessionalReportsWorkspace", () => {
     expect(
       screen.getByText(/prioridades globais ficam centralizadas no Início/)
     ).toBeTruthy();
+    expect(screen.getByText(/sem precisar abrir cada paciente/)).toBeTruthy();
+    expect(screen.queryByText(/bundles nutricionais/i)).toBeNull();
     expect(reportsExperience).not.toHaveBeenCalled();
     expect(portfolioInput).toHaveBeenCalledTimes(3);
     expect(portfolioInput).toHaveBeenCalledWith(

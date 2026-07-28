@@ -213,7 +213,7 @@ function AggregateReports() {
     <div className="space-y-6">
       <ProfessionalPageHeader
         title="Relatórios da carteira"
-        description="Visão agregada sem seleção de paciente e sem carregar bundles nutricionais individuais. As prioridades globais ficam centralizadas no Início."
+        description="Visão agregada sem seleção de paciente e sem precisar abrir cada paciente. As prioridades globais ficam centralizadas no Início."
       />
       <section className="grid gap-4 rounded-2xl border bg-card p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
         <label className="grid gap-1 text-sm">

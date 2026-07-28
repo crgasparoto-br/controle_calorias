@@ -223,7 +223,10 @@ describe("ProfessionalAiAssistant", () => {
     expect(
       screen.getByText("Confirme os registros antes de orientar o paciente.")
     ).toBeTruthy();
-    expect(screen.getByText(/Modo seguro determinístico usado/)).toBeTruthy();
+    expect(
+      screen.getByText(/Não foi possível usar a análise assistida completa/)
+    ).toBeTruthy();
+    expect(screen.queryByText(/determinístico/i)).toBeNull();
     expect(
       screen.getByText(/não substitui diagnóstico, prescrição ou decisão clínica/)
     ).toBeTruthy();

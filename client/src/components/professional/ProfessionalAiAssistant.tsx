@@ -298,7 +298,7 @@ export default function ProfessionalAiAssistant({
             </CardTitle>
             <CardDescription>
               {result.fallbackUsed
-                ? "Modo seguro determinístico usado. Revise os dados disponíveis antes de decidir qualquer conduta."
+                ? "Não foi possível usar a análise assistida completa. Confira o resumo baseado nos dados disponíveis antes de decidir qualquer conduta."
                 : "Conteúdo assistido com fontes conferíveis. Revise antes de usar."}
             </CardDescription>
           </CardHeader>

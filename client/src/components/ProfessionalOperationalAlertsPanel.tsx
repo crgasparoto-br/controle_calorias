@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { ProfessionalStatusBadge } from "@/components/professional/ProfessionalUi";
 import {
   Card,
   CardContent,
@@ -230,9 +231,9 @@ export default function ProfessionalOperationalAlertsPanel({
                       <dt className="inline font-medium text-foreground/70">
                         Origem:{" "}
                       </dt>
-                      <dd className="inline break-all">
-                        {originLabels[alert.origin.type] ?? alert.origin.type}
-                        {alert.origin.id ? ` (${alert.origin.id})` : ""}
+                      <dd className="inline">
+                        {originLabels[alert.origin.type] ??
+                          "Origem não informada"}
                       </dd>
                     </div>
                     <div>
@@ -243,9 +244,10 @@ export default function ProfessionalOperationalAlertsPanel({
                     </div>
                   </dl>
                 </div>
-                <span className="rounded-full border px-2 py-1 text-xs">
-                  {alert.severity}
-                </span>
+                <ProfessionalStatusBadge
+                  kind="severity"
+                  value={alert.severity}
+                />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {!patientId && onOpenPatient ? (
