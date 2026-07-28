@@ -59,7 +59,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     );
   }
 
-  createTextResponse(
+  async createTextResponse(
     request: AiProviderTextRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
@@ -67,7 +67,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return this.delegate.createTextResponse(request, options);
   }
 
-  createEmbeddings(
+  async createEmbeddings(
     request: AiProviderEmbeddingRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderEmbeddingResponse> {
@@ -75,7 +75,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return this.delegate.createEmbeddings(request, options);
   }
 
-  createAudioTranscription(
+  async createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {
@@ -83,7 +83,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return this.delegate.createAudioTranscription(request, options);
   }
 
-  createImageGeneration(
+  async createImageGeneration(
     request: AiProviderImageGenerationRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
