@@ -34,6 +34,22 @@ describe("capability config resolver", () => {
     expect(resolved.diagnostics.filter((item) => item.includes("[deprecated]")).length).toBe(2);
   });
 
+  it("preserves the legacy Gemini provider and model for WhatsApp intent", () => {
+    const resolved = resolveCapabilityConfig("WHATSAPP_INTENT", envWith({
+      GEMINI_API_KEY: "g-test",
+      AI_VISION_PROVIDER: "gemini",
+      GEMINI_MODEL: "gemini-intent-legacy",
+    }));
+
+    expect(resolved.primary).toEqual({
+      provider: "gemini",
+      model: "gemini-intent-legacy",
+    });
+    expect(resolved.state).toBe("ready");
+    expect(resolved.usedLegacyVariables).toBe(true);
+    expect(resolved.diagnostics.filter((item) => item.includes("[deprecated]")).length).toBe(2);
+  });
+
   it("preserves legacy OpenAI model for meal capabilities", () => {
     const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
       OPENAI_API_KEY: "sk-test",
