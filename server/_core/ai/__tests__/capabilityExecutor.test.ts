@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AiProvider } from "../../aiProvider";
 import type { ResolvedCapabilityConfig } from "../configResolver";
-import { executeResolvedCapability } from "../capabilityExecutor";
+import {
+  executeResolvedCapability,
+  type ResolvedCapabilityAttemptContext,
+} from "../capabilityExecutor";
 import type { AiProviderFactoryMap } from "../providerResolver";
 import { AiOperationalError } from "../policyExecutor";
 
@@ -50,7 +53,11 @@ function config(overrides: Partial<ResolvedCapabilityConfig> = {}): ResolvedCapa
 describe("resolved capability executor", () => {
   it("binds the resolved primary provider and model to the operation", async () => {
     const adapters = factories();
-    const operation = vi.fn(async ({ provider: adapter, providerId, model }) => ({
+    const operation = vi.fn(async ({
+      provider: adapter,
+      providerId,
+      model,
+    }: ResolvedCapabilityAttemptContext) => ({
       adapter,
       providerId,
       model,
@@ -72,7 +79,11 @@ describe("resolved capability executor", () => {
   it("keeps retries on the resolved primary and uses the resolved fallback once", async () => {
     const adapters = factories();
     const seen: string[] = [];
-    const operation = vi.fn(async ({ providerId, model, source }) => {
+    const operation = vi.fn(async ({
+      providerId,
+      model,
+      source,
+    }: ResolvedCapabilityAttemptContext) => {
       seen.push(`${source}:${providerId}:${model}`);
       if (source === "primary") throw new AiOperationalError("primary down");
       return "fallback-ok";
