@@ -81,7 +81,7 @@ for (const [file, marker] of [
     "ignores a late patient transition after rapid back and forward navigation",
   ],
   [
-    "client/src/components/ProfessionalAiWorkspace.test.tsx",
+    "client/src/components/professional/ProfessionalAiAssistant.test.tsx",
     "keeps an AI draft local until the professional explicitly saves it",
   ],
   [

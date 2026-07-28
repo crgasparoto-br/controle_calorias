@@ -275,6 +275,40 @@ describe("ProfessionalAiAssistant", () => {
     ).toBeTruthy();
   });
 
+  it("keeps an AI draft local until the professional explicitly saves it", async () => {
+    enabledResources = [
+      "professional_reports",
+      "professional_ai_assistance",
+      "professional_messages",
+    ];
+    const { default: ProfessionalAiAssistant } = await import(
+      "./ProfessionalAiAssistant"
+    );
+    render(
+      <ProfessionalAiAssistant patient={patient} periodRange={periodRange} />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Gerar assistência" })
+    );
+
+    expect(screen.getByDisplayValue("Rascunho sugerido")).toBeTruthy();
+    expect(saveMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e abrir conversa" })
+    );
+
+    expect(saveMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patientId: 41,
+        action: "save_draft",
+        origin: "ai_suggested",
+        messageType: "guidance",
+      })
+    );
+  });
+
   it("opens the conversation for the patient persisted by the completed mutation", async () => {
     enabledResources = [
       "professional_reports",
@@ -335,6 +369,7 @@ describe("ProfessionalAiAssistant", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Salvar e abrir conversa" })
     );
+
     const savedVariables = saveMutate.mock.calls[0]?.[0] as {
       patientId: number;
     };
