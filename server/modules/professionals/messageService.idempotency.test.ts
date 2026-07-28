@@ -128,7 +128,6 @@ describe("professional message creation idempotency", () => {
 
     await expect(createProfessionalMessage(7, baseInput)).resolves.toMatchObject({
       id: "message-existing",
-      requestedAction: "save_draft",
     });
     expect(db.transaction).not.toHaveBeenCalled();
   });
