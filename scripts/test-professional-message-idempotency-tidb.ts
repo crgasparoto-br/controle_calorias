@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import mysql from "mysql2/promise";
 import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import { createProfessionalMessage } from "../server/modules/professionals/messageService";
@@ -130,6 +131,78 @@ async function main() {
         ]
       );
     }
+
+    await connection.query(
+      `INSERT INTO professionalConversations
+        (id, authorizationId, professionalUserId, patientUserId, lastMessageAt)
+       VALUES ('conversation-message-a', 'authorization-message-a', ?, ?, NOW())`,
+      [ids.professional, ids.patientA]
+    );
+
+    const legacyMessages = [
+      ["legacy-draft", "draft", "professional_to_patient", ids.professional],
+      ["legacy-sent", "sent", "professional_to_patient", ids.professional],
+      ["legacy-pending", "pending", "professional_to_patient", ids.professional],
+      ["legacy-failed", "failed", "professional_to_patient", ids.professional],
+      ["legacy-whatsapp", "pending", "professional_to_patient", ids.professional],
+      ["legacy-inbound", "received", "patient_to_professional", ids.patientA],
+    ] as const;
+    for (const [messageId, state, direction, authorUserId] of legacyMessages) {
+      await connection.query(
+        `INSERT INTO professionalMessages
+          (id, conversationId, authorizationId, professionalUserId, patientUserId,
+           authorUserId, direction, origin, messageType, content, state,
+           requestedAction, idempotencyKey)
+         VALUES (?, 'conversation-message-a', 'authorization-message-a', ?, ?,
+           ?, ?, ?, 'guidance', ?, ?, NULL, ?)`,
+        [
+          messageId,
+          ids.professional,
+          ids.patientA,
+          authorUserId,
+          direction,
+          direction === "patient_to_professional" ? "patient" : "professional",
+          `Legacy ${messageId}`,
+          state,
+          `legacy-key-${messageId}`,
+        ]
+      );
+    }
+    await connection.query(
+      `INSERT INTO professionalMessageDeliveryAttempts
+        (id, messageId, channel, attemptNumber, state)
+       VALUES ('legacy-whatsapp-attempt', 'legacy-whatsapp', 'whatsapp', 1, 'failed')`
+    );
+
+    const migrationSql = await readFile(
+      new URL(
+        "../drizzle/0037_professional_message_idempotency_scope.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    const [, backfillSql] = migrationSql.split("--> statement-breakpoint");
+    assert.ok(backfillSql?.trim(), "migration backfill statement must exist");
+    await connection.query(backfillSql);
+
+    const [legacyRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, requestedAction FROM professionalMessages
+       WHERE id LIKE 'legacy-%' ORDER BY id`
+    );
+    assert.deepEqual(
+      Object.fromEntries(
+        legacyRows.map(row => [String(row.id), row.requestedAction ?? null])
+      ),
+      {
+        "legacy-draft": "save_draft",
+        "legacy-failed": null,
+        "legacy-inbound": null,
+        "legacy-pending": null,
+        "legacy-sent": "send_web",
+        "legacy-whatsapp": "send_whatsapp",
+      },
+      "migration must backfill only historically unambiguous actions"
+    );
 
     const originalInput = {
       patientId: ids.patientA,
