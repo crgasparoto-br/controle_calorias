@@ -129,7 +129,7 @@ pnpm db:check-integrity
 - Degradação funcional local, como busca não semântica ou anotação local, não é fallback de provider.
 - O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui testes pelo entrypoint real para texto e para o data URL inline de imagem produzido pelo WhatsApp.
 - Respostas textuais e de embeddings podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
-- Nenhum consumidor existente foi migrado para o novo resolvedor nesta issue.
+- Nenhum consumidor existente foi migrado para o novo resolvedor na issue #921.
 
 ## Mutações multirrefeição pelo WhatsApp
 
