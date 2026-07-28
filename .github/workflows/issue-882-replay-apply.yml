@@ -19,19 +19,22 @@ jobs:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
 
-      - name: Verify applicator commit
+      - name: Verify applicator-only commits
         run: |
-          test "$(git rev-parse HEAD^)" = "51dd9ca9ba4ffde07ea2eafdfb7fb7c81efda1ea"
-          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/issue-882-replay-apply.yml"
+          git merge-base --is-ancestor 51dd9ca9ba4ffde07ea2eafdfb7fb7c81efda1ea HEAD
+          test "$(git diff --name-only 51dd9ca9ba4ffde07ea2eafdfb7fb7c81efda1ea HEAD | sort -u)" = ".github/workflows/issue-882-replay-apply.yml"
 
       - name: Retrieve and verify patch
         run: |
           git fetch origin chore/issue-882-apply-trigger
-          git show origin/chore/issue-882-apply-trigger:.issue-loop/issue882-replay/replay.patch > /tmp/issue882-replay.patch
-          test "$(wc -c < /tmp/issue882-replay.patch)" = "3864"
-          echo 'a6504164552b06f217a57a44c08f5e8d5a30b4193b2d90fd069b1bf3399a88d5  /tmp/issue882-replay.patch' | sha256sum -c -
+          git show origin/chore/issue-882-apply-trigger:.issue-loop/issue882-replay/replay-v2.patch.b64 \
+            | base64 -d > /tmp/issue882-replay.patch
+          test "$(wc -c < /tmp/issue882-replay.patch)" = "5400"
+          echo 'de11f6f8bfe92177788f68586bbe55fc8a9cd4784b7ffd86d2d28da22a79bfc4  /tmp/issue882-replay.patch' | sha256sum -c -
           git apply --check /tmp/issue882-replay.patch
           git apply /tmp/issue882-replay.patch
+          bash -n scripts/render-professional-patient-workspace-visual.sh
+          git diff --check
 
       - name: Commit candidate
         run: |
@@ -39,6 +42,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add server/modules/professionals/messageService.ts \
             server/modules/professionals/messageService.idempotency.test.ts \
-            scripts/test-professional-message-idempotency-tidb.ts
-          git commit -m 'fix: resolve equivalent message replay before creation rules'
+            scripts/test-professional-message-idempotency-tidb.ts \
+            scripts/render-professional-patient-workspace-visual.sh
+          git commit -m 'fix: harden equivalent message replay and visual runner'
           git push --force origin HEAD:chore/issue-882-replay-candidate
