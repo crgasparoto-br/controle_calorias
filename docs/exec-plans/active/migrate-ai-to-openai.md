@@ -68,7 +68,7 @@ Mapear usos atuais de IA interna, transcrição, geração de imagem, análise d
 
 ### Fase 2 - Provider OpenAI isolado
 
-Adicionar SDK oficial, cliente backend e interface de provider, configuração de ambiente e documentação. O build não deve exigir configuração real quando testes usam mocks.
+Adicionar SDK oficial, cliente backend e interface interna de provider, configuração de ambiente e documentação. O build não deve exigir configuração real quando testes usam mocks.
 
 ### Fase 3 - Transcrição
 
@@ -127,7 +127,7 @@ Status: implementação corretiva preparada; aguarda auditoria independente do S
 - Variáveis legadas continuam funcionando. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics`; nesta fase ele ainda não é emitido como log de aplicação porque nenhum consumidor chama o resolvedor.
 - Degradação funcional local permanece responsabilidade do consumidor e é distinta de fallback entre providers.
 
-Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeWithPolicy`, uma capacidade por vez. O callback de cada tentativa deve encaminhar `context.signal` para as opções do método `AiProvider`; os adapters já propagam esse sinal ao SDK. Cada migração deve manter validação da saída e teste discriminante pelo entrypoint real.
+Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeResolvedCapability`, uma capacidade por vez. A operação fornecida ao executor deve encaminhar `context.signal` para as opções do método `AiProvider`; `executeWithPolicy` permanece uma primitiva interna de baixo nível e não deve ser chamada diretamente pelos consumidores. Cada migração deve manter validação da saída e teste discriminante pelo entrypoint real.
 
 ## Gates
 
