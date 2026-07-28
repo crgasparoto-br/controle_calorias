@@ -184,8 +184,13 @@ async function main() {
 
     const accesses = await professional.nutrition.professionals.myAccesses();
     assert.equal(accesses.filter(item => item.status === "pending").length, 4);
+    assert.equal(accesses.every(item => item.patient === null), true);
     assert.equal(JSON.stringify(accesses).includes(PATIENT_PHONE), false);
-    assert.equal(JSON.stringify(accesses).includes(String(PATIENT_USER_ID)), false);
+    assert.equal(
+      accesses.every(item => !("patientUserId" in item)),
+      true,
+      "pre-consent access items must not expose the resolved patient identifier"
+    );
 
     const portfolio = await professional.nutrition.professionals.portfolio(
       portfolioInput("all", "pending")
@@ -202,7 +207,11 @@ async function main() {
       true
     );
     assert.equal(JSON.stringify(portfolio).includes(PATIENT_PHONE), false);
-    assert.equal(JSON.stringify(portfolio).includes(String(PATIENT_USER_ID)), false);
+    assert.equal(
+      portfolio.items.every(item => item.patientUserId !== PATIENT_USER_ID),
+      true,
+      "pre-consent portfolio items must not expose the resolved patient identifier"
+    );
 
     await assert.rejects(
       outsider.nutrition.professionals.approveAccess({
