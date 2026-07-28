@@ -120,10 +120,77 @@ describe("common AI policy executor", () => {
     expect(fallback).not.toHaveBeenCalled();
   });
 
+  it("prioritizes a safety block over a recoverable HTTP status", async () => {
+    const safetyError = Object.assign(
+      new Error("content blocked by safety policy"),
+      { status: 503 },
+    );
+    const primary = vi.fn(async () => { throw safetyError; });
+    const fallback = vi.fn(async () => "must-not-run");
+
+    await expect(executeWithPolicy(
+      { ...basePolicy, fallback: { effectivelyEnabled: true } },
+      primary,
+      fallback,
+    )).rejects.toMatchObject({ code: "safety_block" });
+    expect(primary).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it("treats empty output as an operational failure", async () => {
     const primary = vi.fn()
       .mockResolvedValueOnce({ outputText: "", raw: {} })
       .mockResolvedValueOnce({ outputText: "valid", raw: {} });
+    const result = await executeWithPolicy(basePolicy, primary);
+    expect(result.source).toBe("primary_retry");
+    expect(primary).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats empty embeddings as an operational failure", async () => {
+    const primary = vi.fn()
+      .mockResolvedValueOnce({ embeddings: [], raw: {} })
+      .mockResolvedValueOnce({ embeddings: [[0.1, 0.2]], raw: {} });
+    const result = await executeWithPolicy(basePolicy, primary);
+    expect(result.source).toBe("primary_retry");
+    expect(primary).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats empty transcription text as an operational failure", async () => {
+    const primary = vi.fn()
+      .mockResolvedValueOnce({
+        task: "transcribe" as const,
+        language: "pt",
+        duration: 1,
+        text: "",
+        segments: [],
+        raw: {},
+      })
+      .mockResolvedValueOnce({
+        task: "transcribe" as const,
+        language: "pt",
+        duration: 1,
+        text: "conteudo",
+        segments: [],
+        raw: {},
+      });
+    const result = await executeWithPolicy(basePolicy, primary);
+    expect(result.source).toBe("primary_retry");
+    expect(primary).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats empty image data as an operational failure", async () => {
+    const primary = vi.fn()
+      .mockResolvedValueOnce({ b64Json: "", mimeType: "image/png", raw: {} })
+      .mockResolvedValueOnce({ b64Json: "QUFBQQ==", mimeType: "image/png", raw: {} });
+    const result = await executeWithPolicy(basePolicy, primary);
+    expect(result.source).toBe("primary_retry");
+    expect(primary).toHaveBeenCalledTimes(2);
+  });
+
+  it("normalizes a provider no-image-data error and retries", async () => {
+    const primary = vi.fn()
+      .mockRejectedValueOnce(new Error("OpenAI image provider returned no image data."))
+      .mockResolvedValueOnce({ b64Json: "QUFBQQ==", mimeType: "image/png", raw: {} });
     const result = await executeWithPolicy(basePolicy, primary);
     expect(result.source).toBe("primary_retry");
     expect(primary).toHaveBeenCalledTimes(2);
