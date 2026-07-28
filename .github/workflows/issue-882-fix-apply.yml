@@ -21,7 +21,7 @@ jobs:
 
       - name: Verify applicator-only commits
         run: |
-          test "$(git merge-base --is-ancestor ce9c6326d09afec7f2bc348e14e858cdd0ffacf1 HEAD; echo $?)" = "0"
+          git merge-base --is-ancestor ce9c6326d09afec7f2bc348e14e858cdd0ffacf1 HEAD
           test "$(git diff --name-only ce9c6326d09afec7f2bc348e14e858cdd0ffacf1 HEAD | sort -u)" = ".github/workflows/issue-882-fix-apply.yml"
 
       - name: Retrieve and verify exact patch
@@ -39,11 +39,13 @@ jobs:
           git apply --check /tmp/issue882/fix.patch
           git apply /tmp/issue882/fix.patch
 
-      - name: Commit fix and remove temporary applicator
+      - name: Commit non-workflow fix candidate
         run: |
-          rm -f .github/workflows/issue-882-fix-apply.yml
+          git restore --source=HEAD -- .github/workflows/professional-persistence-tidb.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m 'fix: scope professional message idempotency'
-          git push origin HEAD:feat/875-professional-context-routes
+
+      - name: Publish candidate branch
+        run: git push --force origin HEAD:chore/issue-882-applied-candidate
