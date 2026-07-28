@@ -1,0 +1,1 @@
+Trigger verified visual harness remediation for issue #882.
