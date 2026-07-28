@@ -23,21 +23,43 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - name: Verify and publish remediation
+      - name: Verify remediation payload
         shell: bash
         run: |
           set -euo pipefail
-          test -f .issue881-remediation/ready || exit 0
+          test -f .issue881-remediation/ready
           cat .issue881-remediation/part-* > /tmp/issue881.patch.gz.b64
           printf '%s  %s\n' 'ce06a227130b7306e183eb8b6b6ea4d81947ab0bfa4279605cfff7bf7b20b475' '/tmp/issue881.patch.gz.b64' | sha256sum -c -
           base64 --decode /tmp/issue881.patch.gz.b64 | gzip --decompress > /tmp/issue881.patch
-          git apply --binary --index /tmp/issue881.patch
-          git checkout HEAD^ -- .github/workflows/agent-check.yml
+          git apply --check /tmp/issue881.patch
+
+      - name: Apply remediation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --binary /tmp/issue881.patch
+          git add -A
+          git diff --cached --check
+
+      - name: Remove publisher scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout 1129953e15755530572b00c4d8bea67b9b0e0c59 -- .github/workflows/agent-check.yml
           git rm -r .issue881-remediation .github/workflows/apply-issue881-remediation.yml
+          git status --short
+
+      - name: Commit remediation
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix: remediate professional report audit findings'
-          git push origin HEAD:${GITHUB_HEAD_REF}
+
+      - name: Push remediation
+        shell: bash
+        run: git push origin HEAD:${GITHUB_HEAD_REF}
 
   agent-check:
     name: Agent-first gate
