@@ -43,6 +43,33 @@ const SUPPORTED_INLINE_IMAGE_MIME_TYPES = new Set([
   "image/heif",
 ]);
 
+function normalizeInlineImageBase64(value: string, path: string): string {
+  const compact = value.replace(/\s+/g, "");
+  if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
+    throw invalidPayload(`GeminiProvider: ${path} contains malformed base64 image data.`);
+  }
+
+  const paddingLength = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
+  const dataLength = compact.length - paddingLength;
+  const remainder = dataLength % 4;
+  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
+  if (
+    remainder === 1 ||
+    (paddingLength > 0 && (compact.length % 4 !== 0 || paddingLength !== expectedPadding))
+  ) {
+    throw invalidPayload(`GeminiProvider: ${path} contains malformed base64 image data.`);
+  }
+
+  const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
+  const decoded = Buffer.from(padded, "base64");
+  const canonical = decoded.toString("base64").replace(/=+$/u, "");
+  if (!decoded.length || canonical !== compact.replace(/=+$/u, "")) {
+    throw invalidPayload(`GeminiProvider: ${path} contains malformed base64 image data.`);
+  }
+
+  return compact;
+}
+
 function buildInlineImagePart(imageUrl: string, path: string): Part {
   const commaIndex = imageUrl.indexOf(",");
   if (commaIndex < 0) {
@@ -65,7 +92,8 @@ function buildInlineImagePart(imageUrl: string, path: string): Part {
     );
   }
 
-  return { inlineData: { mimeType, data } };
+  const normalizedData = normalizeInlineImageBase64(data, path);
+  return { inlineData: { mimeType, data: normalizedData } };
 }
 
 function buildGeminiMessageParts(content: unknown, messagePath: string): Part[] {
