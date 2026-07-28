@@ -437,6 +437,7 @@ Object.assign(trpc.professionalRecord, {
             messageType: "administrative",
             content: "Mensagem registrada antes do encerramento.",
             state: "failed",
+            retryable: trackingStatusForState() !== "ended",
             lastError: "Não foi possível entregar pelo WhatsApp.",
             authorName: "Nutricionista de validação",
             createdAt: now - 2 * 60 * 60_000,
