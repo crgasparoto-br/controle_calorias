@@ -32,11 +32,20 @@ jobs:
 
       - name: Decode remediation patch
         run: |
-          set -euxo pipefail
-          cat .audit/issue-922-remediation/remediation.patch.part* \
-            | base64 --decode \
-            | gzip --decompress > /tmp/issue-922-cycle4.patch
-          test -s /tmp/issue-922-cycle4.patch
+          python - <<'PY'
+          import base64
+          import gzip
+          from pathlib import Path
+
+          parts = sorted(Path('.audit/issue-922-remediation').glob('remediation.patch.part*'))
+          encoded = ''.join(path.read_text(encoding='utf-8').strip() for path in parts)
+          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
+          output = Path('/tmp/issue-922-cycle4.patch')
+          output.write_bytes(decoded)
+          if output.stat().st_size == 0:
+              raise SystemExit('decoded patch is empty')
+          print(f'decoded {len(encoded)} base64 characters into {output.stat().st_size} bytes')
+          PY
 
       - name: Apply remediation patch
         run: |
