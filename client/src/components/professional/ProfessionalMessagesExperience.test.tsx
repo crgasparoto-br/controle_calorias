@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -460,10 +460,12 @@ describe("ProfessionalMessagesExperience", () => {
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(notCancelled).toBe(true);
     expect(event.defaultPrevented).toBe(false);
-    expect(
-      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
-        .value
-    ).toBe("");
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)
+          .value
+      ).toBe("");
+    });
   });
 
   it("registers the browser-exit guard while the message draft is unsaved", async () => {

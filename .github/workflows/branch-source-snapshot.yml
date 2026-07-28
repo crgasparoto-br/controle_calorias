@@ -4,48 +4,32 @@ on:
   pull_request:
     paths:
       - ".github/workflows/branch-source-snapshot.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-issue-882-test-remediation:
+  snapshot:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
-      - name: Checkout exact PR head
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Apply exact test remediation and restore workflow
-        shell: bash
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('client/src/components/professional/ProfessionalMessagesExperience.test.tsx')
-          text = path.read_text()
-          old_import = 'import { cleanup, fireEvent, render, screen } from "@testing-library/react";'
-          new_import = 'import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";'
-          old_assertion = '''    expect(\n      (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)\n        .value\n    ).toBe("");\n  });\n\n  it("registers the browser-exit guard'''
-          new_assertion = '''    await waitFor(() => {\n      expect(\n        (screen.getByLabelText("Conteúdo da mensagem") as HTMLTextAreaElement)\n          .value\n      ).toBe("");\n    });\n  });\n\n  it("registers the browser-exit guard'''
-          if text.count(old_import) != 1:
-              raise SystemExit('unexpected import baseline')
-          if text.count(old_assertion) != 1:
-              raise SystemExit('unexpected assertion baseline')
-          text = text.replace(old_import, new_import).replace(old_assertion, new_assertion)
-          path.write_text(text)
-          PY
-          git diff --check
-          git show c806b50d207399695ed548bd994bb27101cc5846:.github/workflows/branch-source-snapshot.yml > .github/workflows/branch-source-snapshot.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/src/components/professional/ProfessionalMessagesExperience.test.tsx .github/workflows/branch-source-snapshot.yml
-          git commit -m "test: await issue 882 navigation state flush"
-          git push origin "HEAD:${HEAD_BRANCH}"
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Drizzle metadata
+        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
+      - name: Pack source and generated metadata
+        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: branch-source-snapshot
+          path: /tmp/controle-calorias-source.tar.gz
+          retention-days: 1
