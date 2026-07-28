@@ -1,0 +1,36 @@
+diff --git a/client/src/components/professional/ProfessionalMessagesExperience.tsx b/client/src/components/professional/ProfessionalMessagesExperience.tsx
+index b9f2447f..6e636811 100644
+--- a/client/src/components/professional/ProfessionalMessagesExperience.tsx
++++ b/client/src/components/professional/ProfessionalMessagesExperience.tsx
+@@ -285,7 +285,7 @@ export default function ProfessionalMessagesExperience() {
+   }, [items, search, stateFilter]);
+ 
+   return (
+-    <div className="space-y-6">
++    <div className="space-y-6" data-professional-messages-experience>
+       <ProfessionalPageHeader
+         eyebrow={patientId ? "Conversa do paciente" : "Comunicação da carteira"}
+         title={patientId ? "Mensagens" : "Caixa de mensagens"}
+diff --git a/visual-tests/professional-patient-workspace/main.tsx b/visual-tests/professional-patient-workspace/main.tsx
+index fa935d6b..ee789b86 100644
+--- a/visual-tests/professional-patient-workspace/main.tsx
++++ b/visual-tests/professional-patient-workspace/main.tsx
+@@ -260,11 +260,14 @@ function writeVisualDiagnostics() {
+     const composer = document.querySelector<HTMLTextAreaElement>(
+       'textarea[aria-label="Conteúdo da mensagem"]'
+     );
+-    const controls = Array.from(
+-      document.querySelectorAll<HTMLElement>(
+-        'textarea[aria-label="Conteúdo da mensagem"], select[aria-label="Tipo da mensagem"], select[aria-label="Origem da mensagem"], button'
+-      )
++    const messageExperience = document.querySelector<HTMLElement>(
++      "[data-professional-messages-experience]"
+     );
++    const controls = messageExperience
++      ? Array.from(
++          messageExperience.querySelectorAll<HTMLElement>("textarea, select, button")
++        )
++      : [];
+     root.dataset.visualActiveMessageComposerEditable = String(
+       Boolean(composer && !composer.disabled)
+     );
