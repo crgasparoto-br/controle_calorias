@@ -33,224 +33,211 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
-          resolver = Path('server/_core/ai/configResolver.ts')
+          resolver = Path("server/_core/ai/configResolver.ts")
           text = resolver.read_text()
-          old_model = '''  const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));
-            const hasSpecificLegacyModel = Boolean(readTrimmed(env, "OPENAI_WHATSAPP_INTENT_MODEL"));
+          model_start_marker = '  const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));'
+          policy_start_marker = '  const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));'
+          model_start = text.find(model_start_marker)
+          policy_start = text.find(policy_start_marker, model_start)
+          if model_start < 0 or policy_start < 0:
+              raise SystemExit("canonical WhatsApp model block delimiters not found")
+          new_model = dedent('''
+            const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));
+            const specificLegacyModel = readTrimmed(env, "OPENAI_WHATSAPP_INTENT_MODEL");
             const legacyTextModel = readTrimmed(env, "OPENAI_TEXT_MODEL");
             const usesOpenAiWire = primary?.provider === "openai" || primary?.provider === "openai-compatible";
 
-            if (primary && usesOpenAiWire && !hasNewModel && !hasSpecificLegacyModel && legacyTextModel) {
-              primary = { ...primary, model: legacyTextModel };
+            if (primary && usesOpenAiWire && !hasNewModel) {
+              const legacyModel = specificLegacyModel || legacyTextModel;
+              const legacyEnv = specificLegacyModel
+                ? "OPENAI_WHATSAPP_INTENT_MODEL"
+                : legacyTextModel
+                  ? "OPENAI_TEXT_MODEL"
+                  : null;
+              if (legacyModel && legacyEnv) {
+                primary = { ...primary, model: legacyModel };
+                usedLegacyVariables = true;
+                diagnostics.push(
+                  `[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable ${legacyEnv}; migrate to AI_WHATSAPP_INTENT_MODEL`,
+                );
+              }
+            }
+
+          ''')
+          text = text[:model_start] + new_model + text[policy_start:]
+
+          policy_start = text.find(policy_start_marker)
+          return_marker = "  return {"
+          policy_end = text.find(return_marker, policy_start)
+          if policy_start < 0 or policy_end < 0:
+              raise SystemExit("canonical WhatsApp timeout/retry block delimiters not found")
+          new_policy = dedent('''
+            const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));
+            const legacyTimeout = hasNewTimeout
+              ? null
+              : readPositiveInteger(env, "OPENAI_WHATSAPP_INTENT_TIMEOUT_MS");
+            const timeoutMs = hasNewTimeout
+              ? config.timeoutMs
+              : legacyTimeout ?? WHATSAPP_INTENT_BASELINE_TIMEOUT_MS;
+            if (legacyTimeout !== null) {
               usedLegacyVariables = true;
               diagnostics.push(
-                "[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable OPENAI_TEXT_MODEL; migrate to AI_WHATSAPP_INTENT_MODEL",
+                "[deprecated] capability=WHATSAPP_INTENT resolved timeout via legacy variable OPENAI_WHATSAPP_INTENT_TIMEOUT_MS; migrate to AI_WHATSAPP_INTENT_TIMEOUT_MS",
               );
             }
-          '''
-          old_model = old_model.replace('            ', '  ')
-          new_model = '''  const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));
-          const specificLegacyModel = readTrimmed(env, "OPENAI_WHATSAPP_INTENT_MODEL");
-          const legacyTextModel = readTrimmed(env, "OPENAI_TEXT_MODEL");
-          const usesOpenAiWire = primary?.provider === "openai" || primary?.provider === "openai-compatible";
 
-          if (primary && usesOpenAiWire && !hasNewModel) {
-            const legacyModel = specificLegacyModel || legacyTextModel;
-            const legacyEnv = specificLegacyModel
-              ? "OPENAI_WHATSAPP_INTENT_MODEL"
-              : legacyTextModel
-                ? "OPENAI_TEXT_MODEL"
-                : null;
-            if (legacyModel && legacyEnv) {
-              primary = { ...primary, model: legacyModel };
+            const hasNewMaxAttempts = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MAX_ATTEMPTS"));
+            const legacyRetries = hasNewMaxAttempts ? null : readLegacyRetryCount(env);
+            const maxAttempts = hasNewMaxAttempts
+              ? config.maxAttempts
+              : legacyRetries !== null
+                ? legacyRetries + 1
+                : WHATSAPP_INTENT_BASELINE_MAX_ATTEMPTS;
+            if (legacyRetries !== null) {
               usedLegacyVariables = true;
               diagnostics.push(
-                `[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable ${legacyEnv}; migrate to AI_WHATSAPP_INTENT_MODEL`,
+                "[deprecated] capability=WHATSAPP_INTENT resolved attempts via legacy variable OPENAI_WHATSAPP_INTENT_RETRIES; migrate to AI_WHATSAPP_INTENT_MAX_ATTEMPTS",
               );
             }
-          }
-          '''
-          if old_model not in text:
-              raise SystemExit('expected WhatsApp model compatibility block not found')
-          text = text.replace(old_model, new_model, 1)
 
-          old_policy = '''  const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));
-          const legacyTimeout = readPositiveInteger(env, "OPENAI_WHATSAPP_INTENT_TIMEOUT_MS");
-          const timeoutMs = hasNewTimeout
-            ? config.timeoutMs
-            : legacyTimeout ?? WHATSAPP_INTENT_BASELINE_TIMEOUT_MS;
+          ''')
+          resolver.write_text(text[:policy_start] + new_policy + text[policy_end:])
 
-          const hasNewMaxAttempts = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MAX_ATTEMPTS"));
-          const legacyRetries = readLegacyRetryCount(env);
-          const maxAttempts = hasNewMaxAttempts
-            ? config.maxAttempts
-            : legacyRetries !== null
-              ? legacyRetries + 1
-              : WHATSAPP_INTENT_BASELINE_MAX_ATTEMPTS;
-          '''
-          new_policy = '''  const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));
-          const legacyTimeout = hasNewTimeout
-            ? null
-            : readPositiveInteger(env, "OPENAI_WHATSAPP_INTENT_TIMEOUT_MS");
-          const timeoutMs = hasNewTimeout
-            ? config.timeoutMs
-            : legacyTimeout ?? WHATSAPP_INTENT_BASELINE_TIMEOUT_MS;
-          if (legacyTimeout !== null) {
-            usedLegacyVariables = true;
-            diagnostics.push(
-              "[deprecated] capability=WHATSAPP_INTENT resolved timeout via legacy variable OPENAI_WHATSAPP_INTENT_TIMEOUT_MS; migrate to AI_WHATSAPP_INTENT_TIMEOUT_MS",
-            );
-          }
-
-          const hasNewMaxAttempts = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MAX_ATTEMPTS"));
-          const legacyRetries = hasNewMaxAttempts ? null : readLegacyRetryCount(env);
-          const maxAttempts = hasNewMaxAttempts
-            ? config.maxAttempts
-            : legacyRetries !== null
-              ? legacyRetries + 1
-              : WHATSAPP_INTENT_BASELINE_MAX_ATTEMPTS;
-          if (legacyRetries !== null) {
-            usedLegacyVariables = true;
-            diagnostics.push(
-              "[deprecated] capability=WHATSAPP_INTENT resolved attempts via legacy variable OPENAI_WHATSAPP_INTENT_RETRIES; migrate to AI_WHATSAPP_INTENT_MAX_ATTEMPTS",
-            );
-          }
-          '''
-          if old_policy not in text:
-              raise SystemExit('expected WhatsApp timeout/retry compatibility block not found')
-          resolver.write_text(text.replace(old_policy, new_policy, 1))
-
-          interpreter = Path('server/modules/whatsapp/intentInterpreter.ts')
+          interpreter = Path("server/modules/whatsapp/intentInterpreter.ts")
           text = interpreter.read_text()
+          old_import = 'import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";'
+          if old_import not in text:
+              raise SystemExit("intent interpreter resolver import not found")
           text = text.replace(
-              'import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";',
+              old_import,
               'import { resolveCapabilityConfig } from "../../_core/ai/configResolver";',
               1,
           )
-          text = text.replace('const MAX_LLM_RETRIES = 2;\n', '', 1)
-          start = text.find('function readPositiveIntegerEnv(name: string): number | null {')
-          end = text.find('async function callWhatsappIntentClassifier(')
-          if start < 0 or end < 0 or end <= start:
-              raise SystemExit('expected consumer-local policy block not found')
-          text = text[:start] + text[end:]
-          if 'resolveWhatsappIntentPolicy' in text:
-              raise SystemExit('consumer-local policy helper still present')
-          text = text.replace(
-              '  const policy = resolveWhatsappIntentPolicy();',
-              '  const policy = resolveCapabilityConfig("WHATSAPP_INTENT");',
-              1,
-          )
+          text = text.replace("const MAX_LLM_RETRIES = 2;\n", "", 1)
+          local_policy_start = text.find("function readPositiveIntegerEnv(name: string): number | null {")
+          classifier_start = text.find("async function callWhatsappIntentClassifier(")
+          if local_policy_start < 0 or classifier_start < 0 or classifier_start <= local_policy_start:
+              raise SystemExit("consumer-local WhatsApp policy block delimiters not found")
+          text = text[:local_policy_start] + text[classifier_start:]
+          old_call = "  const policy = resolveWhatsappIntentPolicy();"
+          if old_call not in text:
+              raise SystemExit("consumer-local policy call not found")
+          text = text.replace(old_call, '  const policy = resolveCapabilityConfig("WHATSAPP_INTENT");', 1)
+          if "resolveWhatsappIntentPolicy" in text or "OPENAI_WHATSAPP_INTENT_RETRIES" in text:
+              raise SystemExit("consumer-local policy logic remains after remediation")
           interpreter.write_text(text)
 
-          tests = Path('server/_core/ai/__tests__/configResolverWhatsappLegacy.test.ts')
+          tests = Path("server/_core/ai/__tests__/configResolverWhatsappLegacy.test.ts")
           text = tests.read_text()
-          anchor = '''  it("uses OPENAI_TEXT_MODEL only for an OpenAI wire when no more specific model exists", () => {
-          '''
-          addition = '''  it("prefers the specific legacy WhatsApp model in the canonical resolver", () => {
-            const config = resolveCapabilityConfig("WHATSAPP_INTENT", openAiEnv({
-              OPENAI_WHATSAPP_INTENT_MODEL: "gpt-whatsapp-specific",
-              OPENAI_TEXT_MODEL: "gpt-text-legacy",
-            }));
+          anchor = '  it("uses OPENAI_TEXT_MODEL only for an OpenAI wire when no more specific model exists", () => {'
+          addition = dedent('''
+            it("prefers the specific legacy WhatsApp model in the canonical resolver", () => {
+              const config = resolveCapabilityConfig("WHATSAPP_INTENT", openAiEnv({
+                OPENAI_WHATSAPP_INTENT_MODEL: "gpt-whatsapp-specific",
+                OPENAI_TEXT_MODEL: "gpt-text-legacy",
+              }));
 
-            expect(config.primary).toEqual({ provider: "openai", model: "gpt-whatsapp-specific" });
-            expect(config.usedLegacyVariables).toBe(true);
-            expect(config.diagnostics).toContainEqual(expect.stringContaining("OPENAI_WHATSAPP_INTENT_MODEL"));
-          });
+              expect(config.primary).toEqual({ provider: "openai", model: "gpt-whatsapp-specific" });
+              expect(config.usedLegacyVariables).toBe(true);
+              expect(config.diagnostics).toContainEqual(expect.stringContaining("OPENAI_WHATSAPP_INTENT_MODEL"));
+            });
 
-          '''
-          if addition.strip() not in text:
+          ''')
+          if "prefers the specific legacy WhatsApp model" not in text:
               if anchor not in text:
-                  raise SystemExit('config resolver test insertion anchor not found')
+                  raise SystemExit("config resolver test insertion anchor not found")
               text = text.replace(anchor, addition + anchor, 1)
           tests.write_text(text)
 
-          runtime_test = Path('server/modules/whatsapp/intentPolicyCanonical.test.ts')
-          runtime_test.write_text('''import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-          import type { WhatsappIntentContext } from "./intentContext";
+          runtime_test = Path("server/modules/whatsapp/intentPolicyCanonical.test.ts")
+          runtime_test.write_text(dedent('''
+            import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+            import type { WhatsappIntentContext } from "./intentContext";
 
-          const createTextResponseMock = vi.hoisted(() => vi.fn());
+            const createTextResponseMock = vi.hoisted(() => vi.fn());
 
-          vi.mock("../../_core/ai/providerResolver", () => ({
-            getAiProviderById: () => ({
-              createTextResponse: (request: unknown, options?: unknown) => createTextResponseMock(request, options),
-            }),
-          }));
+            vi.mock("../../_core/ai/providerResolver", () => ({
+              getAiProviderById: () => ({
+                createTextResponse: (request: unknown, options?: unknown) => createTextResponseMock(request, options),
+              }),
+            }));
 
-          import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
-          import { interpretWhatsappMessageWithDiagnostics } from "./intentInterpreter";
+            import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
+            import { interpretWhatsappMessageWithDiagnostics } from "./intentInterpreter";
 
-          const context: WhatsappIntentContext = {
-            version: "whatsapp-intent-context/v1",
-            nowIso: "2026-07-28T12:00:00.000Z",
-            timezone: "America/Sao_Paulo",
-            mealAliases: {},
-            latestMeal: null,
-            mealsToday: [],
-            recentFoodNames: [],
-            contextualMemories: [],
-            pendingClarification: null,
-          };
+            const context: WhatsappIntentContext = {
+              version: "whatsapp-intent-context/v1",
+              nowIso: "2026-07-28T12:00:00.000Z",
+              timezone: "America/Sao_Paulo",
+              mealAliases: {},
+              latestMeal: null,
+              mealsToday: [],
+              recentFoodNames: [],
+              contextualMemories: [],
+              pendingClarification: null,
+            };
 
-          const originalEnv = { ...process.env };
+            const originalEnv = { ...process.env };
 
-          describe("canonical WHATSAPP_INTENT policy", () => {
-            beforeEach(() => {
-              createTextResponseMock.mockReset();
-              process.env.OPENAI_API_KEY = "test-openai-key";
-              process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-whatsapp-specific";
-              process.env.OPENAI_TEXT_MODEL = "gpt-text-legacy";
-              process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
-              delete process.env.AI_WHATSAPP_INTENT_MODEL;
-              delete process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS;
-              delete process.env.AI_WHATSAPP_INTENT_TIMEOUT_MS;
-              delete process.env.AI_VISION_PROVIDER;
-            });
-
-            afterEach(() => {
-              process.env = { ...originalEnv };
-            });
-
-            it("passes the canonical resolved model directly to the provider adapter", async () => {
-              const resolved = resolveCapabilityConfig("WHATSAPP_INTENT");
-              createTextResponseMock.mockResolvedValueOnce({
-                id: "intent",
-                outputText: JSON.stringify({
-                  intent: "list_meal_records",
-                  confidence: 0.91,
-                  date: null,
-                  meal: null,
-                  items: [],
-                  sourceFood: null,
-                  targetFood: null,
-                  quantity: null,
-                  requiresConfirmation: false,
-                  clarificationQuestion: null,
-                  possibleIntents: [],
-                  reason: "Consulta de registros.",
-                }),
-                raw: {},
+            describe("canonical WHATSAPP_INTENT policy", () => {
+              beforeEach(() => {
+                createTextResponseMock.mockReset();
+                process.env.OPENAI_API_KEY = "test-openai-key";
+                process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-whatsapp-specific";
+                process.env.OPENAI_TEXT_MODEL = "gpt-text-legacy";
+                process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
+                delete process.env.AI_WHATSAPP_INTENT_MODEL;
+                delete process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS;
+                delete process.env.AI_WHATSAPP_INTENT_TIMEOUT_MS;
+                delete process.env.AI_VISION_PROVIDER;
               });
 
-              const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+              afterEach(() => {
+                process.env = { ...originalEnv };
+              });
 
-              expect(resolved.primary).toEqual({ provider: "openai", model: "gpt-whatsapp-specific" });
-              expect(createTextResponseMock).toHaveBeenCalledTimes(1);
-              expect(createTextResponseMock.mock.calls[0][0]).toEqual(expect.objectContaining({
-                model: resolved.primary?.model,
-              }));
-              expect(result.source).toBe("llm");
-              expect(result.operationalTrace.modelName).toBe(resolved.primary?.model);
+              it("passes the canonical resolved model directly to the provider adapter", async () => {
+                const resolved = resolveCapabilityConfig("WHATSAPP_INTENT");
+                createTextResponseMock.mockResolvedValueOnce({
+                  id: "intent",
+                  outputText: JSON.stringify({
+                    intent: "list_meal_records",
+                    confidence: 0.91,
+                    date: null,
+                    meal: null,
+                    items: [],
+                    sourceFood: null,
+                    targetFood: null,
+                    quantity: null,
+                    requiresConfirmation: false,
+                    clarificationQuestion: null,
+                    possibleIntents: [],
+                    reason: "Consulta de registros.",
+                  }),
+                  raw: {},
+                });
+
+                const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+
+                expect(resolved.primary).toEqual({ provider: "openai", model: "gpt-whatsapp-specific" });
+                expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+                expect(createTextResponseMock.mock.calls[0][0]).toEqual(expect.objectContaining({
+                  model: resolved.primary?.model,
+                }));
+                expect(result.source).toBe("llm");
+                expect(result.operationalTrace.modelName).toBe(resolved.primary?.model);
+              });
             });
-          });
-          '''.replace(/^          /gm, ''))
+          ''').lstrip())
 
-          doc = Path('docs/design-docs/whatsapp-llm-intents.md')
+          doc = Path("docs/design-docs/whatsapp-llm-intents.md")
           text = doc.read_text()
           old = '`intentInterpreter.ts` usa `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry. A compatibilidade do baseline legado é aplicada somente a `WHATSAPP_INTENT` antes da execução comum; outras capacidades mantêm os defaults globais do resolvedor.'
           new = '`intentInterpreter.ts` usa diretamente `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. Toda a precedência legada de modelo, timeout e tentativas fica centralizada em `server/_core/ai/configResolver.ts`; o consumidor não altera a política resolvida. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry; outras capacidades mantêm os defaults globais do resolvedor.'
           if old not in text:
-              raise SystemExit('WhatsApp intent design paragraph not found')
+              raise SystemExit("WhatsApp intent design paragraph not found")
           doc.write_text(text.replace(old, new, 1))
           PY
 
