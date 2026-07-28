@@ -98,7 +98,7 @@ export function professionalPatientHeaderActionSections(
       : trackingStatus === "paused"
         ? ["messages", "history"]
         : trackingStatus === "ended"
-          ? ["history"]
+          ? ["messages", "history"]
           : ["record"];
   return allowed.filter(section => section !== currentSection);
 }
@@ -107,7 +107,9 @@ export function professionalPatientSectionsForTracking(
   trackingStatus: "not_started" | "active" | "paused" | "ended"
 ) {
   return trackingStatus === "ended"
-    ? sections.filter(item => item.section === "history")
+    ? sections.filter(
+        item => item.section === "messages" || item.section === "history"
+      )
     : sections;
 }
 

@@ -424,7 +424,43 @@ Object.assign(trpc.professionalRecord, {
     generate: { useMutation: () => mutation() },
   },
   messages: {
+    templates: { useQuery: () => querySuccess([]) },
+    list: {
+      useQuery: () =>
+        querySuccess({
+          items: [
+            {
+              id: "message-visual-1",
+              patientUserId: 1,
+              patientName: "Mariana de Almeida Vasconcelos e Silva",
+              direction: "professional_to_patient",
+              origin: "professional",
+              messageType: "administrative",
+              content: "Mensagem registrada antes do encerramento.",
+              state: "failed",
+              lastError: "Não foi possível entregar pelo WhatsApp.",
+              authorName: "Nutricionista de validação",
+              createdAt: now - 2 * 60 * 60_000,
+            },
+            {
+              id: "message-visual-2",
+              patientUserId: 1,
+              patientName: "Mariana de Almeida Vasconcelos e Silva",
+              direction: "patient_to_professional",
+              origin: "patient",
+              messageType: "response",
+              content: "Resposta registrada pelo paciente.",
+              state: "received",
+              lastError: null,
+              authorName: "Mariana de Almeida Vasconcelos e Silva",
+              createdAt: now - 60 * 60_000,
+            },
+          ],
+          nextCursor: null,
+        }),
+    },
     create: { useMutation: () => mutation() },
+    retry: { useMutation: () => mutation() },
   },
   operationalAlerts: {
     list: { useQuery: () => operationalAlertsQuery() },

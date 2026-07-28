@@ -195,6 +195,18 @@ function writeVisualDiagnostics() {
     );
   }
 
+  if (
+    window.location.pathname.endsWith("/messages") &&
+    new URLSearchParams(window.location.search).get("state") === "ended"
+  ) {
+    root.dataset.visualEndedMessageDraftDisabled = String(
+      Boolean(findButton("Salvar rascunho")?.disabled)
+    );
+    root.dataset.visualEndedMessageRetryAbsent = String(
+      !findButton("Tentar novamente")
+    );
+  }
+
   writeGoalDiagnostics(root);
 }
 

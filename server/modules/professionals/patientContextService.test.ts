@@ -117,6 +117,30 @@ describe("getProfessionalPatientContext", () => {
     });
   });
 
+  it("uses a safe generic label instead of exposing the patient ID", async () => {
+    mocks.execute.mockResolvedValueOnce([
+      [
+        {
+          authorizationId: "authorization-1",
+          patientUserId: 41,
+          patientName: null,
+          patientEmail: null,
+          trackingStatus: "active",
+          lastProfessionalActivityAt: null,
+          lastProfessionalActivityType: null,
+          nextReviewAt: null,
+        },
+      ],
+    ]);
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_messages",
+      })
+    ).resolves.toMatchObject({ displayName: "Paciente" });
+  });
+
   it("minimizes the public context after tracking ends", async () => {
     mocks.execute.mockResolvedValueOnce([
       [

@@ -57,7 +57,7 @@ Eventos assíncronos precisam ser correlacionados ao paciente atual. Queries usa
 
 ## Acompanhamento encerrado
 
-Quando o acompanhamento está `ended`, qualquer rota individual diferente de `/history` redireciona para a linha do tempo auditável antes de montar relatórios, mensagens ou formulários. O backend não retorna avaliação, anotações ou orientações por `professionalRecord.get`, e bloqueia timezone, dashboard, relatório de período e conversa individual. A timeline pública contém somente identificador opaco do evento, tipo de domínio permitido e data; identificadores técnicos da entidade não atravessam o contrato público.
+Quando o acompanhamento está `ended`, `/messages` e `/history` permanecem disponíveis em modo de consulta; qualquer outra rota individual redireciona para a linha do tempo auditável antes de montar relatórios ou formulários. O backend não retorna avaliação, anotações ou orientações por `professionalRecord.get`, bloqueia timezone, dashboard e relatório de período, e permite apenas listar a conversa individual já registrada. Novo rascunho, envio e retry ficam bloqueados. A timeline pública contém somente identificador opaco do evento, tipo de domínio permitido e data; identificadores técnicos da entidade não atravessam o contrato público.
 
 ## Proteção de rascunho
 
@@ -108,7 +108,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 11. Criar solicitação de acesso por e-mail ou celular e conferir estado pendente.
 12. Criar rascunho, cancelar a navegação e confirmar sua preservação; repetir confirmando descarte e verificar que o formulário retorna vazio ao voltar, inclusive em subnav, sidebar e voltar/avançar.
 13. Trocar de paciente com rascunho e confirmar que o novo paciente nunca recebe os campos do anterior.
-14. Pausar e encerrar acompanhamento e conferir os bloqueios de avaliação, orientação, anotação e mensagem.
+14. Pausar o acompanhamento e confirmar que somente mensagens administrativas podem ser criadas ou reenviadas; encerrar e confirmar que mensagens anteriores e histórico permanecem legíveis, enquanto novo rascunho, envio e retry ficam bloqueados.
 15. Conferir que relatórios agregados não exigem carteira e que relatórios individuais não exigem prontuário. Em cada indicador agregado, abrir **Ver pacientes** e confirmar que a carteira reproduz exatamente o critério contado: período e presença/ausência de registros, revisão vencida, pesagem vencida ou situação do acompanhamento.
 16. Conferir que mensagens agregadas e individuais usam apenas `professional_messages`.
 17. Conferir estados de loading, vazio, erro recuperável e acesso indisponível em cada superfície principal.

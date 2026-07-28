@@ -48,7 +48,12 @@ type MessageType =
   | "record_request"
   | "administrative"
   | "follow_up_summary";
-type MessageOrigin = "professional" | "ai_suggested" | "automatic";
+type MessageOrigin =
+  | "professional"
+  | "ai_suggested"
+  | "automatic"
+  | "patient";
+type ComposerOrigin = Exclude<MessageOrigin, "patient">;
 type Cursor = { createdAt: number; id: string };
 type MessageItem = {
   id: string;
@@ -60,17 +65,14 @@ type MessageItem = {
   state: string;
   lastError?: string | null;
   createdAt?: number | null;
+  authorName?: string | null;
+  patientName?: string | null;
 };
 type MessageTemplate = {
   id: string;
   title: string;
   content: string;
   messageType: string;
-};
-type RecipientAccess = {
-  patientUserId: number;
-  status: string;
-  patient?: { name?: string | null; email?: string | null } | null;
 };
 
 function formatDate(value: number | null | undefined) {
@@ -90,7 +92,7 @@ export default function ProfessionalMessagesExperience() {
 
   const [content, setContent] = useState("");
   const [messageType, setMessageType] = useState<MessageType>("guidance");
-  const [origin, setOrigin] = useState<MessageOrigin>("professional");
+  const [origin, setOrigin] = useState<ComposerOrigin>("professional");
   const [templateId, setTemplateId] = useState("");
   const [supersedesMessageId, setSupersedesMessageId] = useState<string | null>(
     null
@@ -169,14 +171,6 @@ export default function ProfessionalMessagesExperience() {
       staleTime: 30_000,
     }
   );
-  const recipients = trpc.professionalRecord.messages.recipients.useQuery(
-    undefined,
-    {
-      enabled: !patientId,
-      retry: false,
-      staleTime: 30_000,
-    }
-  );
   const messages = trpc.professionalRecord.messages.list.useQuery(
     { patientId, cursor, pageSize: 20 },
     {
@@ -193,34 +187,27 @@ export default function ProfessionalMessagesExperience() {
         ? [...current, ...messages.data.items]
         : messages.data.items;
       const ids = new Set<string>();
-      return (combined as MessageItem[]).filter(item => {
+      const deduplicated = (combined as MessageItem[]).filter(item => {
         if (ids.has(item.id)) return false;
         ids.add(item.id);
         return true;
       });
+      return patientId
+        ? deduplicated.sort(
+            (left, right) =>
+              (left.createdAt ?? 0) - (right.createdAt ?? 0) ||
+              left.id.localeCompare(right.id)
+          )
+        : deduplicated;
     });
-  }, [cursor, messages.data]);
+  }, [cursor, messages.data, patientId]);
 
   const templates = (templatesQuery.data ?? []) as MessageTemplate[];
-  const patientNames = useMemo(() => {
-    const names = new Map<number, string>();
-    ((recipients.data ?? []) as RecipientAccess[])
-      .filter(access => access.status === "approved")
-      .forEach(access => {
-        names.set(
-          access.patientUserId,
-          access.patient?.name ??
-            access.patient?.email ??
-            `Paciente ${access.patientUserId}`
-        );
-      });
-    return names;
-  }, [recipients.data]);
 
   const create = trpc.professionalRecord.messages.create.useMutation({
     onSuccess: async () => {
       clearComposer();
-      allowNavigationRef.current = true;
+      allowNavigationRef.current = false;
       setCursor(undefined);
       setItems([]);
       await utils.professionalRecord.messages.list.invalidate();
@@ -261,7 +248,7 @@ export default function ProfessionalMessagesExperience() {
   const continueDraft = (item: MessageItem) => {
     setContent(item.content);
     setMessageType(item.messageType as MessageType);
-    setOrigin(item.origin);
+    setOrigin(item.origin === "patient" ? "professional" : item.origin);
     setTemplateId("");
     setSupersedesMessageId(item.id);
     setIdempotencyKey(crypto.randomUUID());
@@ -271,14 +258,21 @@ export default function ProfessionalMessagesExperience() {
   const trackingStatus = selectedPatient?.trackingStatus ?? "not_started";
   const ended = trackingStatus === "ended";
   const paused = trackingStatus === "paused";
-  const canDeliver =
-    !ended &&
-    (!paused || messageType === "administrative") &&
-    origin !== "automatic";
+  const notStarted = trackingStatus === "not_started";
+  const canCreateMessage =
+    trackingStatus === "active" ||
+    (paused && messageType === "administrative");
+  const canDeliver = canCreateMessage && origin !== "automatic";
+  const canRetry = (item: MessageItem) =>
+    Boolean(patientId) &&
+    item.state === "failed" &&
+    item.origin !== "automatic" &&
+    (trackingStatus === "active" ||
+      (paused && item.messageType === "administrative"));
   const visibleItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return items.filter(item => {
-      const patientName = patientNames.get(item.patientUserId) ?? "";
+      const patientName = item.patientName ?? "";
       const matchesSearch =
         !normalizedSearch ||
         patientName.toLowerCase().includes(normalizedSearch) ||
@@ -288,7 +282,7 @@ export default function ProfessionalMessagesExperience() {
         (stateFilter === "all" || item.state === stateFilter)
       );
     });
-  }, [items, patientNames, search, stateFilter]);
+  }, [items, search, stateFilter]);
 
   return (
     <div className="space-y-6">
@@ -327,10 +321,12 @@ export default function ProfessionalMessagesExperience() {
               </CardTitle>
               <CardDescription>
                 {ended
-                  ? "O acompanhamento foi encerrado e não aceita novas mensagens."
-                  : paused
-                    ? "Durante a pausa, somente comunicações administrativas podem ser entregues."
-                    : "Escolha um modelo ou escreva uma mensagem do zero."}
+                  ? "O acompanhamento foi encerrado. As mensagens anteriores permanecem disponíveis somente para consulta."
+                  : notStarted
+                    ? "Inicie o acompanhamento antes de criar uma mensagem."
+                    : paused
+                      ? "Durante a pausa, somente comunicações administrativas podem ser criadas ou entregues."
+                      : "Escolha um modelo ou escreva uma mensagem do zero."}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
@@ -366,6 +362,7 @@ export default function ProfessionalMessagesExperience() {
                     aria-label="Modelo de mensagem"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={templateId}
+                    disabled={ended || notStarted}
                     onChange={event => applyTemplate(event.target.value)}
                   >
                     <option value="">Escrever sem modelo</option>
@@ -382,6 +379,7 @@ export default function ProfessionalMessagesExperience() {
                   aria-label="Tipo da mensagem"
                   className="h-10 rounded-md border bg-background px-3 text-sm"
                   value={messageType}
+                  disabled={ended || notStarted}
                   onChange={event => {
                     setMessageType(event.target.value as MessageType);
                     setTemplateId("");
@@ -399,8 +397,9 @@ export default function ProfessionalMessagesExperience() {
                   aria-label="Origem da mensagem"
                   className="h-10 rounded-md border bg-background px-3 text-sm"
                   value={origin}
+                  disabled={ended || notStarted}
                   onChange={event =>
-                    setOrigin(event.target.value as MessageOrigin)
+                    setOrigin(event.target.value as ComposerOrigin)
                   }
                 >
                   <option value="professional">Escrita pelo nutricionista</option>
@@ -412,6 +411,7 @@ export default function ProfessionalMessagesExperience() {
                 aria-label="Conteúdo da mensagem"
                 className="min-h-36 rounded-md border bg-background p-3"
                 value={content}
+                disabled={ended || notStarted}
                 onChange={event => {
                   setContent(event.target.value);
                   setTemplateId("");
@@ -426,13 +426,16 @@ export default function ProfessionalMessagesExperience() {
               ) : null}
               {create.isError ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {create.error.message}
+                  Não foi possível registrar a mensagem. Revise as regras do
+                  acompanhamento e tente novamente.
                 </p>
               ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  disabled={!content.trim() || create.isPending}
+                  disabled={
+                    !content.trim() || create.isPending || !canCreateMessage
+                  }
                   onClick={() => submit("save_draft")}
                 >
                   Salvar rascunho
@@ -526,9 +529,9 @@ export default function ProfessionalMessagesExperience() {
           {visibleItems.map(item => {
             const fromPatient = item.direction === "patient_to_professional";
             const patientName =
-              selectedPatient?.displayName ??
-              patientNames.get(item.patientUserId) ??
-              `Paciente ${item.patientUserId}`;
+              selectedPatient?.displayName ?? item.patientName ?? "Paciente";
+            const authorName =
+              item.authorName ?? (fromPatient ? patientName : "Nutricionista");
             return (
               <article
                 key={item.id}
@@ -550,7 +553,7 @@ export default function ProfessionalMessagesExperience() {
                           "Mensagem profissional"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {professionalLabel("origin", item.origin)} ·{" "}
+                      {professionalLabel("origin", item.origin)} · Por {authorName} ·{" "}
                       {formatDate(item.createdAt)}
                     </p>
                   </div>
@@ -579,7 +582,10 @@ export default function ProfessionalMessagesExperience() {
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   ) : null}
-                  {patientId && item.state === "draft" ? (
+                  {patientId &&
+                  item.state === "draft" &&
+                  (trackingStatus === "active" ||
+                    (paused && item.messageType === "administrative")) ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -588,7 +594,7 @@ export default function ProfessionalMessagesExperience() {
                       Continuar edição
                     </Button>
                   ) : null}
-                  {item.state === "failed" ? (
+                  {canRetry(item) ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -600,6 +606,12 @@ export default function ProfessionalMessagesExperience() {
                     </Button>
                   ) : null}
                 </div>
+                {retry.isError ? (
+                  <p role="alert" className="mt-2 text-xs text-destructive">
+                    Não foi possível tentar a entrega novamente. Confirme o
+                    acesso e o estado do acompanhamento.
+                  </p>
+                ) : null}
               </article>
             );
           })}

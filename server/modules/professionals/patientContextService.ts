@@ -79,7 +79,7 @@ export async function getProfessionalPatientContext(
     displayName:
       (context.patientName ? String(context.patientName) : null) ??
       (context.patientEmail ? String(context.patientEmail) : null) ??
-      `Paciente ${input.patientId}`,
+      "Paciente",
     authorizationStatus: "approved" as const,
     trackingStatus,
   };

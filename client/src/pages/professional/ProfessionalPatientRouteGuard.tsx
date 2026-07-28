@@ -12,16 +12,17 @@ export default function ProfessionalPatientRouteGuard() {
   const { selectedPatient } = useProfessionalWorkspace();
   const [location, setLocation] = useLocation();
   const route = parseProfessionalPatientRoute(location);
-  const endedOutsideHistory = Boolean(
+  const endedOutsideReadOnlySections = Boolean(
     selectedPatient?.trackingStatus === "ended" &&
       route.kind === "patient" &&
+      route.section !== "messages" &&
       route.section !== "history"
   );
 
   useEffect(() => {
-    if (!endedOutsideHistory || !selectedPatient) return;
+    if (!endedOutsideReadOnlySections || !selectedPatient) return;
     setLocation(professionalPatientPath(selectedPatient.patientId, "history"));
-  }, [endedOutsideHistory, selectedPatient, setLocation]);
+  }, [endedOutsideReadOnlySections, selectedPatient, setLocation]);
 
   if (!selectedPatient || route.kind !== "patient") {
     return (
@@ -33,12 +34,12 @@ export default function ProfessionalPatientRouteGuard() {
     );
   }
 
-  if (endedOutsideHistory) {
+  if (endedOutsideReadOnlySections) {
     return (
       <ProfessionalAsyncState
         icon="empty"
         title="Acompanhamento encerrado"
-        description="Somente o histórico profissional necessário para auditoria permanece disponível."
+        description="Somente as mensagens anteriores e o histórico profissional permanecem disponíveis para consulta."
       />
     );
   }

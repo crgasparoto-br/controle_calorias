@@ -68,18 +68,22 @@ async function professionalScope(
 
 function assertCanCreate(
   trackingStatus: string,
-  type: ProfessionalMessageCreateInput["messageType"],
-  action: ProfessionalMessageCreateInput["action"]
+  type: ProfessionalMessageCreateInput["messageType"]
 ) {
-  if (action === "save_draft") return;
   if (trackingStatus === "active") return;
   if (trackingStatus === "paused" && type === "administrative") return;
-  if (trackingStatus === "ended")
+  if (trackingStatus === "ended") {
     throw new Error(
       "O acompanhamento foi encerrado e não aceita novas mensagens."
     );
+  }
+  if (trackingStatus === "paused") {
+    throw new Error(
+      "Durante a pausa, crie somente comunicações administrativas."
+    );
+  }
   throw new Error(
-    "Durante a pausa, envie somente comunicações administrativas."
+    "Inicie o acompanhamento antes de criar uma mensagem."
   );
 }
 
@@ -113,6 +117,7 @@ function serialize(row: Row) {
     receivedAt: time(row.receivedAt),
     createdAt: time(row.createdAt),
     authorName: row.authorName ? String(row.authorName) : null,
+    patientName: row.patientName ? String(row.patientName) : null,
   };
 }
 
@@ -135,7 +140,7 @@ export async function createProfessionalMessage(
   input: ProfessionalMessageCreateInput
 ) {
   const scope = await professionalScope(professionalUserId, input.patientId);
-  assertCanCreate(scope.trackingStatus, input.messageType, input.action);
+  assertCanCreate(scope.trackingStatus, input.messageType);
   if (input.origin === "automatic" && input.action !== "save_draft")
     throw new Error(
       "Mensagens automáticas precisam ser revisadas antes do envio."
@@ -285,19 +290,21 @@ export async function listProfessionalMessages(
   const patientScope = input.patientId
     ? await professionalScope(professionalUserId, input.patientId)
     : null;
-  if (patientScope?.trackingStatus === "ended") {
-    throw new Error(
-      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
-    );
-  }
   const db = patientScope?.db ?? (await dbRequired());
   const patientFilter = input.patientId
     ? sql`AND m.patientUserId = ${input.patientId}`
     : sql``;
   const result =
-    await db.execute(sql`SELECT m.*, COALESCE(u.name, p.displayName) AS authorName FROM professionalMessages m
+    await db.execute(sql`SELECT m.*, patient.name AS patientName,
+    CASE WHEN m.direction = 'patient_to_professional'
+      THEN COALESCE(patient.name, author.name)
+      ELSE COALESCE(profile.displayName, author.name)
+    END AS authorName
+    FROM professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
-    LEFT JOIN users u ON u.id = m.authorUserId LEFT JOIN professionalProfiles p ON p.userId = m.professionalUserId
+    LEFT JOIN users author ON author.id = m.authorUserId
+    LEFT JOIN users patient ON patient.id = m.patientUserId
+    LEFT JOIN professionalProfiles profile ON profile.userId = m.professionalUserId
     WHERE m.professionalUserId = ${professionalUserId} AND a.status = 'approved' ${patientFilter} ${cursorSql(input.cursor)}
     ORDER BY m.createdAt DESC, m.id DESC LIMIT ${input.pageSize + 1}`);
   const items = rows(result);
@@ -319,9 +326,16 @@ export async function listPatientProfessionalMessages(
 ) {
   const db = await dbRequired();
   const result =
-    await db.execute(sql`SELECT m.*, COALESCE(u.name, p.displayName) AS authorName FROM professionalMessages m
+    await db.execute(sql`SELECT m.*, patient.name AS patientName,
+    CASE WHEN m.direction = 'patient_to_professional'
+      THEN COALESCE(patient.name, author.name)
+      ELSE COALESCE(profile.displayName, author.name)
+    END AS authorName
+    FROM professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
-    LEFT JOIN users u ON u.id = m.authorUserId LEFT JOIN professionalProfiles p ON p.userId = m.professionalUserId
+    LEFT JOIN users author ON author.id = m.authorUserId
+    LEFT JOIN users patient ON patient.id = m.patientUserId
+    LEFT JOIN professionalProfiles profile ON profile.userId = m.professionalUserId
     WHERE m.patientUserId = ${patientUserId} AND a.status = 'approved' AND m.state IN ('pending','sent','failed','received') ${cursorSql(input.cursor)}
     ORDER BY m.createdAt DESC, m.id DESC LIMIT ${input.pageSize + 1}`);
   const items = rows(result);

@@ -112,6 +112,20 @@ describe("ProfessionalPatientRouteGuard", () => {
     );
   });
 
+  it("keeps ended tracking inside the read-only messages route", async () => {
+    route = "/professional/patients/41/messages";
+    selectedPatient = {
+      patientId: 41,
+      displayName: "Ana",
+      trackingStatus: "ended",
+    };
+    const { default: Guard } = await import("./ProfessionalPatientRouteGuard");
+    render(<Guard />);
+
+    expect(screen.getByText("Workspace contextual do paciente 1")).toBeTruthy();
+    expect(setLocation).not.toHaveBeenCalled();
+  });
+
   it("keeps ended tracking inside the audit history route", async () => {
     route = "/professional/patients/41/history";
     selectedPatient = {

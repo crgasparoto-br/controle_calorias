@@ -21,16 +21,20 @@ describe("workspace patient header actions", () => {
     );
   });
 
-  it("keeps ended tracking restricted to history", () => {
+  it("keeps ended tracking read-only in messages and history", () => {
     expect(professionalPatientHeaderActionSections("ended", "record")).toEqual([
+      "messages",
       "history",
     ]);
-    expect(professionalPatientHeaderActionSections("ended", "history")).toEqual(
-      []
-    );
+    expect(professionalPatientHeaderActionSections("ended", "messages")).toEqual([
+      "history",
+    ]);
+    expect(professionalPatientHeaderActionSections("ended", "history")).toEqual([
+      "messages",
+    ]);
     expect(
       professionalPatientSectionsForTracking("ended").map(item => item.section)
-    ).toEqual(["history"]);
+    ).toEqual(["messages", "history"]);
   });
 
   it("routes not-started tracking back to the summary before intervention", () => {

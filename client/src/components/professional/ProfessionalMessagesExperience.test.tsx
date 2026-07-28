@@ -8,13 +8,16 @@ const createMutate = vi.fn();
 const retryMutate = vi.fn();
 const invalidateMessages = vi.fn().mockResolvedValue(undefined);
 const refetchMessages = vi.fn();
+const setLocation = vi.fn();
 const emptyTemplates: never[] = [];
-const emptyRecipients: never[] = [];
 let messageResult: { items: any[]; nextCursor: null } = {
   items: [],
   nextCursor: null,
 };
-let trackingStatus: "active" | "paused" | "ended" = "active";
+let trackingStatus: "not_started" | "active" | "paused" | "ended" =
+  "active";
+let patientSelected = true;
+let currentLocation = "/professional/patients/41/messages";
 
 function setMessages(items: any[]) {
   messageResult = { items, nextCursor: null };
@@ -22,16 +25,18 @@ function setMessages(items: any[]) {
 
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({
-    selectedPatient: {
-      patientId: 41,
-      displayName: "Ana",
-      trackingStatus,
-    },
+    selectedPatient: patientSelected
+      ? {
+          patientId: 41,
+          displayName: "Ana",
+          trackingStatus,
+        }
+      : null,
     clearPatient: vi.fn(),
   }),
 }));
 vi.mock("wouter", () => ({
-  useLocation: () => ["/professional/patients/41/messages", vi.fn()],
+  useLocation: () => [currentLocation, setLocation],
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -44,9 +49,6 @@ vi.mock("@/lib/trpc", () => ({
       messages: {
         templates: {
           useQuery: () => ({ data: emptyTemplates, isError: false }),
-        },
-        recipients: {
-          useQuery: () => ({ data: emptyRecipients, isError: false }),
         },
         list: {
           useQuery: () => ({
@@ -70,6 +72,8 @@ vi.mock("@/lib/trpc", () => ({
           useMutation: () => ({
             mutate: retryMutate,
             isPending: false,
+            isError: false,
+            error: null,
           }),
         },
       },
@@ -84,9 +88,12 @@ beforeEach(() => {
   retryMutate.mockReset();
   invalidateMessages.mockClear();
   refetchMessages.mockReset();
+  setLocation.mockReset();
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   setMessages([]);
   trackingStatus = "active";
+  patientSelected = true;
+  currentLocation = "/professional/patients/41/messages";
 });
 
 describe("ProfessionalMessagesExperience", () => {
@@ -101,6 +108,8 @@ describe("ProfessionalMessagesExperience", () => {
         content: "Resumo preparado pela IA",
         state: "draft",
         createdAt: Date.now(),
+        authorName: "Nutricionista",
+        patientName: "Ana",
       },
     ]);
     const { default: Experience } = await import(
@@ -148,6 +157,8 @@ describe("ProfessionalMessagesExperience", () => {
         content: "Lembrete automático",
         state: "draft",
         createdAt: Date.now(),
+        authorName: "Nutricionista",
+        patientName: "Ana",
       },
     ]);
     const { default: Experience } = await import(
@@ -174,26 +185,145 @@ describe("ProfessionalMessagesExperience", () => {
     ).toBe(false);
   });
 
-  it("blocks delivery while the tracking is ended without loading the record resource", async () => {
+  it("keeps an ended conversation readable while blocking every new action", async () => {
     trackingStatus = "ended";
+    setMessages([
+      {
+        id: "failed-before-end",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "administrative",
+        content: "Mensagem registrada antes do encerramento",
+        state: "failed",
+        createdAt: Date.now(),
+        authorName: "Claudinei",
+        patientName: "Ana",
+      },
+    ]);
     const { default: Experience } = await import(
       "./ProfessionalMessagesExperience"
     );
     render(<Experience />);
 
-    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
-      target: { value: "Mensagem após encerramento" },
-    });
-
+    expect(
+      screen.getByText("Mensagem registrada antes do encerramento")
+    ).toBeTruthy();
+    expect(screen.getByText(/Por Claudinei/)).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Salvar rascunho" })
+        .hasAttribute("disabled")
+    ).toBe(true);
     expect(
       screen
         .getByRole("button", { name: "Enviar por WhatsApp" })
         .hasAttribute("disabled")
     ).toBe(true);
     expect(
+      screen.queryByRole("button", { name: "Tentar novamente" })
+    ).toBeNull();
+    expect(
       screen.getByText(
-        "O acompanhamento foi encerrado e não aceita novas mensagens."
+        "O acompanhamento foi encerrado. As mensagens anteriores permanecem disponíveis somente para consulta."
       )
     ).toBeTruthy();
+  });
+
+  it("allows only administrative drafts while tracking is paused", async () => {
+    trackingStatus = "paused";
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    fireEvent.change(screen.getByLabelText("Conteúdo da mensagem"), {
+      target: { value: "Contato durante a pausa" },
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Salvar rascunho" })
+        .hasAttribute("disabled")
+    ).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Tipo da mensagem"), {
+      target: { value: "administrative" },
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Salvar rascunho" })
+        .hasAttribute("disabled")
+    ).toBe(false);
+  });
+
+  it("renders the individual conversation in chronological order with authorship", async () => {
+    setMessages([
+      {
+        id: "newer",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "guidance",
+        content: "Mensagem mais nova",
+        state: "sent",
+        createdAt: Date.parse("2026-07-22T12:00:00.000Z"),
+        authorName: "Dra. Beatriz",
+        patientName: "Ana",
+      },
+      {
+        id: "older",
+        patientUserId: 41,
+        direction: "patient_to_professional",
+        origin: "patient",
+        messageType: "response",
+        content: "Mensagem mais antiga",
+        state: "received",
+        createdAt: Date.parse("2026-07-21T12:00:00.000Z"),
+        authorName: "Ana",
+        patientName: "Ana",
+      },
+    ]);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    const articles = screen.getAllByRole("article");
+    expect(articles[0]?.textContent).toContain("Mensagem mais antiga");
+    expect(articles[0]?.textContent).toContain("Por Ana");
+    expect(articles[1]?.textContent).toContain("Mensagem mais nova");
+    expect(articles[1]?.textContent).toContain("Por Dra. Beatriz");
+  });
+
+  it("uses a safe generic patient label in the portfolio inbox", async () => {
+    patientSelected = false;
+    currentLocation = "/professional/messages";
+    setMessages([
+      {
+        id: "inbox-1",
+        patientUserId: 41,
+        direction: "patient_to_professional",
+        origin: "patient",
+        messageType: "response",
+        content: "Mensagem sem nome cadastrado",
+        state: "received",
+        createdAt: Date.now(),
+        authorName: null,
+        patientName: null,
+      },
+    ]);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    expect(screen.getByText("Paciente")).toBeTruthy();
+    expect(screen.queryByText("Paciente 41")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Abrir conversa" })
+    );
+    expect(setLocation).toHaveBeenCalledWith(
+      "/professional/patients/41/messages"
+    );
   });
 });

@@ -132,7 +132,7 @@ Ao selecionar um paciente, o profissional entra em contexto dedicado e clarament
 - alertas e pendências;
 - histórico do vínculo e do acompanhamento.
 
-A navegação interna do paciente reflete a URL e pode usar subnav responsiva. O cabeçalho contextual apresenta o significado da última atividade em texto seguro e sua data; exibir somente o horário não satisfaz o resumo operacional. A linha do tempo usa o mesmo catálogo público do backend para distinguir todos os eventos canônicos conhecidos de vínculo, acompanhamento, avaliação, meta, orientação, nota, mensagem e IA. Somente tipos realmente desconhecidos usam o fallback **Evento profissional registrado**, sem expor o identificador técnico. Quando o acompanhamento está encerrado, somente a rota de histórico permanece disponível: o contrato público omite autorização interna, e-mail, metadados operacionais, avaliações, notas e orientações.
+A navegação interna do paciente reflete a URL e pode usar subnav responsiva. O cabeçalho contextual apresenta o significado da última atividade em texto seguro e sua data; exibir somente o horário não satisfaz o resumo operacional. A linha do tempo usa o mesmo catálogo público do backend para distinguir todos os eventos canônicos conhecidos de vínculo, acompanhamento, avaliação, meta, orientação, nota, mensagem e IA. Somente tipos realmente desconhecidos usam o fallback **Evento profissional registrado**, sem expor o identificador técnico. Quando o acompanhamento está encerrado, somente as rotas de mensagens e histórico permanecem disponíveis em modo de consulta: o contrato público omite autorização interna, e-mail, metadados operacionais, avaliações, notas e orientações, e nenhuma nova mensagem ou tentativa de entrega pode ser criada.
 
 ### Acompanhamento
 
