@@ -36,7 +36,7 @@ capture() {
   local name="$1"
   local size="$2"
   local url="$3"
-  "$CHROME_BIN" \
+  timeout --signal=TERM --kill-after=5s 45s "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
@@ -62,7 +62,7 @@ assert_dom_at_size() {
   local url="$3"
   shift 3
   local output="$OUTPUT_DIR/$name.html"
-  "$CHROME_BIN" \
+  timeout --signal=TERM --kill-after=5s 45s "$CHROME_BIN" \
     --headless=new \
     --no-sandbox \
     --disable-gpu \
