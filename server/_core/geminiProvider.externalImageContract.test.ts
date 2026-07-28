@@ -37,6 +37,24 @@ describe("GeminiProvider external image URI contract", () => {
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "data:text/plain;base64,AAAA",
+    "data:image/svg+xml;base64,AAAA",
+    "data:image/gif;base64,AAAA",
+  ])("rejects unsupported inline image MIME %s before network access", async imageUrl => {
+    const provider = new GeminiProvider("fake-key");
+
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{
+        role: "user",
+        content: [{ type: "input_image", image_url: imageUrl }],
+      }],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
   it("continues accepting inline images with their declared MIME type", async () => {
     generateContentMock.mockResolvedValue({ text: "ok" });
     const provider = new GeminiProvider("fake-key");
