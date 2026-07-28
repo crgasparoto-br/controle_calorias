@@ -8,7 +8,8 @@ SET `requestedAction` = CASE
       AND `attempt`.`channel` = 'whatsapp'
   ) THEN 'send_whatsapp'
   WHEN `m`.`state` = 'draft' THEN 'save_draft'
-  ELSE 'send_web'
+  WHEN `m`.`state` = 'sent' THEN 'send_web'
+  ELSE NULL
 END
 WHERE `m`.`direction` = 'professional_to_patient'
   AND `m`.`requestedAction` IS NULL;
