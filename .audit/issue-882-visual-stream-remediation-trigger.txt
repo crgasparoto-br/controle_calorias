@@ -1,0 +1,1 @@
+Trigger controlled revocation-stream isolation for issue #882 visual evidence.
