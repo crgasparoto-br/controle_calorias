@@ -44,56 +44,54 @@ export function resolveCapabilityConfig(
   let usedLegacyVariables = config.usedLegacyVariables;
   let primary = config.primary;
 
+  const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));
+  const specificLegacyModel = readTrimmed(env, "OPENAI_WHATSAPP_INTENT_MODEL");
+  const legacyTextModel = readTrimmed(env, "OPENAI_TEXT_MODEL");
+  const usesOpenAiWire = primary?.provider === "openai" || primary?.provider === "openai-compatible";
 
-const hasNewModel = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MODEL"));
-const specificLegacyModel = readTrimmed(env, "OPENAI_WHATSAPP_INTENT_MODEL");
-const legacyTextModel = readTrimmed(env, "OPENAI_TEXT_MODEL");
-const usesOpenAiWire = primary?.provider === "openai" || primary?.provider === "openai-compatible";
+  if (primary && usesOpenAiWire && !hasNewModel) {
+    const legacyModel = specificLegacyModel || legacyTextModel;
+    const legacyEnv = specificLegacyModel
+      ? "OPENAI_WHATSAPP_INTENT_MODEL"
+      : legacyTextModel
+        ? "OPENAI_TEXT_MODEL"
+        : null;
+    if (legacyModel && legacyEnv) {
+      primary = { ...primary, model: legacyModel };
+      usedLegacyVariables = true;
+      diagnostics.push(
+        `[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable ${legacyEnv}; migrate to AI_WHATSAPP_INTENT_MODEL`,
+      );
+    }
+  }
 
-if (primary && usesOpenAiWire && !hasNewModel) {
-  const legacyModel = specificLegacyModel || legacyTextModel;
-  const legacyEnv = specificLegacyModel
-    ? "OPENAI_WHATSAPP_INTENT_MODEL"
-    : legacyTextModel
-      ? "OPENAI_TEXT_MODEL"
-      : null;
-  if (legacyModel && legacyEnv) {
-    primary = { ...primary, model: legacyModel };
+  const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));
+  const legacyTimeout = hasNewTimeout
+    ? null
+    : readPositiveInteger(env, "OPENAI_WHATSAPP_INTENT_TIMEOUT_MS");
+  const timeoutMs = hasNewTimeout
+    ? config.timeoutMs
+    : legacyTimeout ?? WHATSAPP_INTENT_BASELINE_TIMEOUT_MS;
+  if (legacyTimeout !== null) {
     usedLegacyVariables = true;
     diagnostics.push(
-      `[deprecated] capability=WHATSAPP_INTENT resolved model via legacy variable ${legacyEnv}; migrate to AI_WHATSAPP_INTENT_MODEL`,
+      "[deprecated] capability=WHATSAPP_INTENT resolved timeout via legacy variable OPENAI_WHATSAPP_INTENT_TIMEOUT_MS; migrate to AI_WHATSAPP_INTENT_TIMEOUT_MS",
     );
   }
-}
 
-
-const hasNewTimeout = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_TIMEOUT_MS"));
-const legacyTimeout = hasNewTimeout
-  ? null
-  : readPositiveInteger(env, "OPENAI_WHATSAPP_INTENT_TIMEOUT_MS");
-const timeoutMs = hasNewTimeout
-  ? config.timeoutMs
-  : legacyTimeout ?? WHATSAPP_INTENT_BASELINE_TIMEOUT_MS;
-if (legacyTimeout !== null) {
-  usedLegacyVariables = true;
-  diagnostics.push(
-    "[deprecated] capability=WHATSAPP_INTENT resolved timeout via legacy variable OPENAI_WHATSAPP_INTENT_TIMEOUT_MS; migrate to AI_WHATSAPP_INTENT_TIMEOUT_MS",
-  );
-}
-
-const hasNewMaxAttempts = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MAX_ATTEMPTS"));
-const legacyRetries = hasNewMaxAttempts ? null : readLegacyRetryCount(env);
-const maxAttempts = hasNewMaxAttempts
-  ? config.maxAttempts
-  : legacyRetries !== null
-    ? legacyRetries + 1
-    : WHATSAPP_INTENT_BASELINE_MAX_ATTEMPTS;
-if (legacyRetries !== null) {
-  usedLegacyVariables = true;
-  diagnostics.push(
-    "[deprecated] capability=WHATSAPP_INTENT resolved attempts via legacy variable OPENAI_WHATSAPP_INTENT_RETRIES; migrate to AI_WHATSAPP_INTENT_MAX_ATTEMPTS",
-  );
-}
+  const hasNewMaxAttempts = Boolean(readTrimmed(env, "AI_WHATSAPP_INTENT_MAX_ATTEMPTS"));
+  const legacyRetries = hasNewMaxAttempts ? null : readLegacyRetryCount(env);
+  const maxAttempts = hasNewMaxAttempts
+    ? config.maxAttempts
+    : legacyRetries !== null
+      ? legacyRetries + 1
+      : WHATSAPP_INTENT_BASELINE_MAX_ATTEMPTS;
+  if (legacyRetries !== null) {
+    usedLegacyVariables = true;
+    diagnostics.push(
+      "[deprecated] capability=WHATSAPP_INTENT resolved attempts via legacy variable OPENAI_WHATSAPP_INTENT_RETRIES; migrate to AI_WHATSAPP_INTENT_MAX_ATTEMPTS",
+    );
+  }
 
   return {
     ...config,
