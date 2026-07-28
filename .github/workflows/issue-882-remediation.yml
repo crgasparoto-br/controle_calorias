@@ -1,0 +1,73 @@
+name: Apply issue 882 remediation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - ".github/workflows/issue-882-remediation.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-882-remediation
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: stage issue 882 remediation'
+    runs-on: ubuntu-latest
+    env:
+      PATCH_SHA256: 6310141566b16a3afa817bfad789e6ddf49580830b3461e1038b8c0311b4fb3d
+      PATCH_BLOBS: >-
+        c75ca535095dae97180b62eec608a72f2d30bb51
+        d36542cf3aed3ae577b8c2d885317ccd2529d76a
+        a189e5dc99565ceb7cde1d32f982a9ef8dbba411
+        e7cce1f0c1660cbbe90de3352efd4b5b894cec39
+        f83514419b6ea382b04f29063d679960564080b1
+        b9eed652a3f2c7cbaf519a2ead301d95afc8fd4f
+        3a4bebc9cf50ac8e801f476e905f886b024ad3bb
+        53f850a3585fe11302b8861577501060f70cf942
+        de082881481cf9b63701a8003b2d9acc969e11d5
+        710939c46f935217087be289f6da3440b966cee6
+        4ef56e03b848189a782a297f3bfa3356c72ab9a3
+        b912f5e626774b568f603da51fdde573e7cb1ee6
+        7e2297e5b33cb57c6df0415d0e47f3d81b21031f
+        8c235b4164119a316c1dc24c6946125b9de8de45
+        5159e38e08fb97a24031700e524a09516809fb2e
+        a1c1342c2f0899be95b55c9f72f0aca4ef1f0e3f
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 2
+
+      - name: Fetch and verify remediation patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          : > /tmp/issue-882.patch
+          for blob in ${PATCH_BLOBS}; do
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${blob}" \
+              | jq -r '.content' \
+              | tr -d '\n' \
+              | base64 -d \
+              >> /tmp/issue-882.patch
+          done
+          echo "${PATCH_SHA256}  /tmp/issue-882.patch" | sha256sum -c -
+          git apply --check /tmp/issue-882.patch
+
+      - name: Apply remediation and remove temporary applicator
+        run: |
+          git apply --index /tmp/issue-882.patch
+          git rm -r .audit/staging/issue-882-remediation
+          git rm .github/workflows/issue-882-remediation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: resolve issue 882 audit findings"
+          git push origin HEAD:feat/875-professional-context-routes
