@@ -60,6 +60,12 @@ export const professionalMessageRouter = router({
             message: error.message,
           });
         }
+        if (error instanceof ProfessionalMessageAccessUnavailableError) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: error.message,
+          });
+        }
         throw error;
       }
     }),

@@ -7,6 +7,7 @@ import {
 } from "../../db";
 import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { textReply } from "../whatsapp/replyContract";
+import { ProfessionalMessageAccessUnavailableError } from "./messageRetryAccess";
 import type {
   PatientProfessionalMessageListInput,
   ProfessionalMessageCreateInput,
@@ -59,7 +60,7 @@ async function professionalScope(
       AND a.status = 'approved' AND p.active = 1 ORDER BY a.approvedAt DESC LIMIT 1`);
   const row = rows(result)[0];
   if (!row)
-    throw new Error("O acesso a este paciente não está mais disponível.");
+    throw new ProfessionalMessageAccessUnavailableError();
   return {
     db,
     authorizationId: String(row.authorizationId),
@@ -88,6 +89,33 @@ function assertCanCreate(
   );
 }
 
+async function lockProfessionalScope(
+  execute: SqlExecutor,
+  professionalUserId: number,
+  patientUserId: number,
+  authorizationId: string,
+  messageType: ProfessionalMessageCreateInput["messageType"]
+) {
+  const accessResult = await execute(sql`SELECT a.id AS authorizationId
+    FROM professionalPatientAuthorizations a
+    INNER JOIN professionalProfiles p ON p.userId = a.professionalUserId
+    WHERE a.id = ${authorizationId}
+      AND a.professionalUserId = ${professionalUserId}
+      AND a.patientUserId = ${patientUserId}
+      AND a.status = 'approved'
+      AND p.active = 1
+    LIMIT 1 FOR UPDATE`);
+  if (!rows(accessResult)[0]) {
+    throw new ProfessionalMessageAccessUnavailableError();
+  }
+  const trackingResult = await execute(sql`SELECT status
+    FROM professionalPatientTrackings
+    WHERE authorizationId = ${authorizationId}
+    LIMIT 1 FOR UPDATE`);
+  const trackingStatus = String(rows(trackingResult)[0]?.status ?? "not_started");
+  assertCanCreate(trackingStatus, messageType);
+}
+
 function responseCode() {
   return `RESP-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
@@ -99,6 +127,15 @@ function isRequest(type: string) {
   );
 }
 function serialize(row: Row) {
+  const trackingStatus = String(row.trackingStatus ?? "not_started");
+  const retryable =
+    String(row.state) === "failed" &&
+    String(row.requestedAction) === "send_whatsapp" &&
+    String(row.origin) !== "automatic" &&
+    Boolean(Number(row.hasDeliveryAttempt ?? 0)) &&
+    (trackingStatus === "active" ||
+      (trackingStatus === "paused" &&
+        String(row.messageType) === "administrative"));
   return {
     id: String(row.id),
     conversationId: String(row.conversationId),
@@ -119,6 +156,7 @@ function serialize(row: Row) {
     createdAt: time(row.createdAt),
     authorName: row.authorName ? String(row.authorName) : null,
     patientName: row.patientName ? String(row.patientName) : null,
+    retryable,
   };
 }
 
@@ -345,6 +383,13 @@ export async function createProfessionalMessage(
       : "professional_message_created";
   try {
     await scope.db.transaction(async tx => {
+      await lockProfessionalScope(
+        query => tx.execute(query),
+        professionalUserId,
+        normalizedInput.patientId,
+        scope.authorizationId,
+        normalizedInput.messageType
+      );
       const lockedInput = await normalizeSupersededDraft(
         query => tx.execute(query),
         professionalUserId,
@@ -520,6 +565,21 @@ function cursorSql(cursor?: { createdAt: number; id: string }) {
     ? sql`AND (m.createdAt < ${new Date(cursor.createdAt)} OR (m.createdAt = ${new Date(cursor.createdAt)} AND m.id < ${cursor.id}))`
     : sql``;
 }
+
+function messageSearchSql(search?: string) {
+  const normalized = search?.trim().toLocaleLowerCase("pt-BR");
+  if (!normalized) return sql``;
+  const pattern = `%${normalized}%`;
+  return sql`AND (
+    LOWER(COALESCE(patient.name, '')) LIKE ${pattern}
+    OR LOWER(COALESCE(m.content, '')) LIKE ${pattern}
+  )`;
+}
+
+function messageStateSql(state?: ProfessionalMessageListInput["state"]) {
+  return state ? sql`AND m.state = ${state}` : sql``;
+}
+
 export async function listProfessionalMessages(
   professionalUserId: number,
   input: ProfessionalMessageListInput
@@ -533,16 +593,27 @@ export async function listProfessionalMessages(
     : sql``;
   const result =
     await db.execute(sql`SELECT m.*, patient.name AS patientName,
+    COALESCE(t.status, 'not_started') AS trackingStatus,
+    EXISTS(
+      SELECT 1 FROM professionalMessageDeliveryAttempts attempt
+      WHERE attempt.messageId = m.id
+    ) AS hasDeliveryAttempt,
     CASE WHEN m.direction = 'patient_to_professional'
       THEN COALESCE(patient.name, author.name)
       ELSE COALESCE(profile.displayName, author.name)
     END AS authorName
     FROM professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
+    LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
     LEFT JOIN users author ON author.id = m.authorUserId
     LEFT JOIN users patient ON patient.id = m.patientUserId
     LEFT JOIN professionalProfiles profile ON profile.userId = m.professionalUserId
-    WHERE m.professionalUserId = ${professionalUserId} AND a.status = 'approved' ${patientFilter} ${cursorSql(input.cursor)}
+    WHERE m.professionalUserId = ${professionalUserId}
+      AND a.status = 'approved'
+      ${patientFilter}
+      ${messageSearchSql(input.search)}
+      ${messageStateSql(input.state)}
+      ${cursorSql(input.cursor)}
     ORDER BY m.createdAt DESC, m.id DESC LIMIT ${input.pageSize + 1}`);
   const items = rows(result);
   return {

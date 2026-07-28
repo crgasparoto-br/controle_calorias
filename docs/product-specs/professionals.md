@@ -333,9 +333,12 @@ Regras:
 - Os estados visíveis são `draft`, `pending`, `sent`, `failed` e `received`. `draft` nunca é visível ao paciente.
 - Mensagens automáticas ficam obrigatoriamente como rascunho. Sugestões da IA só podem ser enviadas após ação explícita do nutricionista e continuam identificadas como sugestão revisada.
 - Retry cria nova tentativa física sobre a mesma mensagem lógica. A chave idempotente impede criação duplicada.
+- A elegibilidade de retry é calculada no backend a partir da mensagem lógica, da ação original, das tentativas físicas existentes, da autorização e do acompanhamento. A interface não infere essa capacidade apenas pelo estado `failed`.
 - A chave idempotente de criação só recupera a operação original quando profissional, autorização, paciente, autoria, origem, tipo, conteúdo, ação solicitada e vínculos opcionais são equivalentes. Reutilização divergente retorna conflito seguro e nunca expõe nem recupera mensagem de outro contexto.
 - `requestedAction` registra `save_draft`, `send_web` ou `send_whatsapp` para mensagens profissionais; mensagens recebidas do paciente não possuem ação de criação profissional.
 - Durante acompanhamento pausado, somente mensagens administrativas podem ser enviadas. Encerramento e revogação bloqueiam novas mensagens; revogação também bloqueia a leitura profissional.
+- A criação revalida e bloqueia autorização, perfil e acompanhamento dentro da mesma transação que registra conversa, mensagem e histórico, impedindo escrita tardia após revogação ou encerramento concorrente.
+- Busca por paciente ou conteúdo e filtro por estado são aplicados no backend antes do cursor e do limite da caixa geral, para cobrir toda a coleção paginada e não apenas os itens já carregados no navegador.
 - O WhatsApp só separa uma resposta do pipeline nutricional quando encontra exatamente um código válido; texto ambíguo segue o roteamento pessoal normal.
 - Falhas do provedor registram somente detalhe sanitizado e preservam o conteúdo no histórico web.
 

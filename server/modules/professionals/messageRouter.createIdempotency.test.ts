@@ -80,4 +80,45 @@ describe("professionalMessageRouter.create idempotency boundary", () => {
         "Esta chave de operação já foi usada em outra mensagem. Recarregue a conversa e tente novamente.",
     });
   });
+
+  it("maps authorization revoked during creation to FORBIDDEN", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([
+        [
+          {
+            authorizationId: "authorization-42",
+            authorizationStatus: "approved",
+            trackingStatus: "active",
+            profileActive: 1,
+          },
+        ],
+      ])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]]);
+    const txExecute = vi.fn().mockResolvedValueOnce([[]]);
+    mocks.getDb.mockResolvedValue({
+      execute,
+      transaction: async (
+        callback: (tx: { execute: typeof txExecute }) => unknown
+      ) => callback({ execute: txExecute }),
+    });
+
+    await expect(
+      caller().create({
+        patientId: 42,
+        content: "Mensagem concorrente",
+        messageType: "guidance",
+        origin: "professional",
+        action: "save_draft",
+        idempotencyKey: "authorization-revoked-during-create",
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "O acesso a este paciente não está mais disponível.",
+    });
+    expect(txExecute).toHaveBeenCalledTimes(1);
+  });
 });

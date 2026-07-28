@@ -207,8 +207,17 @@ export const professionalMessageOriginSchema = z.enum([
   "ai_suggested",
   "professional",
 ]);
+export const professionalMessageStateSchema = z.enum([
+  "draft",
+  "pending",
+  "sent",
+  "failed",
+  "received",
+]);
 export const professionalMessageListSchema = z.object({
   patientId: z.number().int().positive().optional(),
+  search: z.string().trim().max(160).optional(),
+  state: professionalMessageStateSchema.optional(),
   cursor: z
     .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
     .optional(),

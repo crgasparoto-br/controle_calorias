@@ -30,6 +30,8 @@ let trackingStatus: "not_started" | "active" | "paused" | "ended" =
   "active";
 let patientSelected = true;
 let currentLocation = "/professional/patients/41/messages";
+let retryError = false;
+let retryVariables: { messageId: string } | undefined;
 
 function setMessages(
   items: any[],
@@ -81,8 +83,9 @@ vi.mock("@/lib/trpc", () => ({
           useMutation: () => ({
             mutate: retryMutate,
             isPending: false,
-            isError: false,
+            isError: retryError,
             error: null,
+            variables: retryVariables,
           }),
         },
       },
@@ -107,6 +110,8 @@ beforeEach(() => {
   trackingStatus = "active";
   patientSelected = true;
   currentLocation = "/professional/patients/41/messages";
+  retryError = false;
+  retryVariables = undefined;
 });
 
 describe("ProfessionalMessagesExperience", () => {
@@ -431,7 +436,7 @@ describe("ProfessionalMessagesExperience", () => {
     expect(listUseQuery.mock.calls).toEqual(
       expect.arrayContaining([
         [
-          { patientId: 41, pageSize: 20 },
+          expect.objectContaining({ patientId: 41, pageSize: 20 }),
           expect.objectContaining({
             enabled: true,
             refetchInterval: 30_000,
@@ -439,6 +444,116 @@ describe("ProfessionalMessagesExperience", () => {
           }),
         ],
       ])
+    );
+  });
+
+  it("sends inbox search and state filters to the paginated backend query", async () => {
+    patientSelected = false;
+    currentLocation = "/professional/messages";
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    await userEvent.type(
+      screen.getByPlaceholderText("Buscar paciente ou conteúdo"),
+      "Ana"
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText("Filtrar estado da mensagem"),
+      "failed"
+    );
+
+    expect(listUseQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        patientId: undefined,
+        pageSize: 20,
+        search: "Ana",
+        state: "failed",
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("shows retry only when the backend marks the logical message as retryable", async () => {
+    setMessages([
+      {
+        id: "failed-without-attempt",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "guidance",
+        content: "Falha sem tentativa física",
+        state: "failed",
+        retryable: false,
+        createdAt: Date.now(),
+      },
+      {
+        id: "failed-with-attempt",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "guidance",
+        content: "Falha elegível",
+        state: "failed",
+        retryable: true,
+        createdAt: Date.now() + 1,
+      },
+    ]);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    expect(
+      screen.getAllByRole("button", { name: "Tentar novamente" })
+    ).toHaveLength(1);
+  });
+
+  it("associates a retry failure only with the attempted message", async () => {
+    retryError = true;
+    retryVariables = { messageId: "failed-target" };
+    setMessages([
+      {
+        id: "failed-target",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "guidance",
+        content: "Falha alvo",
+        state: "failed",
+        retryable: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: "failed-sibling",
+        patientUserId: 41,
+        direction: "professional_to_patient",
+        origin: "professional",
+        messageType: "guidance",
+        content: "Falha irmã",
+        state: "failed",
+        retryable: true,
+        createdAt: Date.now() + 1,
+      },
+    ]);
+    const { default: Experience } = await import(
+      "./ProfessionalMessagesExperience"
+    );
+    render(<Experience />);
+
+    const articles = screen.getAllByRole("article");
+    const target = articles.find(article =>
+      article.textContent?.includes("Falha alvo")
+    );
+    const sibling = articles.find(article =>
+      article.textContent?.includes("Falha irmã")
+    );
+    expect(target?.textContent).toContain(
+      "Não foi possível tentar a entrega novamente."
+    );
+    expect(sibling?.textContent).not.toContain(
+      "Não foi possível tentar a entrega novamente."
     );
   });
 

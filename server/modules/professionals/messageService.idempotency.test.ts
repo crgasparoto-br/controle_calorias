@@ -90,6 +90,8 @@ function duplicateDb(options: {
   }
   const txExecute = vi
     .fn()
+    .mockResolvedValueOnce(scopeRow())
+    .mockResolvedValueOnce([[{ status: "active" }]])
     .mockResolvedValueOnce([{ affectedRows: 1 }])
     .mockResolvedValueOnce([[{ id: "conversation-41" }]])
     .mockRejectedValueOnce(new Error("Duplicate entry for idempotency key"));

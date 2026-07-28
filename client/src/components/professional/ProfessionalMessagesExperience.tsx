@@ -29,7 +29,6 @@ import {
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -60,6 +59,7 @@ type MessageOrigin =
   | "automatic"
   | "patient";
 type ComposerOrigin = Exclude<MessageOrigin, "patient">;
+type MessageState = "draft" | "pending" | "sent" | "failed" | "received";
 type Cursor = { createdAt: number; id: string };
 type MessageItem = {
   id: string;
@@ -73,6 +73,7 @@ type MessageItem = {
   createdAt?: number | null;
   authorName?: string | null;
   patientName?: string | null;
+  retryable?: boolean;
 };
 type MessageTemplate = {
   id: string;
@@ -148,6 +149,12 @@ export default function ProfessionalMessagesExperience() {
   }, [clearComposer, patientId]);
 
   useEffect(() => {
+    if (patientId) return;
+    setCursor(undefined);
+    setItems([]);
+  }, [patientId, search, stateFilter]);
+
+  useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return;
       event.preventDefault();
@@ -195,7 +202,16 @@ export default function ProfessionalMessagesExperience() {
     }
   );
   const messages = trpc.professionalRecord.messages.list.useQuery(
-    { patientId, cursor, pageSize: 20 },
+    {
+      patientId,
+      cursor,
+      pageSize: 20,
+      search: patientId ? undefined : search.trim() || undefined,
+      state:
+        patientId || stateFilter === "all"
+          ? undefined
+          : (stateFilter as MessageState),
+    },
     {
       retry: false,
       refetchInterval: cursor ? false : 30_000,
@@ -203,7 +219,15 @@ export default function ProfessionalMessagesExperience() {
     }
   );
   const latestMessages = trpc.professionalRecord.messages.list.useQuery(
-    { patientId, pageSize: 20 },
+    {
+      patientId,
+      pageSize: 20,
+      search: patientId ? undefined : search.trim() || undefined,
+      state:
+        patientId || stateFilter === "all"
+          ? undefined
+          : (stateFilter as MessageState),
+    },
     {
       enabled: Boolean(cursor),
       retry: false,
@@ -300,12 +324,8 @@ export default function ProfessionalMessagesExperience() {
     (paused && messageType === "administrative");
   const canDeliver = canCreateMessage && origin !== "automatic";
   const canRetry = (item: MessageItem) =>
-    Boolean(patientId) &&
-    item.state === "failed" &&
-    item.origin !== "automatic" &&
-    (trackingStatus === "active" ||
-      (paused && item.messageType === "administrative"));
-  const visibleItems = useMemo(() => {
+    Boolean(patientId) && item.retryable === true;
+  const visibleItems = (() => {
     const normalizedSearch = search.trim().toLowerCase();
     return items.filter(item => {
       const patientName = item.patientName ?? "";
@@ -318,7 +338,7 @@ export default function ProfessionalMessagesExperience() {
         (stateFilter === "all" || item.state === stateFilter)
       );
     });
-  }, [items, search, stateFilter]);
+  })();
 
   return (
     <div className="space-y-6" data-professional-messages-experience>
@@ -649,7 +669,7 @@ export default function ProfessionalMessagesExperience() {
                     </Button>
                   ) : null}
                 </div>
-                {retry.isError ? (
+                {retry.isError && retry.variables?.messageId === item.id ? (
                   <p role="alert" className="mt-2 text-xs text-destructive">
                     Não foi possível tentar a entrega novamente. Confirme o
                     acesso e o estado do acompanhamento.

@@ -121,6 +121,8 @@ describe("professional message supersession", () => {
       .mockResolvedValueOnce([[createdRow()]]);
     const txExecute = vi
       .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[{ status: "active" }]])
       .mockResolvedValueOnce([[originalDraft()]])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[{ id: "conversation-41" }]])
@@ -136,10 +138,16 @@ describe("professional message supersession", () => {
       origin: "ai_suggested",
     });
 
-    const insertText = collectStrings(txExecute.mock.calls[3]?.[0]).join(" ");
+    const insertText = collectStrings(txExecute.mock.calls[5]?.[0]).join(" ");
     expect(insertText).toContain("ai_suggested");
-    const lockText = collectStrings(txExecute.mock.calls[0]?.[0]).join(" ");
+    const lockText = collectStrings(txExecute.mock.calls[2]?.[0]).join(" ");
     expect(lockText).toContain("FOR UPDATE");
+    expect(collectStrings(txExecute.mock.calls[0]?.[0]).join(" ")).toContain(
+      "FOR UPDATE"
+    );
+    expect(collectStrings(txExecute.mock.calls[1]?.[0]).join(" ")).toContain(
+      "FOR UPDATE"
+    );
   });
 
   it.each(invalidSupersessionCases)("rejects supersession of %s with the same public error", async (_case, overrides) => {
@@ -171,6 +179,8 @@ describe("professional message supersession", () => {
       .mockResolvedValueOnce([[]]);
     const txExecute = vi
       .fn()
+      .mockResolvedValueOnce(scopeRow())
+      .mockResolvedValueOnce([[{ status: "active" }]])
       .mockResolvedValueOnce([[originalDraft({ state: "sent" })]]);
     const transaction = vi.fn(
       async (callback: (tx: { execute: typeof txExecute }) => unknown) =>
@@ -181,9 +191,9 @@ describe("professional message supersession", () => {
     await expect(createProfessionalMessage(7, input)).rejects.toBeInstanceOf(
       ProfessionalMessageSupersessionConflictError
     );
-    expect(txExecute).toHaveBeenCalledTimes(1);
+    expect(txExecute).toHaveBeenCalledTimes(3);
     expect(
-      collectStrings(txExecute.mock.calls[0]?.[0]).join(" ")
+      collectStrings(txExecute.mock.calls[2]?.[0]).join(" ")
     ).toContain("FOR UPDATE");
   });
 
