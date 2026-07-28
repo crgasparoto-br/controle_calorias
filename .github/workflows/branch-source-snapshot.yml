@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Extract, verify and apply remediation
+      - name: Assemble, verify and apply remediation
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -28,23 +28,29 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
-          python - <<'PY'
-          from pathlib import Path
-          import base64
-          import hashlib
-
-          source = Path('.github/workflows/issue-882-remediation-applier.yml').read_text()
-          payload = source.split("<<'PATCH_BASE64'\n", 1)[1].split("\n          PATCH_BASE64", 1)[0]
-          raw = base64.b64decode(''.join(payload.split()))
-          expected = '569c09cb4028c5b86436d877f23f3f158d025daef331e8fae330e4c4046df9e4'
-          actual = hashlib.sha256(raw).hexdigest()
-          if actual != expected:
-              raise SystemExit(f'patch hash mismatch: {actual}')
-          Path('/tmp/issue882.patch').write_bytes(raw)
-          PY
+          cat \
+            .github/issue-882-patch/part1.b64 \
+            .github/issue-882-patch/part2.b64 \
+            .github/issue-882-patch/part3.b64 \
+            .github/issue-882-patch/part4-00.b64 \
+            .github/issue-882-patch/part4r-00.b64 \
+            .github/issue-882-patch/part4r-01.b64 \
+            .github/issue-882-patch/part4r-02.b64 \
+            .github/issue-882-patch/part4r-03.b64 \
+            .github/issue-882-patch/part4r-04.b64 \
+            .github/issue-882-patch/part4r-05.b64 \
+            .github/issue-882-patch/part4r-06.b64 \
+            .github/issue-882-patch/part4r-07.b64 \
+            .github/issue-882-patch/part4r-08.b64 \
+            .github/issue-882-patch/part4r-09.b64 \
+            .github/issue-882-patch/part4r-10.b64 \
+            > /tmp/issue882.patch.b64
+          base64 -d /tmp/issue882.patch.b64 > /tmp/issue882.patch
+          echo "569c09cb4028c5b86436d877f23f3f158d025daef331e8fae330e4c4046df9e4  /tmp/issue882.patch" | sha256sum -c -
           git apply --check /tmp/issue882.patch
           git apply /tmp/issue882.patch
           git show 25702f3bbfbff8e0e7f1abc8fd273f9deefb5cf8:.github/workflows/branch-source-snapshot.yml > .github/workflows/branch-source-snapshot.yml
+          rm -rf .github/issue-882-patch
           rm -f \
             .github/workflows/issue-882-remediation-applier.yml \
             .github/workflows/issue-882-remediation-applier-v2.yml \
