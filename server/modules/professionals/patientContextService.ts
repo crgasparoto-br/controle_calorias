@@ -6,6 +6,19 @@ import { getProfessionalHistoryEventLabel } from "./historyPresentation";
 import { getProfessionalProfile } from "./service";
 
 type Row = Record<string, unknown>;
+type Database = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+const OPTIONAL_HISTORY_WAIT_MS = 250;
+const OPTIONAL_HISTORY_CACHE_TTL_MS = 10_000;
+const OPTIONAL_HISTORY_TIMEOUT_TTL_MS = 1_000;
+const OPTIONAL_HISTORY_CACHE_LIMIT = 500;
+const HISTORY_TIMEOUT = Symbol("professional-patient-history-timeout");
+
+const optionalHistoryCache = new Map<
+  string,
+  { expiresAt: number; row: Row | undefined }
+>();
+const optionalHistoryInFlight = new Map<string, Promise<Row | undefined>>();
 
 function rows(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
@@ -16,6 +29,88 @@ function timestamp(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function optionalHistoryKey(professionalUserId: number, patientUserId: number) {
+  return `${professionalUserId}:${patientUserId}`;
+}
+
+function storeOptionalHistory(
+  key: string,
+  row: Row | undefined,
+  ttlMs = OPTIONAL_HISTORY_CACHE_TTL_MS
+) {
+  if (optionalHistoryCache.size >= OPTIONAL_HISTORY_CACHE_LIMIT) {
+    optionalHistoryCache.clear();
+  }
+  optionalHistoryCache.set(key, {
+    expiresAt: Date.now() + ttlMs,
+    row,
+  });
+}
+
+async function getOptionalHistoryWithinBudget(
+  db: Database,
+  professionalUserId: number,
+  patientUserId: number
+) {
+  const key = optionalHistoryKey(professionalUserId, patientUserId);
+  const cached = optionalHistoryCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.row;
+  if (cached) optionalHistoryCache.delete(key);
+
+  let lookup = optionalHistoryInFlight.get(key);
+  if (!lookup) {
+    lookup = db
+      .execute(sql`
+        SELECT
+          h.occurredAt AS lastProfessionalActivityAt,
+          h.eventType AS lastProfessionalActivityType
+        FROM professionalHistoryEvents h
+        WHERE h.professionalUserId = ${professionalUserId}
+          AND h.patientUserId = ${patientUserId}
+        ORDER BY h.occurredAt DESC, h.id DESC
+        LIMIT 1
+      `)
+      .then(result => {
+        const row = rows(result)[0];
+        storeOptionalHistory(key, row);
+        return row;
+      })
+      .catch(error => {
+        logPersistenceWarning("professional_patient_context_history", error);
+        storeOptionalHistory(
+          key,
+          undefined,
+          OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+        );
+        return undefined;
+      })
+      .finally(() => {
+        optionalHistoryInFlight.delete(key);
+      });
+    optionalHistoryInFlight.set(key, lookup);
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timedResult = await Promise.race([
+    lookup,
+    new Promise<typeof HISTORY_TIMEOUT>(resolve => {
+      timeout = setTimeout(() => resolve(HISTORY_TIMEOUT), OPTIONAL_HISTORY_WAIT_MS);
+    }),
+  ]);
+  if (timeout) clearTimeout(timeout);
+
+  if (timedResult === HISTORY_TIMEOUT) {
+    storeOptionalHistory(key, undefined, OPTIONAL_HISTORY_TIMEOUT_TTL_MS);
+    return undefined;
+  }
+  return timedResult;
+}
+
+export function _forTestOnly_clearProfessionalPatientContextMetadataCache() {
+  optionalHistoryCache.clear();
+  optionalHistoryInFlight.clear();
 }
 
 export async function getProfessionalPatientContext(
@@ -78,23 +173,11 @@ export async function getProfessionalPatientContext(
     return shared;
   }
 
-  let lastHistory: Row | undefined;
-  try {
-    const historyResult = await db.execute(sql`
-      SELECT
-        h.occurredAt AS lastProfessionalActivityAt,
-        h.eventType AS lastProfessionalActivityType
-      FROM professionalHistoryEvents h
-      WHERE h.professionalUserId = ${professionalUserId}
-        AND h.patientUserId = ${input.patientId}
-      ORDER BY h.occurredAt DESC, h.id DESC
-      LIMIT 1
-    `);
-    lastHistory = rows(historyResult)[0];
-  } catch (error) {
-    logPersistenceWarning("professional_patient_context_history", error);
-  }
-
+  const lastHistory = await getOptionalHistoryWithinBudget(
+    db,
+    professionalUserId,
+    input.patientId
+  );
   const lastActivityAt = timestamp(lastHistory?.lastProfessionalActivityAt);
   const lastActivityType = lastHistory?.lastProfessionalActivityType
     ? String(lastHistory.lastProfessionalActivityType)
