@@ -1,19 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const findRecentMessagesMock = vi.fn();
+const buildWhatsappIntentContextMock = vi.fn();
 const createOpenAiClientMock = vi.fn();
 const responsesCreateMock = vi.fn();
 
-vi.mock("../../repositories/whatsappConversationRepository", () => ({
-  createDrizzleWhatsAppConversationRepository: () => ({
-    findRecentMessages: findRecentMessagesMock,
-  }),
+vi.mock("./intentContext", () => ({
+  buildWhatsappIntentContext: (...args: unknown[]) => buildWhatsappIntentContextMock(...args),
 }));
 
 vi.mock("../../db", () => ({
-  getDb: vi.fn(async () => null),
   logInferenceEvent: vi.fn(),
-  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../../_core/openaiClient", () => ({
@@ -52,11 +48,21 @@ vi.mock("../insights/service", () => ({
 
 const { executeWhatsappAiQuestionIntent } = await import("./aiQuestionAssistant");
 
+function contextWithTurns(recentTurns: Array<{ direction: "inbound" | "outbound"; text: string | null }>) {
+  return {
+    recentTurns: recentTurns.map((turn, index) => ({
+      ...turn,
+      occurredAtIso: new Date(Date.UTC(2026, 6, 29, 15, index)).toISOString(),
+    })),
+  };
+}
+
 describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
   beforeEach(() => {
-    findRecentMessagesMock.mockReset();
+    buildWhatsappIntentContextMock.mockReset();
     createOpenAiClientMock.mockReset();
     responsesCreateMock.mockReset();
+    buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([]));
     createOpenAiClientMock.mockReturnValue({ responses: { create: responsesCreateMock } });
     responsesCreateMock.mockResolvedValue({ output_text: "ok" });
   });
@@ -65,79 +71,70 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
     vi.clearAllMocks();
   });
 
-  it("inclui a pergunta e a resposta anteriores no prompt enviado à IA na segunda mensagem", async () => {
-    findRecentMessagesMock.mockResolvedValue([
+  it("inclui somente os turnos selecionados pelo contexto canônico no prompt", async () => {
+    buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([
       {
-        id: 10,
         direction: "inbound",
         text: "me dê uma sugestão para meu lanche da tarde",
-        transcript: null,
-        captionText: null,
       },
       {
-        id: 11,
         direction: "outbound",
-        text: "Para o seu lanche da tarde, sugiro: iogurte, banana ou mix de frutas. Você tem frutas da sua preferência em casa?",
-        transcript: null,
-        captionText: null,
+        text: "Para o seu lanche da tarde, sugiro frutas. Quais você tem em casa?",
       },
-      {
-        id: 12,
-        direction: "inbound",
-        text: "tenho, maçã, pêra, uva, banana prata, caqui fuio",
-        transcript: null,
-        captionText: null,
-      },
-    ]);
+    ]));
 
     await executeWhatsappAiQuestionIntent(42, {
-      text: "/ tenho, maçã, pêra, uva, banana prata, caqui fuio",
+      text: "/ tenho maçã, pêra, uva e banana prata",
       receivedAt: new Date("2026-07-29T16:48:00Z"),
-      conversationId: 7,
-      messageId: 12,
+      userTimezone: "America/Sao_Paulo",
     });
 
-    expect(findRecentMessagesMock).toHaveBeenCalledWith(7, expect.any(Number));
+    expect(buildWhatsappIntentContextMock).toHaveBeenCalledWith(42, {
+      receivedAt: new Date("2026-07-29T16:48:00Z"),
+      consumer: "slash_assistant",
+      flow: "text",
+      timeZone: "America/Sao_Paulo",
+    });
 
     const requestArgs = responsesCreateMock.mock.calls[0][0];
     const promptText = requestArgs.input[0].content[0].text as string;
 
-    expect(promptText).toContain("lanche da tarde");
-    expect(promptText).toContain("Você tem frutas da sua preferência em casa?");
-    expect(promptText).not.toContain("tenho, maçã, pêra, uva, banana prata, caqui fuio\nUsuário");
+    expect(promptText).toContain("Usuário: me dê uma sugestão para meu lanche da tarde");
+    expect(promptText).toContain("Assistente: Para o seu lanche da tarde, sugiro frutas. Quais você tem em casa?");
+    expect(promptText.match(/tenho maçã, pêra, uva e banana prata/g)).toHaveLength(1);
   });
 
-  it("não referencia a mensagem atual dentro do bloco de histórico", async () => {
-    findRecentMessagesMock.mockResolvedValue([
+  it("usa o texto sanitizado já selecionado pelo contexto canônico", async () => {
+    buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([
       {
-        id: 20,
         direction: "inbound",
-        text: "quantas calorias tem uma maçã?",
-        transcript: null,
-        captionText: null,
+        text: "meu e-mail é [email_redacted] e quero uma sugestão de lanche",
       },
-    ]);
+      {
+        direction: "outbound",
+        text: "Você prefere fruta ou iogurte?",
+      },
+    ]));
 
     await executeWhatsappAiQuestionIntent(42, {
-      text: "/ quantas calorias tem uma maçã?",
-      receivedAt: new Date("2026-07-29T16:00:00Z"),
-      conversationId: 7,
-      messageId: 20,
+      text: "/ fruta",
+      receivedAt: new Date("2026-07-29T16:48:00Z"),
     });
 
     const requestArgs = responsesCreateMock.mock.calls[0][0];
     const promptText = requestArgs.input[0].content[0].text as string;
-
-    expect(promptText).not.toContain("Histórico recente da conversa");
+    expect(promptText).toContain("[email_redacted]");
+    expect(promptText).not.toContain("pessoa@example.com");
   });
 
-  it("não consulta histórico quando não há conversationId (sem regressão em fluxos sem persistência)", async () => {
+  it("não adiciona histórico quando rollout ou fallback canônico seleciona janela vazia", async () => {
+    buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([]));
+
     await executeWhatsappAiQuestionIntent(42, {
       text: "/ quantas calorias tem uma banana?",
       receivedAt: new Date("2026-07-29T16:00:00Z"),
     });
 
-    expect(findRecentMessagesMock).not.toHaveBeenCalled();
     const requestArgs = responsesCreateMock.mock.calls[0][0];
     const promptText = requestArgs.input[0].content[0].text as string;
     expect(promptText).not.toContain("Histórico recente da conversa");
