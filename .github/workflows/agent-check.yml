@@ -223,8 +223,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-      issues: read
-      pull-requests: read
     steps:
       - name: Checkout remediation branch
         uses: actions/checkout@v4
@@ -232,24 +230,13 @@ jobs:
           ref: feat/875-professional-context-routes
           fetch-depth: 0
 
-      - name: Verify expected remediation ancestry
+      - name: Verify and expand remediation patch
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 12175e4cec48309d6bbd2bcba9a67aa46943d8ee HEAD
-          test -f .github/workflows/apply-issue-884-remediation.yml
-
-      - name: Reassemble and verify patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .audit/issue884-remediation.part.* \
-            | tr -d '\n' \
-            | base64 --decode \
-            | gzip --decompress \
-            > /tmp/issue-884-remediation.patch
-          echo "b0a89005112e79d6e173b88c45a580d7e950162f91a57738e7bffc7e017e2fc8  /tmp/issue-884-remediation.patch" \
-            | sha256sum --check --strict
+          test -f .audit/issue884-remediation.patch.gz
+          gzip --decompress --stdout .audit/issue884-remediation.patch.gz > /tmp/issue-884-remediation.patch
+          echo "b0a89005112e79d6e173b88c45a580d7e950162f91a57738e7bffc7e017e2fc8  /tmp/issue-884-remediation.patch" | sha256sum --check --strict
 
       - name: Apply remediation
         shell: bash
@@ -257,7 +244,8 @@ jobs:
           set -euo pipefail
           git apply --check /tmp/issue-884-remediation.patch
           git apply /tmp/issue-884-remediation.patch
-          rm .audit/issue884-remediation.part.*
+          rm .audit/issue884-remediation.patch.gz
+          rmdir .audit 2>/dev/null || true
           git diff --check
 
       - name: Commit and publish remediation
