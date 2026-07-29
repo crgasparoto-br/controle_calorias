@@ -21,7 +21,7 @@ import { useLocation } from "wouter";
 
 function SettingsContent() {
   const [, setLocation] = useLocation();
-  const { refresh: refreshAuth } = useAuth();
+  const { refresh: refreshAuth, user } = useAuth();
   const utils = trpc.useUtils();
   const query = trpc.professionalRecord.settings.get.useQuery(undefined, {
     retry: false,
@@ -62,13 +62,13 @@ function SettingsContent() {
   };
 
   const clearProfessionalData = async () => {
-    await Promise.all([
+    await Promise.allSettled([
       utils.professionalRecord.get.cancel(),
       utils.professionalRecord.messages.list.cancel(),
       utils.professionalRecord.operationalAlerts.list.cancel(),
       utils.professionalRecord.ai.priorities.cancel(),
     ]);
-    await Promise.all([
+    await Promise.allSettled([
       utils.professionalRecord.get.reset(),
       utils.professionalRecord.messages.list.reset(),
       utils.professionalRecord.operationalAlerts.list.reset(),
@@ -77,6 +77,28 @@ function SettingsContent() {
       utils.nutrition.professionals.patientPeriodBundle.reset(),
       utils.nutrition.professionals.patientTimeZone.reset(),
     ]);
+  };
+
+  const applyConfirmedAvailability = (active: boolean) => {
+    utils.nutrition.professionals.profile.setData(undefined, currentProfile =>
+      currentProfile ? { ...currentProfile, active } : currentProfile
+    );
+    utils.professionalRecord.settings.get.setData(undefined, currentSettings =>
+      currentSettings
+        ? {
+            ...currentSettings,
+            profile: currentSettings.profile
+              ? { ...currentSettings.profile, active }
+              : currentSettings.profile,
+          }
+        : currentSettings
+    );
+    utils.auth.me.setData(undefined, currentUser => {
+      const confirmedUser = currentUser ?? user;
+      return confirmedUser
+        ? { ...confirmedUser, professionalProfileActive: active }
+        : currentUser;
+    });
   };
 
   const updateIdentity =
@@ -96,10 +118,16 @@ function SettingsContent() {
     });
   const setActive = trpc.professionalRecord.settings.setActive.useMutation({
     onSuccess: async result => {
-      await clearProfessionalData();
-      await invalidateSettings();
-      await refreshAuth();
-      if (!result.active) setLocation("/settings?tab=profissional");
+      applyConfirmedAvailability(result.active);
+      try {
+        await Promise.allSettled([
+          clearProfessionalData(),
+          invalidateSettings(),
+          refreshAuth(),
+        ]);
+      } finally {
+        if (!result.active) setLocation("/settings?tab=profissional");
+      }
     },
   });
 
