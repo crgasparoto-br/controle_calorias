@@ -3,14 +3,13 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Button } from "./button";
-import { TooltipProvider } from "./tooltip";
 
 function renderTrackingButtons() {
   render(
-    <TooltipProvider delayDuration={0}>
+    <>
       <Button variant="outline">Pausar</Button>
       <Button variant="destructive">Encerrar</Button>
-    </TooltipProvider>
+    </>
   );
 }
 
@@ -31,11 +30,7 @@ describe("Button tracking action tooltips", () => {
   });
 
   it("does not add a cycle tooltip to unrelated buttons", () => {
-    render(
-      <TooltipProvider delayDuration={0}>
-        <Button variant="outline">Voltar</Button>
-      </TooltipProvider>
-    );
+    render(<Button variant="outline">Voltar</Button>);
 
     expect(
       screen.getByRole("button", { name: "Voltar" }).getAttribute("title")
