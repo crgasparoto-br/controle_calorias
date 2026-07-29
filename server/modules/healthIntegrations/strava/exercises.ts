@@ -4,6 +4,7 @@ import { tryCreateQuickEditLinkForExercise } from "../../quickEdit/service";
 import { textReply, withCtaUrl } from "../../whatsapp/replyContract";
 import { sendWhatsAppLogicalReply } from "../../whatsapp/replyTransport";
 import { buildWhatsAppCanonicalExerciseReply } from "../../whatsapp/domainReplyFormatters";
+import { getWhatsAppMealGoalProgress } from "../../whatsapp/goalProgressService";
 import {
   fetchStravaActivityDetail,
   getStravaMaxActivityDetailRequestsPerSync,
@@ -89,6 +90,7 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
   occurredAt: string;
   notes?: string | null;
   timeZone?: string;
+  goalProgress?: Awaited<ReturnType<typeof getWhatsAppMealGoalProgress>>;
 }) {
   return buildWhatsAppCanonicalExerciseReply({
     activity: input.activityType,
@@ -96,6 +98,7 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
     calories: input.caloriesBurned,
     occurredAtLabel: formatStravaExerciseDate(input.occurredAt, input.timeZone),
     caloriesEstimated: /calorias estimadas/i.test(input.notes ?? ""),
+    goalProgress: input.goalProgress,
   });
 }
 
@@ -136,7 +139,8 @@ async function sendStravaExerciseImportedWhatsAppMessage(
       return "skipped" as const;
     }
 
-    const message = buildStravaExerciseImportedWhatsAppMessage({ ...exercise, timeZone });
+    const goalProgress = await getWhatsAppMealGoalProgress(userId, new Date(exercise.occurredAt), timeZone);
+    const message = buildStravaExerciseImportedWhatsAppMessage({ ...exercise, timeZone, goalProgress });
     const quickEditLink = await tryCreateQuickEditLinkForExercise({ userId, exerciseId });
     const logicalReply = quickEditLink?.url
       ? withCtaUrl(textReply(message), { buttonText: "Ver exercício", url: quickEditLink.url })

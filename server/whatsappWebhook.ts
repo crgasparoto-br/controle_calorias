@@ -509,6 +509,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         text: message.text?.body,
         receivedAt: resolveWhatsAppMessageOccurredAt(message),
         userTimezone,
+        conversationId: lifecycleHandle?.conversationId ?? null,
+        messageId: lifecycleHandle?.messageId ?? null,
       });
       if (aiQuestionResult) {
         logInferenceEvent({

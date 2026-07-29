@@ -4,12 +4,22 @@ import {
   createOpenAiClient,
   isOpenAiConfigured,
 } from "../../_core/openaiClient";
-import { logInferenceEvent } from "../../db";
+import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
+import {
+  createDrizzleWhatsAppConversationRepository,
+  type WhatsAppConversationMessageRecord,
+} from "../../repositories/whatsappConversationRepository";
 
 const AI_QUESTION_PREFIX = "/";
 const MAX_REPLY_LENGTH = 1_500;
+const MAX_HISTORY_MESSAGES = 12;
+
+const conversationRepository = createDrizzleWhatsAppConversationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 
 type InsightsService = typeof import("../insights/service");
 type DashboardTodayOverview = Awaited<ReturnType<InsightsService["getDashboardTodayOverview"]>>;
@@ -164,6 +174,22 @@ async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone
   };
 }
 
+function formatHistoryMessage(message: WhatsAppConversationMessageRecord): string | null {
+  const text = message.text ?? message.transcript ?? message.captionText;
+  if (!text) return null;
+  const speaker = message.direction === "inbound" ? "Usuário" : "Assistente";
+  return `${speaker}: ${text}`;
+}
+
+async function buildRecentHistory(conversationId: number | null, currentMessageId: number | null) {
+  if (!conversationId) return [];
+  const messages = await conversationRepository.findRecentMessages(conversationId, MAX_HISTORY_MESSAGES);
+  return messages
+    .filter(message => message.id !== currentMessageId)
+    .map(formatHistoryMessage)
+    .filter((line): line is string => Boolean(line));
+}
+
 function buildInstructions() {
   return [
     "Você é o assistente de IA do Controle de Calorias no WhatsApp.",
@@ -178,7 +204,7 @@ function buildInstructions() {
   ].join("\n");
 }
 
-async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBase) {
+async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
   const client = createOpenAiClient();
   const response = await client.responses.create({
     model: ENV.openaiModel,
@@ -190,6 +216,13 @@ async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBa
       content: [{
         type: "input_text",
         text: [
+          ...(recentHistory.length
+            ? [
+                "Histórico recente da conversa no WhatsApp (mais antigo primeiro), use para dar continuidade ao diálogo:",
+                recentHistory.join("\n"),
+                "",
+              ]
+            : []),
           `Pergunta recebida no WhatsApp: ${question}`,
           "",
           "Base de conhecimento do usuário, obtida do banco de dados do sistema:",
@@ -204,7 +237,13 @@ async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBa
 
 export async function executeWhatsappAiQuestionIntent(
   userId: number,
-  input: { text?: string | null; receivedAt?: Date; userTimezone?: string | null },
+  input: {
+    text?: string | null;
+    receivedAt?: Date;
+    userTimezone?: string | null;
+    conversationId?: number | null;
+    messageId?: number | null;
+  },
 ): Promise<WhatsappAiQuestionResult | null> {
   if (!isWhatsappAiQuestionText(input.text)) {
     return null;
@@ -236,8 +275,11 @@ export async function executeWhatsappAiQuestionIntent(
   const timeZone = input.userTimezone ?? await getWhatsAppOperationTimeZone(userId);
 
   try {
-    const knowledgeBase = await buildUserKnowledgeBase(userId, receivedAt, timeZone);
-    const reply = await answerWithOpenAi(question, knowledgeBase);
+    const [knowledgeBase, recentHistory] = await Promise.all([
+      buildUserKnowledgeBase(userId, receivedAt, timeZone),
+      buildRecentHistory(input.conversationId ?? null, input.messageId ?? null),
+    ]);
+    const reply = await answerWithOpenAi(question, knowledgeBase, recentHistory);
 
     return {
       handled: true,
@@ -276,7 +318,7 @@ export async function executeWhatsappAiQuestionIntent(
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {
-  usesRecentWindow: false,
+  usesRecentWindow: true,
   usesSummary: false,
   usesPendingOperation: false,
   usesLongTermMemory: false,
