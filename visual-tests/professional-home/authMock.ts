@@ -6,6 +6,12 @@ type VisualAuthUser = {
   professionalProfileActive: boolean;
 };
 
+declare global {
+  interface Window {
+    __setVisualProfessionalProfileActive?: (active: boolean) => void;
+  }
+}
+
 let professionalProfileActive = true;
 const listeners = new Set<() => void>();
 
@@ -30,6 +36,11 @@ export function setVisualProfessionalProfileActive(active: boolean) {
   if (professionalProfileActive === active) return;
   professionalProfileActive = active;
   for (const listener of listeners) listener();
+}
+
+if (typeof window !== "undefined") {
+  window.__setVisualProfessionalProfileActive =
+    setVisualProfessionalProfileActive;
 }
 
 export function useAuth() {
