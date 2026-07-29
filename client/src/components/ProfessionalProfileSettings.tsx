@@ -113,10 +113,19 @@ export default function ProfessionalProfileSettings() {
     ]);
   };
 
-  const applyConfirmedProfile = (
-    savedProfile: NonNullable<typeof profile.data>
-  ) => {
-    utils.nutrition.professionals.profile.setData(undefined, savedProfile);
+  const applyConfirmedProfile = (savedProfile: {
+    userId: number;
+    displayName: string;
+    registrationNumber?: string;
+    active: boolean;
+    createdAt: number;
+    updatedAt: number;
+  }) => {
+    const confirmedProfile = {
+      ...savedProfile,
+      registrationNumber: savedProfile.registrationNumber,
+    };
+    utils.nutrition.professionals.profile.setData(undefined, confirmedProfile);
     utils.auth.me.setData(undefined, currentUser => {
       const confirmedUser = currentUser ?? user;
       return confirmedUser
