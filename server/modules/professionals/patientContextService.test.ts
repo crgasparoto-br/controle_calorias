@@ -19,7 +19,10 @@ vi.mock("./service", () => ({
   getProfessionalProfile: mocks.getProfessionalProfile,
 }));
 
-import { getProfessionalPatientContext } from "./patientContextService";
+import {
+  _forTestOnly_clearProfessionalPatientContextMetadataCache,
+  getProfessionalPatientContext,
+} from "./patientContextService";
 
 const professionalActivityAt = new Date("2026-07-24T15:30:00.000Z");
 const unrelatedMealActivityAt = new Date("2026-07-20T08:00:00.000Z");
@@ -63,6 +66,8 @@ function setQueryResults(
 }
 
 beforeEach(() => {
+  vi.useRealTimers();
+  _forTestOnly_clearProfessionalPatientContextMetadataCache();
   mocks.assertProfessionalResourceAccess.mockReset();
   mocks.execute.mockReset();
   mocks.getDb.mockReset();
@@ -107,6 +112,48 @@ describe("getProfessionalPatientContext", () => {
       "ORDER BY h.occurredAt DESC, h.id DESC"
     );
     expect(historyQueryText).toContain("h.eventType");
+  });
+
+  it("reuses optional history metadata during the immediate navigation validation", async () => {
+    mocks.execute.mockReset();
+    mocks.execute
+      .mockResolvedValueOnce([[defaultContext]])
+      .mockResolvedValueOnce([[defaultHistory]])
+      .mockResolvedValueOnce([[defaultContext]]);
+
+    const first = await getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+    const second = await getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+
+    expect(first.lastActivityAt).toBe(professionalActivityAt.getTime());
+    expect(second.lastActivityAt).toBe(professionalActivityAt.getTime());
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not let slow optional history metadata block the authorized context", async () => {
+    vi.useFakeTimers();
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockReturnValueOnce(new Promise(() => undefined));
+
+    const resultPromise = getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+    await vi.advanceTimersByTimeAsync(250);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      patientId: 41,
+      authorizationId: "authorization-1",
+      lastActivityAt: null,
+      lastActivityLabel: null,
+      trackingStatus: "paused",
+    });
   });
 
   it("returns explicit nulls when stable header metadata is absent", async () => {
