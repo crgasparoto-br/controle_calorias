@@ -10,12 +10,42 @@ import {
 
 const mocks = vi.hoisted(() => ({
   location: "/professional/patients/10",
-  profileActive: true,
   removeQueries: vi.fn(),
   setLocation: vi.fn(),
 }));
-
+const refreshAuth = vi.fn(async () => undefined);
+const profileRefetch = vi.fn(async () => undefined);
+const patientContextRefetch = vi.fn(async () => undefined);
 const cancel = vi.fn(async () => undefined);
+
+const authState = {
+  loading: false,
+  user: { id: 42, professionalProfileActive: true },
+};
+const profileState = {
+  data: { active: true },
+  error: null,
+  isError: false,
+  isFetchedAfterMount: true,
+  isFetching: false,
+  isSuccess: true,
+  refetch: profileRefetch,
+};
+const patientContextState = {
+  data: {
+    authorizationId: "access-10",
+    authorizationStatus: "approved" as const,
+    displayName: "Ana",
+    patientId: 10,
+    trackingStatus: "active" as const,
+  },
+  error: null,
+  isError: false,
+  isFetchedAfterMount: true,
+  isFetching: false,
+  isSuccess: true,
+  refetch: patientContextRefetch,
+};
 const stableUtils = {
   nutrition: {
     professionals: {
@@ -33,13 +63,14 @@ const stableUtils = {
     officialGoal: { professionalState: { cancel } },
   },
 };
+const queryClient = {
+  removeQueries: mocks.removeQueries,
+  getQueryCache: () => ({ subscribe: () => () => undefined }),
+  getMutationCache: () => ({ subscribe: () => () => undefined }),
+};
 
 vi.mock("@/_core/hooks/useAuth", () => ({
-  useAuth: () => ({
-    loading: false,
-    refresh: vi.fn(async () => undefined),
-    user: { id: 42, professionalProfileActive: true },
-  }),
+  useAuth: () => ({ ...authState, refresh: refreshAuth }),
 }));
 
 vi.mock("wouter", () => ({
@@ -47,11 +78,7 @@ vi.mock("wouter", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({
-    removeQueries: mocks.removeQueries,
-    getQueryCache: () => ({ subscribe: () => () => undefined }),
-    getMutationCache: () => ({ subscribe: () => () => undefined }),
-  }),
+  useQueryClient: () => queryClient,
 }));
 
 vi.mock("@/hooks/useProfessionalAccessRevocationStream", () => ({
@@ -64,35 +91,13 @@ vi.mock("@/lib/trpc", () => ({
     nutrition: {
       professionals: {
         profile: {
-          useQuery: () => ({
-            data: { active: mocks.profileActive },
-            error: null,
-            isError: false,
-            isFetchedAfterMount: true,
-            isFetching: false,
-            isSuccess: true,
-            refetch: vi.fn(async () => undefined),
-          }),
+          useQuery: () => profileState,
         },
       },
     },
     professionalRecord: {
       context: {
-        useQuery: () => ({
-          data: {
-            authorizationId: "access-10",
-            authorizationStatus: "approved",
-            displayName: "Ana",
-            patientId: 10,
-            trackingStatus: "active",
-          },
-          error: null,
-          isError: false,
-          isFetchedAfterMount: true,
-          isFetching: false,
-          isSuccess: true,
-          refetch: vi.fn(async () => undefined),
-        }),
+        useQuery: () => patientContextState,
       },
     },
   },
@@ -141,9 +146,12 @@ describe("ProfessionalLayout profile deactivation", () => {
     clearAllProfessionalPatientDraftSnapshots();
     cancel.mockClear();
     mocks.location = "/professional/patients/10";
-    mocks.profileActive = true;
     mocks.removeQueries.mockClear();
     mocks.setLocation.mockClear();
+    profileState.data.active = true;
+    profileRefetch.mockClear();
+    patientContextRefetch.mockClear();
+    refreshAuth.mockClear();
   });
 
   afterEach(cleanup);
@@ -162,7 +170,7 @@ describe("ProfessionalLayout profile deactivation", () => {
       expect(screen.getByText("conteúdo do paciente")).toBeTruthy()
     );
 
-    mocks.profileActive = false;
+    profileState.data.active = false;
     view.rerender(
       <ProfessionalLayout>
         <div>conteúdo do paciente</div>
