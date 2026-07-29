@@ -1,14 +1,12 @@
 import React from "react";
-import {
-  AlertTriangle,
-  Check,
-  EyeOff,
-  RefreshCw,
-} from "lucide-react";
+import { AlertTriangle, Check, EyeOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { ProfessionalStatusBadge } from "@/components/professional/ProfessionalUi";
+import {
+  professionalLabel,
+  ProfessionalStatusBadge,
+} from "@/components/professional/ProfessionalUi";
 import {
   Card,
   CardContent,
@@ -16,20 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-const labels: Record<string, string> = {
-  no_food_records: "Sem registros alimentares",
-  weigh_in_overdue: "Pesagem pendente",
-  goal_review_due: "Revisão de meta pendente",
-  professional_request_overdue: "Solicitação sem resposta",
-  record_requires_review: "Registro que exige revisão",
-};
-
-const originLabels: Record<string, string> = {
-  meals: "Registros alimentares",
-  professional_request: "Solicitação profissional",
-  tracking_next_review: "Próxima revisão do acompanhamento",
-};
 
 function formatDateTime(value: number | null) {
   if (!value) return null;
@@ -57,12 +41,14 @@ export default function ProfessionalOperationalAlertsPanel({
   onOpenPatient?: (patient: { patientId: number; displayName: string }) => void;
   periodRange?: { start: string; end: string };
 }) {
-  const entitlements =
-    trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
+  const entitlements = trpc.professionalRecord.settings.entitlements.useQuery(
+    undefined,
+    {
       retry: false,
       staleTime: 30_000,
       refetchOnWindowFocus: true,
-    });
+    }
+  );
   const alertsEnabled = Boolean(
     entitlements.data?.allowed &&
       entitlements.data.enabledResources.includes(
@@ -209,7 +195,7 @@ export default function ProfessionalOperationalAlertsPanel({
                 <div className="min-w-0 space-y-2">
                   <div>
                     <p className="font-medium">
-                      {labels[alert.type] ?? alert.type}
+                      {professionalLabel("operationalAlertType", alert.type)}
                     </p>
                     {!patientId && (
                       <p className="text-sm font-medium text-foreground/80">
@@ -232,8 +218,10 @@ export default function ProfessionalOperationalAlertsPanel({
                         Origem:{" "}
                       </dt>
                       <dd className="inline">
-                        {originLabels[alert.origin.type] ??
-                          "Origem não informada"}
+                        {professionalLabel(
+                          "operationalAlertOrigin",
+                          alert.origin.type
+                        )}
                       </dd>
                     </div>
                     <div>

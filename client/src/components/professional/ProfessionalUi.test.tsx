@@ -1,8 +1,10 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { PROFESSIONAL_ENTITLEMENT_RESOURCES } from "@shared/professionalEntitlements";
 import {
   professionalLabel,
+  professionalLabels,
   ProfessionalAsyncState,
   ProfessionalPatientHeader,
   ProfessionalStatusBadge,
@@ -24,6 +26,20 @@ describe("professional product labels", () => {
       "Não informado"
     );
   });
+
+  it("covers every canonical professional entitlement with a product label", () => {
+    expect(Object.keys(professionalLabels.entitlement).sort()).toEqual(
+      [...PROFESSIONAL_ENTITLEMENT_RESOURCES].sort()
+    );
+    for (const resource of PROFESSIONAL_ENTITLEMENT_RESOURCES) {
+      expect(professionalLabel("entitlement", resource)).not.toBe(
+        "Não informado"
+      );
+      expect(professionalLabel("entitlement", resource)).not.toContain(
+        "professional_"
+      );
+    }
+  });
 });
 
 describe("shared professional states", () => {
@@ -39,6 +55,7 @@ describe("shared professional states", () => {
     const html = renderToString(
       <ProfessionalPatientHeader
         actions={<button type="button">Ver histórico</button>}
+        authorizationStatus="approved"
         displayName="Ana"
         trackingStatus="ended"
       />
@@ -54,6 +71,7 @@ describe("shared professional states", () => {
   it("shows the activity meaning before its timestamp", () => {
     const html = renderToString(
       <ProfessionalPatientHeader
+        authorizationStatus="approved"
         displayName="Ana"
         trackingStatus="active"
         lastActivityLabel="Revisão da meta oficial solicitada"
@@ -69,10 +87,28 @@ describe("shared professional states", () => {
 
   it("describes paused tracking explicitly", () => {
     const html = renderToString(
-      <ProfessionalPatientHeader displayName="Ana" trackingStatus="paused" />
+      <ProfessionalPatientHeader
+        authorizationStatus="approved"
+        displayName="Ana"
+        trackingStatus="paused"
+      />
     );
     expect(html).toContain("Acompanhamento pausado");
     expect(html).toContain("Pausado");
+  });
+
+  it("does not infer authorization or tracking when domain values are absent", () => {
+    const html = renderToString(
+      <ProfessionalPatientHeader
+        authorizationStatus={null}
+        displayName="Ana"
+        trackingStatus={null}
+      />
+    );
+    expect(html).toContain("Situação do acompanhamento não informada");
+    expect(html.match(/Não informado/g)).toHaveLength(3);
+    expect(html).not.toContain("Aprovada");
+    expect(html).not.toContain("Acompanhamento não iniciado");
   });
 
   it("announces recoverable errors and retry", () => {

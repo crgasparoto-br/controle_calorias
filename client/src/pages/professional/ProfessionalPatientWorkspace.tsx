@@ -183,10 +183,7 @@ function createEmptyPatientDraft(): PatientDraftSnapshot {
 function getPatientDraftSnapshot(scope: ProfessionalPatientDraftScope | null) {
   const snapshot = readProfessionalPatientDraftSnapshot<
     Partial<PatientDraftSnapshot>
-  >(
-    scope,
-    createEmptyPatientDraft
-  );
+  >(scope, createEmptyPatientDraft);
   const empty = createEmptyPatientDraft();
   return {
     ...empty,
@@ -200,9 +197,10 @@ function getPatientDraftSnapshot(scope: ProfessionalPatientDraftScope | null) {
             ...empty.officialGoal.target,
             ...(snapshot.officialGoal.target ?? {}),
           },
-          exceptions: snapshot.officialGoal.exceptions?.map(item => ({
-            ...item,
-          })) ?? [],
+          exceptions:
+            snapshot.officialGoal.exceptions?.map(item => ({
+              ...item,
+            })) ?? [],
         }
       : empty.officialGoal,
     pages: { ...empty.pages, ...(snapshot.pages ?? {}) },
@@ -1356,10 +1354,11 @@ export default function ProfessionalPatientWorkspace() {
     );
   }
   const professionalRecord = record.data;
-  const trackingStatus =
+  const headerTrackingStatus =
     professionalRecord?.patient.trackingStatus ??
     selectedPatient.trackingStatus ??
-    "not_started";
+    null;
+  const trackingStatus = headerTrackingStatus ?? "not_started";
   const active = trackingStatus === "active";
   const transition = (nextStatus: "active" | "paused" | "ended") => {
     const accessId = selectedPatient.authorizationId;
@@ -1503,9 +1502,9 @@ export default function ProfessionalPatientWorkspace() {
             trackingStatus={trackingStatus}
           />
         }
-        authorizationStatus={selectedPatient.authorizationStatus ?? "approved"}
+        authorizationStatus={selectedPatient.authorizationStatus ?? null}
         displayName={selectedPatient.displayName}
-        trackingStatus={trackingStatus}
+        trackingStatus={headerTrackingStatus}
         lastActivityAt={selectedPatient.lastActivityAt ?? null}
         lastActivityLabel={selectedPatient.lastActivityLabel ?? null}
         nextReviewAt={selectedPatient.nextReviewAt ?? null}

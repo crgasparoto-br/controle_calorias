@@ -10,6 +10,19 @@ import {
   UserRound,
 } from "lucide-react";
 import React from "react";
+import type { ProfessionalEntitlementResource } from "@shared/professionalEntitlements";
+
+const professionalEntitlementLabels = {
+  professional_dashboard: "Painel profissional",
+  professional_portfolio: "Carteira de pacientes",
+  professional_record: "Prontuário e acompanhamento",
+  professional_goals: "Metas profissionais",
+  professional_operational_alerts: "Pendências operacionais",
+  professional_messages: "Mensagens profissionais",
+  professional_reports: "Relatórios profissionais",
+  professional_ai_assistance: "Assistência por IA",
+  professional_settings: "Configurações profissionais",
+} as const satisfies Record<ProfessionalEntitlementResource, string>;
 
 export const professionalLabels = {
   authorization: {
@@ -42,14 +55,24 @@ export const professionalLabels = {
     ai_suggested: "Sugestão da IA revisada",
     automatic: "Automática para revisão",
   },
-  entitlement: {
-    professional_dashboard: "Painel profissional",
-    professional_portfolio: "Carteira de pacientes",
-    professional_record: "Prontuário e acompanhamento",
-    professional_messages: "Mensagens profissionais",
-    professional_reports: "Relatórios profissionais",
-    professional_settings: "Configurações profissionais",
+  authorizationMessage: {
+    sent: "Notificação enviada",
+    failed: "Notificação não entregue",
+    skipped: "Notificação não enviada",
   },
+  operationalAlertType: {
+    no_food_records: "Sem registros alimentares",
+    weigh_in_overdue: "Pesagem pendente",
+    goal_review_due: "Revisão de meta pendente",
+    professional_request_overdue: "Solicitação sem resposta",
+    record_requires_review: "Registro que exige revisão",
+  },
+  operationalAlertOrigin: {
+    meals: "Registros alimentares",
+    professional_request: "Solicitação profissional",
+    tracking_next_review: "Próxima revisão do acompanhamento",
+  },
+  entitlement: professionalEntitlementLabels,
 } as const;
 
 export type ProfessionalStatusKind = keyof Pick<
@@ -264,7 +287,7 @@ export function ProfessionalLoadingState({ label }: { label: string }) {
 
 export function ProfessionalPatientHeader({
   actions,
-  authorizationStatus = "approved",
+  authorizationStatus,
   displayName,
   lastActivityAt,
   lastActivityLabel,
@@ -272,12 +295,12 @@ export function ProfessionalPatientHeader({
   trackingStatus,
 }: {
   actions?: React.ReactNode;
-  authorizationStatus?: string;
+  authorizationStatus: string | null | undefined;
   displayName: string;
   lastActivityAt?: number | null;
   lastActivityLabel?: string | null;
   nextReviewAt?: number | null;
-  trackingStatus?: string | null;
+  trackingStatus: string | null | undefined;
 }) {
   const format = (value: number | null | undefined, fallback: string) =>
     value
@@ -293,7 +316,9 @@ export function ProfessionalPatientHeader({
         ? "Acompanhamento pausado"
         : trackingStatus === "active"
           ? "Paciente em acompanhamento"
-          : "Acompanhamento não iniciado";
+          : trackingStatus === "not_started"
+            ? "Acompanhamento não iniciado"
+            : "Situação do acompanhamento não informada";
   const historyOnly = trackingStatus === "ended";
   return (
     <section
@@ -316,10 +341,7 @@ export function ProfessionalPatientHeader({
             kind="authorization"
             value={authorizationStatus}
           />
-          <ProfessionalStatusBadge
-            kind="tracking"
-            value={trackingStatus ?? "not_started"}
-          />
+          <ProfessionalStatusBadge kind="tracking" value={trackingStatus} />
         </div>
       </div>
       {!historyOnly ? (

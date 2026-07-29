@@ -59,6 +59,8 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 - capacidade, uso e disponibilidade fornecidos pelo provider;
 - disponibilidade do provider e uso de fallback.
 
+Os identificadores aceitos são definidos no contrato compartilhado `shared/professionalEntitlements.ts`, consumido pelo serviço e pelo frontend. O mapa de nomes de produto da interface deve satisfazer integralmente esse catálogo em tempo de compilação e em teste de regressão. Recursos desconhecidos nunca são convertidos por remoção de prefixo ou substituição de `_`; a interface usa fallback neutro e não expõe o identificador técnico.
+
 O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
 
 `BILLING_ACCESS_MODE=open_access` é uma política de rollout, não apenas um fallback de indisponibilidade. Enquanto estiver ativo, todos os recursos profissionais permanecem liberados mesmo que o provider esteja disponível e responda que não há assinatura. Dados comerciais retornados ainda podem ser exibidos, mas não bloqueiam operações nem capacidade. Em `enforced`, ausência, falha, expiração ou negação do provider resultam em bloqueio seguro. O serviço não mantém cache de autorização.

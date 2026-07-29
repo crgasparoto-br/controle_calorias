@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
+import { PatientAccessRequestsCard } from "../../client/src/components/ProfessionalProfileSettings";
 import ProfessionalAreaPage from "../../client/src/pages/ProfessionalAreaPage";
+import ProfessionalSettingsPage from "../../client/src/pages/ProfessionalSettingsPage";
 import "./visual.css";
 
 const queryClient = new QueryClient({
@@ -28,7 +30,7 @@ function writeVisualDiagnostics() {
   root.dataset.visualPatientCardsContained = String(cardsContained);
 
   const primaryAction = document.querySelector<HTMLButtonElement>(
-    'button[aria-expanded]'
+    "button[aria-expanded]"
   );
   if (primaryAction) {
     const rect = primaryAction.getBoundingClientRect();
@@ -61,7 +63,16 @@ function VisualProfessionalArea() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ProfessionalAreaPage />
+      {window.location.pathname === "/professional/settings" ? (
+        <ProfessionalSettingsPage />
+      ) : window.location.pathname ===
+        "/settings/professional-access-requests" ? (
+        <main className="mx-auto w-full max-w-5xl p-6">
+          <PatientAccessRequestsCard embedded />
+        </main>
+      ) : (
+        <ProfessionalAreaPage />
+      )}
     </QueryClientProvider>
   );
 }

@@ -1,6 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +14,12 @@ import { trpc } from "@/lib/trpc";
 import { Save, Stethoscope, UserCheck, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  professionalLabel,
+  ProfessionalAsyncState,
+  ProfessionalLoadingState,
+  ProfessionalStatusBadge,
+} from "@/components/professional/ProfessionalUi";
 
 type ProfessionalFormState = {
   displayName: string;
@@ -32,29 +44,19 @@ const PATIENT_ACCESS_PERMISSIONS = [
   "Comentários e sugestões profissionais",
 ] as const;
 
-function formatAccessStatus(status: string) {
-  const labels: Record<string, string> = {
-    pending: "Pendente",
-    approved: "Aprovado",
-    rejected: "Recusado",
-    revoked: "Revogado",
-  };
-  return labels[status] ?? status;
-}
-
 function formatAuthorizationMessageStatus(status: string | null | undefined) {
-  const labels: Record<string, string> = {
-    sent: "Notificação enviada",
-    failed: "Notificação não entregue",
-    skipped: "Notificação não enviada",
-  };
-  return status ? labels[status] ?? status : "Notificação não concluída";
+  return status
+    ? professionalLabel("authorizationMessage", status)
+    : "Notificação não concluída";
 }
 
 function getAuthorizationMessageStatusClass(status: string | null | undefined) {
-  if (status === "failed") return "border-destructive/30 bg-destructive/10 text-destructive";
-  if (status === "skipped") return "border-amber-200 bg-amber-50 text-amber-800";
-  if (status === "sent") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "failed")
+    return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (status === "skipped")
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  if (status === "sent")
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   return "border-muted bg-muted/20 text-muted-foreground";
 }
 
@@ -68,7 +70,9 @@ function permissionsTitle(status: string) {
 export default function ProfessionalProfileSettings() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const profile = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
+  const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
+    retry: false,
+  });
   const [appliedSavedProfile, setAppliedSavedProfile] = useState(false);
   const [form, setForm] = useState<ProfessionalFormState>(initialForm);
   const suggestedProfessionalName = user?.name?.trim() ?? "";
@@ -82,7 +86,12 @@ export default function ProfessionalProfileSettings() {
       active: Boolean(profile.data?.active),
     });
     setAppliedSavedProfile(true);
-  }, [appliedSavedProfile, profile.data, profile.isSuccess, suggestedProfessionalName]);
+  }, [
+    appliedSavedProfile,
+    profile.data,
+    profile.isSuccess,
+    suggestedProfessionalName,
+  ]);
 
   const invalidateProfessionalSettings = async () => {
     await Promise.all([
@@ -105,16 +114,23 @@ export default function ProfessionalProfileSettings() {
       await invalidateProfessionalSettings();
       toast.success("Perfil profissional salvo.");
     },
-    onError: error => toast.error(error.message || "Não foi possível salvar o perfil profissional."),
+    onError: error =>
+      toast.error(
+        error.message || "Não foi possível salvar o perfil profissional."
+      ),
   });
 
   const validationMessage = (() => {
     if (!form.active) return null;
-    if (form.displayName.trim().length < 2) return "Informe o nome profissional antes de ativar o perfil.";
+    if (form.displayName.trim().length < 2)
+      return "Informe o nome profissional antes de ativar o perfil.";
     return null;
   })();
 
-  function updateField<K extends keyof ProfessionalFormState>(field: K, value: ProfessionalFormState[K]) {
+  function updateField<K extends keyof ProfessionalFormState>(
+    field: K,
+    value: ProfessionalFormState[K]
+  ) {
     setForm(current => ({ ...current, [field]: value }));
   }
 
@@ -125,7 +141,10 @@ export default function ProfessionalProfileSettings() {
     }
 
     upsertProfile.mutate({
-      displayName: form.displayName.trim() || suggestedProfessionalName || "Perfil profissional",
+      displayName:
+        form.displayName.trim() ||
+        suggestedProfessionalName ||
+        "Perfil profissional",
       registrationNumber: form.registrationNumber.trim() || undefined,
       active: form.active,
     });
@@ -139,19 +158,25 @@ export default function ProfessionalProfileSettings() {
           Perfil profissional
         </CardTitle>
         <CardDescription>
-          Ative a área Profissional para acompanhar pessoas autorizadas, solicitar vínculos e consultar dados compartilhados com consentimento.
+          Ative a área Profissional para acompanhar pessoas autorizadas,
+          solicitar vínculos e consultar dados compartilhados com consentimento.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {profile.isLoading ? (
-          <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground" role="status" aria-live="polite">
+          <div
+            className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
             Carregando perfil profissional...
           </div>
         ) : null}
 
         {profile.isError ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Não foi possível carregar o perfil profissional. Tente novamente antes de salvar alterações.
+            Não foi possível carregar o perfil profissional. Tente novamente
+            antes de salvar alterações.
           </div>
         ) : null}
 
@@ -164,26 +189,55 @@ export default function ProfessionalProfileSettings() {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
             <Label>Nome profissional</Label>
-            <Input value={form.displayName} onChange={event => updateField("displayName", event.target.value)} placeholder={suggestedProfessionalName || "Nome exibido para pessoas acompanhadas"} />
+            <Input
+              value={form.displayName}
+              onChange={event => updateField("displayName", event.target.value)}
+              placeholder={
+                suggestedProfessionalName ||
+                "Nome exibido para pessoas acompanhadas"
+              }
+            />
           </div>
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
             <Label>Registro profissional</Label>
-            <Input value={form.registrationNumber} onChange={event => updateField("registrationNumber", event.target.value)} placeholder="Registro, conselho ou identificação profissional" />
+            <Input
+              value={form.registrationNumber}
+              onChange={event =>
+                updateField("registrationNumber", event.target.value)
+              }
+              placeholder="Registro, conselho ou identificação profissional"
+            />
           </div>
         </div>
 
         <label className="flex items-start gap-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6">
-          <Checkbox checked={form.active} onCheckedChange={value => updateField("active", Boolean(value))} className="mt-1" />
+          <Checkbox
+            checked={form.active}
+            onCheckedChange={value => updateField("active", Boolean(value))}
+            className="mt-1"
+          />
           <span>
-            <span className="block font-medium text-foreground">Ativar área Profissional</span>
-            <span className="text-muted-foreground">Quando ativo, o menu Profissional aparece e você pode solicitar vínculos de acompanhamento com pessoas que autorizarem o acesso.</span>
+            <span className="block font-medium text-foreground">
+              Ativar área Profissional
+            </span>
+            <span className="text-muted-foreground">
+              Quando ativo, o menu Profissional aparece e você pode solicitar
+              vínculos de acompanhamento com pessoas que autorizarem o acesso.
+            </span>
           </span>
         </label>
 
         <div className="flex justify-end">
-          <Button type="button" className="rounded-full" disabled={upsertProfile.isPending || profile.isLoading} onClick={handleSave}>
+          <Button
+            type="button"
+            className="rounded-full"
+            disabled={upsertProfile.isPending || profile.isLoading}
+            onClick={handleSave}
+          >
             <Save className="mr-2 h-4 w-4" />
-            {upsertProfile.isPending ? "Salvando..." : "Salvar perfil profissional"}
+            {upsertProfile.isPending
+              ? "Salvando..."
+              : "Salvar perfil profissional"}
           </Button>
         </div>
       </CardContent>
@@ -191,9 +245,14 @@ export default function ProfessionalProfileSettings() {
   );
 }
 
-export function PatientAccessRequestsCard({ embedded = false }: PatientAccessRequestsCardProps) {
+export function PatientAccessRequestsCard({
+  embedded = false,
+}: PatientAccessRequestsCardProps) {
   const utils = trpc.useUtils();
-  const patientRequests = trpc.nutrition.professionals.patientRequests.useQuery(undefined, { retry: false });
+  const patientRequests = trpc.nutrition.professionals.patientRequests.useQuery(
+    undefined,
+    { retry: false }
+  );
 
   const invalidateProfessionalSettings = async () => {
     await Promise.all([
@@ -210,7 +269,8 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
       await invalidateProfessionalSettings();
       toast.success("Acesso profissional aprovado.");
     },
-    onError: error => toast.error(error.message || "Não foi possível aprovar a solicitação."),
+    onError: error =>
+      toast.error(error.message || "Não foi possível aprovar a solicitação."),
   });
 
   const revokeAccess = trpc.nutrition.professionals.revokeAccess.useMutation({
@@ -218,78 +278,127 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
       await invalidateProfessionalSettings();
       toast.success("Acesso profissional revogado.");
     },
-    onError: error => toast.error(error.message || "Não foi possível revogar o acesso."),
+    onError: error =>
+      toast.error(error.message || "Não foi possível revogar o acesso."),
   });
 
   const requests = patientRequests.data ?? [];
   const content = (
     <div className="space-y-3">
       {patientRequests.isLoading ? (
-        <div className="rounded-2xl border bg-muted/20 p-6 text-sm text-muted-foreground" role="status" aria-live="polite">
-          Carregando solicitações recebidas...
-        </div>
+        <ProfessionalLoadingState label="Carregando solicitações recebidas..." />
       ) : null}
 
       {patientRequests.isError ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-          Não foi possível carregar as solicitações recebidas. Tente novamente em instantes.
-        </div>
+        <ProfessionalAsyncState
+          variant="panel"
+          title="Não foi possível carregar as solicitações recebidas"
+          description="O restante das configurações permanece disponível. Tente novamente para atualizar somente esta seção."
+          onRetry={() => void patientRequests.refetch()}
+        />
       ) : null}
 
-      {!patientRequests.isLoading && !patientRequests.isError && requests.length ? requests.map(request => (
-        <div key={request.id} className="rounded-2xl border bg-background p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 space-y-3">
-              <div>
-                <p className="font-medium">{request.professional?.displayName ?? `Profissional #${request.professionalUserId}`}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border bg-muted/20 px-3 py-1 text-muted-foreground">
-                    Vínculo: {formatAccessStatus(request.status)}
-                  </span>
-                  <span className={`rounded-full border px-3 py-1 ${getAuthorizationMessageStatusClass(request.authorizationMessageStatus)}`}>
-                    {formatAuthorizationMessageStatus(request.authorizationMessageStatus)}
-                  </span>
+      {!patientRequests.isLoading && !patientRequests.isError && requests.length
+        ? requests.map(request => (
+            <div
+              key={request.id}
+              className="rounded-2xl border bg-background p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-3">
+                  <div>
+                    <p className="font-medium">
+                      {request.professional?.displayName ?? "Profissional"}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Vínculo</span>
+                      <ProfessionalStatusBadge
+                        kind="authorization"
+                        value={request.status}
+                      />
+                      <span
+                        className={`rounded-full border px-3 py-1 ${getAuthorizationMessageStatusClass(request.authorizationMessageStatus)}`}
+                      >
+                        {formatAuthorizationMessageStatus(
+                          request.authorizationMessageStatus
+                        )}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Solicitado em{" "}
+                      {new Date(request.requestedAt).toLocaleString("pt-BR")}
+                    </p>
+                    {request.authorizationMessageSentAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Notificação registrada em{" "}
+                        {new Date(
+                          request.authorizationMessageSentAt
+                        ).toLocaleString("pt-BR")}
+                      </p>
+                    ) : null}
+                    {request.authorizationMessageError ? (
+                      <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                        A notificação não foi concluída. O vínculo pode ser
+                        revisado normalmente.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase text-muted-foreground">
+                      {permissionsTitle(request.status)}
+                    </p>
+                    <ul
+                      className="flex flex-wrap gap-2"
+                      aria-label={permissionsTitle(request.status)}
+                    >
+                      {PATIENT_ACCESS_PERMISSIONS.map(permission => (
+                        <li
+                          key={permission}
+                          className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground"
+                        >
+                          {permission}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">Solicitado em {new Date(request.requestedAt).toLocaleString("pt-BR")}</p>
-                {request.authorizationMessageSentAt ? (
-                  <p className="text-xs text-muted-foreground">Notificação registrada em {new Date(request.authorizationMessageSentAt).toLocaleString("pt-BR")}</p>
-                ) : null}
-                {request.authorizationMessageError ? (
-                  <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                    {request.authorizationMessageError}
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase text-muted-foreground">{permissionsTitle(request.status)}</p>
-                <ul className="flex flex-wrap gap-2" aria-label={permissionsTitle(request.status)}>
-                  {PATIENT_ACCESS_PERMISSIONS.map(permission => (
-                    <li key={permission} className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
-                      {permission}
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex flex-wrap gap-2">
+                  {request.status === "pending" ? (
+                    <Button
+                      type="button"
+                      className="rounded-full"
+                      onClick={() =>
+                        approveAccess.mutate({ accessId: request.id })
+                      }
+                      disabled={approveAccess.isPending}
+                    >
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Aprovar
+                    </Button>
+                  ) : null}
+                  {request.status !== "revoked" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() =>
+                        revokeAccess.mutate({ accessId: request.id })
+                      }
+                      disabled={revokeAccess.isPending}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Revogar
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {request.status === "pending" ? (
-                <Button type="button" className="rounded-full" onClick={() => approveAccess.mutate({ accessId: request.id })} disabled={approveAccess.isPending}>
-                  <UserCheck className="mr-2 h-4 w-4" />
-                  Aprovar
-                </Button>
-              ) : null}
-              {request.status !== "revoked" ? (
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: request.id })} disabled={revokeAccess.isPending}>
-                  <X className="mr-2 h-4 w-4" />
-                  Revogar
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )) : null}
+          ))
+        : null}
 
-      {!patientRequests.isLoading && !patientRequests.isError && !requests.length ? (
+      {!patientRequests.isLoading &&
+      !patientRequests.isError &&
+      !requests.length ? (
         <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
           Nenhuma solicitação recebida até agora.
         </div>
@@ -306,7 +415,8 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
             Solicitações de acesso
           </h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Revise pedidos de acompanhamento e acompanhe o status das notificações enviadas aos profissionais.
+            Revise pedidos de acompanhamento e acompanhe o status das
+            notificações enviadas aos profissionais.
           </p>
         </div>
         {content}
@@ -322,7 +432,8 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
           Solicitações recebidas
         </CardTitle>
         <CardDescription>
-          Revise pedidos de acompanhamento e acompanhe o status das notificações enviadas aos profissionais.
+          Revise pedidos de acompanhamento e acompanhe o status das notificações
+          enviadas aos profissionais.
         </CardDescription>
       </CardHeader>
       <CardContent>{content}</CardContent>

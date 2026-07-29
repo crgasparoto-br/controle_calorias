@@ -145,6 +145,8 @@ assert_dom_not_contains() {
 BASE_URL="http://127.0.0.1:${PORT}/professional"
 PATIENTS_URL="http://127.0.0.1:${PORT}/professional/patients"
 REPORTS_URL="http://127.0.0.1:${PORT}/professional/reports"
+SETTINGS_URL="http://127.0.0.1:${PORT}/professional/settings"
+ACCESS_REQUESTS_URL="http://127.0.0.1:${PORT}/settings/professional-access-requests"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
 capture "main-tablet-1024x768" "1024,768" "$BASE_URL"
@@ -167,6 +169,11 @@ capture "reports-desktop-1440x900" "1440,900" "$REPORTS_URL"
 capture "reports-notebook-1366x768" "1366,768" "$REPORTS_URL"
 capture "reports-tablet-1024x768" "1024,768" "$REPORTS_URL"
 capture "reports-mobile-390x844" "390,844" "$REPORTS_URL"
+capture "settings-desktop-1440x900" "1440,900" "$SETTINGS_URL"
+capture "settings-tablet-1024x768" "1024,768" "$SETTINGS_URL"
+capture "settings-mobile-390x844" "390,844" "$SETTINGS_URL"
+capture "access-requests-error-desktop-1366x768" "1366,768" "$ACCESS_REQUESTS_URL?state=access-error"
+capture "access-requests-error-mobile-390x844" "390,844" "$ACCESS_REQUESTS_URL?state=access-error"
 
 assert_dom \
   "complete-page-3" \
@@ -223,15 +230,47 @@ assert_dom_at_size \
   "$PATIENTS_URL" \
   'data-visual-horizontal-overflow="false"' \
   'data-visual-patient-cards-contained="true"'
+assert_dom \
+  "settings-product-labels" \
+  "$SETTINGS_URL" \
+  "Configurações profissionais" \
+  "Painel profissional" \
+  "Carteira de pacientes" \
+  "Prontuário e acompanhamento" \
+  "Metas profissionais" \
+  "Pendências operacionais" \
+  "Mensagens profissionais" \
+  "Relatórios profissionais" \
+  "Assistência por IA" \
+  "Configurações profissionais"
+assert_dom_not_contains \
+  "settings-product-labels" \
+  "professional_" \
+  "contabilizado pelo billing" \
+  "provider" \
+  "Não informado"
+assert_dom_at_size \
+  "settings-mobile-layout" \
+  "390,844" \
+  "$SETTINGS_URL" \
+  'data-visual-horizontal-overflow="false"'
+assert_dom_at_size \
+  "access-requests-error-mobile-layout" \
+  "390,844" \
+  "$ACCESS_REQUESTS_URL?state=access-error" \
+  'role="alert"' \
+  "Tentar novamente" \
+  "O restante das configurações permanece disponível" \
+  'data-visual-horizontal-overflow="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional,/professional/patients,/professional/reports
+routes=/professional,/professional/patients,/professional/reports,/professional/settings,/settings/professional-access-requests
 commit=${GITHUB_SHA:-local}
-scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate,settings-product-labels,settings-responsive,access-requests-error-retry
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout and ProfessionalPatients with deterministic tRPC and auth fixtures
+source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatients, ProfessionalSettingsPage and PatientAccessRequestsCard with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
-assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, aggregate report definitions and no horizontal overflow
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, aggregate report definitions, complete entitlement product labels, recoverable settings error with retry and no horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

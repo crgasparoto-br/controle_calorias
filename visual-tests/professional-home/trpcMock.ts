@@ -64,8 +64,7 @@ function priority(patientId: number) {
     patientId,
     displayName,
     score:
-      (severity === "urgent" ? 3 : severity === "attention" ? 2 : 1) *
-        1_000 +
+      (severity === "urgent" ? 3 : severity === "attention" ? 2 : 1) * 1_000 +
       2,
     alertCount: patientId % 3 === 0 ? 4 : 2,
     highestSeverity: severity,
@@ -210,6 +209,85 @@ function mutation() {
   };
 }
 
+const allProfessionalResources = [
+  "professional_dashboard",
+  "professional_portfolio",
+  "professional_record",
+  "professional_goals",
+  "professional_operational_alerts",
+  "professional_messages",
+  "professional_reports",
+  "professional_ai_assistance",
+  "professional_settings",
+];
+
+function settingsQuery() {
+  return {
+    data: {
+      profile: {
+        active: true,
+        displayName:
+          "Nutricionista com nome profissional extenso para validação responsiva",
+        registrationNumber: "CRN 123456",
+      },
+      identity: {
+        contactEmail: "nutricionista@example.com",
+        contactPhone: "+55 15 99999-9999",
+        patientFacingBio:
+          "Atendimento nutricional com acompanhamento individualizado, comunicação contextual e revisão periódica das metas.",
+      },
+      preferences: {
+        defaultReviewIntervalDays: 30,
+        messageTemplates: [
+          {
+            id: "visual-template-1",
+            title: "Lembrete de acompanhamento",
+            messageType: "reminder",
+            content:
+              "Olá! Este é um lembrete para revisar seus registros antes do próximo acompanhamento.",
+          },
+        ],
+      },
+      operationalAlertCriteria: [
+        {
+          key: "no_food_records",
+          label: "Ausência de registros alimentares",
+          description:
+            "Sinaliza pacientes ativos sem registros alimentares no período esperado.",
+          value: 3,
+          configurable: false,
+        },
+      ],
+      entitlements: {
+        allowed: true,
+        mode: "open_access",
+        commercialState: "open_access",
+        planName: "Acesso profissional",
+        fallbackUsed: false,
+        enabledResources: allProfessionalResources,
+        capacity: {
+          limit: 50,
+          used: 12,
+          usageAvailable: true,
+        },
+      },
+    },
+    isLoading: false,
+    isError: false,
+    refetch: resolved,
+  };
+}
+
+function patientRequestsQuery() {
+  const isError = visualState() === "access-error";
+  return {
+    data: [],
+    isLoading: false,
+    isError,
+    refetch: resolved,
+  };
+}
+
 export const trpc = {
   useUtils: () => ({
     nutrition: {
@@ -218,15 +296,23 @@ export const trpc = {
         patientDashboard: cancellable(),
         patientPeriodBundle: cancellable(),
         myAccesses: { invalidate: resolved },
+        profile: { invalidate: resolved },
+        patientRequests: { invalidate: resolved },
+        history: { invalidate: resolved },
+        portfolio: { invalidate: resolved },
       },
     },
     professionalRecord: {
       context: cancellable(),
-      get: cancellable(),
+      get: { ...cancellable(), reset: resolved },
       messages: { list: cancellable() },
       operationalAlerts: { list: cancellable() },
       ai: { priorities: cancellable() },
       officialGoal: { professionalState: cancellable() },
+      settings: {
+        get: { invalidate: resolved },
+        entitlements: { invalidate: resolved },
+      },
     },
   }),
   professionalRecord: {
@@ -246,21 +332,23 @@ export const trpc = {
       }),
     },
     settings: {
+      get: {
+        useQuery: () => settingsQuery(),
+      },
+      updateIdentity: {
+        useMutation: () => mutation(),
+      },
+      updatePreferences: {
+        useMutation: () => mutation(),
+      },
+      setActive: {
+        useMutation: () => mutation(),
+      },
       entitlements: {
         useQuery: () => ({
           data: {
             allowed: true,
-            enabledResources: [
-              "professional_dashboard",
-              "professional_portfolio",
-              "professional_record",
-              "professional_goals",
-              "professional_operational_alerts",
-              "professional_messages",
-              "professional_reports",
-              "professional_ai_assistance",
-              "professional_settings",
-            ],
+            enabledResources: allProfessionalResources,
           },
           isLoading: false,
           isError: false,
@@ -297,7 +385,11 @@ export const trpc = {
     professionals: {
       profile: {
         useQuery: () => ({
-          data: { active: true },
+          data: {
+            active: true,
+            displayName: "Nutricionista de validação",
+            registrationNumber: "CRN 123456",
+          },
           isLoading: false,
           isFetching: false,
           isError: false,
@@ -308,6 +400,18 @@ export const trpc = {
       },
       portfolio: {
         useQuery: () => portfolioQuery(),
+      },
+      patientRequests: {
+        useQuery: () => patientRequestsQuery(),
+      },
+      approveAccess: {
+        useMutation: () => mutation(),
+      },
+      revokeAccess: {
+        useMutation: () => mutation(),
+      },
+      upsertProfile: {
+        useMutation: () => mutation(),
       },
       requestAccess: {
         useMutation: () => mutation(),

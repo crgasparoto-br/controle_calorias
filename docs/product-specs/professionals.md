@@ -386,6 +386,15 @@ A IA não pode:
 - acessar paciente sem vínculo aprovado;
 - ocultar a origem dos dados usados quando conferência for necessária.
 
+## Contrato de apresentação da Área Profissional
+
+- Estados de autorização, acompanhamento, mensagens, severidade e origem usam os mesmos rótulos de produto em todas as superfícies profissionais.
+- Identificadores internos, estados desconhecidos, nomes de provider, detalhes de billing, IDs técnicos e mensagens de fallback não são exibidos diretamente; valores não reconhecidos usam um fallback neutro.
+- O catálogo de recursos profissionais e o mapa de nomes de produto devem permanecer completos e sincronizados. Nenhum recurso habilitado pode aparecer como código `professional_*` ou como rótulo ausente.
+- Loading anunciado usa estado semântico acessível. Erros recuperáveis oferecem retry local sem remover conteúdo independente já carregado.
+- O cabeçalho do paciente apresenta somente os estados recebidos do domínio. Ausência de autorização ou acompanhamento é mostrada como não informada, sem assumir aprovação ou início do acompanhamento.
+- As superfícies de configurações, carteira, início, prontuário, relatórios e mensagens participam da regressão visual responsiva, incluindo conteúdo longo, foco visível e ausência de overflow horizontal.
+
 ## Separação de escopo das issues
 
 ### Fora da épica profissional

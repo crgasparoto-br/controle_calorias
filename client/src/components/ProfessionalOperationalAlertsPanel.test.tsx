@@ -63,9 +63,7 @@ describe("ProfessionalOperationalAlertsPanel entitlement", () => {
     render(<ProfessionalOperationalAlertsPanel patientId={41} />);
 
     expect(screen.getByText("Pendências operacionais")).toBeTruthy();
-    expect(
-      screen.getByText(/Esta capacidade não está incluída/)
-    ).toBeTruthy();
+    expect(screen.getByText(/Esta capacidade não está incluída/)).toBeTruthy();
     expect(listOptions).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false })
     );
@@ -119,5 +117,34 @@ describe("ProfessionalOperationalAlertsPanel entitlement", () => {
     expect(screen.getByText("Registros alimentares")).toBeTruthy();
     expect(screen.queryByText("attention")).toBeNull();
     expect(screen.queryByText(/meal-visual-1/)).toBeNull();
+  });
+
+  it("uses safe fallbacks for unknown alert and origin values", async () => {
+    enabledResources = [
+      "professional_record",
+      "professional_operational_alerts",
+    ];
+    alertData = [
+      {
+        id: 10,
+        patientUserId: 41,
+        patientName: "Ana",
+        type: "internal_future_alert",
+        reason: "Revise esta pendência.",
+        period: { start: null, end: null },
+        origin: { type: "provider_internal", id: "origin-10" },
+        suggestedAction: "Revisar o acompanhamento.",
+        severity: "info",
+      },
+    ];
+    const { default: ProfessionalOperationalAlertsPanel } = await import(
+      "./ProfessionalOperationalAlertsPanel"
+    );
+    render(<ProfessionalOperationalAlertsPanel patientId={41} />);
+
+    expect(screen.getAllByText("Não informado")).toHaveLength(2);
+    expect(screen.queryByText("internal_future_alert")).toBeNull();
+    expect(screen.queryByText("provider_internal")).toBeNull();
+    expect(screen.queryByText("origin-10")).toBeNull();
   });
 });
