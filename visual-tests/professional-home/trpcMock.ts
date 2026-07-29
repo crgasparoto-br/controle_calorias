@@ -1,3 +1,8 @@
+import {
+  getVisualAuthUser,
+  setVisualProfessionalProfileActive,
+} from "./authMock";
+
 const now = Date.UTC(2026, 6, 23, 18, 0, 0);
 const resolved = async () => undefined;
 
@@ -290,13 +295,31 @@ function patientRequestsQuery() {
 
 export const trpc = {
   useUtils: () => ({
+    auth: {
+      me: {
+        invalidate: resolved,
+        setData: (_input: unknown, updater: unknown) => {
+          const current = getVisualAuthUser();
+          const next =
+            typeof updater === "function"
+              ? (updater as (value: typeof current) => typeof current)(current)
+              : (updater as typeof current | null | undefined);
+          if (next) {
+            setVisualProfessionalProfileActive(
+              Boolean(next.professionalProfileActive)
+            );
+          }
+          return next;
+        },
+      },
+    },
     nutrition: {
       professionals: {
         patientTimeZone: { ...cancellable(), fetch: resolved },
         patientDashboard: cancellable(),
         patientPeriodBundle: cancellable(),
         myAccesses: { invalidate: resolved },
-        profile: { invalidate: resolved },
+        profile: { invalidate: resolved, setData: resolved },
         patientRequests: { invalidate: resolved },
         history: { invalidate: resolved },
         portfolio: { invalidate: resolved },
