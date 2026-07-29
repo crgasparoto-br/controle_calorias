@@ -93,12 +93,14 @@ async function getOptionalHistoryWithinBudget(
   }
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
-  const timedResult = await Promise.race([
-    lookup,
-    new Promise<typeof HISTORY_TIMEOUT>(resolve => {
-      timeout = setTimeout(() => resolve(HISTORY_TIMEOUT), OPTIONAL_HISTORY_WAIT_MS);
-    }),
-  ]);
+  const timeoutResult = new Promise<typeof HISTORY_TIMEOUT>(resolve => {
+    timeout = setTimeout(
+      () => resolve(HISTORY_TIMEOUT),
+      OPTIONAL_HISTORY_WAIT_MS
+    );
+  });
+  const timedResult: Row | undefined | typeof HISTORY_TIMEOUT =
+    await Promise.race([lookup, timeoutResult]);
   if (timeout) clearTimeout(timeout);
 
   if (timedResult === HISTORY_TIMEOUT) {
