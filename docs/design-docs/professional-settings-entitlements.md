@@ -36,6 +36,7 @@ Lembretes continuam sendo criados no contexto de cada paciente pela central de a
 ## Estado ativo e proteção por recurso
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
+O fluxo pessoal não oferece desativação quando o perfil já está ativo: ele apresenta somente status e atalhos. A desativação é iniciada em `/professional/settings`, exige confirmação explícita, invalida a sessão e os caches profissionais e redireciona para `/settings?tab=profissional`. Essa URL é lida a partir do search param real para funcionar em acesso direto e após recarga.
 
 As APIs de prontuário, alertas, mensagens, relatórios, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico da superfície.
 
