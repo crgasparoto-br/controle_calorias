@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  authSetData: vi.fn(),
   cancel: vi.fn(async () => undefined),
   confirm: vi.fn(),
   invalidate: vi.fn(async () => undefined),
@@ -11,8 +12,10 @@ const mocks = vi.hoisted(() => ({
   mutationOptions: null as null | {
     onSuccess: (result: { active: boolean }) => Promise<void>;
   },
+  profileSetData: vi.fn(),
   refreshAuth: vi.fn(async () => undefined),
   reset: vi.fn(async () => undefined),
+  settingsSetData: vi.fn(),
   setLocation: vi.fn(),
   queryData: {
     profile: {
@@ -47,7 +50,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
-  useAuth: () => ({ refresh: mocks.refreshAuth }),
+  useAuth: () => ({
+    refresh: mocks.refreshAuth,
+    user: { id: 42, professionalProfileActive: true },
+  }),
 }));
 
 vi.mock("wouter", () => ({
@@ -84,9 +90,13 @@ vi.mock("@/components/professional-settings/ProfessionalAccessSettingsCards", ()
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
+      auth: { me: { setData: mocks.authSetData } },
       professionalRecord: {
         settings: {
-          get: { invalidate: mocks.invalidate },
+          get: {
+            invalidate: mocks.invalidate,
+            setData: mocks.settingsSetData,
+          },
           entitlements: { invalidate: mocks.invalidate },
         },
         get: { cancel: mocks.cancel, reset: mocks.reset },
@@ -98,7 +108,10 @@ vi.mock("@/lib/trpc", () => ({
       },
       nutrition: {
         professionals: {
-          profile: { invalidate: mocks.invalidate },
+          profile: {
+            invalidate: mocks.invalidate,
+            setData: mocks.profileSetData,
+          },
           myAccesses: { invalidate: mocks.invalidate },
           portfolio: { invalidate: mocks.invalidate },
           patientDashboard: { reset: mocks.reset },
@@ -138,13 +151,20 @@ import ProfessionalSettingsPage from "./ProfessionalSettingsPage";
 
 describe("ProfessionalSettingsPage deactivation", () => {
   beforeEach(() => {
-    mocks.cancel.mockClear();
+    mocks.authSetData.mockClear();
+    mocks.cancel.mockReset();
+    mocks.cancel.mockResolvedValue(undefined);
     mocks.confirm.mockReset();
-    mocks.invalidate.mockClear();
+    mocks.invalidate.mockReset();
+    mocks.invalidate.mockResolvedValue(undefined);
     mocks.mutate.mockClear();
     mocks.mutationOptions = null;
-    mocks.refreshAuth.mockClear();
-    mocks.reset.mockClear();
+    mocks.profileSetData.mockClear();
+    mocks.refreshAuth.mockReset();
+    mocks.refreshAuth.mockResolvedValue(undefined);
+    mocks.reset.mockReset();
+    mocks.reset.mockResolvedValue(undefined);
+    mocks.settingsSetData.mockClear();
     mocks.setLocation.mockClear();
     vi.stubGlobal("confirm", mocks.confirm);
   });
@@ -181,6 +201,50 @@ describe("ProfessionalSettingsPage deactivation", () => {
       await mocks.mutationOptions?.onSuccess({ active: false });
     });
 
+    expect(mocks.cancel).toHaveBeenCalledTimes(4);
+    expect(mocks.reset).toHaveBeenCalledTimes(7);
+    expect(mocks.invalidate).toHaveBeenCalledTimes(5);
+    expect(mocks.refreshAuth).toHaveBeenCalledTimes(1);
+    expect(mocks.setLocation).toHaveBeenCalledWith(
+      "/settings?tab=profissional"
+    );
+  });
+
+  it("redireciona e fixa os caches como inativos mesmo se a reconciliação falhar", async () => {
+    mocks.confirm.mockReturnValue(true);
+    mocks.cancel.mockRejectedValueOnce(new Error("cancel unavailable"));
+    mocks.invalidate.mockRejectedValueOnce(new Error("invalidate unavailable"));
+    mocks.refreshAuth.mockRejectedValueOnce(new Error("session unavailable"));
+    render(<ProfessionalSettingsPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Desativar Área Profissional" })
+    );
+
+    await act(async () => {
+      await mocks.mutationOptions?.onSuccess({ active: false });
+    });
+
+    expect(mocks.authSetData).toHaveBeenCalledTimes(1);
+    expect(mocks.profileSetData).toHaveBeenCalledTimes(1);
+    expect(mocks.settingsSetData).toHaveBeenCalledTimes(1);
+
+    const authUpdater = mocks.authSetData.mock.calls[0]?.[1] as (
+      current: { professionalProfileActive: boolean }
+    ) => { professionalProfileActive: boolean };
+    const profileUpdater = mocks.profileSetData.mock.calls[0]?.[1] as (
+      current: { active: boolean }
+    ) => { active: boolean };
+    const settingsUpdater = mocks.settingsSetData.mock.calls[0]?.[1] as (
+      current: typeof mocks.queryData
+    ) => typeof mocks.queryData;
+    expect(authUpdater({ professionalProfileActive: true })).toMatchObject({
+      professionalProfileActive: false,
+    });
+    expect(profileUpdater({ active: true })).toMatchObject({ active: false });
+    expect(settingsUpdater(mocks.queryData).profile).toMatchObject({
+      active: false,
+    });
     expect(mocks.cancel).toHaveBeenCalledTimes(4);
     expect(mocks.reset).toHaveBeenCalledTimes(7);
     expect(mocks.invalidate).toHaveBeenCalledTimes(5);
