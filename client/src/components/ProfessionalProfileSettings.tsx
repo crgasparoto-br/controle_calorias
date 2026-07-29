@@ -113,14 +113,30 @@ export default function ProfessionalProfileSettings() {
     ]);
   };
 
+  const applyConfirmedProfile = (
+    savedProfile: NonNullable<typeof profile.data>
+  ) => {
+    utils.nutrition.professionals.profile.setData(undefined, savedProfile);
+    utils.auth.me.setData(undefined, currentUser => {
+      const confirmedUser = currentUser ?? user;
+      return confirmedUser
+        ? {
+            ...confirmedUser,
+            professionalProfileActive: Boolean(savedProfile.active),
+          }
+        : currentUser;
+    });
+    setForm({
+      displayName: savedProfile.displayName ?? suggestedProfessionalName,
+      registrationNumber: savedProfile.registrationNumber ?? "",
+      active: Boolean(savedProfile.active),
+    });
+    setAppliedSavedProfile(true);
+  };
+
   const upsertProfile = trpc.nutrition.professionals.upsertProfile.useMutation({
     onSuccess: async savedProfile => {
-      setForm({
-        displayName: savedProfile.displayName ?? suggestedProfessionalName,
-        registrationNumber: savedProfile.registrationNumber ?? "",
-        active: Boolean(savedProfile.active),
-      });
-      setAppliedSavedProfile(true);
+      applyConfirmedProfile(savedProfile);
       await Promise.allSettled([
         invalidateProfessionalSettings(),
         refreshAuth(),
