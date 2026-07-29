@@ -390,7 +390,7 @@ export const trpc = {
             data: isError
               ? undefined
               : {
-                  active: true,
+                  active: visualState() !== "profile-inactive",
                   displayName: "Nutricionista de validação",
                   registrationNumber: "CRN 123456",
                 },

@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
-import ProfessionalProfileSettings, {
-  PatientAccessRequestsCard,
-} from "../../client/src/components/ProfessionalProfileSettings";
+import { PatientAccessRequestsCard } from "../../client/src/components/ProfessionalProfileSettings";
 import ProfessionalAreaPage from "../../client/src/pages/ProfessionalAreaPage";
 import ProfessionalSettingsPage from "../../client/src/pages/ProfessionalSettingsPage";
+import SettingsPageRouter from "../../client/src/pages/SettingsPageRouter";
 import "./visual.css";
 
 const queryClient = new QueryClient({
@@ -67,10 +66,8 @@ function VisualProfessionalArea() {
     <QueryClientProvider client={queryClient}>
       {window.location.pathname === "/professional/settings" ? (
         <ProfessionalSettingsPage />
-      ) : window.location.pathname === "/settings/professional-profile" ? (
-        <main className="mx-auto w-full max-w-5xl p-6">
-          <ProfessionalProfileSettings />
-        </main>
+      ) : window.location.pathname === "/settings" ? (
+        <SettingsPageRouter />
       ) : window.location.pathname ===
         "/settings/professional-access-requests" ? (
         <main className="mx-auto w-full max-w-5xl p-6">

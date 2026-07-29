@@ -146,7 +146,7 @@ BASE_URL="http://127.0.0.1:${PORT}/professional"
 PATIENTS_URL="http://127.0.0.1:${PORT}/professional/patients"
 REPORTS_URL="http://127.0.0.1:${PORT}/professional/reports"
 SETTINGS_URL="http://127.0.0.1:${PORT}/professional/settings"
-PROFILE_SETTINGS_URL="http://127.0.0.1:${PORT}/settings/professional-profile"
+PROFILE_SETTINGS_URL="http://127.0.0.1:${PORT}/settings?tab=profissional"
 ACCESS_REQUESTS_URL="http://127.0.0.1:${PORT}/settings/professional-access-requests"
 capture "main-desktop-1440x900" "1440,900" "$BASE_URL"
 capture "main-notebook-1366x768" "1366,768" "$BASE_URL"
@@ -173,8 +173,12 @@ capture "reports-mobile-390x844" "390,844" "$REPORTS_URL"
 capture "settings-desktop-1440x900" "1440,900" "$SETTINGS_URL"
 capture "settings-tablet-1024x768" "1024,768" "$SETTINGS_URL"
 capture "settings-mobile-390x844" "390,844" "$SETTINGS_URL"
-capture "profile-error-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL?state=profile-error"
-capture "profile-error-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL?state=profile-error"
+capture "profile-active-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL"
+capture "profile-active-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL"
+capture "profile-inactive-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL&state=profile-inactive"
+capture "profile-inactive-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL&state=profile-inactive"
+capture "profile-error-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL&state=profile-error"
+capture "profile-error-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL&state=profile-error"
 capture "access-requests-error-desktop-1366x768" "1366,768" "$ACCESS_REQUESTS_URL?state=access-error"
 capture "access-requests-error-mobile-390x844" "390,844" "$ACCESS_REQUESTS_URL?state=access-error"
 
@@ -257,10 +261,26 @@ assert_dom_at_size \
   "390,844" \
   "$SETTINGS_URL" \
   'data-visual-horizontal-overflow="false"'
+assert_dom \
+  "profile-active-public-route" \
+  "$PROFILE_SETTINGS_URL" \
+  "Perfil profissional" \
+  "Área Profissional ativa" \
+  "Abrir configurações profissionais"
+assert_dom_not_contains \
+  "profile-active-public-route" \
+  "Ativar área Profissional" \
+  "Salvar perfil profissional"
+assert_dom \
+  "profile-inactive-public-route" \
+  "$PROFILE_SETTINGS_URL&state=profile-inactive" \
+  "Perfil profissional" \
+  "Ativar área Profissional" \
+  "Salvar perfil profissional"
 assert_dom_at_size \
   "profile-error-mobile-layout" \
   "390,844" \
-  "$PROFILE_SETTINGS_URL?state=profile-error" \
+  "$PROFILE_SETTINGS_URL&state=profile-error" \
   'role="alert"' \
   "Não foi possível carregar o perfil profissional" \
   "Tentar novamente" \
@@ -275,9 +295,9 @@ assert_dom_at_size \
   'data-visual-horizontal-overflow="false"'
 
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
-routes=/professional,/professional/patients,/professional/reports,/professional/settings,/settings/professional-profile,/settings/professional-access-requests
+routes=/professional,/professional/patients,/professional/reports,/professional/settings,/settings?tab=profissional,/settings/professional-access-requests
 commit=${GITHUB_SHA:-local}
-scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate,settings-product-labels,settings-responsive,profile-error-retry,access-requests-error-retry
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate,settings-product-labels,settings-responsive,profile-active-public-route,profile-inactive-public-route,profile-error-retry,access-requests-error-retry
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatients, ProfessionalSettingsPage and PatientAccessRequestsCard with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger
