@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { getDb } from "../../db";
+import { getDb, logPersistenceWarning } from "../../db";
 import { assertProfessionalResourceAccess } from "./entitlementAccess";
 import type { ProfessionalPatientContextInput } from "./patientContextSchemas";
 import { getProfessionalHistoryEventLabel } from "./historyPresentation";
@@ -43,20 +43,10 @@ export async function getProfessionalPatientContext(
       u.name AS patientName,
       u.email AS patientEmail,
       COALESCE(t.status, 'not_started') AS trackingStatus,
-      t.nextReviewAt,
-      lastHistory.occurredAt AS lastProfessionalActivityAt,
-      lastHistory.eventType AS lastProfessionalActivityType
+      t.nextReviewAt
     FROM professionalPatientAuthorizations a
     INNER JOIN users u ON u.id = a.patientUserId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
-    LEFT JOIN professionalHistoryEvents lastHistory ON lastHistory.id = (
-      SELECT h.id
-      FROM professionalHistoryEvents h
-      WHERE h.professionalUserId = ${professionalUserId}
-        AND h.patientUserId = a.patientUserId
-      ORDER BY h.occurredAt DESC, h.id DESC
-      LIMIT 1
-    )
     WHERE a.professionalUserId = ${professionalUserId}
       AND a.patientUserId = ${input.patientId}
       AND a.status = 'approved'
@@ -88,9 +78,26 @@ export async function getProfessionalPatientContext(
     return shared;
   }
 
-  const lastActivityAt = timestamp(context.lastProfessionalActivityAt);
-  const lastActivityType = context.lastProfessionalActivityType
-    ? String(context.lastProfessionalActivityType)
+  let lastHistory: Row | undefined;
+  try {
+    const historyResult = await db.execute(sql`
+      SELECT
+        h.occurredAt AS lastProfessionalActivityAt,
+        h.eventType AS lastProfessionalActivityType
+      FROM professionalHistoryEvents h
+      WHERE h.professionalUserId = ${professionalUserId}
+        AND h.patientUserId = ${input.patientId}
+      ORDER BY h.occurredAt DESC, h.id DESC
+      LIMIT 1
+    `);
+    lastHistory = rows(historyResult)[0];
+  } catch (error) {
+    logPersistenceWarning("professional_patient_context_history", error);
+  }
+
+  const lastActivityAt = timestamp(lastHistory?.lastProfessionalActivityAt);
+  const lastActivityType = lastHistory?.lastProfessionalActivityType
+    ? String(lastHistory.lastProfessionalActivityType)
     : null;
 
   return {
