@@ -233,8 +233,6 @@ export async function executeWhatsappAiQuestionIntent(
     text?: string | null;
     receivedAt?: Date;
     userTimezone?: string | null;
-    conversationId?: number | null;
-    messageId?: number | null;
   },
 ): Promise<WhatsappAiQuestionResult | null> {
   if (!isWhatsappAiQuestionText(input.text)) {
