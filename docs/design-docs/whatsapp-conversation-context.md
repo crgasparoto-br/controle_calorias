@@ -77,7 +77,10 @@ O histórico semântico ajuda a entender `isso`, `o segundo`, `e a proteína?` o
 - somente uma confirmação posterior `sim` consome a pendência e executa uma vez;
 - contexto expirado não resolve silenciosamente alvo destrutivo;
 - resposta do assistente não é reinterpretada como instrução do usuário;
-- conteúdo bloqueado pelo guard de prompt injection não entra em resumo confiável.
+- conteúdo bloqueado pelo guard de prompt injection não entra em resumo confiável nem na janela recente enviada a consumidores LLM;
+- cada turno inbound histórico permitido é reinspecionado no consumidor e delimitado com `buildUntrustedWhatsAppUserContent` antes de compor o prompt;
+- respostas outbound históricas são apresentadas somente como contexto citado e nunca como instrução atual;
+- a pergunta inbound corrente permanece fora da janela histórica e também é delimitada como conteúdo não confiável antes do envio ao provider.
 
 ## Expiração e retenção
 

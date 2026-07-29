@@ -28,6 +28,7 @@ Texto, imagem, Ã¡udio e multimodal passam pelo mesmo lifecycle persistente antes
 | SeleÃ§Ã£o persistente e execuÃ§Ã£o Ãºnica no mÃ³dulo destrutivo | `server/modules/whatsapp/deleteIntent.selection.test.ts` |
 | Shadow, ativaÃ§Ã£o por fluxo/percentual e rollback sem apagar dados | `server/modules/whatsapp/conversationContextRollout.test.ts`, `server/modules/whatsapp/intentContext.rollout.test.ts` |
 | Janela, profundidade e resumo progressivo | `server/modules/whatsapp/conversationContextBudget.test.ts`, `server/modules/whatsapp/conversationSummaryService.test.ts`, `server/modules/whatsapp/intentContext.test.ts` |
+| SeguranÃ§a da janela da rota `/`: reinspeÃ§Ã£o, exclusÃ£o de conteÃºdo bloqueado, delimitaÃ§Ã£o de inbound e neutralizaÃ§Ã£o de marcadores | `server/modules/whatsapp/aiQuestionAssistant.history.test.ts`, `server/modules/whatsapp/aiQuestionAssistant.persistedHistorySecurity.test.ts` |
 | Consumo concorrente de pendÃªncias | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
 | RetenÃ§Ã£o sem apagar domÃ­nio nutricional | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
 | Migrations e integridade em TiDB | `.github/workflows/whatsapp-context-tidb.yml` |
@@ -51,9 +52,10 @@ Texto, imagem, Ã¡udio e multimodal passam pelo mesmo lifecycle persistente antes
 | MÃ­dia nÃ£o reconhecida | pipeline existente | erro controlado; nenhuma refeiÃ§Ã£o falsa |
 | MÃ­dia atrasada | ordenaÃ§Ã£o existente | associaÃ§Ã£o nÃ£o usa horÃ¡rio de conclusÃ£o do download |
 | Falha de resumo | summary service | fallback para janela recente + banco |
-| ConteÃºdo bloqueado | guard de seguranÃ§a | conteÃºdo nÃ£o vira memÃ³ria confiÃ¡vel |
+| ConteÃºdo bloqueado | guard de seguranÃ§a + regressÃ£o da rota `/` | conteÃºdo nÃ£o vira memÃ³ria confiÃ¡vel, resumo ou turno recente enviado ao OpenAI; o outbound de bloqueio permanece apenas como contexto citado |
+| FalsificaÃ§Ã£o de delimitador | regressÃ£o da rota `/` | marcadores enviados pelo usuÃ¡rio sÃ£o neutralizados antes da composiÃ§Ã£o do prompt |
 | MudanÃ§a de data/refeiÃ§Ã£o | intent actions/delete guard | alvo revalidado no banco antes da mutaÃ§Ã£o |
-| RetenÃ§Ã£o | retention service | contexto expira; refeiÃ§Ãµes/Ã¡gua/peso/exercÃ­cios permanecem |
+| RetenÃ§Ã£o | retention service | contexto expira; referÃªncias/Ã¡gua/peso/exercÃ­cios permanecem |
 
 ## Rollout operacional
 
@@ -66,7 +68,7 @@ O modo global Ã© definido por:
 
 Cada fluxo pode sobrescrever os valores globais:
 
-- `WHATSAPP_CONTEXT_READ_MODE_TEXT`;
+- `WHATSAPP_CONTEXT_READ_MODE_TEXT`
 - `WHATSAPP_CONTEXT_READ_MODE_IMAGE`;
 - `WHATSAPP_CONTEXT_READ_MODE_AUDIO`;
 - `WHATSAPP_CONTEXT_READ_MODE_MULTIMODAL`;
@@ -91,16 +93,16 @@ Durante a janela definida pela operaÃ§Ã£o:
 - duplicaÃ§Ã£o de refeiÃ§Ã£o/Ã¡gua/peso/exercÃ­cio atribuÃ­vel ao contexto = 0;
 - aÃ§Ã£o destrutiva ambÃ­gua sem confirmaÃ§Ã£o = 0;
 - divergÃªncia funcional crÃ­tica antigo Ã— persistente = 0;
-- falha de contexto sempre termina em fallback ou clarificaÃ§Ã£o segura;
+- falha de contexto sempre termina em fallback ou clarificaÃ§Ã£o;
 - latÃªncia permanece dentro do orÃ§amento do ambiente;
 - logs e mÃ©tricas passam na revisÃ£o de privacidade;
 - gates do repositÃ³rio e TiDB estÃ£o verdes.
 
 ## Rollback
 
-Alterar o fluxo afetado para `legacy` ou `write_only` e manter escrita persistente. O rollback:
+Alterar o fluxo afetado para `legacy` ou `write_only` u manter escrita persistente. O rollback:
 
-- nÃ£o apaga mensagens, resumos, pendÃªncias ou vÃ­nculos;
+- nÃ£o apaga mensagens, resumos, pendÃªncias ou vÃ­culos;
 - nÃ£o executa migration reversa;
 - mantÃ©m a possibilidade de shadow para diagnÃ³stico;
 - preserva retenÃ§Ã£o e auditoria;
@@ -110,46 +112,4 @@ Alterar o fluxo afetado para `legacy` ou `write_only` e manter escrita persisten
 
 ## Fallbacks locais ainda presentes
 
-Os caches criados por `createMessageDeduplicationCache` continuam no repositÃ³rio por compatibilidade e fast-path. Eles nÃ£o decidem um retry quando o lease persistente concedeu propriedade Ã  requisiÃ§Ã£o. A remoÃ§Ã£o fÃ­sica desses caches fica condicionada a uma rodada posterior de busca no repositÃ³rio e evidÃªncia de produÃ§Ã£o; nÃ£o Ã© necessÃ¡ria para a correÃ§Ã£o distribuÃ­da desta issue.
-
-O fallback em memÃ³ria de `whatsappPendingOperationRepository` continua apenas quando nÃ£o hÃ¡ banco configurado. Ele serve ao desenvolvimento local e nÃ£o oferece garantia multi-instÃ¢ncia; produÃ§Ã£o deve usar TiDB.
-
-## Gate TiDB
-
-`.github/workflows/whatsapp-context-tidb.yml`:
-
-1. inicia uma versÃ£o fixada do TiDB;
-2. cria o banco de validaÃ§Ã£o;
-3. aplica as migrations do repositÃ³rio;
-4. executa `pnpm db:check-integrity`;
-5. executa a regressÃ£o persistente sem misturar o banco temporÃ¡rio com os fallbacks controlados dos testes.
-
-## Checklist de staging
-
-Esta lista exige ambiente integrado e deve ser anexada Ã  PR antes da promoÃ§Ã£o para produÃ§Ã£o:
-
-- [ ] payload Meta real de texto;
-- [ ] payload Meta real de imagem com e sem legenda;
-- [ ] payload Meta real de Ã¡udio;
-- [ ] alternÃ¢ncia entre duas instÃ¢ncias do serviÃ§o;
-- [ ] reinÃ­cio entre mensagens;
-- [ ] reentrega do mesmo `message.id` para texto, imagem e Ã¡udio;
-- [ ] falha controlada de resumo;
-- [ ] resposta da Meta falhando apÃ³s persistÃªncia;
-- [ ] observaÃ§Ã£o shadow antigo Ã— novo;
-- [ ] logs sem conteÃºdo sensÃ­vel;
-- [ ] limpeza do contexto sem alterar dados nutricionais;
-- [ ] rollback para `legacy` sem downgrade do banco.
-
-## Gates do repositÃ³rio
-
-```bash
-pnpm check
-pnpm test
-pnpm architecture:check
-pnpm docs:check
-pnpm build
-pnpm agent:check
-```
-
-A PR sÃ³ pode sair de draft quando os gates automatizados, o job TiDB e o checklist aplicÃ¡vel ao ambiente de staging estiverem documentados como concluÃ­dos.
+Os caches ccriados por `createMessageDeduplicationCache` continuam no repositÃ³rio por compatibilidade e fast-path. Eles nÃ£o decidem um retry]X[™ÈÈX\ÙH\œÚ\İ[HÛÛ˜ÙY]H›ÜšYYYH0è™\]Z\ÚpéğèÛËˆH™[[ğéğèÛÈ°ë\ÚXØH\ÜÙ\ÈØXÚ\ÈšXØHÛÛ™XÚ[Û˜YHH[XH›ÙYHÜİ\š[ÜˆH\ØØH›È™\ÜÚ]0ìÜš[ÈH]šY0ê›˜ÚXHH›ÙpéğèÛÎÈ°èÛÈ0êH™XÙ\Üğè\šXH\˜HHÛÜœ™péğèÛÈ\İšXpëYH\İH\ÜİYK‚‚“È˜[˜XÚÈ[HY[pìÜšXHHÚ]Ø\[™[™ÓÜ\˜][Û”™\ÜÚ]ÜXÛÛ[XH\[˜\È]X[™È°èÛÈ0èH˜[˜ÛÈÛÛ™šYİ\˜YËˆ[HÙ\™H[È\Ù[›Ûš[Y[ÈØØ[H°èÛÈÙ™\™XÙHØ\˜[XH][KZ[œİ0è›˜ÚXNÈ›ÙpéğèÛÈ]™H\Ø\ˆQ‹‚‚ˆÈÈØ]HQ‚‚˜™Ú]X‹İÛÜšÙ›İÜËİÚ]Ø\XÛÛ^]Y‹[[‚‚ŒKˆ[šXÚXH[XH™\œğèÛÈš^YHÈQÂŒ‹ˆÜšXHÈ˜[˜ÛÈH˜[YpéğèÛÎÂŒËˆ\XØH\ÈZYÜ˜][ÛœÈÈ™\ÜÚ]0ìÜš[ÎÂˆ^Xİ]HœH˜ÚXÚËZ[YÜš]XÂKˆ^Xİ]HH™YÜ™\ÜğèÛÈ\œÚ\İ[HÙ[HZ\İ\˜\ˆÈ˜[˜ÛÈ[\Ü°è\š[ÈÛÛHÜÈ˜[˜XÚÜÈÛÛ›ÛYÜÈÜÈ\İ\Ë‚‚ˆÈÈÚXÚÛ\İHİYÚ[™Â‚‘\İH\İH^YÙH[XšY[H[YÜ˜YÈH]™HÙ\ˆ[™^YH0èˆ[\ÈH›Û[ğéğèÛÈ\˜H›ÙpéğèÛÎ‚‚‹HÈH^[ØYY]H™X[H^ÎÂ‹HÈH^[ØYY]H™X[H[XYÙ[HÛÛHHÙ[HYÙ[™NÂ‹HÈH^[ØYY]H™X[H0è]Y[ÎÂ‹HÈH[\›°è›˜ÚXH[™HX\È[œİ0è›˜ÚX\ÈÈÙ\špéÛÎÂ‹HÈH™Z[°ëXÚ[È[™HY[œØYÙ[œÎÂ‹HÈH™Y[™YØHÈY\Û[ÈY\ÜØYÙKšY\˜H^Ë[XYÙ[HH0è]Y[ÎÂ‹HÈH˜[HÛÛ›ÛYHH™\İ[[ÎÂ‹HÈH™\ÜÜİHHY]H˜[[™È\0ìÜÈ\œÚ\İ0ê›˜ÚXNÂ‹HÈHØœÙ\˜péğèÛÈÚYİÈ[YÛÈ0åÈ›İ›ÎÂ‹HÈHÙÜÈÙ[HÛÛpî™ÈÙ[œğë]™[Â‹HÈH[\^˜HÈÛÛ^ÈÙ[H[\˜\ˆYÜÈ]šXÚ[Û˜Z\ÎÂ‹HÈH›Û˜XÚÈ\˜HYØXŞXÙ[HİÛ™Ü˜YHÈ˜[˜ÛË‚‚ˆÈÈØ]\ÈÈ™\ÜÚ]0ìÜš[Â‚˜˜\ÚœœHÚXÚÂœœH\İœœH\˜Ú]Xİ\™N˜ÚXÚÂœœHØÜÎ˜ÚXÚÂœœHZ[œœHYÙ[˜ÚXÚÂ˜‚HˆğìÈÙHØZ\ˆH˜Y]X[™ÈÜÈØ]\È]]ÛX]^˜YÜËÈ›ØˆQˆHÈÚXÚÛ\İ\Xğè]™[[È[XšY[HHİYÚ[™È\İ]™\™[HØİ[Y[YÜÈÛÛ[ÈÛÛ˜ÛpëYÜË‚
