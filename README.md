@@ -63,12 +63,12 @@ A migração segue o plano em `docs/exec-plans/active/migrate-ai-to-openai.md`.
 Situação atual:
 
 - Transcrição de áudio usa o provider OpenAI isolado no backend.
-- Inferência nutricional de texto e imagem usa o provider OpenAI com saída estruturada e validação Zod.
+- Inferência nutricional de texto e imagem usa a factory legada selecionada por `AI_VISION_PROVIDER`, com saída estruturada e validação Zod.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
 
-## Seleção de Provider de IA (Visão e Texto)
+## Seleção legada de Provider de IA (Visão e Texto)
 
-O projeto suporta a troca de provedor de IA via variável de ambiente, sem necessidade de alteração de código. O provedor selecionado será usado para reconhecimento de foto de refeição, classificador de intenção (WhatsApp) e busca semântica de catálogo.
+A seleção global abaixo continua funcionando durante a migração por capacidade. Ela se aplica ao consumidor legado de inferência nutricional de texto/imagem; outros fluxos, como perguntas, embeddings, transcrição e imagem anotada, mantêm seus caminhos próprios até as subissues correspondentes.
 
 - **OpenAI (Padrão):**
   ```env
@@ -77,7 +77,7 @@ O projeto suporta a troca de provedor de IA via variável de ambiente, sem neces
   OPENAI_MODEL=gpt-4.1-mini # opcional
   ```
 
-- **Gemini (Recomendado para melhor reconhecimento de imagens):**
+- **Gemini:**
   ```env
   AI_VISION_PROVIDER=gemini
   GEMINI_API_KEY=<sua_chave_google_ai_studio>
@@ -90,11 +90,17 @@ O projeto suporta a troca de provedor de IA via variável de ambiente, sem neces
 
 A seleção acima (`AI_VISION_PROVIDER`) continua funcionando como está e nenhum consumidor foi migrado ainda. Em paralelo, `server/_core/ai/` introduz uma fundação para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
 
-- **matriz de suporte por adapter**: cada provider (`openai`, `gemini`, `openai-compatible`) declara explicitamente quais operações suporta (texto, visão, structured output, web search, embeddings, transcrição, geração/edição de imagem); nada é inferido do nome do provider ou do modelo;
-- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*` — precedência é sempre variável nova > variável legada compatível > default equivalente ao baseline atual;
-- **fallback por capacidade, desabilitado por padrão**: habilitar fallback numa capacidade nunca afeta outra, e usar um provider de fallback diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito — sem isso, nenhum dado é enviado ao segundo provider.
+- **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings;
+- **matriz baseada no adapter real**: cada provider declara somente operações implementadas no projeto; Gemini declara texto, visão e Structured Output nesta fase, sem anunciar embeddings antes de existir método dedicado;
+- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
+- **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
+- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` e usa modelo próprio do provider de destino;
+- **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
+- **erros e saídas normalizados**: timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
+- **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
+- **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Detalhes completos em `ARCHITECTURE.md` (seção "Fundação multi-provider de IA (#921)") e `.env.example`. A migração de cada consumidor para este resolvedor é escopo de subissues futuras de #917.
+Detalhes completos em `ARCHITECTURE.md` (seção "Fundação multi-provider de IA (#921)"), `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. A migração de cada consumidor para este resolvedor é escopo das subissues seguintes de #917.
 
 ## Variáveis de ambiente obrigatórias
 
@@ -124,6 +130,7 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | Feature | Variáveis | Comportamento quando ausentes |
 |---|---|---|
 | OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
+| Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS` | Configuração inválida produz estado `invalid`/`disabled`; fallback nunca é habilitado implicitamente. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |

@@ -85,13 +85,15 @@ Foto, áudio e transcrição podem envolver serviços externos de transcrição,
 
 ### Segundo envio a provider (fallback) e diagnósticos sanitizados (#921)
 
-A fundação multi-provider por capacidade (`server/_core/ai/`) introduz um "segundo envio" possível — o fallback de um provider para outro dentro da mesma capacidade — e formaliza os limites de privacidade aplicáveis:
+A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
 
-- Fallback é desabilitado por padrão em toda capacidade; quando habilitado, é uma única chamada adicional ao provider de fallback, nunca paralela ao primário e nunca encadeada com um terceiro provider.
-- Enviar dados a um provider de fallback diferente do primário exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` explícito por capacidade. Sem essa flag, nenhum payload, prompt ou mídia é enviado ao segundo provider — a capacidade opera apenas com o primário (estado `degraded`).
-- O diagnóstico produzido pelo resolvedor (`ResolvedCapabilityConfig.diagnostics`) é sempre sanitizado: contém apenas identificadores de capacidade/provider e a razão do estado, nunca o conteúdo de um prompt, payload, imagem, áudio ou segredo.
-- Degradação funcional local (ex.: busca semântica caindo para busca não semântica, anotação de imagem em modo local) não envolve um segundo provider externo e não deve ser confundida com o fallback acima ao avaliar exposição de dados a terceiros.
-- Nenhum consumidor foi migrado para este resolvedor nesta issue, portanto o comportamento de retenção/envio de dados hoje em produção permanece o documentado nas seções anteriores até que cada capacidade seja migrada.
+- Fallback é desabilitado por padrão e nunca encadeia um terceiro provider.
+- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade. Sem essa flag, nenhum payload, prompt ou mídia é enviado ao segundo provider.
+- Cada callback recebe `AbortSignal`. Após timeout, a execução aguarda a chamada anterior encerrar antes de iniciar retry ou fallback; se o provider não reconhecer o cancelamento dentro da janela de segurança, a execução termina em modo fail-closed, sem segundo envio.
+- `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
+- Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
+- Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
+- Nenhum consumidor foi migrado para o novo resolvedor nesta subissue; o adapter Gemini foi mantido compatível com o schema real já usado pelo consumidor legado.
 
 ## Riscos conhecidos e cuidados recorrentes
 

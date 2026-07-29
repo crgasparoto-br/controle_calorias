@@ -3,6 +3,7 @@ import type {
   Response as OpenAiResponse,
   ResponseCreateParamsNonStreaming,
 } from "openai/resources/responses/responses";
+import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
 import { ENV } from "./env";
 import { GeminiProvider } from "./geminiProvider";
 import { createOpenAiClient } from "./openaiClient";
@@ -16,7 +17,11 @@ export type AiProviderResponseFormat =
       strict?: boolean;
     };
 
-export type AiProviderTextTool = Record<string, unknown>;
+export type AiProviderWebSearchTool = {
+  type: "web_search" | "web_search_preview";
+};
+
+export type AiProviderTextTool = AiProviderWebSearchTool;
 
 export type AiProviderTextRequest = {
   model: string;
@@ -26,9 +31,36 @@ export type AiProviderTextRequest = {
   tools?: AiProviderTextTool[];
 };
 
+export type AiProviderRequestOptions = {
+  /** Propagated to the provider SDK/HTTP client; never treated as prompt data. */
+  signal?: AbortSignal;
+};
+
+export type AiProviderUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  raw: unknown;
+};
+
 export type AiProviderTextResponse = {
   id: string;
   outputText: string;
+  usage?: AiProviderUsage;
+  raw: unknown;
+};
+
+export type AiProviderEmbeddingInput = string | string[] | number[] | number[][];
+
+export type AiProviderEmbeddingRequest = {
+  model: string;
+  input: AiProviderEmbeddingInput;
+  dimensions?: number;
+};
+
+export type AiProviderEmbeddingResponse = {
+  embeddings: number[][];
+  usage?: AiProviderUsage;
   raw: unknown;
 };
 
@@ -84,22 +116,26 @@ export type AiProviderImageGenerationResponse = {
 export interface AiProvider {
   createTextResponse(
     request: AiProviderTextRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse>;
+  createEmbeddings(
+    request: AiProviderEmbeddingRequest,
+    options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse>;
   createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse>;
   createImageGeneration(
     request: AiProviderImageGenerationRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse>;
 }
 
 function buildTextConfig(
   format: AiProviderResponseFormat | undefined,
 ): ResponseCreateParamsNonStreaming["text"] | undefined {
-  if (!format || format.type === "text") {
-    return undefined;
-  }
-
+  if (!format || format.type === "text") return undefined;
   return {
     format: {
       type: "json_schema",
@@ -110,6 +146,36 @@ function buildTextConfig(
   };
 }
 
+type OpenAiSdkTextTool = NonNullable<ResponseCreateParamsNonStreaming["tools"]>[number];
+
+function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
+  if (typeof tool !== "object" || tool === null || !("type" in tool)) {
+    throw new AiNonRetryableError(
+      "OpenAiProvider: text tool must declare a supported type before network access.",
+      undefined,
+      "incompatible_operation",
+    );
+  }
+
+  const type = (tool as { type?: unknown }).type;
+  if (type === "web_search" || type === "web_search_preview") {
+    return { type: "web_search_preview" };
+  }
+
+  throw new AiNonRetryableError(
+    `OpenAiProvider: text tool type ${String(type)} is not supported by the internal adapter contract.`,
+    undefined,
+    "incompatible_operation",
+  );
+}
+
+function buildOpenAiTools(
+  tools: readonly AiProviderTextTool[] | undefined,
+): ResponseCreateParamsNonStreaming["tools"] | undefined {
+  if (!tools?.length) return undefined;
+  return tools.map(translateOpenAiTextTool);
+}
+
 type OpenAiClientFactory = () => OpenAI;
 
 function isOpenAiClientFactory(
@@ -118,11 +184,14 @@ function isOpenAiClientFactory(
   return typeof client === "function";
 }
 
+function openAiRequestOptions(options?: AiProviderRequestOptions) {
+  return options?.signal ? { signal: options.signal } : undefined;
+}
+
 function buildTranscriptionResponse(
   response: unknown,
 ): AiProviderAudioTranscriptionResponse {
   const data = response as Partial<AiProviderAudioTranscriptionResponse>;
-
   return {
     task: "transcribe",
     language: typeof data.language === "string" ? data.language : "",
@@ -138,10 +207,7 @@ function buildTranscriptionResponse(
 function mimeTypeFromOutputFormat(
   outputFormat: AiProviderImageGenerationRequest["outputFormat"] = "png",
 ) {
-  if (outputFormat === "jpeg") {
-    return "image/jpeg";
-  }
-
+  if (outputFormat === "jpeg") return "image/jpeg";
   return `image/${outputFormat}`;
 }
 
@@ -151,10 +217,49 @@ function imageFileNameFromMimeType(mimeType = "image/png") {
   return "meal-photo.png";
 }
 
-function buildImageEditFile(image: AiProviderImageInput) {
+function invalidImagePayload(path: string, reason: string): AiOperationalError {
+  return new AiOperationalError(
+    `OpenAiProvider: ${path} ${reason}.`,
+    undefined,
+    "invalid_payload",
+  );
+}
+
+function normalizeImageBase64(value: string, path: string): string {
+  const compact = value.replace(/\s+/g, "");
+  if (!compact) {
+    throw invalidImagePayload(path, "must contain non-empty base64 image data");
+  }
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
+    throw invalidImagePayload(path, "contains malformed base64 image data");
+  }
+
+  const paddingLength = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
+  const dataLength = compact.length - paddingLength;
+  const remainder = dataLength % 4;
+  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
+  if (
+    remainder === 1 ||
+    (paddingLength > 0 && (compact.length % 4 !== 0 || paddingLength !== expectedPadding))
+  ) {
+    throw invalidImagePayload(path, "contains malformed base64 image data");
+  }
+
+  const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
+  const decoded = Buffer.from(padded, "base64");
+  const canonical = decoded.toString("base64").replace(/=+$/u, "");
+  if (!decoded.length || canonical !== compact.replace(/=+$/u, "")) {
+    throw invalidImagePayload(path, "contains malformed base64 image data");
+  }
+
+  return compact;
+}
+
+function buildImageEditFile(image: AiProviderImageInput, index: number) {
   const mimeType = image.mimeType || "image/png";
+  const b64Json = normalizeImageBase64(image.b64Json, `originalImages[${index}].b64Json`);
   return new File(
-    [Buffer.from(image.b64Json, "base64")],
+    [Buffer.from(b64Json, "base64")],
     imageFileNameFromMimeType(mimeType),
     { type: mimeType },
   );
@@ -162,6 +267,30 @@ function buildImageEditFile(image: AiProviderImageInput) {
 
 function firstImageData(response: { data?: Array<{ b64_json?: string }> }) {
   return response.data?.[0]?.b64_json;
+}
+
+function normalizeOpenAiUsage(response: OpenAiResponse): AiProviderUsage | undefined {
+  const usage = (response as unknown as {
+    usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+  }).usage;
+  if (!usage) return undefined;
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    totalTokens: usage.total_tokens,
+    raw: usage,
+  };
+}
+
+function normalizeOpenAiEmbeddingUsage(response: {
+  usage?: { prompt_tokens?: number; total_tokens?: number };
+}): AiProviderUsage | undefined {
+  if (!response.usage) return undefined;
+  return {
+    inputTokens: response.usage.prompt_tokens,
+    totalTokens: response.usage.total_tokens,
+    raw: response.usage,
+  };
 }
 
 export class OpenAiProvider implements AiProvider {
@@ -175,83 +304,106 @@ export class OpenAiProvider implements AiProvider {
         ? this.client()
         : this.client;
     }
-
     return this.resolvedClient;
   }
 
   async createTextResponse(
     request: AiProviderTextRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
     const payload: ResponseCreateParamsNonStreaming = {
       model: request.model,
       input: request.input,
       stream: false,
     };
-
-    if (request.instructions) {
-      payload.instructions = request.instructions;
-    }
-
-    if (request.tools?.length) {
-      (payload as unknown as { tools?: AiProviderTextTool[] }).tools = request.tools;
-    }
-
+    if (request.instructions) payload.instructions = request.instructions;
+    const tools = buildOpenAiTools(request.tools);
+    if (tools) payload.tools = tools;
     const text = buildTextConfig(request.format);
-    if (text) {
-      payload.text = text;
-    }
+    if (text) payload.text = text;
 
     const response = (await this.getClient().responses.create(
       payload,
+      openAiRequestOptions(options),
     )) as OpenAiResponse;
-
     return {
       id: response.id,
       outputText: response.output_text ?? "",
+      usage: normalizeOpenAiUsage(response),
+      raw: response,
+    };
+  }
+
+  async createEmbeddings(
+    request: AiProviderEmbeddingRequest,
+    options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse> {
+    const response = await this.getClient().embeddings.create(
+      {
+        model: request.model,
+        input: request.input,
+        encoding_format: "float",
+        ...(request.dimensions ? { dimensions: request.dimensions } : {}),
+      },
+      openAiRequestOptions(options),
+    );
+    return {
+      embeddings: response.data.map(item => item.embedding),
+      usage: normalizeOpenAiEmbeddingUsage(response),
       raw: response,
     };
   }
 
   async createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {
-    const response = await this.getClient().audio.transcriptions.create({
-      file: request.file,
-      model: request.model,
-      response_format: "verbose_json",
-      ...(request.language ? { language: request.language } : {}),
-      ...(request.prompt ? { prompt: request.prompt } : {}),
-    });
-
+    const response = await this.getClient().audio.transcriptions.create(
+      {
+        file: request.file,
+        model: request.model,
+        response_format: "verbose_json",
+        ...(request.language ? { language: request.language } : {}),
+        ...(request.prompt ? { prompt: request.prompt } : {}),
+      },
+      openAiRequestOptions(options),
+    );
     return buildTranscriptionResponse(response);
   }
 
   async createImageGeneration(
     request: AiProviderImageGenerationRequest,
+    options?: AiProviderRequestOptions,
   ): Promise<AiProviderImageGenerationResponse> {
-    const sourceImage = request.originalImages?.find(image => image.b64Json);
+    const sourceImages = request.originalImages ?? [];
+    const editFiles = sourceImages.map(buildImageEditFile);
     const client = this.getClient();
-    const response = sourceImage
-      ? await client.images.edit({
-          model: request.model,
-          image: buildImageEditFile(sourceImage),
-          prompt: request.prompt,
-          ...(request.size ? { size: request.size } : {}),
-          ...(request.quality ? { quality: request.quality } : {}),
-        })
-      : await client.images.generate({
-          model: request.model,
-          prompt: request.prompt,
-          ...(request.size ? { size: request.size } : {}),
-          ...(request.quality ? { quality: request.quality } : {}),
-          ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
-        });
+    const requestOptions = openAiRequestOptions(options);
+    const response = editFiles.length > 0
+      ? await client.images.edit(
+          {
+            model: request.model,
+            image: editFiles,
+            prompt: request.prompt,
+            ...(request.size ? { size: request.size } : {}),
+            ...(request.quality ? { quality: request.quality } : {}),
+            ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+          },
+          requestOptions,
+        )
+      : await client.images.generate(
+          {
+            model: request.model,
+            prompt: request.prompt,
+            ...(request.size ? { size: request.size } : {}),
+            ...(request.quality ? { quality: request.quality } : {}),
+            ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+          },
+          requestOptions,
+        );
 
     const imageData = firstImageData(response);
-    if (!imageData) {
-      throw new Error("OpenAI image provider returned no image data.");
-    }
-
+    if (!imageData) throw new Error("OpenAI image provider returned no image data.");
     return {
       b64Json: imageData,
       mimeType: mimeTypeFromOutputFormat(request.outputFormat),
@@ -277,9 +429,7 @@ const geminiProviderFactory: AiProviderFactory = () => {
 };
 
 const defaultAiProviderFactory: AiProviderFactory = () => {
-  if (ENV.aiVisionProvider === "gemini") {
-    return geminiProviderFactory();
-  }
+  if (ENV.aiVisionProvider === "gemini") return geminiProviderFactory();
   return openAiProviderFactory();
 };
 
