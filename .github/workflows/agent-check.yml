@@ -257,18 +257,15 @@ jobs:
             | base64 --decode \
             | gzip --decompress \
             > /tmp/issue-884-remediation.patch
-          echo "d4914220d1918460851ba1cc3cde643b2c5ab8ac489d7ae174890655c34b70a0  /tmp/issue-884-remediation.patch" \
+          echo "b0a89005112e79d6e173b88c45a580d7e950162f91a57738e7bffc7e017e2fc8  /tmp/issue-884-remediation.patch" \
             | sha256sum --check --strict
 
-      - name: Apply remediation and restore workflows
+      - name: Apply remediation
         shell: bash
         run: |
           set -euo pipefail
           git apply --check /tmp/issue-884-remediation.patch
           git apply /tmp/issue-884-remediation.patch
-          git show 12175e4cec48309d6bbd2bcba9a67aa46943d8ee:.github/workflows/agent-check.yml \
-            > .github/workflows/agent-check.yml
-          rm .github/workflows/apply-issue-884-remediation.yml
           git diff --check
 
       - name: Commit and publish remediation
