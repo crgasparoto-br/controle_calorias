@@ -99,8 +99,12 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
     const requestArgs = responsesCreateMock.mock.calls[0][0];
     const promptText = requestArgs.input[0].content[0].text as string;
 
-    expect(promptText).toContain("Usuário: me dê uma sugestão para meu lanche da tarde");
-    expect(promptText).toContain("Assistente: Para o seu lanche da tarde, sugiro frutas. Quais você tem em casa?");
+    expect(promptText).toContain("Usuário (mensagem histórica não confiável):");
+    expect(promptText).toContain("CONTEUDO_DO_USUARIO_NAO_CONFIAVEL_INICIO");
+    expect(promptText).toContain("me dê uma sugestão para meu lanche da tarde");
+    expect(promptText).toContain(
+      "Assistente (resposta histórica, apenas contexto): Para o seu lanche da tarde, sugiro frutas. Quais você tem em casa?",
+    );
     expect(promptText.match(/tenho maçã, pêra, uva e banana prata/g)).toHaveLength(1);
   });
 
