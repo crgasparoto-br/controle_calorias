@@ -4,6 +4,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  authSetData: vi.fn(),
+  authUser: {
+    id: 42,
+    name: "Nutricionista Ana",
+    professionalProfileActive: false,
+  } as Record<string, unknown>,
   invalidate: vi.fn(async () => undefined),
   mutate: vi.fn(),
   mutationOptions: null as null | {
@@ -14,6 +20,12 @@ const mocks = vi.hoisted(() => ({
     }) => Promise<void>;
     onError: (error: Error) => Promise<void>;
   },
+  profileData: null as null | {
+    displayName?: string;
+    registrationNumber?: string;
+    active?: boolean;
+  },
+  profileSetData: vi.fn(),
   refreshAuth: vi.fn(async () => undefined),
   refetchProfile: vi.fn(async () => ({ data: null })),
   toastError: vi.fn(),
@@ -22,7 +34,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
-    user: { id: 42, name: "Nutricionista Ana" },
+    user: mocks.authUser,
     refresh: mocks.refreshAuth,
   }),
 }));
@@ -41,10 +53,38 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
-      auth: { me: { invalidate: mocks.invalidate } },
+      auth: {
+        me: {
+          invalidate: mocks.invalidate,
+          setData: (input: unknown, updater: unknown) => {
+            mocks.authSetData(input, updater);
+            mocks.authUser =
+              typeof updater === "function"
+                ? (
+                    updater as (
+                      current: typeof mocks.authUser
+                    ) => typeof mocks.authUser
+                  )(mocks.authUser)
+                : (updater as typeof mocks.authUser);
+          },
+        },
+      },
       nutrition: {
         professionals: {
-          profile: { invalidate: mocks.invalidate },
+          profile: {
+            invalidate: mocks.invalidate,
+            setData: (input: unknown, updater: unknown) => {
+              mocks.profileSetData(input, updater);
+              mocks.profileData =
+                typeof updater === "function"
+                  ? (
+                      updater as (
+                        current: typeof mocks.profileData
+                      ) => typeof mocks.profileData
+                    )(mocks.profileData)
+                  : (updater as typeof mocks.profileData);
+            },
+          },
           myAccesses: { invalidate: mocks.invalidate },
           patientRequests: { invalidate: mocks.invalidate },
           history: { invalidate: mocks.invalidate },
@@ -58,7 +98,7 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         profile: {
           useQuery: () => ({
-            data: null,
+            data: mocks.profileData,
             isSuccess: true,
             isLoading: false,
             isError: false,
@@ -80,9 +120,19 @@ import ProfessionalProfileSettings from "./ProfessionalProfileSettings";
 
 describe("ProfessionalProfileSettings activation", () => {
   beforeEach(() => {
-    mocks.invalidate.mockClear();
+    mocks.authSetData.mockClear();
+    mocks.authUser = {
+      id: 42,
+      name: "Nutricionista Ana",
+      professionalProfileActive: false,
+    };
+    mocks.invalidate.mockReset();
+    mocks.invalidate.mockResolvedValue(undefined);
     mocks.mutate.mockClear();
-    mocks.refreshAuth.mockClear();
+    mocks.profileData = null;
+    mocks.profileSetData.mockClear();
+    mocks.refreshAuth.mockReset();
+    mocks.refreshAuth.mockResolvedValue(undefined);
     mocks.refetchProfile.mockClear();
     mocks.refetchProfile.mockResolvedValue({ data: null });
     mocks.toastError.mockClear();
@@ -137,8 +187,12 @@ describe("ProfessionalProfileSettings activation", () => {
     );
   });
 
-  it("refaz sessão, perfil e entitlements após sucesso", async () => {
-    render(<ProfessionalProfileSettings />);
+  it("mantém CTA e navegação ativos quando a reconciliação falha após o sucesso", async () => {
+    mocks.invalidate.mockRejectedValueOnce(
+      new Error("profile refetch unavailable")
+    );
+    mocks.refreshAuth.mockRejectedValueOnce(new Error("session refetch unavailable"));
+    const view = render(<ProfessionalProfileSettings />);
 
     await act(async () => {
       await mocks.mutationOptions?.onSuccess({
@@ -147,9 +201,17 @@ describe("ProfessionalProfileSettings activation", () => {
         active: true,
       });
     });
+    view.rerender(<ProfessionalProfileSettings />);
 
+    expect(mocks.profileData).toMatchObject({ active: true });
+    expect(mocks.authUser).toMatchObject({ professionalProfileActive: true });
+    expect(mocks.profileSetData).toHaveBeenCalledTimes(1);
+    expect(mocks.authSetData).toHaveBeenCalledTimes(1);
     expect(mocks.invalidate).toHaveBeenCalledTimes(6);
     expect(mocks.refreshAuth).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Abrir configurações profissionais" })
+    ).toBeTruthy();
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Perfil profissional salvo.");
   });
 
