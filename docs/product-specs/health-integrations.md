@@ -22,7 +22,7 @@ Permitir que atividades externas de saúde, inicialmente Strava, alimentem o di�
 - Quando a atividade não tiver calorias confiáveis, o sistema pode usar fallback local documentado, mas deve preservar a origem externa e evitar mascarar a ausência do dado real.
 - Sincronizações repetidas não devem criar exercícios duplicados para a mesma atividade externa.
 - A mensagem WhatsApp de exercício importado deve ser enviada apenas uma vez por atividade externa Strava; atualizações posteriores do mesmo exercício devem atualizar/ignorar o registro sem reenviar a notificação, salvo regra explícita futura.
-- A notificação usa o contrato central de exercício, informa atividade, duração, calorias, data e se o gasto foi estimado, com CTA `Ver exercício`; não afirma impacto sobre a meta calórica.
+- A notificação usa o contrato central de exercício, informa atividade, duração, calorias, data e se o gasto foi estimado, com CTA `Ver exercício`; quando a meta efetiva do dia estiver disponível, também informa `Meta`, `Exercícios`, `Consumo` e o saldo `Superávit`, `Déficit` ou `Equilíbrio`, calculados para a data da atividade no timezone efetivo do usuário.
 - A interface deve deixar claro se o provedor está conectado, pendente de configuração, desconectado ou com erro operacional.
 - Falhas de sincronização devem ser tratadas de forma recuperável e sanitizada, sem expor tokens, payload bruto ou dados sensíveis em logs/mensagens.
 - Desconexão ou revogação deve impedir novas sincronizações e respeitar os fluxos de exportação/exclusão de privacidade.
@@ -46,6 +46,7 @@ Esses dados seguem `docs/PRIVACY_LGPD.md` e não devem aparecer em analytics ou 
 - Exercícios importados aparecem em Hoje, Registros e Relatórios quando estiverem no intervalo consultado.
 - Logs de sincronização usam apenas contadores, status e mensagens sanitizadas.
 - Notificação WhatsApp de integração Strava é protegida contra duplicidade por `externalId`; a mesma atividade não deve gerar nova mensagem quando a sincronização manual ou automática roda novamente.
+- Quando houver meta efetiva para a data da atividade, a notificação apresenta o progresso do mesmo dia no timezone efetivo; se esse progresso estiver indisponível, a notificação do exercício continua sem inventar valores de meta ou consumo.
 
 ## Notas de implementação
 
