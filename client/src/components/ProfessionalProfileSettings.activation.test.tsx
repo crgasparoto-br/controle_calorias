@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     onError: (error: Error) => Promise<void>;
   },
   refreshAuth: vi.fn(async () => undefined),
+  refetchProfile: vi.fn(async () => ({ data: null })),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
@@ -61,7 +62,7 @@ vi.mock("@/lib/trpc", () => ({
             isSuccess: true,
             isLoading: false,
             isError: false,
-            refetch: vi.fn(),
+            refetch: mocks.refetchProfile,
           }),
         },
         upsertProfile: {
@@ -82,6 +83,8 @@ describe("ProfessionalProfileSettings activation", () => {
     mocks.invalidate.mockClear();
     mocks.mutate.mockClear();
     mocks.refreshAuth.mockClear();
+    mocks.refetchProfile.mockClear();
+    mocks.refetchProfile.mockResolvedValue({ data: null });
     mocks.toastError.mockClear();
     mocks.toastSuccess.mockClear();
     mocks.mutationOptions = null;
@@ -153,12 +156,22 @@ describe("ProfessionalProfileSettings activation", () => {
   it("reconcilia o estado remoto antes de informar falha temporária", async () => {
     render(<ProfessionalProfileSettings />);
 
+    const activation = screen.getByRole("checkbox", {
+      name: /Ativar área Profissional/i,
+    });
+    fireEvent.click(activation);
+    expect(activation.getAttribute("data-state")).toBe("checked");
+
     await act(async () => {
-      await mocks.mutationOptions?.onError(new Error("Serviço temporariamente indisponível"));
+      await mocks.mutationOptions?.onError(
+        new Error("Serviço temporariamente indisponível")
+      );
     });
 
     expect(mocks.invalidate).toHaveBeenCalledTimes(6);
     expect(mocks.refreshAuth).toHaveBeenCalledTimes(1);
+    expect(mocks.refetchProfile).toHaveBeenCalledTimes(1);
+    expect(activation.getAttribute("data-state")).toBe("unchecked");
     expect(mocks.toastError).toHaveBeenCalledWith(
       "Serviço temporariamente indisponível"
     );

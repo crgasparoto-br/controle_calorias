@@ -128,10 +128,26 @@ export default function ProfessionalProfileSettings() {
       toast.success("Perfil profissional salvo.");
     },
     onError: async error => {
+      setAppliedSavedProfile(false);
       await Promise.allSettled([
         invalidateProfessionalSettings(),
         refreshAuth(),
       ]);
+      try {
+        const refreshedProfile = await profile.refetch();
+        if (refreshedProfile.data !== undefined) {
+          setForm({
+            displayName:
+              refreshedProfile.data?.displayName ?? suggestedProfessionalName,
+            registrationNumber:
+              refreshedProfile.data?.registrationNumber ?? "",
+            active: Boolean(refreshedProfile.data?.active),
+          });
+          setAppliedSavedProfile(true);
+        }
+      } catch {
+        // Mantém o formulário elegível para aplicar o próximo refetch bem-sucedido.
+      }
       toast.error(
         error.message || "Não foi possível salvar o perfil profissional."
       );
