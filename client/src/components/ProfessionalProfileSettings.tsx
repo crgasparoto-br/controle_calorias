@@ -89,10 +89,22 @@ export default function ProfessionalProfileSettings() {
   useEffect(() => {
     if (appliedSavedProfile || !profile.isSuccess) return;
 
+    const confirmedActive = Boolean(profile.data?.active);
+    utils.auth.me.setData(undefined, currentUser => {
+      const confirmedUser = currentUser ?? user;
+      if (!confirmedUser) return currentUser;
+      if (confirmedUser.professionalProfileActive === confirmedActive) {
+        return confirmedUser;
+      }
+      return {
+        ...confirmedUser,
+        professionalProfileActive: confirmedActive,
+      };
+    });
     setForm({
       displayName: profile.data?.displayName ?? suggestedProfessionalName,
       registrationNumber: profile.data?.registrationNumber ?? "",
-      active: Boolean(profile.data?.active),
+      active: confirmedActive,
     });
     setAppliedSavedProfile(true);
   }, [
