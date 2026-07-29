@@ -1,0 +1,87 @@
+name: Apply issue 883 cycle 2 remediation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-883-cycle2-apply.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-code:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      PATCH_B64: "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"
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Confirm exact input head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply cycle 2 patch
+        run: |
+          printf '%s' "${PATCH_B64}" | base64 -d | gzip -d > /tmp/issue-883-cycle2.patch
+          git apply --check /tmp/issue-883-cycle2.patch
+          git apply /tmp/issue-883-cycle2.patch
+          git diff --check
+
+      - name: Format touched source files
+        run: |
+          pnpm exec prettier --write \
+            client/src/components/ProfessionalProfileSettings.tsx \
+            client/src/components/PatientAccessRequestsCard.test.tsx \
+            visual-tests/professional-home/main.tsx \
+            visual-tests/professional-home/trpcMock.ts
+          git diff --check
+          bash -n scripts/render-professional-home-visual.sh
+
+      - name: Run focused regression tests
+        env:
+          NODE_ENV: test
+        run: |
+          pnpm exec vitest run \
+            client/src/components/PatientAccessRequestsCard.test.tsx \
+            client/src/components/professional/ProfessionalUi.test.tsx \
+            client/src/components/ProfessionalOperationalAlertsPanel.test.tsx \
+            --maxWorkers=1 --minWorkers=1
+
+      - name: Validate types and documentation
+        run: |
+          pnpm check
+          pnpm docs:check
+
+      - name: Commit cycle 2 remediation
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            client/src/components/ProfessionalProfileSettings.tsx \
+            client/src/components/PatientAccessRequestsCard.test.tsx \
+            visual-tests/professional-home/main.tsx \
+            visual-tests/professional-home/trpcMock.ts \
+            scripts/render-professional-home-visual.sh
+          git commit -m "fix: add local retry for professional profile"
+          git push origin "HEAD:${HEAD_BRANCH}"
