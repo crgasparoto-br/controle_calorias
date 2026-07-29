@@ -14,6 +14,36 @@ const mocks = vi.hoisted(() => ({
   refreshAuth: vi.fn(async () => undefined),
   reset: vi.fn(async () => undefined),
   setLocation: vi.fn(),
+  queryData: {
+    profile: {
+      displayName: "Nutricionista Ana",
+      registrationNumber: "CRN 123",
+      active: true,
+    },
+    identity: {
+      contactEmail: null,
+      contactPhone: null,
+      patientFacingBio: null,
+    },
+    preferences: {
+      defaultReviewIntervalDays: null,
+      messageTemplates: [],
+    },
+    operationalAlertCriteria: [],
+    entitlements: {
+      allowed: true,
+      mode: "open_access" as const,
+      commercialState: "active",
+      planName: "Plano profissional",
+      fallbackUsed: false,
+      enabledResources: [],
+      capacity: {
+        limit: null,
+        used: null,
+        usageAvailable: false,
+      },
+    },
+  },
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
@@ -81,36 +111,7 @@ vi.mock("@/lib/trpc", () => ({
       settings: {
         get: {
           useQuery: () => ({
-            data: {
-              profile: {
-                displayName: "Nutricionista Ana",
-                registrationNumber: "CRN 123",
-                active: true,
-              },
-              identity: {
-                contactEmail: null,
-                contactPhone: null,
-                patientFacingBio: null,
-              },
-              preferences: {
-                defaultReviewIntervalDays: null,
-                messageTemplates: [],
-              },
-              operationalAlertCriteria: [],
-              entitlements: {
-                allowed: true,
-                mode: "open_access",
-                commercialState: "active",
-                planName: "Plano profissional",
-                fallbackUsed: false,
-                enabledResources: [],
-                capacity: {
-                  limit: null,
-                  used: null,
-                  usageAvailable: false,
-                },
-              },
-            },
+            data: mocks.queryData,
             isLoading: false,
             isError: false,
             refetch: vi.fn(),
