@@ -27,6 +27,7 @@ vi.mock("./entitlementService", async importOriginal => {
 });
 
 import { professionalRecordRouter } from "./recordRouter";
+import { _forTestOnly_clearProfessionalPatientContextMetadataCache } from "./patientContextService";
 
 function contextRow(patientId: number, name: string) {
   return {
@@ -36,12 +37,6 @@ function contextRow(patientId: number, name: string) {
     patientEmail: `${name.toLowerCase()}@example.com`,
     trackingStatus: "active",
   };
-}
-
-function queueContext(patientId: number, name: string) {
-  mocks.execute
-    .mockResolvedValueOnce([[contextRow(patientId, name)]])
-    .mockResolvedValueOnce([[]]);
 }
 
 function createCaller() {
@@ -54,6 +49,7 @@ function createCaller() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  _forTestOnly_clearProfessionalPatientContextMetadataCache();
   mocks.getProfessionalProfile.mockResolvedValue({ active: true });
   mocks.getProfessionalEntitlements.mockResolvedValue({
     allowed: true,
@@ -80,14 +76,17 @@ describe("professionalRecord.context integration", () => {
       reloadedTab.context({ patientId: 41, resource: "professional_reports" })
     ).resolves.toMatchObject({ patientId: 41, displayName: "Ana" });
 
-    expect(mocks.execute).toHaveBeenCalledTimes(4);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
     expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(2);
   });
 
   it("resolves each navigation target independently without retaining the previous patient", async () => {
-    queueContext(41, "Ana");
-    queueContext(72, "Bruno");
-    queueContext(41, "Ana");
+    mocks.execute
+      .mockResolvedValueOnce([[contextRow(41, "Ana")]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[contextRow(72, "Bruno")]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[contextRow(41, "Ana")]]);
     const caller = createCaller();
 
     await expect(
@@ -99,6 +98,8 @@ describe("professionalRecord.context integration", () => {
     await expect(
       caller.context({ patientId: 41, resource: "professional_reports" })
     ).resolves.toMatchObject({ patientId: 41, displayName: "Ana" });
+
+    expect(mocks.execute).toHaveBeenCalledTimes(5);
   });
 
   it("rejects malformed identifiers before querying persistence", async () => {
