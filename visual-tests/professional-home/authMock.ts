@@ -41,6 +41,12 @@ export function setVisualProfessionalProfileActive(active: boolean) {
 if (typeof window !== "undefined") {
   window.__setVisualProfessionalProfileActive =
     setVisualProfessionalProfileActive;
+  if (
+    new URLSearchParams(window.location.search).get("state") ===
+    "profile-transition"
+  ) {
+    window.setTimeout(() => setVisualProfessionalProfileActive(false), 50);
+  }
 }
 
 export function useAuth() {
