@@ -10,6 +10,8 @@
 - A listagem profissional devolve uma capacidade `retryable` derivada dessas condições canônicas; o cliente não reconstrói a política por enums parciais.
 - Falha de canal mantém o conteúdo disponível na web com estado `failed` e detalhe sanitizado.
 - Respostas repetidas usam o identificador externo do inbound como chave idempotente.
+- Mensagem recebida, avanço da conversa e evento de histórico são persistidos na mesma transação antes de confirmar sucesso ao paciente.
+- Uma resposta só é classificada como repetida após erro de chave única e releitura do registro idempotente no mesmo vínculo; timeout, indisponibilidade ou outro erro de persistência nunca produzem confirmação de recebimento.
 
 ## Objetivo
 

@@ -16,6 +16,17 @@ import type {
 
 type Row = Record<string, unknown>;
 type DeliveryMode = "initial" | "retry";
+const DUPLICATE_ENTRY_ERROR_CODE = "ER_DUP_ENTRY";
+const DUPLICATE_ENTRY_ERRNO = 1062;
+
+function isDuplicateEntryError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; errno?: unknown };
+  return (
+    candidate.code === DUPLICATE_ENTRY_ERROR_CODE ||
+    Number(candidate.errno) === DUPLICATE_ENTRY_ERRNO
+  );
+}
 function rows(result: unknown): Row[] {
   return Array.isArray(result)
     ? ((Array.isArray(result[0]) ? result[0] : result) as Row[])
@@ -700,27 +711,46 @@ export async function tryAssociateProfessionalWhatsappResponse(input: {
       detail: "Resposta profissional sem conteúdo.",
     };
   const id = crypto.randomUUID();
-  try {
-    await db.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
-    VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${`whatsapp:professional-response:${input.externalMessageId}`}, ${String(parent.id)}, ${input.receivedAt})`);
-  } catch {
-    return {
-      handled: true,
-      reply: "Sua resposta já foi recebida.",
-      eventType: "whatsapp.professional_response.duplicate",
-      detail: "Callback profissional duplicado ignorado.",
-    };
-  }
-  await db.execute(
-    sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
-  );
-  await history(db, {
-    actorUserId: input.patientUserId,
-    professionalUserId: Number(parent.professionalUserId),
-    patientUserId: input.patientUserId,
-    eventType: "professional_message_response_received",
-    messageId: id,
+const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
+try {
+  await db.transaction(async tx => {
+    await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
+      VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${idempotencyKey}, ${String(parent.id)}, ${input.receivedAt})`);
+    await tx.execute(
+      sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
+    );
+    await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+      VALUES (${crypto.randomUUID()}, ${input.patientUserId}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, 'professional_message_response_received', 'professional_message', ${id}, NOW())`);
   });
+} catch (error) {
+  if (isDuplicateEntryError(error)) {
+    const duplicateResult = await db.execute(sql`SELECT id
+      FROM professionalMessages
+      WHERE idempotencyKey = ${idempotencyKey}
+        AND conversationId = ${String(parent.conversationId)}
+        AND authorizationId = ${String(parent.authorizationId)}
+        AND professionalUserId = ${Number(parent.professionalUserId)}
+        AND patientUserId = ${input.patientUserId}
+        AND authorUserId = ${input.patientUserId}
+        AND direction = 'patient_to_professional'
+        AND origin = 'patient'
+        AND messageType = 'response'
+      LIMIT 1`);
+    if (rows(duplicateResult)[0]) {
+      return {
+        handled: true,
+        reply: "Sua resposta já foi recebida.",
+        eventType: "whatsapp.professional_response.duplicate",
+        detail: "Callback profissional duplicado ignorado.",
+      };
+    }
+  }
+  logPersistenceWarning(
+    "professional_message_response_persistence",
+    error
+  );
+  throw error;
+}
   return {
     handled: true,
     reply:

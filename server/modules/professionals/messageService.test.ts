@@ -136,8 +136,16 @@ describe("professional message service", () => {
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
-      .mockRejectedValueOnce(new Error("duplicate key"));
-    mocks.getDb.mockResolvedValue({ execute });
+      .mockRejectedValueOnce(
+      Object.assign(new Error("duplicate key"), { code: "ER_DUP_ENTRY" })
+    )
+    .mockResolvedValueOnce([[{ id: "existing-response" }]]);
+    const db = {
+    execute,
+    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+      callback({ execute }),
+  };
+  mocks.getDb.mockResolvedValue(db);
     const input = {
       patientUserId: 20,
       text: "RESP-A1B2C3D4 Já registrei.",
@@ -148,6 +156,66 @@ describe("professional message service", () => {
     await expect(tryAssociateProfessionalWhatsappResponse(input)).resolves.toMatchObject({ eventType: "whatsapp.professional_response.received" });
     await expect(tryAssociateProfessionalWhatsappResponse(input)).resolves.toMatchObject({ eventType: "whatsapp.professional_response.duplicate" });
   });
+
+  it("does not acknowledge a professional response when persistence fails", async () => {
+  const persistenceError = Object.assign(
+    new Error("database temporarily unavailable"),
+    { code: "ETIMEDOUT" }
+  );
+  const execute = vi
+    .fn()
+    .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+    .mockRejectedValueOnce(persistenceError);
+  const db = {
+    execute,
+    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+      callback({ execute }),
+  };
+  mocks.getDb.mockResolvedValue(db);
+
+  await expect(
+    tryAssociateProfessionalWhatsappResponse({
+      patientUserId: 20,
+      text: "RESP-A1B2C3D4 Já registrei.",
+      externalMessageId: "wamid.persistence-failure",
+      receivedAt: new Date("2026-07-20T12:00:00Z"),
+    })
+  ).rejects.toBe(persistenceError);
+  expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+    "professional_message_response_persistence",
+    persistenceError
+  );
+});
+
+it("does not classify an unverified duplicate as a received response", async () => {
+  const duplicateError = Object.assign(new Error("duplicate key"), {
+    code: "ER_DUP_ENTRY",
+  });
+  const execute = vi
+    .fn()
+    .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+    .mockRejectedValueOnce(duplicateError)
+    .mockResolvedValueOnce([[]]);
+  const db = {
+    execute,
+    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+      callback({ execute }),
+  };
+  mocks.getDb.mockResolvedValue(db);
+
+  await expect(
+    tryAssociateProfessionalWhatsappResponse({
+      patientUserId: 20,
+      text: "RESP-A1B2C3D4 Já registrei.",
+      externalMessageId: "wamid.unverified-duplicate",
+      receivedAt: new Date("2026-07-20T12:00:00Z"),
+    })
+  ).rejects.toBe(duplicateError);
+  expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+    "professional_message_response_persistence",
+    duplicateError
+  );
+});
 
   it("does not capture ambiguous or ordinary nutrition text", async () => {
     await expect(tryAssociateProfessionalWhatsappResponse({ patientUserId: 20, text: "arroz e feijão", externalMessageId: "ordinary", receivedAt: new Date() })).resolves.toBeNull();
