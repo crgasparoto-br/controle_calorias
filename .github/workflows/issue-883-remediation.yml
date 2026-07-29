@@ -1,0 +1,188 @@
+name: Issue 883 remediation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - .github/workflows/issue-883-remediation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate-and-validate:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply audited remediation
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          source = Path("client/src/pages/professional/ProfessionalPatients.tsx")
+          text = source.read_text()
+          old = '''  const displayName =
+            item.patientName ??
+            (accessible ? item.patientEmail : null) ??
+            `Paciente ${item.patientUserId}`;
+          '''
+          new = '''  const displayName =
+            item.patientName ?? (accessible ? item.patientEmail : null) ?? "Paciente";
+          '''
+          if old not in text:
+              raise SystemExit("expected patient display fallback was not found")
+          source.write_text(text.replace(old, new))
+
+          test = Path("client/src/pages/professional/ProfessionalPatients.internalIdentifier.test.tsx")
+          test.write_text('''// @vitest-environment jsdom
+          import React from "react";
+          import { cleanup, render, screen } from "@testing-library/react";
+          import { afterEach, describe, expect, it, vi } from "vitest";
+
+          const patientContextFetch = vi.fn().mockResolvedValue(undefined);
+          const invalidate = vi.fn().mockResolvedValue(undefined);
+
+          vi.mock("@/components/professional/ProfessionalUi", () => ({
+            ProfessionalPage: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+            ProfessionalPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+            ProfessionalStatusBadge: ({ value }: { value: string }) => <span>{value}</span>,
+            ProfessionalLoadingState: ({ label }: { label: string }) => <p>{label}</p>,
+            ProfessionalAsyncState: ({ title }: { title: string }) => <p>{title}</p>,
+          }));
+
+          vi.mock("@/lib/trpc", () => ({
+            trpc: {
+              useUtils: () => ({
+                professionalRecord: { context: { fetch: patientContextFetch } },
+                nutrition: { professionals: { myAccesses: { invalidate } } },
+              }),
+              nutrition: {
+                professionals: {
+                  portfolio: {
+                    useQuery: () => ({
+                      data: {
+                        items: [{
+                          authorizationId: "approved-without-identification",
+                          patientUserId: 987654321,
+                          patientName: null,
+                          patientEmail: null,
+                          authorizationStatus: "approved",
+                          trackingStatus: "not_started",
+                          lastFoodActivityAt: null,
+                          nextReviewAt: null,
+                        }],
+                        pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+                      },
+                      isLoading: false,
+                      isError: false,
+                      refetch: vi.fn().mockResolvedValue(undefined),
+                    }),
+                  },
+                  requestAccess: {
+                    useMutation: () => ({
+                      isPending: false,
+                      isError: false,
+                      error: null,
+                      mutate: vi.fn(),
+                      reset: vi.fn(),
+                    }),
+                  },
+                },
+              },
+            },
+          }));
+
+          import ProfessionalPatients from "./ProfessionalPatients";
+
+          afterEach(() => cleanup());
+
+          describe("ProfessionalPatients internal identifier privacy", () => {
+            it("uses a neutral fallback without exposing the patientUserId", () => {
+              window.history.replaceState({}, "", "/professional/patients");
+              render(<ProfessionalPatients />);
+              expect(screen.getByRole("heading", { name: "Paciente" })).not.toBeNull();
+              expect(screen.getByText("Identificação não informada")).not.toBeNull();
+              expect(screen.queryByText("Paciente 987654321")).toBeNull();
+              expect(document.body.textContent).not.toContain("987654321");
+            });
+          });
+          '''.replace("          ", ""))
+          PY
+
+      - name: Commit exact candidate
+        id: candidate
+        shell: bash
+        run: |
+          git rm .github/workflows/issue-883-remediation.yml
+          git add client/src/pages/professional/ProfessionalPatients.tsx \
+            client/src/pages/professional/ProfessionalPatients.internalIdentifier.test.tsx
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: ocultar identificador interno na carteira profissional"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Focused regression
+        run: pnpm exec vitest run client/src/pages/professional/ProfessionalPatients.internalIdentifier.test.tsx client/src/pages/professional/ProfessionalPatients.test.tsx --maxWorkers=1 --minWorkers=1
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Record exact-head evidence
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ steps.candidate.outputs.sha }}"
+          mkdir -p artifacts/issue-883-remediation
+          cat > artifacts/issue-883-remediation/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "issue": 883,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${{ steps.candidate.outputs.sha }}",
+            "sourceSha256": "$(sha256sum client/src/pages/professional/ProfessionalPatients.tsx | cut -d' ' -f1)",
+            "testSha256": "$(sha256sum client/src/pages/professional/ProfessionalPatients.internalIdentifier.test.tsx | cut -d' ' -f1)",
+            "validatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat artifacts/issue-883-remediation/manifest.json
+
+      - name: Upload remediation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-883-remediation-${{ steps.candidate.outputs.sha }}
+          path: artifacts/issue-883-remediation/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish validated candidate
+        run: git push origin HEAD:feat/875-professional-context-routes
