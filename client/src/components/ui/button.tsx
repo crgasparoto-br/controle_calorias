@@ -2,6 +2,11 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -41,27 +46,54 @@ function Button({
   variant,
   size,
   asChild = false,
+  title,
+  children,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
   }) {
   const Comp = asChild ? Slot : "button";
-  const childText = React.Children.toArray(props.children)
+  const childText = React.Children.toArray(children)
     .filter(child => typeof child === "string")
     .join("")
     .trim();
 
-  if (variant === "outline" && className === "mt-4 rounded-full" && childText === "Adicionar exceção") {
+  if (
+    variant === "outline" &&
+    className === "mt-4 rounded-full" &&
+    childText === "Adicionar exceção"
+  ) {
     return null;
   }
 
-  return (
+  const trackingActionTooltip =
+    variant === "outline" && childText === "Pausar"
+      ? "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
+      : variant === "destructive" && childText === "Encerrar"
+        ? "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
+        : null;
+
+  const button = (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      title={title ?? trackingActionTooltip ?? undefined}
       {...props}
-    />
+    >
+      {children}
+    </Comp>
+  );
+
+  if (!trackingActionTooltip || asChild) return button;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs text-center">
+        {trackingActionTooltip}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
