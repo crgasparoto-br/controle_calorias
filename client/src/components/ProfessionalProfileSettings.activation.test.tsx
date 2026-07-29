@@ -142,6 +142,21 @@ describe("ProfessionalProfileSettings activation", () => {
 
   afterEach(cleanup);
 
+  it("remove o menu profissional obsoleto ao confirmar perfil inativo", () => {
+    mocks.authUser = {
+      id: 42,
+      name: "Nutricionista Ana",
+      professionalProfileActive: true,
+    };
+
+    render(<ProfessionalProfileSettings />);
+
+    expect(mocks.authUser).toMatchObject({
+      professionalProfileActive: false,
+    });
+    expect(mocks.authSetData).toHaveBeenCalledTimes(1);
+  });
+
   it("associa os rótulos aos campos e envia uma ativação válida", () => {
     render(<ProfessionalProfileSettings />);
 
@@ -193,6 +208,7 @@ describe("ProfessionalProfileSettings activation", () => {
     );
     mocks.refreshAuth.mockRejectedValueOnce(new Error("session refetch unavailable"));
     const view = render(<ProfessionalProfileSettings />);
+    mocks.authSetData.mockClear();
 
     await act(async () => {
       await mocks.mutationOptions?.onSuccess({
