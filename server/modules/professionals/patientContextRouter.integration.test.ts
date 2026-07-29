@@ -38,6 +38,12 @@ function contextRow(patientId: number, name: string) {
   };
 }
 
+function queueContext(patientId: number, name: string) {
+  mocks.execute
+    .mockResolvedValueOnce([[contextRow(patientId, name)]])
+    .mockResolvedValueOnce([[]]);
+}
+
 function createCaller() {
   return professionalRecordRouter.createCaller({
     req: {} as never,
@@ -74,15 +80,14 @@ describe("professionalRecord.context integration", () => {
       reloadedTab.context({ patientId: 41, resource: "professional_reports" })
     ).resolves.toMatchObject({ patientId: 41, displayName: "Ana" });
 
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    expect(mocks.execute).toHaveBeenCalledTimes(4);
     expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(2);
   });
 
   it("resolves each navigation target independently without retaining the previous patient", async () => {
-    mocks.execute
-      .mockResolvedValueOnce([[contextRow(41, "Ana")]])
-      .mockResolvedValueOnce([[contextRow(72, "Bruno")]])
-      .mockResolvedValueOnce([[contextRow(41, "Ana")]]);
+    queueContext(41, "Ana");
+    queueContext(72, "Bruno");
+    queueContext(41, "Ana");
     const caller = createCaller();
 
     await expect(
