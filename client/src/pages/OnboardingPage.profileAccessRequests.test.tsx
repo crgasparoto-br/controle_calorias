@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -133,11 +134,12 @@ describe("OnboardingPage profile tab", () => {
 
   it("persiste a aba profissional na URL e restaura o mesmo conteúdo após recarga", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
+    const user = userEvent.setup();
     const view = render(React.createElement(OnboardingPage));
 
-    fireEvent.click(screen.getByRole("tab", { name: "Profissional" }));
-    expect(setLocationMock).toHaveBeenCalledWith(
-      "/settings?tab=profissional"
+    await user.click(screen.getByRole("tab", { name: "Profissional" }));
+    await waitFor(() =>
+      expect(setLocationMock).toHaveBeenCalledWith("/settings?tab=profissional")
     );
 
     state.search = "tab=profissional";
@@ -148,8 +150,8 @@ describe("OnboardingPage profile tab", () => {
     render(React.createElement(OnboardingPage));
     expect(screen.getByText("Configurações profissionais")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Perfil" }));
-    expect(setLocationMock).toHaveBeenLastCalledWith("/settings");
+    await user.click(screen.getByRole("tab", { name: "Perfil" }));
+    await waitFor(() => expect(setLocationMock).toHaveBeenLastCalledWith("/settings"));
   });
 
   it("renderiza o controle acessível somente em Configurações > Perfil", async () => {
