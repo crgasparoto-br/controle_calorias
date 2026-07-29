@@ -5,9 +5,13 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   getDb: vi.fn(),
   getProfessionalProfile: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
-vi.mock("../../db", () => ({ getDb: mocks.getDb }));
+vi.mock("../../db", () => ({
+  getDb: mocks.getDb,
+  logPersistenceWarning: mocks.logPersistenceWarning,
+}));
 vi.mock("./entitlementAccess", () => ({
   assertProfessionalResourceAccess: mocks.assertProfessionalResourceAccess,
 }));
@@ -19,6 +23,19 @@ import { getProfessionalPatientContext } from "./patientContextService";
 
 const professionalActivityAt = new Date("2026-07-24T15:30:00.000Z");
 const unrelatedMealActivityAt = new Date("2026-07-20T08:00:00.000Z");
+const defaultContext = {
+  authorizationId: "authorization-1",
+  patientUserId: 41,
+  patientName: "Ana",
+  patientEmail: "ana@example.com",
+  trackingStatus: "paused",
+  lastActivityAt: unrelatedMealActivityAt,
+  nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
+};
+const defaultHistory = {
+  lastProfessionalActivityAt: professionalActivityAt,
+  lastProfessionalActivityType: "official_goal_review_requested",
+};
 
 function collectStrings(
   value: unknown,
@@ -36,28 +53,24 @@ function collectStrings(
   );
 }
 
+function setQueryResults(
+  context: Record<string, unknown>,
+  history: Record<string, unknown> | null = null
+) {
+  mocks.execute.mockReset();
+  mocks.execute.mockResolvedValueOnce([[context]]);
+  mocks.execute.mockResolvedValueOnce(history ? [[history]] : [[]]);
+}
+
 beforeEach(() => {
   mocks.assertProfessionalResourceAccess.mockReset();
   mocks.execute.mockReset();
   mocks.getDb.mockReset();
   mocks.getProfessionalProfile.mockReset();
+  mocks.logPersistenceWarning.mockReset();
   mocks.getProfessionalProfile.mockResolvedValue({ active: true });
   mocks.getDb.mockResolvedValue({ execute: mocks.execute });
-  mocks.execute.mockResolvedValue([
-    [
-      {
-        authorizationId: "authorization-1",
-        patientUserId: 41,
-        patientName: "Ana",
-        patientEmail: "ana@example.com",
-        trackingStatus: "paused",
-        lastActivityAt: unrelatedMealActivityAt,
-        lastProfessionalActivityAt: professionalActivityAt,
-        lastProfessionalActivityType: "official_goal_review_requested",
-        nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
-      },
-    ],
-  ]);
+  setQueryResults(defaultContext, defaultHistory);
 });
 
 describe("getProfessionalPatientContext", () => {
@@ -82,26 +95,32 @@ describe("getProfessionalPatientContext", () => {
       trackingStatus: "paused",
     });
     expect(result.lastActivityAt).not.toBe(unrelatedMealActivityAt.getTime());
-    const queryText = collectStrings(mocks.execute.mock.calls[0]?.[0]).join(" ");
-    expect(queryText).toContain("ORDER BY h.occurredAt DESC, h.id DESC");
-    expect(queryText).toContain("lastHistory.eventType");
+    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    const contextQueryText = collectStrings(
+      mocks.execute.mock.calls[0]?.[0]
+    ).join(" ");
+    const historyQueryText = collectStrings(
+      mocks.execute.mock.calls[1]?.[0]
+    ).join(" ");
+    expect(contextQueryText).not.toContain("professionalHistoryEvents");
+    expect(historyQueryText).toContain(
+      "ORDER BY h.occurredAt DESC, h.id DESC"
+    );
+    expect(historyQueryText).toContain("h.eventType");
   });
 
   it("returns explicit nulls when stable header metadata is absent", async () => {
-    mocks.execute.mockResolvedValueOnce([
-      [
-        {
-          authorizationId: "authorization-1",
-          patientUserId: 41,
-          patientName: "Ana",
-          patientEmail: "ana@example.com",
-          trackingStatus: "active",
-          lastProfessionalActivityAt: null,
-          lastProfessionalActivityType: null,
-          nextReviewAt: null,
-        },
-      ],
-    ]);
+    setQueryResults(
+      {
+        authorizationId: "authorization-1",
+        patientUserId: 41,
+        patientName: "Ana",
+        patientEmail: "ana@example.com",
+        trackingStatus: "active",
+        nextReviewAt: null,
+      },
+      null
+    );
 
     await expect(
       getProfessionalPatientContext(7, {
@@ -117,21 +136,38 @@ describe("getProfessionalPatientContext", () => {
     });
   });
 
+  it("opens the authorized context when optional history metadata is unavailable", async () => {
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockRejectedValueOnce(new Error("history unavailable"));
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_record",
+      })
+    ).resolves.toMatchObject({
+      patientId: 41,
+      authorizationId: "authorization-1",
+      lastActivityAt: null,
+      lastActivityLabel: null,
+      trackingStatus: "paused",
+    });
+    expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+      "professional_patient_context_history",
+      expect.any(Error)
+    );
+  });
+
   it("uses a safe generic label instead of exposing the patient ID", async () => {
-    mocks.execute.mockResolvedValueOnce([
-      [
-        {
-          authorizationId: "authorization-1",
-          patientUserId: 41,
-          patientName: null,
-          patientEmail: null,
-          trackingStatus: "active",
-          lastProfessionalActivityAt: null,
-          lastProfessionalActivityType: null,
-          nextReviewAt: null,
-        },
-      ],
-    ]);
+    setQueryResults({
+      authorizationId: "authorization-1",
+      patientUserId: 41,
+      patientName: null,
+      patientEmail: null,
+      trackingStatus: "active",
+      nextReviewAt: null,
+    });
 
     await expect(
       getProfessionalPatientContext(7, {
@@ -142,20 +178,14 @@ describe("getProfessionalPatientContext", () => {
   });
 
   it("minimizes the public context after tracking ends", async () => {
-    mocks.execute.mockResolvedValueOnce([
-      [
-        {
-          authorizationId: "authorization-sensitive",
-          patientUserId: 41,
-          patientName: "Ana",
-          patientEmail: "ana@example.com",
-          trackingStatus: "ended",
-          lastProfessionalActivityAt: professionalActivityAt,
-          lastProfessionalActivityType: "tracking_ended",
-          nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
-        },
-      ],
-    ]);
+    setQueryResults({
+      authorizationId: "authorization-sensitive",
+      patientUserId: 41,
+      patientName: "Ana",
+      patientEmail: "ana@example.com",
+      trackingStatus: "ended",
+      nextReviewAt: new Date("2026-08-05T12:00:00.000Z"),
+    });
 
     const result = await getProfessionalPatientContext(7, {
       patientId: 41,
@@ -172,6 +202,7 @@ describe("getProfessionalPatientContext", () => {
     expect(result).not.toHaveProperty("lastActivityAt");
     expect(result).not.toHaveProperty("lastActivityLabel");
     expect(result).not.toHaveProperty("nextReviewAt");
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
   });
 
   it("does not query authorization when the professional profile is inactive", async () => {
@@ -187,6 +218,7 @@ describe("getProfessionalPatientContext", () => {
   });
 
   it("returns the same safe error for absent or revoked authorizations", async () => {
+    mocks.execute.mockReset();
     mocks.execute.mockResolvedValue([[]]);
     await expect(
       getProfessionalPatientContext(7, {
