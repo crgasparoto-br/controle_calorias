@@ -16,12 +16,14 @@ describe("Button tracking action tooltips", () => {
   it("explains what pausing and ending the follow-up cycle do", () => {
     renderTrackingButtons();
 
-    expect(screen.getByRole("button", { name: "Pausar" })).toHaveAttribute(
-      "title",
+    expect(
+      screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+    ).toBe(
       "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
     );
-    expect(screen.getByRole("button", { name: "Encerrar" })).toHaveAttribute(
-      "title",
+    expect(
+      screen.getByRole("button", { name: "Encerrar" }).getAttribute("title")
+    ).toBe(
       "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
     );
   });
@@ -33,8 +35,8 @@ describe("Button tracking action tooltips", () => {
       </TooltipProvider>
     );
 
-    expect(screen.getByRole("button", { name: "Voltar" })).not.toHaveAttribute(
-      "title"
-    );
+    expect(
+      screen.getByRole("button", { name: "Voltar" }).getAttribute("title")
+    ).toBeNull();
   });
 });
