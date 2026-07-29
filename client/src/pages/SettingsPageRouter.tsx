@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, BadgeCheck, Stethoscope } from "lucide-react";
 import React from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import OnboardingPage from "./OnboardingPage";
 
 function ProfessionalPersonalSettings() {
@@ -56,7 +56,7 @@ function ProfessionalPersonalSettings() {
           </Card>
         ) : null}
 
-        <ProfessionalProfileSettings />
+        {!active ? <ProfessionalProfileSettings /> : null}
 
         <section aria-labelledby="personal-access-requests-title" className="space-y-3">
           <div>
@@ -75,9 +75,8 @@ function ProfessionalPersonalSettings() {
 }
 
 export default function SettingsPageRouter() {
-  const [location] = useLocation();
-  const query = location.includes("?") ? location.slice(location.indexOf("?") + 1) : "";
-  const tab = new URLSearchParams(query).get("tab");
+  const search = useSearch();
+  const tab = new URLSearchParams(search).get("tab");
 
   return tab === "profissional" ? <ProfessionalPersonalSettings /> : <OnboardingPage />;
 }

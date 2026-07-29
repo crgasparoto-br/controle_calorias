@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const profileState = vi.hoisted(() => ({
@@ -26,9 +26,15 @@ const refetchProfileMock = vi.fn(async () => undefined);
 const refetchPatientRequestsMock = vi.fn(async () => undefined);
 const approveMutateMock = vi.fn();
 const revokeMutateMock = vi.fn();
+const upsertMutateMock = vi.fn();
+const setLocationMock = vi.fn();
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 42, name: "Paciente" } }),
+}));
+
+vi.mock("wouter", () => ({
+  useLocation: () => ["/settings?tab=profissional", setLocationMock] as const,
 }));
 
 vi.mock("sonner", () => ({
@@ -60,7 +66,7 @@ vi.mock("@/lib/trpc", () => ({
           }),
         },
         upsertProfile: {
-          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+          useMutation: () => ({ isPending: false, mutate: upsertMutateMock }),
         },
         patientRequests: {
           useQuery: () => ({
@@ -122,6 +128,8 @@ describe("PatientAccessRequestsCard", () => {
     patientRequestsState.isError = false;
     approveMutateMock.mockClear();
     revokeMutateMock.mockClear();
+    upsertMutateMock.mockClear();
+    setLocationMock.mockClear();
     refetchProfileMock.mockClear();
     refetchPatientRequestsMock.mockClear();
   });
@@ -152,6 +160,67 @@ describe("PatientAccessRequestsCard", () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true);
+  });
+
+  it("mantém o perfil ativo somente para consulta e administração profissional", async () => {
+    profileState.data = {
+      displayName: "Nutricionista Ana",
+      registrationNumber: "CRN 123",
+      active: true,
+    };
+    const { default: ProfessionalProfileSettings } = await import(
+      "./ProfessionalProfileSettings"
+    );
+
+    render(<ProfessionalProfileSettings />);
+
+    expect(
+      screen.getByRole("heading", { name: "Perfil profissional ativo" })
+    ).toBeTruthy();
+    expect(screen.getByText("Nutricionista Ana")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Salvar perfil profissional" })
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Abrir configurações profissionais" })
+    );
+
+    expect(setLocationMock).toHaveBeenCalledWith("/professional/settings");
+    expect(upsertMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("mantém o controle explícito de ativação para perfil inativo", async () => {
+    profileState.data = {
+      displayName: "Nutricionista Ana",
+      registrationNumber: "CRN 123",
+      active: false,
+    };
+    const { default: ProfessionalProfileSettings } = await import(
+      "./ProfessionalProfileSettings"
+    );
+
+    render(<ProfessionalProfileSettings />);
+
+    const activation = screen.getByRole("checkbox", {
+      name: /Ativar área Profissional/i,
+    });
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Nome profissional") as HTMLInputElement).value
+      ).toBe("Nutricionista Ana")
+    );
+    fireEvent.click(activation);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar perfil profissional" })
+    );
+
+    expect(upsertMutateMock).toHaveBeenCalledWith({
+      displayName: "Nutricionista Ana",
+      registrationNumber: "CRN 123",
+      active: true,
+    });
   });
 
   it("mostra pendentes, ativos e encerrados com status da notificação", async () => {

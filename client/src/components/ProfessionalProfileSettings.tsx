@@ -11,8 +11,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { Save, Stethoscope, UserCheck, X } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Save,
+  Stethoscope,
+  UserCheck,
+  X,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 import {
   professionalLabel,
@@ -68,6 +76,7 @@ function permissionsTitle(status: string) {
 }
 
 export default function ProfessionalProfileSettings() {
+  const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
@@ -148,6 +157,43 @@ export default function ProfessionalProfileSettings() {
       registrationNumber: form.registrationNumber.trim() || undefined,
       active: form.active,
     });
+  }
+
+  if (profile.isSuccess && profile.data?.active) {
+    return (
+      <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <BadgeCheck className="h-5 w-5 text-emerald-700" />
+            Perfil profissional ativo
+          </CardTitle>
+          <CardDescription>
+            A ativação permanece nas Configurações pessoais. Identidade,
+            preferências e desativação são administradas na Área Profissional.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              {profile.data.displayName || "Perfil profissional"}
+            </p>
+            {profile.data.registrationNumber ? (
+              <p className="mt-1">{profile.data.registrationNumber}</p>
+            ) : (
+              <p className="mt-1">Registro profissional não informado.</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setLocation("/professional/settings")}
+          >
+            Abrir configurações profissionais
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
