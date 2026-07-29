@@ -1,0 +1,70 @@
+name: Issue 884 accessibility remediation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - .github/workflows/issue-884-accessibility-remediation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/875-professional-context-routes
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Associate labels and fields
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('client/src/components/ProfessionalProfileSettings.tsx')
+          source = path.read_text()
+          source = source.replace(
+              '<Label>Nome profissional</Label>\n            <Input',
+              '<Label htmlFor="professional-display-name">Nome profissional</Label>\n            <Input\n              id="professional-display-name"',
+              1,
+          )
+          source = source.replace(
+              '<Label>Registro profissional</Label>\n            <Input',
+              '<Label htmlFor="professional-registration-number">Registro profissional</Label>\n            <Input\n              id="professional-registration-number"',
+              1,
+          )
+          path.write_text(source)
+          PY
+          git rm .github/workflows/issue-884-accessibility-remediation.yml
+          git diff --check
+
+      - name: Focused regression
+        run: pnpm exec vitest run client/src/pages/SettingsPageRouter.test.tsx client/src/components/PatientAccessRequestsCard.test.tsx --maxWorkers=1 --minWorkers=1
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Commit and publish
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/components/ProfessionalProfileSettings.tsx
+          git commit -m "fix: associar campos do perfil profissional"
+          git push origin HEAD:feat/875-professional-context-routes
