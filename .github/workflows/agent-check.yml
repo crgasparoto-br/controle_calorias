@@ -239,20 +239,11 @@ jobs:
           git merge-base --is-ancestor 12175e4cec48309d6bbd2bcba9a67aa46943d8ee HEAD
           test -f .github/workflows/apply-issue-884-remediation.yml
 
-      - name: Download and verify patch from PR comment
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Reassemble and verify patch
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/888/comments?per_page=100" \
-            | jq -r '.[] | select(.id == 5121190397) | .body' \
-            > /tmp/issue-884-comment.txt
-          sed -n '/ISSUE_884_PATCH_B64_START/,/ISSUE_884_PATCH_B64_END/p' /tmp/issue-884-comment.txt \
-            | grep -v 'ISSUE_884_PATCH_B64_' \
+          cat .audit/issue884-remediation.part.* \
             | tr -d '\n' \
             | base64 --decode \
             | gzip --decompress \
@@ -266,6 +257,7 @@ jobs:
           set -euo pipefail
           git apply --check /tmp/issue-884-remediation.patch
           git apply /tmp/issue-884-remediation.patch
+          rm .audit/issue884-remediation.part.*
           git diff --check
 
       - name: Commit and publish remediation
