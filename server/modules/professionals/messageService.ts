@@ -70,8 +70,7 @@ async function professionalScope(
     WHERE a.professionalUserId = ${professionalUserId} AND a.patientUserId = ${patientUserId}
       AND a.status = 'approved' AND p.active = 1 ORDER BY a.approvedAt DESC LIMIT 1`);
   const row = rows(result)[0];
-  if (!row)
-    throw new ProfessionalMessageAccessUnavailableError();
+  if (!row) throw new ProfessionalMessageAccessUnavailableError();
   return {
     db,
     authorizationId: String(row.authorizationId),
@@ -95,9 +94,7 @@ function assertCanCreate(
       "Durante a pausa, crie somente comunicações administrativas."
     );
   }
-  throw new Error(
-    "Inicie o acompanhamento antes de criar uma mensagem."
-  );
+  throw new Error("Inicie o acompanhamento antes de criar uma mensagem.");
 }
 
 async function lockProfessionalScope(
@@ -123,7 +120,9 @@ async function lockProfessionalScope(
     FROM professionalPatientTrackings
     WHERE authorizationId = ${authorizationId}
     LIMIT 1 FOR UPDATE`);
-  const trackingStatus = String(rows(trackingResult)[0]?.status ?? "not_started");
+  const trackingStatus = String(
+    rows(trackingResult)[0]?.status ?? "not_started"
+  );
   assertCanCreate(trackingStatus, messageType);
 }
 
@@ -202,7 +201,8 @@ async function normalizeSupersededDraft(
 ) {
   if (!input.supersedesMessageId) return input;
   const lockClause = lock ? sql` FOR UPDATE` : sql``;
-  const result = await execute(sql`SELECT id, authorizationId, professionalUserId,
+  const result =
+    await execute(sql`SELECT id, authorizationId, professionalUserId,
       patientUserId, authorUserId, direction, origin, state
     FROM professionalMessages
     WHERE id = ${input.supersedesMessageId}
@@ -610,8 +610,7 @@ export async function listProfessionalMessages(
   const patientFilter = input.patientId
     ? sql`AND m.patientUserId = ${input.patientId}`
     : sql``;
-  const result =
-    await db.execute(sql`SELECT m.*, patient.name AS patientName,
+  const result = await db.execute(sql`SELECT m.*, patient.name AS patientName,
     COALESCE(t.status, 'not_started') AS trackingStatus,
     EXISTS(
       SELECT 1 FROM professionalMessageDeliveryAttempts attempt
@@ -652,8 +651,7 @@ export async function listPatientProfessionalMessages(
   input: PatientProfessionalMessageListInput
 ) {
   const db = await dbRequired();
-  const result =
-    await db.execute(sql`SELECT m.*, patient.name AS patientName,
+  const result = await db.execute(sql`SELECT m.*, patient.name AS patientName,
     CASE WHEN m.direction = 'patient_to_professional'
       THEN COALESCE(patient.name, author.name)
       ELSE COALESCE(profile.displayName, author.name)
@@ -711,20 +709,20 @@ export async function tryAssociateProfessionalWhatsappResponse(input: {
       detail: "Resposta profissional sem conteúdo.",
     };
   const id = crypto.randomUUID();
-const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
-try {
-  await db.transaction(async tx => {
-    await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
+  const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
+  try {
+    await db.transaction(async tx => {
+      await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
       VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${idempotencyKey}, ${String(parent.id)}, ${input.receivedAt})`);
-    await tx.execute(
-      sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
-    );
-    await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+      await tx.execute(
+        sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
+      );
+      await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
       VALUES (${crypto.randomUUID()}, ${input.patientUserId}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, 'professional_message_response_received', 'professional_message', ${id}, NOW())`);
-  });
-} catch (error) {
-  if (isDuplicateEntryError(error)) {
-    const duplicateResult = await db.execute(sql`SELECT id
+    });
+  } catch (error) {
+    if (isDuplicateEntryError(error)) {
+      const duplicateResult = await db.execute(sql`SELECT id
       FROM professionalMessages
       WHERE idempotencyKey = ${idempotencyKey}
         AND conversationId = ${String(parent.conversationId)}
@@ -736,21 +734,18 @@ try {
         AND origin = 'patient'
         AND messageType = 'response'
       LIMIT 1`);
-    if (rows(duplicateResult)[0]) {
-      return {
-        handled: true,
-        reply: "Sua resposta já foi recebida.",
-        eventType: "whatsapp.professional_response.duplicate",
-        detail: "Callback profissional duplicado ignorado.",
-      };
+      if (rows(duplicateResult)[0]) {
+        return {
+          handled: true,
+          reply: "Sua resposta já foi recebida.",
+          eventType: "whatsapp.professional_response.duplicate",
+          detail: "Callback profissional duplicado ignorado.",
+        };
+      }
     }
+    logPersistenceWarning("professional_message_response_persistence", error);
+    throw error;
   }
-  logPersistenceWarning(
-    "professional_message_response_persistence",
-    error
-  );
-  throw error;
-}
   return {
     handled: true,
     reply:

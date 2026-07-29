@@ -66,8 +66,12 @@ describe("professional message service", () => {
     };
     mocks.getDb.mockResolvedValue(db);
 
-    await expect(deliverProfessionalMessage(messageRow().id as string, 10)).resolves.toEqual({ status: "sent" });
-    await expect(deliverProfessionalMessage(messageRow().id as string, 10)).resolves.toEqual({ status: "unchanged" });
+    await expect(
+      deliverProfessionalMessage(messageRow().id as string, 10)
+    ).resolves.toEqual({ status: "sent" });
+    await expect(
+      deliverProfessionalMessage(messageRow().id as string, 10)
+    ).resolves.toEqual({ status: "unchanged" });
     expect(mocks.send).toHaveBeenCalledTimes(1);
   });
 
@@ -75,7 +79,9 @@ describe("professional message service", () => {
     const execute = vi
       .fn()
       .mockResolvedValueOnce([{ affectedRows: 1 }])
-      .mockResolvedValueOnce([[messageRow({ state: "failed", requestedAction: "send_whatsapp" })]])
+      .mockResolvedValueOnce([
+        [messageRow({ state: "failed", requestedAction: "send_whatsapp" })],
+      ])
       .mockResolvedValueOnce([[{ number: 2 }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
@@ -123,7 +129,9 @@ describe("professional message service", () => {
     mocks.getDb.mockResolvedValue(db);
     mocks.send.mockResolvedValue({ result: { primaryOk: false } });
 
-    await expect(deliverProfessionalMessage(messageRow().id as string, 10)).resolves.toEqual({ status: "failed" });
+    await expect(
+      deliverProfessionalMessage(messageRow().id as string, 10)
+    ).resolves.toEqual({ status: "failed" });
     expect(mocks.logPersistenceWarning).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(7);
   });
@@ -137,15 +145,15 @@ describe("professional message service", () => {
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
       .mockRejectedValueOnce(
-      Object.assign(new Error("duplicate key"), { code: "ER_DUP_ENTRY" })
-    )
-    .mockResolvedValueOnce([[{ id: "existing-response" }]]);
+        Object.assign(new Error("duplicate key"), { code: "ER_DUP_ENTRY" })
+      )
+      .mockResolvedValueOnce([[{ id: "existing-response" }]]);
     const db = {
-    execute,
-    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
-      callback({ execute }),
-  };
-  mocks.getDb.mockResolvedValue(db);
+      execute,
+      transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+        callback({ execute }),
+    };
+    mocks.getDb.mockResolvedValue(db);
     const input = {
       patientUserId: 20,
       text: "RESP-A1B2C3D4 Já registrei.",
@@ -153,73 +161,95 @@ describe("professional message service", () => {
       receivedAt: new Date("2026-07-20T12:00:00Z"),
     };
 
-    await expect(tryAssociateProfessionalWhatsappResponse(input)).resolves.toMatchObject({ eventType: "whatsapp.professional_response.received" });
-    await expect(tryAssociateProfessionalWhatsappResponse(input)).resolves.toMatchObject({ eventType: "whatsapp.professional_response.duplicate" });
+    await expect(
+      tryAssociateProfessionalWhatsappResponse(input)
+    ).resolves.toMatchObject({
+      eventType: "whatsapp.professional_response.received",
+    });
+    await expect(
+      tryAssociateProfessionalWhatsappResponse(input)
+    ).resolves.toMatchObject({
+      eventType: "whatsapp.professional_response.duplicate",
+    });
   });
 
   it("does not acknowledge a professional response when persistence fails", async () => {
-  const persistenceError = Object.assign(
-    new Error("database temporarily unavailable"),
-    { code: "ETIMEDOUT" }
-  );
-  const execute = vi
-    .fn()
-    .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
-    .mockRejectedValueOnce(persistenceError);
-  const db = {
-    execute,
-    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
-      callback({ execute }),
-  };
-  mocks.getDb.mockResolvedValue(db);
+    const persistenceError = Object.assign(
+      new Error("database temporarily unavailable"),
+      { code: "ETIMEDOUT" }
+    );
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+      .mockRejectedValueOnce(persistenceError);
+    const db = {
+      execute,
+      transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+        callback({ execute }),
+    };
+    mocks.getDb.mockResolvedValue(db);
 
-  await expect(
-    tryAssociateProfessionalWhatsappResponse({
-      patientUserId: 20,
-      text: "RESP-A1B2C3D4 Já registrei.",
-      externalMessageId: "wamid.persistence-failure",
-      receivedAt: new Date("2026-07-20T12:00:00Z"),
-    })
-  ).rejects.toBe(persistenceError);
-  expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
-    "professional_message_response_persistence",
-    persistenceError
-  );
-});
-
-it("does not classify an unverified duplicate as a received response", async () => {
-  const duplicateError = Object.assign(new Error("duplicate key"), {
-    code: "ER_DUP_ENTRY",
+    await expect(
+      tryAssociateProfessionalWhatsappResponse({
+        patientUserId: 20,
+        text: "RESP-A1B2C3D4 Já registrei.",
+        externalMessageId: "wamid.persistence-failure",
+        receivedAt: new Date("2026-07-20T12:00:00Z"),
+      })
+    ).rejects.toBe(persistenceError);
+    expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+      "professional_message_response_persistence",
+      persistenceError
+    );
   });
-  const execute = vi
-    .fn()
-    .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
-    .mockRejectedValueOnce(duplicateError)
-    .mockResolvedValueOnce([[]]);
-  const db = {
-    execute,
-    transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
-      callback({ execute }),
-  };
-  mocks.getDb.mockResolvedValue(db);
 
-  await expect(
-    tryAssociateProfessionalWhatsappResponse({
-      patientUserId: 20,
-      text: "RESP-A1B2C3D4 Já registrei.",
-      externalMessageId: "wamid.unverified-duplicate",
-      receivedAt: new Date("2026-07-20T12:00:00Z"),
-    })
-  ).rejects.toBe(duplicateError);
-  expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
-    "professional_message_response_persistence",
-    duplicateError
-  );
-});
+  it("does not classify an unverified duplicate as a received response", async () => {
+    const duplicateError = Object.assign(new Error("duplicate key"), {
+      code: "ER_DUP_ENTRY",
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+      .mockRejectedValueOnce(duplicateError)
+      .mockResolvedValueOnce([[]]);
+    const db = {
+      execute,
+      transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+        callback({ execute }),
+    };
+    mocks.getDb.mockResolvedValue(db);
+
+    await expect(
+      tryAssociateProfessionalWhatsappResponse({
+        patientUserId: 20,
+        text: "RESP-A1B2C3D4 Já registrei.",
+        externalMessageId: "wamid.unverified-duplicate",
+        receivedAt: new Date("2026-07-20T12:00:00Z"),
+      })
+    ).rejects.toBe(duplicateError);
+    expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+      "professional_message_response_persistence",
+      duplicateError
+    );
+  });
 
   it("does not capture ambiguous or ordinary nutrition text", async () => {
-    await expect(tryAssociateProfessionalWhatsappResponse({ patientUserId: 20, text: "arroz e feijão", externalMessageId: "ordinary", receivedAt: new Date() })).resolves.toBeNull();
-    await expect(tryAssociateProfessionalWhatsappResponse({ patientUserId: 20, text: "RESP-A1B2C3D4 RESP-FFEEDDCC", externalMessageId: "ambiguous", receivedAt: new Date() })).resolves.toBeNull();
+    await expect(
+      tryAssociateProfessionalWhatsappResponse({
+        patientUserId: 20,
+        text: "arroz e feijão",
+        externalMessageId: "ordinary",
+        receivedAt: new Date(),
+      })
+    ).resolves.toBeNull();
+    await expect(
+      tryAssociateProfessionalWhatsappResponse({
+        patientUserId: 20,
+        text: "RESP-A1B2C3D4 RESP-FFEEDDCC",
+        externalMessageId: "ambiguous",
+        receivedAt: new Date(),
+      })
+    ).resolves.toBeNull();
     expect(mocks.getDb).not.toHaveBeenCalled();
   });
 });
