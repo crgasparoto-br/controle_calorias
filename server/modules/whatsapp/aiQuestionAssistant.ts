@@ -4,22 +4,13 @@ import {
   createOpenAiClient,
   isOpenAiConfigured,
 } from "../../_core/openaiClient";
-import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
+import { logInferenceEvent } from "../../db";
 import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
-import {
-  createDrizzleWhatsAppConversationRepository,
-  type WhatsAppConversationMessageRecord,
-} from "../../repositories/whatsappConversationRepository";
+import { buildWhatsappIntentContext } from "./intentContext";
 
 const AI_QUESTION_PREFIX = "/";
 const MAX_REPLY_LENGTH = 1_500;
-const MAX_HISTORY_MESSAGES = 12;
-
-const conversationRepository = createDrizzleWhatsAppConversationRepository({
-  getDb,
-  onWarning: logPersistenceWarning,
-});
 
 type InsightsService = typeof import("../insights/service");
 type DashboardTodayOverview = Awaited<ReturnType<InsightsService["getDashboardTodayOverview"]>>;
@@ -174,19 +165,20 @@ async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone
   };
 }
 
-function formatHistoryMessage(message: WhatsAppConversationMessageRecord): string | null {
-  const text = message.text ?? message.transcript ?? message.captionText;
-  if (!text) return null;
-  const speaker = message.direction === "inbound" ? "Usuário" : "Assistente";
-  return `${speaker}: ${text}`;
-}
+async function buildRecentHistory(userId: number, receivedAt: Date, timeZone: string) {
+  const context = await buildWhatsappIntentContext(userId, {
+    receivedAt,
+    consumer: "slash_assistant",
+    flow: "text",
+    timeZone,
+  });
 
-async function buildRecentHistory(conversationId: number | null, currentMessageId: number | null) {
-  if (!conversationId) return [];
-  const messages = await conversationRepository.findRecentMessages(conversationId, MAX_HISTORY_MESSAGES);
-  return messages
-    .filter(message => message.id !== currentMessageId)
-    .map(formatHistoryMessage)
+  return context.recentTurns
+    .map(turn => {
+      if (!turn.text) return null;
+      const speaker = turn.direction === "inbound" ? "Usuário" : "Assistente";
+      return `${speaker}: ${turn.text}`;
+    })
     .filter((line): line is string => Boolean(line));
 }
 
@@ -277,7 +269,7 @@ export async function executeWhatsappAiQuestionIntent(
   try {
     const [knowledgeBase, recentHistory] = await Promise.all([
       buildUserKnowledgeBase(userId, receivedAt, timeZone),
-      buildRecentHistory(input.conversationId ?? null, input.messageId ?? null),
+      buildRecentHistory(userId, receivedAt, timeZone),
     ]);
     const reply = await answerWithOpenAi(question, knowledgeBase, recentHistory);
 
