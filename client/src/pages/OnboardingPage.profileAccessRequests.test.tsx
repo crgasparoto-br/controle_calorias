@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   location: "/settings",
+  search: "",
   preference: { data: { enabled: false } as { enabled: boolean } | undefined, isLoading: false, isError: false },
   failPreferenceSave: false,
 }));
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const updatePreferenceMock = vi.hoisted(() => vi.fn());
+const setLocationMock = vi.hoisted(() => vi.fn());
 
 class ResizeObserverMock {
   observe() {}
@@ -50,7 +52,8 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("wouter", () => ({
-  useLocation: () => [state.location, vi.fn()] as const,
+  useLocation: () => [state.location, setLocationMock] as const,
+  useSearch: () => state.search,
 }));
 
 const invalidateMock = vi.fn(async () => undefined);
@@ -119,12 +122,35 @@ vi.mock("@/lib/trpc", () => ({
 describe("OnboardingPage profile tab", () => {
   beforeEach(() => {
     state.location = "/settings";
+    state.search = "";
     state.preference = { data: { enabled: false }, isLoading: false, isError: false };
     state.failPreferenceSave = false;
     toastErrorMock.mockReset();
     updatePreferenceMock.mockReset();
+    setLocationMock.mockReset();
   });
   afterEach(cleanup);
+
+  it("persiste a aba profissional na URL e restaura o mesmo conteúdo após recarga", async () => {
+    const { default: OnboardingPage } = await import("./OnboardingPage");
+    const view = render(React.createElement(OnboardingPage));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Profissional" }));
+    expect(setLocationMock).toHaveBeenCalledWith(
+      "/settings?tab=profissional"
+    );
+
+    state.search = "tab=profissional";
+    view.rerender(React.createElement(OnboardingPage));
+    expect(screen.getByText("Configurações profissionais")).toBeTruthy();
+
+    view.unmount();
+    render(React.createElement(OnboardingPage));
+    expect(screen.getByText("Configurações profissionais")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Perfil" }));
+    expect(setLocationMock).toHaveBeenLastCalledWith("/settings");
+  });
 
   it("renderiza o controle acessível somente em Configurações > Perfil", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
@@ -135,6 +161,7 @@ describe("OnboardingPage profile tab", () => {
     unmount();
 
     state.location = "/onboarding";
+    state.search = "";
     render(React.createElement(OnboardingPage));
     expect(screen.queryByRole("switch", { name: "Enviar imagem anotada pelo WhatsApp" })).toBeNull();
   });

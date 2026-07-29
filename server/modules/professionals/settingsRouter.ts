@@ -1,7 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../../_core/trpc";
+import { assertProfessionalResourceAccess } from "./entitlementAccess";
 import { getProfessionalEntitlements } from "./entitlementService";
-import { professionalSettingsProcedure } from "./entitledProcedure";
+import {
+  professionalSettingsProcedure,
+  toProfessionalEntitlementTrpcError,
+} from "./entitledProcedure";
 import {
   professionalActiveSettingsSchema,
   professionalIdentitySettingsSchema,
@@ -14,6 +18,7 @@ import {
   updateProfessionalIdentitySettings,
   updateProfessionalPreferencesSettings,
 } from "./settingsService";
+import { getProfessionalProfile } from "./service";
 
 function safeSettingsError(error: unknown): never {
   if (error instanceof TRPCError) throw error;
@@ -24,6 +29,23 @@ function safeSettingsError(error: unknown): never {
         ? error.message
         : "Não foi possível atualizar as configurações profissionais.",
   });
+}
+
+async function assertProfessionalReactivationAccess(userId: number) {
+  const profile = await getProfessionalProfile(userId);
+  if (!profile?.active) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "Reative o perfil nas Configurações pessoais antes de acessar as configurações profissionais.",
+    });
+  }
+
+  try {
+    await assertProfessionalResourceAccess(userId, "professional_settings");
+  } catch (error) {
+    throw toProfessionalEntitlementTrpcError("professional_settings", error);
+  }
 }
 
 export const professionalSettingsRouter = router({
@@ -51,10 +73,13 @@ export const professionalSettingsRouter = router({
         return safeSettingsError(error);
       }
     }),
-  setActive: professionalSettingsProcedure
+  setActive: protectedProcedure
     .input(professionalActiveSettingsSchema)
     .mutation(async ({ ctx, input }) => {
       try {
+        if (input.active) {
+          await assertProfessionalReactivationAccess(ctx.user.id);
+        }
         return await setProfessionalProfileActive(ctx.user.id, input.active);
       } catch (error) {
         return safeSettingsError(error);

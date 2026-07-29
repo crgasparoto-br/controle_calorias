@@ -276,7 +276,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `entitlements` | query | protected |
 | `updateIdentity` | mutation | professional-entitled |
 | `updatePreferences` | mutation | professional-entitled |
-| `setActive` | mutation | professional-entitled |
+| `setActive` | mutation | protected |
 | `patientVisible` | query | protected |
 
 ## Regras para novas procedures

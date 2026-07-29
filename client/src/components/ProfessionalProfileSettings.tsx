@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import {
+  AlertTriangle,
   ArrowRight,
   BadgeCheck,
+  Power,
   Save,
   Stethoscope,
   UserCheck,
@@ -82,6 +84,13 @@ export default function ProfessionalProfileSettings() {
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
     retry: false,
   });
+  const entitlements = trpc.professionalRecord.settings.entitlements.useQuery(
+    undefined,
+    {
+      enabled: Boolean(profile.data?.active),
+      retry: false,
+    }
+  );
   const [appliedSavedProfile, setAppliedSavedProfile] = useState(false);
   const [form, setForm] = useState<ProfessionalFormState>(initialForm);
   const suggestedProfessionalName = user?.name?.trim() ?? "";
@@ -121,7 +130,26 @@ export default function ProfessionalProfileSettings() {
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
       utils.nutrition.professionals.history.invalidate(),
+      utils.professionalRecord.settings.get.invalidate(),
       utils.professionalRecord.settings.entitlements.invalidate(),
+    ]);
+  };
+
+  const clearProfessionalData = async () => {
+    await Promise.allSettled([
+      utils.professionalRecord.get.cancel(),
+      utils.professionalRecord.messages.list.cancel(),
+      utils.professionalRecord.operationalAlerts.list.cancel(),
+      utils.professionalRecord.ai.priorities.cancel(),
+    ]);
+    await Promise.allSettled([
+      utils.professionalRecord.get.reset(),
+      utils.professionalRecord.messages.list.reset(),
+      utils.professionalRecord.operationalAlerts.list.reset(),
+      utils.professionalRecord.ai.priorities.reset(),
+      utils.nutrition.professionals.patientDashboard.reset(),
+      utils.nutrition.professionals.patientPeriodBundle.reset(),
+      utils.nutrition.professionals.patientTimeZone.reset(),
     ]);
   };
 
@@ -154,6 +182,50 @@ export default function ProfessionalProfileSettings() {
     });
     setAppliedSavedProfile(true);
   };
+
+  const applyConfirmedActive = (active: boolean) => {
+    utils.nutrition.professionals.profile.setData(undefined, currentProfile =>
+      currentProfile ? { ...currentProfile, active } : currentProfile
+    );
+    utils.professionalRecord.settings.get.setData(undefined, currentSettings =>
+      currentSettings
+        ? {
+            ...currentSettings,
+            profile: currentSettings.profile
+              ? { ...currentSettings.profile, active }
+              : currentSettings.profile,
+          }
+        : currentSettings
+    );
+    utils.auth.me.setData(undefined, currentUser => {
+      const confirmedUser = currentUser ?? user;
+      return confirmedUser
+        ? { ...confirmedUser, professionalProfileActive: active }
+        : currentUser;
+    });
+    setForm(current => ({ ...current, active }));
+    setAppliedSavedProfile(true);
+  };
+
+  const setActive = trpc.professionalRecord.settings.setActive.useMutation({
+    onSuccess: async result => {
+      applyConfirmedActive(result.active);
+      await Promise.allSettled([
+        result.active ? Promise.resolve() : clearProfessionalData(),
+        invalidateProfessionalSettings(),
+        refreshAuth(),
+      ]);
+      toast.success(
+        result.active
+          ? "Área Profissional ativada."
+          : "Área Profissional desativada."
+      );
+    },
+    onError: error =>
+      toast.error(
+        error.message || "Não foi possível alterar a Área Profissional."
+      ),
+  });
 
   const upsertProfile = trpc.nutrition.professionals.upsertProfile.useMutation({
     onSuccess: async savedProfile => {
@@ -222,6 +294,23 @@ export default function ProfessionalProfileSettings() {
   }
 
   if (profile.isSuccess && profile.data?.active) {
+    const settingsResourceAvailable = Boolean(
+      entitlements.data?.allowed &&
+        entitlements.data.enabledResources.includes("professional_settings")
+    );
+    const settingsAccessUnavailable = Boolean(
+      !entitlements.isLoading &&
+        (entitlements.isError ||
+          (entitlements.data && !settingsResourceAvailable))
+    );
+
+    const confirmDeactivation = () => {
+      const confirmed = window.confirm(
+        "Desativar a Área Profissional? A navegação e novas operações serão bloqueadas. Vínculos, prontuários, mensagens e histórico serão preservados. Sua área pessoal continuará funcionando e a reativação poderá ser feita nestas Configurações pessoais."
+      );
+      if (confirmed) setActive.mutate({ active: false });
+    };
+
     return (
       <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
         <CardHeader>
@@ -230,29 +319,81 @@ export default function ProfessionalProfileSettings() {
             Perfil profissional ativo
           </CardTitle>
           <CardDescription>
-            A ativação permanece nas Configurações pessoais. Identidade,
-            preferências e desativação são administradas na Área Profissional.
+            A identidade e as preferências operacionais são administradas na
+            Área Profissional. A disponibilidade do perfil continua sob seu
+            controle nestas Configurações pessoais.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">
-              {profile.data.displayName || "Perfil profissional"}
-            </p>
-            {profile.data.registrationNumber ? (
-              <p className="mt-1">{profile.data.registrationNumber}</p>
-            ) : (
-              <p className="mt-1">Registro profissional não informado.</p>
-            )}
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">
+                {profile.data.displayName || "Perfil profissional"}
+              </p>
+              {profile.data.registrationNumber ? (
+                <p className="mt-1">{profile.data.registrationNumber}</p>
+              ) : (
+                <p className="mt-1">Registro profissional não informado.</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => setLocation("/professional")}
+              >
+                <Stethoscope className="h-4 w-4" />
+                Abrir Área Profissional
+              </Button>
+              {settingsResourceAvailable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setLocation("/professional/settings")}
+                >
+                  Abrir configurações profissionais
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setLocation("/professional/settings")}
-          >
-            Abrir configurações profissionais
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+
+          {entitlements.isLoading ? (
+            <div
+              role="status"
+              className="rounded-2xl border bg-background/70 px-4 py-3 text-sm text-muted-foreground"
+            >
+              Verificando a disponibilidade das configurações profissionais...
+            </div>
+          ) : null}
+
+          {settingsAccessUnavailable ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-medium">
+                    Configurações profissionais indisponíveis no acesso atual
+                  </p>
+                  <p className="mt-1 leading-6">
+                    Seu perfil permanece ativo. Caso não queira mantê-lo assim,
+                    você pode desativar a Área Profissional sem apagar vínculos,
+                    prontuários, mensagens ou histórico.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={setActive.isPending}
+                onClick={confirmDeactivation}
+              >
+                <Power className="h-4 w-4" />
+                {setActive.isPending
+                  ? "Desativando..."
+                  : "Desativar Área Profissional"}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     );
@@ -374,6 +515,7 @@ export function PatientAccessRequestsCard({
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
       utils.nutrition.professionals.history.invalidate(),
+      utils.professionalRecord.settings.get.invalidate(),
       utils.professionalRecord.settings.entitlements.invalidate(),
     ]);
   };

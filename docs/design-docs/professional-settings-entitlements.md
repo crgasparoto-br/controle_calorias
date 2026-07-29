@@ -19,11 +19,11 @@ A API `professionalRecord.settings` oferece operações independentes para reduz
 - `get`: perfil, identificação pública, preferências suportadas, critérios centrais e entitlements;
 - `updateIdentity`: identificação profissional e dados públicos opcionais;
 - `updatePreferences`: intervalo padrão de revisão e modelos de mensagem;
-- `setActive`: ativa ou desativa a Área Profissional sem remover histórico;
+- `setActive`: desativa a Área Profissional sem remover histórico; uma tentativa de `active=true` permanece protegida e a reativação ocorre nas Configurações pessoais;
 - `entitlements`: reavalia o snapshot comercial sem cache indefinido;
 - `patientVisible`: retorna somente dados públicos de profissionais ativos com autorização aprovada.
 
-`get`, `updateIdentity`, `updatePreferences` e `setActive` exigem perfil ativo e o recurso exato `professional_settings`. A consulta isolada `entitlements` permanece autenticada e disponível mesmo quando esse recurso é negado, pois é a fonte necessária para explicar o bloqueio sem liberar leitura ou alteração das configurações internas. `patientVisible` pertence ao fluxo do paciente e não depende da elegibilidade comercial do profissional solicitante.
+`get`, `updateIdentity` e `updatePreferences` exigem perfil ativo e o recurso exato `professional_settings`. `setActive({ active: false })` é uma operação de disponibilidade pertencente ao titular da conta e permanece autenticada mesmo quando o entitlement de configurações é negado, evitando que um perfil ativo fique sem mecanismo de saída. `setActive({ active: true })` não reativa perfil inativo: a reativação continua no fluxo pessoal e, para um perfil já ativo, mantém a verificação do recurso `professional_settings`. A consulta isolada `entitlements` também permanece autenticada e disponível quando esse recurso é negado, pois é a fonte necessária para explicar o bloqueio sem liberar leitura ou alteração das configurações internas. `patientVisible` pertence ao fluxo do paciente e não depende da elegibilidade comercial do profissional solicitante.
 
 Alterações são serializadas por profissional. Se a gravação do evento de auditoria falhar, a alteração afetada é compensada antes de o erro retornar. Falha da própria compensação é registrada e retorna um erro explícito de consistência; ela não é ignorada. Eventos de configuração usam identificador próprio e não registram conteúdo de modelos ou outros dados sensíveis.
 
@@ -38,7 +38,9 @@ Lembretes continuam sendo criados no contexto de cada paciente pela central de a
 ## Estado ativo e proteção por recurso
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
-O fluxo pessoal não oferece desativação quando o perfil já está ativo: ele apresenta somente status e atalhos. A desativação é iniciada em `/professional/settings`, exige confirmação explícita, aplica imediatamente `active=false` aos caches locais de perfil, configurações e autenticação, tenta cancelar/remover dados profissionais e reconciliar a sessão, e redireciona para `/settings?tab=profissional` mesmo quando alguma etapa secundária falha. Essa URL é lida a partir do search param real para funcionar em acesso direto e após recarga.
+O fluxo pessoal apresenta status e os CTAs **Abrir Área Profissional** e, quando disponível, **Abrir configurações profissionais**. A desativação normal é iniciada em `/professional/settings`, exige confirmação explícita, aplica imediatamente `active=false` aos caches locais de perfil, configurações e autenticação, tenta cancelar/remover dados profissionais e reconciliar a sessão, e redireciona para `/settings?tab=profissional` mesmo quando alguma etapa secundária falha. Quando `professional_settings` está negado ou sua verificação falha, a aba pessoal oferece uma saída segura de desativação, com a mesma explicação de preservação de vínculos, prontuários, mensagens e histórico. O endpoint de desativação não libera leitura nem edição das configurações profissionais.
+
+A rota `/settings` usa uma única superfície de abas controlada pela URL. Selecionar **Profissional** grava `tab=profissional`; acesso direto, recarga e navegação do histórico restauram o mesmo conteúdo e o mesmo conjunto de abas, sem uma tela paralela para o deep link.
 
 As APIs de prontuário, alertas, mensagens, relatórios, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico da superfície.
 

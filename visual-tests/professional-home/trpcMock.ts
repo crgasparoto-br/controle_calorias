@@ -201,12 +201,13 @@ function portfolioQuery() {
 }
 
 function cancellable() {
-  return { cancel: resolved };
+  return { cancel: resolved, reset: resolved };
 }
 
 function mutation() {
   return {
     mutate: () => undefined,
+    mutateAsync: async () => undefined,
     reset: () => undefined,
     isPending: false,
     isError: false,
@@ -314,6 +315,29 @@ export const trpc = {
       },
     },
     nutrition: {
+      whatsapp: { status: { invalidate: resolved } },
+      onboarding: {
+        profile: { invalidate: resolved },
+        timeZone: { invalidate: resolved },
+      },
+      goals: { get: { invalidate: resolved } },
+      dashboard: {
+        overview: { invalidate: resolved },
+        today: { invalidate: resolved },
+      },
+      reports: {
+        weekly: { invalidate: resolved },
+        bundle: { invalidate: resolved },
+        periodBundle: { invalidate: resolved },
+      },
+      meals: {
+        list: { invalidate: resolved },
+        dayTotals: { invalidate: resolved },
+      },
+      exercises: { list: { invalidate: resolved } },
+      water: { list: { invalidate: resolved } },
+      mealSchedules: { list: { invalidate: resolved } },
+      whatsappPreferences: { annotatedImage: { invalidate: resolved } },
       professionals: {
         patientTimeZone: { ...cancellable(), fetch: resolved },
         patientDashboard: cancellable(),
@@ -333,11 +357,16 @@ export const trpc = {
       ai: { priorities: cancellable() },
       officialGoal: { professionalState: cancellable() },
       settings: {
-        get: { invalidate: resolved },
+        get: { invalidate: resolved, setData: resolved },
         entitlements: { invalidate: resolved },
       },
     },
   }),
+  auth: {
+    sendWhatsappGreeting: {
+      useMutation: () => mutation(),
+    },
+  },
   professionalRecord: {
     portfolioReport: {
       useQuery: () => portfolioQuery(),
@@ -371,7 +400,13 @@ export const trpc = {
         useQuery: () => ({
           data: {
             allowed: true,
-            enabledResources: allProfessionalResources,
+            commercialState: "active",
+            enabledResources:
+              visualState() === "settings-denied"
+                ? allProfessionalResources.filter(
+                    resource => resource !== "professional_settings"
+                  )
+                : allProfessionalResources,
           },
           isLoading: false,
           isError: false,
@@ -387,7 +422,41 @@ export const trpc = {
     },
   },
   nutrition: {
+    whatsapp: {
+      status: {
+        useQuery: () => ({ data: { connection: null } }),
+      },
+      upsertConnection: {
+        useMutation: () => mutation(),
+      },
+    },
+    whatsappPreferences: {
+      annotatedImage: {
+        useQuery: () => ({
+          data: { enabled: false },
+          isLoading: false,
+          isError: false,
+        }),
+      },
+      updateAnnotatedImage: {
+        useMutation: () => mutation(),
+      },
+    },
+    mealSchedules: {
+      list: {
+        useQuery: () => ({ data: [] }),
+      },
+      update: {
+        useMutation: () => mutation(),
+      },
+    },
     onboarding: {
+      profile: {
+        useQuery: () => ({ data: null }),
+      },
+      complete: {
+        useMutation: () => mutation(),
+      },
       timeZone: {
         useQuery: () => ({
           data: {

@@ -48,6 +48,19 @@ vi.mock("@/lib/trpc", () => ({
           myAccesses: { invalidate: invalidateMock },
           patientRequests: { invalidate: invalidateMock },
           history: { invalidate: invalidateMock },
+          patientDashboard: { reset: vi.fn() },
+          patientPeriodBundle: { reset: vi.fn() },
+          patientTimeZone: { reset: vi.fn() },
+        },
+      },
+      professionalRecord: {
+        get: { cancel: vi.fn(), reset: vi.fn() },
+        messages: { list: { cancel: vi.fn(), reset: vi.fn() } },
+        operationalAlerts: { list: { cancel: vi.fn(), reset: vi.fn() } },
+        ai: { priorities: { cancel: vi.fn(), reset: vi.fn() } },
+        settings: {
+          get: { invalidate: invalidateMock, setData: vi.fn() },
+          entitlements: { invalidate: invalidateMock },
         },
       },
     }),
@@ -75,6 +88,20 @@ vi.mock("@/lib/trpc", () => ({
         },
         revokeAccess: {
           useMutation: () => ({ isPending: false, mutate: revokeMutateMock }),
+        },
+      },
+    },
+    professionalRecord: {
+      settings: {
+        entitlements: {
+          useQuery: () => ({
+            data: undefined,
+            isLoading: false,
+            isError: false,
+          }),
+        },
+        setActive: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
     },

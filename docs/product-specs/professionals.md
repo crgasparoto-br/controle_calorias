@@ -40,6 +40,8 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Todo profissional também é um usuário comum do sistema.
 - O perfil profissional é uma camada adicional da conta pessoal, não um tipo separado de conta.
 - A definição e ativação do perfil profissional permanece em Configurações até existir onboarding profissional específico.
+- A aba profissional de Configurações é endereçável por `/settings?tab=profissional`; clique, recarga e navegação do histórico devem restaurar a mesma superfície canônica de abas.
+- Perfil ativo apresenta CTA para abrir a Área Profissional. Quando o recurso `professional_settings` estiver indisponível, o titular ainda pode desativar o próprio perfil sem apagar vínculos, prontuários, mensagens ou histórico.
 - Usuário com perfil profissional ativo deve poder alternar explicitamente entre **Minha alimentação** e **Área profissional**.
 - Usuário sem perfil profissional ativo não deve visualizar menu, rotas ou ações profissionais.
 - Rotas e APIs profissionais devem validar perfil ativo e autorização no backend.
@@ -165,7 +167,8 @@ Cada indicador agregado explica sua definição e abre a carteira com o filtro e
 - modelos de mensagem;
 - critérios configuráveis de alerta;
 - preferências de acompanhamento;
-- plano, limites e cobrança quando implementados.
+- plano, limites e cobrança quando implementados;
+- desativação confirmada do perfil, com fallback na aba pessoal quando o entitlement de configurações não permitir abrir esta tela.
 
 ## Autorização e situação do acompanhamento
 

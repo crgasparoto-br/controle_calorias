@@ -82,17 +82,40 @@ describe("professional settings router entitlement", () => {
         messageTemplates: [],
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller().setActive({ active: false })).rejects.toMatchObject({
-      code: "FORBIDDEN",
+    await expect(caller().setActive({ active: false })).resolves.toMatchObject({
+      active: false,
     });
 
-    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(4);
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(3);
     for (const call of mocks.getProfessionalEntitlements.mock.calls) {
       expect(call).toEqual([77]);
     }
     expect(mocks.getProfessionalSettingsSnapshot).not.toHaveBeenCalled();
     expect(mocks.updateProfessionalIdentitySettings).not.toHaveBeenCalled();
     expect(mocks.updateProfessionalPreferencesSettings).not.toHaveBeenCalled();
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledWith(77, false);
+  });
+
+  it("keeps activation through this route entitlement-protected", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
+  });
+
+  it("directs reactivation of an inactive profile to personal settings", async () => {
+    mocks.getProfessionalProfile.mockResolvedValue({ active: false });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    expect(mocks.getProfessionalEntitlements).not.toHaveBeenCalled();
     expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
   });
 

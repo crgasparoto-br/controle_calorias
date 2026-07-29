@@ -176,6 +176,8 @@ capture "settings-mobile-390x844" "390,844" "$SETTINGS_URL"
 capture "profile-transition-desktop-1366x768" "1366,768" "$SETTINGS_URL?state=profile-transition"
 capture "profile-active-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL"
 capture "profile-active-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL"
+capture "profile-settings-denied-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL&state=settings-denied"
+capture "profile-settings-denied-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL&state=settings-denied"
 capture "profile-inactive-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL&state=profile-inactive"
 capture "profile-inactive-mobile-390x844" "390,844" "$PROFILE_SETTINGS_URL&state=profile-inactive"
 capture "profile-error-desktop-1366x768" "1366,768" "$PROFILE_SETTINGS_URL&state=profile-error"
@@ -274,13 +276,29 @@ assert_dom_not_contains \
 assert_dom \
   "profile-active-public-route" \
   "$PROFILE_SETTINGS_URL" \
-  "Perfil profissional" \
-  "Área Profissional ativa" \
+  "Perfil profissional ativo" \
+  "Abrir Área Profissional" \
   "Abrir configurações profissionais"
 assert_dom_not_contains \
   "profile-active-public-route" \
   "Ativar área Profissional" \
   "Salvar perfil profissional"
+assert_dom \
+  "profile-settings-denied-exit" \
+  "$PROFILE_SETTINGS_URL&state=settings-denied" \
+  "Perfil profissional ativo" \
+  "Abrir Área Profissional" \
+  "Configurações profissionais indisponíveis no acesso atual" \
+  "Desativar Área Profissional"
+assert_dom_not_contains \
+  "profile-settings-denied-exit" \
+  "Abrir configurações profissionais"
+assert_dom_at_size \
+  "profile-settings-denied-mobile-layout" \
+  "390,844" \
+  "$PROFILE_SETTINGS_URL&state=settings-denied" \
+  "Desativar Área Profissional" \
+  'data-visual-horizontal-overflow="false"'
 assert_dom \
   "profile-inactive-public-route" \
   "$PROFILE_SETTINGS_URL&state=profile-inactive" \
@@ -307,11 +325,11 @@ assert_dom_at_size \
 cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
 routes=/professional,/professional/patients,/professional/reports,/professional/settings,/settings?tab=profissional,/settings/professional-access-requests
 commit=${GITHUB_SHA:-local}
-scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate,settings-product-labels,settings-responsive,profile-active-to-inactive-transition,profile-active-public-route,profile-inactive-public-route,profile-error-retry,access-requests-error-retry
+scenarios=main,complete-page-3,loading,empty,priority-error,portfolio-error,sidebar-collapsed,patients-main,patients-empty,patients-error,reports-aggregate,settings-product-labels,settings-responsive,profile-active-to-inactive-transition,profile-active-public-route,profile-settings-denied-owner-exit,profile-inactive-public-route,profile-error-retry,access-requests-error-retry
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
-source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatients, ProfessionalSettingsPage and PatientAccessRequestsCard with deterministic tRPC and auth fixtures
+source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatients, ProfessionalSettingsPage, OnboardingPage and PatientAccessRequestsCard with deterministic tRPC and auth fixtures
 interaction=sidebar collapsed through the actual sidebar trigger; active professional settings transition to inactive through the reactive auth fixture
-assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, aggregate report definitions, complete entitlement product labels, immediate removal of open professional settings after profile deactivation, recoverable profile and request errors with local retry and no horizontal overflow
+assertions=complete page 3 content, collapsed sidebar DOM state, patient authorization actions, privacy-neutral non-approved identities, aggregate report definitions, complete entitlement product labels, canonical settings deep link, owner deactivation exit under denied settings entitlement, immediate removal of open professional settings after profile deactivation, recoverable profile and request errors with local retry and no horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"
