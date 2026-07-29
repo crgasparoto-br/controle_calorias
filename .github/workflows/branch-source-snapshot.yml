@@ -1,63 +1,35 @@
-name: Format issue 882 remediation
+name: Branch source snapshot
 
 on:
   pull_request:
     paths:
       - ".github/workflows/branch-source-snapshot.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  format-remediation:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+  snapshot:
     runs-on: ubuntu-latest
     env:
-      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-      NODE_OPTIONS: --max-old-space-size=4096
-      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
-      - name: Checkout exact PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-
-      - name: Confirm exact input head
-        run: test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
-
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           run_install: false
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Format touched files
-        run: pnpm exec prettier --write server/modules/professionals/messageService.ts server/modules/professionals/messageService.test.ts docs/RELIABILITY.md
-
-      - name: Validate formatted remediation
-        run: |
-          git diff --check
-          pnpm exec vitest run server/modules/professionals/messageService.test.ts --maxWorkers=1 --minWorkers=1
-          pnpm check
-          pnpm docs:check
-
-      - name: Commit formatting to shared branch
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- server/modules/professionals/messageService.ts server/modules/professionals/messageService.test.ts docs/RELIABILITY.md; then
-            echo "No formatting changes required."
-            exit 0
-          fi
-          git add server/modules/professionals/messageService.ts server/modules/professionals/messageService.test.ts docs/RELIABILITY.md
-          git commit -m "style: format issue 882 remediation"
-          git push origin "HEAD:${HEAD_BRANCH}"
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Drizzle metadata
+        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
+      - name: Pack source and generated metadata
+        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: branch-source-snapshot
+          path: /tmp/controle-calorias-source.tar.gz
+          retention-days: 1
