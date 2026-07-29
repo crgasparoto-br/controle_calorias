@@ -109,6 +109,7 @@ export default function ProfessionalProfileSettings() {
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
       utils.nutrition.professionals.history.invalidate(),
+      utils.professionalRecord.settings.entitlements.invalidate(),
     ]);
   };
 
@@ -308,6 +309,7 @@ export function PatientAccessRequestsCard({
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
       utils.nutrition.professionals.history.invalidate(),
+      utils.professionalRecord.settings.entitlements.invalidate(),
     ]);
   };
 
