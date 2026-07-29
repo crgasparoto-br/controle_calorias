@@ -164,20 +164,19 @@ export default function ProfessionalProfileSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         {profile.isLoading ? (
-          <div
-            className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            Carregando perfil profissional...
-          </div>
+          <ProfessionalLoadingState label="Carregando perfil profissional..." />
         ) : null}
 
         {profile.isError ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Não foi possível carregar o perfil profissional. Tente novamente
-            antes de salvar alterações.
-          </div>
+          <ProfessionalAsyncState
+            variant="panel"
+            title="Não foi possível carregar o perfil profissional"
+            description="Os campos permanecem visíveis, mas salvar fica indisponível até esta seção ser atualizada."
+            onRetry={() => {
+              setAppliedSavedProfile(false);
+              void profile.refetch();
+            }}
+          />
         ) : null}
 
         {validationMessage ? (
@@ -231,7 +230,9 @@ export default function ProfessionalProfileSettings() {
           <Button
             type="button"
             className="rounded-full"
-            disabled={upsertProfile.isPending || profile.isLoading}
+            disabled={
+              upsertProfile.isPending || profile.isLoading || profile.isError
+            }
             onClick={handleSave}
           >
             <Save className="mr-2 h-4 w-4" />

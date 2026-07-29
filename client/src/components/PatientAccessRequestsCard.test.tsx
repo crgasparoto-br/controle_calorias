@@ -4,6 +4,17 @@ import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const profileState = vi.hoisted(() => ({
+  data: null as {
+    displayName?: string;
+    registrationNumber?: string;
+    active?: boolean;
+  } | null,
+  isSuccess: true,
+  isLoading: false,
+  isError: false,
+}));
+
 const patientRequestsState = vi.hoisted(() => ({
   requests: [] as unknown[],
   isLoading: false,
@@ -11,6 +22,7 @@ const patientRequestsState = vi.hoisted(() => ({
 }));
 
 const invalidateMock = vi.fn(async () => undefined);
+const refetchProfileMock = vi.fn(async () => undefined);
 const refetchPatientRequestsMock = vi.fn(async () => undefined);
 const approveMutateMock = vi.fn();
 const revokeMutateMock = vi.fn();
@@ -43,10 +55,8 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         profile: {
           useQuery: () => ({
-            isSuccess: true,
-            data: null,
-            isLoading: false,
-            isError: false,
+            ...profileState,
+            refetch: refetchProfileMock,
           }),
         },
         upsertProfile: {
@@ -103,15 +113,46 @@ function accessRequest(input: {
 
 describe("PatientAccessRequestsCard", () => {
   beforeEach(() => {
+    profileState.data = null;
+    profileState.isSuccess = true;
+    profileState.isLoading = false;
+    profileState.isError = false;
     patientRequestsState.requests = [];
     patientRequestsState.isLoading = false;
     patientRequestsState.isError = false;
     approveMutateMock.mockClear();
     revokeMutateMock.mockClear();
+    refetchProfileMock.mockClear();
     refetchPatientRequestsMock.mockClear();
   });
 
   afterEach(cleanup);
+
+  it("oferece retry local quando o perfil profissional falha", async () => {
+    profileState.isSuccess = false;
+    profileState.isError = true;
+    const { default: ProfessionalProfileSettings } = await import(
+      "./ProfessionalProfileSettings"
+    );
+
+    render(<ProfessionalProfileSettings />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Não foi possível carregar o perfil profissional",
+      })
+    ).toBeTruthy();
+    const retry = screen.getByRole("button", { name: "Tentar novamente" });
+    fireEvent.click(retry);
+    expect(refetchProfileMock).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Salvar perfil profissional",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+  });
 
   it("mostra pendentes, ativos e encerrados com status da notificação", async () => {
     patientRequestsState.requests = [

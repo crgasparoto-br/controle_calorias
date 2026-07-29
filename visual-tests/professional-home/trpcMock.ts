@@ -384,19 +384,24 @@ export const trpc = {
     },
     professionals: {
       profile: {
-        useQuery: () => ({
-          data: {
-            active: true,
-            displayName: "Nutricionista de validação",
-            registrationNumber: "CRN 123456",
-          },
-          isLoading: false,
-          isFetching: false,
-          isError: false,
-          isSuccess: true,
-          isFetchedAfterMount: true,
-          refetch: resolved,
-        }),
+        useQuery: () => {
+          const isError = visualState() === "profile-error";
+          return {
+            data: isError
+              ? undefined
+              : {
+                  active: true,
+                  displayName: "Nutricionista de validação",
+                  registrationNumber: "CRN 123456",
+                },
+            isLoading: false,
+            isFetching: false,
+            isError,
+            isSuccess: !isError,
+            isFetchedAfterMount: true,
+            refetch: resolved,
+          };
+        },
       },
       portfolio: {
         useQuery: () => portfolioQuery(),
