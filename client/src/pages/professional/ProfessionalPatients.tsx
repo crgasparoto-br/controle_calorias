@@ -243,9 +243,7 @@ function PatientCard({
 }) {
   const accessible = item.authorizationStatus === "approved";
   const displayName =
-    item.patientName ??
-    (accessible ? item.patientEmail : null) ??
-    `Paciente ${item.patientUserId}`;
+    item.patientName ?? (accessible ? item.patientEmail : null) ?? "Paciente";
 
   return (
     <article
