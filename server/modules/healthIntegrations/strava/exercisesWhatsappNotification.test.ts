@@ -105,7 +105,16 @@ describe("Strava WhatsApp import notification", () => {
     await upsertStravaActivitiesAsExercises(42, [{ ...activity }]);
 
     expect(exerciseMocks.createExercise).toHaveBeenCalledOnce();
+    expect(goalProgressMocks.getWhatsAppMealGoalProgress).toHaveBeenCalledWith(
+      42,
+      new Date(activity.start_date),
+      "America/Sao_Paulo",
+    );
     expect(whatsappMocks.sendWhatsAppLogicalReply).toHaveBeenCalledOnce();
+    const sentReply = whatsappMocks.sendWhatsAppLogicalReply.mock.calls[0][1];
+    const sentMessage = (sentReply.messages[0].bodyText ?? sentReply.messages[0].body) as string;
+    expect(sentMessage).not.toContain("*Meta:*");
+    expect(sentMessage).not.toContain("*Consumo:*");
   });
 
   it("inclui meta, exercícios, consumo e superávit/déficit do dia na notificação", async () => {
@@ -127,7 +136,7 @@ describe("Strava WhatsApp import notification", () => {
 
     expect(goalProgressMocks.getWhatsAppMealGoalProgress).toHaveBeenCalledWith(
       42,
-      expect.any(Date),
+      new Date(activity.start_date),
       "America/Sao_Paulo",
     );
 
