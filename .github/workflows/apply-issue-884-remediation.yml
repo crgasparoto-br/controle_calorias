@@ -1,0 +1,69 @@
+name: Apply issue 884 remediation
+
+on:
+  push:
+    branches:
+      - feat/875-professional-context-routes
+    paths:
+      - .github/workflows/apply-issue-884-remediation.yml
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  apply-remediation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout remediation parent
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify expected parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "12175e4cec48309d6bbd2bcba9a67aa46943d8ee"
+
+      - name: Download and verify patch from PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/888/comments?per_page=100" \
+            | jq -r '.[] | select(.id == 5121190397) | .body' \
+            > /tmp/issue-884-comment.txt
+          sed -n '/ISSUE_884_PATCH_B64_START/,/ISSUE_884_PATCH_B64_END/p' /tmp/issue-884-comment.txt \
+            | grep -v 'ISSUE_884_PATCH_B64_' \
+            | tr -d '\n' \
+            | base64 --decode \
+            | gzip --decompress \
+            > /tmp/issue-884-remediation.patch
+          echo "d4914220d1918460851ba1cc3cde643b2c5ab8ac489d7ae174890655c34b70a0  /tmp/issue-884-remediation.patch" \
+            | sha256sum --check --strict
+
+      - name: Apply remediation and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check /tmp/issue-884-remediation.patch
+          git apply /tmp/issue-884-remediation.patch
+          rm .github/workflows/apply-issue-884-remediation.yml
+          git diff --check
+
+      - name: Commit and publish remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Claudinei Rogerio Gasparoto"
+          git config user.email "crgasparoto@gmail.com"
+          git add -A
+          git commit -m "fix: remediate professional settings audit findings"
+          git push origin HEAD:feat/875-professional-context-routes
