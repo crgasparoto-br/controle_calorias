@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  assertProfessionalEntitlement: vi.fn(),
   getProfessionalEntitlements: vi.fn(),
   getProfessionalProfile: vi.fn(),
   getProfessionalSettingsSnapshot: vi.fn(),
@@ -12,7 +11,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./entitlementService", () => ({
-  assertProfessionalEntitlement: mocks.assertProfessionalEntitlement,
   getProfessionalEntitlements: mocks.getProfessionalEntitlements,
 }));
 
@@ -48,9 +46,9 @@ function caller() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getProfessionalProfile.mockResolvedValue({ active: true });
-  mocks.assertProfessionalEntitlement.mockResolvedValue(undefined);
   mocks.getProfessionalEntitlements.mockResolvedValue({
     allowed: true,
+    commercialState: "active",
     enabledResources: ["professional_settings"],
   });
   mocks.getProfessionalSettingsSnapshot.mockResolvedValue({ profile: null });
@@ -62,9 +60,11 @@ beforeEach(() => {
 
 describe("professional settings router entitlement", () => {
   it("blocks settings reads and mutations when another resource is allowed", async () => {
-    mocks.assertProfessionalEntitlement.mockRejectedValue(
-      new Error("Configurações profissionais não liberadas.")
-    );
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
 
     await expect(caller().get()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
@@ -82,26 +82,47 @@ describe("professional settings router entitlement", () => {
         messageTemplates: [],
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller().setActive({ active: false })).rejects.toMatchObject({
-      code: "FORBIDDEN",
+    await expect(caller().setActive({ active: false })).resolves.toMatchObject({
+      active: false,
     });
 
-    expect(mocks.assertProfessionalEntitlement).toHaveBeenCalledTimes(4);
-    for (const call of mocks.assertProfessionalEntitlement.mock.calls) {
-      expect(call).toEqual([77, "professional_settings"]);
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(3);
+    for (const call of mocks.getProfessionalEntitlements.mock.calls) {
+      expect(call).toEqual([77]);
     }
     expect(mocks.getProfessionalSettingsSnapshot).not.toHaveBeenCalled();
     expect(mocks.updateProfessionalIdentitySettings).not.toHaveBeenCalled();
     expect(mocks.updateProfessionalPreferencesSettings).not.toHaveBeenCalled();
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledWith(77, false);
+  });
+
+  it("keeps activation through this route entitlement-protected", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
+  });
+
+  it("directs reactivation of an inactive profile to personal settings", async () => {
+    mocks.getProfessionalProfile.mockResolvedValue({ active: false });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    expect(mocks.getProfessionalEntitlements).not.toHaveBeenCalled();
     expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
   });
 
   it("keeps the isolated entitlement snapshot available to explain a denial", async () => {
-    mocks.assertProfessionalEntitlement.mockRejectedValue(
-      new Error("Configurações profissionais não liberadas.")
-    );
     mocks.getProfessionalEntitlements.mockResolvedValue({
       allowed: true,
+      commercialState: "active",
       enabledResources: ["professional_reports"],
       planName: "Plano relatórios",
     });
@@ -111,7 +132,6 @@ describe("professional settings router entitlement", () => {
       planName: "Plano relatórios",
     });
 
-    expect(mocks.assertProfessionalEntitlement).not.toHaveBeenCalled();
     expect(mocks.getProfessionalEntitlements).toHaveBeenCalledWith(77);
   });
 
@@ -119,10 +139,7 @@ describe("professional settings router entitlement", () => {
     await caller().get();
 
     expect(mocks.getProfessionalProfile).toHaveBeenCalledWith(77);
-    expect(mocks.assertProfessionalEntitlement).toHaveBeenCalledWith(
-      77,
-      "professional_settings"
-    );
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledWith(77);
     expect(mocks.getProfessionalSettingsSnapshot).toHaveBeenCalledWith(77);
   });
 });

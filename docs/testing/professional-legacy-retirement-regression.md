@@ -6,51 +6,54 @@ Manter a evidência versionada do gate final da issue #815. Este documento relac
 
 ## Inventário de artefatos legados
 
-| Categoria         | Artefato legado                                                                          | Consumidores inventariados                   | Substituição ou decisão                                                        | Evidência de remoção/retensão                         |
-| ----------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| Página            | `client/src/pages/ProfessionalPage.tsx`                                                  | rota profissional antiga e testes históricos | removida; experiência atual em `ProfessionalWorkspacePage` e páginas dedicadas | arquivo ausente e gate estático                       |
-| URL               | `/professional/legacy`                                                                   | favoritos, cache e sessões antigas           | redirecionamento seguro para `/professional`                                   | `App.professionalNavigation.test.tsx`                 |
-| Navegação         | botão “Experiência legada”                                                               | sidebar profissional antiga                  | descontinuado                                                                  | ausência em `ProfessionalLayout.tsx`                  |
-| tRPC              | `nutrition.professionals.askPatientQuestion`                                             | workspace de IA antigo                       | `professionalRecord.ai.generate`                                               | router/schema sem contrato antigo; testes da IA atual |
-| Serviço           | `answerProfessionalPatientQuestion` e parsing do provider antigo                         | procedure removida                           | `aiService.ts` com contexto canônico, segurança e rastreabilidade              | busca estática e suíte de IA                          |
-| Schemas           | `professionalPatientQuestionSchema` / resposta antiga                                    | procedure removida                           | schemas de `aiSchemas.ts`                                                      | gate estático e docs geradas                          |
-| Maps              | `profiles` e `accesses` em `service.ts`                                                  | fallback de processo da fachada antiga       | repositories canônicos                                                         | ausência no serviço; TiDB entre instâncias            |
-| Reconciliação     | `reconcilePatientAccessRequests`, `persistAccessForBothSides` e estado assimétrico local | leituras profissionais e WhatsApp            | autorização canônica única                                                     | testes de vínculo, concorrência e WhatsApp            |
-| Adapter           | `writeLegacyProfile`                                                                     | gravação de perfil                           | `professionalProfiles`                                                         | ausência no repository                                |
-| Adapter           | `writeLegacyAuthorization`                                                               | solicitação, decisão e revogação             | `professionalPatientAuthorizations`                                            | ausência no repository                                |
-| Migração lazy     | `migrateLegacyUser` / `migrateRelatedAuthorizations`                                     | leituras de perfil e vínculo                 | comando explícito `db:migrate:professionals`                                   | teste TiDB prova ausência antes do backfill           |
-| Preferência JSON  | `professional_profile_v1`                                                                | perfil antigo                                | `professionalProfiles`                                                         | verificação integral antes de limpeza                 |
-| Preferência JSON  | `professional_accesses_v1`                                                               | lado profissional do vínculo                 | `professionalPatientAuthorizations`                                            | verificação integral antes de limpeza                 |
-| Preferência JSON  | `patient_professional_access_requests_v1`                                                | lado paciente do vínculo e WhatsApp          | autorização canônica única                                                     | teste de vínculo assimétrico e callback               |
-| Preferência JSON  | `patient_professional_goal_suggestions_v1`                                               | sugestões antigas do paciente                | `professionalGoalSuggestions`                                                  | migração global explícita, sem lazy/dual-write        |
-| Teste obsoleto    | `service.reconciliation.test.ts`                                                         | maps e reconciliação removidos               | testes canônicos e TiDB                                                        | arquivo removido                                      |
-| Documento gerado  | lista parcial de `professionalRecord`                                                    | consumidores de contrato                     | grupos aninhados de mensagens, alertas, IA e configurações                     | `docs:generate:trpc`                                  |
-| Preferência ativa | `professional_settings_v1`                                                               | configurações atuais da issue #814           | mantida; não pertence à experiência aposentada                                 | documentada como contrato atual, não removida         |
+| Categoria | Artefato legado | Consumidores inventariados | Substituição ou decisão | Evidência de remoção/retensão |
+| --- | --- | --- | --- | --- |
+| Página | `client/src/pages/ProfessionalPage.tsx` | rota profissional antiga e testes históricos | removida; experiência atual em `ProfessionalAreaPage`; `ProfessionalWorkspacePage` permanece apenas como alias temporário de import | arquivo ausente, alias sem estado e gate estático |
+| URL | `/professional/legacy` | favoritos, cache e sessões antigas | redirecionamento seguro para `/professional` | `App.professionalNavigation.test.tsx` |
+| URL | `/professional/follow-up` | favoritos e links antigos sem paciente | redirecionamento seguro para `/professional/patients` | `App.professionalNavigation.test.tsx` |
+| Navegação | botão “Experiência legada” | sidebar profissional antiga | descontinuado | ausência em `ProfessionalLayout.tsx` |
+| tRPC | `nutrition.professionals.askPatientQuestion` | workspace de IA antigo | `professionalRecord.ai.generate` | router/schema sem contrato antigo; testes da IA atual |
+| Serviço | `answerProfessionalPatientQuestion` e parsing do provider antigo | procedure removida | `aiService.ts` com contexto canônico, segurança e rastreabilidade | busca estática e suíte de IA |
+| Schemas | `professionalPatientQuestionSchema` / resposta antiga | procedure removida | schemas de `aiSchemas.ts` | gate estático e docs geradas |
+| Maps | `profiles` e `accesses` em `service.ts` | fallback de processo da fachada antiga | repositories canônicos | ausência no serviço; TiDB entre instâncias |
+| Reconciliação | `reconcilePatientAccessRequests`, `persistAccessForBothSides` e estado assimétrico local | leituras profissionais e WhatsApp | autorização canônica única | testes de vínculo, concorrência e WhatsApp |
+| Adapter | `writeLegacyProfile` | gravação de perfil | `professionalProfiles` | ausência no repository |
+| Adapter | `writeLegacyAuthorization` | solicitação, decisão e revogação | `professionalPatientAuthorizations` | ausência no repository |
+| Migração lazy | `migrateLegacyUser` / `migrateRelatedAuthorizations` | leituras de perfil e vínculo | comando explícito `db:migrate:professionals` | teste TiDB prova ausência antes do backfill |
+| Preferência JSON | `professional_profile_v1` | perfil antigo | `professionalProfiles` | verificação integral antes de limpeza |
+| Preferência JSON | `professional_accesses_v1` | lado profissional do vínculo | `professionalPatientAuthorizations` | verificação integral antes de limpeza |
+| Preferência JSON | `patient_professional_access_requests_v1` | lado paciente do vínculo e WhatsApp | autorização canônica única | teste de vínculo assimétrico e callback |
+| Preferência JSON | `patient_professional_goal_suggestions_v1` | sugestões antigas do paciente | `professionalGoalSuggestions` | migração global explícita, sem lazy/dual-write |
+| Teste obsoleto | `service.reconciliation.test.ts` | maps e reconciliação removidos | testes canônicos e TiDB | arquivo removido |
+| Documento gerado | lista parcial de `professionalRecord` | consumidores de contrato | grupos aninhados de mensagens, alertas, IA e configurações | `docs:generate:trpc` |
+| Preferência ativa | `professional_settings_v1` | configurações atuais da issue #814 | mantida; não pertence à experiência aposentada | documentada como contrato atual, não removida |
 
 ## Matriz de regressão reproduzível
 
-| Área/cenário                                                 | Ação crítica comprovada                                                        | Evidência executável                           |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------- |
-| Paciente — Hoje                                              | renderiza metas, consumo, exercícios e água                                    | `nutritionPages.test.tsx`                      |
-| Paciente — Registrar                                         | carrega registro multimodal, água, exercício e peso                            | `nutritionPages.test.tsx`                      |
-| Paciente — Registros                                         | renderiza refeição, itens alimentares, exercícios e detalhes operacionais      | `nutritionPages.test.tsx`                      |
-| Paciente — Metas                                             | renderiza meta geral, exceções e soma semanal                                  | `nutritionPages.test.tsx` e navegação de metas |
-| Paciente — Relatórios                                        | renderiza contratos canônicos de período e indicadores                         | `nutritionPages.test.tsx`                      |
-| Paciente — Configurações                                     | mantém perfil, vínculos e solicitações                                         | `nutritionPages.test.tsx`                      |
-| Profissional — URL antiga/cache                              | acessa bookmark antigo e termina na experiência atual, sem UI legada           | `App.professionalNavigation.test.tsx`          |
-| Profissional — perfil inativo                                | bloqueia workspace e não exibe contexto                                        | `App.professionalNavigation.test.tsx`          |
-| Profissional — autorização                                   | revalida backend antes de abrir paciente                                       | `App.professionalNavigation.test.tsx`          |
-| Profissional — revogação/cache                               | falha de revalidação impede abertura de contexto antigo                        | `App.professionalNavigation.test.tsx`          |
-| Profissional — carteira/prontuário/metas                     | usa páginas e procedures atuais com isolamento                                 | suíte profissional e `professionalRecord`      |
-| Profissional — alertas/mensagens/relatórios/IA/configurações | usa routers aninhados e componentes dedicados                                  | testes dos componentes e docs tRPC geradas     |
-| WhatsApp — vínculo                                           | botão autoriza/recusa uma vez e não reativa estado consumido                   | `messageRouter.interactiveCallback.test.ts`    |
-| Migração parcial                                             | runtime não lê JSON; backfill explícito torna dados visíveis                   | `test-professional-persistence-tidb.ts`        |
-| Migração incompatível                                        | canônico mais novo, porém incompleto, bloqueia `--apply` e preserva JSON       | `test-professional-persistence-tidb.ts`        |
-| Metas JSON semanticamente equivalentes                       | ordem diferente das propriedades não cria conflito; valores divergentes bloqueiam | `test-professional-persistence-tidb.ts`     |
-| Ordenação de resultados canônicos                            | a validação localiza a sugestão migrada por identidade, sem depender da posição na lista | `test-professional-persistence-tidb.ts` |
-| Idempotência                                                 | backfills repetidos não duplicam nem reescrevem estado atual                   | workflow Professional persistence TiDB         |
-| Rollout                                                      | limpeza ocorre somente após deploy canônico saudável                           | runbook de aposentadoria                       |
-| Rollback                                                     | tabelas canônicas e backup são preservados; não há restauração parcial de JSON | runbook de aposentadoria                       |
+| Área/cenário | Ação crítica comprovada | Evidência executável |
+| --- | --- | --- |
+| Paciente — Hoje | renderiza metas, consumo, exercícios e água | `nutritionPages.test.tsx` |
+| Paciente — Registrar | carrega registro multimodal, água, exercício e peso | `nutritionPages.test.tsx` |
+| Paciente — Registros | renderiza refeição, itens alimentares, exercícios e detalhes operacionais | `nutritionPages.test.tsx` |
+| Paciente — Metas | renderiza meta geral, exceções e soma semanal | `nutritionPages.test.tsx` e navegação de metas |
+| Paciente — Relatórios | renderiza contratos canônicos de período e indicadores | `nutritionPages.test.tsx` |
+| Paciente — Configurações | mantém perfil, vínculos e solicitações | `nutritionPages.test.tsx` |
+| Profissional — URL antiga/cache | bookmarks antigos terminam nas rotas canônicas, sem UI legada | `App.professionalNavigation.test.tsx` |
+| Profissional — entitlement de rota | cada rota aceita somente seu recurso exato e rejeita recurso vizinho | `App.professionalNavigation.test.tsx` e `professionalRoutes.test.ts` |
+| Profissional — perfil inativo | bloqueia workspace e não exibe contexto | `ProfessionalLayout.test.tsx` |
+| Profissional — autorização | serviço canônico valida perfil, entitlement e vínculo aprovado antes de retornar contexto | `patientContextService.test.ts` e `ProfessionalLayout.test.tsx` |
+| Profissional — troca/back/forward | não exibe paciente anterior e ignora transição tardia | `ProfessionalLayout.test.tsx` e `ProfessionalLayout.historyNavigation.test.tsx` |
+| Profissional — revogação/cache | erro de query ou mutation remove imediatamente contexto e queries individuais | `ProfessionalLayout.test.tsx` |
+| Profissional — carteira/prontuário/metas | usa páginas e procedures atuais com isolamento | suíte profissional e `professionalRecord` |
+| Profissional — alertas/mensagens/relatórios/IA/configurações | usa routers aninhados e componentes dedicados | testes dos componentes e docs tRPC geradas |
+| WhatsApp — vínculo | botão autoriza/recusa uma vez e não reativa estado consumido | `messageRouter.interactiveCallback.test.ts` |
+| Migração parcial | runtime não lê JSON; backfill explícito torna dados visíveis | `test-professional-persistence-tidb.ts` |
+| Migração incompatível | canônico mais novo, porém incompleto, bloqueia `--apply` e preserva JSON | `test-professional-persistence-tidb.ts` |
+| Metas JSON semanticamente equivalentes | ordem diferente das propriedades não cria conflito; valores divergentes bloqueiam | `test-professional-persistence-tidb.ts` |
+| Ordenação de resultados canônicos | a validação localiza a sugestão migrada por identidade, sem depender da posição na lista | `test-professional-persistence-tidb.ts` |
+| Idempotência | backfills repetidos não duplicam nem reescrevem estado atual | workflow Professional persistence TiDB |
+| Rollout | limpeza ocorre somente após deploy canônico saudável | runbook de aposentadoria |
+| Rollback | tabelas canônicas e backup são preservados; não há restauração parcial de JSON | runbook de aposentadoria |
 
 ## Execução
 

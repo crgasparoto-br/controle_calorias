@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
 import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import {
+  ensureProfessionalRuntimeSchemaCompatibility,
+} from "../server/modules/professionals/runtimeSchemaCompatibility";
+import {
   cancelProfessionalOperationalRequest,
   closeProfessionalOperationalAlert,
   createProfessionalOperationalRequest,
@@ -28,6 +31,8 @@ const AUTH_A = "operational-alert-auth-a";
 const AUTH_B = "operational-alert-auth-b";
 const TRACKING_A = "operational-alert-tracking-a";
 const TRACKING_B = "operational-alert-tracking-b";
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 async function cleanup(connection: mysql.Connection) {
   const placeholders = USER_IDS.map(() => "?").join(",");
@@ -69,7 +74,7 @@ async function cleanup(connection: mysql.Connection) {
   );
 }
 
-async function seed(connection: mysql.Connection) {
+async function seed(connection: mysql.Connection, now: Date) {
   for (const userId of USER_IDS) {
     await connection.query(
       "INSERT INTO users (id, openId, name, email, role) VALUES (?, ?, ?, ?, 'user')",
@@ -94,7 +99,9 @@ async function seed(connection: mysql.Connection) {
     ]
   );
 
-  const now = new Date("2026-07-20T10:00:00.000Z");
+  const createdAt = new Date(now.getTime() - 10 * DAY_MS);
+  const overdueReviewAt = new Date(now.getTime() - DAY_MS);
+  const futureReviewAt = new Date(now.getTime() + 5 * DAY_MS);
   await connection.query(
     `INSERT INTO professionalPatientAuthorizations
       (id, professionalUserId, patientUserId, status, activePairKey, reason,
@@ -107,18 +114,18 @@ async function seed(connection: mysql.Connection) {
       PROFESSIONAL_A,
       PATIENT_A,
       `${PROFESSIONAL_A}:${PATIENT_A}`,
-      now,
-      now,
-      now,
-      now,
+      createdAt,
+      createdAt,
+      createdAt,
+      createdAt,
       AUTH_B,
       PROFESSIONAL_B,
       PATIENT_B,
       `${PROFESSIONAL_B}:${PATIENT_B}`,
-      now,
-      now,
-      now,
-      now,
+      createdAt,
+      createdAt,
+      createdAt,
+      createdAt,
     ]
   );
 
@@ -136,7 +143,7 @@ async function seed(connection: mysql.Connection) {
       now,
       now,
       PROFESSIONAL_A,
-      new Date("2026-07-19T10:00:00.000Z"),
+      overdueReviewAt,
       TRACKING_B,
       AUTH_B,
       PROFESSIONAL_B,
@@ -144,14 +151,14 @@ async function seed(connection: mysql.Connection) {
       now,
       now,
       PROFESSIONAL_B,
-      new Date("2026-07-25T10:00:00.000Z"),
+      futureReviewAt,
     ]
   );
 
   await connection.query(
     `INSERT INTO meals (userId, source, status, mealLabel, confidence, occurredAt)
      VALUES (?, 'web', 'confirmed', 'Almoço recente', 1, ?)`,
-    [PATIENT_B, new Date("2026-07-20T11:00:00.000Z")]
+    [PATIENT_B, new Date(now.getTime() - HOUR_MS)]
   );
 }
 
@@ -170,6 +177,8 @@ async function findRequestAlert(
 }
 
 async function main() {
+  await ensureProfessionalRuntimeSchemaCompatibility();
+
   const connection = await mysql.createConnection(
     shouldEnableRuntimeDatabaseSsl(databaseUrl)
       ? { uri: databaseUrl, ssl: { minVersion: "TLSv1.2" } }
@@ -178,11 +187,12 @@ async function main() {
 
   try {
     await cleanup(connection);
-    await seed(connection);
+    const now = new Date();
+    now.setMilliseconds(0);
+    await seed(connection, now);
 
-    const dueAt = Date.parse("2026-07-19T10:00:00.000Z");
-    const futureDueAt = Date.parse("2026-07-25T10:00:00.000Z");
-    const now = new Date("2026-07-20T12:00:00.000Z");
+    const dueAt = now.getTime() - DAY_MS;
+    const futureDueAt = now.getTime() + 5 * DAY_MS;
 
     const requestA = await createProfessionalOperationalRequest(PROFESSIONAL_A, {
       patientId: PATIENT_A,

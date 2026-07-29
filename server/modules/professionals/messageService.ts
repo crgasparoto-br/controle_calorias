@@ -7,6 +7,7 @@ import {
 } from "../../db";
 import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { textReply } from "../whatsapp/replyContract";
+import { ProfessionalMessageAccessUnavailableError } from "./messageRetryAccess";
 import type {
   PatientProfessionalMessageListInput,
   ProfessionalMessageCreateInput,
@@ -14,6 +15,18 @@ import type {
 } from "./schemas";
 
 type Row = Record<string, unknown>;
+type DeliveryMode = "initial" | "retry";
+const DUPLICATE_ENTRY_ERROR_CODE = "ER_DUP_ENTRY";
+const DUPLICATE_ENTRY_ERRNO = 1062;
+
+function isDuplicateEntryError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; errno?: unknown };
+  return (
+    candidate.code === DUPLICATE_ENTRY_ERROR_CODE ||
+    Number(candidate.errno) === DUPLICATE_ENTRY_ERRNO
+  );
+}
 function rows(result: unknown): Row[] {
   return Array.isArray(result)
     ? ((Array.isArray(result[0]) ? result[0] : result) as Row[])
@@ -57,8 +70,7 @@ async function professionalScope(
     WHERE a.professionalUserId = ${professionalUserId} AND a.patientUserId = ${patientUserId}
       AND a.status = 'approved' AND p.active = 1 ORDER BY a.approvedAt DESC LIMIT 1`);
   const row = rows(result)[0];
-  if (!row)
-    throw new Error("O acesso a este paciente não está mais disponível.");
+  if (!row) throw new ProfessionalMessageAccessUnavailableError();
   return {
     db,
     authorizationId: String(row.authorizationId),
@@ -68,19 +80,50 @@ async function professionalScope(
 
 function assertCanCreate(
   trackingStatus: string,
-  type: ProfessionalMessageCreateInput["messageType"],
-  action: ProfessionalMessageCreateInput["action"]
+  type: ProfessionalMessageCreateInput["messageType"]
 ) {
-  if (action === "save_draft") return;
   if (trackingStatus === "active") return;
   if (trackingStatus === "paused" && type === "administrative") return;
-  if (trackingStatus === "ended")
+  if (trackingStatus === "ended") {
     throw new Error(
       "O acompanhamento foi encerrado e não aceita novas mensagens."
     );
-  throw new Error(
-    "Durante a pausa, envie somente comunicações administrativas."
+  }
+  if (trackingStatus === "paused") {
+    throw new Error(
+      "Durante a pausa, crie somente comunicações administrativas."
+    );
+  }
+  throw new Error("Inicie o acompanhamento antes de criar uma mensagem.");
+}
+
+async function lockProfessionalScope(
+  execute: SqlExecutor,
+  professionalUserId: number,
+  patientUserId: number,
+  authorizationId: string,
+  messageType: ProfessionalMessageCreateInput["messageType"]
+) {
+  const accessResult = await execute(sql`SELECT a.id AS authorizationId
+    FROM professionalPatientAuthorizations a
+    INNER JOIN professionalProfiles p ON p.userId = a.professionalUserId
+    WHERE a.id = ${authorizationId}
+      AND a.professionalUserId = ${professionalUserId}
+      AND a.patientUserId = ${patientUserId}
+      AND a.status = 'approved'
+      AND p.active = 1
+    LIMIT 1 FOR UPDATE`);
+  if (!rows(accessResult)[0]) {
+    throw new ProfessionalMessageAccessUnavailableError();
+  }
+  const trackingResult = await execute(sql`SELECT status
+    FROM professionalPatientTrackings
+    WHERE authorizationId = ${authorizationId}
+    LIMIT 1 FOR UPDATE`);
+  const trackingStatus = String(
+    rows(trackingResult)[0]?.status ?? "not_started"
   );
+  assertCanCreate(trackingStatus, messageType);
 }
 
 function responseCode() {
@@ -94,6 +137,15 @@ function isRequest(type: string) {
   );
 }
 function serialize(row: Row) {
+  const trackingStatus = String(row.trackingStatus ?? "not_started");
+  const retryable =
+    String(row.state) === "failed" &&
+    String(row.requestedAction) === "send_whatsapp" &&
+    String(row.origin) !== "automatic" &&
+    Boolean(Number(row.hasDeliveryAttempt ?? 0)) &&
+    (trackingStatus === "active" ||
+      (trackingStatus === "paused" &&
+        String(row.messageType) === "administrative"));
   return {
     id: String(row.id),
     conversationId: String(row.conversationId),
@@ -113,7 +165,176 @@ function serialize(row: Row) {
     receivedAt: time(row.receivedAt),
     createdAt: time(row.createdAt),
     authorName: row.authorName ? String(row.authorName) : null,
+    patientName: row.patientName ? String(row.patientName) : null,
+    retryable,
   };
+}
+
+const IDEMPOTENCY_CONFLICT_MESSAGE =
+  "Esta chave de operação já foi usada em outra mensagem. Recarregue a conversa e tente novamente.";
+
+export class ProfessionalMessageIdempotencyConflictError extends Error {
+  constructor() {
+    super(IDEMPOTENCY_CONFLICT_MESSAGE);
+    this.name = "ProfessionalMessageIdempotencyConflictError";
+  }
+}
+
+const SUPERSESSION_CONFLICT_MESSAGE =
+  "O rascunho original não está mais disponível para edição. Recarregue a conversa e tente novamente.";
+
+export class ProfessionalMessageSupersessionConflictError extends Error {
+  constructor() {
+    super(SUPERSESSION_CONFLICT_MESSAGE);
+    this.name = "ProfessionalMessageSupersessionConflictError";
+  }
+}
+
+type SqlExecutor = (query: ReturnType<typeof sql>) => Promise<unknown>;
+
+async function normalizeSupersededDraft(
+  execute: SqlExecutor,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput,
+  lock: boolean
+) {
+  if (!input.supersedesMessageId) return input;
+  const lockClause = lock ? sql` FOR UPDATE` : sql``;
+  const result =
+    await execute(sql`SELECT id, authorizationId, professionalUserId,
+      patientUserId, authorUserId, direction, origin, state
+    FROM professionalMessages
+    WHERE id = ${input.supersedesMessageId}
+    LIMIT 1${lockClause}`);
+  const original = rows(result)[0];
+  const valid =
+    original &&
+    String(original.authorizationId) === authorizationId &&
+    Number(original.professionalUserId) === professionalUserId &&
+    Number(original.patientUserId) === input.patientId &&
+    Number(original.authorUserId) === professionalUserId &&
+    String(original.direction) === "professional_to_patient" &&
+    String(original.state) === "draft";
+  if (!valid) throw new ProfessionalMessageSupersessionConflictError();
+
+  return {
+    ...input,
+    origin:
+      String(original.origin) === "ai_suggested"
+        ? ("ai_suggested" as const)
+        : input.origin,
+  };
+}
+
+function nullableText(value: unknown) {
+  return value === null || value === undefined ? null : String(value);
+}
+
+function matchesIdempotentCreate(
+  row: Row,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput
+) {
+  return (
+    Number(row.professionalUserId) === professionalUserId &&
+    Number(row.patientUserId) === input.patientId &&
+    Number(row.authorUserId) === professionalUserId &&
+    String(row.authorizationId) === authorizationId &&
+    String(row.direction) === "professional_to_patient" &&
+    String(row.origin) === input.origin &&
+    String(row.messageType) === input.messageType &&
+    String(row.content ?? "") === input.content &&
+    String(row.requestedAction) === input.action &&
+    nullableText(row.relatedGuidanceId) === (input.relatedGuidanceId ?? null) &&
+    nullableText(row.supersedesMessageId) ===
+      (input.supersedesMessageId ?? null)
+  );
+}
+
+async function recoverIdempotentCreate(
+  db: Awaited<ReturnType<typeof dbRequired>>,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput
+) {
+  const scopedResult = await db.execute(
+    sql`SELECT * FROM professionalMessages
+      WHERE idempotencyKey = ${input.idempotencyKey}
+        AND professionalUserId = ${professionalUserId}
+        AND patientUserId = ${input.patientId}
+        AND authorUserId = ${professionalUserId}
+        AND authorizationId = ${authorizationId}
+        AND direction = 'professional_to_patient'
+      LIMIT 1`
+  );
+  const scopedExisting = rows(scopedResult)[0];
+  if (scopedExisting) {
+    if (
+      matchesIdempotentCreate(
+        scopedExisting,
+        professionalUserId,
+        authorizationId,
+        input
+      )
+    ) {
+      return scopedExisting;
+    }
+    throw new ProfessionalMessageIdempotencyConflictError();
+  }
+
+  const collisionResult = await db.execute(
+    sql`SELECT id FROM professionalMessages WHERE idempotencyKey = ${input.idempotencyKey} LIMIT 1`
+  );
+  if (rows(collisionResult)[0]) {
+    throw new ProfessionalMessageIdempotencyConflictError();
+  }
+  return null;
+}
+
+async function reconcileIdempotentCreate(
+  db: Awaited<ReturnType<typeof dbRequired>>,
+  professionalUserId: number,
+  authorizationId: string,
+  input: ProfessionalMessageCreateInput,
+  existing: Row
+) {
+  const messageId = String(existing.id);
+  let shouldReload = false;
+
+  if (input.action === "send_web" && String(existing.state) === "pending") {
+    await db.transaction(async tx => {
+      await lockProfessionalScope(
+        query => tx.execute(query),
+        professionalUserId,
+        input.patientId,
+        authorizationId,
+        input.messageType
+      );
+      await tx.execute(sql`UPDATE professionalMessages
+        SET state = 'sent', sentAt = COALESCE(sentAt, NOW()), lastError = NULL
+        WHERE id = ${messageId}
+          AND authorizationId = ${authorizationId}
+          AND professionalUserId = ${professionalUserId}
+          AND patientUserId = ${input.patientId}
+          AND state = 'pending'
+          AND requestedAction = 'send_web'`);
+    });
+    shouldReload = true;
+  } else if (
+    input.action === "send_whatsapp" &&
+    String(existing.state) === "pending"
+  ) {
+    await deliverProfessionalMessage(messageId, professionalUserId);
+    shouldReload = true;
+  }
+
+  if (!shouldReload) return serialize(existing);
+  const refreshed = await db.execute(
+    sql`SELECT * FROM professionalMessages WHERE id = ${messageId} LIMIT 1`
+  );
+  return serialize(rows(refreshed)[0] ?? existing);
 }
 
 async function history(
@@ -135,19 +356,69 @@ export async function createProfessionalMessage(
   input: ProfessionalMessageCreateInput
 ) {
   const scope = await professionalScope(professionalUserId, input.patientId);
-  assertCanCreate(scope.trackingStatus, input.messageType, input.action);
-  if (input.origin === "automatic" && input.action !== "save_draft")
+  let normalizedInput = await normalizeSupersededDraft(
+    query => scope.db.execute(query),
+    professionalUserId,
+    scope.authorizationId,
+    input,
+    false
+  );
+  const existing = await recoverIdempotentCreate(
+    scope.db,
+    professionalUserId,
+    scope.authorizationId,
+    normalizedInput
+  );
+  if (existing) {
+    return reconcileIdempotentCreate(
+      scope.db,
+      professionalUserId,
+      scope.authorizationId,
+      normalizedInput,
+      existing
+    );
+  }
+  assertCanCreate(scope.trackingStatus, normalizedInput.messageType);
+  if (
+    normalizedInput.origin === "automatic" &&
+    normalizedInput.action !== "save_draft"
+  )
     throw new Error(
       "Mensagens automáticas precisam ser revisadas antes do envio."
     );
   const messageId = crypto.randomUUID();
   const conversationId = crypto.randomUUID();
-  const state = input.action === "save_draft" ? "draft" : "pending";
-  const code = isRequest(input.messageType) ? responseCode() : null;
+  const state =
+    normalizedInput.action === "save_draft"
+      ? "draft"
+      : normalizedInput.action === "send_web"
+        ? "sent"
+        : "pending";
+  const sentAt = normalizedInput.action === "send_web" ? new Date() : null;
+  const code = isRequest(normalizedInput.messageType) ? responseCode() : null;
+  const createdEventType =
+    state === "draft"
+      ? "professional_message_drafted"
+      : "professional_message_created";
   try {
     await scope.db.transaction(async tx => {
+      await lockProfessionalScope(
+        query => tx.execute(query),
+        professionalUserId,
+        normalizedInput.patientId,
+        scope.authorizationId,
+        normalizedInput.messageType
+      );
+      const lockedInput = await normalizeSupersededDraft(
+        query => tx.execute(query),
+        professionalUserId,
+        scope.authorizationId,
+        normalizedInput,
+        true
+      );
+      normalizedInput = lockedInput;
       await tx.execute(sql`INSERT INTO professionalConversations (id, authorizationId, professionalUserId, patientUserId, lastMessageAt)
-        VALUES (${conversationId}, ${scope.authorizationId}, ${professionalUserId}, ${input.patientId}, NOW())
+        VALUES (${conversationId}, ${scope.authorizationId}, ${professionalUserId}, ${normalizedInput.patientId}, NOW())
         ON DUPLICATE KEY UPDATE lastMessageAt = NOW()`);
       const conversationResult = await tx.execute(
         sql`SELECT id FROM professionalConversations WHERE authorizationId = ${scope.authorizationId} LIMIT 1`
@@ -156,49 +427,61 @@ export async function createProfessionalMessage(
         rows(conversationResult)[0]?.id ?? conversationId
       );
       await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId,
-        authorUserId, direction, origin, messageType, content, state, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId)
-        VALUES (${messageId}, ${canonicalConversationId}, ${scope.authorizationId}, ${professionalUserId}, ${input.patientId},
-        ${professionalUserId}, 'professional_to_patient', ${input.origin}, ${input.messageType}, ${input.content}, ${state},
-        ${input.idempotencyKey}, ${code}, ${input.relatedGuidanceId ?? null}, ${input.supersedesMessageId ?? null})`);
+        authorUserId, direction, origin, messageType, content, state, requestedAction, idempotencyKey, responseCode, relatedGuidanceId, supersedesMessageId, sentAt)
+        VALUES (${messageId}, ${canonicalConversationId}, ${scope.authorizationId}, ${professionalUserId}, ${normalizedInput.patientId},
+        ${professionalUserId}, 'professional_to_patient', ${normalizedInput.origin}, ${normalizedInput.messageType}, ${normalizedInput.content}, ${state}, ${normalizedInput.action},
+        ${normalizedInput.idempotencyKey}, ${code}, ${normalizedInput.relatedGuidanceId ?? null}, ${normalizedInput.supersedesMessageId ?? null}, ${sentAt})`);
+      await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+        VALUES (${crypto.randomUUID()}, ${professionalUserId}, ${professionalUserId}, ${normalizedInput.patientId}, ${createdEventType}, 'professional_message', ${messageId}, NOW())`);
     });
   } catch (error) {
-    const existing = await scope.db.execute(
-      sql`SELECT * FROM professionalMessages WHERE idempotencyKey = ${input.idempotencyKey} LIMIT 1`
+    const recovered = await recoverIdempotentCreate(
+      scope.db,
+      professionalUserId,
+      scope.authorizationId,
+      normalizedInput
     );
-    if (rows(existing)[0]) return serialize(rows(existing)[0]);
+    if (recovered) {
+      return reconcileIdempotentCreate(
+        scope.db,
+        professionalUserId,
+        scope.authorizationId,
+        normalizedInput,
+        recovered
+      );
+    }
     throw error;
   }
-  await history(scope.db, {
-    actorUserId: professionalUserId,
-    professionalUserId,
-    patientUserId: input.patientId,
-    eventType:
-      state === "draft"
-        ? "professional_message_drafted"
-        : "professional_message_created",
-    messageId,
-  });
-  if (input.action === "send_web") {
-    await scope.db.execute(
-      sql`UPDATE professionalMessages SET state = 'sent', sentAt = NOW() WHERE id = ${messageId}`
-    );
-  } else if (input.action === "send_whatsapp")
+  if (normalizedInput.action === "send_whatsapp") {
     await deliverProfessionalMessage(messageId, professionalUserId);
+  }
   const result = await scope.db.execute(
     sql`SELECT * FROM professionalMessages WHERE id = ${messageId}`
   );
   return serialize(rows(result)[0]);
 }
 
-async function claimDelivery(messageId: string, professionalUserId: number) {
+async function claimDelivery(
+  messageId: string,
+  professionalUserId: number,
+  mode: DeliveryMode
+) {
   const db = await dbRequired();
   const token = crypto.randomUUID();
+  const statePolicy =
+    mode === "retry"
+      ? sql`m.state = 'failed' AND EXISTS (
+          SELECT 1 FROM professionalMessageDeliveryAttempts previousAttempt
+          WHERE previousAttempt.messageId = m.id
+        )`
+      : sql`m.state = 'pending'`;
   const update = await db.execute(sql`UPDATE professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
     SET m.state = 'pending', m.lastError = NULL, m.deliveryClaimToken = ${token}, m.deliveryClaimedAt = NOW()
     WHERE m.id = ${messageId} AND m.professionalUserId = ${professionalUserId} AND a.status = 'approved'
-      AND m.direction = 'professional_to_patient' AND m.origin <> 'automatic' AND m.state IN ('draft','pending','failed')
+      AND m.direction = 'professional_to_patient' AND m.origin <> 'automatic'
+      AND m.requestedAction = 'send_whatsapp' AND ${statePolicy}
       AND (m.deliveryClaimToken IS NULL OR m.deliveryClaimedAt < DATE_SUB(NOW(), INTERVAL 5 MINUTE))
       AND (t.status = 'active' OR (t.status = 'paused' AND m.messageType = 'administrative'))`);
   if (!affected(update)) return null;
@@ -215,11 +498,12 @@ async function claimDelivery(messageId: string, professionalUserId: number) {
   return { db, token, attemptId, row: rows(messageResult)[0] };
 }
 
-export async function deliverProfessionalMessage(
+async function deliverProfessionalMessageWithMode(
   messageId: string,
-  professionalUserId: number
+  professionalUserId: number,
+  mode: DeliveryMode
 ) {
-  const claim = await claimDelivery(messageId, professionalUserId);
+  const claim = await claimDelivery(messageId, professionalUserId, mode);
   if (!claim?.row) return { status: "unchanged" as const };
   let status: "sent" | "failed" = "failed";
   let errorCode: string | null = null;
@@ -273,24 +557,81 @@ export async function deliverProfessionalMessage(
   return { status };
 }
 
+export function deliverProfessionalMessage(
+  messageId: string,
+  professionalUserId: number
+) {
+  return deliverProfessionalMessageWithMode(
+    messageId,
+    professionalUserId,
+    "initial"
+  );
+}
+
+export function retryProfessionalMessage(
+  messageId: string,
+  professionalUserId: number
+) {
+  return deliverProfessionalMessageWithMode(
+    messageId,
+    professionalUserId,
+    "retry"
+  );
+}
+
 function cursorSql(cursor?: { createdAt: number; id: string }) {
   return cursor
     ? sql`AND (m.createdAt < ${new Date(cursor.createdAt)} OR (m.createdAt = ${new Date(cursor.createdAt)} AND m.id < ${cursor.id}))`
     : sql``;
 }
+
+function messageSearchSql(search?: string) {
+  const normalized = search?.trim().toLocaleLowerCase("pt-BR");
+  if (!normalized) return sql``;
+  const pattern = `%${normalized}%`;
+  return sql`AND (
+    LOWER(COALESCE(patient.name, '')) LIKE ${pattern}
+    OR LOWER(COALESCE(m.content, '')) LIKE ${pattern}
+  )`;
+}
+
+function messageStateSql(state?: ProfessionalMessageListInput["state"]) {
+  return state ? sql`AND m.state = ${state}` : sql``;
+}
+
 export async function listProfessionalMessages(
   professionalUserId: number,
   input: ProfessionalMessageListInput
 ) {
-  const db = await dbRequired();
+  const patientScope = input.patientId
+    ? await professionalScope(professionalUserId, input.patientId)
+    : null;
+  const db = patientScope?.db ?? (await dbRequired());
   const patientFilter = input.patientId
     ? sql`AND m.patientUserId = ${input.patientId}`
     : sql``;
-  const result =
-    await db.execute(sql`SELECT m.*, COALESCE(u.name, p.displayName) AS authorName FROM professionalMessages m
+  const result = await db.execute(sql`SELECT m.*, patient.name AS patientName,
+    COALESCE(t.status, 'not_started') AS trackingStatus,
+    EXISTS(
+      SELECT 1 FROM professionalMessageDeliveryAttempts attempt
+      WHERE attempt.messageId = m.id
+    ) AS hasDeliveryAttempt,
+    CASE WHEN m.direction = 'patient_to_professional'
+      THEN COALESCE(patient.name, author.name)
+      ELSE COALESCE(profile.displayName, author.name)
+    END AS authorName
+    FROM professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
-    LEFT JOIN users u ON u.id = m.authorUserId LEFT JOIN professionalProfiles p ON p.userId = m.professionalUserId
-    WHERE m.professionalUserId = ${professionalUserId} AND a.status = 'approved' ${patientFilter} ${cursorSql(input.cursor)}
+    LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
+    LEFT JOIN users author ON author.id = m.authorUserId
+    LEFT JOIN users patient ON patient.id = m.patientUserId
+    LEFT JOIN professionalProfiles profile ON profile.userId = m.professionalUserId
+    WHERE m.professionalUserId = ${professionalUserId}
+      AND a.status = 'approved'
+      ${patientFilter}
+      ${messageSearchSql(input.search)}
+      ${messageStateSql(input.state)}
+      ${cursorSql(input.cursor)}
     ORDER BY m.createdAt DESC, m.id DESC LIMIT ${input.pageSize + 1}`);
   const items = rows(result);
   return {
@@ -310,10 +651,16 @@ export async function listPatientProfessionalMessages(
   input: PatientProfessionalMessageListInput
 ) {
   const db = await dbRequired();
-  const result =
-    await db.execute(sql`SELECT m.*, COALESCE(u.name, p.displayName) AS authorName FROM professionalMessages m
+  const result = await db.execute(sql`SELECT m.*, patient.name AS patientName,
+    CASE WHEN m.direction = 'patient_to_professional'
+      THEN COALESCE(patient.name, author.name)
+      ELSE COALESCE(profile.displayName, author.name)
+    END AS authorName
+    FROM professionalMessages m
     INNER JOIN professionalPatientAuthorizations a ON a.id = m.authorizationId
-    LEFT JOIN users u ON u.id = m.authorUserId LEFT JOIN professionalProfiles p ON p.userId = m.professionalUserId
+    LEFT JOIN users author ON author.id = m.authorUserId
+    LEFT JOIN users patient ON patient.id = m.patientUserId
+    LEFT JOIN professionalProfiles profile ON profile.userId = m.professionalUserId
     WHERE m.patientUserId = ${patientUserId} AND a.status = 'approved' AND m.state IN ('pending','sent','failed','received') ${cursorSql(input.cursor)}
     ORDER BY m.createdAt DESC, m.id DESC LIMIT ${input.pageSize + 1}`);
   const items = rows(result);
@@ -362,27 +709,43 @@ export async function tryAssociateProfessionalWhatsappResponse(input: {
       detail: "Resposta profissional sem conteúdo.",
     };
   const id = crypto.randomUUID();
+  const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
   try {
-    await db.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
-    VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${`whatsapp:professional-response:${input.externalMessageId}`}, ${String(parent.id)}, ${input.receivedAt})`);
-  } catch {
-    return {
-      handled: true,
-      reply: "Sua resposta já foi recebida.",
-      eventType: "whatsapp.professional_response.duplicate",
-      detail: "Callback profissional duplicado ignorado.",
-    };
+    await db.transaction(async tx => {
+      await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
+      VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${idempotencyKey}, ${String(parent.id)}, ${input.receivedAt})`);
+      await tx.execute(
+        sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
+      );
+      await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+      VALUES (${crypto.randomUUID()}, ${input.patientUserId}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, 'professional_message_response_received', 'professional_message', ${id}, NOW())`);
+    });
+  } catch (error) {
+    if (isDuplicateEntryError(error)) {
+      const duplicateResult = await db.execute(sql`SELECT id
+      FROM professionalMessages
+      WHERE idempotencyKey = ${idempotencyKey}
+        AND conversationId = ${String(parent.conversationId)}
+        AND authorizationId = ${String(parent.authorizationId)}
+        AND professionalUserId = ${Number(parent.professionalUserId)}
+        AND patientUserId = ${input.patientUserId}
+        AND authorUserId = ${input.patientUserId}
+        AND direction = 'patient_to_professional'
+        AND origin = 'patient'
+        AND messageType = 'response'
+      LIMIT 1`);
+      if (rows(duplicateResult)[0]) {
+        return {
+          handled: true,
+          reply: "Sua resposta já foi recebida.",
+          eventType: "whatsapp.professional_response.duplicate",
+          detail: "Callback profissional duplicado ignorado.",
+        };
+      }
+    }
+    logPersistenceWarning("professional_message_response_persistence", error);
+    throw error;
   }
-  await db.execute(
-    sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
-  );
-  await history(db, {
-    actorUserId: input.patientUserId,
-    professionalUserId: Number(parent.professionalUserId),
-    patientUserId: input.patientUserId,
-    eventType: "professional_message_response_received",
-    messageId: id,
-  });
   return {
     handled: true,
     reply:

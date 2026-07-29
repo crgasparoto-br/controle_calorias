@@ -1,16 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { professionalContentRepository } from "./contentPersistenceService";
+import { professionalRepository } from "./persistenceService";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
   buildPhoneLookupCandidates,
+  getProfessionalPatientPeriodBundle,
   getProfessionalPatientTimeZone,
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
+  ProfessionalProfileConsistencyError,
   requestPatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function goalInput(calories = 1800) {
   return {
@@ -59,6 +71,65 @@ describe("professional profile", () => {
       displayName: "Camila Pereira",
       active: false,
     });
+  });
+
+  it("removes a newly created profile when audit history fails", async () => {
+    const professionalUserId = 24112;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toBeNull();
+  });
+
+  it("restores the previous profile when audit history fails", async () => {
+    const professionalUserId = 24113;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins Atualizada",
+        registrationNumber: "CRN 200",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toMatchObject({
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+  });
+
+  it("surfaces an explicit consistency error when compensation also fails", async () => {
+    const professionalUserId = 24114;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+    vi.spyOn(professionalRepository, "deleteProfile").mockRejectedValueOnce(
+      new Error("compensation unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toBeInstanceOf(ProfessionalProfileConsistencyError);
   });
 });
 
@@ -331,5 +402,39 @@ describe("professional meal suggestions", () => {
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("ended professional tracking", () => {
+  it("blocks patient data surfaces while preserving the separate audit history contract", async () => {
+    const professionalUserId = 24980;
+    const patientUserId = 24981;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Nutricionista Auditora",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await transitionPatientTracking(professionalUserId, {
+      accessId: access.id,
+      status: "ended",
+    });
+
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+    await expect(
+      getProfessionalPatientPeriodBundle(professionalUserId, patientUserId, {
+        startDate: "2026-07-01",
+        endDate: "2026-07-07",
+      })
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
   });
 });

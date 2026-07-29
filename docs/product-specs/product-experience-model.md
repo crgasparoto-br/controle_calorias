@@ -40,7 +40,7 @@ Uma conta independente deve poder iniciar acompanhamento profissional sem migra�
 
 ## Área Profissional
 
-A Área Profissional deve evoluir como um ambiente próprio de trabalho, com navegação, páginas, permissões e fluxos dedicados. A tela única com abas existente é a linha de base funcional atual, não o desenho final do módulo.
+A Área Profissional é um ambiente próprio de trabalho, com navegação, páginas, permissões e fluxos dedicados. O workspace contextual por paciente, com `patientId` e seção refletidos na URL, é a linha de base funcional atual. A antiga tela única com abas foi aposentada; endereços legados permanecem somente como redirecionamentos seguros para as rotas profissionais canônicas.
 
 Responsabilidades alvo:
 

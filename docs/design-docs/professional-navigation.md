@@ -4,64 +4,139 @@
 
 A Área Profissional possui um shell próprio, separado da Área do Paciente, sem duplicar identidade, sessão ou dados. O usuário com perfil profissional ativo alterna explicitamente entre **Minha alimentação** e **Área Profissional**.
 
-## Rotas iniciais
+## Rotas canônicas
 
 - `/professional`: início profissional;
 - `/professional/patients`: carteira de pacientes;
-- `/professional/follow-up`: acompanhamento;
-- `/professional/messages`: mensagens;
-- `/professional/reports`: relatórios profissionais;
-- `/professional/settings`: configurações profissionais;
-- `/professional/legacy`: experiência profissional anterior, preservada durante a migração incremental.
+- `/professional/patients/:patientId`: prontuário e resumo individual;
+- `/professional/patients/:patientId/assessment`: avaliação;
+- `/professional/patients/:patientId/goals`: metas;
+- `/professional/patients/:patientId/guidance`: orientações;
+- `/professional/patients/:patientId/notes`: anotações;
+- `/professional/patients/:patientId/history`: histórico;
+- `/professional/patients/:patientId/reports`: relatório individual;
+- `/professional/patients/:patientId/messages`: conversa individual;
+- `/professional/messages`: mensagens da carteira;
+- `/professional/reports`: relatórios agregados;
+- `/professional/settings`: configurações profissionais.
 
-As rotas funcionais novas começam como pontos de extensão independentes. Cada capacidade será incorporada pelas subissues da épica #803 sem importar páginas pessoais para simular acesso ao paciente.
+`/professional/follow-up` não é mais destino funcional e redireciona para `/professional/patients`. `/professional/legacy` redireciona somente para `/professional`.
+
+Cada capacidade profissional usa composição própria e não importa páginas pessoais para simular acesso ao paciente.
 
 ## Carteira e painel inicial
 
-`nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva
-sempre o `professionalUserId` da sessão autenticada. A consulta retorna somente
-identificação mínima, autorização, situação do acompanhamento, última refeição
-confirmada e última interação profissional. O painel consome os agregados da
-mesma procedure; ele não executa um relatório por paciente.
+`nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva sempre o `professionalUserId` da sessão autenticada. A consulta retorna identificação, autorização, situação do acompanhamento, última refeição confirmada e última interação profissional somente quando o vínculo permite essa identificação. O painel consome agregados canônicos e não executa um relatório por paciente.
 
-A ordenação é estável por identificação exibível, solicitação decrescente e ID
-do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros.
-Todas as consultas SQL, inclusive totais, incluem o profissional autenticado.
-O vínculo pendente, rejeitado ou revogado nunca habilita “Abrir paciente”.
+A solicitação usa `nutrition.professionals.requestAccess`, mas a fronteira pública não confirma se o e-mail ou celular pertence a uma conta. Pessoa existente ainda sem consentimento, pessoa inexistente e auto-vínculo retornam o mesmo contrato de comprovante: `{ id, status: "pending", requestedAt }`. O `id` identifica somente o comprovante opaco da tentativa; não é o ID da autorização, do paciente ou do contato. Um vínculo já aprovado pode retornar `approved`, pois o profissional já possui consentimento vigente e essa identidade já está disponível na carteira autorizada.
+
+Comprovantes são registrados em eventos internos sem contato ou motivo. Quando existe uma autorização canônica, um segundo evento interno associa o comprovante ao vínculo. Esses eventos não atravessam `nutrition.professionals.history`. Falha de formato continua sendo `BAD_REQUEST`; perfil inativo, entitlement ausente e falha temporária não são reconhecidos como solicitação aceita.
+
+Enquanto não existe autorização aprovada:
+
+- `portfolio` e `myAccesses` expõem somente o comprovante genérico;
+- nome, e-mail, telefone, `patientUserId`, erro do provedor e objeto de paciente não são retornados;
+- vínculos pendentes ficam fora da paginação identificável da carteira e aparecem como **Solicitação aguardando confirmação**;
+- recusados e revogados permanecem administrativamente localizáveis apenas por estado e identificador opaco, com rótulos genéricos;
+- busca por nome, e-mail ou ID de paciente é aplicada apenas a vínculos aprovados;
+- totais públicos de solicitações pendentes são derivados dos comprovantes neutros, não da existência de autorizações resolvidas;
+- eventos de solicitação e entrega anteriores ao consentimento são omitidos do histórico público.
+
+Comprovantes não resolvidos expiram da carteira após trinta dias. Cada tentativa aceita pela fronteira pública gera um comprovante próprio, tanto para alvo resolvido quanto não resolvido, evitando diferenças por repetição ou contagem. A criação da autorização continua obedecendo à idempotência canônica do par profissional/paciente, portanto comprovantes repetidos não duplicam o vínculo real.
+
+Quando o próprio paciente responde por `approveAccess` ou `revokeAccess`, o backend pode resolver internamente o comprovante para a autorização associada. A resolução exige que o paciente autenticado seja o dono do vínculo; comprovante inexistente, não resolvido ou apresentado por terceiro permanece sem resolução e segue o erro seguro canônico.
+
+A rota `/professional` exige apenas `professional_dashboard`. O resumo da carteira e a fila de prioridades são capacidades complementares: suas consultas só são iniciadas quando `professional_portfolio` e `professional_operational_alerts`, respectivamente, estão habilitados. A assistência generativa permanece separada em `professional_ai_assistance` e não é requisito para consultar pendências operacionais. A ausência de qualquer capacidade complementar apresenta um estado local indisponível sem bloquear o início profissional.
+
+A visão inicial da fila consulta onze pacientes, exibe no máximo os dez primeiros e usa o décimo primeiro apenas para indicar a existência da visão completa. A visão completa preserva a mesma ordenação determinística e usa páginas de cinquenta pacientes com um item adicional de lookahead; `offset` e `limit` permitem alcançar toda a fila sem um corte fixo de cem pacientes.
+
+A rota agregada de relatórios usa `professionalRecord.portfolioReport`, protegida por `professional_reports`, como adaptador de saída sobre a consulta paginada canônica da carteira. Cada bloco (`activity`, `schedule` e `tracking`) executa `professionalPortfolioRepository.list` com página limitada, sem histórico alimentar e sem carregar bundles nutricionais individuais; o adaptador devolve somente os campos de resumo do bloco solicitado. Assim, a mesma janela timezone-aware, os mesmos campos de acompanhamento e a mesma fonte operacional da carteira permanecem canônicos, enquanto falha ou retry de um bloco não remove os demais. Uma resposta bem-sucedida com contagem `0` representa zero real; campo `null` ou estado de erro é apresentado como dado não informado/indisponível, nunca como zero. A rota não exige `professional_portfolio` como dependência indireta e não mantém uma segunda implementação de agregação.
+
+Os links de detalhamento da rota agregada reutilizam `/professional/patients` com filtros explícitos. Contagens de registros carregam `records=with_records|without_records` junto de `reportStart` e `reportEnd`, de modo que a carteira aplique a mesma janela local por paciente usada no agregado. Revisões e pesagens vencidas usam `review=overdue` e `weighing=overdue`; a distribuição do acompanhamento usa `tracking=active|paused|ended|not_started`. Parâmetros de período inválidos, incompletos, invertidos ou superiores a 90 dias são descartados pela interface e rejeitados pelo schema do backend.
+
+A ordenação da carteira identificável é estável por identificação exibível, solicitação decrescente e ID do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros. Todas as consultas SQL, inclusive totais, incluem o profissional autenticado. Vínculo pendente, rejeitado ou revogado nunca habilita **Abrir paciente**.
 
 ## Autorização e isolamento
 
 - O menu da Área do Paciente só apresenta a entrada profissional quando `professionalProfileActive` está ativo.
-- O shell consulta o perfil profissional canônico no backend antes de exibir o conteúdo e diferencia carregamento, sessão ausente, perfil inativo e falha de validação.
-- Perfil e vínculos são revalidados a cada 30 segundos e quando a janela recupera o foco.
-- APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e permissão no backend; a proteção visual não substitui autorização.
-- O paciente selecionado pertence ao contexto local do shell.
-- Na troca de paciente, saída para **Minha alimentação**, abertura da experiência legada, perda do perfil ou desmontagem do shell, o paciente anterior é removido e as consultas patient-scoped são invalidadas.
-- Quando um vínculo deixa de estar `approved`, o shell remove imediatamente o paciente do contexto visível e invalida os dados associados.
-- Se não for possível revalidar a autorização de um paciente selecionado, o conteúdo patient-scoped fica oculto até nova validação bem-sucedida.
+- O shell consulta o perfil profissional canônico antes de exibir o conteúdo e diferencia carregamento, sessão ausente, perfil inativo e falha de validação.
+- A URL é a única fonte de verdade do paciente e da seção ativa. `selectedPatient` é apenas projeção derivada da rota depois da revalidação.
+- `professionalRecord.context` recebe o `patientId` e o recurso exato da rota, revalidando perfil ativo, entitlement e autorização `approved`.
+- A mesma resposta produz a projeção mínima e estável do cabeçalho: autorização aprovada, acompanhamento, resumo textual seguro do evento profissional mais recente em `professionalHistoryEvents`, horário da ocorrência e próxima revisão do tracking. O resumo usa o catálogo canônico do backend e não pode ser substituído apenas pela data; o evento é escolhido por `occurredAt DESC, id DESC` para manter desempate estável. Esses campos independem da página atual da timeline e permanecem disponíveis em prontuário, relatórios e mensagens sem introduzir dependência indireta de `professional_record`. Testes usam datas divergentes entre refeição e timeline para proteger a precedência; no estado `ended`, autorização interna, última atividade e próxima revisão não atravessam o contrato público.
+- A ação **Abrir paciente** da carteira usa `professionalRecord.context` com `professional_record`, que é o recurso exato da rota raiz do prontuário. `patientTimeZone` não é usado como preflight de autorização.
+- Negação do entitlement exato de `professionalRecord.context` é devolvida como tRPC `FORBIDDEN`, permitindo limpar o contexto e redirecionar imediatamente.
+- Prontuário, avaliação, metas, orientações, anotações e histórico usam `professional_record`; relatórios usam `professional_reports`; mensagens usam `professional_messages`.
+- A resolução canônica do timezone do paciente pode ser reutilizada por carteira, prontuário, relatórios ou mensagens quando a rota individual correspondente estiver autorizada; ela não exige `professional_portfolio` como dependência indireta.
+- Recursos complementares, como alertas operacionais e assistência de IA, continuam com entitlements próprios. A ausência deles é tratada como capacidade indisponível e não como revogação do vínculo ou do entitlement principal da rota.
+- APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e entitlement no backend; a proteção visual não substitui autorização.
+- Perfil e contexto do paciente são revalidados periodicamente e quando a janela recupera o foco. O cache só pode permanecer visível depois de uma validação bem-sucedida no ciclo do usuário autenticado. Ao trocar para uma área com outro entitlement, o shell, o cabeçalho e a instância do workspace permanecem montados pelo contexto já validado do mesmo paciente, enquanto somente o conteúdo da nova seção fica bloqueado até `professionalRecord.context` confirmar o recurso exato. `isFetching` e falhas transitórias de background mantêm esse contexto com aviso e retry local; falha na primeira revalidação continua protegida, mesmo quando existe cache antigo. Somente negação autoritativa, perfil inativo confirmado ou revogação remove o conteúdo.
+- Enquanto uma rota individual autorizada permanece aberta, o navegador mantém um canal SSE autenticado em `/api/professional/access-events`, limitado ao `patientId` e ao entitlement exato da rota. A revogação persistida publica `access_revoked` somente para o par profissional/paciente correspondente; o payload público contém apenas `patientId` e `occurredAt`. O stream também relê periodicamente o status canônico da autorização para detectar revogações processadas por outra instância, sem polling do cliente.
+- Na troca de paciente, saída para **Minha alimentação**, perda de autorização, evento de revogação, perda do perfil ou desmontagem do shell, o canal é fechado e as consultas individuais são canceladas e removidas do cache antes de outro paciente ficar visível.
+- O evento SSE, assim como erros de query ou mutation que informem revogação, remove imediatamente o contexto e os dados visíveis e retorna com segurança à carteira. O retry de uma mensagem confirma novamente a autorização e devolve `FORBIDDEN` quando o vínculo já não está aprovado, sem confundir uma tentativa concorrente já consumida com revogação.
+- A caixa geral envia busca por paciente/conteúdo e estado ao contrato paginado; o backend aplica esses critérios antes do cursor e do limite. A conversa exibe retry somente quando a mensagem retorna `retryable=true`, e uma falha da tentativa é associada apenas ao item acionado.
+- Falha temporária, rede, timeout, indisponibilidade ou erro não autoritativo durante a abertura mantém o paciente visível e oferece nova tentativa. Somente negação confirmada remove o card e os dados obsoletos.
+- Falha temporária ou indisponibilidade de capacidade complementar mantém o contexto protegido e não remove um paciente ainda autorizado.
+- Falhas temporárias de timezone ou bundle no relatório individual mantêm os dados parciais ocultos e oferecem a ação **Tentar novamente** no próprio contexto do relatório.
+- Avaliações, anotações, orientações e histórico mantêm páginas independentes no snapshot transitório do par `authorizationId`/`patientId`. Trocar de área, inclusive por uma superfície com entitlement diferente, preserva a página daquela coleção e nunca reutiliza o deslocamento de outra lista. O workspace só remonta quando muda o paciente ou o ciclo de autorização; a validação de um novo entitlement não altera essa identidade.
+- Rascunhos de avaliação, anotação, orientação e meta oficial são mantidos temporariamente pelo par `authorizationId`/`patientId`, impedindo reutilização após revogação e nova autorização da mesma pessoa. O rascunho da meta inclui alvo, vigência, justificativa, uso de calorias de exercício e exceções por dia, e permanece intacto quando o profissional alterna entre Metas, Relatórios, Mensagens ou outra área do mesmo workspace. Em navegadores sem Navigation API, um `popstate` cancelado restaura a URL e sincroniza novamente o roteador antes de remontar a rota, sem perder o conteúdo. Salvar ou descartar explicitamente remove a seção correspondente; revogação, perda do perfil, encerramento da sessão ou desmontagem do shell eliminam os rascunhos do contexto anterior.
+- A timeline recebe do backend um rótulo público seguro para cada tipo canônico suportado. O catálogo cobre vínculo e autorização, transições do acompanhamento, versões de avaliação, notas, orientações, sugestões, metas oficiais, mensagens e ações da IA. Tipos conhecidos, inclusive `official_goal_review_requested`, `professional_message_drafted` e `professional_message_response_received`, nunca podem cair no rótulo genérico. Eventos realmente desconhecidos permanecem sanitizados como **Evento profissional registrado**, sem expor o identificador técnico cru.
+- Acompanhamento `ended` mantém `/messages` e `/history` em modo de consulta: a conclusão da mutação atualiza o contexto canônico e redireciona rotas clínicas mutáveis para o histórico sem depender do polling ou de recuperar o foco. A conversa individual continua disponível para leitura das mensagens já registradas, mas bloqueia novo rascunho, envio e retry. O backend executa somente as consultas da timeline em `professionalRecord.get`; o payload do prontuário omite `authorizationId`, nome, e-mail, avaliações, anotações e orientações. O contexto individual mantém apenas o nome de exibição necessário para identificar o paciente e omite autorização interna, última atividade e próxima revisão. As APIs de timezone, dashboard e relatório de período deixam de retornar dados do paciente.
+- ID malformado, zero ou número inseguro não dispara consulta com identificador artificial.
 
 ## Acessibilidade e responsividade
 
 - A navegação possui landmark e rótulo próprios.
 - A rota ativa usa `aria-current="page"`.
 - O controle da barra lateral possui nome acessível e continua disponível no comportamento responsivo do componente de sidebar.
-- Mudanças de rota atualizam o título do documento e movem o foco programaticamente para o conteúdo principal.
+- Mudanças de rota atualizam o título do documento e movem o foco programaticamente para o conteúdo principal com `preventScroll`.
 - O contexto do paciente usa região viva para anunciar alterações sem depender apenas de cor ou posição visual.
+- Um rascunho de mensagem não salvo protege todas as saídas do workspace, inclusive a ação **Minha alimentação** no rodapé, navegação interna, voltar/avançar e fechamento da página; cancelamento mantém o conteúdo no mesmo paciente.
+- O cabeçalho nomeia explicitamente acompanhamento não iniciado, ativo, pausado ou encerrado e oferece somente atalhos compatíveis com o estado: ações clínicas durante acompanhamento ativo, comunicação administrativa e histórico durante pausa, e mensagens anteriores mais histórico após encerramento.
+- A subnavegação individual é rolável horizontalmente quando necessário e preserva ações e nomes acessíveis.
+- Controles de paginação usam landmarks próprios, nomes por coleção e anunciam a página atual sem depender somente da posição visual.
 
 ## Migração e compatibilidade
 
-A rota `/professional/legacy` mantém as funções existentes enquanto carteira, prontuário, mensagens, relatórios e configurações ganham substituições validadas. A experiência legada só poderá ser removida pelo gate final da épica, depois de todas as capacidades úteis terem equivalente aprovado.
+Bookmarks antigos continuam seguros somente como redirects:
+
+- `/professional/follow-up` → `/professional/patients`;
+- `/professional/legacy` → `/professional`.
+
+Nenhum redirect depende de paciente salvo em memória, e nenhum dos caminhos antigos mantém uma experiência funcional paralela.
 
 ## Validação
 
 Os testes cobrem:
 
-- bloqueio de perfil inativo e falha de validação do backend;
-- revalidação de perfil e vínculos ao recuperar foco;
-- troca entre pacientes com invalidação dos dados anteriores;
-- revogação de vínculo com a página aberta;
+- matcher de rotas e colisão entre coleção e contexto individual;
+- entitlement exato de prontuário, metas, relatórios e mensagens, inclusive cenários discriminantes sem recursos vizinhos;
+- resultado indistinguível para pessoa existente, inexistente e auto-vínculo, com comprovante opaco e sem PII;
+- repetição equivalente para alvos resolvidos e não resolvidos, com um comprovante por tentativa e um único vínculo canônico;
+- resolução do comprovante somente pelo paciente dono durante aprovação ou revogação;
+- preservação de `BAD_REQUEST` para input malformado e `SERVICE_UNAVAILABLE` para falha temporária;
+- neutralização de `requestAccess`, `myAccesses`, `portfolio`, totais e `history` antes do consentimento;
+- políticas unitárias em Vitest e caller público real no gate TiDB, em modo de produção, usando e-mail e celular cadastrados, alvo inexistente, auto-vínculo, repetição, terceiro e aprovação pelo titular;
+- queries da carteira e dos comprovantes executadas no TiDB com os identificadores camelCase canônicos preservados;
+- representação de vínculos pendentes legados sem expor identidade;
+- busca identificável restrita a vínculos aprovados;
+- abertura da carteira com `professional_record`, diferenciando negação confirmada de `SERVICE_UNAVAILABLE`;
+- início profissional com apenas `professional_dashboard`, sem iniciar consultas complementares;
+- fila operacional habilitada por `professional_operational_alerts` mesmo quando `professional_ai_assistance` não está disponível;
+- paginação determinística da fila completa além do centésimo paciente;
+- paginação independente de avaliações, anotações, orientações e histórico, inclusive ao alternar entre áreas;
+- conversão da negação do entitlement principal em `FORBIDDEN`;
+- distinção entre revogação da rota e ausência de alertas ou IA opcionais;
+- uso do timezone por rota individual autorizada sem exigir entitlement de carteira;
+- IDs válidos, malformados, zero e números inseguros;
+- bloqueio de perfil inativo e falha temporária de validação;
+- revalidação ao recuperar foco;
+- troca entre pacientes com cancelamento e remoção dos dados anteriores;
+- remount equivalente a reload/nova aba, caller tRPC independente e navegação voltar/avançar derivada da URL;
+- fallback `popstate` sem Navigation API, com restauração após cancelamento, limpeza após descarte e isolamento entre pacientes;
+- navegação rápida voltar/avançar sem aplicar transição tardia;
+- rótulos canônicos da timeline para revisão de meta e transição de acompanhamento, sem exposição dos identificadores crus;
+- revogação entregue pelo canal SSE autenticado sem interação adicional do profissional, além da detecção por query e mutation e do retry de mensagem após revogação;
+- retries explícitos para falhas de timezone e bundle do relatório individual;
 - limpeza do contexto ao voltar para a experiência pessoal;
-- navegação por teclado, rota ativa e título do documento;
-- controle responsivo e landmarks acessíveis;
-- carregamento direto de rota profissional pelo roteador real;
-- preservação da rota legada.
+- redirects de `/professional/follow-up` e `/professional/legacy`;
+- navegação por teclado, rota ativa, título do documento e controle responsivo.

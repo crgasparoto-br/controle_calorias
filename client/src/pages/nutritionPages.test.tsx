@@ -119,6 +119,7 @@ vi.mock("wouter", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href?: string }) =>
     React.createElement("a", { href }, children),
   useLocation: () => ["/onboarding", vi.fn()],
+  useSearch: () => "",
 }));
 
 vi.mock("@/lib/trpc", () => ({

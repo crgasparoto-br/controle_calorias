@@ -1,126 +1,24 @@
 // @vitest-environment jsdom
 import React from "react";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const refresh = vi.fn().mockResolvedValue(undefined);
+const entitlementState = {
+  allowed: true,
+  enabledResources: [
+    "professional_dashboard",
+    "professional_portfolio",
+    "professional_record",
+    "professional_messages",
+    "professional_reports",
+    "professional_settings",
+  ],
+};
 const refetch = vi.fn().mockResolvedValue(undefined);
-const invalidate = vi.fn().mockResolvedValue(undefined);
-const cancel = vi.fn().mockResolvedValue(undefined);
-const setData = vi.fn();
-const fetchPatientTimeZone = vi
-  .fn()
-  .mockResolvedValue({ timeZone: "America/Sao_Paulo" });
-const mutate = vi.fn();
-const allResources = [
-  "professional_dashboard",
-  "professional_portfolio",
-  "professional_record",
-  "professional_goals",
-  "professional_operational_alerts",
-  "professional_messages",
-  "professional_reports",
-  "professional_ai_assistance",
-  "professional_settings",
-];
-const entitlementState = { allowed: true, enabledResources: [...allResources] };
-const authState = { professionalProfileActive: true };
-const profileState = { active: true };
 
-vi.mock("@/_core/hooks/useAuth", () => ({
-  useAuth: () => ({
-    loading: false,
-    user: {
-      id: 1,
-      name: "Nutricionista",
-      professionalProfileActive: authState.professionalProfileActive,
-    },
-    refresh,
-  }),
-}));
-vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({
-      nutrition: {
-        goals: { get: { invalidate } },
-        reports: { invalidate },
-        professionals: {
-          patientTimeZone: { invalidate, fetch: fetchPatientTimeZone },
-          patientDashboard: { invalidate },
-          patientPeriodBundle: { invalidate },
-          portfolio: { invalidate },
-        },
-      },
-      professionalRecord: { get: { invalidate, cancel, setData } },
-    }),
-    nutrition: {
-      professionals: {
-        profile: {
-          useQuery: () => ({
-            data: { active: profileState.active },
-            isLoading: false,
-            isError: false,
-            isSuccess: true,
-            refetch,
-          }),
-        },
-        myAccesses: {
-          useQuery: () => ({
-            data: [],
-            isLoading: false,
-            isError: false,
-            isSuccess: true,
-            refetch,
-          }),
-        },
-        portfolio: {
-          useQuery: () => ({
-            data: {
-              items: [
-                {
-                  authorizationId: "access-1",
-                  patientUserId: 41,
-                  patientName: "Ana",
-                  patientEmail: "ana@example.com",
-                  authorizationStatus: "approved",
-                  trackingStatus: "active",
-                  requestedAt: Date.now(),
-                  lastFoodActivityAt: null,
-                  lastProfessionalInteractionAt: null,
-                  nextReviewAt: null,
-                  nextWeighingAt: null,
-                  pendingItems: 0,
-                },
-              ],
-              pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
-              summary: {
-                active: 1,
-                paused: 0,
-                ended: 0,
-                notStarted: 0,
-                pendingRequests: 0,
-                activeWithRecentRecords: 0,
-                withoutRecentActivity: 1,
-                pendingReviews: 0,
-                pendingWeighings: 0,
-              },
-              generatedAt: Date.now(),
-            },
-            isLoading: false,
-            isError: false,
-            refetch,
-          }),
-        },
-      },
-    },
     professionalRecord: {
       settings: {
         entitlements: {
@@ -128,342 +26,205 @@ vi.mock("@/lib/trpc", () => ({
             data: {
               allowed: entitlementState.allowed,
               enabledResources: entitlementState.enabledResources,
-              planName: entitlementState.allowed
-                ? "Acesso aberto"
-                : "Sem acesso",
+              planName: entitlementState.allowed ? "Acesso aberto" : "Sem acesso",
             },
             isLoading: false,
             isError: false,
             refetch,
           }),
-        },
-      },
-      operationalAlerts: {
-        list: {
-          useQuery: () => ({
-            data: [],
-            isLoading: false,
-            isError: false,
-            refetch,
-          }),
-        },
-        close: { useMutation: () => ({ mutate, isPending: false }) },
-        evaluate: { useMutation: () => ({ mutate, isPending: false }) },
-      },
-      messages: {
-        patientList: {
-          useQuery: () => ({
-            data: { items: [], nextCursor: null },
-            isLoading: false,
-            isError: false,
-          }),
-          useInfiniteQuery: () => ({
-            data: { pages: [{ items: [], nextCursor: null }] },
-            isLoading: false,
-            isError: false,
-            hasNextPage: false,
-            isFetchingNextPage: false,
-            fetchNextPage: vi.fn(),
-          }),
-        },
-      },
-      get: {
-        useQuery: () => ({
-          data: {
-            patient: {
-              id: 41,
-              authorizationId: "access-1",
-              authorizationStatus: "approved",
-              trackingStatus: "active",
-            },
-            latestAssessment: null,
-            assessmentHistory: [],
-            notes: [],
-            guidances: [],
-            timeline: [],
-            pagination: {
-              page: 1,
-              pageSize: 20,
-              totals: { assessments: 0, notes: 0, guidances: 0, timeline: 0 },
-              hasMore: false,
-            },
-          },
-          isLoading: false,
-          isError: false,
-        }),
-      },
-      saveAssessment: {
-        useMutation: () => ({ mutate, isPending: false, isError: false }),
-      },
-      createNote: { useMutation: () => ({ mutate, isPending: false }) },
-      createGuidance: { useMutation: () => ({ mutate, isPending: false }) },
-      transitionTracking: {
-        useMutation: () => ({ mutate, isPending: false, isError: false }),
-      },
-      patientGuidances: {
-        useQuery: () => ({ data: [], isLoading: false, isError: false }),
-      },
-      officialGoal: {
-        professionalState: {
-          useQuery: () => ({
-            data: {
-              current: null,
-              history: [],
-              reviewRequests: [],
-              notifications: [],
-            },
-            isLoading: false,
-            isError: false,
-            refetch,
-          }),
-        },
-        activate: { useMutation: () => ({ mutate, isPending: false }) },
-        retryNotification: {
-          useMutation: () => ({ mutate, isPending: false }),
         },
       },
     },
   },
 }));
+
 vi.mock("./components/ErrorBoundary", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("./contexts/ThemeContext", () => ({
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("@/components/ui/tooltip", async importOriginal => {
-  const actual =
-    await importOriginal<typeof import("@/components/ui/tooltip")>();
-  return {
-    ...actual,
-    TooltipProvider: ({ children }: { children: React.ReactNode }) => (
-      <>{children}</>
-    ),
-  };
-});
+vi.mock("@/components/ui/tooltip", () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
-vi.mock("./components/NutritionGoalPreviewValidityBridge", () => ({
-  default: () => null,
-}));
-vi.mock("./components/NutritionGoalReportInvalidator", () => ({
-  default: () => null,
-}));
-vi.mock("./components/PatientGoalSuggestionsEmbed", () => ({
-  default: () => null,
-}));
-vi.mock("./components/PatientProfessionalGuidancesEmbed", () => ({
-  default: () => null,
-}));
-vi.mock("./components/ProfessionalAnalyzeTabBridge", () => ({
-  default: () => null,
-}));
-vi.mock("@/components/ProfessionalAiWorkspace", () => ({
-  default: () => <div>Assistência profissional por IA</div>,
-}));
-vi.mock("./components/ProfessionalGoalExceptionSuggestionsEmbed", () => ({
-  default: () => null,
-}));
-vi.mock("./components/ProfileWhatsappGreetingVisibility", () => ({
-  default: () => null,
-}));
+
+for (const path of [
+  "./components/NutritionGoalPreviewValidityBridge",
+  "./components/NutritionGoalReportInvalidator",
+  "./components/PatientGoalSuggestionsEmbed",
+  "./components/PatientProfessionalGuidancesEmbed",
+  "./components/PatientProfessionalMessagesEmbed",
+  "./components/PatientProfessionalProfilesEmbed",
+  "./components/ProfileWhatsappGreetingVisibility",
+]) {
+  vi.doMock(path, () => ({ default: () => null }));
+}
 
 function Fixture({ name }: { name: string }) {
   return <h1>{name}</h1>;
 }
-vi.mock("@/pages/AdminPage", () => ({
-  default: () => <Fixture name="AdminPage" />,
-}));
-vi.mock("@/pages/ChannelsPage", () => ({
-  default: () => <Fixture name="ChannelsPage" />,
-}));
-vi.mock("@/pages/FoodsPage", () => ({
-  default: () => <Fixture name="FoodsPage" />,
-}));
-vi.mock("@/pages/GoalsPage", () => ({
-  default: () => <Fixture name="GoalsPage" />,
-}));
-vi.mock("@/pages/HealthIntegrationsPage", () => ({
-  default: () => <Fixture name="HealthIntegrationsPage" />,
-}));
-vi.mock("@/pages/Home", () => ({ default: () => <Fixture name="Home" /> }));
-vi.mock("@/pages/LogMealPage", () => ({
-  default: () => <Fixture name="LogMealPage" />,
-}));
-vi.mock("@/pages/LoginPage", () => ({
-  default: () => <Fixture name="LoginPage" />,
-}));
-vi.mock("@/pages/NotFound", () => ({
-  default: () => <Fixture name="NotFound" />,
-}));
-vi.mock("@/pages/OnboardingPage", () => ({
-  default: () => <Fixture name="OnboardingPage" />,
+
+vi.mock("@/pages/ProfessionalAreaPage", () => ({
+  default: () => <Fixture name="Área Profissional canônica" />,
 }));
 vi.mock("@/pages/ProfessionalSettingsPage", () => ({
   default: () => <Fixture name="Configurações profissionais" />,
 }));
-vi.mock("@/pages/QuickEditExercisePage", () => ({
-  default: () => <Fixture name="QuickEditExercisePage" />,
-}));
-vi.mock("@/pages/QuickEditMealPage", () => ({
-  default: () => <Fixture name="QuickEditMealPage" />,
-}));
-vi.mock("@/pages/RegisterPage", () => ({
-  default: () => <Fixture name="RegisterPage" />,
-}));
-vi.mock("@/pages/RegisteredMealsPage", () => ({
-  default: () => <Fixture name="RegisteredMealsPage" />,
-}));
-vi.mock("@/pages/ReportsPage", () => ({
-  default: () => <Fixture name="ReportsPage" />,
-}));
-vi.mock("@/pages/SyncedHealthDataPage", () => ({
-  default: () => <Fixture name="SyncedHealthDataPage" />,
-}));
-vi.mock("@/pages/WhatsappOnboardingPage", () => ({
-  default: () => <Fixture name="WhatsappOnboardingPage" />,
+vi.mock("@/pages/SettingsPageRouter", () => ({
+  default: () => <Fixture name="Configurações pessoais" />,
 }));
 
+for (const [path, name] of [
+  ["@/pages/AdminPage", "AdminPage"],
+  ["@/pages/ChannelsPage", "ChannelsPage"],
+  ["@/pages/FoodsPage", "FoodsPage"],
+  ["@/pages/GoalsPage", "GoalsPage"],
+  ["@/pages/HealthIntegrationsPage", "HealthIntegrationsPage"],
+  ["@/pages/Home", "Home"],
+  ["@/pages/LogMealPage", "LogMealPage"],
+  ["@/pages/LoginPage", "LoginPage"],
+  ["@/pages/NotFound", "NotFound"],
+  ["@/pages/OnboardingPage", "OnboardingPage"],
+  ["@/pages/QuickEditExercisePage", "QuickEditExercisePage"],
+  ["@/pages/QuickEditMealPage", "QuickEditMealPage"],
+  ["@/pages/RegisterPage", "RegisterPage"],
+  ["@/pages/RegisteredMealsPage", "RegisteredMealsPage"],
+  ["@/pages/ReportsPage", "ReportsPage"],
+  ["@/pages/SyncedHealthDataPage", "SyncedHealthDataPage"],
+  ["@/pages/WhatsappOnboardingPage", "WhatsappOnboardingPage"],
+] as const) {
+  vi.doMock(path, () => ({ default: () => <Fixture name={name} /> }));
+}
+
 afterEach(cleanup);
+
 beforeEach(() => {
   entitlementState.allowed = true;
-  entitlementState.enabledResources = [...allResources];
-  authState.professionalProfileActive = true;
-  profileState.active = true;
-  refresh.mockClear();
+  entitlementState.enabledResources = [
+    "professional_dashboard",
+    "professional_portfolio",
+    "professional_record",
+    "professional_messages",
+    "professional_reports",
+    "professional_settings",
+  ];
   refetch.mockClear();
-  invalidate.mockClear();
-  cancel.mockClear();
-  setData.mockClear();
-  fetchPatientTimeZone.mockClear();
-  fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" });
   window.history.replaceState({}, "", "/professional/reports");
 });
 
 describe("App professional navigation", () => {
-  it("loads a professional deep link through the real router", async () => {
+  it("loads aggregate professional deep links through the canonical area", async () => {
     const { default: App } = await import("./App");
     render(<App />);
+
     expect(
-      await screen.findByRole("heading", { name: "Relatórios profissionais" })
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
     ).toBeTruthy();
-    expect(screen.getAllByText("Contexto profissional").length).toBeGreaterThan(
-      0
-    );
   });
+
+  it("loads patient-scoped deep links through the canonical area", async () => {
+    window.history.replaceState({}, "", "/professional/patients/41/messages");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+  });
+
+  it("allows an individual report with only the reports entitlement", async () => {
+    entitlementState.enabledResources = ["professional_reports"];
+    window.history.replaceState({}, "", "/professional/patients/41/reports");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeNull();
+  });
+
+  it("allows an individual conversation with only the messages entitlement", async () => {
+    entitlementState.enabledResources = ["professional_messages"];
+    window.history.replaceState({}, "", "/professional/patients/41/messages");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeNull();
+  });
+
+  it("allows patient goals with the record entitlement", async () => {
+    entitlementState.enabledResources = ["professional_record"];
+    window.history.replaceState({}, "", "/professional/patients/41/goals");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+  });
+
+  it("redirects a patient route when only neighboring entitlements remain", async () => {
+    entitlementState.enabledResources = [
+      "professional_portfolio",
+      "professional_record",
+    ];
+    window.history.replaceState({}, "", "/professional/patients/41/reports");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/professional/patients")
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
+    ).toBeTruthy();
+  });
+
   it("routes professional settings to the dedicated screen", async () => {
     window.history.replaceState({}, "", "/professional/settings");
     const { default: App } = await import("./App");
     render(<App />);
+
     expect(
-      await screen.findByRole("heading", {
-        name: "Configurações profissionais",
-      })
+      await screen.findByRole("heading", { name: "Configurações profissionais" })
     ).toBeTruthy();
   });
-  it("blocks an inactive professional profile without loading workspace data", async () => {
-    authState.professionalProfileActive = false;
-    profileState.active = false;
-    window.history.replaceState({}, "", "/professional/legacy");
+
+  it("redirects the retired follow-up bookmark to the portfolio", async () => {
+    window.history.replaceState({}, "", "/professional/follow-up");
     const { default: App } = await import("./App");
     render(<App />);
-    await waitFor(() => expect(window.location.pathname).toBe("/professional"));
+
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/professional/patients")
+    );
     expect(
-      await screen.findByRole("heading", {
-        name: "Área Profissional indisponível",
-      })
+      await screen.findByRole("heading", { name: "Área Profissional canônica" })
     ).toBeTruthy();
-    expect(screen.queryByText("Contexto profissional")).toBeNull();
   });
-  it("blocks all workspace routes when the backend denies access", async () => {
+
+  it("blocks aggregate professional routes when the entitlement is unavailable", async () => {
     entitlementState.allowed = false;
     entitlementState.enabledResources = [];
     const { default: App } = await import("./App");
     render(<App />);
+
     expect(
       await screen.findByRole("heading", {
         name: "Recurso profissional indisponível",
       })
     ).toBeTruthy();
     expect(
-      screen.queryByRole("heading", { name: "Relatórios profissionais" })
+      screen.queryByRole("heading", { name: "Área Profissional canônica" })
     ).toBeNull();
-  });
-  it("blocks a report route when only another resource is enabled", async () => {
-    entitlementState.enabledResources = ["professional_settings"];
-    const { default: App } = await import("./App");
-    render(<App />);
-    expect(
-      await screen.findByRole("heading", {
-        name: "Recurso profissional indisponível",
-      })
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Relatórios profissionais" })
-    ).toBeNull();
-  });
-  it("blocks settings when another professional resource is enabled", async () => {
-    window.history.replaceState({}, "", "/professional/settings");
-    entitlementState.enabledResources = ["professional_reports"];
-    const { default: App } = await import("./App");
-    render(<App />);
-    expect(
-      await screen.findByRole("heading", {
-        name: "Recurso profissional indisponível",
-      })
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Configurações profissionais" })
-    ).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Voltar às configurações pessoais" })
-    );
-    await waitFor(() => expect(window.location.pathname).toBe("/settings"));
-  });
-  it("redirects an old professional bookmark without exposing legacy UI", async () => {
-    window.history.replaceState({}, "", "/professional/legacy");
-    const { default: App } = await import("./App");
-    render(<App />);
-    await waitFor(() => expect(window.location.pathname).toBe("/professional"));
-    expect(
-      await screen.findByRole("heading", { name: "Início profissional" })
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Experiência legada" })
-    ).toBeNull();
-  });
-  it("revalidates backend authorization before opening a patient context", async () => {
-    window.history.replaceState({}, "", "/professional/patients");
-    const { default: App } = await import("./App");
-    render(<App />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Abrir paciente" })
-    );
-    await waitFor(() =>
-      expect(fetchPatientTimeZone).toHaveBeenCalledWith({
-        patientId: 41,
-        weekOffset: 0,
-      })
-    );
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/professional/follow-up")
-    );
-  });
-  it("does not open stale cached access when backend revalidation fails", async () => {
-    fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked"));
-    window.history.replaceState({}, "", "/professional/patients");
-    const { default: App } = await import("./App");
-    render(<App />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Abrir paciente" })
-    );
-    expect(
-      await screen.findByText(
-        "O acesso a este paciente não está mais disponível. A carteira foi atualizada."
-      )
-    ).toBeTruthy();
-    expect(window.location.pathname).toBe("/professional/patients");
-    expect(refetch).toHaveBeenCalled();
   });
 });

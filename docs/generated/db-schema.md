@@ -48,7 +48,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
 | `professionalProfiles` | `professionalProfiles` | 7 | Requer atenção |
 | `professionalPatientAuthorizations` | `professionalPatientAuthorizations` | 19 | Requer atenção |
-| `professionalPatientTrackings` | `professionalPatientTrackings` | 13 | Requer atenção |
+| `professionalPatientTrackings` | `professionalPatientTrackings` | 15 | Requer atenção |
 | `professionalPatientTrackingEvents` | `professionalPatientTrackingEvents` | 9 | Requer atenção |
 | `professionalComments` | `professionalComments` | 5 | Requer atenção |
 | `professionalGoalSuggestions` | `professionalGoalSuggestions` | 13 | Requer atenção |
@@ -58,7 +58,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalGoalReviewRequests` | `professionalGoalReviewRequests` | 11 | Requer atenção |
 | `professionalGoalNotifications` | `professionalGoalNotifications` | 13 | Requer atenção |
 | `professionalConversations` | `professionalConversations` | 7 | Requer atenção |
-| `professionalMessages` | `professionalMessages` | 24 | Requer atenção |
+| `professionalMessages` | `professionalMessages` | 25 | Requer atenção |
 | `professionalMessageDeliveryAttempts` | `professionalMessageDeliveryAttempts` | 12 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
