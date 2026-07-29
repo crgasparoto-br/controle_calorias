@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { professionalContentRepository } from "./contentPersistenceService";
+import { professionalRepository } from "./persistenceService";
 import {
   _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
@@ -8,6 +10,7 @@ import {
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
+  ProfessionalProfileConsistencyError,
   requestPatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
@@ -16,6 +19,10 @@ import {
 } from "./service";
 
 _forTestOnly_setProfessionalSyntheticUserLookup(true);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function goalInput(calories = 1800) {
   return {
@@ -64,6 +71,65 @@ describe("professional profile", () => {
       displayName: "Camila Pereira",
       active: false,
     });
+  });
+
+  it("removes a newly created profile when audit history fails", async () => {
+    const professionalUserId = 24112;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toBeNull();
+  });
+
+  it("restores the previous profile when audit history fails", async () => {
+    const professionalUserId = 24113;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins Atualizada",
+        registrationNumber: "CRN 200",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toMatchObject({
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+  });
+
+  it("surfaces an explicit consistency error when compensation also fails", async () => {
+    const professionalUserId = 24114;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+    vi.spyOn(professionalRepository, "deleteProfile").mockRejectedValueOnce(
+      new Error("compensation unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toBeInstanceOf(ProfessionalProfileConsistencyError);
   });
 });
 

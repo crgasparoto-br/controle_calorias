@@ -78,7 +78,7 @@ function permissionsTitle(status: string) {
 export default function ProfessionalProfileSettings() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const { user } = useAuth();
+  const { refresh: refreshAuth, user } = useAuth();
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
     retry: false,
   });
@@ -121,13 +121,21 @@ export default function ProfessionalProfileSettings() {
         active: Boolean(savedProfile.active),
       });
       setAppliedSavedProfile(true);
-      await invalidateProfessionalSettings();
+      await Promise.allSettled([
+        invalidateProfessionalSettings(),
+        refreshAuth(),
+      ]);
       toast.success("Perfil profissional salvo.");
     },
-    onError: error =>
+    onError: async error => {
+      await Promise.allSettled([
+        invalidateProfessionalSettings(),
+        refreshAuth(),
+      ]);
       toast.error(
         error.message || "Não foi possível salvar o perfil profissional."
-      ),
+      );
+    },
   });
 
   const validationMessage = (() => {
@@ -234,8 +242,9 @@ export default function ProfessionalProfileSettings() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
-            <Label>Nome profissional</Label>
+            <Label htmlFor="professional-display-name">Nome profissional</Label>
             <Input
+              id="professional-display-name"
               value={form.displayName}
               onChange={event => updateField("displayName", event.target.value)}
               placeholder={
@@ -245,8 +254,11 @@ export default function ProfessionalProfileSettings() {
             />
           </div>
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
-            <Label>Registro profissional</Label>
+            <Label htmlFor="professional-registration-number">
+              Registro profissional
+            </Label>
             <Input
+              id="professional-registration-number"
               value={form.registrationNumber}
               onChange={event =>
                 updateField("registrationNumber", event.target.value)

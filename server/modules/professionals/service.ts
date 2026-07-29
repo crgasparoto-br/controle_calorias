@@ -81,6 +81,15 @@ type ProfessionalProfile = {
   updatedAt: number;
 };
 
+export class ProfessionalProfileConsistencyError extends Error {
+  constructor() {
+    super(
+      "Não foi possível confirmar a consistência do perfil profissional. Recarregue a página antes de tentar novamente."
+    );
+    this.name = "ProfessionalProfileConsistencyError";
+  }
+}
+
 export type ProfessionalPatientAccess = {
   id: string;
   professionalUserId: number;
@@ -764,13 +773,30 @@ export async function upsertProfessionalProfile(
     updatedAt: now,
   };
   const persisted = await persistProfessionalProfile(profile);
-  await pushHistory({
-    actorUserId: userId,
-    professionalUserId: userId,
-    patientUserId: userId,
-    eventType: "profile_upserted",
-  });
-  return persisted;
+  try {
+    await pushHistory({
+      actorUserId: userId,
+      professionalUserId: userId,
+      patientUserId: userId,
+      eventType: "profile_upserted",
+    });
+    return persisted;
+  } catch (error) {
+    try {
+      if (current) {
+        await persistProfessionalProfile(current);
+      } else {
+        await professionalRepository.deleteProfile(userId);
+      }
+    } catch (compensationError) {
+      logPersistenceWarning(
+        "professional_profile_upsert_compensation",
+        compensationError
+      );
+      throw new ProfessionalProfileConsistencyError();
+    }
+    throw error;
+  }
 }
 
 export async function getProfessionalProfile(userId: number) {
