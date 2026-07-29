@@ -12,6 +12,8 @@ on:
       - "client/src/components/professional/ProfessionalAiAssistant.tsx"
       - "client/src/pages/professional/ProfessionalPatientWorkspace.tsx"
       - "client/src/pages/ProfessionalSettingsPage.tsx"
+      - "client/src/pages/OnboardingPage.tsx"
+      - "client/src/pages/SettingsPageRouter.tsx"
       - "client/src/components/ProfessionalProfileSettings.tsx"
       - "client/src/components/professional-settings/**"
       - "client/src/components/ProfessionalLayout.tsx"
