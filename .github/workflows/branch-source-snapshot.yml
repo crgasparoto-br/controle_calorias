@@ -1,35 +1,259 @@
-name: Branch source snapshot
+name: Apply issue 882 remediation
 
 on:
   pull_request:
     paths:
       - ".github/workflows/branch-source-snapshot.yml"
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  apply-remediation:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Confirm exact input head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
+
+      - name: Apply audited remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          service_path = Path("server/modules/professionals/messageService.ts")
+          service = service_path.read_text()
+
+          helper_anchor = 'type DeliveryMode = "initial" | "retry";\n'
+          helper_replacement = '''type DeliveryMode = "initial" | "retry";
+          const DUPLICATE_ENTRY_ERROR_CODE = "ER_DUP_ENTRY";
+          const DUPLICATE_ENTRY_ERRNO = 1062;
+
+          function isDuplicateEntryError(error: unknown) {
+            if (!error || typeof error !== "object") return false;
+            const candidate = error as { code?: unknown; errno?: unknown };
+            return (
+              candidate.code === DUPLICATE_ENTRY_ERROR_CODE ||
+              Number(candidate.errno) === DUPLICATE_ENTRY_ERRNO
+            );
+          }
+          '''
+          if service.count(helper_anchor) != 1:
+              raise SystemExit("unexpected message service helper baseline")
+          service = service.replace(helper_anchor, helper_replacement)
+
+          old_response_block = '''  const id = crypto.randomUUID();
+          try {
+            await db.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
+              VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${`whatsapp:professional-response:${input.externalMessageId}`}, ${String(parent.id)}, ${input.receivedAt})`);
+          } catch {
+            return {
+              handled: true,
+              reply: "Sua resposta já foi recebida.",
+              eventType: "whatsapp.professional_response.duplicate",
+              detail: "Callback profissional duplicado ignorado.",
+            };
+          }
+          await db.execute(
+            sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
+          );
+          await history(db, {
+            actorUserId: input.patientUserId,
+            professionalUserId: Number(parent.professionalUserId),
+            patientUserId: input.patientUserId,
+            eventType: "professional_message_response_received",
+            messageId: id,
+          });
+          '''
+          new_response_block = '''  const id = crypto.randomUUID();
+          const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
+          try {
+            await db.transaction(async tx => {
+              await tx.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
+                VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${idempotencyKey}, ${String(parent.id)}, ${input.receivedAt})`);
+              await tx.execute(
+                sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
+              );
+              await tx.execute(sql`INSERT INTO professionalHistoryEvents (id, actorUserId, professionalUserId, patientUserId, eventType, entityType, entityId, occurredAt)
+                VALUES (${crypto.randomUUID()}, ${input.patientUserId}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, 'professional_message_response_received', 'professional_message', ${id}, NOW())`);
+            });
+          } catch (error) {
+            if (isDuplicateEntryError(error)) {
+              const duplicateResult = await db.execute(sql`SELECT id
+                FROM professionalMessages
+                WHERE idempotencyKey = ${idempotencyKey}
+                  AND conversationId = ${String(parent.conversationId)}
+                  AND authorizationId = ${String(parent.authorizationId)}
+                  AND professionalUserId = ${Number(parent.professionalUserId)}
+                  AND patientUserId = ${input.patientUserId}
+                  AND authorUserId = ${input.patientUserId}
+                  AND direction = 'patient_to_professional'
+                  AND origin = 'patient'
+                  AND messageType = 'response'
+                LIMIT 1`);
+              if (rows(duplicateResult)[0]) {
+                return {
+                  handled: true,
+                  reply: "Sua resposta já foi recebida.",
+                  eventType: "whatsapp.professional_response.duplicate",
+                  detail: "Callback profissional duplicado ignorado.",
+                };
+              }
+            }
+            logPersistenceWarning(
+              "professional_message_response_persistence",
+              error
+            );
+            throw error;
+          }
+          '''
+          if service.count(old_response_block) != 1:
+              raise SystemExit("unexpected WhatsApp response persistence baseline")
+          service = service.replace(old_response_block, new_response_block)
+          service_path.write_text(service)
+
+          test_path = Path("server/modules/professionals/messageService.test.ts")
+          tests = test_path.read_text()
+          old_duplicate_setup = '''      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+              .mockRejectedValueOnce(new Error("duplicate key"));
+            mocks.getDb.mockResolvedValue({ execute });
+          '''
+          new_duplicate_setup = '''      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+              .mockRejectedValueOnce(
+                Object.assign(new Error("duplicate key"), { code: "ER_DUP_ENTRY" })
+              )
+              .mockResolvedValueOnce([[{ id: "existing-response" }]]);
+            const db = {
+              execute,
+              transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+                callback({ execute }),
+            };
+            mocks.getDb.mockResolvedValue(db);
+          '''
+          if tests.count(old_duplicate_setup) != 1:
+              raise SystemExit("unexpected duplicate response test baseline")
+          tests = tests.replace(old_duplicate_setup, new_duplicate_setup)
+
+          test_anchor = '''  it("does not capture ambiguous or ordinary nutrition text", async () => {
+          '''
+          additional_tests = '''  it("does not acknowledge a professional response when persistence fails", async () => {
+            const persistenceError = Object.assign(
+              new Error("database temporarily unavailable"),
+              { code: "ETIMEDOUT" }
+            );
+            const execute = vi
+              .fn()
+              .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+              .mockRejectedValueOnce(persistenceError);
+            const db = {
+              execute,
+              transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+                callback({ execute }),
+            };
+            mocks.getDb.mockResolvedValue(db);
+
+            await expect(
+              tryAssociateProfessionalWhatsappResponse({
+                patientUserId: 20,
+                text: "RESP-A1B2C3D4 Já registrei.",
+                externalMessageId: "wamid.persistence-failure",
+                receivedAt: new Date("2026-07-20T12:00:00Z"),
+              })
+            ).rejects.toBe(persistenceError);
+            expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+              "professional_message_response_persistence",
+              persistenceError
+            );
+          });
+
+          it("does not classify an unverified duplicate as a received response", async () => {
+            const duplicateError = Object.assign(new Error("duplicate key"), {
+              code: "ER_DUP_ENTRY",
+            });
+            const execute = vi
+              .fn()
+              .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
+              .mockRejectedValueOnce(duplicateError)
+              .mockResolvedValueOnce([[]]);
+            const db = {
+              execute,
+              transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
+                callback({ execute }),
+            };
+            mocks.getDb.mockResolvedValue(db);
+
+            await expect(
+              tryAssociateProfessionalWhatsappResponse({
+                patientUserId: 20,
+                text: "RESP-A1B2C3D4 Já registrei.",
+                externalMessageId: "wamid.unverified-duplicate",
+                receivedAt: new Date("2026-07-20T12:00:00Z"),
+              })
+            ).rejects.toBe(duplicateError);
+            expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+              "professional_message_response_persistence",
+              duplicateError
+            );
+          });
+
+          ''' + test_anchor
+          if tests.count(test_anchor) != 1:
+              raise SystemExit("unexpected response negative-control insertion point")
+          tests = tests.replace(test_anchor, additional_tests)
+          test_path.write_text(tests)
+
+          reliability_path = Path("docs/RELIABILITY.md")
+          reliability = reliability_path.read_text()
+          reliability_anchor = "- Respostas repetidas usam o identificador externo do inbound como chave idempotente.\n"
+          reliability_replacement = reliability_anchor + (
+              "- Mensagem recebida, avanço da conversa e evento de histórico são persistidos na mesma transação antes de confirmar sucesso ao paciente.\n"
+              "- Uma resposta só é classificada como repetida após erro de chave única e releitura do registro idempotente no mesmo vínculo; timeout, indisponibilidade ou outro erro de persistência nunca produzem confirmação de recebimento.\n"
+          )
+          if reliability.count(reliability_anchor) != 1:
+              raise SystemExit("unexpected reliability documentation baseline")
+          reliability_path.write_text(reliability.replace(reliability_anchor, reliability_replacement))
+          PY
+          git diff --check
+
       - uses: pnpm/action-setup@v4
         with:
           run_install: false
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Generate Drizzle metadata
-        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
-      - name: Pack source and generated metadata
-        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: branch-source-snapshot
-          path: /tmp/controle-calorias-source.tar.gz
-          retention-days: 1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run focused response tests
+        run: pnpm exec vitest run server/modules/professionals/messageService.test.ts --maxWorkers=1 --minWorkers=1
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Commit remediation to shared branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/modules/professionals/messageService.ts server/modules/professionals/messageService.test.ts docs/RELIABILITY.md
+          git commit -m "fix: preserve professional WhatsApp response failures"
+          git push origin "HEAD:${HEAD_BRANCH}"
