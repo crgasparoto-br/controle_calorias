@@ -55,29 +55,15 @@ jobs:
               raise SystemExit("unexpected message service helper baseline")
           service = service.replace(helper_anchor, helper_replacement)
 
-          old_response_block = '''  const id = crypto.randomUUID();
-          try {
-            await db.execute(sql`INSERT INTO professionalMessages (id, conversationId, authorizationId, professionalUserId, patientUserId, authorUserId, direction, origin, messageType, content, state, idempotencyKey, inReplyToMessageId, receivedAt)
-              VALUES (${id}, ${String(parent.conversationId)}, ${String(parent.authorizationId)}, ${Number(parent.professionalUserId)}, ${input.patientUserId}, ${input.patientUserId}, 'patient_to_professional', 'patient', 'response', ${content}, 'received', ${`whatsapp:professional-response:${input.externalMessageId}`}, ${String(parent.id)}, ${input.receivedAt})`);
-          } catch {
-            return {
-              handled: true,
-              reply: "Sua resposta já foi recebida.",
-              eventType: "whatsapp.professional_response.duplicate",
-              detail: "Callback profissional duplicado ignorado.",
-            };
-          }
-          await db.execute(
-            sql`UPDATE professionalConversations SET lastMessageAt = ${input.receivedAt} WHERE id = ${String(parent.conversationId)}`
-          );
-          await history(db, {
-            actorUserId: input.patientUserId,
-            professionalUserId: Number(parent.professionalUserId),
-            patientUserId: input.patientUserId,
-            eventType: "professional_message_response_received",
-            messageId: id,
-          });
+          function_marker = "export async function tryAssociateProfessionalWhatsappResponse"
+          function_start = service.index(function_marker)
+          block_start = service.index("  const id = crypto.randomUUID();", function_start)
+          success_marker = '''  return {
+            handled: true,
+            reply:
+              "Resposta enviada ao seu nutricionista e registrada no acompanhamento.",
           '''
+          block_end = service.index(success_marker, block_start)
           new_response_block = '''  const id = crypto.randomUUID();
           const idempotencyKey = `whatsapp:professional-response:${input.externalMessageId}`;
           try {
@@ -120,32 +106,42 @@ jobs:
             throw error;
           }
           '''
-          if service.count(old_response_block) != 1:
-              raise SystemExit("unexpected WhatsApp response persistence baseline")
-          service = service.replace(old_response_block, new_response_block)
+          service = service[:block_start] + new_response_block + service[block_end:]
           service_path.write_text(service)
 
           test_path = Path("server/modules/professionals/messageService.test.ts")
           tests = test_path.read_text()
-          old_duplicate_setup = '''      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
-              .mockRejectedValueOnce(new Error("duplicate key"));
-            mocks.getDb.mockResolvedValue({ execute });
-          '''
-          new_duplicate_setup = '''      .mockResolvedValueOnce([[messageRow({ state: "sent" })]])
-              .mockRejectedValueOnce(
+          duplicate_test_start = tests.index(
+              '  it("associates an explicit response once and absorbs duplicate inbound callbacks"'
+          )
+          duplicate_test_end = tests.index(
+              '  it("does not capture ambiguous or ordinary nutrition text"',
+              duplicate_test_start,
+          )
+          duplicate_segment = tests[duplicate_test_start:duplicate_test_end]
+          duplicate_segment = duplicate_segment.replace(
+              '.mockRejectedValueOnce(new Error("duplicate key"));',
+              '''.mockRejectedValueOnce(
                 Object.assign(new Error("duplicate key"), { code: "ER_DUP_ENTRY" })
               )
-              .mockResolvedValueOnce([[{ id: "existing-response" }]]);
-            const db = {
+              .mockResolvedValueOnce([[{ id: "existing-response" }]]);''',
+          )
+          duplicate_segment = duplicate_segment.replace(
+              '    mocks.getDb.mockResolvedValue({ execute });',
+              '''    const db = {
               execute,
               transaction: (callback: (tx: { execute: typeof execute }) => unknown) =>
                 callback({ execute }),
             };
-            mocks.getDb.mockResolvedValue(db);
-          '''
-          if tests.count(old_duplicate_setup) != 1:
-              raise SystemExit("unexpected duplicate response test baseline")
-          tests = tests.replace(old_duplicate_setup, new_duplicate_setup)
+            mocks.getDb.mockResolvedValue(db);''',
+          )
+          if "existing-response" not in duplicate_segment or "transaction:" not in duplicate_segment:
+              raise SystemExit("duplicate response test was not patched")
+          tests = (
+              tests[:duplicate_test_start]
+              + duplicate_segment
+              + tests[duplicate_test_end:]
+          )
 
           test_anchor = '''  it("does not capture ambiguous or ordinary nutrition text", async () => {
           '''
