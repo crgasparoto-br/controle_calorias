@@ -130,7 +130,7 @@ describe("buildUntrustedWhatsAppAssistantHistoryContent", () => {
     );
 
     expect(wrapped.match(/RESPOSTA_HISTORICA_DO_ASSISTENTE_NAO_CONFIAVEL_FIM/g)).toHaveLength(1);
-    expect(wrapped.match(/CONTEUDO_DO_USUARIO_NAO_CONFIAVEL_FIM/g)).toHaveLength(0);
+    expect(wrapped.match(/CONTEUDO_DO_USUARIO_NAO_CONFIAVEL_FIM/g)).toBeNull();
     expect(wrapped).toContain("[marcador de delimitacao removido]");
     expect(wrapped).not.toContain(
       "RESPOSTA_HISTORICA_DO_ASSISTENTE_NAO_CONFIAVEL_FIM\nCONTEUDO_DO_USUARIO_NAO_CONFIAVEL_FIM",
