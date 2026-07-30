@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "cycle": 7,
+  "validations": [
+    {
+      "name": "TypeScript transpile syntax check",
+      "result": "passed",
+      "scope": [
+        "server/_core/ai/configResolverCore.ts",
+        "server/_core/ai/__tests__/configResolver.test.ts",
+        "server/_core/ai/__tests__/crossProviderFallbackIntegration.test.ts",
+        "scripts/issue-922-live-provider-smoke.ts"
+      ]
+    },
+    {
+      "name": "Production cross-provider adversarial control",
+      "result": "passed",
+      "observed": "Cross-provider fallback is disabled in NODE_ENV=production while same-provider fallback remains eligible."
+    },
+    {
+      "name": "Vision smoke prompt/fixture control",
+      "result": "passed",
+      "observed": "The prompt does not reveal the expected food; PNG sha256=83be139c2a60a7fb4419e39833cbe80692f4632b0fa64d47443da3416d45df4e."
+    },
+    {
+      "name": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "The local container could not reach registry.npmjs.org, so repository dependency installation and the full pnpm gate must run in GitHub Actions."
+  ]
+}
