@@ -1,39 +1,167 @@
-name: Apply PR 952 exact remediation
+name: WhatsApp context TiDB gate
 
 on:
-  push:
-    branches:
-      - fix/whatsapp-ai-question-context-and-exercise-goal-progress
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "server/modules/whatsapp/**"
+      - "server/modules/quickEdit/**"
+      - "server/modules/meals/**"
+      - "scripts/test-quick-edit-meal-update-tidb.ts"
+      - "server/repositories/whatsapp**"
+      - "server/whatsapp*Webhook*.ts"
+      - ".github/workflows/whatsapp-context-tidb.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-remediation:
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-24.04
+  tidb-context-regression:
+    name: TiDB context regression
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+      WHATSAPP_CONTEXT_READ_MODE: persistent
+      WHATSAPP_CONTEXT_ROLLOUT_PERCENT: "100"
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 0
-      - name: Apply audited patch and verify exact tree
-        shell: bash
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB and wait for SQL readiness
         run: |
-          set -euo pipefail
-          sed -n "/<<'B64'/,/^B64$/p" .github/workflows/apply-remediation-952.yml | sed '1d;$d' > /tmp/remediation.patch.gz.b64
-          base64 -d /tmp/remediation.patch.gz.b64 | gzip -d > /tmp/remediation.patch
-          echo "4b982db20272a57e4bc8853a87caec3b5b8b59931e7255881e772b62cfd5c847  /tmp/remediation.patch" | sha256sum -c -
-          git apply --check /tmp/remediation.patch
-          git apply /tmp/remediation.patch
-          git checkout 523fbee88bc069f7bf1af0c785eadcee99c54ae0 -- .github/workflows/whatsapp-context-tidb.yml
-          git rm .github/workflows/apply-remediation-952.yml .github/workflows/run-remediation-952.yml .audit-trigger-952
-          git add .github/workflows/whatsapp-context-tidb.yml docs server
-          test "$(git write-tree)" = "ab8f76fa057368c18c5fcc1be5a391e8a4c9fdab"
-      - name: Commit and push
-        shell: bash
+          docker run -d --name whatsapp-context-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("SELECT 1"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 whatsapp-context-tidb
+          exit 1
+
+      - name: Create validation database and wait for DDL readiness
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix: isolar contexto por conversa logica"
-          git push origin HEAD:fix/whatsapp-ai-question-context-and-exercise-goal-progress
+          node --input-type=module <<'NODE'
+          import mysql from "mysql2/promise";
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let lastError;
+
+          for (let attempt = 1; attempt <= 30; attempt += 1) {
+            let connection;
+            try {
+              connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" });
+              await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias");
+              await connection.changeUser({ database: "controle_calorias" });
+              await connection.query("CREATE TABLE IF NOT EXISTS __workflow_ddl_readiness (id INT PRIMARY KEY)");
+              await connection.query("DROP TABLE __workflow_ddl_readiness");
+              await connection.end();
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              if (connection) await connection.end().catch(() => undefined);
+              await sleep(2000);
+            }
+          }
+
+          throw lastError ?? new Error("TiDB não ficou pronto para DDL no tempo esperado.");
+          NODE
+
+      - name: Apply current repository schema
+        run: |
+          if ! pnpm exec drizzle-kit push --force > /tmp/drizzle-push.log 2>&1; then
+            tail -n 200 /tmp/drizzle-push.log
+            exit 1
+          fi
+          tail -n 80 /tmp/drizzle-push.log
+
+      - name: Verify canonical food signal tables
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import mysql from "mysql2/promise";
+
+          const connection = await mysql.createConnection(process.env.DATABASE_URL);
+          try {
+            for (const table of ["user_food_favorites", "user_food_usage_stats"]) {
+              const [rows] = await connection.query("SHOW TABLES LIKE ?", [table]);
+              assert.equal(rows.length, 1, `${table} must be created by the canonical Drizzle schema`);
+            }
+          } finally {
+            await connection.end();
+          }
+          NODE
+
+      - name: Upload schema diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-context-drizzle-push-log
+          path: /tmp/drizzle-push.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Validate referential integrity
+        run: pnpm db:check-integrity
+
+      - name: Run pending operation insert id regression
+        run: pnpm exec tsx scripts/test-whatsapp-pending-operation-tidb.ts
+
+      - name: Run quick edit meal update regression
+        id: quick_edit_regression
+        continue-on-error: true
+        run: pnpm exec tsx scripts/test-quick-edit-meal-update-tidb.ts > /tmp/quick-edit-tidb.log 2>&1
+
+      - name: Upload quick edit TiDB diagnostics
+        if: steps.quick_edit_regression.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-edit-tidb-regression-log
+          path: /tmp/quick-edit-tidb.log
+          retention-days: 3
+
+      - name: Stop after quick edit TiDB failure
+        if: steps.quick_edit_regression.outcome == 'failure'
+        run: |
+          cat /tmp/quick-edit-tidb.log
+          exit 1
+
+      - name: Run persistent context regression
+        env:
+          DATABASE_URL: ""
+        run: |
+          pnpm exec vitest run \
+            server/whatsappPersistentContextWebhook.test.ts \
+            server/whatsappImageIdempotencyWebhook.failure.test.ts \
+            server/whatsappIntentWebhook.selection.test.ts \
+            server/modules/whatsapp/deleteIntent.selection.test.ts \
+            server/modules/whatsapp/aiQuestionAssistant.persistedHistorySecurity.test.ts \
+            server/modules/whatsapp/conversationContextRollout.test.ts \
+            server/modules/whatsapp/intentContext.rollout.test.ts \
+            server/modules/whatsapp/intentContext.currentMessage.test.ts \
+            server/modules/whatsapp/intentContext.shadowComparison.test.ts \
+            server/modules/whatsapp/shadowIntentComparison.test.ts \
+            server/modules/whatsapp/messageLifecycle.processingClaim.test.ts \
+            server/modules/whatsapp/messageDeduplicationCache.test.ts \
+            server/modules/whatsapp/webhookMediaPipeline.test.ts \
+            server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 whatsapp-context-tidb
