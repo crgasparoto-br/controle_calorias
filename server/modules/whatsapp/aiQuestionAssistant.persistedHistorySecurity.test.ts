@@ -73,10 +73,11 @@ function message(input: {
   direction: "inbound" | "outbound";
   text: string;
   occurredAt: Date;
+  conversationId?: number;
 }): WhatsAppConversationMessageRecord {
   return {
     id: input.id,
-    conversationId: 10,
+    conversationId: input.conversationId ?? 10,
     userId: 42,
     direction: input.direction,
     channel: "whatsapp",
@@ -227,6 +228,54 @@ describe("segurança do histórico persistido na rota /", () => {
     expect(logInferenceEvent).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.history.context_found",
       detail: expect.stringContaining('"currentInboundCorrelation":"external_message_id"'),
+    }));
+  });
+
+  it("não envia mensagens da conversa lógica expirada na segunda pergunta da nova conversa", async () => {
+    const receivedAt = new Date("2026-07-30T09:32:00Z");
+    const repository = {
+      findRecentMessagesByUser: vi.fn(async () => [
+        message({
+          id: 1,
+          conversationId: 10,
+          direction: "inbound",
+          text: "SEGREDO_DA_CONVERSA_EXPIRADA",
+          occurredAt: new Date("2026-07-30T09:00:00Z"),
+        }),
+        message({
+          id: 2,
+          conversationId: 20,
+          direction: "inbound",
+          text: "Quero falar sobre o jantar de hoje",
+          occurredAt: new Date("2026-07-30T09:31:00Z"),
+        }),
+        message({
+          id: 3,
+          conversationId: 20,
+          direction: "inbound",
+          text: currentQuestion,
+          occurredAt: receivedAt,
+        }),
+      ]),
+    } as unknown as WhatsAppConversationRepository;
+
+    await executeWhatsappAiQuestionIntent(42, {
+      text: currentQuestion,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      conversationRepository: repository,
+      externalMessageId: "wamid.3",
+    });
+
+    const request = createResponse.mock.calls[0][0];
+    const prompt = request.input[0].content[0].text as string;
+
+    expect(prompt).not.toContain("SEGREDO_DA_CONVERSA_EXPIRADA");
+    expect(prompt).toContain("Quero falar sobre o jantar de hoje");
+    expect(prompt.match(/quantas calorias consumi hoje\?/g)).toHaveLength(1);
+    expect(logInferenceEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.history.context_found",
+      detail: expect.stringContaining('"crossConversationMessagesExcluded":1'),
     }));
   });
 
