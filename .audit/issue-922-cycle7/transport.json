@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "cycle": 7,
+  "target_branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
+  "target_sha": "e3bb6f97ffba46ab5f1210e8dea61c148efeca16",
+  "patch_sha256": "fe2cca0e02d45f1fd89f7c42254f80ef693a4440064c499be02c779a34c26717",
+  "purpose": "Apply the audited cross-provider production guard, discriminating vision smoke and canonical documentation updates as one atomic commit."
+}
