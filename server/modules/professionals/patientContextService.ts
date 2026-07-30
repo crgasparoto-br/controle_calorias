@@ -33,6 +33,8 @@ const optionalHistoryInFlight = new Map<
   string,
   OptionalHistoryInFlightEntry
 >();
+// Keep the newest attempt identifiable after a caller timeout stops sharing it.
+const optionalHistoryLatestTokens = new Map<string, symbol>();
 const optionalHistoryPendingTokens = new Set<symbol>();
 
 function rows(result: unknown): Row[] {
@@ -107,6 +109,7 @@ async function getOptionalHistoryWithinBudget(
     }
 
     const token = Symbol(key);
+    optionalHistoryLatestTokens.set(key, token);
     optionalHistoryPendingTokens.add(token);
     const promise = Promise.resolve()
       .then(() =>
@@ -126,7 +129,7 @@ async function getOptionalHistoryWithinBudget(
         const optionalHistory: OptionalHistoryResult = row
           ? { status: "available", row }
           : { status: "not_found", row: undefined };
-        if (optionalHistoryInFlight.get(key)?.token === token) {
+        if (optionalHistoryLatestTokens.get(key) === token) {
           storeOptionalHistory(key, optionalHistory);
         }
         return optionalHistory;
@@ -137,7 +140,7 @@ async function getOptionalHistoryWithinBudget(
           status: "unavailable",
           row: undefined,
         };
-        if (optionalHistoryInFlight.get(key)?.token === token) {
+        if (optionalHistoryLatestTokens.get(key) === token) {
           storeOptionalHistory(
             key,
             optionalHistory,
@@ -150,6 +153,9 @@ async function getOptionalHistoryWithinBudget(
         optionalHistoryPendingTokens.delete(token);
         if (optionalHistoryInFlight.get(key)?.token === token) {
           optionalHistoryInFlight.delete(key);
+        }
+        if (optionalHistoryLatestTokens.get(key) === token) {
+          optionalHistoryLatestTokens.delete(key);
         }
       });
     inFlight = { token, promise };
@@ -175,11 +181,13 @@ async function getOptionalHistoryWithinBudget(
       status: "unavailable",
       row: undefined,
     };
-    storeOptionalHistory(
-      key,
-      unavailable,
-      OPTIONAL_HISTORY_TIMEOUT_TTL_MS
-    );
+    if (optionalHistoryLatestTokens.get(key) === inFlight.token) {
+      storeOptionalHistory(
+        key,
+        unavailable,
+        OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+      );
+    }
     return unavailable;
   }
   return timedResult;
@@ -188,6 +196,7 @@ async function getOptionalHistoryWithinBudget(
 export function _forTestOnly_clearProfessionalPatientContextMetadataCache() {
   optionalHistoryCache.clear();
   optionalHistoryInFlight.clear();
+  optionalHistoryLatestTokens.clear();
   optionalHistoryPendingTokens.clear();
 }
 
