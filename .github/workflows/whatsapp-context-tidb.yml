@@ -1,4 +1,3 @@
-# Gate refresh for PR 952
 name: Apply PR 952 exact remediation
 
 on:
