@@ -29,6 +29,18 @@ describe("Button tracking action tooltips", () => {
     );
   });
 
+  it("preserves an explicitly provided title", () => {
+    render(
+      <Button variant="outline" title="Título específico">
+        Pausar
+      </Button>
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+    ).toBe("Título específico");
+  });
+
   it("does not add a cycle tooltip to unrelated buttons", () => {
     render(<Button variant="outline">Voltar</Button>);
 
