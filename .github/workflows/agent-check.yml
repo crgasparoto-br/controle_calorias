@@ -1,4 +1,4 @@
-name: Issue 922 cycle 7 audit remediation
+name: Issue 922 cycle 7 vision smoke remediation
 
 on:
   pull_request:
@@ -8,12 +8,13 @@ permissions:
 
 jobs:
   apply-remediation:
-    name: Apply issue 922 cycle 7 audit remediation
+    name: Apply issue 922 discriminating vision smoke
     runs-on: ubuntu-latest
     env:
       TARGET_BRANCH: feat/922-ai-capabilities-meal-whatsapp-rebased
-      EXPECTED_TARGET_SHA: e3bb6f97ffba46ab5f1210e8dea61c148efeca16
-      EXPECTED_PATCH_SHA256: fe2cca0e02d45f1fd89f7c42254f80ef693a4440064c499be02c779a34c26717
+      REQUIRED_ANCESTOR_SHA: 041d565077672de3e2c1ca2a028a5e45d17787b7
+      EXPECTED_SMOKE_BLOB_SHA: 949cc5cde0fa47f53f15207fa1b90c9cdfa5f08c
+      EXPECTED_PATCH_SHA256: aff2cc2833fd75a9f26a979f75f1da454923c7f5de54b2b541f543fae6312445
 
     steps:
       - name: Checkout transport branch
@@ -22,50 +23,50 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Freeze target branch
+      - name: Freeze compatible target branch
         run: |
           set -euo pipefail
           git fetch --no-tags origin "${TARGET_BRANCH}"
           TARGET_SHA="$(git rev-parse FETCH_HEAD)"
-          test "${TARGET_SHA}" = "${EXPECTED_TARGET_SHA}"
+          git merge-base --is-ancestor "${REQUIRED_ANCESTOR_SHA}" "${TARGET_SHA}"
+          CURRENT_SMOKE_BLOB="$(git rev-parse "${TARGET_SHA}:scripts/issue-922-live-provider-smoke.ts")"
+          test "${CURRENT_SMOKE_BLOB}" = "${EXPECTED_SMOKE_BLOB_SHA}"
           echo "TARGET_SHA=${TARGET_SHA}" >> "${GITHUB_ENV}"
 
-      - name: Decode and verify remediation patch
+      - name: Decode and verify focused patch
         run: |
           set -euo pipefail
           python - <<'PY'
           import base64
           import gzip
           import hashlib
+          import os
           from pathlib import Path
 
-          parts = sorted(Path('.audit/issue-922-cycle7').glob('remediation.patch.part*'))
-          if not parts:
-              raise SystemExit('remediation patch parts are missing')
-          encoded = ''.join(path.read_text(encoding='utf-8').strip() for path in parts)
+          encoded = Path('.audit/issue-922-cycle7/smoke.patch.gz.b64').read_text(encoding='utf-8').strip()
           decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
           digest = hashlib.sha256(decoded).hexdigest()
-          expected = '${{ env.EXPECTED_PATCH_SHA256 }}'
+          expected = os.environ['EXPECTED_PATCH_SHA256']
           if digest != expected:
               raise SystemExit(f'patch digest mismatch: {digest} != {expected}')
-          output = Path('/tmp/issue-922-cycle7.patch')
-          output.write_bytes(decoded)
-          print(f'decoded {len(parts)} parts into {output.stat().st_size} bytes; sha256={digest}')
+          Path('/tmp/issue-922-vision-smoke.patch').write_bytes(decoded)
+          print(f'patch sha256={digest}; bytes={len(decoded)}')
           PY
 
-      - name: Apply patch to the frozen target
+      - name: Apply patch to frozen target
         run: |
           set -euo pipefail
           git checkout --detach "${TARGET_SHA}"
-          git apply --check /tmp/issue-922-cycle7.patch
-          git apply --index /tmp/issue-922-cycle7.patch
+          git apply --check /tmp/issue-922-vision-smoke.patch
+          git apply --index /tmp/issue-922-vision-smoke.patch
+          git diff --cached --check
 
-      - name: Publish one atomic remediation commit
+      - name: Publish atomic remediation commit
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           TREE_SHA="$(git write-tree)"
-          NEW_COMMIT="$(printf '%s\n' 'fix(ai): close issue 922 audit findings' | git commit-tree "${TREE_SHA}" -p "${TARGET_SHA}")"
+          NEW_COMMIT="$(printf '%s\n' 'test(ai): make issue 922 vision smoke discriminating' | git commit-tree "${TREE_SHA}" -p "${TARGET_SHA}")"
           git push origin "${NEW_COMMIT}:refs/heads/${TARGET_BRANCH}"
           echo "Published ${NEW_COMMIT} to ${TARGET_BRANCH}." >> "${GITHUB_STEP_SUMMARY}"
