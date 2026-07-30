@@ -1,4 +1,4 @@
-name: Issue 922 cycle 7 vision smoke remediation
+name: Issue 922 cycle 7 documentation finalization
 
 on:
   pull_request:
@@ -7,14 +7,14 @@ permissions:
   contents: write
 
 jobs:
-  apply-remediation:
-    name: Apply issue 922 discriminating vision smoke
+  finalize-remediation:
+    name: Finalize issue 922 canonical documentation
     runs-on: ubuntu-latest
     env:
       TARGET_BRANCH: feat/922-ai-capabilities-meal-whatsapp-rebased
-      REQUIRED_ANCESTOR_SHA: 041d565077672de3e2c1ca2a028a5e45d17787b7
-      EXPECTED_SMOKE_BLOB_SHA: 949cc5cde0fa47f53f15207fa1b90c9cdfa5f08c
-      EXPECTED_PATCH_SHA256: aff2cc2833fd75a9f26a979f75f1da454923c7f5de54b2b541f543fae6312445
+      REQUIRED_ANCESTOR_SHA: 8a31c9e290685a5c4e8c3cb056f72589c2708473
+      EXPECTED_DOC_PATCH_BLOB: eaca261db139015ff9600c9bb9fd8b7a5754c06d
+      EXPECTED_FINALIZER_BLOB: 8f147282d68b2482aa1e21a01e415dac5eeac09f
 
     steps:
       - name: Checkout transport branch
@@ -29,44 +29,27 @@ jobs:
           git fetch --no-tags origin "${TARGET_BRANCH}"
           TARGET_SHA="$(git rev-parse FETCH_HEAD)"
           git merge-base --is-ancestor "${REQUIRED_ANCESTOR_SHA}" "${TARGET_SHA}"
-          CURRENT_SMOKE_BLOB="$(git rev-parse "${TARGET_SHA}:scripts/issue-922-live-provider-smoke.ts")"
-          test "${CURRENT_SMOKE_BLOB}" = "${EXPECTED_SMOKE_BLOB_SHA}"
+          test "$(git rev-parse "${TARGET_SHA}:.audit/issue-922-docs.patch")" = "${EXPECTED_DOC_PATCH_BLOB}"
+          test "$(git rev-parse "${TARGET_SHA}:.github/workflows/issue-922-finalize-remediation.yml")" = "${EXPECTED_FINALIZER_BLOB}"
           echo "TARGET_SHA=${TARGET_SHA}" >> "${GITHUB_ENV}"
 
-      - name: Decode and verify focused patch
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import base64
-          import gzip
-          import hashlib
-          import os
-          from pathlib import Path
-
-          encoded = Path('.audit/issue-922-cycle7/smoke.patch.gz.b64').read_text(encoding='utf-8').strip()
-          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
-          digest = hashlib.sha256(decoded).hexdigest()
-          expected = os.environ['EXPECTED_PATCH_SHA256']
-          if digest != expected:
-              raise SystemExit(f'patch digest mismatch: {digest} != {expected}')
-          Path('/tmp/issue-922-vision-smoke.patch').write_bytes(decoded)
-          print(f'patch sha256={digest}; bytes={len(decoded)}')
-          PY
-
-      - name: Apply patch to frozen target
+      - name: Apply canonical documentation and remove staging
         run: |
           set -euo pipefail
           git checkout --detach "${TARGET_SHA}"
-          git apply --check /tmp/issue-922-vision-smoke.patch
-          git apply --index /tmp/issue-922-vision-smoke.patch
+          git apply --check .audit/issue-922-docs.patch
+          git apply .audit/issue-922-docs.patch
+          git rm .audit/issue-922-docs.patch
+          git rm .github/workflows/issue-922-finalize-remediation.yml
+          git add README.md docs/PRIVACY_LGPD.md docs/RELIABILITY.md docs/design-docs/whatsapp-ingestion.md
           git diff --cached --check
 
-      - name: Publish atomic remediation commit
+      - name: Publish atomic documentation commit
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           TREE_SHA="$(git write-tree)"
-          NEW_COMMIT="$(printf '%s\n' 'test(ai): make issue 922 vision smoke discriminating' | git commit-tree "${TREE_SHA}" -p "${TARGET_SHA}")"
+          NEW_COMMIT="$(printf '%s\n' 'docs(ai): finalize issue 922 production fallback contract' | git commit-tree "${TREE_SHA}" -p "${TARGET_SHA}")"
           git push origin "${NEW_COMMIT}:refs/heads/${TARGET_BRANCH}"
           echo "Published ${NEW_COMMIT} to ${TARGET_BRANCH}." >> "${GITHUB_STEP_SUMMARY}"
