@@ -8,18 +8,61 @@ on:
       - develop
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  sync-develop:
+    if: github.event_name == 'pull_request' && github.event.action == 'reopened' && github.event.pull_request.number == 929
+    name: Sync issue 922 with develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/922-ai-capabilities-meal-whatsapp
+
+      - name: Merge current develop or report conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop
+
+          if git merge-base --is-ancestor origin/develop HEAD; then
+            echo "Branch already contains current develop."
+            exit 0
+          fi
+
+          if git merge --no-ff --no-commit origin/develop; then
+            git commit -m "chore: sincronizar issue 922 com develop"
+            git push origin HEAD:feat/922-ai-capabilities-meal-whatsapp
+            exit 0
+          fi
+
+          echo "CONFLICT_FILES_BEGIN"
+          git diff --name-only --diff-filter=U
+          echo "CONFLICT_FILES_END"
+          git status --short
+          git merge --abort || true
+          exit 1
+
   agent-check:
+    if: github.event_name != 'pull_request' || github.event.action != 'reopened'
     name: Agent-first gate
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -36,16 +79,39 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: pnpm check
-
-      - name: Tests
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
+          if ! pnpm check > /tmp/typescript-check.log 2>&1; then
+            echo "TypeScript check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/typescript-check.log
             exit 1
           fi
-          tail -n 80 /tmp/vitest.log
+          cat /tmp/typescript-check.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-typescript-log
+          path: /tmp/typescript-check.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Tests
+        env:
+          NODE_ENV: test
+        run: |
+          : > /tmp/vitest.log
+          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
+          for shard_number in $(seq 1 24); do
+            shard="${shard_number}/24"
+            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
+            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
+              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
+              tail -n 250 /tmp/vitest.log
+              exit 1
+            fi
+          done
+          tail -n 120 /tmp/vitest.log
 
       - name: Upload Vitest diagnostics
         if: failure()
@@ -81,58 +147,22 @@ jobs:
         run: pnpm build
 
       - name: Agent check
+        env:
+          CI_SHARDED_TESTS_COMPLETE: "1"
         run: pnpm agent:check
 
       - name: CI gate docs check
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
 
-      - name: Create verification manifest
-        id: verification_manifest
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_REF: ${{ github.head_ref }}
+      - name: Create exact-head verification manifest
         run: |
-          ISSUE_NUMBER=""
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            ISSUE_NUMBER="$(
-              jq -r '.pull_request.body // ""' "${GITHUB_EVENT_PATH}" \
-                | grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#[0-9]+' \
-                | grep -Eo '[0-9]+' \
-                | head -n 1 \
-                || true
-            )"
-            if [ -z "${ISSUE_NUMBER}" ]; then
-              ISSUE_NUMBER="$(
-                printf '%s\n' "${PR_HEAD_REF}" \
-                  | grep -Eo '(^|/)[0-9]+' \
-                  | grep -Eo '[0-9]+' \
-                  | head -n 1 \
-                  || true
-              )"
-            fi
-          fi
-
-          ISSUE_SLUG="${ISSUE_NUMBER:-unscoped}"
-          ISSUE_JSON="${ISSUE_NUMBER:-null}"
-          HEAD_SHA="${PR_HEAD_SHA:-${GITHUB_SHA}}"
-          BASE_SHA_JSON="null"
-          MERGE_PREVIEW_SHA_JSON="null"
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            BASE_SHA_JSON="\"${PR_BASE_SHA}\""
-            MERGE_PREVIEW_SHA_JSON="\"${GITHUB_SHA}\""
-          fi
-
-          MANIFEST_DIR="/tmp/issue-${ISSUE_SLUG}-verification"
-          mkdir -p "${MANIFEST_DIR}"
-          cat > "${MANIFEST_DIR}/manifest.json" <<EOF
+          mkdir -p /tmp/agent-first-verification
+          cat > /tmp/agent-first-verification/manifest.json <<EOF
           {
             "schemaVersion": 2,
-            "issue": ${ISSUE_JSON},
             "repository": "${GITHUB_REPOSITORY}",
-            "headSha": "${HEAD_SHA}",
-            "baseSha": ${BASE_SHA_JSON},
-            "mergePreviewSha": ${MERGE_PREVIEW_SHA_JSON},
+            "headSha": "${VERIFICATION_HEAD_SHA}",
+            "checkoutSha": "${GITHUB_SHA}",
             "runId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
@@ -140,17 +170,46 @@ jobs:
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
-          cat "${MANIFEST_DIR}/manifest.json"
-          echo "artifact_name=issue-${ISSUE_SLUG}-verification-${HEAD_SHA}" >> "${GITHUB_OUTPUT}"
-          echo "manifest_path=${MANIFEST_DIR}/manifest.json" >> "${GITHUB_OUTPUT}"
+          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
+          cat /tmp/agent-first-verification/manifest.json
 
-      - name: Upload verification manifest
+      - name: Upload exact-head verification manifest
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.verification_manifest.outputs.artifact_name }}
-          path: ${{ steps.verification_manifest.outputs.manifest_path }}
+          name: agent-first-verification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/agent-first-verification/manifest.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Create exact-head repository bundle
+        run: |
+          mkdir -p /tmp/agent-first-repository
+          git fetch --no-tags origin "${VERIFICATION_HEAD_SHA}"
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git update-ref refs/orchestrator/head "${VERIFICATION_HEAD_SHA}"
+          git update-ref refs/orchestrator/base "origin/${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git bundle create /tmp/agent-first-repository/repository.bundle \
+            refs/orchestrator/head refs/orchestrator/base
+          git bundle verify /tmp/agent-first-repository/repository.bundle
+          cat > /tmp/agent-first-repository/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${VERIFICATION_HEAD_SHA}",
+            "baseRef": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+            "baseSha": "$(git rev-parse refs/orchestrator/base)",
+            "runId": "${GITHUB_RUN_ID}",
+            "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload exact-head repository bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-repository-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/agent-first-repository
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Database integrity check
         if: ${{ env.DATABASE_URL != '' }}
@@ -163,7 +222,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (24 sequential single-worker shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"
@@ -185,7 +244,7 @@ jobs:
             echo ""
             echo "Validated commands:"
             echo "- pnpm check"
-            echo "- pnpm test"
+            echo "- pnpm test (24 sequential single-worker shards)"
             echo "- pnpm architecture:check"
             echo "- pnpm docs:check"
             echo "- pnpm build"
