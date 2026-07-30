@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "functional_parent_sha": "19f4f12be74ce6ab397353d6daf5708c935adfc0",
+  "purpose": "Trigger the repository's standard exact-head gates after audit remediation without changing runtime behavior.",
+  "runtime_impact": "none"
+}
