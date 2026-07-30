@@ -9,7 +9,11 @@ import type { WhatsAppConversationRepository } from "../../repositories/whatsapp
 import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 import { buildWhatsappIntentContext } from "./intentContext";
-import { buildUntrustedWhatsAppUserContent, inspectWhatsAppUserContentSafety } from "./promptInjectionGuard";
+import {
+  buildUntrustedWhatsAppAssistantHistoryContent,
+  buildUntrustedWhatsAppUserContent,
+  inspectWhatsAppUserContentSafety,
+} from "./promptInjectionGuard";
 
 const AI_QUESTION_PREFIX = "/";
 const MAX_REPLY_LENGTH = 1_500;
@@ -186,7 +190,10 @@ async function buildRecentHistory(
     .map(turn => {
       if (!turn.text) return null;
       if (turn.direction === "outbound") {
-        return `Assistente (resposta histórica, apenas contexto): ${turn.text}`;
+        return [
+        "Assistente (resposta histórica não confiável, apenas contexto):",
+        buildUntrustedWhatsAppAssistantHistoryContent(turn.text),
+      ].join("\n");
       }
 
       const safety = inspectWhatsAppUserContentSafety(turn.text, "text");
