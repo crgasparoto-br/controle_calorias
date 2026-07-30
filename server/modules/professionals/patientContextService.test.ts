@@ -135,6 +135,66 @@ describe("getProfessionalPatientContext", () => {
     expect(mocks.execute).toHaveBeenCalledTimes(3);
   });
 
+  it.each([
+    ["the same resource", "professional_record", 200],
+    ["another authorized resource", "professional_reports", 220],
+  ] as const)(
+    "publishes a shared lookup result after one caller times out through %s",
+    async (_scenario, secondResource, secondDelayMs) => {
+      vi.useFakeTimers();
+      mocks.execute.mockReset();
+      let resolveHistory: ((value: unknown) => void) | undefined;
+      const sharedHistory = new Promise(resolve => {
+        resolveHistory = resolve;
+      });
+
+      mocks.execute
+        .mockResolvedValueOnce([[defaultContext]])
+        .mockReturnValueOnce(sharedHistory)
+        .mockResolvedValueOnce([[defaultContext]])
+        .mockResolvedValueOnce([[defaultContext]]);
+
+      const firstResult = getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_record",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(secondDelayMs);
+
+      const secondResult = getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: secondResource,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(250 - secondDelayMs);
+
+      await expect(firstResult).resolves.toMatchObject({
+        lastActivityAt: null,
+        lastActivityLabel: "Temporariamente indisponível",
+      });
+
+      await vi.advanceTimersByTimeAsync(50);
+      resolveHistory?.([[defaultHistory]]);
+      await vi.advanceTimersByTimeAsync(0);
+
+      await expect(secondResult).resolves.toMatchObject({
+        lastActivityAt: professionalActivityAt.getTime(),
+        lastActivityLabel: "Revisão da meta oficial solicitada",
+      });
+
+      await expect(
+        getProfessionalPatientContext(7, {
+          patientId: 41,
+          resource: "professional_record",
+        })
+      ).resolves.toMatchObject({
+        lastActivityAt: professionalActivityAt.getTime(),
+        lastActivityLabel: "Revisão da meta oficial solicitada",
+      });
+      expect(mocks.execute).toHaveBeenCalledTimes(4);
+    }
+  );
+
   it("does not let slow optional history metadata block the authorized context", async () => {
     vi.useFakeTimers();
     mocks.execute.mockReset();
