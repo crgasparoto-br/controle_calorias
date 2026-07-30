@@ -1,9 +1,11 @@
 name: Issue 922 sync develop
 
 on:
-  push:
-    branches:
-      - feat/922-ai-capabilities-meal-whatsapp
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
@@ -14,7 +16,7 @@ concurrency:
 
 jobs:
   sync-develop:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.number == 929 && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout issue branch
