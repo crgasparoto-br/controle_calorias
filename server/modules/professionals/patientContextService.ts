@@ -1,11 +1,41 @@
 import { sql } from "drizzle-orm";
-import { getDb } from "../../db";
+import { getDb, logPersistenceWarning } from "../../db";
 import { assertProfessionalResourceAccess } from "./entitlementAccess";
 import type { ProfessionalPatientContextInput } from "./patientContextSchemas";
 import { getProfessionalHistoryEventLabel } from "./historyPresentation";
 import { getProfessionalProfile } from "./service";
 
 type Row = Record<string, unknown>;
+type Database = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+const OPTIONAL_HISTORY_WAIT_MS = 250;
+const OPTIONAL_HISTORY_CACHE_TTL_MS = 10_000;
+const OPTIONAL_HISTORY_TIMEOUT_TTL_MS = 1_000;
+const OPTIONAL_HISTORY_CACHE_LIMIT = 500;
+const OPTIONAL_HISTORY_PENDING_LIMIT_CAP = 4;
+const HISTORY_TIMEOUT = Symbol("professional-patient-history-timeout");
+
+type OptionalHistoryResult =
+  | { status: "available"; row: Row }
+  | { status: "not_found"; row: undefined }
+  | { status: "unavailable"; row: undefined };
+
+type OptionalHistoryInFlightEntry = {
+  token: symbol;
+  promise: Promise<OptionalHistoryResult>;
+};
+
+const optionalHistoryCache = new Map<
+  string,
+  { expiresAt: number; result: OptionalHistoryResult }
+>();
+const optionalHistoryInFlight = new Map<
+  string,
+  OptionalHistoryInFlightEntry
+>();
+// Keep the newest attempt identifiable after a caller timeout stops sharing it.
+const optionalHistoryLatestTokens = new Map<string, symbol>();
+const optionalHistoryPendingTokens = new Set<symbol>();
 
 function rows(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
@@ -16,6 +46,158 @@ function timestamp(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function optionalHistoryKey(professionalUserId: number, patientUserId: number) {
+  return `${professionalUserId}:${patientUserId}`;
+}
+
+function getRuntimeDatabaseConnectionLimit() {
+  const configured = Number(process.env.DATABASE_CONNECTION_LIMIT ?? "10");
+  return Number.isFinite(configured) && configured > 0
+    ? Math.floor(configured)
+    : 10;
+}
+
+function getOptionalHistoryPendingLimit() {
+  return Math.max(
+    0,
+    Math.min(
+      OPTIONAL_HISTORY_PENDING_LIMIT_CAP,
+      getRuntimeDatabaseConnectionLimit() - 1
+    )
+  );
+}
+
+function storeOptionalHistory(
+  key: string,
+  result: OptionalHistoryResult,
+  ttlMs = OPTIONAL_HISTORY_CACHE_TTL_MS
+) {
+  if (optionalHistoryCache.size >= OPTIONAL_HISTORY_CACHE_LIMIT) {
+    optionalHistoryCache.clear();
+  }
+  optionalHistoryCache.set(key, {
+    expiresAt: Date.now() + ttlMs,
+    result,
+  });
+}
+
+async function getOptionalHistoryWithinBudget(
+  db: Database,
+  professionalUserId: number,
+  patientUserId: number
+): Promise<OptionalHistoryResult> {
+  const key = optionalHistoryKey(professionalUserId, patientUserId);
+  const cached = optionalHistoryCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+  if (cached) optionalHistoryCache.delete(key);
+
+  let inFlight = optionalHistoryInFlight.get(key);
+  if (!inFlight) {
+    if (optionalHistoryPendingTokens.size >= getOptionalHistoryPendingLimit()) {
+      const unavailable: OptionalHistoryResult = {
+        status: "unavailable",
+        row: undefined,
+      };
+      storeOptionalHistory(
+        key,
+        unavailable,
+        OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+      );
+      return unavailable;
+    }
+
+    const token = Symbol(key);
+    optionalHistoryLatestTokens.set(key, token);
+    optionalHistoryPendingTokens.add(token);
+    const promise = Promise.resolve()
+      .then(() =>
+        db.execute(sql`
+          SELECT
+            h.occurredAt AS lastProfessionalActivityAt,
+            h.eventType AS lastProfessionalActivityType
+          FROM professionalHistoryEvents h
+          WHERE h.professionalUserId = ${professionalUserId}
+            AND h.patientUserId = ${patientUserId}
+          ORDER BY h.occurredAt DESC, h.id DESC
+          LIMIT 1
+        `)
+      )
+      .then(result => {
+        const row = rows(result)[0];
+        const optionalHistory: OptionalHistoryResult = row
+          ? { status: "available", row }
+          : { status: "not_found", row: undefined };
+        if (optionalHistoryLatestTokens.get(key) === token) {
+          storeOptionalHistory(key, optionalHistory);
+        }
+        return optionalHistory;
+      })
+      .catch(error => {
+        logPersistenceWarning("professional_patient_context_history", error);
+        const optionalHistory: OptionalHistoryResult = {
+          status: "unavailable",
+          row: undefined,
+        };
+        if (optionalHistoryLatestTokens.get(key) === token) {
+          storeOptionalHistory(
+            key,
+            optionalHistory,
+            OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+          );
+        }
+        return optionalHistory;
+      })
+      .finally(() => {
+        optionalHistoryPendingTokens.delete(token);
+        if (optionalHistoryInFlight.get(key)?.token === token) {
+          optionalHistoryInFlight.delete(key);
+        }
+        if (optionalHistoryLatestTokens.get(key) === token) {
+          optionalHistoryLatestTokens.delete(key);
+        }
+      });
+    inFlight = { token, promise };
+    optionalHistoryInFlight.set(key, inFlight);
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutResult = new Promise<typeof HISTORY_TIMEOUT>(resolve => {
+    timeout = setTimeout(
+      () => resolve(HISTORY_TIMEOUT),
+      OPTIONAL_HISTORY_WAIT_MS
+    );
+  });
+  const timedResult: OptionalHistoryResult | typeof HISTORY_TIMEOUT =
+    await Promise.race([inFlight.promise, timeoutResult]);
+  if (timeout) clearTimeout(timeout);
+
+  if (timedResult === HISTORY_TIMEOUT) {
+    if (optionalHistoryInFlight.get(key)?.token === inFlight.token) {
+      optionalHistoryInFlight.delete(key);
+    }
+    const unavailable: OptionalHistoryResult = {
+      status: "unavailable",
+      row: undefined,
+    };
+    if (optionalHistoryLatestTokens.get(key) === inFlight.token) {
+      storeOptionalHistory(
+        key,
+        unavailable,
+        OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+      );
+    }
+    return unavailable;
+  }
+  return timedResult;
+}
+
+export function _forTestOnly_clearProfessionalPatientContextMetadataCache() {
+  optionalHistoryCache.clear();
+  optionalHistoryInFlight.clear();
+  optionalHistoryLatestTokens.clear();
+  optionalHistoryPendingTokens.clear();
 }
 
 export async function getProfessionalPatientContext(
@@ -43,20 +225,10 @@ export async function getProfessionalPatientContext(
       u.name AS patientName,
       u.email AS patientEmail,
       COALESCE(t.status, 'not_started') AS trackingStatus,
-      t.nextReviewAt,
-      lastHistory.occurredAt AS lastProfessionalActivityAt,
-      lastHistory.eventType AS lastProfessionalActivityType
+      t.nextReviewAt
     FROM professionalPatientAuthorizations a
     INNER JOIN users u ON u.id = a.patientUserId
     LEFT JOIN professionalPatientTrackings t ON t.authorizationId = a.id
-    LEFT JOIN professionalHistoryEvents lastHistory ON lastHistory.id = (
-      SELECT h.id
-      FROM professionalHistoryEvents h
-      WHERE h.professionalUserId = ${professionalUserId}
-        AND h.patientUserId = a.patientUserId
-      ORDER BY h.occurredAt DESC, h.id DESC
-      LIMIT 1
-    )
     WHERE a.professionalUserId = ${professionalUserId}
       AND a.patientUserId = ${input.patientId}
       AND a.status = 'approved'
@@ -88,19 +260,27 @@ export async function getProfessionalPatientContext(
     return shared;
   }
 
-  const lastActivityAt = timestamp(context.lastProfessionalActivityAt);
-  const lastActivityType = context.lastProfessionalActivityType
-    ? String(context.lastProfessionalActivityType)
+  const optionalHistory = await getOptionalHistoryWithinBudget(
+    db,
+    professionalUserId,
+    input.patientId
+  );
+  const lastHistory =
+    optionalHistory.status === "available" ? optionalHistory.row : undefined;
+  const lastActivityAt = timestamp(lastHistory?.lastProfessionalActivityAt);
+  const lastActivityType = lastHistory?.lastProfessionalActivityType
+    ? String(lastHistory.lastProfessionalActivityType)
     : null;
-
   return {
     ...shared,
     authorizationId: String(context.authorizationId),
     lastActivityAt,
     lastActivityLabel:
-      lastActivityAt !== null && lastActivityType
-        ? getProfessionalHistoryEventLabel(lastActivityType)
-        : null,
+      optionalHistory.status === "unavailable"
+        ? "Temporariamente indisponível"
+        : lastActivityAt !== null && lastActivityType
+          ? getProfessionalHistoryEventLabel(lastActivityType)
+          : null,
     nextReviewAt: timestamp(context.nextReviewAt),
   };
 }

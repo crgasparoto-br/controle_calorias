@@ -7,6 +7,7 @@ import {
   professionalLabel,
   ProfessionalStatusBadge,
 } from "@/components/professional/ProfessionalUi";
+import { formatOperationalAlertReason } from "@/components/professional/formatOperationalAlertReason";
 import {
   Card,
   CardContent,
@@ -204,7 +205,7 @@ export default function ProfessionalOperationalAlertsPanel({
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {alert.reason}
+                    {formatOperationalAlertReason(alert.reason)}
                   </p>
                   <dl className="grid gap-1 text-xs text-muted-foreground">
                     <div>

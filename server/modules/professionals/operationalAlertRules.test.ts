@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOperationalAlertDedupeKey,
+  formatDateKeyPtBr,
   getDateKeyInZone,
   getNoFoodRecordsWindow,
   isOperationalAlertScopeActive,
@@ -24,6 +25,11 @@ describe("professional operational alert rules", () => {
     expect(getDateKeyInZone(tokyo.start, "Asia/Tokyo")).toBe("2026-07-18");
     expect(saoPaulo.end).toEqual(now);
     expect(tokyo.end).toEqual(now);
+  });
+
+  it("formats date keys using the pt-BR day/month/year order", () => {
+    expect(formatDateKeyPtBr("2026-07-29")).toBe("29/07/2026");
+    expect(formatDateKeyPtBr("valor-invalido")).toBe("valor-invalido");
   });
 
   it("supports timezone offsets with minutes", () => {

@@ -145,3 +145,7 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 - falha intermediária restaura todas as refeições tentadas em ordem inversa e reconstrói novamente o estado derivado;
 - falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
 - a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.
+
+## Metadados opcionais do contexto profissional
+
+A abertura do workspace profissional separa a consulta essencial de perfil, entitlement e autorização da leitura complementar do evento mais recente do histórico. A leitura complementar tem orçamento de 250 ms, cache curto e retry após TTL, mas uma query que excede o orçamento continua contabilizada até realmente terminar. O serviço limita globalmente essas operações pendentes a `min(4, connectionLimit - 1)`; quando o limite está ocupado, retorna **Temporariamente indisponível** sem iniciar outra query. Essa reserva impede que retries de metadados opcionais consumam todo o pool e preserva capacidade para revalidar acesso. **Não informado** permanece reservado para ausência confirmada de atividade.

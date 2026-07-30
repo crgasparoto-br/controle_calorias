@@ -117,6 +117,11 @@ function historyEventLabel(item: { label?: string | null }) {
   return item.label?.trim() || "Evento profissional registrado";
 }
 
+const PAUSE_TRACKING_TITLE =
+  "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada.";
+const END_TRACKING_TITLE =
+  "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta.";
+
 type AssessmentDraft = {
   objective: string;
   weightKg: string;
@@ -1538,6 +1543,7 @@ export default function ProfessionalPatientWorkspace() {
                 <>
                   <Button
                     variant="outline"
+                    title={PAUSE_TRACKING_TITLE}
                     disabled={transitionTracking.isPending}
                     onClick={() => transition("paused")}
                   >
@@ -1545,6 +1551,7 @@ export default function ProfessionalPatientWorkspace() {
                   </Button>
                   <Button
                     variant="destructive"
+                    title={END_TRACKING_TITLE}
                     disabled={transitionTracking.isPending}
                     onClick={() => transition("ended")}
                   >
@@ -1562,6 +1569,7 @@ export default function ProfessionalPatientWorkspace() {
                   </Button>
                   <Button
                     variant="destructive"
+                    title={END_TRACKING_TITLE}
                     disabled={transitionTracking.isPending}
                     onClick={() => transition("ended")}
                   >

@@ -16,8 +16,7 @@ const buttonVariants = cva(
           "border bg-transparent shadow-xs hover:bg-accent dark:bg-transparent dark:border-input dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent dark:hover:bg-accent/50",
+        ghost: "hover:bg-accent dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -41,27 +40,35 @@ function Button({
   variant,
   size,
   asChild = false,
+  children,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
   }) {
   const Comp = asChild ? Slot : "button";
-  const childText = React.Children.toArray(props.children)
+  const childText = React.Children.toArray(children)
     .filter(child => typeof child === "string")
     .join("")
     .trim();
 
-  if (variant === "outline" && className === "mt-4 rounded-full" && childText === "Adicionar exceção") {
+  if (
+    variant === "outline" &&
+    className === "mt-4 rounded-full" &&
+    childText === "Adicionar exceção"
+  ) {
     return null;
   }
 
+  // Domain-specific descriptions belong to the consuming workflow via explicit props.
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      {children}
+    </Comp>
   );
 }
 
