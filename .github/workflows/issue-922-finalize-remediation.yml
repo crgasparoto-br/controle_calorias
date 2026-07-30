@@ -1,0 +1,98 @@
+name: Issue 922 finalize remediation
+
+on:
+  push:
+    branches:
+      - feat/922-ai-capabilities-meal-whatsapp-rebased
+    paths:
+      - .audit/issue-922-docs.patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-922-finalize-remediation
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical documentation remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check .audit/issue-922-docs.patch
+          git apply .audit/issue-922-docs.patch
+          rm .audit/issue-922-docs.patch
+          rm .github/workflows/issue-922-finalize-remediation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(ai): remediate audit findings for issue 922"
+          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Focused production fallback controls
+        run: pnpm vitest run server/_core/ai/__tests__/configResolver.test.ts server/_core/ai/__tests__/crossProviderFallbackIntegration.test.ts
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify frozen working tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git rev-parse HEAD)" = "${FINAL_SHA}"
+
+      - name: Publish validated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          {
+            echo "## Issue #922 remediation"
+            echo ""
+            echo "Validated and published exact head: \`${FINAL_SHA}\`"
+            echo ""
+            echo "- production cross-provider fallback: fail-closed"
+            echo "- same-provider fallback: preserved"
+            echo "- canonical documentation: updated"
+            echo "- focused and full repository gates: passed"
+          } >> "$GITHUB_STEP_SUMMARY"

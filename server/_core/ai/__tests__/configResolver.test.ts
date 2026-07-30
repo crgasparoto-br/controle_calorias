@@ -119,6 +119,48 @@ describe("capability config resolver", () => {
     expect(resolved.fallback.effectivelyEnabled).toBe(false);
   });
 
+  it.each(["MEAL_TEXT", "MEAL_VISION", "WHATSAPP_INTENT"] as const)(
+    "keeps cross-provider fallback fail-closed in production for %s even with explicit opt-in",
+    (capability) => {
+      const prefix = `AI_${capability}`;
+      const resolved = resolveCapabilityConfig(capability, envWith({
+        NODE_ENV: "production",
+        OPENAI_API_KEY: "sk-primary",
+        GEMINI_API_KEY: "g-fallback",
+        [`${prefix}_PROVIDER`]: "openai",
+        [`${prefix}_FALLBACK_ENABLED`]: "true",
+        [`${prefix}_FALLBACK_PROVIDER`]: "gemini",
+        [`${prefix}_FALLBACK_MODEL`]: "gemini-2.5-flash",
+        [`${prefix}_CROSS_PROVIDER_FALLBACK_ENABLED`]: "true",
+      }));
+
+      expect(resolved.state).toBe("degraded");
+      expect(resolved.fallback.requested).toBe(true);
+      expect(resolved.fallback.crossProviderEnabled).toBe(true);
+      expect(resolved.fallback.effectivelyEnabled).toBe(false);
+      expect(
+        resolved.diagnostics.some((item) =>
+          item.includes("cross-provider fallback remains disabled in production"),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("keeps same-provider fallback available in production", () => {
+    const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
+      NODE_ENV: "production",
+      OPENAI_API_KEY: "sk-primary",
+      AI_MEAL_TEXT_PROVIDER: "openai",
+      AI_MEAL_TEXT_FALLBACK_ENABLED: "true",
+      AI_MEAL_TEXT_FALLBACK_PROVIDER: "openai",
+      AI_MEAL_TEXT_FALLBACK_MODEL: "gpt-4.1-mini",
+    }));
+
+    expect(resolved.state).toBe("ready");
+    expect(resolved.fallback.effectivelyEnabled).toBe(true);
+    expect(resolved.fallback.crossProviderEnabled).toBe(false);
+  });
+
   it("uses the fallback provider default instead of leaking the primary model", () => {
     const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
       OPENAI_API_KEY: "sk-test",

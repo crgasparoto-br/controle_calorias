@@ -368,6 +368,9 @@ export function resolveCapabilityConfig(
         );
       }
 
+      const productionCrossProviderBlocked =
+        isCrossProvider && readTrimmed(env, "NODE_ENV").toLowerCase() === "production";
+
       if (isCrossProvider && !crossProviderEnabled) {
         diagnostics.push(
           `capability=${capability} fallback provider=${fallbackProvider} differs from primary=${provider} but AI_${capability}_CROSS_PROVIDER_FALLBACK_ENABLED is not true; fallback disabled`,
@@ -378,6 +381,18 @@ export function resolveCapabilityConfig(
           provider: fallbackProvider,
           model: fallbackModel || null,
           crossProviderEnabled: false,
+        };
+        if (state === "ready") state = "degraded";
+      } else if (productionCrossProviderBlocked) {
+        diagnostics.push(
+          `capability=${capability} cross-provider fallback remains disabled in production until benchmark, privacy review and rollout approval from issue #927`,
+        );
+        fallback = {
+          requested: true,
+          effectivelyEnabled: false,
+          provider: fallbackProvider,
+          model: fallbackModel || null,
+          crossProviderEnabled: true,
         };
         if (state === "ready") state = "degraded";
       } else {
