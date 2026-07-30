@@ -183,6 +183,7 @@ async function buildRecentHistory(
     consumer: "slash_assistant",
     flow: "text",
     timeZone,
+    includeSummary: false,
     ...(conversationRepository ? { conversationRepository } : {}),
     ...(currentInboundExternalMessageId ? { currentInboundExternalMessageId } : {}),
   });

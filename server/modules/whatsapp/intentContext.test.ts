@@ -129,6 +129,21 @@ describe("buildWhatsappIntentContext", () => {
     expect(context.conversationSummary).toEqual({ summaryText: "resumo", fromMessageId: 1, toMessageId: count - 12 });
   });
 
+  it("não gera resumo quando o consumidor declara que não usa resumo", async () => {
+    const count = 20;
+    findRecentMessagesByUserMock.mockResolvedValue(
+      Array.from({ length: count }, (_, i) =>
+        buildMessage({ id: i + 1, sanitizedText: `mensagem ${i + 1}`, occurredAt: new Date(receivedAt.getTime() - (count - i) * 1000) }),
+      ),
+    );
+
+    const context = await buildWhatsappIntentContext(1, { receivedAt, includeSummary: false });
+
+    expect(context.truncated).toBe(true);
+    expect(context.conversationSummary).toBeNull();
+    expect(getOrRefreshConversationSummaryMock).not.toHaveBeenCalled();
+  });
+
   it("currentDomainSnapshot sempre consulta o banco, nunca o resumo", async () => {
     listMealsMock.mockResolvedValue([{ id: 99, mealLabel: "Almoço", occurredAt: receivedAt.toISOString(), items: [] }]);
     getOrRefreshConversationSummaryMock.mockResolvedValue({ summaryText: "usuário mencionou 999g de arroz ontem", fromMessageId: 1, toMessageId: 2 });

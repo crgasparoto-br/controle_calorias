@@ -14,7 +14,7 @@
 - Segredos devem vir do ambiente ou de armazenamento criptografado; nunca commitar tokens.
 - Mensagens de erro públicas não devem expor stack, SQL, token, URL assinada ou payload bruto.
 - Webhooks devem validar token e tratar payload inválido com segurança.
-- Histórico persistido do WhatsApp é entrada não confiável: consumidores LLM devem reinspecionar turnos inbound, excluir conteúdo bloqueado e delimitar conteúdo permitido; respostas outbound anteriores também devem ser delimitadas e ter marcadores forjados neutralizados, pois podem refletir conteúdo do usuário ou de fontes externas.
+- Histórico persistido do WhatsApp é entrada não confiável: consumidores LLM devem reinspecionar turnos inbound, excluir conteúdo bloqueado e delimitar conteúdo permitido; respostas outbound anteriores também devem ser delimitadas e ter marcadores forjados neutralizados, pois podem refletir conteúdo do usuário ou de fontes externas. Essa proteção é transitiva: o LLM resumidor recebe inbound e outbound delimitados, e todo resumo persistido é novamente delimitado antes de entrar nas instruções de outro consumidor.
 - Rotas administrativas devem usar `adminProcedure`.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.
 - Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.

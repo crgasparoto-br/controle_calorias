@@ -8,6 +8,7 @@ Esta matriz protege o consumidor `slash_assistant` quando uma pergunta atual usa
 | Mensagem inbound permitida | Texto sanitizado recuperado da janela persistente | O texto é envolvido por `buildUntrustedWhatsAppUserContent` |
 | Falsificação de delimitador | Texto contém marcadores internos de conteúdo não confiável | Os marcadores são neutralizados antes da composição do prompt |
 | Resposta anterior do assistente | Mensagem outbound persistida, inclusive com conteúdo refletido ou externo | A mensagem é delimitada como citação histórica não confiável e marcadores forjados são neutralizados |
+| Overflow resumido | Mensagens excedem o orçamento e incluem outbound com instrução refletida ou delimitador forjado | O payload do resumidor recebe o outbound delimitado; o resumo persistido é delimitado novamente antes de entrar no classificador |
 | Pergunta `/` corrente | A mensagem atual também está persistida no lifecycle | A pergunta aparece uma única vez e fica fora da janela histórica |
 | Mensagens concorrentes no mesmo segundo | Dois inbound possuem o mesmo `occurredAt`, mas `externalMessageId` distintos | Somente o inbound da requisição atual é excluído; o irmão concorrente permanece |
 | Timestamp ausente ou divergente | O instante usado pelo webhook difere do persistido | A identidade estável da Meta ainda exclui a mensagem corrente exatamente uma vez |
@@ -19,7 +20,9 @@ Esta matriz protege o consumidor `slash_assistant` quando uma pergunta atual usa
 
 - `server/modules/whatsapp/aiQuestionAssistant.persistedHistorySecurity.test.ts`
 - `server/modules/whatsapp/aiQuestionAssistant.history.test.ts`
+- `server/modules/whatsapp/conversationSummarySecurity.integration.test.ts`
+- `server/modules/whatsapp/conversationSummaryService.test.ts`
 - `server/modules/whatsapp/intentContext.currentMessage.test.ts`
 - `server/modules/whatsapp/intentContext.rollout.test.ts`
 
-A regressão principal usa o `buildWhatsappIntentContext` real com um repositório persistente controlado, mantém o rollout em modo `persistent`, inclui a pergunta corrente já persistida, executa uma pergunta posterior com `/` e inspeciona o payload real passado ao cliente OpenAI mockado na última fronteira externa. O teste deve falhar se o construtor canônico for bypassado, se a correlação usar apenas timestamp, se a mensagem corrente for duplicada, se um irmão concorrente for removido, se contexto expirado for enviado ou se qualquer marcador histórico for aceito sem neutralização.
+A regressão da rota `/` usa o `buildWhatsappIntentContext` real com um repositório persistente controlado, mantém o rollout em modo `persistent`, inclui a pergunta corrente já persistida e inspeciona o payload real passado ao cliente OpenAI mockado na última fronteira externa. Como `slash_assistant` declara `usesSummary:false`, o construtor não chama o resumidor nesse fluxo. A regressão transitiva separada força overflow, inspeciona o payload real de `invokeLLM`, persiste uma saída contendo marcadores forjados e comprova que o classificador a delimita novamente. Os controles devem falhar se a correlação usar apenas timestamp, se a mensagem corrente for duplicada, se um irmão concorrente for removido, se contexto expirado for enviado ou se qualquer mensagem ou resumo histórico atravessar uma fronteira LLM sem neutralização.

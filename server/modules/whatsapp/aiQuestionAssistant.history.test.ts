@@ -94,6 +94,7 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
       consumer: "slash_assistant",
       flow: "text",
       timeZone: "America/Sao_Paulo",
+      includeSummary: false,
     });
 
     const requestArgs = responsesCreateMock.mock.calls[0][0];

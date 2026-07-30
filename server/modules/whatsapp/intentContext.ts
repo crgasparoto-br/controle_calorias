@@ -179,6 +179,7 @@ export async function buildWhatsappIntentContext(
     conversationRepository?: WhatsAppConversationRepository;
     timeZone?: string;
     currentInboundExternalMessageId?: string | null;
+    includeSummary?: boolean;
   } = {},
 ): Promise<WhatsappIntentContext> {
   const receivedAt = options.receivedAt ?? new Date();
@@ -242,7 +243,11 @@ export async function buildWhatsappIntentContext(
     && rolloutSelection.persistentEligible
     && isShadowIntentComparisonEnabled();
   let persistentSummary: WhatsappIntentContext["conversationSummary"] = null;
-  if (overflow.length > 0 && (rolloutSelection.source === "persistent" || compareStructuredIntent)) {
+  if (
+    options.includeSummary !== false
+    && overflow.length > 0
+    && (rolloutSelection.source === "persistent" || compareStructuredIntent)
+  ) {
     persistentSummary = await getOrRefreshConversationSummary({
       userId,
       conversationId: overflow[0].conversationId,
