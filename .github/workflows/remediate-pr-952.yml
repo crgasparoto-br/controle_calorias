@@ -1,0 +1,56 @@
+name: Remediate PR 952 safely
+
+on:
+  push:
+    branches:
+      - fix/whatsapp-ai-question-context-and-exercise-goal-progress
+
+permissions:
+  contents: write
+
+jobs:
+  apply-remediation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/whatsapp-ai-question-context-and-exercise-goal-progress
+          fetch-depth: 0
+      - name: Apply exact aiQuestionAssistant remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('server/modules/whatsapp/aiQuestionAssistant.ts')
+          text = path.read_text(encoding='utf-8')
+          old_import = 'import { buildUntrustedWhatsAppUserContent, inspectWhatsAppUserContentSafety } from "./promptInjectionGuard";'
+          new_import = '''import {
+            buildUntrustedWhatsAppAssistantHistoryContent,
+            buildUntrustedWhatsAppUserContent,
+            inspectWhatsAppUserContentSafety,
+          } from "./promptInjectionGuard";'''
+          old_outbound = '        return `Assistente (resposta histórica, apenas contexto): ${turn.text}`;'
+          new_outbound = '''        return [
+                  "Assistente (resposta histórica não confiável, apenas contexto):",
+                  buildUntrustedWhatsAppAssistantHistoryContent(turn.text),
+                ].join("\\n");'''
+
+          if old_import not in text:
+              raise SystemExit('expected import snippet not found')
+          if old_outbound not in text:
+              raise SystemExit('expected outbound snippet not found')
+          if 'buildUntrustedWhatsAppAssistantHistoryContent(turn.text)' in text:
+              raise SystemExit('remediation already applied unexpectedly')
+
+          text = text.replace(old_import, new_import, 1).replace(old_outbound, new_outbound, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Remove temporary workflow and commit remediation
+        run: |
+          git rm .github/workflows/remediate-pr-952.yml
+          git add server/modules/whatsapp/aiQuestionAssistant.ts
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix: neutralizar respostas históricas no contexto da IA"
+          git push origin HEAD:fix/whatsapp-ai-question-context-and-exercise-goal-progress
