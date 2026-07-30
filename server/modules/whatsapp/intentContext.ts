@@ -160,13 +160,29 @@ function splitCurrentInboundMessage(
     }
   }
 
-  return currentIndex < 0
-    ? { messages, currentInbound: null, correlation }
-    : {
-        messages: messages.filter((_message, index) => index !== currentIndex),
-        currentInbound: messages[currentIndex],
-        correlation,
-      };
+  if (currentIndex < 0) {
+    return {
+      messages,
+      currentInbound: null,
+      correlation,
+      crossConversationMessagesExcluded: 0,
+    };
+  }
+
+  const currentInbound = messages[currentIndex];
+  // A leitura por usuário preserva mensagens de conversas expiradas para retenção e auditoria.
+  // Depois de correlacionar a inbound atual, nenhuma dessas conversas pode atravessar TTL, janela ou resumo.
+  const contextMessages = messages.filter((message, index) =>
+    index !== currentIndex
+    && message.conversationId === currentInbound.conversationId,
+  );
+
+  return {
+    messages: contextMessages,
+    currentInbound,
+    correlation,
+    crossConversationMessagesExcluded: messages.length - contextMessages.length - 1,
+  };
 }
 
 export async function buildWhatsappIntentContext(
@@ -211,6 +227,7 @@ export async function buildWhatsappIntentContext(
     messages: contextMessages,
     currentInbound,
     correlation: currentInboundCorrelation,
+    crossConversationMessagesExcluded,
   } = splitCurrentInboundMessage(
     persistedMessages,
     receivedAt,
@@ -306,6 +323,7 @@ export async function buildWhatsappIntentContext(
       capturedMessageCount: persistedMessages.length,
       currentInboundExcluded: Boolean(currentInbound),
       currentInboundCorrelation,
+      crossConversationMessagesExcluded,
       contextSource: rolloutSelection.source,
       contextMode: rolloutSelection.mode,
       contextFlow: rolloutSelection.flow,
