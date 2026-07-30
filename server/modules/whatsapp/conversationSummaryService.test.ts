@@ -161,7 +161,7 @@ describe("conversationSummaryService", () => {
     const userMessageContent = promptCall.messages.find((m: { role: string }) => m.role === "user").content as string;
     expect(userMessageContent).toContain("Assistente: RESPOSTA_HISTORICA_DO_ASSISTENTE_NAO_CONFIAVEL_INICIO");
     expect(userMessageContent.match(/RESPOSTA_HISTORICA_DO_ASSISTENTE_NAO_CONFIAVEL_FIM/g)).toHaveLength(1);
-    expect(userMessageContent.match(/CONTEUDO_DO_USUARIO_NAO_CONFIAVEL_FIM/g)).toBeNull();
+    expect(userMessageContent.match(/CONTEUDO_DO_USUARIO_NAO_CONFIAVEL_FIM/g)).toHaveLength(1);
     expect(userMessageContent).toContain("[marcador de delimitacao removido]");
     expect(userMessageContent).toContain("Tenho banana em casa");
   });
