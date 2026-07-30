@@ -7,9 +7,10 @@ A camada de intents LLM interpreta mensagens textuais do WhatsApp que não foram
 ## Configuração operacional
 
 - `OPENAI_WHATSAPP_INTENT_ENABLED`: permite desligar a camada LLM com `false`, `0`, `no` ou `off`.
-- `OPENAI_WHATSAPP_INTENT_MODEL`: define o modelo usado para interpretar intents; quando ausente, usa `OPENAI_TEXT_MODEL` e depois o padrão interno.
-- `OPENAI_WHATSAPP_INTENT_TIMEOUT_MS`: define o tempo máximo da chamada de interpretação antes de fallback seguro.
-- `OPENAI_WHATSAPP_INTENT_RETRIES`: define a quantidade de retentativas em falha de provider, limitada internamente para evitar travar o webhook.
+- `AI_WHATSAPP_INTENT_PROVIDER` e `AI_WHATSAPP_INTENT_MODEL`: selecionam provider e modelo como um par. Sem as variáveis novas, o resolvedor usa a compatibilidade do provider (`AI_VISION_PROVIDER`) e o modelo correspondente (`OPENAI_MODEL` ou `GEMINI_MODEL`).
+- `AI_WHATSAPP_INTENT_TIMEOUT_MS`, `AI_WHATSAPP_INTENT_MAX_ATTEMPTS` e `AI_WHATSAPP_INTENT_FALLBACK_*`: configuram a política independente da capacidade; fallback permanece desabilitado por padrão.
+- `OPENAI_WHATSAPP_INTENT_MODEL`, `OPENAI_TEXT_MODEL`, `OPENAI_WHATSAPP_INTENT_TIMEOUT_MS`, `OPENAI_WHATSAPP_INTENT_RETRIES` e `_ENABLED` permanecem temporariamente compatíveis. Para providers `openai`/`openai-compatible`, a precedência legada de modelo é `OPENAI_WHATSAPP_INTENT_MODEL` > `OPENAI_TEXT_MODEL` > modelo resolvido; essas variáveis nunca substituem o modelo Gemini.
+- Sem variáveis novas ou legadas de timeout/tentativas, a capacidade preserva o baseline anterior à migração: timeout de 8 segundos e 1 retry, totalizando no máximo 2 chamadas primárias.
 
 ## Fluxo
 
@@ -27,7 +28,7 @@ Quando a mensagem puder ser tanto registro quanto sugestão, como `almoço com f
 
 ## Fallback seguro
 
-A camada contextual volta para a classificação determinística quando o LLM está desligado, falha, expira, retorna JSON inválido ou retorna payload incompatível. Esses casos não devem impedir o WhatsApp de continuar operacional.
+A camada contextual volta para a classificação determinística quando o LLM está desligado ou quando o executor comum termina sem resultado utilizável. Timeout, rede, rate limit, saída vazia, JSON inválido e payload inválido podem consumir as tentativas/fallback configurados. Autenticação, modelo inexistente, incompatibilidade, bloqueio de segurança, configuração inválida e erro desconhecido são terminais e não disparam segundo envio. Esses casos não devem impedir o WhatsApp de continuar operacional.
 
 ## Auditoria
 
@@ -51,3 +52,8 @@ A consulta permite filtrar por intenção, erro, baixa confiança e motivo de fa
 - Testar que pedidos de sugestão de refeição não criam refeição nem alimento consumido.
 - Testar que mensagens ambíguas entre sugestão e registro pedem confirmação antes do fallback nutricional.
 - Testar auditoria sem texto cru e com filtros por erro, baixa confiança, intenção e fallback.
+
+
+## Fronteira de execução #922
+
+`intentInterpreter.ts` usa diretamente `resolveCapabilityConfig("WHATSAPP_INTENT")` e `executeResolvedCapability`. Toda a precedência legada de modelo, timeout e tentativas fica centralizada em `server/_core/ai/configResolver.ts`; o consumidor não altera a política resolvida. O adapter recebe o `AbortSignal` da tentativa e a resposta passa por `domainTextResponse.ts`, que remove `raw` do SDK antes da validação Zod. Não existe loop local concorrente de timeout/retry; outras capacidades mantêm os defaults globais do resolvedor.

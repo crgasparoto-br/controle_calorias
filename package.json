@@ -27,6 +27,7 @@
     "foods:import:taco": "tsx scripts/import-foods/import_taco.ts",
     "foods:import:tbca": "tsx scripts/import-foods/import_tbca.ts",
     "foods:backfill-classification": "tsx scripts/backfill-food-classification.ts",
+    "foods:review-classification": "tsx scripts/review-food-classification.ts",
     "db:retire-professional-legacy": "tsx scripts/retire-professional-legacy-preferences.ts",
     "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply"
   },

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "profile": "critical",
+  "reasons": ["external AI providers", "cross-provider data transfer", "WhatsApp conversational routing", "nutrition extraction", "privacy-sensitive media"],
+  "required_gates": ["pnpm check", "pnpm test", "pnpm architecture:check", "pnpm professional-retirement:check", "pnpm docs:check", "pnpm build", "pnpm agent:check"],
+  "adversarial_scenarios": ["authentication error without retry", "Gemini real meal schema", "Gemini real intent anyOf schema", "provider/model discriminant", "items empty no second call", "cross-provider explicit opt-in", "deterministic routing without LLM", "SDK raw absent in domain"]
+}

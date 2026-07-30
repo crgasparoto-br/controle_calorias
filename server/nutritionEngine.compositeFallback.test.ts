@@ -7,6 +7,12 @@ vi.mock("./_core/aiProvider", () => ({
     createTextResponse: createTextResponseMock,
   }),
 }));
+vi.mock("./_core/ai/providerResolver", () => ({
+  getAiProviderById: () => ({
+    createTextResponse: (request: unknown) => createTextResponseMock(request),
+  }),
+}));
+
 
 describe("nutritionEngine composite text fallback", () => {
   beforeEach(() => {

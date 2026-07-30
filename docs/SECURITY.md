@@ -33,3 +33,7 @@
 - [ ] Erros conhecidos são traduzidos para mensagens seguras?
 - [ ] Não há segredo em código, teste ou documentação?
 - [ ] Tokens e telefones não aparecem completos em logs?
+
+### Fronteira dos consumidores #922
+
+Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK e `usage.raw`. O executor preserva a taxonomia fail-closed: autenticação, modelo inexistente, operação incompatível, bloqueio de segurança e configuração inválida não podem provocar reenvio ao mesmo provider nem a fallback.

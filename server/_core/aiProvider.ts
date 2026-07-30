@@ -4,6 +4,7 @@ import type {
   ResponseCreateParamsNonStreaming,
 } from "openai/resources/responses/responses";
 import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
+import { assertOpenAiStructuredOutputSchema } from "./ai/openAiStructuredOutputSchema";
 import { ENV } from "./env";
 import { GeminiProvider } from "./geminiProvider";
 import { createOpenAiClient } from "./openaiClient";
@@ -136,6 +137,7 @@ function buildTextConfig(
   format: AiProviderResponseFormat | undefined,
 ): ResponseCreateParamsNonStreaming["text"] | undefined {
   if (!format || format.type === "text") return undefined;
+  assertOpenAiStructuredOutputSchema(format.schema);
   return {
     format: {
       type: "json_schema",

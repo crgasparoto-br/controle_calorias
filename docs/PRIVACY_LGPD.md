@@ -93,7 +93,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 - `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
 - Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
 - Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
-- Nenhum consumidor foi migrado para o novo resolvedor nesta subissue; o adapter Gemini foi mantido compatível com o schema real já usado pelo consumidor legado.
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
 
 ## Riscos conhecidos e cuidados recorrentes
 
@@ -113,3 +113,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 - [ ] Dados de IA, mídia, WhatsApp e integrações externas têm retenção intencional?
 - [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas, inclusive totais e repetição?
 - [ ] Documentação canônica foi atualizada?
+
+### Aplicação em refeição e intenção (#922)
+
+Cada capacidade possui opt-in próprio de fallback. Habilitar fallback em `MEAL_TEXT` não habilita `MEAL_VISION` nem `WHATSAPP_INTENT`. Resultado funcional, inclusive `items: []`, não gera segundo envio. Respostas nativas `raw` permanecem dentro da camada `_core`; serviços de refeição e WhatsApp recebem somente texto/identificador e usage numérico sanitizado. `FOOD_CLASSIFICATION` não envia dados externamente nesta fase.

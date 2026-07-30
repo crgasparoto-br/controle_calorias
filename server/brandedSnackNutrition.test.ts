@@ -10,6 +10,12 @@ vi.mock("./_core/aiProvider", () => ({
     createTextResponse: createTextResponseMock,
   }),
 }));
+vi.mock("./_core/ai/providerResolver", () => ({
+  getAiProviderById: () => ({
+    createTextResponse: (request: unknown) => createTextResponseMock(request),
+  }),
+}));
+
 
 vi.mock("./_core/openaiClient", () => ({
   isOpenAiConfigured: () => true,

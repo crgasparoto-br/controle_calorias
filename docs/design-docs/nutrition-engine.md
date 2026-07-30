@@ -50,3 +50,10 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Antes de alterar confirmação de refeição, conferir impactos em dashboard, relatórios, favoritos e hábitos.
 - Antes de alterar cálculo nutricional, adicionar teste de regressão.
 - Antes de alterar prompts ou parsing de IA, revisar `docs/PRIVACY_LGPD.md`.
+
+
+## Execução por capacidade de refeição (#922)
+
+`extractWithAi` seleciona `MEAL_TEXT` sem imagem e `MEAL_VISION` com imagem. Ambas usam `executeResolvedCapability`, propagam `AbortSignal`, preservam o schema real e aplicam Zod após qualquer tentativa primária ou fallback. A fronteira `_core/ai/domainTextResponse.ts` remove respostas `raw` dos SDKs antes de entregar dados ao domínio.
+
+A classificação NOVA permanece no objeto `foodClassification` da mesma resposta. Não há classificador separado, chamada por item ou consumidor de `FOOD_CLASSIFICATION`. Classificações históricas sem correspondência determinística ficam para revisão/curadoria, sem reclassificação externa automática. Escalonamento de qualidade não está ativo nesta entrega e, se evoluir, pertence somente a `MEAL_VISION` com configuração explícita e separado do fallback operacional.

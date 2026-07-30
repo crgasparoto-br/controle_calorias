@@ -58,7 +58,8 @@ Serviços de domínio devem depender da interface interna do provider, não do S
 - Fase 5 concluída: a geração visual auxiliar foi migrada para helper OpenAI opcional e não bloqueante.
 - Fase 6 concluída: transcrição e inferência nutricional ficaram livres do provider legado; o único uso legado remanescente ficou documentado no assistente educativo.
 - Fase 7 está preparada: checklist operacional e smoke tests foram organizados para Render, Vercel e validação de canais.
-- Fase 8 implementada para a fundação (#921) e corrigida após auditoria: registro, matriz vinculada aos métodos dos adapters, resolvedor fail-closed, executor que bloqueia configurações não executáveis, cancelamento propagado até os SDKs e migração Gemini com `responseJsonSchema`. A conclusão permanece condicionada à auditoria independente do SHA final; nenhum consumidor foi migrado para o novo resolvedor nesta fase.
+- Fase 8 concluída para a fundação (#921): registro, matriz vinculada aos métodos dos adapters, resolvedor fail-closed, executor, cancelamento propagado e Gemini com `responseJsonSchema`.
+- Fase 9 implementa #922: `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam a fundação comum; NOVA permanece embutida e `FOOD_CLASSIFICATION` segue sem consumidor externo.
 
 ## Fases
 
@@ -123,11 +124,21 @@ Status: implementação corretiva preparada; aguarda auditoria independente do S
 - `geminiProvider.ts` usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites presentes nos schemas reais. O consumidor legado de refeição é exercitado pelo entrypoint `mealAiExtraction` nas variantes textual e visual, usando o data URL inline produzido pelo WhatsApp.
 - `OpenAiProvider.createEmbeddings` fecha o suporte declarado pela matriz e normaliza vetores/usage. O consumidor legado de embeddings permanece sem migração para o novo resolvedor.
 - `AiProviderTextResponse.usage` e `AiProviderEmbeddingResponse.usage` normalizam metadados de tokens quando disponíveis.
-- Nenhum consumidor existente (`mealAiExtraction`, `aiQuestionAssistant`, `catalogSemanticSearch`, `intentInterpreter`, `assistant/service.ts`) foi migrado para o resolvedor. `AI_PROVIDER` e o assistente Forge legado não foram alterados.
-- Variáveis legadas continuam funcionando. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics`; nesta fase ele ainda não é emitido como log de aplicação porque nenhum consumidor chama o resolvedor.
+- `mealAiExtraction` e `intentInterpreter` foram migrados em #922. `aiQuestionAssistant`, `catalogSemanticSearch`, transcrição, imagem e `assistant/service.ts` permanecem nas fases/subissues próprias. `AI_PROVIDER` e o assistente Forge legado não foram alterados.
+- Variáveis legadas continuam funcionando. Consumidores migrados recebem configuração já pareada por provider/modelo; `OPENAI_WHATSAPP_INTENT_MODEL` só é aplicável a adapters OpenAI/OpenAI-compatible. Diagnósticos `[deprecated]` permanecem sanitizados.
 - Degradação funcional local permanece responsabilidade do consumidor e é distinta de fallback entre providers.
 
 Próximas subissues de #917 devem migrar cada consumidor individualmente para `resolveCapabilityConfig` + `executeResolvedCapability`, uma capacidade por vez. A operação fornecida ao executor deve encaminhar `context.signal` para as opções do método `AiProvider`; `executeWithPolicy` permanece uma primitiva interna de baixo nível e não deve ser chamada diretamente pelos consumidores. Cada migração deve manter validação da saída e teste discriminante pelo entrypoint real.
+
+### Fase 9 - Refeição e intenção por capacidade (#922)
+
+Status: implementada na PR da issue; sujeita aos gates e auditoria controller-adversarial do SHA congelado.
+
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam `resolveCapabilityConfig` e `executeResolvedCapability`.
+- Zod continua a fronteira final depois de primário ou fallback.
+- A classificação NOVA permanece no mesmo Structured Output; o backfill histórico não executa nova inferência.
+- A fronteira de domínio remove `raw` dos SDKs.
+- Precedência conversacional e contratos persistentes do WhatsApp não foram alterados.
 
 ## Gates
 

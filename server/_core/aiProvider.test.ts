@@ -118,6 +118,9 @@ describe("openai provider foundation", () => {
         name: "meal_extraction",
         schema: {
           type: "object",
+          additionalProperties: false,
+          required: [],
+          properties: {},
         },
       },
     });
@@ -142,6 +145,9 @@ describe("openai provider foundation", () => {
           name: "meal_extraction",
           schema: {
             type: "object",
+            additionalProperties: false,
+            required: [],
+            properties: {},
           },
           strict: true,
         },

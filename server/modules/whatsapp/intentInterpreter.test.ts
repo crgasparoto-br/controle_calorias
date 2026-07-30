@@ -2,9 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WhatsappIntentContext } from "./intentContext";
 
 const createTextResponseMock = vi.hoisted(() => vi.fn());
+const resolvedProviderIds = vi.hoisted((): string[] => []);
 
-vi.mock("../../_core/aiProvider", () => ({
-  getAiProvider: () => ({ createTextResponse: createTextResponseMock }),
+vi.mock("../../_core/ai/providerResolver", () => ({
+  getAiProviderById: (provider: string) => ({
+    createTextResponse: (request: unknown, options?: unknown) => {
+      resolvedProviderIds.push(provider);
+      return createTextResponseMock(request, options);
+    },
+  }),
 }));
 
 import { classifyWhatsappMessageDeterministically, interpretWhatsappMessageWithDiagnostics } from "./intentInterpreter";
@@ -154,24 +160,25 @@ describe("classifyWhatsappMessageDeterministically", () => {
 });
 
 describe("interpretWhatsappMessageWithDiagnostics", () => {
-  const originalEnabled = process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
-  const originalRetries = process.env.OPENAI_WHATSAPP_INTENT_RETRIES;
-  const originalModel = process.env.OPENAI_WHATSAPP_INTENT_MODEL;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
     createTextResponseMock.mockReset();
+    resolvedProviderIds.length = 0;
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.AI_VISION_PROVIDER;
+    delete process.env.GEMINI_MODEL;
     delete process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
     process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "1";
     process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("AI_WHATSAPP_INTENT_")) delete process.env[key];
+    }
   });
 
   afterEach(() => {
-    if (originalEnabled === undefined) delete process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
-    else process.env.OPENAI_WHATSAPP_INTENT_ENABLED = originalEnabled;
-    if (originalRetries === undefined) delete process.env.OPENAI_WHATSAPP_INTENT_RETRIES;
-    else process.env.OPENAI_WHATSAPP_INTENT_RETRIES = originalRetries;
-    if (originalModel === undefined) delete process.env.OPENAI_WHATSAPP_INTENT_MODEL;
-    else process.env.OPENAI_WHATSAPP_INTENT_MODEL = originalModel;
+    process.env = { ...originalEnv };
   });
 
   it("usa regra deterministica segura antes de chamar LLM", async () => {
@@ -239,7 +246,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     await interpretWhatsappMessageWithDiagnostics("me mostra meus detalhes de alimentação por favor", context);
 
-    expect(createTextResponseMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(createTextResponseMock.mock.calls[0][0]).toEqual(expect.objectContaining({
       input: [expect.objectContaining({
         role: "user",
         content: [expect.objectContaining({
@@ -304,52 +311,106 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
   });
 
   it("cai para deterministico quando o LLM retorna JSON invalido", async () => {
-    createTextResponseMock.mockResolvedValueOnce({ outputText: "nao-json" });
+    createTextResponseMock.mockResolvedValue({ id: "bad-json", outputText: "nao-json", raw: {} });
 
     const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_json");
     expect(result.fallbackReason).toBe("invalid_json");
     expect(result.operationalTrace).toEqual(expect.objectContaining({
       strategy: "safe_fallback",
       modelName: "gpt-4.1-mini",
-      estimatedCostUnits: 1,
+      estimatedCostUnits: 2,
       fallbackReason: "invalid_json",
     }));
   });
 
   it("cai para deterministico quando o payload LLM nao valida", async () => {
-    createTextResponseMock.mockResolvedValueOnce({ outputText: llmIntentJson({ confidence: 1.2 }) });
+    createTextResponseMock.mockResolvedValue({ id: "bad-payload", outputText: llmIntentJson({ confidence: 1.2 }), raw: {} });
 
     const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_payload");
     expect(result.fallbackReason).toBe("invalid_payload");
     expect(result.operationalTrace).toEqual(expect.objectContaining({
       strategy: "safe_fallback",
       modelName: "gpt-4.1-mini",
-      estimatedCostUnits: 1,
+      estimatedCostUnits: 2,
       fallbackReason: "invalid_payload",
     }));
   });
 
   it("retenta falha do provider antes de cair para deterministico", async () => {
-    createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
+    createTextResponseMock.mockRejectedValue(Object.assign(new Error("provider unavailable"), { code: "ECONNRESET" }));
 
     const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(result.source).toBe("deterministic");
     expect(result.fallbackReason).toBe("api_error");
-    expect(result.errorCode).toBe("api_error");
+    expect(result.errorCode).toBe("network");
     expect(result.operationalTrace).toEqual(expect.objectContaining({
       strategy: "safe_fallback",
       modelName: "gpt-4.1-mini",
       estimatedCostUnits: 2,
       fallbackReason: "api_error",
     }));
+  });
+
+  it("keeps a legacy Gemini provider paired with the Gemini model", async () => {
+    process.env.AI_VISION_PROVIDER = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.GEMINI_MODEL = "gemini-intent-legacy";
+    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-must-not-leak";
+    createTextResponseMock.mockResolvedValue({ id: "gemini", outputText: llmIntentJson(), raw: {} });
+
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+
+    expect(result.source).toBe("llm");
+    expect(resolvedProviderIds).toEqual(["gemini"]);
+    expect(createTextResponseMock.mock.calls[0][0].model).toBe("gemini-intent-legacy");
+  });
+
+  it("does not retry or invoke fallback on authentication errors", async () => {
+    process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS = "3";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_ENABLED = "true";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_PROVIDER = "gemini";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_MODEL = "gemini-intent-fallback";
+    process.env.AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED = "true";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    createTextResponseMock.mockRejectedValue(Object.assign(new Error("invalid API key"), { status: 401 }));
+
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+    expect(resolvedProviderIds).toEqual(["openai"]);
+    expect(result.source).toBe("deterministic");
+    expect(result.fallbackReason).toBe("api_error");
+    expect(result.errorCode).toBe("authentication");
+  });
+
+  it("uses the resolved fallback adapter and model once after an operational failure", async () => {
+    process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_ENABLED = "true";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_PROVIDER = "gemini";
+    process.env.AI_WHATSAPP_INTENT_FALLBACK_MODEL = "gemini-intent-fallback";
+    process.env.AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED = "true";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    createTextResponseMock
+      .mockRejectedValueOnce(Object.assign(new Error("network unavailable"), { code: "ECONNRESET" }))
+      .mockResolvedValueOnce({ id: "fallback", outputText: llmIntentJson(), raw: {} });
+
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
+
+    expect(result.source).toBe("llm");
+    expect(resolvedProviderIds).toEqual(["openai", "gemini"]);
+    expect(createTextResponseMock.mock.calls[1][0].model).toBe("gemini-intent-fallback");
+    expect(result.operationalTrace.estimatedCostUnits).toBe(2);
+    expect(result.operationalTrace.modelName).toBe("gemini-intent-fallback");
   });
 
   it("mantem baixa confianca retornada pelo LLM para decisao do executor", async () => {

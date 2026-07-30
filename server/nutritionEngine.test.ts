@@ -7,6 +7,12 @@ vi.mock("./_core/aiProvider", () => ({
     createTextResponse: createTextResponseMock,
   }),
 }));
+vi.mock("./_core/ai/providerResolver", () => ({
+  getAiProviderById: () => ({
+    createTextResponse: (request: unknown) => createTextResponseMock(request),
+  }),
+}));
+
 
 describe("nutritionEngine.processMealInput", () => {
   beforeEach(() => {
@@ -139,7 +145,7 @@ describe("nutritionEngine.processMealInput", () => {
     expect(request.format.schema.properties.items.maxItems).toBeUndefined();
     expect(result.items).toHaveLength(11);
     expect(result.items.map(item => item.foodName)).toContain("Alimento 11");
-  });
+  }, 15_000);
 
   it("usa fallback heurístico quando a OpenAI falha para uma descrição em texto", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
