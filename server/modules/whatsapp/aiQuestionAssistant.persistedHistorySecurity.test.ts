@@ -154,6 +154,7 @@ describe("segurança do histórico persistido na rota /", () => {
       receivedAt,
       userTimezone: "America/Sao_Paulo",
       conversationRepository: repository,
+      externalMessageId: "wamid.4",
     });
 
     expect(repository.findRecentMessagesByUser).toHaveBeenCalledWith(42, 50);
@@ -181,6 +182,89 @@ describe("segurança do histórico persistido na rota /", () => {
     expect(logInferenceEvent).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.history.context_found",
       detail: expect.stringContaining('"currentInboundExcluded":true'),
+    }));
+  });
+
+  it("exclui a pergunta corrente pela identidade sem remover um inbound concorrente no mesmo segundo", async () => {
+    const receivedAt = new Date("2026-07-29T16:48:00Z");
+    const repository = {
+      findRecentMessagesByUser: vi.fn(async () => [
+        message({
+          id: 1,
+          direction: "inbound",
+          text: "Tenho maçã em casa",
+          occurredAt: new Date("2026-07-29T16:47:00Z"),
+        }),
+        message({
+          id: 4,
+          direction: "inbound",
+          text: currentQuestion,
+          occurredAt: receivedAt,
+        }),
+        message({
+          id: 5,
+          direction: "inbound",
+          text: "Também tenho iogurte",
+          occurredAt: receivedAt,
+        }),
+      ]),
+    } as unknown as WhatsAppConversationRepository;
+
+    await executeWhatsappAiQuestionIntent(42, {
+      text: currentQuestion,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      conversationRepository: repository,
+      externalMessageId: "wamid.4",
+    });
+
+    const request = createResponse.mock.calls[0][0];
+    const prompt = request.input[0].content[0].text as string;
+
+    expect(prompt).toContain("Tenho maçã em casa");
+    expect(prompt).toContain("Também tenho iogurte");
+    expect(prompt.match(/quantas calorias consumi hoje\?/g)).toHaveLength(1);
+    expect(logInferenceEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.history.context_found",
+      detail: expect.stringContaining('"currentInboundCorrelation":"external_message_id"'),
+    }));
+  });
+
+  it("não envia contexto anterior ao TTL mesmo quando a pergunta corrente já está persistida", async () => {
+    const receivedAt = new Date("2026-07-29T16:48:00Z");
+    const repository = {
+      findRecentMessagesByUser: vi.fn(async () => [
+        message({
+          id: 1,
+          direction: "inbound",
+          text: "CONTEXTO_EXPIRADO_NAO_DEVE_SER_ENVIADO",
+          occurredAt: new Date(receivedAt.getTime() - 31 * 60_000),
+        }),
+        message({
+          id: 4,
+          direction: "inbound",
+          text: currentQuestion,
+          occurredAt: receivedAt,
+        }),
+      ]),
+    } as unknown as WhatsAppConversationRepository;
+
+    await executeWhatsappAiQuestionIntent(42, {
+      text: currentQuestion,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      conversationRepository: repository,
+      externalMessageId: "wamid.4",
+    });
+
+    const request = createResponse.mock.calls[0][0];
+    const prompt = request.input[0].content[0].text as string;
+
+    expect(prompt).not.toContain("CONTEXTO_EXPIRADO_NAO_DEVE_SER_ENVIADO");
+    expect(prompt).not.toContain("Histórico recente da conversa no WhatsApp");
+    expect(logInferenceEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.history.context_expired",
+      detail: expect.stringContaining('"conversationActive":false'),
     }));
   });
 });

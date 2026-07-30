@@ -144,7 +144,13 @@ describe("buildWhatsappIntentContext", () => {
     findRecentMessagesByUserMock.mockResolvedValue([
       buildMessage({ id: 1, sanitizedText: "mensagem antiga", occurredAt: new Date(receivedAt.getTime() - WHATSAPP_CONVERSATION_ACTIVE_TTL_MS - 1000) }),
     ]);
-    expect((await buildWhatsappIntentContext(1, { receivedAt })).conversationActive).toBe(false);
+    const context = await buildWhatsappIntentContext(1, { receivedAt });
+    expect(context.conversationActive).toBe(false);
+    expect(context.recentTurns).toEqual([]);
+    expect(context.contextRead.persistentCount).toBe(0);
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.history.context_expired",
+    }));
   });
 
   it("conversationActive é true quando a última mensagem está dentro do TTL", async () => {

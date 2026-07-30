@@ -176,6 +176,7 @@ async function buildRecentHistory(
   receivedAt: Date,
   timeZone: string,
   conversationRepository?: WhatsAppConversationRepository,
+  currentInboundExternalMessageId?: string | null,
 ) {
   const context = await buildWhatsappIntentContext(userId, {
     receivedAt,
@@ -183,6 +184,7 @@ async function buildRecentHistory(
     flow: "text",
     timeZone,
     ...(conversationRepository ? { conversationRepository } : {}),
+    ...(currentInboundExternalMessageId ? { currentInboundExternalMessageId } : {}),
   });
 
   let blockedInboundCount = 0;
@@ -277,6 +279,7 @@ export async function executeWhatsappAiQuestionIntent(
     receivedAt?: Date;
     userTimezone?: string | null;
     conversationRepository?: WhatsAppConversationRepository;
+    externalMessageId?: string | null;
   },
 ): Promise<WhatsappAiQuestionResult | null> {
   if (!isWhatsappAiQuestionText(input.text)) {
@@ -311,7 +314,13 @@ export async function executeWhatsappAiQuestionIntent(
   try {
     const [knowledgeBase, recentHistory] = await Promise.all([
       buildUserKnowledgeBase(userId, receivedAt, timeZone),
-      buildRecentHistory(userId, receivedAt, timeZone, input.conversationRepository),
+      buildRecentHistory(
+        userId,
+        receivedAt,
+        timeZone,
+        input.conversationRepository,
+        input.externalMessageId,
+      ),
     ]);
     const reply = await answerWithOpenAi(question, knowledgeBase, recentHistory);
 

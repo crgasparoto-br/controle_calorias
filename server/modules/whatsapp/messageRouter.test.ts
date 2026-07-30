@@ -148,9 +148,16 @@ describe("resolveWhatsAppPrecedenceGate", () => {
       detail: "detalhe",
     });
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 1, text: "/quantas calorias hoje?" });
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 1,
+      text: "/quantas calorias hoje?",
+      messageId: "wamid.current",
+    });
 
     expect(decision).toEqual(expect.objectContaining({ step: "ai_question" }));
+    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledWith(1, expect.objectContaining({
+      externalMessageId: "wamid.current",
+    }));
     expect(executeWhatsappDeleteIntentMock).not.toHaveBeenCalled();
   });
 

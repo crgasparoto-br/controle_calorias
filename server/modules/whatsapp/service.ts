@@ -283,6 +283,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     text,
     receivedAt,
     userTimezone,
+    externalMessageId: input.messageId,
   });
   if (aiQuestion) {
     logInferenceEvent({

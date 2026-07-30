@@ -14,7 +14,7 @@ A solução separa seis responsabilidades:
 
 1. **Conversa e mensagens persistentes** — `whatsappConversations`, `whatsappConversationMessages` e `whatsappMessageDomainLinks` registram entradas, respostas funcionais e vínculos com registros de domínio.
 2. **Propriedade de processamento** — a chave baseada no `message.id` da Meta e um lease atômico garantem uma única instância proprietária por tentativa.
-3. **Janela recente** — recupera mensagens ordenadas por `occurredAt` e `id`, respeitando orçamento por consumidor e excluindo a mensagem corrente do histórico entregue ao classificador.
+3. **Janela recente** — recupera mensagens ordenadas por `occurredAt` e `id`, respeitando orçamento por consumidor e excluindo a mensagem corrente do histórico entregue ao classificador. A correlação usa prioritariamente o `externalMessageId` da Meta; timestamp só é fallback quando identifica uma única mensagem inbound.
 4. **Resumo progressivo** — resume somente o conteúdo que saiu da janela recente, mantém proveniência e nunca congela valores nutricionais como verdade atual.
 5. **Pendência operacional** — `whatsappPendingOperations` mantém seleção, confirmação ou informação faltante separada do histórico semântico e com consumo protegido por compare-and-set.
 6. **Dados de domínio** — refeições, água, peso, exercícios e metas continuam sendo consultados no banco antes de responder ou executar ações.
@@ -50,13 +50,14 @@ Acknowledgements intermediários de processamento não substituem a resposta fun
 
 ## Orçamento e resumo
 
-Os limites são definidos por consumidor em `conversationContextBudget.ts`. O corte é determinístico: percorre as mensagens mais recentes para trás, não divide uma mensagem e mantém ao menos a mensagem mais recente. A mensagem inbound corrente é removida da janela antes da classificação para não duplicar o texto atual nem produzir divergência shadow artificial.
+Os limites são definidos por consumidor em `conversationContextBudget.ts`. O corte é determinístico: percorre as mensagens mais recentes para trás, não divide uma mensagem e mantém ao menos a mensagem mais recente. A mensagem inbound corrente é removida da janela antes da classificação para não duplicar o texto atual nem produzir divergência shadow artificial. A expiração é avaliada somente depois dessa exclusão: a própria pergunta corrente não pode reativar uma conversa anterior. Quando o último turno anterior está fora do TTL, mensagens e resumo permanecem retidos conforme a política de dados, mas não são entregues ao consumidor atual.
 
 Quando há overflow, o resumo é regenerado de forma idempotente e protegido contra gravações concorrentes. Falha do resumo não interrompe o atendimento: o fallback usa a janela disponível, dados atuais do banco e clarificação quando necessário.
 
 ## Idempotência e concorrência
 
 - A chave de idempotência baseada no `message.id` da Meta possui unicidade no banco.
+- A identidade do `message.id` também delimita qual inbound deve ser removido da janela da própria requisição; mensagens concorrentes no mesmo segundo não podem ser distinguidas apenas por timestamp.
 - Uma inserção nova recebe propriedade imediatamente; reentrega só retoma uma mensagem não processada quando o lease está vencido.
 - Reentrega de mensagem concluída não cria nova entrada nem repete ação de domínio.
 - Atualização de conversa e consumo de pendência usam versão/compare-and-set.

@@ -20,6 +20,7 @@ import {
 } from "./conversationContextRollout";
 import { compareWhatsappIntentInShadow, isShadowIntentComparisonEnabled } from "./shadowIntentComparison";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
@@ -131,22 +132,40 @@ function buildLegacyTurns(userId: number, receivedAt: Date) {
 function splitCurrentInboundMessage(
   messages: WhatsAppConversationMessageRecord[],
   receivedAt: Date,
+  currentInboundExternalMessageId?: string | null,
 ) {
-  const currentTimestamp = receivedAt.getTime();
-  let currentIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.direction === "inbound" && new Date(message.occurredAt).getTime() === currentTimestamp) {
-      currentIndex = index;
-      break;
+  const normalizedExternalMessageId = currentInboundExternalMessageId?.trim() || null;
+  let currentIndex = normalizedExternalMessageId
+    ? messages.findLastIndex(message =>
+        message.direction === "inbound"
+        && message.externalMessageId === normalizedExternalMessageId,
+      )
+    : -1;
+  let correlation: "external_message_id" | "unique_timestamp" | "ambiguous_timestamp" | "not_found" =
+    currentIndex >= 0 ? "external_message_id" : "not_found";
+
+  if (currentIndex < 0 && !normalizedExternalMessageId) {
+    const currentTimestamp = receivedAt.getTime();
+    const timestampMatches = messages.flatMap((message, index) =>
+      message.direction === "inbound"
+      && new Date(message.occurredAt).getTime() === currentTimestamp
+        ? [index]
+        : [],
+    );
+    if (timestampMatches.length === 1) {
+      currentIndex = timestampMatches[0];
+      correlation = "unique_timestamp";
+    } else if (timestampMatches.length > 1) {
+      correlation = "ambiguous_timestamp";
     }
   }
 
   return currentIndex < 0
-    ? { messages, currentInbound: null }
+    ? { messages, currentInbound: null, correlation }
     : {
         messages: messages.filter((_message, index) => index !== currentIndex),
         currentInbound: messages[currentIndex],
+        correlation,
       };
 }
 
@@ -159,6 +178,7 @@ export async function buildWhatsappIntentContext(
     flow?: WhatsappContextFlow;
     conversationRepository?: WhatsAppConversationRepository;
     timeZone?: string;
+    currentInboundExternalMessageId?: string | null;
   } = {},
 ): Promise<WhatsappIntentContext> {
   const receivedAt = options.receivedAt ?? new Date();
@@ -182,8 +202,26 @@ export async function buildWhatsappIntentContext(
   });
 
   const persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
-  const { messages: contextMessages, currentInbound } = splitCurrentInboundMessage(persistedMessages, receivedAt);
-  const { window, overflow, truncated } = selectRecentWindow(contextMessages, budget);
+  const currentInboundExternalMessageId =
+    options.currentInboundExternalMessageId?.trim()
+    || getCurrentWhatsappInboundExternalMessageId()?.trim()
+    || null;
+  const {
+    messages: contextMessages,
+    currentInbound,
+    correlation: currentInboundCorrelation,
+  } = splitCurrentInboundMessage(
+    persistedMessages,
+    receivedAt,
+    currentInboundExternalMessageId,
+  );
+  const lastContextMessage = contextMessages[contextMessages.length - 1];
+  const persistentConversationActive = Boolean(
+    lastContextMessage
+    && receivedAt.getTime() - new Date(lastContextMessage.occurredAt).getTime() < WHATSAPP_CONVERSATION_ACTIVE_TTL_MS,
+  );
+  const activeContextMessages = persistentConversationActive ? contextMessages : [];
+  const { window, overflow, truncated } = selectRecentWindow(activeContextMessages, budget);
   const persistentTurns = window.map(message => ({
     direction: message.direction,
     text: getEffectiveMessageText(message) || null,
@@ -196,11 +234,9 @@ export async function buildWhatsappIntentContext(
     legacyTurns,
     persistentTurns,
   });
-
-  const lastMessage = persistedMessages[persistedMessages.length - 1];
-  const conversationActive = Boolean(
-    lastMessage && receivedAt.getTime() - new Date(lastMessage.occurredAt).getTime() < WHATSAPP_CONVERSATION_ACTIVE_TTL_MS,
-  );
+  const conversationActive = rolloutSelection.source === "persistent"
+    ? persistentConversationActive
+    : legacyTurns.length > 0;
 
   const compareStructuredIntent = rolloutSelection.mode === "shadow"
     && rolloutSelection.persistentEligible
@@ -254,11 +290,17 @@ export async function buildWhatsappIntentContext(
     userId,
     origin: "whatsapp",
     status: "success",
-    eventType: contextMessages.length === 0 ? "whatsapp.history.context_missing" : "whatsapp.history.context_found",
+    eventType:
+      rolloutSelection.turns.length === 0 && contextMessages.length === 0
+        ? "whatsapp.history.context_missing"
+        : !conversationActive
+          ? "whatsapp.history.context_expired"
+          : "whatsapp.history.context_found",
     detail: JSON.stringify({
       messageCount: contextMessages.length,
       capturedMessageCount: persistedMessages.length,
       currentInboundExcluded: Boolean(currentInbound),
+      currentInboundCorrelation,
       contextSource: rolloutSelection.source,
       contextMode: rolloutSelection.mode,
       contextFlow: rolloutSelection.flow,
@@ -291,7 +333,7 @@ export async function buildWhatsappIntentContext(
       status: "success",
       eventType: "whatsapp.history.context_truncated",
       detail: JSON.stringify({
-        originalCount: contextMessages.length,
+        originalCount: activeContextMessages.length,
         truncatedCount: window.length,
         reason: "message_budget",
         flow,
