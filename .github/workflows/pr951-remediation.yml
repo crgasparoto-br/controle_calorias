@@ -1,0 +1,259 @@
+name: PR 951 remediation
+
+on:
+  push:
+    branches:
+      - fix/professional-alert-dates-pt-br
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr951-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/professional-alert-dates-pt-br
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply scoped tooltip remediation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          button = Path("client/src/components/ui/button.tsx")
+          text = button.read_text()
+          old = '''  title,
+            children,
+            ...props
+          '''
+          if old not in text:
+              raise SystemExit("button title destructuring anchor not found")
+          text = text.replace(old, '''  children,
+            ...props
+          ''', 1)
+          tracking = '''
+            const trackingActionTooltip =
+              variant === "outline" && childText === "Pausar"
+                ? "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
+                : variant === "destructive" && childText === "Encerrar"
+                  ? "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
+                  : undefined;
+          '''
+          if tracking not in text:
+              raise SystemExit("global tooltip inference anchor not found")
+          text = text.replace(tracking, "\n", 1)
+          title_line = '''      title={title ?? trackingActionTooltip}
+                {...props}
+          '''
+          if title_line not in text:
+              raise SystemExit("global tooltip title anchor not found")
+          text = text.replace(title_line, '''      {...props}
+          ''', 1)
+          button.write_text(text)
+
+          button_test = Path("client/src/components/ui/button.test.tsx")
+          button_test.write_text('''// @vitest-environment jsdom
+          import React from "react";
+          import { cleanup, render, screen } from "@testing-library/react";
+          import { afterEach, describe, expect, it } from "vitest";
+          import { Button } from "./button";
+
+          afterEach(cleanup);
+
+          describe("Button title contract", () => {
+            it("does not infer follow-up semantics from generic button labels", () => {
+              render(
+                <>
+                  <Button variant="outline">Pausar</Button>
+                  <Button variant="destructive">Encerrar</Button>
+                </>
+              );
+
+              expect(
+                screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+              ).toBeNull();
+              expect(
+                screen.getByRole("button", { name: "Encerrar" }).getAttribute("title")
+              ).toBeNull();
+            });
+
+            it("preserves an explicitly provided title", () => {
+              render(
+                <Button variant="outline" title="Título específico">
+                  Pausar
+                </Button>
+              );
+
+              expect(
+                screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+              ).toBe("Título específico");
+            });
+          });
+          ''')
+
+          workspace = Path("client/src/pages/professional/ProfessionalPatientWorkspace.tsx")
+          text = workspace.read_text()
+          constants_anchor = '''function historyEventLabel(item: { label?: string | null }) {
+            return item.label?.trim() || "Evento profissional registrado";
+          }
+          '''
+          constants = constants_anchor + '''
+          const PAUSE_TRACKING_TITLE =
+            "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada.";
+          const END_TRACKING_TITLE =
+            "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta.";
+          '''
+          if constants_anchor not in text:
+              raise SystemExit("workspace constants anchor not found")
+          text = text.replace(constants_anchor, constants, 1)
+          pause_anchor = '''                  <Button
+                                variant="outline"
+                                disabled={transitionTracking.isPending}
+                                onClick={() => transition("paused")}
+          '''
+          pause_replacement = '''                  <Button
+                                variant="outline"
+                                title={PAUSE_TRACKING_TITLE}
+                                disabled={transitionTracking.isPending}
+                                onClick={() => transition("paused")}
+          '''
+          if text.count(pause_anchor) != 1:
+              raise SystemExit(f"expected one pause button anchor, found {text.count(pause_anchor)}")
+          text = text.replace(pause_anchor, pause_replacement, 1)
+          end_anchor = '''                  <Button
+                                variant="destructive"
+                                disabled={transitionTracking.isPending}
+                                onClick={() => transition("ended")}
+          '''
+          end_replacement = '''                  <Button
+                                variant="destructive"
+                                title={END_TRACKING_TITLE}
+                                disabled={transitionTracking.isPending}
+                                onClick={() => transition("ended")}
+          '''
+          if text.count(end_anchor) != 2:
+              raise SystemExit(f"expected two end button anchors, found {text.count(end_anchor)}")
+          text = text.replace(end_anchor, end_replacement)
+          workspace.write_text(text)
+
+          workspace_test = Path(
+              "client/src/pages/professional/ProfessionalPatientWorkspace.auditCorrections.test.tsx"
+          )
+          text = workspace_test.read_text()
+          marker = '''  it("redirects immediately to history and refreshes canonical context when tracking ends", async () => {
+          '''
+          test = '''  it("explains pause and end consequences on the follow-up cycle controls", () => {
+            location = "/professional/patients/41";
+            recordData = recordFixture();
+            render(<ProfessionalPatientWorkspace />);
+
+            expect(
+              screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+            ).toBe(
+              "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
+            );
+            expect(
+              screen.getByRole("button", { name: "Encerrar" }).getAttribute("title")
+            ).toBe(
+              "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
+            );
+          });
+
+          '''
+          if marker not in text:
+              raise SystemExit("workspace test insertion anchor not found")
+          text = text.replace(marker, test + marker, 1)
+          workspace_test.write_text(text)
+          PY
+
+          pnpm exec prettier --write \
+            client/src/components/ui/button.tsx \
+            client/src/components/ui/button.test.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.auditCorrections.test.tsx
+          git rm .github/workflows/pr951-remediation.yml
+          git diff --check
+
+      - name: Commit remediation candidate
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/components/ui/button.tsx \
+            client/src/components/ui/button.test.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.auditCorrections.test.tsx \
+            .github/workflows/pr951-remediation.yml
+          git commit -m "fix: scope tracking tooltips to patient workspace"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Focused regression tests
+        env:
+          NODE_ENV: test
+          PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+        run: |
+          pnpm exec vitest run \
+            client/src/components/ui/button.test.tsx \
+            client/src/pages/professional/ProfessionalPatientWorkspace.auditCorrections.test.tsx \
+            --maxWorkers=1 --minWorkers=1
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Create exact candidate bundle
+        run: |
+          mkdir -p /tmp/pr951-remediation
+          git update-ref refs/orchestrator/head "${{ steps.commit.outputs.sha }}"
+          git update-ref refs/orchestrator/base origin/develop
+          git bundle create /tmp/pr951-remediation/repository.bundle \
+            refs/orchestrator/head refs/orchestrator/base
+          cat > /tmp/pr951-remediation/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${{ steps.commit.outputs.sha }}",
+            "baseRef": "develop",
+            "baseSha": "$(git rev-parse origin/develop)",
+            "runId": "${GITHUB_RUN_ID}",
+            "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload candidate bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr951-remediation-${{ steps.commit.outputs.sha }}
+          path: /tmp/pr951-remediation
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Push remediation
+        run: git push origin HEAD:fix/professional-alert-dates-pt-br
