@@ -119,7 +119,7 @@ Builders de domínio (`replyMessages.ts`, `replyTemplates.ts`) continuam existin
 ### Compatibilidade incremental
 
 - Um fluxo não pode enviar simultaneamente pelo adapter antigo (`sendWhatsAppTextMessage`/`sendAndLogTextReply` chamados diretamente pelo handler) e pelo novo transporte para a mesma ação; a migração de cada domínio substitui o caminho por completo na subissue correspondente.
-- Formatters de meta que forem adaptados ao contrato central devem receber o valor final calculado pelo domínio e não podem chamar `calculateAdjustedGoalCalories` nem recalcular a regra da #756; o formatter legado `buildWhatsAppGoalProgressLines` ainda faz esse cálculo e será corrigido na migração de resumos/metas (#784), não nesta issue.
+- Formatters de meta recebem o valor final calculado pelo domínio e não chamam `calculateAdjustedGoalCalories` nem recalculam a regra da #756; `buildWhatsAppGoalProgressLines` apenas apresenta `effectiveGoalCalories` (ou o alias legado já contendo a meta efetiva), exercícios informativos e o saldo canônico.
 - Adapters legados (`logicalReplyFromLegacyText`, exports antigos de `replyMessages.ts`/`replyTemplates.ts`, funções de envio direto em `webhookUtils.ts`) só são removidos na #788, depois que todos os domínios migrarem.
 
 ### Botões, listas e callbacks idempotentes (issue #782)
