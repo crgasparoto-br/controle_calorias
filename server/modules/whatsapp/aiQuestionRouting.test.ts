@@ -100,6 +100,7 @@ describe("simulateWhatsappInbound slash AI question routing", () => {
       text: "/como está minha proteína hoje?",
       receivedAt: expect.any(Date),
       userTimezone: "America/Sao_Paulo",
+      externalMessageId: "slash-ai-1",
     });
     expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
@@ -129,6 +130,7 @@ describe("simulateWhatsappInbound slash AI question routing", () => {
       text: "100 g arroz",
       receivedAt: expect.any(Date),
       userTimezone: "America/Sao_Paulo",
+      externalMessageId: "meal-1",
     });
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",

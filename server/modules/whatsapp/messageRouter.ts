@@ -161,6 +161,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
       text: input.text,
       receivedAt: input.receivedAt,
       userTimezone: input.userTimezone,
+      externalMessageId: input.messageId,
     });
     if (result) return { step: "ai_question", result };
   }

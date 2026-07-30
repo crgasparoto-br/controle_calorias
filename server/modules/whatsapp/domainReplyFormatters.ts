@@ -1,9 +1,11 @@
 import {
   buildWhatsAppBlock,
   buildWhatsAppCalorieBalanceLine,
+  buildWhatsAppGoalProgressLines,
   buildWhatsAppMacroProgressLine,
   buildWhatsAppSeparator,
   formatWhatsAppNumber,
+  type WhatsAppGoalProgressInput,
 } from "./replyTemplates";
 
 function formatSigned(value: number, unit: "kcal" | "g" | "ml" | "kg") {
@@ -93,7 +95,10 @@ export function buildWhatsAppCanonicalExerciseReply(input: {
   calories?: number | null;
   occurredAtLabel: string;
   caloriesEstimated?: boolean;
+  goalProgress?: WhatsAppGoalProgressInput | null;
 }) {
+  const goalProgressLines = buildWhatsAppGoalProgressLines(input.goalProgress);
+
   return buildWhatsAppBlock([
     "🏃 *Exercício registrado*",
     buildWhatsAppSeparator(),
@@ -103,5 +108,6 @@ export function buildWhatsAppCanonicalExerciseReply(input: {
     ...(typeof input.calories === "number" ? [`*Calorias:* ${formatWhatsAppNumber(input.calories)} kcal`] : []),
     `*Data:* ${input.occurredAtLabel}`,
     ...(input.caloriesEstimated ? [buildWhatsAppSeparator(), "⚠️ Calorias estimadas pelo sistema."] : []),
+    ...(goalProgressLines.length ? [buildWhatsAppSeparator(), ...goalProgressLines] : []),
   ]);
 }
