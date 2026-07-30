@@ -16,8 +16,7 @@ const buttonVariants = cva(
           "border bg-transparent shadow-xs hover:bg-accent dark:bg-transparent dark:border-input dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent dark:hover:bg-accent/50",
+        ghost: "hover:bg-accent dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -41,7 +40,6 @@ function Button({
   variant,
   size,
   asChild = false,
-  title,
   children,
   ...props
 }: React.ComponentProps<"button"> &
@@ -62,18 +60,10 @@ function Button({
     return null;
   }
 
-  const trackingActionTooltip =
-    variant === "outline" && childText === "Pausar"
-      ? "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
-      : variant === "destructive" && childText === "Encerrar"
-        ? "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
-        : undefined;
-
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      title={title ?? trackingActionTooltip}
       {...props}
     >
       {children}

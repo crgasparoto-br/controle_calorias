@@ -328,9 +328,7 @@ describe("professional patient workspace audit corrections", () => {
     routeAccessStatus = "error";
     view.rerender(<ProfessionalPatientWorkspace />);
     expect(screen.getByRole("heading", { name: "Paciente 41" })).toBeTruthy();
-    await user.click(
-      screen.getByRole("button", { name: "Tentar novamente" })
-    );
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
     expect(retryRouteAccess).toHaveBeenCalledTimes(1);
 
     routeAccessStatus = "ready";
@@ -563,6 +561,23 @@ describe("professional patient workspace audit corrections", () => {
         .value
     ).toBe("");
     expect(screen.getByTestId("goal-exception-count").textContent).toBe("0");
+  });
+
+  it("explains pause and end consequences on the follow-up cycle controls", () => {
+    location = "/professional/patients/41";
+    recordData = recordFixture();
+    render(<ProfessionalPatientWorkspace />);
+
+    expect(
+      screen.getByRole("button", { name: "Pausar" }).getAttribute("title")
+    ).toBe(
+      "Suspende temporariamente o acompanhamento. O histórico continua disponível, mas novas intervenções ficam bloqueadas até a retomada."
+    );
+    expect(
+      screen.getByRole("button", { name: "Encerrar" }).getAttribute("title")
+    ).toBe(
+      "Finaliza o acompanhamento. Após o encerramento, somente as mensagens anteriores e o histórico permanecem disponíveis para consulta."
+    );
   });
 
   it("redirects immediately to history and refreshes canonical context when tracking ends", async () => {
