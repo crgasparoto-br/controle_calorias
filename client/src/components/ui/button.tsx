@@ -60,6 +60,7 @@ function Button({
     return null;
   }
 
+  // Domain-specific descriptions belong to the consuming workflow via explicit props.
   return (
     <Comp
       data-slot="button"
