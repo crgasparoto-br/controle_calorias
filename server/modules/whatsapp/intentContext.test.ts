@@ -129,6 +129,47 @@ describe("buildWhatsappIntentContext", () => {
     expect(context.conversationSummary).toEqual({ summaryText: "resumo", fromMessageId: 1, toMessageId: count - 12 });
   });
 
+  it("mantém overflow e resumo restritos à conversa lógica da mensagem corrente", async () => {
+    const oldConversationMessages = Array.from({ length: 10 }, (_, i) =>
+      buildMessage({
+        id: i + 1,
+        conversationId: 10,
+        sanitizedText: `conversa expirada ${i + 1}`,
+        occurredAt: new Date(receivedAt.getTime() - (40 - i) * 60_000),
+      }),
+    );
+    const currentConversationMessages = Array.from({ length: 14 }, (_, i) =>
+      buildMessage({
+        id: 100 + i,
+        conversationId: 20,
+        externalMessageId: `wamid.current.${i + 1}`,
+        sanitizedText: `conversa atual ${i + 1}`,
+        occurredAt: new Date(receivedAt.getTime() - (14 - i) * 1000),
+      }),
+    );
+    findRecentMessagesByUserMock.mockResolvedValue([
+      ...oldConversationMessages,
+      ...currentConversationMessages,
+    ]);
+    getOrRefreshConversationSummaryMock.mockResolvedValue({
+      summaryText: "resumo da conversa atual",
+      fromMessageId: 100,
+      toMessageId: 100,
+    });
+
+    const context = await buildWhatsappIntentContext(1, {
+      receivedAt,
+      currentInboundExternalMessageId: "wamid.current.14",
+    });
+
+    expect(context.recentTurns.every(turn => turn.text?.startsWith("conversa atual"))).toBe(true);
+    expect(getOrRefreshConversationSummaryMock).toHaveBeenCalledTimes(1);
+    const summaryInput = getOrRefreshConversationSummaryMock.mock.calls[0][0];
+    expect(summaryInput.conversationId).toBe(20);
+    expect(summaryInput.messagesBeyondWindow).not.toHaveLength(0);
+    expect(summaryInput.messagesBeyondWindow.every(message => message.conversationId === 20)).toBe(true);
+  });
+
   it("não gera resumo quando o consumidor declara que não usa resumo", async () => {
     const count = 20;
     findRecentMessagesByUserMock.mockResolvedValue(
