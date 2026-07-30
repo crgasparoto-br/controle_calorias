@@ -1,0 +1,45 @@
+name: Issue 922 sync develop
+
+on:
+  push:
+    branches:
+      - feat/922-ai-capabilities-meal-whatsapp
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-922-sync-develop
+  cancel-in-progress: false
+
+jobs:
+  sync-develop:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/922-ai-capabilities-meal-whatsapp
+
+      - name: Merge current develop or report conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop
+
+          if git merge --no-ff --no-commit origin/develop; then
+            git commit -m "chore: sincronizar issue 922 com develop"
+            git push origin HEAD:feat/922-ai-capabilities-meal-whatsapp
+            exit 0
+          fi
+
+          echo "CONFLICT_FILES_BEGIN"
+          git diff --name-only --diff-filter=U
+          echo "CONFLICT_FILES_END"
+          git status --short
+          git merge --abort || true
+          exit 1
