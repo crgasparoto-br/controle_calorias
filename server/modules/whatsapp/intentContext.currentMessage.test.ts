@@ -17,10 +17,15 @@ vi.mock("../../db", () => ({
 const { buildWhatsappIntentContext } = await import("./intentContext");
 const originalEnv = { ...process.env };
 
-function message(id: number, text: string, occurredAt: Date): WhatsAppConversationMessageRecord {
+function message(
+  id: number,
+  text: string,
+  occurredAt: Date,
+  conversationId = 1,
+): WhatsAppConversationMessageRecord {
   return {
     id,
-    conversationId: 1,
+    conversationId,
     userId: 1,
     direction: "inbound",
     channel: "whatsapp",
@@ -128,6 +133,28 @@ describe("intent context current message boundary", () => {
     const context = await buildWhatsappIntentContext(1, { receivedAt, conversationRepository: repository });
 
     expect(context.recentTurns.map(turn => turn.text)).toEqual(["mensagem A", "mensagem B"]);
+  });
+
+  it("não reutiliza a conversa expirada na primeira mensagem de uma nova conversa lógica", async () => {
+    process.env.WHATSAPP_CONTEXT_READ_MODE = "persistent";
+    process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT = "100";
+    const receivedAt = new Date("2026-07-11T12:31:00.000Z");
+    const repository = {
+      findRecentMessagesByUser: vi.fn(async () => [
+        message(1, "SEGREDO_DA_CONVERSA_EXPIRADA", new Date("2026-07-11T12:00:00.000Z"), 10),
+        message(2, "primeira mensagem da nova conversa", receivedAt, 20),
+      ]),
+    } as unknown as WhatsAppConversationRepository;
+
+    const context = await buildWhatsappIntentContext(1, {
+      receivedAt,
+      currentInboundExternalMessageId: "wamid.2",
+      conversationRepository: repository,
+    });
+
+    expect(context.conversationActive).toBe(false);
+    expect(context.recentTurns).toEqual([]);
+    expect(context.contextRead.persistentCount).toBe(0);
   });
 
   it("avalia expiração depois de excluir a mensagem corrente", async () => {
