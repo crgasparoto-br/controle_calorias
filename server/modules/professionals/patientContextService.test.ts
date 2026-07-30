@@ -242,6 +242,56 @@ describe("getProfessionalPatientContext", () => {
     expect(mocks.execute).toHaveBeenCalledTimes(5);
   });
 
+  it("caps unresolved optional history lookups before they can consume the database pool", async () => {
+    vi.useFakeTimers();
+    mocks.execute.mockReset();
+
+    for (let patientId = 41; patientId <= 44; patientId += 1) {
+      mocks.execute.mockResolvedValueOnce([
+        [
+          {
+            ...defaultContext,
+            authorizationId: `authorization-${patientId}`,
+            patientUserId: patientId,
+          },
+        ],
+      ]);
+      mocks.execute.mockReturnValueOnce(new Promise(() => undefined));
+
+      const result = getProfessionalPatientContext(7, {
+        patientId,
+        resource: "professional_record",
+      });
+      await vi.advanceTimersByTimeAsync(250);
+      await expect(result).resolves.toMatchObject({
+        patientId,
+        lastActivityLabel: "Temporariamente indisponível",
+      });
+    }
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    mocks.execute.mockResolvedValueOnce([
+      [
+        {
+          ...defaultContext,
+          authorizationId: "authorization-45",
+          patientUserId: 45,
+        },
+      ],
+    ]);
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 45,
+        resource: "professional_record",
+      })
+    ).resolves.toMatchObject({
+      patientId: 45,
+      lastActivityLabel: "Temporariamente indisponível",
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(9);
+  });
+
   it("returns explicit nulls when stable header metadata is absent", async () => {
     setQueryResults(
       {

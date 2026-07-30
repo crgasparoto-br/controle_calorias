@@ -12,6 +12,7 @@ const OPTIONAL_HISTORY_WAIT_MS = 250;
 const OPTIONAL_HISTORY_CACHE_TTL_MS = 10_000;
 const OPTIONAL_HISTORY_TIMEOUT_TTL_MS = 1_000;
 const OPTIONAL_HISTORY_CACHE_LIMIT = 500;
+const OPTIONAL_HISTORY_PENDING_LIMIT_CAP = 4;
 const HISTORY_TIMEOUT = Symbol("professional-patient-history-timeout");
 
 type OptionalHistoryResult =
@@ -32,6 +33,7 @@ const optionalHistoryInFlight = new Map<
   string,
   OptionalHistoryInFlightEntry
 >();
+const optionalHistoryPendingTokens = new Set<symbol>();
 
 function rows(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
@@ -46,6 +48,23 @@ function timestamp(value: unknown) {
 
 function optionalHistoryKey(professionalUserId: number, patientUserId: number) {
   return `${professionalUserId}:${patientUserId}`;
+}
+
+function getRuntimeDatabaseConnectionLimit() {
+  const configured = Number(process.env.DATABASE_CONNECTION_LIMIT ?? "10");
+  return Number.isFinite(configured) && configured > 0
+    ? Math.floor(configured)
+    : 10;
+}
+
+function getOptionalHistoryPendingLimit() {
+  return Math.max(
+    0,
+    Math.min(
+      OPTIONAL_HISTORY_PENDING_LIMIT_CAP,
+      getRuntimeDatabaseConnectionLimit() - 1
+    )
+  );
 }
 
 function storeOptionalHistory(
@@ -74,18 +93,34 @@ async function getOptionalHistoryWithinBudget(
 
   let inFlight = optionalHistoryInFlight.get(key);
   if (!inFlight) {
+    if (optionalHistoryPendingTokens.size >= getOptionalHistoryPendingLimit()) {
+      const unavailable: OptionalHistoryResult = {
+        status: "unavailable",
+        row: undefined,
+      };
+      storeOptionalHistory(
+        key,
+        unavailable,
+        OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+      );
+      return unavailable;
+    }
+
     const token = Symbol(key);
-    const promise = db
-      .execute(sql`
-        SELECT
-          h.occurredAt AS lastProfessionalActivityAt,
-          h.eventType AS lastProfessionalActivityType
-        FROM professionalHistoryEvents h
-        WHERE h.professionalUserId = ${professionalUserId}
-          AND h.patientUserId = ${patientUserId}
-        ORDER BY h.occurredAt DESC, h.id DESC
-        LIMIT 1
-      `)
+    optionalHistoryPendingTokens.add(token);
+    const promise = Promise.resolve()
+      .then(() =>
+        db.execute(sql`
+          SELECT
+            h.occurredAt AS lastProfessionalActivityAt,
+            h.eventType AS lastProfessionalActivityType
+          FROM professionalHistoryEvents h
+          WHERE h.professionalUserId = ${professionalUserId}
+            AND h.patientUserId = ${patientUserId}
+          ORDER BY h.occurredAt DESC, h.id DESC
+          LIMIT 1
+        `)
+      )
       .then(result => {
         const row = rows(result)[0];
         const optionalHistory: OptionalHistoryResult = row
@@ -112,6 +147,7 @@ async function getOptionalHistoryWithinBudget(
         return optionalHistory;
       })
       .finally(() => {
+        optionalHistoryPendingTokens.delete(token);
         if (optionalHistoryInFlight.get(key)?.token === token) {
           optionalHistoryInFlight.delete(key);
         }
@@ -152,6 +188,7 @@ async function getOptionalHistoryWithinBudget(
 export function _forTestOnly_clearProfessionalPatientContextMetadataCache() {
   optionalHistoryCache.clear();
   optionalHistoryInFlight.clear();
+  optionalHistoryPendingTokens.clear();
 }
 
 export async function getProfessionalPatientContext(

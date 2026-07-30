@@ -10,6 +10,8 @@ const SEVERITY_WEIGHT: Record<string, number> = {
   info: 1,
 };
 
+const ISO_DATE_PATTERN = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+
 type PriorityDependencies = {
   listAlerts: typeof listProfessionalPriorityAlerts;
 };
@@ -36,6 +38,14 @@ function stableAlertId(alert: OperationalAlert) {
   return String(alert.id ?? `${alert.type}:${alert.patientUserId}`);
 }
 
+function formatPriorityReason(reason: string) {
+  return reason.replace(
+    ISO_DATE_PATTERN,
+    (_match, year: string, month: string, day: string) =>
+      `${day}/${month}/${year}`
+  );
+}
+
 function compareAlerts(first: OperationalAlert, second: OperationalAlert) {
   return (
     severityWeight(second.severity) - severityWeight(first.severity) ||
@@ -51,7 +61,7 @@ function prioritySignal(alert: OperationalAlert) {
     type: alert.type,
     label: professionalAlertLabel(alert.type),
     severity: alert.severity,
-    reason: alert.reason,
+    reason: formatPriorityReason(alert.reason),
     suggestedAction: alert.suggestedAction,
     period: {
       start: alert.period?.start ?? null,

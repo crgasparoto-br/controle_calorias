@@ -116,6 +116,30 @@ describe("buildProfessionalPriorities", () => {
     }
   });
 
+  it("formats ISO date keys in every serialized priority signal", () => {
+    const [result] = buildProfessionalPriorities(
+      [
+        alert({
+          id: "legacy-date",
+          patientUserId: 10,
+          patientName: "Ana",
+          type: "no_food_records",
+          severity: "attention",
+          reason:
+            "Nenhum registro alimentar confirmado entre 2026-07-27 e 2026-07-29 no timezone America/Sao_Paulo.",
+        }),
+      ],
+      10
+    );
+
+    expect(result.primarySignal?.reason).toBe(
+      "Nenhum registro alimentar confirmado entre 27/07/2026 e 29/07/2026 no timezone America/Sao_Paulo."
+    );
+    expect(result.signals[0]?.reason).toBe(
+      "Nenhum registro alimentar confirmado entre 27/07/2026 e 29/07/2026 no timezone America/Sao_Paulo."
+    );
+  });
+
   it("uses stable identifiers after severity and date ties and respects the requested limit", () => {
     const result = buildProfessionalPriorities(
       [
