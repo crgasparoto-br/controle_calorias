@@ -9,10 +9,12 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: issue-922-finalize-remediation
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   finalize:
@@ -38,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply canonical documentation remediation
+      - name: Publish exact candidate with canonical docs
         shell: bash
         run: |
           set -euo pipefail
@@ -52,6 +54,7 @@ jobs:
           git diff --cached --check
           git commit -m "fix(ai): remediate audit findings for issue 922"
           echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Focused production fallback controls
         run: pnpm vitest run server/_core/ai/__tests__/configResolver.test.ts server/_core/ai/__tests__/crossProviderFallbackIntegration.test.ts
@@ -81,18 +84,16 @@ jobs:
           test -z "$(git status --porcelain)"
           test "$(git rev-parse HEAD)" = "${FINAL_SHA}"
 
-      - name: Publish validated candidate
-        shell: bash
+      - name: Record successful exact-head validation
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-          {
-            echo "## Issue #922 remediation"
-            echo ""
-            echo "Validated and published exact head: \`${FINAL_SHA}\`"
-            echo ""
-            echo "- production cross-provider fallback: fail-closed"
-            echo "- same-provider fallback: preserved"
-            echo "- canonical documentation: updated"
-            echo "- focused and full repository gates: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment 953 --body "## Issue Loop Engineer — remediação da #922\n\nHead exacto \`${FINAL_SHA}\` validado no workflow \`${GITHUB_RUN_ID}\`.\n\n- cross-provider em produção: bloqueado fail-closed;\n- fallback same-provider: preservado;\n- testes focados: sucesso;\n- \`pnpm check\`: sucesso;\n- \`pnpm test\`: sucesso;\n- \`pnpm architecture:check\`: sucesso;\n- \`pnpm docs:check\`: sucesso;\n- \`pnpm agent:check\`: sucesso;\n- \`pnpm build\`: sucesso.\n\nO smoke real continua condicionado à existência de \`OPENAI_API_KEY\` ou \`GEMINI_API_KEY\` nos Actions secrets."
+
+      - name: Record failed exact-head validation
+        if: failure() && env.FINAL_SHA != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment 953 --body "## Issue Loop Engineer — falha na validação da #922\n\nO head \`${FINAL_SHA}\` foi publicado, mas o workflow \`${GITHUB_RUN_ID}\` encontrou uma falha executável. Consulte os logs antes de considerar o candidato validado."
