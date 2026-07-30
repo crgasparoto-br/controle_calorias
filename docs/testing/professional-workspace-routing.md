@@ -124,7 +124,7 @@ O harness usa `ProfessionalAreaPage`, `ProfessionalLayout` e `ProfessionalPatien
 
 ## Cabeçalho contextual
 
-A última atividade do cabeçalho vem do primeiro evento da timeline canônica ordenada pelo backend por `occurredAt DESC, id DESC`, nunca da próxima revisão. O teste deve usar tipos e datas divergentes e comprovar que o cabeçalho exibe o rótulo semântico antes do timestamp; uma implementação que retorne somente a data deve falhar. O fallback `Não informado` é usado somente sem atividade.
+A última atividade do cabeçalho vem do primeiro evento da timeline canônica ordenada pelo backend por `occurredAt DESC, id DESC`, nunca da próxima revisão. O teste deve usar tipos e datas divergentes e comprovar que o cabeçalho exibe o rótulo semântico antes do timestamp; uma implementação que retorne somente a data deve falhar. O fallback `Não informado` é usado somente sem atividade. Quando a consulta complementar excede o orçamento ou falha, o cabeçalho mostra `Temporariamente indisponível`, mantém o contexto autorizado aberto e tenta consultar novamente após o TTL curto; uma operação pendurada não pode impedir tentativas posteriores.
 
 A próxima revisão exibida no cabeçalho, na carteira e no resumo do workspace vem exclusivamente de `professionalPatientTrackings.nextReviewAt`. `latestAssessment.nextReviewAt` registra o valor informado naquela versão da avaliação, mas não substitui a agenda canônica após reagendamento ou atualização do acompanhamento.
 

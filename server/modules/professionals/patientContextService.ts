@@ -14,11 +14,24 @@ const OPTIONAL_HISTORY_TIMEOUT_TTL_MS = 1_000;
 const OPTIONAL_HISTORY_CACHE_LIMIT = 500;
 const HISTORY_TIMEOUT = Symbol("professional-patient-history-timeout");
 
+type OptionalHistoryResult =
+  | { status: "available"; row: Row }
+  | { status: "not_found"; row: undefined }
+  | { status: "unavailable"; row: undefined };
+
+type OptionalHistoryInFlightEntry = {
+  token: symbol;
+  promise: Promise<OptionalHistoryResult>;
+};
+
 const optionalHistoryCache = new Map<
   string,
-  { expiresAt: number; row: Row | undefined }
+  { expiresAt: number; result: OptionalHistoryResult }
 >();
-const optionalHistoryInFlight = new Map<string, Promise<Row | undefined>>();
+const optionalHistoryInFlight = new Map<
+  string,
+  OptionalHistoryInFlightEntry
+>();
 
 function rows(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
@@ -37,7 +50,7 @@ function optionalHistoryKey(professionalUserId: number, patientUserId: number) {
 
 function storeOptionalHistory(
   key: string,
-  row: Row | undefined,
+  result: OptionalHistoryResult,
   ttlMs = OPTIONAL_HISTORY_CACHE_TTL_MS
 ) {
   if (optionalHistoryCache.size >= OPTIONAL_HISTORY_CACHE_LIMIT) {
@@ -45,7 +58,7 @@ function storeOptionalHistory(
   }
   optionalHistoryCache.set(key, {
     expiresAt: Date.now() + ttlMs,
-    row,
+    result,
   });
 }
 
@@ -53,15 +66,16 @@ async function getOptionalHistoryWithinBudget(
   db: Database,
   professionalUserId: number,
   patientUserId: number
-) {
+): Promise<OptionalHistoryResult> {
   const key = optionalHistoryKey(professionalUserId, patientUserId);
   const cached = optionalHistoryCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.row;
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
   if (cached) optionalHistoryCache.delete(key);
 
-  let lookup = optionalHistoryInFlight.get(key);
-  if (!lookup) {
-    lookup = db
+  let inFlight = optionalHistoryInFlight.get(key);
+  if (!inFlight) {
+    const token = Symbol(key);
+    const promise = db
       .execute(sql`
         SELECT
           h.occurredAt AS lastProfessionalActivityAt,
@@ -74,22 +88,36 @@ async function getOptionalHistoryWithinBudget(
       `)
       .then(result => {
         const row = rows(result)[0];
-        storeOptionalHistory(key, row);
-        return row;
+        const optionalHistory: OptionalHistoryResult = row
+          ? { status: "available", row }
+          : { status: "not_found", row: undefined };
+        if (optionalHistoryInFlight.get(key)?.token === token) {
+          storeOptionalHistory(key, optionalHistory);
+        }
+        return optionalHistory;
       })
       .catch(error => {
         logPersistenceWarning("professional_patient_context_history", error);
-        storeOptionalHistory(
-          key,
-          undefined,
-          OPTIONAL_HISTORY_TIMEOUT_TTL_MS
-        );
-        return undefined;
+        const optionalHistory: OptionalHistoryResult = {
+          status: "unavailable",
+          row: undefined,
+        };
+        if (optionalHistoryInFlight.get(key)?.token === token) {
+          storeOptionalHistory(
+            key,
+            optionalHistory,
+            OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+          );
+        }
+        return optionalHistory;
       })
       .finally(() => {
-        optionalHistoryInFlight.delete(key);
+        if (optionalHistoryInFlight.get(key)?.token === token) {
+          optionalHistoryInFlight.delete(key);
+        }
       });
-    optionalHistoryInFlight.set(key, lookup);
+    inFlight = { token, promise };
+    optionalHistoryInFlight.set(key, inFlight);
   }
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -99,13 +127,24 @@ async function getOptionalHistoryWithinBudget(
       OPTIONAL_HISTORY_WAIT_MS
     );
   });
-  const timedResult: Row | undefined | typeof HISTORY_TIMEOUT =
-    await Promise.race([lookup, timeoutResult]);
+  const timedResult: OptionalHistoryResult | typeof HISTORY_TIMEOUT =
+    await Promise.race([inFlight.promise, timeoutResult]);
   if (timeout) clearTimeout(timeout);
 
   if (timedResult === HISTORY_TIMEOUT) {
-    storeOptionalHistory(key, undefined, OPTIONAL_HISTORY_TIMEOUT_TTL_MS);
-    return undefined;
+    if (optionalHistoryInFlight.get(key)?.token === inFlight.token) {
+      optionalHistoryInFlight.delete(key);
+    }
+    const unavailable: OptionalHistoryResult = {
+      status: "unavailable",
+      row: undefined,
+    };
+    storeOptionalHistory(
+      key,
+      unavailable,
+      OPTIONAL_HISTORY_TIMEOUT_TTL_MS
+    );
+    return unavailable;
   }
   return timedResult;
 }
@@ -175,24 +214,27 @@ export async function getProfessionalPatientContext(
     return shared;
   }
 
-  const lastHistory = await getOptionalHistoryWithinBudget(
+  const optionalHistory = await getOptionalHistoryWithinBudget(
     db,
     professionalUserId,
     input.patientId
   );
+  const lastHistory =
+    optionalHistory.status === "available" ? optionalHistory.row : undefined;
   const lastActivityAt = timestamp(lastHistory?.lastProfessionalActivityAt);
   const lastActivityType = lastHistory?.lastProfessionalActivityType
     ? String(lastHistory.lastProfessionalActivityType)
     : null;
-
   return {
     ...shared,
     authorizationId: String(context.authorizationId),
     lastActivityAt,
     lastActivityLabel:
-      lastActivityAt !== null && lastActivityType
-        ? getProfessionalHistoryEventLabel(lastActivityType)
-        : null,
+      optionalHistory.status === "unavailable"
+        ? "Temporariamente indisponível"
+        : lastActivityAt !== null && lastActivityType
+          ? getProfessionalHistoryEventLabel(lastActivityType)
+          : null,
     nextReviewAt: timestamp(context.nextReviewAt),
   };
 }

@@ -151,9 +151,95 @@ describe("getProfessionalPatientContext", () => {
       patientId: 41,
       authorizationId: "authorization-1",
       lastActivityAt: null,
-      lastActivityLabel: null,
+      lastActivityLabel: "Temporariamente indisponível",
       trackingStatus: "paused",
     });
+  });
+
+  it("retries optional history after a timed-out lookup expires", async () => {
+    vi.useFakeTimers();
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockReturnValueOnce(new Promise(() => undefined));
+
+    const firstResult = getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await expect(firstResult).resolves.toMatchObject({
+      lastActivityLabel: "Temporariamente indisponível",
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockResolvedValueOnce([[defaultHistory]]);
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_record",
+      })
+    ).resolves.toMatchObject({
+      lastActivityAt: professionalActivityAt.getTime(),
+      lastActivityLabel: "Revisão da meta oficial solicitada",
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not let a stale timed-out lookup overwrite a successful retry", async () => {
+    vi.useFakeTimers();
+    mocks.execute.mockReset();
+    let resolveStaleHistory: ((value: unknown) => void) | undefined;
+    const staleHistory = new Promise(resolve => {
+      resolveStaleHistory = resolve;
+    });
+    const freshActivityAt = new Date("2026-07-25T10:00:00.000Z");
+
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockReturnValueOnce(staleHistory);
+    const firstResult = getProfessionalPatientContext(7, {
+      patientId: 41,
+      resource: "professional_record",
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await expect(firstResult).resolves.toMatchObject({
+      lastActivityLabel: "Temporariamente indisponível",
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+    mocks.execute.mockResolvedValueOnce([
+      [
+        {
+          lastProfessionalActivityAt: freshActivityAt,
+          lastProfessionalActivityType: "official_goal_activated",
+        },
+      ],
+    ]);
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_record",
+      })
+    ).resolves.toMatchObject({
+      lastActivityAt: freshActivityAt.getTime(),
+    });
+
+    resolveStaleHistory?.([[defaultHistory]]);
+    await Promise.resolve();
+    await Promise.resolve();
+    mocks.execute.mockResolvedValueOnce([[defaultContext]]);
+
+    await expect(
+      getProfessionalPatientContext(7, {
+        patientId: 41,
+        resource: "professional_record",
+      })
+    ).resolves.toMatchObject({
+      lastActivityAt: freshActivityAt.getTime(),
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(5);
   });
 
   it("returns explicit nulls when stable header metadata is absent", async () => {
@@ -197,7 +283,7 @@ describe("getProfessionalPatientContext", () => {
       patientId: 41,
       authorizationId: "authorization-1",
       lastActivityAt: null,
-      lastActivityLabel: null,
+      lastActivityLabel: "Temporariamente indisponível",
       trackingStatus: "paused",
     });
     expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
