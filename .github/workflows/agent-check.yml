@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TARGET_BRANCH: feat/922-ai-capabilities-meal-whatsapp-rebased
-      REQUIRED_ANCESTOR_SHA: 8a31c9e290685a5c4e8c3cb056f72589c2708473
+      REQUIRED_ANCESTOR_SHA: d911d41f07ccc80ad0c95526c22d7d6f505ba369
       EXPECTED_DOC_PATCH_BLOB: eaca261db139015ff9600c9bb9fd8b7a5754c06d
-      EXPECTED_FINALIZER_BLOB: 8f147282d68b2482aa1e21a01e415dac5eeac09f
+      EXPECTED_TRIGGER_BLOB: 9183c50b2ffd4d9cd7a574e534a329bb844459f4
 
     steps:
       - name: Checkout transport branch
@@ -30,7 +30,7 @@ jobs:
           TARGET_SHA="$(git rev-parse FETCH_HEAD)"
           git merge-base --is-ancestor "${REQUIRED_ANCESTOR_SHA}" "${TARGET_SHA}"
           test "$(git rev-parse "${TARGET_SHA}:.audit/issue-922-docs.patch")" = "${EXPECTED_DOC_PATCH_BLOB}"
-          test "$(git rev-parse "${TARGET_SHA}:.github/workflows/issue-922-finalize-remediation.yml")" = "${EXPECTED_FINALIZER_BLOB}"
+          test "$(git rev-parse "${TARGET_SHA}:.audit/issue-922-trigger")" = "${EXPECTED_TRIGGER_BLOB}"
           echo "TARGET_SHA=${TARGET_SHA}" >> "${GITHUB_ENV}"
 
       - name: Apply canonical documentation and remove staging
@@ -40,7 +40,7 @@ jobs:
           git apply --check .audit/issue-922-docs.patch
           git apply .audit/issue-922-docs.patch
           git rm .audit/issue-922-docs.patch
-          git rm .github/workflows/issue-922-finalize-remediation.yml
+          git rm .audit/issue-922-trigger
           git add README.md docs/PRIVACY_LGPD.md docs/RELIABILITY.md docs/design-docs/whatsapp-ingestion.md
           git diff --cached --check
 
