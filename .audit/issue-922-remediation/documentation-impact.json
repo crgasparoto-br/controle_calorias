@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "mode": "implementation",
+  "base_ref": "develop",
+  "categories": [
+    "architecture",
+    "environment",
+    "reliability",
+    "security",
+    "privacy",
+    "meal-registration",
+    "whatsapp"
+  ],
+  "canonical_sources": [
+    "README.md",
+    "ARCHITECTURE.md",
+    ".env.example",
+    "docs/exec-plans/active/migrate-ai-to-openai.md",
+    "docs/design-docs/nutrition-engine.md",
+    "docs/design-docs/whatsapp-ingestion.md",
+    "docs/design-docs/whatsapp-ingestion-ai-capabilities.md",
+    "docs/product-specs/meal-registration.md",
+    "docs/product-specs/whatsapp-flow.md",
+    "docs/RELIABILITY.md",
+    "docs/SECURITY.md",
+    "docs/PRIVACY_LGPD.md",
+    "docs/design-docs/whatsapp-llm-intents.md"
+  ],
+  "last_scanned_head": "4beebb6dd62cc24490df930f93681dfad35e2bec",
+  "validation_run_id": 30403697823,
+  "status": "validated_with_external_smoke_blocker",
+  "final_cycle_delta": "The functional tree was rebuilt directly on develop 0cb25e81ec82477844fd5a21254f5bd87cca9621. Runtime files exclusive to issue 922 reuse the previously validated blobs; shared documentation and package metadata were composed with the current base. The live-provider smoke remains blocked by missing provider credentials."
+}

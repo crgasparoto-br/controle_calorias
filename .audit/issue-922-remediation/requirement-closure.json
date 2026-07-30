@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "cycle": 6,
+  "requirements": [
+    {"id":"REQ-001","requirement":"MEAL_TEXT e MEAL_VISION independentes","status":"implemented","evidence":["server/mealAiExtraction.ts","server/mealAiExtraction.test.ts"]},
+    {"id":"REQ-002","requirement":"WHATSAPP_INTENT usa resolvedor/executor comum com provider/modelo pareados","status":"implemented","evidence":["server/modules/whatsapp/intentInterpreter.ts","server/modules/whatsapp/intentInterpreter.test.ts"]},
+    {"id":"REQ-003","requirement":"Structured Output real e Zod em OpenAI/Gemini","status":"implemented","evidence":["server/_core/legacyGeminiMealCompatibility.test.ts","server/_core/aiProvider.structuredOutputPreflight.test.ts"]},
+    {"id":"REQ-004","requirement":"items vazio é funcional e não dispara segunda chamada","status":"implemented","evidence":["server/mealAiExtraction.test.ts"]},
+    {"id":"REQ-005","requirement":"NOVA embutida sem consumidor FOOD_CLASSIFICATION","status":"implemented","evidence":["server/mealAiExtraction.ts","server/_core/ai/__tests__/foodClassificationReservation.test.ts","scripts/backfill-food-classification.ts"]},
+    {"id":"REQ-006","requirement":"erros não elegíveis não geram retry/fallback","status":"implemented","evidence":["server/mealAiExtraction.test.ts","server/modules/whatsapp/intentInterpreter.test.ts","server/_core/ai/policyExecutor.ts"]},
+    {"id":"REQ-007","requirement":"raw de SDK não cruza a fronteira de domínio","status":"implemented","evidence":["server/_core/ai/domainTextResponse.ts","server/_core/ai/domainTextResponse.test.ts","server/_core/ai/__tests__/domainBoundaryConsumers.test.ts"]},
+    {"id":"REQ-008","requirement":"precedência conversacional e estados persistentes preservados","status":"implemented","evidence":["server/modules/whatsapp/intentInterpreter.ts","server/modules/whatsapp/intentPolicyCanonical.test.ts","docs/design-docs/whatsapp-ingestion-ai-capabilities.md","workflow-run:30403697829"]},
+    {"id":"REQ-009","requirement":"documentação canônica atualizada sem reverter a develop atual","status":"implemented","evidence":["ARCHITECTURE.md","docs/PRIVACY_LGPD.md","docs/RELIABILITY.md","docs/SECURITY.md","docs/design-docs/whatsapp-ingestion-ai-capabilities.md","docs/product-specs/meal-registration.md","docs/product-specs/whatsapp-flow.md"]},
+    {"id":"REQ-010","requirement":"gates oficiais e smoke tests reais","status":"blocked_external","evidence":["workflow-run:30403697823","workflow-run:30403697829","workflow-run:30403697903","workflow-run:30403698003"],"limitation":"The executable automated gates passed on the unchanged functional blobs. The live text, photo and intent smoke did not execute because neither OPENAI_API_KEY nor GEMINI_API_KEY is configured in GitHub Actions. A fresh exact-head gate is still required after publication of the rebuilt candidate."}
+  ]
+}

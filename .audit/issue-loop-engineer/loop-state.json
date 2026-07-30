@@ -1,0 +1,74 @@
+{
+  "schema_version": 3,
+  "controller_context_id": "issue-loop-922-20260730",
+  "issue": 922,
+  "repository": "crgasparoto-br/controle_calorias",
+  "base_ref": "develop",
+  "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
+  "cycle": 6,
+  "cycle_limit": 10,
+  "state": "blocked-external",
+  "baseline_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
+  "validated_functional_sha": "4beebb6dd62cc24490df930f93681dfad35e2bec",
+  "validated_merge_preview_sha": null,
+  "blocking_findings": [
+    "AUD-922-001: live-provider smoke remains unavailable because neither OPENAI_API_KEY nor GEMINI_API_KEY is configured in GitHub Actions",
+    "AUD-922-002: a fresh exact-head CI run is required for the rebuilt candidate after publication"
+  ],
+  "regression_ledger": [
+    {
+      "cycle": 1,
+      "finding": "domain boundary assertion matched quantity.raw",
+      "resolution": "assertion narrowed to response.raw and usage.raw"
+    },
+    {
+      "cycle": 1,
+      "finding": "long-list nutrition regression exceeded default five-second test budget",
+      "resolution": "explicit 15-second timeout for the 11-item load scenario"
+    },
+    {
+      "cycle": 4,
+      "finding": "OpenAI Structured Output schema could reach the SDK without local representability validation",
+      "resolution": "added fail-closed preflight and negative tests before network access"
+    },
+    {
+      "cycle": 5,
+      "finding": "WHATSAPP_INTENT lost the legacy 8-second timeout, one retry, and OPENAI_TEXT_MODEL precedence",
+      "resolution": "restored capability-specific legacy defaults and model precedence while leaving other capabilities unchanged"
+    },
+    {
+      "cycle": 6,
+      "finding": "candidate diverged 918 commits from develop and was non-mergeable",
+      "resolution": "rebuilt the candidate directly on current develop; issue-exclusive runtime blobs were reused byte-for-byte, shared documentation and package metadata were composed with the current base, and temporary diagnostic commits were excluded"
+    }
+  ],
+  "validations": [
+    {
+      "name": "Agent-first gate on unchanged functional blobs",
+      "run_id": 30403697823,
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 30403697829,
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "run_id": 30403697903,
+      "conclusion": "success"
+    },
+    {
+      "name": "Live provider smoke",
+      "run_id": 30403698003,
+      "conclusion": "failure-before-outbound"
+    }
+  ],
+  "limitations": [
+    "No approved provider credentials are configured for the live smoke.",
+    "Connector-originated branch writes did not trigger GitHub Actions during remediation.",
+    "A replacement branch was required because the integration safety layer blocked a non-fast-forward update to the original branch."
+  ],
+  "implementation_summary": "Rebuilt issue 922 on current develop, removed the 918-commit divergence, preserved later develop changes, retained exact previously validated runtime blobs, and documented the WhatsApp ingestion capability delta without reverting the current canonical ingestion document.",
+  "final_cycle_delta": "Only audit traceability changed after the rebuilt functional commit."
+}
