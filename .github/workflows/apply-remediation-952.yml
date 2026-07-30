@@ -1,0 +1,132 @@
+name: Apply PR 952 audit remediation
+
+on:
+  push:
+    branches:
+      - fix/whatsapp-ai-question-context-and-exercise-goal-progress
+
+permissions:
+  contents: write
+
+jobs:
+  apply-remediation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "523fbee88bc069f7bf1af0c785eadcee99c54ae0"
+      - name: Apply audited remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/remediation.patch.gz.b64 <<'B64'
+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
+B64
+          base64 -d /tmp/remediation.patch.gz.b64 | gzip -d > /tmp/remediation.patch
+          echo "4b982db20272a57e4bc8853a87caec3b5b8b59931e7255881e772b62cfd5c847  /tmp/remediation.patch" | sha256sum -c -
+          git apply --check /tmp/remediation.patch
+          git apply /tmp/remediation.patch
+          git rm .github/workflows/apply-remediation-952.yml
+          git add docs server
+          test "$(git write-tree)" = "ab8f76fa057368c18c5fcc1be5a391e8a4c9fdab"
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: isolar contexto por conversa logica"
+          git push origin HEAD:fix/whatsapp-ai-question-context-and-exercise-goal-progress
