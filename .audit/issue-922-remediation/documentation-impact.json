@@ -1,8 +1,10 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "issue": 922,
+  "cycle": 9,
   "mode": "implementation",
   "base_ref": "develop",
+  "subject_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
   "categories": [
     "architecture",
     "environment",
@@ -10,7 +12,8 @@
     "security",
     "privacy",
     "meal-registration",
-    "whatsapp"
+    "whatsapp",
+    "ci-governance"
   ],
   "canonical_sources": [
     "README.md",
@@ -27,8 +30,27 @@
     "docs/PRIVACY_LGPD.md",
     "docs/design-docs/whatsapp-llm-intents.md"
   ],
-  "last_scanned_head": "4beebb6dd62cc24490df930f93681dfad35e2bec",
-  "validation_run_id": 30403697823,
-  "status": "validated_with_external_smoke_blocker",
-  "final_cycle_delta": "The functional tree was rebuilt directly on develop 0cb25e81ec82477844fd5a21254f5bd87cca9621. Runtime files exclusive to issue 922 reuse the previously validated blobs; shared documentation and package metadata were composed with the current base. The live-provider smoke remains blocked by missing provider credentials."
+  "last_scanned_head": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+  "status": "code_remediated_external_configuration_pending",
+  "cycle_delta": [
+    "Removed generic OPENAI_API_KEY and GEMINI_API_KEY from job scope.",
+    "Restricted provider secrets to the final live-smoke step.",
+    "Required a dedicated issue-922-live-smoke environment and dedicated low-quota secrets.",
+    "Required ISSUE_922_SMOKE_APPROVED_SHA to equal the exact reviewed PR head before dependency installation or secret release.",
+    "Disabled persisted checkout credentials and restricted eligible repository, author and branch family.",
+    "Added server/issue922SmokeWorkflowSecurity.test.ts as a reusable negative control.",
+    "Updated docs/SECURITY.md with the operational setup and fail-closed contract.",
+    "Migrated the loop record to schema v5 and removed stale cycle-6 blocked claims."
+  ],
+  "external_actions_required": [
+    "Configure required reviewers for GitHub environment issue-922-live-smoke.",
+    "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the reviewed exact head SHA after every head change.",
+    "Create ISSUE_922_SMOKE_OPENAI_API_KEY or ISSUE_922_SMOKE_GEMINI_API_KEY as an environment secret using a dedicated minimal-quota credential.",
+    "Re-run the Issue 922 live provider smoke on the resulting exact head."
+  ],
+  "evidence": {
+    "secure_workflow_failure_run": 30596848796,
+    "failure_reason": "No dedicated provider credential was available; checkout, identity validation and dependency installation completed without provider secrets.",
+    "whatsapp_context_gate": 30596848748
+  }
 }
