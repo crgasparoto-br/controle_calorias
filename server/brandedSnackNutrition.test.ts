@@ -5,8 +5,6 @@ const { createTextResponseMock, embeddingsCreateMock } = vi.hoisted(() => ({
   embeddingsCreateMock: vi.fn(),
 }));
 
-const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
-
 vi.mock("./_core/aiProvider", () => ({
   getAiProvider: () => ({
     createTextResponse: createTextResponseMock,
@@ -28,15 +26,26 @@ vi.mock("./catalogRuntime", async () => {
 
 describe("nutritionEngine branded snack photo nutrition", () => {
   beforeEach(() => {
-    process.env.OPENAI_API_KEY = "test-openai-key";
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("OPENAI_BASE_URL", "");
+    vi.stubEnv("AI_OPENAI_COMPATIBLE_OPERATIONS", "");
+    vi.stubEnv("AI_VISION_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_MODEL", "gpt-4.1-mini");
+    vi.stubEnv("AI_NUTRITION_SEARCH_PROVIDER", "openai");
+    vi.stubEnv("AI_NUTRITION_SEARCH_MODEL", "gpt-4.1-mini");
+    vi.stubEnv("AI_NUTRITION_SEARCH_MAX_ATTEMPTS", "1");
+    vi.stubEnv("AI_NUTRITION_SEARCH_FALLBACK_ENABLED", "false");
+    vi.stubEnv("AI_EMBEDDING_PROVIDER", "openai");
+    vi.stubEnv("AI_EMBEDDING_MODEL", "text-embedding-3-small");
+    vi.stubEnv("AI_EMBEDDING_MAX_ATTEMPTS", "1");
+    vi.stubEnv("AI_EMBEDDING_FALLBACK_ENABLED", "false");
     createTextResponseMock.mockReset();
     embeddingsCreateMock.mockReset();
     embeddingsCreateMock.mockResolvedValue({ embeddings: [], raw: {} });
   });
 
   afterEach(() => {
-    if (originalOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+    vi.unstubAllEnvs();
   });
 
   it("corrige chutes genéricos da IA para doces industrializados reconhecidos por embalagem", async () => {
