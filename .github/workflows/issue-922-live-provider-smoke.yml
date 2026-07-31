@@ -41,9 +41,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Verify trusted pull request identity
+      - name: Verify trusted pull request identity and approved SHA
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APPROVED_HEAD_SHA: ${{ vars.ISSUE_922_SMOKE_APPROVED_SHA }}
           EXPECTED_HEAD_REPOSITORY: ${{ github.repository }}
           EXPECTED_HEAD_OWNER: crgasparoto-br
           ACTUAL_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
@@ -58,6 +59,10 @@ jobs:
             feat/922-ai-capabilities-meal-whatsapp*) ;;
             *) echo "Unexpected pull request head branch." >&2; exit 1 ;;
           esac
+          if [ -z "${APPROVED_HEAD_SHA}" ] || [ "${APPROVED_HEAD_SHA}" != "${EXPECTED_HEAD_SHA}" ]; then
+            echo "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the reviewed PR head before releasing provider credentials." >&2
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
