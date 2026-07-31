@@ -111,6 +111,10 @@ describe("nutritionEngine branded snack photo nutrition", () => {
           sourceUrl: "https://example.test/trento-nutrition",
           evidence: "Fonte informa tabela nutricional por unidade de 32 g.",
         }),
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.test/trento-nutrition" }],
+        },
         raw: { mocked: true },
       });
 
