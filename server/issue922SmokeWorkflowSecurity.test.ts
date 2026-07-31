@@ -25,6 +25,26 @@ describe("issue 922 live-provider smoke security boundary", () => {
     expect(workflow.slice(0, stepsIndex)).not.toContain("${{ secrets.");
   });
 
+  it("requires explicit approval of the exact PR head before setup continues", () => {
+    const workflow = readWorkflow();
+    const approvalIndex = workflow.indexOf("ISSUE_922_SMOKE_APPROVED_SHA");
+    const installIndex = workflow.indexOf("Install dependencies without provider credentials");
+    const secretIndex = workflow.indexOf("${{ secrets.");
+
+    expect(workflow).toContain(
+      "APPROVED_HEAD_SHA: ${{ vars.ISSUE_922_SMOKE_APPROVED_SHA }}",
+    );
+    expect(workflow).toContain(
+      '[ "${APPROVED_HEAD_SHA}" != "${EXPECTED_HEAD_SHA}" ]',
+    );
+    expect(workflow).toContain(
+      "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the reviewed PR head before releasing provider credentials.",
+    );
+    expect(approvalIndex).toBeGreaterThan(0);
+    expect(installIndex).toBeGreaterThan(approvalIndex);
+    expect(secretIndex).toBeGreaterThan(approvalIndex);
+  });
+
   it("accepts only dedicated smoke credentials in the protected environment", () => {
     const workflow = readWorkflow();
 
