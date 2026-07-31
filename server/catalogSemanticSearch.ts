@@ -142,7 +142,8 @@ function normalizeText(value: string): string {
 }
 
 function hasAnyTerm(normalizedText: string, terms: string[]) {
-  return terms.some(term => new RegExp(`\b${term}\b`, "i").test(normalizedText));
+  const padded = ` ${normalizedText} `;
+  return terms.some(term => padded.includes(` ${term} `));
 }
 
 function detectPackagedSnackCategory(foodName: string): PackagedSnackCategory | null {
