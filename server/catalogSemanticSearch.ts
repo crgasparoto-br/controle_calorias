@@ -12,6 +12,7 @@ import type { CatalogFood } from "./nutritionEngine";
 import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "./_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
+import type { AiWebSearchResult } from "./_core/aiProvider";
 
 // The default embedding model/provider (OpenAI text-embedding-3-small) is
 // owned by configResolverCore (AI_EMBEDDING_MODEL / EMBEDDING capability).
@@ -108,11 +109,22 @@ type CatalogEmbeddingEntry = {
   embedding: number[];
 };
 
+type EmbeddingFetchResult = {
+  embeddings: number[][];
+  sourceKey: string;
+};
+
+type EmbeddingCacheResult = {
+  entries: CatalogEmbeddingEntry[];
+  sourceKey: string;
+};
+
 let embeddingCache: CatalogEmbeddingEntry[] | null = null;
 let cachedCatalogSize = 0;
 let cachedEmbeddingSourceKey: string | null = null;
+let cachedEmbeddingPolicyKey: string | null = null;
 
-function embeddingSourceKey(policy: ResolvedCapabilityConfig): string | null {
+function embeddingPolicyKey(policy: ResolvedCapabilityConfig): string | null {
   const target = policy.primary;
   return target ? `${target.provider}:${target.model}` : null;
 }
@@ -209,7 +221,39 @@ function candidateIsCompatible(foodName: string, candidate: CatalogFood) {
   ]);
 }
 
-function parseSearchedNutritionResult(value: unknown, foodName: string): CatalogFood | null {
+function normalizeHttpUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    url.hash = "";
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/u, "");
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function findVerifiedNutritionSource(
+  requestedSourceUrl: unknown,
+  webSearch: AiWebSearchResult | undefined,
+): string | null {
+  if (webSearch?.executed !== true || !webSearch.sources.length) return null;
+  const normalizedRequested = normalizeHttpUrl(requestedSourceUrl);
+  if (!normalizedRequested) return null;
+
+  for (const source of webSearch.sources) {
+    const normalizedSource = normalizeHttpUrl(source.url);
+    if (normalizedSource === normalizedRequested) return source.url.trim();
+  }
+  return null;
+}
+
+function parseSearchedNutritionResult(
+  value: unknown,
+  foodName: string,
+  webSearch: AiWebSearchResult | undefined,
+): CatalogFood | null {
   const result = value as Partial<SearchedNutritionResult> | null;
   if (!result?.found || result.confidence === undefined || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) {
     return null;
@@ -219,8 +263,10 @@ function parseSearchedNutritionResult(value: unknown, foodName: string): Catalog
 
   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
   const brandName = result.brandName?.trim() || null;
-  const sourceUrl = result.sourceUrl?.trim();
-  const sourceAlias = sourceUrl ? `fonte: ${sourceUrl}` : "fonte: busca web";
+  const evidence = result.evidence?.trim();
+  const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, webSearch);
+  if (!sourceUrl || !evidence) return null;
+  const sourceAlias = `fonte: ${sourceUrl}`;
   const candidate: CatalogFood = {
     slug: `web-nutrition-${normalizeText(matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: matchedProductName,
@@ -291,6 +337,7 @@ export async function findPackagedSnackByWebSearch(
     return parseSearchedNutritionResult(
       safeJsonParse<SearchedNutritionResult>(result.value.outputText),
       foodName,
+      result.value.webSearch,
     );
   } catch {
     return null;
@@ -326,36 +373,44 @@ function buildCatalogText(food: CatalogFood): string {
 async function fetchEmbeddings(
   texts: string[],
   policy: ResolvedCapabilityConfig,
-): Promise<number[][]> {
+): Promise<EmbeddingFetchResult> {
   const result = await executeResolvedCapability(
     policy,
-    async (attempt: ResolvedCapabilityAttemptContext) =>
-      attempt.provider.createEmbeddings(
+    async (attempt: ResolvedCapabilityAttemptContext) => {
+      const response = await attempt.provider.createEmbeddings(
         { model: attempt.model, input: texts },
         { signal: attempt.signal },
-      ),
+      );
+      return {
+        embeddings: response.embeddings,
+        sourceKey: `${attempt.providerId}:${attempt.model}`,
+      };
+    },
   );
-  return result.value.embeddings;
+  return result.value;
 }
 
-async function buildEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<CatalogEmbeddingEntry[]> {
+async function buildEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<EmbeddingCacheResult> {
   const catalog = getCatalogCache() as CatalogFood[];
   const texts = catalog.map(buildCatalogText);
-  const embeddings = await fetchEmbeddings(texts, policy);
-  return catalog
-    .map((food, i) => ({ food, embedding: embeddings[i] }))
+  const fetched = await fetchEmbeddings(texts, policy);
+  const entries = catalog
+    .map((food, i) => ({ food, embedding: fetched.embeddings[i] }))
     .filter((entry): entry is CatalogEmbeddingEntry => isEmbedding(entry.embedding));
+  return { entries, sourceKey: fetched.sourceKey };
 }
 
-async function getEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<CatalogEmbeddingEntry[]> {
+async function getEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<EmbeddingCacheResult> {
   const catalog = getCatalogCache();
-  const sourceKey = embeddingSourceKey(policy);
-  if (!embeddingCache || catalog.length !== cachedCatalogSize || sourceKey !== cachedEmbeddingSourceKey) {
-    embeddingCache = await buildEmbeddingCache(policy);
+  const policyKey = embeddingPolicyKey(policy);
+  if (!embeddingCache || catalog.length !== cachedCatalogSize || policyKey !== cachedEmbeddingPolicyKey) {
+    const built = await buildEmbeddingCache(policy);
+    embeddingCache = built.entries;
     cachedCatalogSize = catalog.length;
-    cachedEmbeddingSourceKey = sourceKey;
+    cachedEmbeddingSourceKey = built.sourceKey;
+    cachedEmbeddingPolicyKey = policyKey;
   }
-  return embeddingCache;
+  return { entries: embeddingCache, sourceKey: cachedEmbeddingSourceKey as string };
 }
 
 async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood | null> {
@@ -366,13 +421,18 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
 
   try {
     const cache = await getEmbeddingCache(policy);
-    const [queryEmbedding] = await fetchEmbeddings([foodName], policy);
+    const query = await fetchEmbeddings([foodName], policy);
+    if (query.sourceKey !== cache.sourceKey) {
+      resetEmbeddingCache();
+      return null;
+    }
+    const [queryEmbedding] = query.embeddings;
     if (!isEmbedding(queryEmbedding)) return null;
 
     let bestScore = -1;
     let bestFood: CatalogFood | null = null;
 
-    for (const entry of cache) {
+    for (const entry of cache.entries) {
       if (!candidateIsCompatible(foodName, entry.food)) continue;
       const score = cosineSimilarity(queryEmbedding, entry.embedding);
       if (score > bestScore) {
@@ -414,4 +474,5 @@ export function resetEmbeddingCache(): void {
   embeddingCache = null;
   cachedCatalogSize = 0;
   cachedEmbeddingSourceKey = null;
+  cachedEmbeddingPolicyKey = null;
 }

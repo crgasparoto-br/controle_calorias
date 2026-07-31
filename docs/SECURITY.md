@@ -42,19 +42,6 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 `QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
 
-### Smoke real protegido da issue #922
+### Smokes temporários com providers externos
 
-O workflow `.github/workflows/issue-922-live-provider-smoke.yml` executa código do head da pull request e, por isso, nunca pode receber credenciais comuns de produção ou credenciais disponíveis automaticamente para qualquer PR.
-
-Controles obrigatórios:
-
-- o job usa o ambiente protegido `issue-922-live-smoke` e esse ambiente deve exigir aprovação manual de um mantenedor antes de liberar secrets;
-- o repositório deve definir `ISSUE_922_SMOKE_APPROVED_SHA` com o SHA exato revisado; o job falha antes da instalação e antes de qualquer secret quando a variável está vazia ou diverge do head;
-- a aprovação e `ISSUE_922_SMOKE_APPROVED_SHA` devem ser renovadas após qualquer mudança do SHA da pull request;
-- somente PR do repositório `crgasparoto-br/controle_calorias`, criada por `crgasparoto-br` e com branch `feat/922-ai-capabilities-meal-whatsapp*` é elegível;
-- as únicas credenciais aceitas são `ISSUE_922_SMOKE_OPENAI_API_KEY` ou `ISSUE_922_SMOKE_GEMINI_API_KEY`, exclusivas para smoke, com quota e permissões mínimas; não reutilizar credencial de produção;
-- os secrets ficam restritos ao passo final de smoke e não são disponibilizados durante checkout, instalação de dependências ou validações anteriores;
-- `persist-credentials` permanece desabilitado no checkout do head;
-- a ausência de credencial dedicada deve falhar de forma explícita, sem fallback para `OPENAI_API_KEY` ou `GEMINI_API_KEY` genéricas.
-
-A proteção do ambiente, a aprovação do SHA e a criação/rotação das credenciais são configurações operacionais do GitHub/OpenAI ou Gemini e não devem ser simuladas por arquivo versionado.
+O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos. Quando uma issue exigir smoke real com provider externo, a execução deve ser explicitamente autorizada para o SHA exato, usar credencial dedicada com quota mínima e registrar provider, modelo, SHA e resultado na PR ou no artefato de auditoria. Credenciais comuns de produção não podem ser reutilizadas e nunca devem ficar disponíveis durante checkout ou instalação de dependências.

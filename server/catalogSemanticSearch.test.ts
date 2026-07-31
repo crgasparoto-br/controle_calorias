@@ -38,7 +38,13 @@ const DISABLED_POLICY = {
   usedLegacyVariables: false,
 };
 
-function mockExecuteWithOutput(outputText: string) {
+function mockExecuteWithOutput(
+  outputText: string,
+  webSearch = {
+    executed: true,
+    sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
+  },
+) {
   executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
     const value = await operation({
       signal: new AbortController().signal,
@@ -51,6 +57,7 @@ function mockExecuteWithOutput(outputText: string) {
           return {
             id: "resp-test",
             outputText: response?.outputText ?? outputText,
+            webSearch,
             raw: response,
           };
         },
@@ -172,6 +179,60 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(result).toBeNull();
   });
 
+  it.each([
+    {
+      name: "fonte ausente",
+      sourceUrl: "",
+      evidence: "Tabela nutricional oficial.",
+      webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+    },
+    {
+      name: "evidência ausente",
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "",
+      webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+    },
+    {
+      name: "ferramenta não executada",
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Tabela nutricional oficial.",
+      webSearch: { executed: false, sources: [] },
+    },
+    {
+      name: "URL não citada pelo provider",
+      sourceUrl: "https://fonte-inventada.example/produto",
+      evidence: "Tabela nutricional oficial.",
+      webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+    },
+  ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
+    sourceUrl,
+    evidence,
+    webSearch,
+  }) => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl,
+      evidence,
+    }), webSearch);
+
+    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
+
+    expect(result).toBeNull();
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+  });
+
   it("returns null when the semantic compatibility guard rejects an ambiguous flavor/complement match", async () => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
@@ -188,7 +249,10 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       confidence: 0.95,
       sourceUrl: "https://example.com/produto",
       evidence: "tabela do fabricante",
-    }));
+    }), {
+      executed: true,
+      sources: [{ url: "https://example.com/produto" }],
+    });
 
     // Query explicitly asks for sugar-free coffee (canonical qualifier); the
     // returned product name carries an incompatible complement (leite
@@ -338,5 +402,47 @@ describe("findCatalogFoodSemantic — EMBEDDING capability (catalog embedding se
     const callsAfterRebuild = createEmbeddingsMock.mock.calls;
     const rebuildCall = callsAfterRebuild[callsBeforeRebuild];
     expect(rebuildCall[0].input.length).toBeGreaterThan(1);
+  });
+
+  it("degrada e invalida o cache quando catálogo e consulta usam modelos efetivos diferentes", async () => {
+    const { getCatalogCache } = await import("./catalogRuntime");
+    const catalog = getCatalogCache();
+    const targetIndex = catalog.findIndex(food => food.slug === "agua");
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "EMBEDDING" ? READY_EMBEDDING_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    createEmbeddingsMock.mockImplementation(async (request: { input: string[] }) =>
+      request.input.length > 1
+        ? catalog.map((_, i) => (i === targetIndex ? [1, 0] : [0, 1]))
+        : [[1, 0]],
+    );
+
+    let execution = 0;
+    executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
+      execution += 1;
+      const model = execution === 1 ? "text-embedding-3-large" : "text-embedding-3-small";
+      const value = await operation({
+        signal: new AbortController().signal,
+        source: execution === 1 ? "fallback" : "primary",
+        attempt: execution,
+        timeoutMs: 8000,
+        provider: {
+          createEmbeddings: async (request: unknown) => ({
+            embeddings: await createEmbeddingsMock(request),
+            raw: {},
+          }),
+        },
+        providerId: "openai",
+        model,
+      });
+      return { value, source: execution === 1 ? "fallback" : "primary", attempts: 1, usedFallback: execution === 1 };
+    });
+
+    expect(await findCatalogFoodSemantic("agua")).toBeNull();
+
+    mockExecuteEmbeddings();
+    expect((await findCatalogFoodSemantic("agua"))?.slug).toBe("agua");
   });
 });

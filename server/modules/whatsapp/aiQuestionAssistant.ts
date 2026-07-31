@@ -242,9 +242,13 @@ function buildInstructions() {
   ].join("\n");
 }
 
-function isWebSearchToolEnabled() {
-  const mode = process.env.AI_QUESTION_WEB_SEARCH_MODE?.trim().toLowerCase() || "auto";
-  return mode !== "off";
+type QuestionWebSearchMode = "auto" | "disabled";
+
+function resolveQuestionWebSearchMode(): QuestionWebSearchMode {
+  const rawMode = process.env.AI_QUESTION_WEB_SEARCH_MODE?.trim().toLowerCase();
+  if (!rawMode || rawMode === "auto") return "auto";
+  if (rawMode === "disabled" || rawMode === "off") return "disabled";
+  return "disabled";
 }
 
 function buildQuestionInput(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
@@ -278,7 +282,7 @@ async function answerWithAi(
 ): Promise<{ reply: string; webSearchExecuted: boolean }> {
   const instructions = buildInstructions();
   const input = buildQuestionInput(question, knowledgeBase, recentHistory);
-  const webSearchEnabled = isWebSearchToolEnabled();
+  const webSearchMode = resolveQuestionWebSearchMode();
 
   const result = await executeResolvedCapability(
     policy,
@@ -291,7 +295,7 @@ async function answerWithAi(
           input,
           // "auto" mode: the tool is made available but never forced via tool_choice,
           // so the model decides whether the question actually needs a web search.
-          ...(webSearchEnabled ? { tools: [{ type: "web_search" as const }] } : {}),
+          ...(webSearchMode === "auto" ? { tools: [{ type: "web_search" as const }] } : {}),
         },
         { signal: attempt.signal },
       ),

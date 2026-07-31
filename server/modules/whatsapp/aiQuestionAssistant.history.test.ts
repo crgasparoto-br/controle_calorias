@@ -78,6 +78,7 @@ vi.mock("../insights/service", () => ({
 }));
 
 const { executeWhatsappAiQuestionIntent } = await import("./aiQuestionAssistant");
+const originalEnv = { ...process.env };
 
 function contextWithTurns(recentTurns: Array<{ direction: "inbound" | "outbound"; text: string | null }>) {
   return {
@@ -99,6 +100,7 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
   });
 
   afterEach(() => {
+    process.env = { ...originalEnv };
     vi.clearAllMocks();
   });
 
@@ -165,6 +167,38 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
     expect(promptText).toContain("[email_redacted]");
     expect(promptText).not.toContain("pessoa@example.com");
   });
+
+  it.each([undefined, "auto"])("oferece web_search no modo %s sem forçar execução", async (mode) => {
+    if (mode === undefined) {
+      delete process.env.AI_QUESTION_WEB_SEARCH_MODE;
+    } else {
+      process.env.AI_QUESTION_WEB_SEARCH_MODE = mode;
+    }
+
+    await executeWhatsappAiQuestionIntent(42, {
+      text: "/ qual é a recomendação atual de fibras?",
+      receivedAt: new Date("2026-07-29T16:00:00Z"),
+    });
+
+    const requestArgs = responsesCreateMock.mock.calls[0][0];
+    expect(requestArgs.tools).toEqual([{ type: "web_search" }]);
+    expect(requestArgs.tool_choice).toBeUndefined();
+  });
+
+  it.each(["disabled", "off", "forced", "valor-invalido"])(
+    "não oferece web_search no modo fail-closed %s",
+    async (mode) => {
+      process.env.AI_QUESTION_WEB_SEARCH_MODE = mode;
+
+      await executeWhatsappAiQuestionIntent(42, {
+        text: "/ como está meu consumo hoje?",
+        receivedAt: new Date("2026-07-29T16:00:00Z"),
+      });
+
+      const requestArgs = responsesCreateMock.mock.calls[0][0];
+      expect(requestArgs.tools).toBeUndefined();
+    },
+  );
 
   it("não adiciona histórico quando rollout ou fallback canônico seleciona janela vazia", async () => {
     buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([]));
