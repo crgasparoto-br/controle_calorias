@@ -226,13 +226,13 @@ describe("capability config resolver", () => {
   });
 
   it("rejects an adapter that lacks any required operation", () => {
-    const resolved = resolveCapabilityConfig("NUTRITION_SEARCH", envWith({
+    const resolved = resolveCapabilityConfig("EMBEDDING", envWith({
       GEMINI_API_KEY: "g-test",
-      AI_NUTRITION_SEARCH_PROVIDER: "gemini",
-      AI_NUTRITION_SEARCH_MODEL: "gemini-2.5-flash",
+      AI_EMBEDDING_PROVIDER: "gemini",
+      AI_EMBEDDING_MODEL: "gemini-embedding-001",
     }));
     expect(resolved.state).toBe("invalid");
-    expect(resolved.diagnostics.some((item) => item.includes("web_search"))).toBe(true);
+    expect(resolved.diagnostics.some((item) => item.includes("embeddings"))).toBe(true);
   });
 
   it("marks invalid timeout and attempts as invalid configuration", () => {

@@ -48,14 +48,27 @@ describe("GeminiProvider common adapter contract", () => {
     }));
   });
 
-  it("classifies unsupported tools before network access", async () => {
+  it("classifies unsupported tool types before network access", async () => {
     const provider = new GeminiProvider("fake-key");
     await expectIncompatibleOperation(() => provider.createTextResponse({
       model: "gemini-2.5-flash",
       input: "preço atual",
-      tools: [{ type: "web_search" }],
+      tools: [{ type: "unsupported_tool" } as never],
     }));
     expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it("translates the web_search tool into Google Search Grounding instead of rejecting it", async () => {
+    generateContentMock.mockResolvedValue({ text: "ok" });
+    const provider = new GeminiProvider("fake-key");
+    await provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: "preço atual",
+      tools: [{ type: "web_search" }],
+    });
+    expect(generateContentMock).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ tools: [{ googleSearch: {} }] }),
+    }));
   });
 
   it("classifies an unsupported schema before network access", async () => {

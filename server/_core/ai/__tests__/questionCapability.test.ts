@@ -33,17 +33,15 @@ describe("QUESTION capability runtime contract", () => {
     expect(resolved.primary).toEqual({ provider: "openai", model: "gpt-4.1-mini" });
   });
 
-  it("rejects Gemini locally while Google Search translation is unavailable", () => {
+  it("accepts Gemini now that Google Search Grounding translates web_search", () => {
     const resolved = resolveCapabilityConfig("QUESTION", {
       GEMINI_API_KEY: "gemini-test",
       AI_QUESTION_PROVIDER: "gemini",
       AI_QUESTION_MODEL: "gemini-2.5-flash",
     } as NodeJS.ProcessEnv);
 
-    expect(resolved.state).toBe("invalid");
-    expect(resolved.diagnostics).toEqual(expect.arrayContaining([
-      expect.stringContaining("web_search"),
-    ]));
+    expect(resolved.state).toBe("ready");
+    expect(resolved.primary).toEqual({ provider: "gemini", model: "gemini-2.5-flash" });
   });
 
   it("executes a resolved QUESTION policy through the canonical executor and surfaces web search execution", async () => {

@@ -18,7 +18,7 @@ describe("adapter support matrix", () => {
     expect(supportsOperation("gemini", "text")).toBe(true);
     expect(supportsOperation("gemini", "vision")).toBe(true);
     expect(supportsOperation("gemini", "structured_output")).toBe(true);
-    expect(supportsOperation("gemini", "web_search")).toBe(false);
+    expect(supportsOperation("gemini", "web_search")).toBe(true);
     expect(supportsOperation("gemini", "embeddings")).toBe(false);
     expect(supportsOperation("gemini", "transcription")).toBe(false);
     expect(supportsOperation("gemini", "image_generation")).toBe(false);
@@ -49,7 +49,6 @@ describe("adapter support matrix", () => {
 
   it("finds every unsupported operation for a required set", () => {
     expect(findUnsupportedOperations("gemini", ["text", "web_search", "embeddings"])).toEqual([
-      "web_search",
       "embeddings",
     ]);
   });

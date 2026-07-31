@@ -25,6 +25,7 @@ const GEMINI_OPERATIONS: readonly AiOperation[] = [
   "text",
   "vision",
   "structured_output",
+  "web_search",
 ];
 
 function hasOpenAiCompatibleEndpoint(env: NodeJS.ProcessEnv): boolean {

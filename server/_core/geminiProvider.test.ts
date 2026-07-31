@@ -275,14 +275,95 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(generateContentMock).not.toHaveBeenCalled();
   });
 
-  it("rejects tools before network access until an explicit Google Search translation exists", async () => {
+  it("rejects unsupported tool types before network access", async () => {
     const provider = new GeminiProvider("fake-key");
     await expect(provider.createTextResponse({
       model: "gemini-2.5-flash",
       input: [{ role: "user", content: "preço atual" }],
-      tools: [{ type: "web_search_preview" }],
-    })).rejects.toThrow(/tools are not representable/);
+      tools: [{ type: "code_interpreter" } as never],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
     expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it("translates web_search tool into Google Search Grounding", async () => {
+    generateContentMock.mockResolvedValue({ text: "resposta" });
+    await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "preço atual" }],
+      tools: [{ type: "web_search" }],
+    });
+    expect(generateContentMock.mock.calls[0][0].config.tools).toEqual([
+      { googleSearch: {} },
+    ]);
+  });
+
+  it("translates web_search_preview tool into Google Search Grounding", async () => {
+    generateContentMock.mockResolvedValue({ text: "resposta" });
+    await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "preço atual" }],
+      tools: [{ type: "web_search_preview" }],
+    });
+    expect(generateContentMock.mock.calls[0][0].config.tools).toEqual([
+      { googleSearch: {} },
+    ]);
+  });
+
+  it("extracts normalized web search sources from grounding metadata", async () => {
+    generateContentMock.mockResolvedValue({
+      text: "resposta com fontes",
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [
+              { web: { uri: "https://example.com/a", title: "Fonte A" } },
+              { web: { uri: "https://example.com/b" } },
+            ],
+            webSearchQueries: ["preço atual do produto"],
+          },
+        },
+      ],
+    });
+
+    const result = await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "preço atual" }],
+      tools: [{ type: "web_search" }],
+    });
+
+    expect(result.webSearch).toEqual({
+      executed: true,
+      sources: [
+        { url: "https://example.com/a", title: "Fonte A" },
+        { url: "https://example.com/b" },
+      ],
+      searchQueries: ["preço atual do produto"],
+    });
+  });
+
+  it("reports web search as not executed when no grounding evidence is returned", async () => {
+    generateContentMock.mockResolvedValue({
+      text: "resposta sem pesquisa",
+      candidates: [{}],
+    });
+
+    const result = await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "conceito geral" }],
+      tools: [{ type: "web_search" }],
+    });
+
+    expect(result.webSearch).toEqual({ executed: false, sources: [] });
+  });
+
+  it("omits webSearch entirely when the tool was not requested", async () => {
+    generateContentMock.mockResolvedValue({ text: "resposta" });
+    const result = await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "oi" }],
+    });
+    expect(result.webSearch).toBeUndefined();
+    expect(generateContentMock.mock.calls[0][0].config.tools).toBeUndefined();
   });
 
   it("rejects unsupported adapter operations locally", async () => {

@@ -3,7 +3,9 @@ import {
   type Content,
   type ContentListUnion,
   type GenerateContentConfig,
+  type GenerateContentResponse,
   type Part,
+  type ToolListUnion,
 } from "@google/genai";
 import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
 import type {
@@ -17,6 +19,8 @@ import type {
   AiProviderRequestOptions,
   AiProviderTextRequest,
   AiProviderTextResponse,
+  AiWebSearchResult,
+  AiWebSearchSource,
 } from "./aiProvider";
 
 /**
@@ -480,15 +484,39 @@ function assertRepresentableSchema(value: unknown): void {
   assertSupportedReferenceCycles(root);
 }
 
-function assertRepresentableTools(request: AiProviderTextRequest): void {
-  if (!request.tools?.length) return;
-  throw incompatibleOperation(
-    "GeminiProvider: request tools are not representable by the current adapter. Google Search translation must be implemented explicitly before network access.",
-  );
+/**
+ * Translates the internal, SDK-agnostic tool contract into `@google/genai`
+ * tools. Only `web_search`/`web_search_preview` is representable today,
+ * mapped to Gemini's "Google Search Grounding" (`googleSearch: {}`). Any
+ * other tool type is rejected locally before network access, matching the
+ * fail-closed posture of the rest of this adapter.
+ */
+function translateGeminiTools(
+  tools: AiProviderTextRequest["tools"],
+): ToolListUnion | undefined {
+  if (!tools?.length) return undefined;
+
+  return tools.map(tool => {
+    if (typeof tool !== "object" || tool === null || !("type" in tool)) {
+      throw incompatibleOperation(
+        "GeminiProvider: text tool must declare a supported type before network access.",
+      );
+    }
+
+    const type = (tool as { type?: unknown }).type;
+    if (type === "web_search" || type === "web_search_preview") {
+      return { googleSearch: {} };
+    }
+
+    throw incompatibleOperation(
+      `GeminiProvider: text tool type ${String(type)} is not representable by the current adapter. Only Google Search Grounding is supported.`,
+    );
+  });
 }
 
 function buildGenerationConfig(
   request: AiProviderTextRequest,
+  tools: ToolListUnion | undefined,
   options?: AiProviderRequestOptions,
 ): GenerateContentConfig {
   const config: GenerateContentConfig = { maxOutputTokens: 8192 };
@@ -502,7 +530,50 @@ function buildGenerationConfig(
   const systemInstruction = buildSystemInstruction(request.instructions);
   if (systemInstruction) config.systemInstruction = systemInstruction;
   if (options?.signal) config.abortSignal = options.signal;
+  if (tools) config.tools = tools;
   return config;
+}
+
+/**
+ * Normalizes Gemini "Google Search Grounding" output into the internal
+ * `AiWebSearchResult` contract. `executed` reflects whether grounding
+ * metadata with chunks or search queries is present on the first candidate —
+ * Gemini does not expose a discrete "tool call" event like OpenAI's
+ * `web_search_call`, so presence of grounding evidence is the closest
+ * faithful signal that the tool was actually invoked, not merely offered.
+ *
+ * The Gemini API does not report a billable search invocation count in
+ * `groundingMetadata`, so `searchCount` is intentionally omitted rather than
+ * inferred from chunk/query counts, which are not billing figures.
+ */
+function normalizeGeminiWebSearch(
+  response: GenerateContentResponse,
+  requestedTool: boolean,
+): AiWebSearchResult | undefined {
+  if (!requestedTool) return undefined;
+
+  const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+  const chunks = groundingMetadata?.groundingChunks ?? [];
+  const searchQueries = groundingMetadata?.webSearchQueries ?? [];
+
+  const sources: AiWebSearchSource[] = [];
+  for (const chunk of chunks) {
+    const uri = chunk.web?.uri;
+    if (typeof uri !== "string" || !uri) continue;
+    const title = chunk.web?.title;
+    sources.push({
+      url: uri,
+      ...(typeof title === "string" && title ? { title } : {}),
+    });
+  }
+
+  const executed = sources.length > 0 || searchQueries.length > 0;
+
+  return {
+    executed,
+    sources,
+    ...(searchQueries.length ? { searchQueries } : {}),
+  };
 }
 
 export class GeminiProvider implements AiProvider {
@@ -516,19 +587,21 @@ export class GeminiProvider implements AiProvider {
     request: AiProviderTextRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
-    assertRepresentableTools(request);
+    const tools = translateGeminiTools(request.tools);
     const contents = buildGeminiContents(request.input);
     const response = await this.client.models.generateContent({
       model: request.model,
       contents,
-      config: buildGenerationConfig(request, options),
+      config: buildGenerationConfig(request, tools, options),
     });
 
     const usageMetadata = response.usageMetadata;
+    const webSearch = normalizeGeminiWebSearch(response, Boolean(tools?.length));
     return {
       id: `gemini-${Date.now()}`,
       outputText: response.text ?? "",
       raw: response,
+      ...(webSearch ? { webSearch } : {}),
       ...(usageMetadata
         ? {
             usage: {
