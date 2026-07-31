@@ -45,11 +45,12 @@ O workflow `.github/workflows/issue-922-live-provider-smoke.yml` executa código
 Controles obrigatórios:
 
 - o job usa o ambiente protegido `issue-922-live-smoke` e esse ambiente deve exigir aprovação manual de um mantenedor antes de liberar secrets;
-- a aprovação deve ser refeita após qualquer mudança do SHA da pull request;
+- o repositório deve definir `ISSUE_922_SMOKE_APPROVED_SHA` com o SHA exato revisado; o job falha antes da instalação e antes de qualquer secret quando a variável está vazia ou diverge do head;
+- a aprovação e `ISSUE_922_SMOKE_APPROVED_SHA` devem ser renovadas após qualquer mudança do SHA da pull request;
 - somente PR do repositório `crgasparoto-br/controle_calorias`, criada por `crgasparoto-br` e com branch `feat/922-ai-capabilities-meal-whatsapp*` é elegível;
 - as únicas credenciais aceitas são `ISSUE_922_SMOKE_OPENAI_API_KEY` ou `ISSUE_922_SMOKE_GEMINI_API_KEY`, exclusivas para smoke, com quota e permissões mínimas; não reutilizar credencial de produção;
 - os secrets ficam restritos ao passo final de smoke e não são disponibilizados durante checkout, instalação de dependências ou validações anteriores;
 - `persist-credentials` permanece desabilitado no checkout do head;
 - a ausência de credencial dedicada deve falhar de forma explícita, sem fallback para `OPENAI_API_KEY` ou `GEMINI_API_KEY` genéricas.
 
-A proteção do ambiente e a criação/rotação das credenciais são configurações operacionais do GitHub/OpenAI ou Gemini e não devem ser simuladas por arquivo versionado.
+A proteção do ambiente, a aprovação do SHA e a criação/rotação das credenciais são configurações operacionais do GitHub/OpenAI ou Gemini e não devem ser simuladas por arquivo versionado.
