@@ -1,0 +1,2 @@
+trigger=2026-07-31T21:02:00Z
+expected_target_sha=673eed668e2d7113cb597152aca32ec60479ab1e
