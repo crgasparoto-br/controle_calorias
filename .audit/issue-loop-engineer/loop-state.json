@@ -1,74 +1,171 @@
 {
-  "schema_version": 3,
-  "controller_context_id": "issue-loop-922-20260730",
+  "schema_version": 5,
   "issue": 922,
-  "repository": "crgasparoto-br/controle_calorias",
-  "base_ref": "develop",
-  "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
-  "cycle": 6,
-  "cycle_limit": 10,
-  "state": "blocked-external",
-  "baseline_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
-  "validated_functional_sha": "4beebb6dd62cc24490df930f93681dfad35e2bec",
-  "validated_merge_preview_sha": null,
-  "blocking_findings": [
-    "AUD-922-001: live-provider smoke remains unavailable because neither OPENAI_API_KEY nor GEMINI_API_KEY is configured in GitHub Actions",
-    "AUD-922-002: a fresh exact-head CI run is required for the rebuilt candidate after publication"
-  ],
-  "regression_ledger": [
-    {
-      "cycle": 1,
-      "finding": "domain boundary assertion matched quantity.raw",
-      "resolution": "assertion narrowed to response.raw and usage.raw"
-    },
-    {
-      "cycle": 1,
-      "finding": "long-list nutrition regression exceeded default five-second test budget",
-      "resolution": "explicit 15-second timeout for the 11-item load scenario"
-    },
-    {
-      "cycle": 4,
-      "finding": "OpenAI Structured Output schema could reach the SDK without local representability validation",
-      "resolution": "added fail-closed preflight and negative tests before network access"
-    },
-    {
-      "cycle": 5,
-      "finding": "WHATSAPP_INTENT lost the legacy 8-second timeout, one retry, and OPENAI_TEXT_MODEL precedence",
-      "resolution": "restored capability-specific legacy defaults and model precedence while leaving other capabilities unchanged"
-    },
-    {
-      "cycle": 6,
-      "finding": "candidate diverged 918 commits from develop and was non-mergeable",
-      "resolution": "rebuilt the candidate directly on current develop; issue-exclusive runtime blobs were reused byte-for-byte, shared documentation and package metadata were composed with the current base, and temporary diagnostic commits were excluded"
-    }
-  ],
-  "validations": [
-    {
-      "name": "Agent-first gate on unchanged functional blobs",
-      "run_id": 30403697823,
-      "conclusion": "success"
-    },
-    {
-      "name": "WhatsApp context TiDB gate",
-      "run_id": 30403697829,
-      "conclusion": "success"
-    },
-    {
-      "name": "Professional persistence TiDB gate",
-      "run_id": 30403697903,
-      "conclusion": "success"
-    },
-    {
-      "name": "Live provider smoke",
-      "run_id": 30403698003,
-      "conclusion": "failure-before-outbound"
-    }
-  ],
+  "cycle": 9,
+  "state": "blocked",
+  "single_invocation_mode": true,
+  "controller_mode": "issue-loop-single-invocation",
+  "execution_mode": "implement-pendencies",
+  "frozen_identity": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue": 922,
+    "pull_request": 953,
+    "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
+    "head_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+    "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
+    "merge_preview_sha": "f4179dc94ab0d325c9c0c327cf5ab3ffe7b5f18a",
+    "issue_snapshot_sha256": "a81730daa38e479657a5aa6fc3374569041a0f227d06f0705aaae20a994208cd",
+    "diff_sha256": "651efe450ac9b02dc5a94919f6bcddfbd722ce26281a7eb857484d2c48d12d67",
+    "skills_sha256": "c088cf464e79ee9759f70053d2c1e815b31184f2291e545404fbb57e2873c2a0",
+    "captured_at": "2026-07-31T01:41:55.863992Z"
+  },
+  "current_identity": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue": 922,
+    "pull_request": 953,
+    "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
+    "head_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+    "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
+    "merge_preview_sha": "f4179dc94ab0d325c9c0c327cf5ab3ffe7b5f18a",
+    "issue_snapshot_sha256": "a81730daa38e479657a5aa6fc3374569041a0f227d06f0705aaae20a994208cd",
+    "diff_sha256": "651efe450ac9b02dc5a94919f6bcddfbd722ce26281a7eb857484d2c48d12d67",
+    "skills_sha256": "c088cf464e79ee9759f70053d2c1e815b31184f2291e545404fbb57e2873c2a0",
+    "captured_at": "2026-07-31T01:41:55.863992Z"
+  },
+  "audit": {
+    "validity": "absent",
+    "verdict": "not-run",
+    "identity": null,
+    "implementation_context_id": null,
+    "audit_context_id": null,
+    "started_at": null,
+    "finished_at": null,
+    "read_only": false,
+    "requirements_rederived": false,
+    "neutral_packet_sha256": null,
+    "implementation_conclusions_included": false,
+    "implementation_narrative_included": false,
+    "report_path": null,
+    "report_sha256": null,
+    "requirements_rederivation_path": null,
+    "requirements_rederivation_sha256": null,
+    "coverage_matrix_path": null,
+    "coverage_matrix_sha256": null,
+    "source_manifest_path": null,
+    "source_manifest_sha256": null,
+    "modifications_detected": false,
+    "isolation_proven": false,
+    "external_context_proven": false,
+    "signature_required": false,
+    "signature_valid": null
+  },
+  "requirements_inventory_complete": false,
+  "requirements": [],
+  "gate_inventory_complete": false,
+  "gates": [],
+  "findings": [],
+  "regressions": [],
   "limitations": [
-    "No approved provider credentials are configured for the live smoke.",
-    "Connector-originated branch writes did not trigger GitHub Actions during remediation.",
-    "A replacement branch was required because the integration safety layer blocked a non-fast-forward update to the original branch."
+    {
+      "id": "LIM-922-ENV-PROTECTION",
+      "description": "The protected environment issue-922-live-smoke still requires a required reviewer in GitHub settings.",
+      "external": true
+    },
+    {
+      "id": "LIM-922-APPROVED-SHA",
+      "description": "Repository variable ISSUE_922_SMOKE_APPROVED_SHA must be set to the reviewed exact head SHA.",
+      "external": true
+    },
+    {
+      "id": "LIM-922-DEDICATED-KEY",
+      "description": "A dedicated ISSUE_922_SMOKE_OPENAI_API_KEY or ISSUE_922_SMOKE_GEMINI_API_KEY must be created with minimal quota before the smoke can run.",
+      "external": true
+    }
   ],
-  "implementation_summary": "Rebuilt issue 922 on current develop, removed the 918-commit divergence, preserved later develop changes, retained exact previously validated runtime blobs, and documented the WhatsApp ingestion capability delta without reverting the current canonical ingestion document.",
-  "final_cycle_delta": "Only audit traceability changed after the rebuilt functional commit."
+  "artifacts": [
+    {"name":"execution-context","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"specification-snapshot","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"requirement-closure","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"risk-profile","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"documentation-impact","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"gate-report","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"source-manifest","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"requirements-rederivation","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"coverage-matrix","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"applicability-ledger","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"controller-audit-report","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"cycle-history","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
+    {"name":"remote-gate","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"}
+  ],
+  "risk_families": [
+    {
+      "name": "documentation",
+      "applicable": true,
+      "basis": "Security documentation and audit records changed in cycle 9.",
+      "required_gates": ["pnpm docs:check", "pnpm agent:check"],
+      "required_subskills": ["documentacao-repositorio"]
+    },
+    {
+      "name": "security",
+      "applicable": true,
+      "basis": "The remediation changes the boundary that releases external-provider credentials to pull-request code.",
+      "required_gates": ["pnpm test", "pnpm agent:check", "Issue 922 live provider smoke"],
+      "required_subskills": ["implementar-issue"]
+    },
+    {
+      "name": "integration",
+      "applicable": true,
+      "basis": "The workflow invokes OpenAI or Gemini through the issue 922 live smoke.",
+      "required_gates": ["Issue 922 live provider smoke"],
+      "required_subskills": ["implementar-issue"]
+    }
+  ],
+  "subskill_results": [],
+  "changed_files": [
+    {"path":".github/workflows/issue-922-live-provider-smoke.yml","families":["security","integration","documentation"]},
+    {"path":"server/issue922SmokeWorkflowSecurity.test.ts","families":["security","integration"]},
+    {"path":"docs/SECURITY.md","families":["documentation","security"]},
+    {"path":".audit/issue-loop-engineer/loop-state.json","families":["documentation"]},
+    {"path":".audit/issue-922-remediation/requirement-closure.json","families":["documentation"]},
+    {"path":".audit/issue-922-remediation/documentation-impact.json","families":["documentation"]}
+  ],
+  "skill_changes": [],
+  "operational_amendments": [
+    {
+      "id": "OA-922-SECURE-SMOKE-001",
+      "finding": "A-001",
+      "description": "Provider credentials are dedicated, step-scoped and released only after repository/owner/branch validation plus exact-SHA approval.",
+      "evidence": [
+        ".github/workflows/issue-922-live-provider-smoke.yml",
+        "server/issue922SmokeWorkflowSecurity.test.ts",
+        "docs/SECURITY.md"
+      ]
+    }
+  ],
+  "prior_internal_approval": null,
+  "audit_escapes": [],
+  "adversarial_controls": [],
+  "learning_review": {
+    "required": true,
+    "completed": true,
+    "reviewed_finding_ids": ["A-001", "A-002"],
+    "items": [
+      {
+        "finding_id": "A-001",
+        "lesson": "Never expose generic provider secrets at job scope to pull-request code; require exact-SHA approval and dedicated credentials."
+      },
+      {
+        "finding_id": "A-002",
+        "lesson": "Versioned audit records must describe the current cycle and explicitly distinguish code remediation from external configuration blockers."
+      }
+    ],
+    "ledger_path": null,
+    "ledger_sha256": null
+  },
+  "blocked": {
+    "active": true,
+    "external": true,
+    "alternatives_exhausted": true,
+    "reason": "Repository settings must configure a protected issue-922-live-smoke environment, set ISSUE_922_SMOKE_APPROVED_SHA to the reviewed exact head, and provide a dedicated low-quota provider secret. These operations cannot be completed through the available repository-content tools."
+  }
 }
