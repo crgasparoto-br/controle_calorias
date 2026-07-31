@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createTextResponseMock, embeddingsCreateMock } = vi.hoisted(() => ({
   createTextResponseMock: vi.fn(),
   embeddingsCreateMock: vi.fn(),
 }));
+
+const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
 
 vi.mock("./_core/aiProvider", () => ({
   getAiProvider: () => ({
@@ -26,9 +28,15 @@ vi.mock("./catalogRuntime", async () => {
 
 describe("nutritionEngine branded snack photo nutrition", () => {
   beforeEach(() => {
+    process.env.OPENAI_API_KEY = "test-openai-key";
     createTextResponseMock.mockReset();
     embeddingsCreateMock.mockReset();
     embeddingsCreateMock.mockResolvedValue({ embeddings: [], raw: {} });
+  });
+
+  afterEach(() => {
+    if (originalOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiApiKey;
   });
 
   it("corrige chutes genéricos da IA para doces industrializados reconhecidos por embalagem", async () => {
