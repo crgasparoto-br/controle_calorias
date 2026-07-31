@@ -38,6 +38,10 @@
 
 Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK e `usage.raw`. O executor preserva a taxonomia fail-closed: autenticação, modelo inexistente, operação incompatível, bloqueio de segurança e configuração inválida não podem provocar reenvio ao mesmo provider nem a fallback.
 
+### Fronteira dos consumidores #923
+
+`QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
+
 ### Smoke real protegido da issue #922
 
 O workflow `.github/workflows/issue-922-live-provider-smoke.yml` executa código do head da pull request e, por isso, nunca pode receber credenciais comuns de produção ou credenciais disponíveis automaticamente para qualquer PR.

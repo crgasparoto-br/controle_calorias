@@ -151,6 +151,10 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 
 `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam exclusivamente `executeResolvedCapability`; não mantêm loops locais de timeout/retry. Saída vazia, JSON inválido e payload inválido são recuperáveis dentro dos limites configurados. Erros de autenticação, modelo inexistente, incompatibilidade, segurança, configuração ou desconhecidos falham fechado sem retry/fallback. `items: []` válido encerra a execução na primeira resposta.
 
+## Consumidores migrados em #923
+
+`QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Fonte insuficiente ou SKU ambíguo em `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) degrada para o fallback nutricional canônico local sem derrubar o backend e sem acionar fallback externo indevido — a chamada apenas retorna `null` e o motor nutricional segue para o próximo candidato. Ausência ou estado `disabled`/`invalid` de `EMBEDDING` degrada para busca textual/canônica de catálogo, sem chamar rede. Gemini não anuncia a operação `embeddings`; por isso `EMBEDDING` não tem cross-provider fallback disponível hoje, independentemente de configuração.
+
 ## Metadados opcionais do contexto profissional
 
 A abertura do workspace profissional separa a consulta essencial de perfil, entitlement e autorização da leitura complementar do evento mais recente do histórico. A leitura complementar tem orçamento de 250 ms, cache curto e retry após TTL, mas uma query que excede o orçamento continua contabilizada até realmente terminar. O serviço limita globalmente essas operações pendentes a `min(4, connectionLimit - 1)`; quando o limite está ocupado, retorna **Temporariamente indisponível** sem iniciar outra query. Essa reserva impede que retries de metadados opcionais consumam todo o pool e preserva capacidade para revalidar acesso. **Não informado** permanece reservado para ausência confirmada de atividade.

@@ -60,6 +60,7 @@ Serviços de domínio devem depender da interface interna do provider, não do S
 - Fase 7 está preparada: checklist operacional e smoke tests foram organizados para Render, Vercel e validação de canais.
 - Fase 8 concluída para a fundação (#921): registro, matriz vinculada aos métodos dos adapters, resolvedor fail-closed, executor, cancelamento propagado e Gemini com `responseJsonSchema`.
 - Fase 9 implementa #922: `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam a fundação comum; NOVA permanece embutida e `FOOD_CLASSIFICATION` segue sem consumidor externo.
+- Fase 10 implementa #923: `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a fundação comum; Gemini passa a anunciar `web_search` via Google Search Grounding.
 
 ## Fases
 
@@ -139,6 +140,17 @@ Status: implementada na PR da issue; sujeita aos gates e auditoria controller-ad
 - A classificação NOVA permanece no mesmo Structured Output; o backfill histórico não executa nova inferência.
 - A fronteira de domínio remove `raw` dos SDKs.
 - Precedência conversacional e contratos persistentes do WhatsApp não foram alterados.
+
+### Fase 10 - Pergunta, pesquisa nutricional e embedding por capacidade (#923)
+
+Status: implementada na PR da issue; sujeita aos gates e auditoria controller-adversarial do SHA congelado.
+
+- `QUESTION` (`aiQuestionAssistant`), `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch` em `catalogSemanticSearch.ts`) e `EMBEDDING` (busca semântica de catálogo) usam `resolveCapabilityConfig` e `executeResolvedCapability`.
+- O contrato interno de ferramenta de pesquisa web (`{ type: "web_search" }`) passou a ser traduzido também pelo Gemini via Google Search Grounding, além do `web_search`/`web_search_preview` já existente no OpenAI; `supportMatrix.ts` passou a anunciar `web_search` para Gemini, com tradução e teste próprios do adapter.
+- `EMBEDDING` preserva `text-embedding-3-small` da OpenAI como default e permanece inelegível no Gemini (sem método `embeddings` no adapter): cross-provider fallback para `EMBEDDING` fica indisponível mesmo com opt-in explícito, porque o provider de destino nunca passa na validação de operações suportadas.
+- Fallback continua desabilitado por padrão e isolado por capacidade para as três capacidades migradas; cross-provider fallback para `QUESTION`/`NUTRITION_SEARCH` segue exigindo `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` e permanece fail-closed em produção (AI-CROSS-PROVIDER-PROD-001).
+- Fonte insuficiente ou SKU ambíguo em `findPackagedSnackByWebSearch` degrada para o fallback canônico local (sem inventar dado e sem disparar fallback externo indevido); ausência de `EMBEDDING` degrada para busca textual/canônica.
+- Zod e a validação de payload de embeddings continuam a fronteira final depois de primário ou fallback.
 
 ## Gates
 
