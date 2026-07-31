@@ -1,0 +1,284 @@
+\s+/g)
++    .map(token => token.replace(/[,.]/g, ""))
++    .filter(token => token.length >= 2 && !COMMERCIAL_GENERIC_TOKENS.has(token) && !/^\d+$/.test(token));
++}
++
++function extractCommercialMeasures(value: string): CommercialMeasure[] {
++  const normalized = normalizeCommercialText(value);
++  const measures: CommercialMeasure[] = [];
++  const pattern = /\b(\d+(?:[,.]\d+)?)\s*(kg|mg|ml|g|l)\b/g;
++  for (const match of normalized.matchAll(pattern)) {
++    const amount = Number(match[1].replace(",", "."));
++    if (!Number.isFinite(amount)) continue;
++    const unit = match[2];
++    if (unit === "kg") measures.push({ kind: "mass", value: amount * 1000 });
++    else if (unit === "mg") measures.push({ kind: "mass", value: amount / 1000 });
++    else if (unit === "g") measures.push({ kind: "mass", value: amount });
++    else if (unit === "l") measures.push({ kind: "volume", value: amount * 1000 });
++    else measures.push({ kind: "volume", value: amount });
++  }
++  return measures;
++}
++
++function measuresMatch(requested: CommercialMeasure[], candidate: CommercialMeasure[]) {
++  if (!requested.length) return true;
++  return requested.every(expected => candidate.some(actual =>
++    actual.kind === expected.kind && Math.abs(actual.value - expected.value) <= 0.05,
++  ));
++}
++
++function isCommercialProductIdentityCompatible(input: {
++  foodName: string;
++  matchedProductName: string;
++  brandName: string | null;
++  servingLabel: string;
++  gramsPerServing: number;
++}) {
++  const requestedTokens = extractCommercialTokens(input.foodName);
++  const candidateIdentity = `${input.matchedProductName} ${input.brandName ?? ""}`;
++  const candidateTokens = new Set(extractCommercialTokens(candidateIdentity));
++  const candidateCompact = normalizeCommercialText(candidateIdentity).replace(/[^a-z0-9]/g, "");
++  const requestedCompact = requestedTokens.join("");
++
++  const hasAllRequestedTokens = requestedTokens.every(token =>
++    candidateTokens.has(token) || candidateCompact.includes(token),
++  );
++  if (!hasAllRequestedTokens && (!requestedCompact || !candidateCompact.includes(requestedCompact))) {
++    return false;
++  }
++
++  const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
++  const candidateVariants = extractCommercialTokens(input.matchedProductName)
++    .filter(token => COMMERCIAL_VARIANT_TOKENS.has(token));
++  if (requestedVariants.size) {
++    if ([...requestedVariants].some(token => !candidateVariants.includes(token))) return false;
++  } else if (candidateVariants.length) {
++    return false;
++  }
++
++  const requestedMeasures = extractCommercialMeasures(input.foodName);
++  const candidateMeasures = extractCommercialMeasures(`${input.matchedProductName} ${input.servingLabel}`);
++  if (!candidateMeasures.length && requestedMeasures.some(measure => measure.kind === "mass")) {
++    candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
++  }
++  return measuresMatch(requestedMeasures, candidateMeasures);
++}
++
++function parseNutritionAttemptOutput(outputText: string): SearchedNutritionResult {
++  let parsed: unknown;
+   try {
+-    return JSON.parse(value) as T;
+-  } catch {
+-    return null;
++    parsed = JSON.parse(outputText);
++  } catch (error) {
++    throw new AiOperationalError("Nutrition search provider returned invalid JSON", error, "invalid_json");
++  }
++
++  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
++    throw new AiOperationalError("Nutrition search provider returned an invalid payload", undefined, "invalid_payload");
+   }
++  const result = parsed as Partial<SearchedNutritionResult>;
++  if (result.found === false) return result as SearchedNutritionResult;
++  if (result.found !== true) {
++    throw new AiOperationalError("Nutrition search provider omitted the found flag", undefined, "invalid_payload");
++  }
++
++  const stringFields: Array<keyof SearchedNutritionResult> = [
++    "matchedProductName", "brandName", "servingLabel", "sourceUrl", "evidence",
++  ];
++  const numberFields: Array<keyof SearchedNutritionResult> = [
++    "gramsPerServing", "calories", "protein", "carbs", "fat", "confidence",
++  ];
++  if (stringFields.some(field => typeof result[field] !== "string")) {
++    throw new AiOperationalError("Nutrition search provider returned an invalid string field", undefined, "invalid_payload");
++  }
++  if (numberFields.some(field => typeof result[field] !== "number" || !Number.isFinite(result[field] as number))) {
++    throw new AiOperationalError("Nutrition search provider returned an invalid numeric field", undefined, "invalid_payload");
++  }
++  if (!result.matchedProductName?.trim()) {
++    throw new AiOperationalError("Nutrition search provider returned an empty matched product", undefined, "invalid_payload");
++  }
++  if (
++    !isPositiveNumber(result.gramsPerServing)
++    || !isPositiveNumber(result.calories)
++    || !isNonNegativeNumber(result.protein)
++    || !isNonNegativeNumber(result.carbs)
++    || !isNonNegativeNumber(result.fat)
++    || (result.confidence as number) < 0
++    || (result.confidence as number) > 1
++  ) {
++    throw new AiOperationalError("Nutrition search provider returned values outside the accepted schema", undefined, "invalid_payload");
++  }
++  return result as SearchedNutritionResult;
+ }
+ 
+ function candidateIsCompatible(foodName: string, candidate: CatalogFood) {
+@@ -267,10 +405,20 @@ function parseSearchedNutritionResult(
+   const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, webSearch);
+   if (!sourceUrl || !evidence) return null;
+   const sourceAlias = `fonte: ${sourceUrl}`;
++  if (!isCommercialProductIdentityCompatible({
++    foodName,
++    matchedProductName,
++    brandName,
++    servingLabel: result.servingLabel?.trim() || `${result.gramsPerServing} g`,
++    gramsPerServing: result.gramsPerServing,
++  })) {
++    return null;
++  }
++
+   const candidate: CatalogFood = {
+     slug: `web-nutrition-${normalizeText(matchedProductName).replace(/\s+/g, "-") || "product"}`,
+     name: matchedProductName,
+-    aliases: [foodName, matchedProductName, sourceAlias],
++    aliases: [matchedProductName, sourceAlias],
+     servingLabel: result.servingLabel?.trim() || `${result.gramsPerServing} g`,
+     gramsPerServing: result.gramsPerServing,
+     calories: result.calories,
+@@ -296,8 +444,8 @@ export async function findPackagedSnackByWebSearch(
+   try {
+     const result = await executeResolvedCapability(
+       policy,
+-      (attempt: ResolvedCapabilityAttemptContext) =>
+-        createDomainTextResponse(
++      async (attempt: ResolvedCapabilityAttemptContext) => {
++        const response = await createDomainTextResponse(
+           attempt.provider,
+           {
+             model: attempt.model,
+@@ -331,11 +479,16 @@ export async function findPackagedSnackByWebSearch(
+             },
+           },
+           { signal: attempt.signal },
+-        ),
++        );
++        return {
++          parsed: parseNutritionAttemptOutput(response.outputText),
++          webSearch: response.webSearch,
++        };
++      },
+     );
+ 
+     return parseSearchedNutritionResult(
+-      safeJsonParse<SearchedNutritionResult>(result.value.outputText),
++      result.value.parsed,
+       foodName,
+       result.value.webSearch,
+     );
+diff --git a/scripts/issue-923-live-provider-smoke.ts b/scripts/issue-923-live-provider-smoke.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..44c0ada182dad03d2bcbf95c51de3cec4e9dd2f3
+--- /dev/null
++++ b/scripts/issue-923-live-provider-smoke.ts
+@@ -0,0 +1,110 @@
++import { executeResolvedCapability } from "../server/_core/ai/capabilityExecutor";
++import { resolveCapabilityConfig } from "../server/_core/ai/configResolver";
++import { createDomainTextResponse } from "../server/_core/ai/domainTextResponse";
++import { findPackagedSnackByWebSearch } from "../server/catalogSemanticSearch";
++
++function requireVariable(name: string) {
++  const value = process.env[name]?.trim();
++  if (!value) throw new Error(`${name} is required`);
++  return value;
++}
++
++function configureCapabilities() {
++  const provider = requireVariable("SMOKE_PROVIDER");
++  const model = requireVariable("SMOKE_MODEL");
++
++  process.env.AI_QUESTION_PROVIDER = provider;
++  process.env.AI_QUESTION_MODEL = model;
++  process.env.AI_QUESTION_MAX_ATTEMPTS = "1";
++  process.env.AI_QUESTION_FALLBACK_ENABLED = "false";
++  process.env.AI_QUESTION_WEB_SEARCH_MODE = "auto";
++
++  process.env.AI_NUTRITION_SEARCH_PROVIDER = provider;
++  process.env.AI_NUTRITION_SEARCH_MODEL = model;
++  process.env.AI_NUTRITION_SEARCH_MAX_ATTEMPTS = "1";
++  process.env.AI_NUTRITION_SEARCH_FALLBACK_ENABLED = "false";
++
++  process.env.AI_EMBEDDING_PROVIDER = "openai";
++  process.env.AI_EMBEDDING_MODEL = process.env.SMOKE_EMBEDDING_MODEL?.trim() || "text-embedding-3-small";
++  process.env.AI_EMBEDDING_MAX_ATTEMPTS = "1";
++  process.env.AI_EMBEDDING_FALLBACK_ENABLED = "false";
++
++  return { provider, model };
++}
++
++async function runQuestion(prompt: string) {
++  const policy = resolveCapabilityConfig("QUESTION");
++  if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
++    throw new Error(`QUESTION smoke is not executable (state=${policy.state})`);
++  }
++  const result = await executeResolvedCapability(policy, attempt =>
++    createDomainTextResponse(
++      attempt.provider,
++      {
++        model: attempt.model,
++        instructions: "Responda de forma curta e siga literalmente a solicitação do usuário.",
++        input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
++        tools: [{ type: "web_search" }],
++      },
++      { signal: attempt.signal },
++    ),
++  );
++  if (!result.value.outputText.trim()) throw new Error("QUESTION smoke returned empty output");
++  return result.value.webSearch;
++}
++
++async function runEmbedding() {
++  const policy = resolveCapabilityConfig("EMBEDDING");
++  if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
++    throw new Error(`EMBEDDING smoke is not executable (state=${policy.state})`);
++  }
++  const result = await executeResolvedCapability(policy, async attempt => {
++    const response = await attempt.provider.createEmbeddings(
++      { model: attempt.model, input: ["banana madura"] },
++      { signal: attempt.signal },
++    );
++    return response.embeddings;
++  });
++  const vector = result.value[0];
++  if (!Array.isArray(vector) || !vector.length || vector.some(value => !Number.isFinite(value))) {
++    throw new Error("EMBEDDING smoke returned an invalid vector");
++  }
++  return vector.length;
++}
++
++async function run() {
++  const { provider, model } = configureCapabilities();
++
++  const internalQuestionSearch = await runQuestion(
++    "Sem pesquisar na internet, responda apenas com o resultado numérico de 2 + 2.",
++  );
++  if (internalQuestionSearch?.executed) {
++    throw new Error("QUESTION auto smoke unexpectedly executed web search for an internal-only question");
++  }
++
++  const researchedQuestionSearch = await runQuestion(
++    "Pesquise na web a documentação oficial da OpenAI sobre a ferramenta web_search da Responses API e responda com uma frase curta baseada na fonte.",
++  );
++  if (!researchedQuestionSearch?.executed || !researchedQuestionSearch.sources.length) {
++    throw new Error("QUESTION web-search smoke did not return executed search with sources");
++  }
++
++  const nutrition = await findPackagedSnackByWebSearch("KitKat 41,5g", "chocolate");
++  if (!nutrition || !nutrition.aliases.some(alias => alias.startsWith("fonte: https://"))) {
++    throw new Error("NUTRITION_SEARCH smoke did not return a verified sourced product");
++  }
++
++  const embeddingDimensions = await runEmbedding();
++
++  console.log(JSON.stringify({
++    provider,
++    model,
++    questionWithoutSearchExecuted: internalQuestionSearch?.executed === true,
++    questionWithSearchExecuted: researchedQuestionSearch.executed,
++    questionSourceCount: researchedQuestionSearch.sources.length,
++    nutritionMatched: true,
++    embeddingDimensions,
++  }));
++}
++
++await run();
