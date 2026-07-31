@@ -6,7 +6,6 @@ const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
 
 const STILL_LEGACY_CONSUMER_FILES = [
   "server/_core/aiProvider.ts",
-  "server/catalogSemanticSearch.ts",
 ];
 
 const CAPABILITY_IMPORT_PATTERN =
@@ -24,6 +23,7 @@ describe("AI consumer migration boundaries (#921/#922)", () => {
     "server/mealAiExtraction.ts",
     "server/modules/whatsapp/intentInterpreter.ts",
     "server/modules/whatsapp/aiQuestionAssistant.ts",
+    "server/catalogSemanticSearch.ts",
   ])("%s uses the capability resolver and canonical executor", relativePath => {
     const source = readFileSync(join(REPO_ROOT, relativePath), "utf8");
     expect(source).toContain("resolveCapabilityConfig");

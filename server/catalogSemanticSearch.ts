@@ -7,11 +7,12 @@
  */
 
 import { getCatalogCache } from "./catalogRuntime";
-import { ENV } from "./_core/env";
-import { getAiProvider } from "./_core/aiProvider";
 import { isOpenAiConfigured, createOpenAiClient } from "./_core/openaiClient";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import type { CatalogFood } from "./nutritionEngine";
+import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "./_core/ai/capabilityExecutor";
+import { resolveCapabilityConfig } from "./_core/ai/configResolver";
+import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const SIMILARITY_THRESHOLD = 0.82;
@@ -231,47 +232,58 @@ function parseSearchedNutritionResult(value: unknown, foodName: string): Catalog
   return candidateIsCompatible(foodName, candidate) ? candidate : null;
 }
 
-async function findPackagedSnackByWebSearch(
+export async function findPackagedSnackByWebSearch(
   foodName: string,
   category: PackagedSnackCategory,
 ): Promise<CatalogFood | null> {
-  if (!isOpenAiConfigured()) return null;
+  const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    return null;
+  }
 
   try {
-    const response = await getAiProvider().createTextResponse({
-      model: ENV.visionModel,
-      instructions: [
-        "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
-        "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
-        "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
-        "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
-        "Retorne apenas JSON válido no schema solicitado.",
-      ].join("\n"),
-      input: [{
-        role: "user",
-        content: [{
-          type: "input_text",
-          text: [
-            `Alimento reconhecido: ${foodName}`,
-            `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
-            "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
-            "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
-            "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
-            "Preencha sourceUrl com a melhor fonte usada e evidence com uma frase curta explicando a evidência.",
-          ].join("\n"),
-        }],
-      }],
-      tools: [{ type: "web_search" }],
-      format: {
-        type: "json_schema",
-        name: "packaged_food_nutrition_lookup",
-        schema: searchedNutritionJsonSchema,
-        strict: true,
-      },
-    });
+    const result = await executeResolvedCapability(
+      policy,
+      (attempt: ResolvedCapabilityAttemptContext) =>
+        createDomainTextResponse(
+          attempt.provider,
+          {
+            model: attempt.model,
+            instructions: [
+              "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
+              "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
+              "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
+              "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
+              "Retorne apenas JSON válido no schema solicitado.",
+            ].join("\n"),
+            input: [{
+              role: "user",
+              content: [{
+                type: "input_text",
+                text: [
+                  `Alimento reconhecido: ${foodName}`,
+                  `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
+                  "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
+                  "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
+                  "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
+                  "Preencha sourceUrl com a melhor fonte usada e evidence com uma frase curta explicando a evidência.",
+                ].join("\n"),
+              }],
+            }],
+            tools: [{ type: "web_search" }],
+            format: {
+              type: "json_schema",
+              name: "packaged_food_nutrition_lookup",
+              schema: searchedNutritionJsonSchema,
+              strict: true,
+            },
+          },
+          { signal: attempt.signal },
+        ),
+    );
 
     return parseSearchedNutritionResult(
-      safeJsonParse<SearchedNutritionResult>(response.outputText),
+      safeJsonParse<SearchedNutritionResult>(result.value.outputText),
       foodName,
     );
   } catch {
