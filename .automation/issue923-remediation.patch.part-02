@@ -1,0 +1,358 @@
+code: "incompatible_operation" });
++
++      expect(clientFactory).not.toHaveBeenCalled();
++      expect(create).not.toHaveBeenCalled();
++    },
++  );
+ });
+diff --git a/server/_core/aiProvider.ts b/server/_core/aiProvider.ts
+index c5c6ffd69d6d4c0fca6da8aa012cb0d643ad1381..0cb6e4f77f80cbcf6a1d32067fffe905440bdb60 100644
+--- a/server/_core/aiProvider.ts
++++ b/server/_core/aiProvider.ts
+@@ -19,7 +19,7 @@ export type AiProviderResponseFormat =
+     };
+ 
+ export type AiProviderWebSearchTool = {
+-  type: "web_search" | "web_search_preview";
++  type: "web_search";
+ };
+ 
+ export type AiProviderTextTool = AiProviderWebSearchTool;
+@@ -185,8 +185,12 @@ function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
+   }
+ 
+   const type = (tool as { type?: unknown }).type;
+-  if (type === "web_search" || type === "web_search_preview") {
+-    return { type: "web_search_preview" };
++  if (type === "web_search") {
++    // openai@4.104 predates the stable `web_search` discriminant in some
++    // generated type surfaces, but the Responses API contract is stable. Keep
++    // the cast isolated inside the adapter instead of leaking SDK details into
++    // the domain contract.
++    return { type: "web_search" } as OpenAiSdkTextTool;
+   }
+ 
+   throw new AiNonRetryableError(
+@@ -311,8 +315,40 @@ function normalizeOpenAiWebSearch(
+     item => item.type === "web_search_call" && item.status === "completed",
+   );
+   const executed = webSearchCalls.length > 0;
++  const sourceByUrl = new Map<string, AiWebSearchSource>();
++  const searchQueries = new Set<string>();
++
++  const addSource = (value: unknown, title?: unknown) => {
++    if (typeof value !== "string" || !value.trim()) return;
++    const url = value.trim();
++    const normalizedTitle = typeof title === "string" && title.trim() ? title.trim() : undefined;
++    const existing = sourceByUrl.get(url);
++    sourceByUrl.set(url, existing?.title || !normalizedTitle ? existing ?? { url } : { url, title: normalizedTitle });
++  };
++
++  for (const item of webSearchCalls) {
++    const action = typeof item.action === "object" && item.action !== null
++      ? (item.action as Record<string, unknown>)
++      : null;
++    if (!action) continue;
++
++    if (typeof action.query === "string" && action.query.trim()) {
++      searchQueries.add(action.query.trim());
++    }
++    if (Array.isArray(action.queries)) {
++      for (const query of action.queries) {
++        if (typeof query === "string" && query.trim()) searchQueries.add(query.trim());
++      }
++    }
++    if (Array.isArray(action.sources)) {
++      for (const source of action.sources) {
++        if (typeof source !== "object" || source === null) continue;
++        const sourceRecord = source as Record<string, unknown>;
++        addSource(sourceRecord.url, sourceRecord.title);
++      }
++    }
++  }
+ 
+-  const sources: AiWebSearchSource[] = [];
+   for (const item of output) {
+     if (item.type !== "message") continue;
+     const content = Array.isArray(item.content) ? item.content : [];
+@@ -325,15 +361,12 @@ function normalizeOpenAiWebSearch(
+         if (
+           typeof annotation === "object" &&
+           annotation !== null &&
+-          (annotation as { type?: unknown }).type === "url_citation" &&
+-          typeof (annotation as { url?: unknown }).url === "string"
++          (annotation as { type?: unknown }).type === "url_citation"
+         ) {
+-          const url = (annotation as { url: string }).url;
+-          const title = (annotation as { title?: unknown }).title;
+-          sources.push({
+-            url,
+-            ...(typeof title === "string" && title ? { title } : {}),
+-          });
++          addSource(
++            (annotation as { url?: unknown }).url,
++            (annotation as { title?: unknown }).title,
++          );
+         }
+       }
+     }
+@@ -342,7 +375,8 @@ function normalizeOpenAiWebSearch(
+   return {
+     executed,
+     searchCount: webSearchCalls.length,
+-    sources,
++    sources: [...sourceByUrl.values()],
++    ...(searchQueries.size ? { searchQueries: [...searchQueries] } : {}),
+   };
+ }
+ 
+@@ -395,7 +429,14 @@ export class OpenAiProvider implements AiProvider {
+     };
+     if (request.instructions) payload.instructions = request.instructions;
+     const tools = buildOpenAiTools(request.tools);
+-    if (tools) payload.tools = tools;
++    if (tools) {
++      payload.tools = tools;
++      // Request the provider-native source list so the adapter can normalize
++      // evidence even when a URL is not repeated as a message annotation.
++      (payload as unknown as { include: string[] }).include = [
++        "web_search_call.action.sources",
++      ];
++    }
+     const text = buildTextConfig(request.format);
+     if (text) payload.text = text;
+ 
+diff --git a/server/_core/geminiProvider.test.ts b/server/_core/geminiProvider.test.ts
+index 35e8d07a8e958bb1e1126559f8e075b194c85721..91750bd2e66d665c0b6ed7bda5614fd4fdd23960 100644
+--- a/server/_core/geminiProvider.test.ts
++++ b/server/_core/geminiProvider.test.ts
+@@ -297,16 +297,14 @@ describe("GeminiProvider (@google/genai)", () => {
+     ]);
+   });
+ 
+-  it("translates web_search_preview tool into Google Search Grounding", async () => {
+-    generateContentMock.mockResolvedValue({ text: "resposta" });
+-    await new GeminiProvider("fake-key").createTextResponse({
++  it("rejects the legacy web_search_preview SDK detail before network access", async () => {
++    const provider = new GeminiProvider("fake-key");
++    await expect(provider.createTextResponse({
+       model: "gemini-2.5-flash",
+       input: [{ role: "user", content: "preço atual" }],
+-      tools: [{ type: "web_search_preview" }],
+-    });
+-    expect(generateContentMock.mock.calls[0][0].config.tools).toEqual([
+-      { googleSearch: {} },
+-    ]);
++      tools: [{ type: "web_search_preview" }] as never,
++    })).rejects.toMatchObject({ code: "incompatible_operation" });
++    expect(generateContentMock).not.toHaveBeenCalled();
+   });
+ 
+   it("extracts normalized web search sources from grounding metadata", async () => {
+diff --git a/server/_core/geminiProvider.ts b/server/_core/geminiProvider.ts
+index 9011fa5a26b96c667ccd0585cee5b6f11436a3d3..30a4b049aa98e8e61f68dd41c42922f7f6f92ea3 100644
+--- a/server/_core/geminiProvider.ts
++++ b/server/_core/geminiProvider.ts
+@@ -486,7 +486,7 @@ function assertRepresentableSchema(value: unknown): void {
+ 
+ /**
+  * Translates the internal, SDK-agnostic tool contract into `@google/genai`
+- * tools. Only `web_search`/`web_search_preview` is representable today,
++ * tools. Only the internal `web_search` contract is representable today,
+  * mapped to Gemini's "Google Search Grounding" (`googleSearch: {}`). Any
+  * other tool type is rejected locally before network access, matching the
+  * fail-closed posture of the rest of this adapter.
+@@ -504,7 +504,7 @@ function translateGeminiTools(
+     }
+ 
+     const type = (tool as { type?: unknown }).type;
+-    if (type === "web_search" || type === "web_search_preview") {
++    if (type === "web_search") {
+       return { googleSearch: {} };
+     }
+ 
+diff --git a/server/catalogSemanticSearch.test.ts b/server/catalogSemanticSearch.test.ts
+index 57357fdc852fca75117a10c321e360a44a37f0ef..ace7684499c565aab6106eca9b584e2432c274f7 100644
+--- a/server/catalogSemanticSearch.test.ts
++++ b/server/catalogSemanticSearch.test.ts
+@@ -263,6 +263,129 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
+     expect(result).toBeNull();
+   });
+ 
++  it.each([
++    {
++      name: "sabor divergente",
++      foodName: "kit kat morango 41,5g",
++      matchedProductName: "KitKat dark 41,5g",
++      brandName: "Nestlé",
++      servingLabel: "1 unidade (41,5g)",
++      gramsPerServing: 41.5,
++    },
++    {
++      name: "embalagem divergente",
++      foodName: "kit kat 41,5g",
++      matchedProductName: "KitKat 80g",
++      brandName: "Nestlé",
++      servingLabel: "1 pacote (80g)",
++      gramsPerServing: 80,
++    },
++    {
++      name: "marca/produto divergente",
++      foodName: "oreo baunilha 90g",
++      matchedProductName: "Negresco baunilha 90g",
++      brandName: "Nestlé",
++      servingLabel: "1 pacote (90g)",
++      gramsPerServing: 90,
++    },
++    {
++      name: "SKU totalmente diferente",
++      foodName: "sonho de valsa 20g",
++      matchedProductName: "Bis branco 126g",
++      brandName: "Lacta",
++      servingLabel: "1 pacote (126g)",
++      gramsPerServing: 126,
++    },
++  ])("rejeita resultado pesquisado com $name mesmo com fonte e confiança válidas", async ({
++    foodName,
++    matchedProductName,
++    brandName,
++    servingLabel,
++    gramsPerServing,
++  }) => {
++    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
++    createTextResponseMock.mockResolvedValue({});
++    mockExecuteWithOutput(JSON.stringify({
++      found: true,
++      matchedProductName,
++      brandName,
++      servingLabel,
++      gramsPerServing,
++      calories: 218,
++      protein: 2.7,
++      carbs: 26.3,
++      fat: 11.2,
++      confidence: 0.95,
++      sourceUrl: "https://example.com/produto",
++      evidence: "Tabela nutricional oficial do fabricante.",
++    }), {
++      executed: true,
++      sources: [{ url: "https://example.com/produto" }],
++    });
++
++    const result = await findPackagedSnackByWebSearch(foodName, "chocolate");
++
++    expect(result).toBeNull();
++  });
++
++  it("classifica JSON inválido dentro da tentativa para permitir o fallback único", async () => {
++    resolveCapabilityConfigMock.mockReturnValue({
++      ...READY_POLICY,
++      fallback: {
++        effectivelyEnabled: true,
++        provider: "gemini",
++        model: "gemini-2.5-flash",
++      },
++    });
++
++    const validFallbackOutput = JSON.stringify({
++      found: true,
++      matchedProductName: "Chocolate KitKat 41,5g",
++      brandName: "Nestlé",
++      servingLabel: "1 unidade (41,5g)",
++      gramsPerServing: 41.5,
++      calories: 218,
++      protein: 2.7,
++      carbs: 26.3,
++      fat: 11.2,
++      confidence: 0.9,
++      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
++      evidence: "Tabela nutricional oficial do fabricante.",
++    });
++
++    executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
++      const buildAttempt = (providerId: "openai" | "gemini", outputText: string, source: "primary" | "fallback") => ({
++        signal: new AbortController().signal,
++        source,
++        attempt: source === "primary" ? 1 : 2,
++        timeoutMs: 8000,
++        providerId,
++        model: providerId === "openai" ? "gpt-4.1-mini" : "gemini-2.5-flash",
++        provider: {
++          createTextResponse: async () => ({
++            id: `resp-${providerId}`,
++            outputText,
++            webSearch: {
++              executed: true,
++              sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
++            },
++            raw: {},
++          }),
++        },
++      });
++
++      await expect(operation(buildAttempt("openai", "not-json", "primary")))
++        .rejects.toMatchObject({ code: "invalid_json" });
++      const value = await operation(buildAttempt("gemini", validFallbackOutput, "fallback"));
++      return { value, source: "fallback", attempts: 2, usedFallback: true };
++    });
++
++    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
++
++    expect(result?.name).toContain("KitKat");
++    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
++  });
++
+   it("returns null immediately without calling the network when the capability is disabled", async () => {
+     resolveCapabilityConfigMock.mockReturnValue(DISABLED_POLICY);
+ 
+diff --git a/server/catalogSemanticSearch.ts b/server/catalogSemanticSearch.ts
+index cfcf1947cd98eb2633ddbbbeb8d83ca03c341dd2..a8c7482d046c6a7e9529720959d13b38cfbe1d1a 100644
+--- a/server/catalogSemanticSearch.ts
++++ b/server/catalogSemanticSearch.ts
+@@ -12,6 +12,7 @@ import type { CatalogFood } from "./nutritionEngine";
+ import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "./_core/ai/capabilityExecutor";
+ import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "./_core/ai/configResolver";
+ import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
++import { AiOperationalError } from "./_core/ai/policyExecutor";
+ import type { AiWebSearchResult } from "./_core/aiProvider";
+ 
+ // The default embedding model/provider (OpenAI text-embedding-3-small) is
+@@ -205,12 +206,149 @@ function isEmbedding(value: unknown): value is number[] {
+   return Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "number" && Number.isFinite(item));
+ }
+ 
+-function safeJsonParse<T>(value: string): T | null {
++type CommercialMeasure = {
++  kind: "mass" | "volume";
++  value: number;
++};
++
++const COMMERCIAL_GENERIC_TOKENS = new Set([
++  "a", "ao", "aos", "as", "barra", "barras", "biscoito", "biscoitos",
++  "bolacha", "bolachas", "bombom", "bombons", "chocolate", "cookie", "cookies",
++  "da", "das", "de", "do", "dos", "doce", "doces", "e", "embalado", "embalada",
++  "embalagem", "em", "g", "gr", "grama", "gramas", "kg", "l", "ml", "mg",
++  "o", "os", "pacote", "pacotes", "porcao", "produto", "sabor", "unidade",
++  "unidades", "wafer", "wafers",
++]);
++
++const COMMERCIAL_VARIANT_TOKENS = new Set([
++  "amargo", "avela", "baunilha", "branco", "caramelo", "coco", "dark",
++  "diet", "duo", "integral", "laranja", "light", "limao", "maxi", "menta",
++  "mini", "morango", "recheado", "recheada", "trufa", "trufado", "trufada", "zero",
++]);
++
++function normalizeCommercialText(value: string) {
++  return value
++    .normalize("NFD")
++    .replace(/[\u0300-\u036f]/g, "")
++    .toLowerCase()
++    .replace(/[^a-z0-9,.\s]/g, " ")
++    .replace(/\s+/g, " ")
++    .trim();
++}
++
++function extractCommercialTokens(value: string) {
++  return normalizeCommercialText(value)
++    .replace(/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/g, " ")
++    .split(/
