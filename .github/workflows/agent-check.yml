@@ -32,9 +32,9 @@ jobs:
           for part in 00 01 02 03; do
             git show "FETCH_HEAD:.automation/issue923-remediation.patch.part-${part}"
           done > /tmp/issue923-remediation.patch
-          sha256sum /tmp/issue923-remediation.patch
           git apply --check --whitespace=error-all /tmp/issue923-remediation.patch
           git apply --index --whitespace=error-all /tmp/issue923-remediation.patch
+          git show "FETCH_HEAD:.automation/issue923-cast-fix.patch" | git apply --index --whitespace=error-all
           git checkout "${BASE_SHA}" -- .github/workflows/agent-check.yml
           git rm --cached --ignore-unmatch .github/workflows/issue-923-apply-remediation.yml .automation/issue923-remediation-trigger
           rm -f .github/workflows/issue-923-apply-remediation.yml .automation/issue923-remediation-trigger
