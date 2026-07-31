@@ -12,10 +12,41 @@ vi.mock("../../db", () => ({
   logInferenceEvent: vi.fn(),
 }));
 
-vi.mock("../../_core/openaiClient", () => ({
-  OpenAiConfigurationError: class OpenAiConfigurationError extends Error {},
-  isOpenAiConfigured: () => true,
-  createOpenAiClient: (...args: unknown[]) => createOpenAiClientMock(...args),
+vi.mock("../../_core/ai/configResolver", () => ({
+  resolveCapabilityConfig: () => ({
+    state: "ready",
+    primary: { provider: "openai", model: "gpt-4.1-mini" },
+    fallback: { effectivelyEnabled: false },
+    timeoutMs: 8000,
+    maxAttempts: 1,
+    diagnostics: [],
+    usedLegacyVariables: false,
+  }),
+}));
+
+vi.mock("../../_core/ai/capabilityExecutor", () => ({
+  executeResolvedCapability: async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
+    createOpenAiClientMock();
+    const value = await operation({
+      signal: new AbortController().signal,
+      source: "primary",
+      attempt: 1,
+      timeoutMs: 8000,
+      provider: {
+        createTextResponse: async (request: unknown) => {
+          const response = await responsesCreateMock(request);
+          return {
+            id: response?.id ?? "resp-test",
+            outputText: response?.output_text ?? "",
+            raw: response,
+          };
+        },
+      },
+      providerId: "openai",
+      model: "gpt-4.1-mini",
+    });
+    return { value, source: "primary", attempts: 1, usedFallback: false };
+  },
 }));
 
 vi.mock("./timeZoneContext", () => ({

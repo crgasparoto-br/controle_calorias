@@ -3,6 +3,7 @@ import type {
   AiProviderRequestOptions,
   AiProviderTextRequest,
   AiProviderUsage,
+  AiWebSearchResult,
 } from "../aiProvider";
 
 export type AiDomainUsage = Omit<AiProviderUsage, "raw">;
@@ -11,6 +12,8 @@ export type AiDomainTextResponse = {
   id: string;
   outputText: string;
   usage?: AiDomainUsage;
+  /** Present only when a web_search/grounding tool was offered on the request. */
+  webSearch?: AiWebSearchResult;
 };
 
 function sanitizeUsage(usage: AiProviderUsage | undefined): AiDomainUsage | undefined {
@@ -37,5 +40,6 @@ export async function createDomainTextResponse(
     id: response.id,
     outputText: response.outputText,
     ...(usage ? { usage } : {}),
+    ...(response.webSearch ? { webSearch: response.webSearch } : {}),
   };
 }

@@ -44,10 +44,35 @@ export type AiProviderUsage = {
   raw: unknown;
 };
 
+/**
+ * Normalized, SDK-agnostic outcome of a web search / grounding tool made
+ * available to a text response. `executed` reflects whether the model
+ * actually invoked the tool, never whether it was merely offered — callers
+ * must not attribute cost or a "researched" provenance to a call where the
+ * tool was available but unused (auto mode).
+ */
+export type AiWebSearchSource = {
+  url: string;
+  title?: string;
+};
+
+export type AiWebSearchResult = {
+  /** Whether the tool was actually invoked by the model in this response. */
+  executed: boolean;
+  /** Billable search invocation count, when the provider reports one. */
+  searchCount?: number;
+  /** Normalized citations/URLs backing the response. Empty when not executed. */
+  sources: AiWebSearchSource[];
+  /** Provider-reported search queries, when available (no user PII expected). */
+  searchQueries?: string[];
+};
+
 export type AiProviderTextResponse = {
   id: string;
   outputText: string;
   usage?: AiProviderUsage;
+  /** Present only when a web_search/grounding tool was offered on the request. */
+  webSearch?: AiWebSearchResult;
   raw: unknown;
 };
 
@@ -271,6 +296,56 @@ function firstImageData(response: { data?: Array<{ b64_json?: string }> }) {
   return response.data?.[0]?.b64_json;
 }
 
+function normalizeOpenAiWebSearch(
+  response: OpenAiResponse,
+  requestedTool: boolean,
+): AiWebSearchResult | undefined {
+  if (!requestedTool) return undefined;
+
+  const rawOutput: unknown = (response as unknown as { output?: unknown }).output;
+  const output: Array<Record<string, unknown>> = Array.isArray(rawOutput)
+    ? (rawOutput as Array<Record<string, unknown>>)
+    : [];
+
+  const webSearchCalls = output.filter(
+    item => item.type === "web_search_call" && item.status === "completed",
+  );
+  const executed = webSearchCalls.length > 0;
+
+  const sources: AiWebSearchSource[] = [];
+  for (const item of output) {
+    if (item.type !== "message") continue;
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const part of content) {
+      if (typeof part !== "object" || part === null) continue;
+      const annotations = Array.isArray((part as { annotations?: unknown }).annotations)
+        ? ((part as { annotations: unknown[] }).annotations)
+        : [];
+      for (const annotation of annotations) {
+        if (
+          typeof annotation === "object" &&
+          annotation !== null &&
+          (annotation as { type?: unknown }).type === "url_citation" &&
+          typeof (annotation as { url?: unknown }).url === "string"
+        ) {
+          const url = (annotation as { url: string }).url;
+          const title = (annotation as { title?: unknown }).title;
+          sources.push({
+            url,
+            ...(typeof title === "string" && title ? { title } : {}),
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    executed,
+    searchCount: webSearchCalls.length,
+    sources,
+  };
+}
+
 function normalizeOpenAiUsage(response: OpenAiResponse): AiProviderUsage | undefined {
   const usage = (response as unknown as {
     usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
@@ -328,10 +403,12 @@ export class OpenAiProvider implements AiProvider {
       payload,
       openAiRequestOptions(options),
     )) as OpenAiResponse;
+    const webSearch = normalizeOpenAiWebSearch(response, Boolean(tools?.length));
     return {
       id: response.id,
       outputText: response.output_text ?? "",
       usage: normalizeOpenAiUsage(response),
+      ...(webSearch ? { webSearch } : {}),
       raw: response,
     };
   }

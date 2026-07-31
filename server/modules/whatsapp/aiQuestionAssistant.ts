@@ -1,9 +1,10 @@
-import { ENV } from "../../_core/env";
 import {
-  OpenAiConfigurationError,
-  createOpenAiClient,
-  isOpenAiConfigured,
-} from "../../_core/openaiClient";
+  executeResolvedCapability,
+  type ResolvedCapabilityAttemptContext,
+} from "../../_core/ai/capabilityExecutor";
+import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";
+import { createDomainTextResponse } from "../../_core/ai/domainTextResponse";
+import { AiNonRetryableError, AiOperationalError } from "../../_core/ai/policyExecutor";
 import { logInferenceEvent } from "../../db";
 import type { WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
 import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
@@ -241,36 +242,65 @@ function buildInstructions() {
   ].join("\n");
 }
 
-async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
-  const client = createOpenAiClient();
-  const response = await client.responses.create({
-    model: ENV.openaiModel,
-    stream: false,
-    instructions: buildInstructions(),
-    tools: [{ type: "web_search_preview" }] as any,
-    input: [{
-      role: "user",
-      content: [{
-        type: "input_text",
-        text: [
-          ...(recentHistory.length
-            ? [
-                "Histórico recente da conversa no WhatsApp (mais antigo primeiro), use para dar continuidade ao diálogo:",
-                recentHistory.join("\n"),
-                "",
-              ]
-            : []),
-          "Pergunta recebida no WhatsApp:",
-          buildUntrustedWhatsAppUserContent(question, "text"),
-          "",
-          "Base de conhecimento do usuário, obtida do banco de dados do sistema:",
-          JSON.stringify(compactKnowledgeBase(knowledgeBase)),
-        ].join("\n"),
-      }],
-    }],
-  });
+function isWebSearchToolEnabled() {
+  const mode = process.env.AI_QUESTION_WEB_SEARCH_MODE?.trim().toLowerCase() || "auto";
+  return mode !== "off";
+}
 
-  return limitText(response.output_text || "Não consegui gerar uma resposta com segurança agora.");
+function buildQuestionInput(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
+  return [{
+    role: "user" as const,
+    content: [{
+      type: "input_text" as const,
+      text: [
+        ...(recentHistory.length
+          ? [
+              "Histórico recente da conversa no WhatsApp (mais antigo primeiro), use para dar continuidade ao diálogo:",
+              recentHistory.join("\n"),
+              "",
+            ]
+          : []),
+        "Pergunta recebida no WhatsApp:",
+        buildUntrustedWhatsAppUserContent(question, "text"),
+        "",
+        "Base de conhecimento do usuário, obtida do banco de dados do sistema:",
+        JSON.stringify(compactKnowledgeBase(knowledgeBase)),
+      ].join("\n"),
+    }],
+  }];
+}
+
+async function answerWithAi(
+  policy: ResolvedCapabilityConfig,
+  question: string,
+  knowledgeBase: UserKnowledgeBase,
+  recentHistory: string[],
+): Promise<{ reply: string; webSearchExecuted: boolean }> {
+  const instructions = buildInstructions();
+  const input = buildQuestionInput(question, knowledgeBase, recentHistory);
+  const webSearchEnabled = isWebSearchToolEnabled();
+
+  const result = await executeResolvedCapability(
+    policy,
+    (attempt: ResolvedCapabilityAttemptContext) =>
+      createDomainTextResponse(
+        attempt.provider,
+        {
+          model: attempt.model,
+          instructions,
+          input,
+          // "auto" mode: the tool is made available but never forced via tool_choice,
+          // so the model decides whether the question actually needs a web search.
+          ...(webSearchEnabled ? { tools: [{ type: "web_search" as const }] } : {}),
+        },
+        { signal: attempt.signal },
+      ),
+  );
+
+  return {
+    reply: limitText(result.value.outputText || "Não consegui gerar uma resposta com segurança agora."),
+    webSearchExecuted: result.value.webSearch?.executed === true,
+  };
 }
 
 export async function executeWhatsappAiQuestionIntent(
@@ -298,14 +328,15 @@ export async function executeWhatsappAiQuestionIntent(
     };
   }
 
-  if (!isOpenAiConfigured()) {
+  const policy = resolveCapabilityConfig("QUESTION");
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
     return {
       handled: true,
       action: "ai_question_unavailable",
       reply: "Não consigo responder perguntas por IA agora porque a configuração de IA do servidor está indisponível.",
       eventType: "whatsapp.ai_question.unavailable",
-      detail: "Pergunta iniciada por / não pôde ser respondida porque OPENAI_API_KEY não está configurada.",
-      data: { reason: "missing_openai_api_key" },
+      detail: "Pergunta iniciada por / não pôde ser respondida porque a configuração de IA do servidor está indisponível.",
+      data: { reason: "ai_question_unavailable" },
     };
   }
 
@@ -323,7 +354,7 @@ export async function executeWhatsappAiQuestionIntent(
         input.externalMessageId,
       ),
     ]);
-    const reply = await answerWithOpenAi(question, knowledgeBase, recentHistory);
+    const { reply, webSearchExecuted } = await answerWithAi(policy, question, knowledgeBase, recentHistory);
 
     return {
       handled: true,
@@ -334,20 +365,23 @@ export async function executeWhatsappAiQuestionIntent(
       data: {
         question,
         usedUserKnowledgeBase: true,
-        internetToolEnabled: true,
+        internetToolEnabled: webSearchExecuted,
         generatedAt: receivedAt.toISOString(),
       },
     };
   } catch (error) {
-    const isConfigurationError = error instanceof OpenAiConfigurationError;
+    const isConfigurationError = error instanceof AiNonRetryableError;
+    const errorCode = error instanceof AiOperationalError || error instanceof AiNonRetryableError
+      ? error.code
+      : "unknown";
     logInferenceEvent({
       userId,
       origin: "whatsapp",
       status: "error",
       eventType: isConfigurationError ? "whatsapp.ai_question.unavailable" : "whatsapp.ai_question.failed",
       detail: isConfigurationError
-        ? "Pergunta iniciada por / não pôde ser respondida por configuração ausente do OpenAI."
-        : "Pergunta iniciada por / falhou durante consulta da IA.",
+        ? `Pergunta iniciada por / não pôde ser respondida por configuração de IA indisponível (${errorCode}).`
+        : `Pergunta iniciada por / falhou durante consulta da IA (${errorCode}).`,
     });
 
     return {
@@ -356,7 +390,7 @@ export async function executeWhatsappAiQuestionIntent(
       reply: "Não consegui responder essa pergunta agora. Tente novamente em instantes ou envie o comando sem / se quiser registrar uma refeição.",
       eventType: "whatsapp.ai_question.failed",
       detail: "Falha ao responder pergunta iniciada por / via IA.",
-      data: { reason: isConfigurationError ? "openai_configuration" : "ai_request_failed" },
+      data: { reason: isConfigurationError ? "ai_question_unavailable" : "ai_question_failed" },
     };
   }
 }
