@@ -13,10 +13,8 @@ import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from
 import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 
-// Compatibility default only: the real default model per provider is owned by
-// configResolverCore (AI_EMBEDDING_MODEL / EMBEDDING capability). This constant
-// is not read on the primary path, it only documents the historical default.
-const EMBEDDING_MODEL = "text-embedding-3-small";
+// The default embedding model/provider (OpenAI text-embedding-3-small) is
+// owned by configResolverCore (AI_EMBEDDING_MODEL / EMBEDDING capability).
 const SIMILARITY_THRESHOLD = 0.82;
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
 
@@ -112,6 +110,12 @@ type CatalogEmbeddingEntry = {
 
 let embeddingCache: CatalogEmbeddingEntry[] | null = null;
 let cachedCatalogSize = 0;
+let cachedEmbeddingSourceKey: string | null = null;
+
+function embeddingSourceKey(policy: ResolvedCapabilityConfig): string | null {
+  const target = policy.primary;
+  return target ? `${target.provider}:${target.model}` : null;
+}
 
 function normalizeText(value: string): string {
   return value
@@ -315,10 +319,9 @@ function buildCatalogText(food: CatalogFood): string {
  * Fetches embeddings through the EMBEDDING capability policy. Note: if the
  * resolved provider/model ever changes between calls (e.g. cross-provider
  * fallback), previously cached embeddings may have a different vector
- * dimension/space than freshly fetched ones. This is not handled beyond the
- * existing catalog-size cache invalidation below; cross-provider fallback is
- * disabled by default for EMBEDDING (Gemini is not in GEMINI_OPERATIONS'
- * embeddings set today), so this is not expected to occur in practice.
+ * dimension/space than freshly fetched ones. `getEmbeddingCache` guards
+ * against this by keying the cache on `provider:model` and rebuilding it
+ * whenever that key changes, in addition to catalog-size invalidation.
  */
 async function fetchEmbeddings(
   texts: string[],
@@ -346,9 +349,11 @@ async function buildEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<Ca
 
 async function getEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<CatalogEmbeddingEntry[]> {
   const catalog = getCatalogCache();
-  if (!embeddingCache || catalog.length !== cachedCatalogSize) {
+  const sourceKey = embeddingSourceKey(policy);
+  if (!embeddingCache || catalog.length !== cachedCatalogSize || sourceKey !== cachedEmbeddingSourceKey) {
     embeddingCache = await buildEmbeddingCache(policy);
     cachedCatalogSize = catalog.length;
+    cachedEmbeddingSourceKey = sourceKey;
   }
   return embeddingCache;
 }
@@ -408,4 +413,5 @@ export async function findCatalogFoodSemantic(
 export function resetEmbeddingCache(): void {
   embeddingCache = null;
   cachedCatalogSize = 0;
+  cachedEmbeddingSourceKey = null;
 }

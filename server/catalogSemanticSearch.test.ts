@@ -298,4 +298,45 @@ describe("findCatalogFoodSemantic — EMBEDDING capability (catalog embedding se
     expect(result).toBeNull();
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
+
+  it("rebuilds the embedding cache when the resolved provider/model changes, avoiding mixed-dimension vectors", async () => {
+    const { getCatalogCache } = await import("./catalogRuntime");
+    const catalog = getCatalogCache();
+    const targetIndex = catalog.findIndex(food => food.slug === "agua");
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "EMBEDDING" ? READY_EMBEDDING_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    mockExecuteEmbeddings();
+    createEmbeddingsMock.mockImplementation(async (request: { input: string[] }) =>
+      request.input.length > 1
+        ? catalog.map((_, i) => (i === targetIndex ? [1, 0] : [0, 1]))
+        : [[1, 0]],
+    );
+
+    await findCatalogFoodSemantic("agua");
+    const buildCallsAfterFirst = createEmbeddingsMock.mock.calls.length;
+
+    // Same provider/model: cache reused, only the single query embedding is fetched.
+    await findCatalogFoodSemantic("agua");
+    expect(createEmbeddingsMock.mock.calls.length).toBe(buildCallsAfterFirst + 1);
+
+    // Resolved provider/model changes (e.g. operator reconfigures AI_EMBEDDING_*):
+    // the cache must be rebuilt instead of reused across an incompatible vector space.
+    const OTHER_MODEL_POLICY = {
+      ...READY_EMBEDDING_POLICY,
+      primary: { provider: "openai" as const, model: "text-embedding-3-large" },
+    };
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "EMBEDDING" ? OTHER_MODEL_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    const callsBeforeRebuild = createEmbeddingsMock.mock.calls.length;
+    await findCatalogFoodSemantic("agua");
+    // A full catalog rebuild call (multi-input) plus the query call happened,
+    // proving the stale-provider cache was discarded rather than reused.
+    const callsAfterRebuild = createEmbeddingsMock.mock.calls;
+    const rebuildCall = callsAfterRebuild[callsBeforeRebuild];
+    expect(rebuildCall[0].input.length).toBeGreaterThan(1);
+  });
 });
