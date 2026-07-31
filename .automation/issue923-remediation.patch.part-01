@@ -1,0 +1,169 @@
+tado dentro da callback entregue a `executeResolvedCapability`, portanto segue a taxonomia operacional comum e pode consumir retry/fallback único quando explicitamente habilitado. Já `found=false`, confiança insuficiente, fonte ausente/não citada, evidência vazia ou identidade comercial incompatível são resultados funcionais processados depois do executor: retornam `null` e degradam diretamente para o caminho canônico, sem nova consulta externa. Exceções finais são capturadas e também viram `null` para não derrubar o chamador.
+ - `null` em qualquer um desses casos faz o chamador (`findCatalogFoodSemantic`) seguir para o próximo candidato/fallback canônico do motor nutricional, sem inventar dado e sem bloquear a inferência de refeição.
+ 
+ A busca semântica de catálogo usa a capacidade `EMBEDDING` (default OpenAI `text-embedding-3-small`) para gerar o vetor da consulta e comparar por similaridade de cosseno com o catálogo pré-embebido. O cache registra o provider/modelo efetivamente usado pelo executor; se a consulta vier de outro modelo efetivo, o cache é invalidado e a chamada degrada para a busca textual/canônica, sem comparar espaços vetoriais diferentes. Quando `EMBEDDING` está `disabled`/`invalid`, a busca semântica é pulada sem chamar rede — mesma política de "nunca substituir geração de texto por embeddings ausentes" coberta em `catalogSemanticSearch.test.ts`.
+diff --git a/docs/design-docs/whatsapp-ingestion-ai-capabilities.md b/docs/design-docs/whatsapp-ingestion-ai-capabilities.md
+index 8c9dee1487ab748de53c6bdf5b00a529faaa8dd0..efe8f7f7d3e646a67a57fccbaa554f51a17e7b96 100644
+--- a/docs/design-docs/whatsapp-ingestion-ai-capabilities.md
++++ b/docs/design-docs/whatsapp-ingestion-ai-capabilities.md
+@@ -13,3 +13,11 @@ A migração não altera estados persistidos, interação pendente, correlação
+ Falhas operacionais recuperáveis seguem exclusivamente a política da capacidade. Autenticação, configuração inválida, modelo inexistente conhecido, incompatibilidade e bloqueio de segurança não acionam retry nem fallback. A indisponibilidade da IA mantém a resposta funcional segura já documentada e nunca cria refeição genérica ou vazia silenciosamente.
+ 
+ Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`, até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927. O resolvedor retorna a capacidade como `degraded`, preserva o primário válido e torna o fallback inelegível; o executor não recebe autorização para realizar a segunda chamada.
++
++## Perguntas `/` por capacidade (#923)
++
++Mensagens textuais iniciadas por `/` são interceptadas pelo gate de precedência antes de exclusão, pendências ou classificação genérica e são executadas pela capacidade `QUESTION`. O consumidor resolve provider, modelo, timeout, tentativas e fallback por `resolveCapabilityConfig("QUESTION")` e usa exclusivamente `executeResolvedCapability`; não instancia cliente de SDK nem seleciona modelo global. Pergunta vazia e configuração indisponível permanecem respostas controladas e não mutam refeições ou outros estados do domínio.
++
++`AI_QUESTION_WEB_SEARCH_MODE=auto` envia apenas o contrato interno `{ type: "web_search" }` sem `tool_choice`, permitindo resposta com a base interna quando a busca não é necessária. O adapter OpenAI traduz para a ferramenta estável `web_search` e solicita `web_search_call.action.sources`; o adapter Gemini traduz para Google Search Grounding. A telemetria funcional marca execução somente quando o adapter normaliza uma chamada/grounding efetivamente realizado; ferramenta apenas oferecida não registra custo de pesquisa.
++
++A pergunta atual, o histórico delimitado e a base compactada são dados de entrada transitórios. Logs de erro registram somente códigos sanitizados; pergunta, prompt, base compactada, resposta bruta e `raw` dos SDKs não são persistidos em telemetria. As invariantes de correlação, janela persistente e neutralização de histórico continuam documentadas em `docs/testing/whatsapp-ai-question-history-security.md`.
+diff --git a/docs/exec-plans/active/migrate-ai-to-openai.md b/docs/exec-plans/active/migrate-ai-to-openai.md
+index c3500ea9391cb3fd7037cb73a48238370f3af7b2..782dab608633a9812e53ff68e003476b6866878b 100644
+--- a/docs/exec-plans/active/migrate-ai-to-openai.md
++++ b/docs/exec-plans/active/migrate-ai-to-openai.md
+@@ -146,10 +146,10 @@ Status: implementada na PR da issue; sujeita aos gates e auditoria controller-ad
+ Status: implementada na PR da issue; sujeita aos gates e auditoria controller-adversarial do SHA congelado.
+ 
+ - `QUESTION` (`aiQuestionAssistant`), `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch` em `catalogSemanticSearch.ts`) e `EMBEDDING` (busca semântica de catálogo) usam `resolveCapabilityConfig` e `executeResolvedCapability`.
+-- O contrato interno de ferramenta de pesquisa web (`{ type: "web_search" }`) passou a ser traduzido também pelo Gemini via Google Search Grounding, além do `web_search`/`web_search_preview` já existente no OpenAI; `supportMatrix.ts` passou a anunciar `web_search` para Gemini, com tradução e teste próprios do adapter.
++- O contrato interno de ferramenta de pesquisa web (`{ type: "web_search" }`) passou a ser traduzido também pelo Gemini via Google Search Grounding, além do `web_search` estável no OpenAI; `supportMatrix.ts` passou a anunciar `web_search` para Gemini, com tradução e teste próprios do adapter.
+ - `EMBEDDING` preserva `text-embedding-3-small` da OpenAI como default e permanece inelegível no Gemini (sem método `embeddings` no adapter): cross-provider fallback para `EMBEDDING` fica indisponível mesmo com opt-in explícito, porque o provider de destino nunca passa na validação de operações suportadas.
+ - Fallback continua desabilitado por padrão e isolado por capacidade para as três capacidades migradas; cross-provider fallback para `QUESTION`/`NUTRITION_SEARCH` segue exigindo `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` e permanece fail-closed em produção (AI-CROSS-PROVIDER-PROD-001).
+-- Fonte insuficiente ou SKU ambíguo em `findPackagedSnackByWebSearch` degrada para o fallback canônico local (sem inventar dado e sem disparar fallback externo indevido); ausência de `EMBEDDING` degrada para busca textual/canônica.
++- Fonte insuficiente ou incompatibilidade de marca, produto, sabor, peso ou embalagem em `findPackagedSnackByWebSearch` degrada para o fallback canônico local (sem inventar dado e sem disparar fallback externo indevido); JSON/payload estruturalmente inválido é rejeitado dentro da tentativa para permitir o retry/fallback operacional configurado; ausência de `EMBEDDING` degrada para busca textual/canônica.
+ - Zod e a validação de payload de embeddings continuam a fronteira final depois de primário ou fallback.
+ 
+ ## Gates
+diff --git a/docs/testing/whatsapp-ai-question-history-security.md b/docs/testing/whatsapp-ai-question-history-security.md
+index 4d0de7a51e13c5e983ebf90ec9dea82a71f549e2..c90f7711ca965710f5e2ea1044ffecde08f8c779 100644
+--- a/docs/testing/whatsapp-ai-question-history-security.md
++++ b/docs/testing/whatsapp-ai-question-history-security.md
+@@ -25,4 +25,4 @@ Esta matriz protege o consumidor `slash_assistant` quando uma pergunta atual usa
+ - `server/modules/whatsapp/intentContext.currentMessage.test.ts`
+ - `server/modules/whatsapp/intentContext.rollout.test.ts`
+ 
+-A regressão da rota `/` usa o `buildWhatsappIntentContext` real com um repositório persistente controlado, mantém o rollout em modo `persistent`, inclui a pergunta corrente já persistida e inspeciona o payload real passado ao cliente OpenAI mockado na última fronteira externa. Como `slash_assistant` declara `usesSummary:false`, o construtor não chama o resumidor nesse fluxo. A regressão transitiva separada força overflow, inspeciona o payload real de `invokeLLM`, persiste uma saída contendo marcadores forjados e comprova que o classificador a delimita novamente. Os controles devem falhar se a correlação usar apenas timestamp, se a mensagem corrente for duplicada, se um irmão concorrente for removido, se contexto expirado for enviado ou se qualquer mensagem ou resumo histórico atravessar uma fronteira LLM sem neutralização.
++A regressão da rota `/` usa o `buildWhatsappIntentContext` real com um repositório persistente controlado, mantém o rollout em modo `persistent`, inclui a pergunta corrente já persistida e inspeciona o payload real passado ao adapter de IA mockado na última fronteira externa, sem assumir provider específico. Como `slash_assistant` declara `usesSummary:false`, o construtor não chama o resumidor nesse fluxo. A regressão transitiva separada força overflow, inspeciona o payload real de `invokeLLM`, persiste uma saída contendo marcadores forjados e comprova que o classificador a delimita novamente. Os controles devem falhar se a correlação usar apenas timestamp, se a mensagem corrente for duplicada, se um irmão concorrente for removido, se contexto expirado for enviado ou se qualquer mensagem ou resumo histórico atravessar uma fronteira LLM sem neutralização.
+diff --git a/package.json b/package.json
+index c29f9585a49ef1efcaf7a7cd8deb7a9f9968fe55..d3f562a770a3391917c8f6a4af37cb93bddda702 100644
+--- a/package.json
++++ b/package.json
+@@ -11,6 +11,7 @@
+     "check": "tsc --noEmit",
+     "format": "prettier --write .",
+     "test": "NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory vitest run",
++    "smoke:issue-923:live": "tsx scripts/issue-923-live-provider-smoke.ts",
+     "architecture:check": "tsx scripts/check-architecture.ts",
+     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
+     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
+diff --git a/server/_core/aiProvider.toolContract.test.ts b/server/_core/aiProvider.toolContract.test.ts
+index 0ad931663c65b7d106f168b68f36390d85fcd55c..3fc4a8a44fe914a0a4c4b3b00e54bce256f00754 100644
+--- a/server/_core/aiProvider.toolContract.test.ts
++++ b/server/_core/aiProvider.toolContract.test.ts
+@@ -12,37 +12,86 @@ function buildClient(create: ReturnType<typeof vi.fn>) {
+ }
+ 
+ describe("OpenAiProvider text tool contract", () => {
+-  it.each(["web_search", "web_search_preview"] as const)(
+-    "translates the supported internal %s tool to the SDK web-search contract",
+-    async type => {
+-      const create = vi.fn().mockResolvedValue({ id: "resp_1", output_text: "ok" });
+-      const provider = new OpenAiProvider(buildClient(create));
++  it("translates the internal web_search tool to the stable Responses API contract", async () => {
++    const create = vi.fn().mockResolvedValue({ id: "resp_1", output_text: "ok" });
++    const provider = new OpenAiProvider(buildClient(create));
+ 
+-      await provider.createTextResponse({
+-        model: "gpt-4.1-mini",
+-        input: "pesquise banana",
+-        tools: [{ type }],
+-      });
++    await provider.createTextResponse({
++      model: "gpt-4.1-mini",
++      input: "pesquise banana",
++      tools: [{ type: "web_search" }],
++    });
+ 
+-      expect(create).toHaveBeenCalledWith(
+-        expect.objectContaining({ tools: [{ type: "web_search_preview" }] }),
+-        undefined,
+-      );
+-    },
+-  );
++    expect(create).toHaveBeenCalledWith(
++      expect.objectContaining({
++        tools: [{ type: "web_search" }],
++        include: ["web_search_call.action.sources"],
++      }),
++      undefined,
++    );
++  });
+ 
+-  it("rejects an unknown internal tool before creating or calling the SDK client", async () => {
+-    const create = vi.fn();
+-    const clientFactory = vi.fn(() => buildClient(create));
+-    const provider = new OpenAiProvider(clientFactory);
++  it("normalizes provider queries and sources without duplicating message citations", async () => {
++    const create = vi.fn().mockResolvedValue({
++      id: "resp_1",
++      output_text: "ok",
++      output: [
++        {
++          type: "web_search_call",
++          status: "completed",
++          action: {
++            type: "search",
++            query: "banana tabela nutricional",
++            sources: [
++              { type: "url", url: "https://example.com/banana", title: "Banana" },
++              { type: "url", url: "https://example.com/tbca" },
++            ],
++          },
++        },
++        {
++          type: "message",
++          content: [{
++            annotations: [
++              { type: "url_citation", url: "https://example.com/banana", title: "Banana" },
++            ],
++          }],
++        },
++      ],
++    });
++    const provider = new OpenAiProvider(buildClient(create));
+ 
+-    await expect(provider.createTextResponse({
++    const result = await provider.createTextResponse({
+       model: "gpt-4.1-mini",
+       input: "pesquise banana",
+-      tools: [{ type: "unknown_internal_tool" }] as never,
+-    })).rejects.toMatchObject({ code: "incompatible_operation" });
++      tools: [{ type: "web_search" }],
++    });
+ 
+-    expect(clientFactory).not.toHaveBeenCalled();
+-    expect(create).not.toHaveBeenCalled();
++    expect(result.webSearch).toEqual({
++      executed: true,
++      searchCount: 1,
++      sources: [
++        { url: "https://example.com/banana", title: "Banana" },
++        { url: "https://example.com/tbca" },
++      ],
++      searchQueries: ["banana tabela nutricional"],
++    });
+   });
++
++  it.each(["web_search_preview", "unknown_internal_tool"])(
++    "rejects unsupported internal tool %s before creating or calling the SDK client",
++    async type => {
++      const create = vi.fn();
++      const clientFactory = vi.fn(() => buildClient(create));
++      const provider = new OpenAiProvider(clientFactory);
++
++      await expect(provider.createTextResponse({
++        model: "gpt-4.1-mini",
++        input: "pesquise banana",
++        tools: [{ type }] as never,
++      })).rejects.toMatchObject({
