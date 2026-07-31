@@ -7,13 +7,15 @@
  */
 
 import { getCatalogCache } from "./catalogRuntime";
-import { isOpenAiConfigured, createOpenAiClient } from "./_core/openaiClient";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import type { CatalogFood } from "./nutritionEngine";
 import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "./_core/ai/capabilityExecutor";
-import { resolveCapabilityConfig } from "./_core/ai/configResolver";
+import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 
+// Compatibility default only: the real default model per provider is owned by
+// configResolverCore (AI_EMBEDDING_MODEL / EMBEDDING capability). This constant
+// is not read on the primary path, it only documents the historical default.
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const SIMILARITY_THRESHOLD = 0.82;
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
@@ -309,42 +311,57 @@ function buildCatalogText(food: CatalogFood): string {
   return terms.join(", ");
 }
 
-async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
-  const client = createOpenAiClient();
-  const response = await client.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: texts,
-    encoding_format: "float",
-  });
-  return response.data
-    .sort((a, b) => a.index - b.index)
-    .map(item => item.embedding);
+/**
+ * Fetches embeddings through the EMBEDDING capability policy. Note: if the
+ * resolved provider/model ever changes between calls (e.g. cross-provider
+ * fallback), previously cached embeddings may have a different vector
+ * dimension/space than freshly fetched ones. This is not handled beyond the
+ * existing catalog-size cache invalidation below; cross-provider fallback is
+ * disabled by default for EMBEDDING (Gemini is not in GEMINI_OPERATIONS'
+ * embeddings set today), so this is not expected to occur in practice.
+ */
+async function fetchEmbeddings(
+  texts: string[],
+  policy: ResolvedCapabilityConfig,
+): Promise<number[][]> {
+  const result = await executeResolvedCapability(
+    policy,
+    async (attempt: ResolvedCapabilityAttemptContext) =>
+      attempt.provider.createEmbeddings(
+        { model: attempt.model, input: texts },
+        { signal: attempt.signal },
+      ),
+  );
+  return result.value.embeddings;
 }
 
-async function buildEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
+async function buildEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<CatalogEmbeddingEntry[]> {
   const catalog = getCatalogCache() as CatalogFood[];
   const texts = catalog.map(buildCatalogText);
-  const embeddings = await fetchEmbeddings(texts);
+  const embeddings = await fetchEmbeddings(texts, policy);
   return catalog
     .map((food, i) => ({ food, embedding: embeddings[i] }))
     .filter((entry): entry is CatalogEmbeddingEntry => isEmbedding(entry.embedding));
 }
 
-async function getEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
+async function getEmbeddingCache(policy: ResolvedCapabilityConfig): Promise<CatalogEmbeddingEntry[]> {
   const catalog = getCatalogCache();
   if (!embeddingCache || catalog.length !== cachedCatalogSize) {
-    embeddingCache = await buildEmbeddingCache();
+    embeddingCache = await buildEmbeddingCache(policy);
     cachedCatalogSize = catalog.length;
   }
   return embeddingCache;
 }
 
 async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood | null> {
-  if (!isOpenAiConfigured()) return null;
+  const policy = resolveCapabilityConfig("EMBEDDING");
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    return null;
+  }
 
   try {
-    const cache = await getEmbeddingCache();
-    const [queryEmbedding] = await fetchEmbeddings([foodName]);
+    const cache = await getEmbeddingCache(policy);
+    const [queryEmbedding] = await fetchEmbeddings([foodName], policy);
     if (!isEmbedding(queryEmbedding)) return null;
 
     let bestScore = -1;

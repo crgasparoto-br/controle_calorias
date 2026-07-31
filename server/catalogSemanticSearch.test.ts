@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const resolveCapabilityConfigMock = vi.fn();
 const executeResolvedCapabilityMock = vi.fn();
 const createTextResponseMock = vi.fn();
+const createEmbeddingsMock = vi.fn();
 
 vi.mock("./_core/ai/configResolver", () => ({
   resolveCapabilityConfig: (...args: unknown[]) => resolveCapabilityConfigMock(...args),
@@ -61,7 +62,55 @@ function mockExecuteWithOutput(outputText: string) {
   });
 }
 
-const { findPackagedSnackByWebSearch } = await import("./catalogSemanticSearch");
+const READY_EMBEDDING_POLICY = {
+  state: "ready" as const,
+  primary: { provider: "openai" as const, model: "text-embedding-3-small" },
+  fallback: { effectivelyEnabled: false },
+  timeoutMs: 8000,
+  maxAttempts: 1,
+  diagnostics: [],
+  usedLegacyVariables: false,
+};
+
+const DISABLED_EMBEDDING_POLICY = {
+  state: "disabled" as const,
+  primary: null,
+  fallback: { effectivelyEnabled: false },
+  timeoutMs: 8000,
+  maxAttempts: 1,
+  diagnostics: [],
+  usedLegacyVariables: false,
+};
+
+/**
+ * Wires executeResolvedCapability to call the operation with a provider whose
+ * createEmbeddings delegates to createEmbeddingsMock, mirroring the real
+ * AiProvider.createEmbeddings(request, options) contract.
+ */
+function mockExecuteEmbeddings() {
+  executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
+    const value = await operation({
+      signal: new AbortController().signal,
+      source: "primary",
+      attempt: 1,
+      timeoutMs: 8000,
+      provider: {
+        createEmbeddings: async (request: unknown) => {
+          const embeddings = await createEmbeddingsMock(request);
+          return { embeddings, raw: {} };
+        },
+        createTextResponse: async () => {
+          throw new Error("createTextResponse must not be used by the EMBEDDING capability path");
+        },
+      },
+      providerId: "openai",
+      model: "text-embedding-3-small",
+    });
+    return { value, source: "primary", attempts: 1, usedFallback: false };
+  });
+}
+
+const { findPackagedSnackByWebSearch, findCatalogFoodSemantic, resetEmbeddingCache } = await import("./catalogSemanticSearch");
 
 describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged snacks)", () => {
   beforeEach(() => {
@@ -183,5 +232,70 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(result).toBeNull();
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
     expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("findCatalogFoodSemantic — EMBEDDING capability (catalog embedding search)", () => {
+  beforeEach(() => {
+    resolveCapabilityConfigMock.mockReset();
+    executeResolvedCapabilityMock.mockReset();
+    createTextResponseMock.mockReset();
+    createEmbeddingsMock.mockReset();
+    resetEmbeddingCache();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetEmbeddingCache();
+  });
+
+  it("returns a catalog match when the EMBEDDING capability is available", async () => {
+    const { getCatalogCache } = await import("./catalogRuntime");
+    const catalog = getCatalogCache();
+    const targetIndex = catalog.findIndex(food => food.slug === "agua");
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "EMBEDDING" ? READY_EMBEDDING_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    mockExecuteEmbeddings();
+
+    createEmbeddingsMock.mockImplementation(async (request: { input: string[] }) => {
+      if (request.input.length > 1) {
+        // Building the full catalog cache: give the target entry a
+        // distinguishing vector, everything else orthogonal to it.
+        return catalog.map((_, i) => (i === targetIndex ? [1, 0] : [0, 1]));
+      }
+      // Single query embedding call: aligned with the target vector.
+      return [[1, 0]];
+    });
+
+    const result = await findCatalogFoodSemantic("agua");
+
+    expect(result?.slug).toBe("agua");
+    expect(createEmbeddingsMock).toHaveBeenCalled();
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+
+  it("degrades to null (textual/canonical fallback upstream) without calling the network when EMBEDDING is disabled", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(DISABLED_EMBEDDING_POLICY);
+
+    const result = await findCatalogFoodSemantic("agua");
+
+    expect(result).toBeNull();
+    expect(executeResolvedCapabilityMock).not.toHaveBeenCalled();
+    expect(createEmbeddingsMock).not.toHaveBeenCalled();
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+
+  it("never substitutes a text-generation model for missing embeddings", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_EMBEDDING_POLICY);
+    mockExecuteEmbeddings();
+    createEmbeddingsMock.mockResolvedValue([]);
+
+    const result = await findCatalogFoodSemantic("um alimento sem correspondencia plausivel xyz");
+
+    expect(result).toBeNull();
+    expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });

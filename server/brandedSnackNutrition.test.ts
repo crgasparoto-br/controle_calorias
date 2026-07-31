@@ -13,16 +13,7 @@ vi.mock("./_core/aiProvider", () => ({
 vi.mock("./_core/ai/providerResolver", () => ({
   getAiProviderById: () => ({
     createTextResponse: (request: unknown) => createTextResponseMock(request),
-  }),
-}));
-
-
-vi.mock("./_core/openaiClient", () => ({
-  isOpenAiConfigured: () => true,
-  createOpenAiClient: () => ({
-    embeddings: {
-      create: embeddingsCreateMock,
-    },
+    createEmbeddings: (request: unknown) => embeddingsCreateMock(request),
   }),
 }));
 
@@ -37,7 +28,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
     embeddingsCreateMock.mockReset();
-    embeddingsCreateMock.mockResolvedValue({ data: [] });
+    embeddingsCreateMock.mockResolvedValue({ embeddings: [], raw: {} });
   });
 
   it("corrige chutes genéricos da IA para doces industrializados reconhecidos por embalagem", async () => {
@@ -135,7 +126,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
   });
 
   it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
-    embeddingsCreateMock.mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] }).mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] });
+    embeddingsCreateMock.mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} }).mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} });
     createTextResponseMock
       .mockResolvedValueOnce({ id: "resp_unknown_packaged_chocolate", outputText: JSON.stringify({ mealLabel: "Lanche", confidence: 0.8, reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.", items: [{ foodName: "Alpino", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }] }), raw: { mocked: true } })
       .mockResolvedValueOnce({ id: "resp_web_nutrition_lookup_empty", outputText: JSON.stringify({ found: false, matchedProductName: "", brandName: "", servingLabel: "", gramsPerServing: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 0.2, sourceUrl: "", evidence: "Nenhuma fonte específica confiável encontrada." }), raw: { mocked: true } });
