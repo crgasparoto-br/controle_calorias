@@ -142,7 +142,7 @@ function normalizeText(value: string): string {
 }
 
 function hasAnyTerm(normalizedText: string, terms: string[]) {
-  return terms.some(term => new RegExp(`\\b${term}\\b`, "i").test(normalizedText));
+  return terms.some(term => new RegExp(`\b${term}\b`, "i").test(normalizedText));
 }
 
 function detectPackagedSnackCategory(foodName: string): PackagedSnackCategory | null {
@@ -291,9 +291,10 @@ function isCommercialProductIdentityCompatible(input: {
   const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
   const candidateVariants = extractCommercialTokens(input.matchedProductName)
     .filter(token => COMMERCIAL_VARIANT_TOKENS.has(token));
-  if (requestedVariants.size) {
-    if ([...requestedVariants].some(token => !candidateVariants.includes(token))) return false;
-  } else if (candidateVariants.length) {
+  if (
+    requestedVariants.size
+    && [...requestedVariants].some(token => !candidateVariants.includes(token))
+  ) {
     return false;
   }
 
