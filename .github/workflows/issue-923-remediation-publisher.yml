@@ -1,0 +1,47 @@
+name: Issue 923 remediation publisher
+
+on:
+  push:
+    branches:
+      - automation/923-remediation-publisher
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-923-remediation-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout staged publisher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble and publish exact remediation commit
+        env:
+          TARGET_BRANCH: feat/923-ai-capabilities-question-nutrition-embedding
+          EXPECTED_TARGET_SHA: 673eed668e2d7113cb597152aca32ec60479ab1e
+          EXPECTED_PATCH_SHA256: 6b5df5acb86b4c384d2cecd95acf5c5a6e59938bf44fefa2b378dc05c2e9b7f2
+          PUBLISHER_REF: automation/923-remediation-publisher
+        run: |
+          set -euo pipefail
+          cat .automation/issue923-remediation.patch.part-* > /tmp/issue923-remediation.patch
+          echo "${EXPECTED_PATCH_SHA256}  /tmp/issue923-remediation.patch" | sha256sum -c -
+
+          git fetch --no-tags origin "${TARGET_BRANCH}"
+          test "$(git rev-parse FETCH_HEAD)" = "${EXPECTED_TARGET_SHA}"
+          git checkout --detach "${EXPECTED_TARGET_SHA}"
+          git apply --index --whitespace=error-all /tmp/issue923-remediation.patch
+          git diff --cached --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(ai): remediate issue 923 audit findings"
+
+          git push --force-with-lease="refs/heads/${PUBLISHER_REF}:${GITHUB_SHA}" \
+            origin "HEAD:refs/heads/${PUBLISHER_REF}"
