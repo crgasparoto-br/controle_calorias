@@ -418,7 +418,7 @@ function parseSearchedNutritionResult(
   const candidate: CatalogFood = {
     slug: `web-nutrition-${normalizeText(matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: matchedProductName,
-    aliases: [matchedProductName, sourceAlias],
+    aliases: [foodName, matchedProductName, sourceAlias],
     servingLabel: result.servingLabel?.trim() || `${result.gramsPerServing} g`,
     gramsPerServing: result.gramsPerServing,
     calories: result.calories,
