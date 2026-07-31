@@ -190,7 +190,7 @@ function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
     // generated type surfaces, but the Responses API contract is stable. Keep
     // the cast isolated inside the adapter instead of leaking SDK details into
     // the domain contract.
-    return { type: "web_search" } as OpenAiSdkTextTool;
+    return { type: "web_search" } as unknown as OpenAiSdkTextTool;
   }
 
   throw new AiNonRetryableError(
