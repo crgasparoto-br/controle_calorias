@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
   "issue": 922,
-  "cycle": 9,
+  "cycle": 10,
   "state": "blocked",
   "single_invocation_mode": true,
   "controller_mode": "issue-loop-single-invocation",
@@ -11,32 +11,32 @@
     "issue": 922,
     "pull_request": 953,
     "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
-    "head_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+    "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
     "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
-    "merge_preview_sha": "f4179dc94ab0d325c9c0c327cf5ab3ffe7b5f18a",
+    "merge_preview_sha": "244b444ea112f6ce048f6d20c578845025887b05",
     "issue_snapshot_sha256": "a81730daa38e479657a5aa6fc3374569041a0f227d06f0705aaae20a994208cd",
-    "diff_sha256": "651efe450ac9b02dc5a94919f6bcddfbd722ce26281a7eb857484d2c48d12d67",
+    "diff_sha256": "83ef58cb05d672c4bfc9770bfc2e50463d972074894ca90c5ee92341108391a3",
     "skills_sha256": "c088cf464e79ee9759f70053d2c1e815b31184f2291e545404fbb57e2873c2a0",
-    "captured_at": "2026-07-31T01:41:55.863992Z"
+    "captured_at": "2026-07-31T16:28:02Z"
   },
   "current_identity": {
     "repository": "crgasparoto-br/controle_calorias",
     "issue": 922,
     "pull_request": 953,
     "branch": "feat/922-ai-capabilities-meal-whatsapp-rebased",
-    "head_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+    "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
     "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
-    "merge_preview_sha": "f4179dc94ab0d325c9c0c327cf5ab3ffe7b5f18a",
+    "merge_preview_sha": "244b444ea112f6ce048f6d20c578845025887b05",
     "issue_snapshot_sha256": "a81730daa38e479657a5aa6fc3374569041a0f227d06f0705aaae20a994208cd",
-    "diff_sha256": "651efe450ac9b02dc5a94919f6bcddfbd722ce26281a7eb857484d2c48d12d67",
+    "diff_sha256": "83ef58cb05d672c4bfc9770bfc2e50463d972074894ca90c5ee92341108391a3",
     "skills_sha256": "c088cf464e79ee9759f70053d2c1e815b31184f2291e545404fbb57e2873c2a0",
-    "captured_at": "2026-07-31T01:41:55.863992Z"
+    "captured_at": "2026-07-31T16:28:02Z"
   },
   "audit": {
     "validity": "absent",
     "verdict": "not-run",
     "identity": null,
-    "implementation_context_id": null,
+    "implementation_context_id": "issue-922-reservations-20260731T162802Z",
     "audit_context_id": null,
     "started_at": null,
     "finished_at": null,
@@ -63,71 +63,181 @@
   "requirements": [],
   "gate_inventory_complete": false,
   "gates": [],
-  "findings": [],
+  "findings": [
+    {
+      "id": "AUD-922-004",
+      "fingerprint": "issue-922-stale-governance-after-live-smoke-success",
+      "severity": "Medio",
+      "status": "open",
+      "disposition": "blocking",
+      "occurrence_count": 1,
+      "requirement_id": "REQ-010",
+      "cause": "documentation-defect",
+      "detected_on_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+      "remediated_on_sha": null,
+      "remediation_diff_sha256": null,
+      "regression_test": null,
+      "closure_evidence_path": null,
+      "closure_evidence_sha256": null,
+      "verified_cycle": null,
+      "description": "Versioned governance records and the PR narrative still reported external blockers already resolved on the audited head."
+    }
+  ],
   "regressions": [],
   "limitations": [
     {
-      "id": "LIM-922-ENV-PROTECTION",
-      "description": "The protected environment issue-922-live-smoke still requires a required reviewer in GitHub settings.",
-      "external": true
-    },
-    {
-      "id": "LIM-922-APPROVED-SHA",
-      "description": "Repository variable ISSUE_922_SMOKE_APPROVED_SHA must be set to the reviewed exact head SHA.",
-      "external": true
-    },
-    {
-      "id": "LIM-922-DEDICATED-KEY",
-      "description": "A dedicated ISSUE_922_SMOKE_OPENAI_API_KEY or ISSUE_922_SMOKE_GEMINI_API_KEY must be created with minimal quota before the smoke can run.",
-      "external": true
+      "id": "LIM-922-NEW-EXACT-HEAD-APPROVAL",
+      "description": "The governance-only remediation creates a new head. ISSUE_922_SMOKE_APPROVED_SHA must be updated to that exact SHA before the protected smoke can run.",
+      "external": true,
+      "resolved_parent_head": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+      "environment_and_dedicated_secret_already_verified": true
     }
   ],
   "artifacts": [
-    {"name":"execution-context","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"specification-snapshot","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"requirement-closure","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"risk-profile","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"documentation-impact","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"gate-report","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"source-manifest","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"requirements-rederivation","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"coverage-matrix","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"applicability-ledger","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"controller-audit-report","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"cycle-history","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"},
-    {"name":"remote-gate","required":true,"status":"missing","path":null,"sha256":null,"head_sha":"abe9442d436f071c1efcef4bae40a212e4fbf6cc"}
+    {
+      "name": "execution-context",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "specification-snapshot",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "requirement-closure",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "risk-profile",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "documentation-impact",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "gate-report",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "source-manifest",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "requirements-rederivation",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "coverage-matrix",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "applicability-ledger",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "controller-audit-report",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "cycle-history",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    },
+    {
+      "name": "remote-gate",
+      "required": true,
+      "status": "missing",
+      "path": null,
+      "sha256": null,
+      "head_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748"
+    }
   ],
   "risk_families": [
     {
       "name": "documentation",
       "applicable": true,
-      "basis": "Security documentation and audit records changed in cycle 9.",
-      "required_gates": ["pnpm docs:check", "pnpm agent:check"],
-      "required_subskills": ["documentacao-repositorio"]
-    },
-    {
-      "name": "security",
-      "applicable": true,
-      "basis": "The remediation changes the boundary that releases external-provider credentials to pull-request code.",
-      "required_gates": ["pnpm test", "pnpm agent:check", "Issue 922 live provider smoke"],
-      "required_subskills": ["implementar-issue"]
-    },
-    {
-      "name": "integration",
-      "applicable": true,
-      "basis": "The workflow invokes OpenAI or Gemini through the issue 922 live smoke.",
-      "required_gates": ["Issue 922 live provider smoke"],
-      "required_subskills": ["implementar-issue"]
+      "basis": "Cycle 10 only corrects versioned governance records and the PR narrative; runtime, workflow and security boundaries are unchanged.",
+      "required_gates": [
+        "pnpm docs:check",
+        "pnpm agent:check",
+        "exact-head remote workflows"
+      ],
+      "required_subskills": [
+        "documentacao-repositorio",
+        "implementar-issue"
+      ]
     }
   ],
   "subskill_results": [],
   "changed_files": [
-    {"path":".github/workflows/issue-922-live-provider-smoke.yml","families":["security","integration","documentation"]},
-    {"path":"server/issue922SmokeWorkflowSecurity.test.ts","families":["security","integration"]},
-    {"path":"docs/SECURITY.md","families":["documentation","security"]},
-    {"path":".audit/issue-loop-engineer/loop-state.json","families":["documentation"]},
-    {"path":".audit/issue-922-remediation/requirement-closure.json","families":["documentation"]},
-    {"path":".audit/issue-922-remediation/documentation-impact.json","families":["documentation"]}
+    {
+      "path": ".audit/issue-loop-engineer/loop-state.json",
+      "families": [
+        "documentation",
+        "governance"
+      ]
+    },
+    {
+      "path": ".audit/issue-922-remediation/requirement-closure.json",
+      "families": [
+        "documentation",
+        "governance"
+      ]
+    },
+    {
+      "path": ".audit/issue-922-remediation/documentation-impact.json",
+      "families": [
+        "documentation",
+        "governance"
+      ]
+    }
   ],
   "skill_changes": [],
   "operational_amendments": [
@@ -140,6 +250,19 @@
         "server/issue922SmokeWorkflowSecurity.test.ts",
         "docs/SECURITY.md"
       ]
+    },
+    {
+      "id": "OA-922-GOVERNANCE-SYNC-002",
+      "finding": "AUD-922-004",
+      "description": "Record the successful protected live-provider smoke and remove stale claims that the environment, dedicated credential and approved SHA were absent on the audited parent head.",
+      "subject_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+      "evidence": [
+        "workflow-run:30597090076",
+        "workflow-run:30597090096",
+        "workflow-run:30597090081",
+        "workflow-run:30597090079"
+      ],
+      "follow_up": "Approve and re-run gates for the resulting exact governance-remediation head."
     }
   ],
   "prior_internal_approval": null,
@@ -148,7 +271,10 @@
   "learning_review": {
     "required": true,
     "completed": true,
-    "reviewed_finding_ids": ["A-001", "A-002"],
+    "reviewed_finding_ids": [
+      "A-001",
+      "A-002"
+    ],
     "items": [
       {
         "finding_id": "A-001",
@@ -166,6 +292,6 @@
     "active": true,
     "external": true,
     "alternatives_exhausted": true,
-    "reason": "Repository settings must configure a protected issue-922-live-smoke environment, set ISSUE_922_SMOKE_APPROVED_SHA to the reviewed exact head, and provide a dedicated low-quota provider secret. These operations cannot be completed through the available repository-content tools."
+    "reason": "After publishing the governance-only remediation, ISSUE_922_SMOKE_APPROVED_SHA must be changed to the resulting exact head before the protected smoke can execute. The available connector cannot modify repository variables or environment secrets."
   }
 }

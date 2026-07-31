@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
   "issue": 922,
-  "cycle": 9,
+  "cycle": 10,
   "mode": "implementation",
   "base_ref": "develop",
-  "subject_sha": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
+  "subject_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
   "categories": [
     "architecture",
     "environment",
@@ -30,27 +30,44 @@
     "docs/PRIVACY_LGPD.md",
     "docs/design-docs/whatsapp-llm-intents.md"
   ],
-  "last_scanned_head": "abe9442d436f071c1efcef4bae40a212e4fbf6cc",
-  "status": "code_remediated_external_configuration_pending",
+  "last_scanned_head": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+  "status": "governance_records_remediated_pending_exact_head_regates",
   "cycle_delta": [
-    "Removed generic OPENAI_API_KEY and GEMINI_API_KEY from job scope.",
-    "Restricted provider secrets to the final live-smoke step.",
-    "Required a dedicated issue-922-live-smoke environment and dedicated low-quota secrets.",
-    "Required ISSUE_922_SMOKE_APPROVED_SHA to equal the exact reviewed PR head before dependency installation or secret release.",
-    "Disabled persisted checkout credentials and restricted eligible repository, author and branch family.",
-    "Added server/issue922SmokeWorkflowSecurity.test.ts as a reusable negative control.",
-    "Updated docs/SECURITY.md with the operational setup and fail-closed contract.",
-    "Migrated the loop record to schema v5 and removed stale cycle-6 blocked claims."
+    "Recorded successful exact-head Agent-first, WhatsApp context TiDB and professional persistence gates.",
+    "Recorded successful protected live-provider smoke on the audited head using a dedicated step-scoped OpenAI credential.",
+    "Updated REQ-010 from blocked_external to implemented with observed text, image and WhatsApp intent results.",
+    "Removed stale claims that the protected environment, dedicated provider credential and approved SHA were absent on the audited head.",
+    "Kept the next exact-head approval and re-run explicit because this governance-only remediation creates a new commit SHA.",
+    "Updated the PR narrative to distinguish resolved parent-head evidence from the new exact-head gate."
   ],
   "external_actions_required": [
-    "Configure required reviewers for GitHub environment issue-922-live-smoke.",
-    "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the reviewed exact head SHA after every head change.",
-    "Create ISSUE_922_SMOKE_OPENAI_API_KEY or ISSUE_922_SMOKE_GEMINI_API_KEY as an environment secret using a dedicated minimal-quota credential.",
-    "Re-run the Issue 922 live provider smoke on the resulting exact head."
+    "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the resulting exact PR head.",
+    "Re-run the exact-head gates, including Issue 922 live provider smoke."
   ],
   "evidence": {
-    "secure_workflow_failure_run": 30596848796,
-    "failure_reason": "No dedicated provider credential was available; checkout, identity validation and dependency installation completed without provider secrets.",
-    "whatsapp_context_gate": 30596848748
+    "audited_subject_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+    "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
+    "merge_preview_sha": "244b444ea112f6ce048f6d20c578845025887b05",
+    "agent_first_run": 30597090076,
+    "whatsapp_context_tidb_run": 30597090096,
+    "professional_persistence_tidb_run": 30597090081,
+    "live_provider_smoke_run": 30597090079,
+    "live_provider_smoke_result": {
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "meal_text_items": 1,
+      "meal_text_foods": [
+        "banana"
+      ],
+      "meal_text_processing_level": "natural_or_minimally_processed",
+      "meal_vision_items": 1,
+      "meal_vision_foods": [
+        "banana"
+      ],
+      "intent_source": "llm",
+      "intent_validation": "valid",
+      "intent_name": "list_meal_records"
+    },
+    "record_updated_at": "2026-07-31T16:28:02Z"
   }
 }
