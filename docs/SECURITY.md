@@ -37,3 +37,19 @@
 ### Fronteira dos consumidores #922
 
 Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK e `usage.raw`. O executor preserva a taxonomia fail-closed: autenticação, modelo inexistente, operação incompatível, bloqueio de segurança e configuração inválida não podem provocar reenvio ao mesmo provider nem a fallback.
+
+### Smoke real protegido da issue #922
+
+O workflow `.github/workflows/issue-922-live-provider-smoke.yml` executa código do head da pull request e, por isso, nunca pode receber credenciais comuns de produção ou credenciais disponíveis automaticamente para qualquer PR.
+
+Controles obrigatórios:
+
+- o job usa o ambiente protegido `issue-922-live-smoke` e esse ambiente deve exigir aprovação manual de um mantenedor antes de liberar secrets;
+- a aprovação deve ser refeita após qualquer mudança do SHA da pull request;
+- somente PR do repositório `crgasparoto-br/controle_calorias`, criada por `crgasparoto-br` e com branch `feat/922-ai-capabilities-meal-whatsapp*` é elegível;
+- as únicas credenciais aceitas são `ISSUE_922_SMOKE_OPENAI_API_KEY` ou `ISSUE_922_SMOKE_GEMINI_API_KEY`, exclusivas para smoke, com quota e permissões mínimas; não reutilizar credencial de produção;
+- os secrets ficam restritos ao passo final de smoke e não são disponibilizados durante checkout, instalação de dependências ou validações anteriores;
+- `persist-credentials` permanece desabilitado no checkout do head;
+- a ausência de credencial dedicada deve falhar de forma explícita, sem fallback para `OPENAI_API_KEY` ou `GEMINI_API_KEY` genéricas.
+
+A proteção do ambiente e a criação/rotação das credenciais são configurações operacionais do GitHub/OpenAI ou Gemini e não devem ser simuladas por arquivo versionado.
