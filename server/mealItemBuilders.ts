@@ -76,6 +76,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     fat: roundNutritionValue(food.fat * factor),
     confidence: usedGenericForMentionedBrand ? Math.min(clampConfidence(llmItem.confidence), 0.62) : clampConfidence(llmItem.confidence),
     source: usedGenericForMentionedBrand ? "heuristic" : "catalog",
+    classification: llmItem.foodClassification ?? null,
   };
 }
 

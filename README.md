@@ -63,7 +63,7 @@ A migração segue o plano em `docs/exec-plans/active/migrate-ai-to-openai.md`.
 Situação atual:
 
 - Transcrição de áudio usa o provider OpenAI isolado no backend.
-- Inferência nutricional de texto e imagem usa a factory legada selecionada por `AI_VISION_PROVIDER`, com saída estruturada e validação Zod.
+- Inferência nutricional de texto e imagem resolve `MEAL_TEXT` e `MEAL_VISION` independentemente pelo executor comum, com saída estruturada e validação Zod.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
 
 ## Seleção legada de Provider de IA (Visão e Texto)
@@ -88,19 +88,19 @@ A seleção global abaixo continua funcionando durante a migração por capacida
 
 ## Fundação multi-provider por capacidade (#921)
 
-A seleção acima (`AI_VISION_PROVIDER`) continua funcionando como está e nenhum consumidor foi migrado ainda. Em paralelo, `server/_core/ai/` introduz uma fundação para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
+A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
 
 - **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings;
 - **matriz baseada no adapter real**: cada provider declara somente operações implementadas no projeto; Gemini declara texto, visão e Structured Output nesta fase, sem anunciar embeddings antes de existir método dedicado;
 - **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
 - **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
-- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` e usa modelo próprio do provider de destino;
+- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` fora de produção e usa modelo próprio do provider de destino; em `NODE_ENV=production`, cross-provider permanece bloqueado fail-closed até benchmark, revisão de privacidade e rollout aprovados na #927;
 - **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
 - **erros e saídas normalizados**: timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
 - **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
 - **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Detalhes completos em `ARCHITECTURE.md` (seção "Fundação multi-provider de IA (#921)"), `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. A migração de cada consumidor para este resolvedor é escopo das subissues seguintes de #917.
+Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
 
 ## Variáveis de ambiente obrigatórias
 

@@ -126,7 +126,7 @@ pnpm db:check-integrity
 - Timeout e tentativas inválidos tornam a capacidade `invalid`; não são aceitos como configuração pronta.
 - O executor rejeita estados `invalid` e `disabled`, limites não positivos/não inteiros e fallback habilitado sem callback antes de qualquer chamada. Estado `degraded` só executa quando o primário continua válido.
 - Variáveis novas prevalecem sobre variáveis legadas. Para os fluxos de texto/visão, a compatibilidade preserva `OPENAI_MODEL` ou `GEMINI_MODEL` conforme o provider efetivo.
-- O fallback usa modelo próprio do provider de destino. Um modelo do primário nunca é reutilizado silenciosamente em provider diferente.
+- O fallback usa modelo próprio do provider de destino. Um modelo do primário nunca é reutilizado silenciosamente em provider diferente. Em `NODE_ENV=production`, fallback cross-provider é sempre inelegível nesta fase, mesmo com opt-in explícito, até benchmark, revisão de privacidade e rollout aprovados na #927; fallback same-provider continua seguindo a política da capacidade.
 - Erros concretos de SDK/HTTP/rede são classificados pelo executor. Timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem acionar a política limitada; autenticação, modelo ausente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam segundo provider.
 - Cada tentativa recebe `AbortSignal`; o contrato `AiProvider` e os adapters OpenAI/Gemini propagam o sinal para a chamada do SDK. Depois do timeout, o executor aguarda o encerramento local da chamada antes de retry/fallback; se a chamada não reconhecer o cancelamento na janela definida, a execução termina sem nova chamada. O cancelamento do cliente não deve ser interpretado como garantia de interrupção do processamento remoto ou de ausência de cobrança pelo provider.
 - `MAX_ATTEMPTS` é o total de chamadas do primário. Depois delas, existe no máximo uma chamada de fallback, sem retorno ao primário e sem cadeia adicional.
@@ -134,7 +134,7 @@ pnpm db:check-integrity
 - Degradação funcional local, como busca não semântica ou anotação local, não é fallback de provider.
 - O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui testes pelo entrypoint real para texto e para o data URL inline de imagem produzido pelo WhatsApp.
 - Respostas textuais e de embeddings podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
-- Nenhum consumidor existente foi migrado para o novo resolvedor nesta issue.
+- Nenhum consumidor existente foi migrado para o novo resolvedor na issue #921.
 
 ## Mutações multirrefeição pelo WhatsApp
 
@@ -145,6 +145,11 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 - falha intermediária restaura todas as refeições tentadas em ordem inversa e reconstrói novamente o estado derivado;
 - falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
 - a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.
+
+
+## Consumidores migrados em #922
+
+`MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam exclusivamente `executeResolvedCapability`; não mantêm loops locais de timeout/retry. Saída vazia, JSON inválido e payload inválido são recuperáveis dentro dos limites configurados. Erros de autenticação, modelo inexistente, incompatibilidade, segurança, configuração ou desconhecidos falham fechado sem retry/fallback. `items: []` válido encerra a execução na primeira resposta.
 
 ## Metadados opcionais do contexto profissional
 

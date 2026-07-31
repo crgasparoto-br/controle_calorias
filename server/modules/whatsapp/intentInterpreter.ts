@@ -1,5 +1,11 @@
-import { getAiProvider } from "../../_core/aiProvider";
-import { ENV } from "../../_core/env";
+import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "../../_core/ai/capabilityExecutor";
+import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
+import { createDomainTextResponse } from "../../_core/ai/domainTextResponse";
+import {
+  AiNonRetryableError,
+  AiOperationalError,
+  parseJsonOutput,
+} from "../../_core/ai/policyExecutor";
 import {
   parseWhatsappInterpretedIntent,
   WHATSAPP_INTENT_CONFIDENCE,
@@ -36,9 +42,6 @@ export type WhatsappMessageInterpretation = {
   operationalTrace: WhatsappIntentOperationalTrace;
 };
 
-const DEFAULT_LLM_TIMEOUT_MS = 8_000;
-const DEFAULT_LLM_RETRIES = 1;
-const MAX_LLM_RETRIES = 2;
 const MEAL_SUGGESTION_CLARIFICATION = "Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?";
 const LEARNED_ALIAS_INTENTS = new Set<WhatsappIntentName>([
   "daily_summary",
@@ -352,14 +355,6 @@ function canUseDeterministicIntentBeforeLlm(intent: WhatsappInterpretedIntent) {
     && intent.confidence >= WHATSAPP_INTENT_CONFIDENCE.execute;
 }
 
-function parseJson(value: string) {
-  try {
-    return { ok: true as const, value: JSON.parse(value) as unknown };
-  } catch {
-    return { ok: false as const };
-  }
-}
-
 function buildRecentConversationSection(context: WhatsappIntentContext): string {
   const summarySection = context.conversationSummary
     ? `Resumo de trocas anteriores fora da janela recente (nunca trate valores nutricionais aqui como atuais; consulte sempre o contexto de refeicoes/dados atuais para isso):\n  ${context.conversationSummary.summaryText}`
@@ -410,26 +405,40 @@ function isWhatsappLlmEnabled(options: InterpretOptions) {
   return !["0", "false", "no", "off"].includes(flag.trim().toLowerCase());
 }
 
-function readPositiveIntegerEnv(name: string, fallback: number) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
-}
+async function callWhatsappIntentClassifier(
+  attempt: ResolvedCapabilityAttemptContext,
+  context: WhatsappIntentContext,
+  text: string,
+): Promise<WhatsappInterpretedIntent> {
+  const response = await createDomainTextResponse(
+    attempt.provider,
+    {
+      model: attempt.model,
+      instructions: buildInstructions(context),
+      input: [{
+        role: "user",
+        content: [{ type: "input_text", text: buildUntrustedWhatsAppUserContent(text, "text") }],
+      }],
+      format: {
+        type: "json_schema",
+        name: "whatsapp_intent",
+        schema: whatsappIntentJsonSchema as unknown as Record<string, unknown>,
+        strict: true,
+      },
+    },
+    { signal: attempt.signal },
+  );
 
-function getWhatsappIntentTimeoutMs() {
-  return readPositiveIntegerEnv("OPENAI_WHATSAPP_INTENT_TIMEOUT_MS", DEFAULT_LLM_TIMEOUT_MS);
-}
-
-function getWhatsappIntentRetries() {
-  const rawValue = Number(process.env.OPENAI_WHATSAPP_INTENT_RETRIES);
-  if (!Number.isFinite(rawValue) || rawValue < 0) return DEFAULT_LLM_RETRIES;
-  return Math.min(Math.floor(rawValue), MAX_LLM_RETRIES);
-}
-
-function resolveWhatsappIntentModelName() {
-  // Allow a specific override for the intent classifier; otherwise follow the
-  // active vision provider (AI_VISION_PROVIDER=openai|gemini) so that a single
-  // env-var change switches both the intent classifier and the nutrition extractor.
-  return process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? ENV.visionModel;
+  const parsedJson = parseJsonOutput(response);
+  const parsed = parseWhatsappInterpretedIntent(parsedJson);
+  if (!parsed.success) {
+    throw new AiOperationalError(
+      "WhatsApp intent returned JSON with an invalid payload",
+      parsed.error,
+      "invalid_payload",
+    );
+  }
+  return parsed.data;
 }
 
 function buildOperationalTrace(input: {
@@ -446,25 +455,6 @@ function buildOperationalTrace(input: {
     estimatedCostUnits: input.estimatedCostUnits ?? 0,
     ...(input.fallbackReason ? { fallbackReason: input.fallbackReason } : {}),
   };
-}
-
-class WhatsappIntentTimeoutError extends Error {
-  constructor(timeoutMs: number) {
-    super(`WhatsApp intent interpretation timed out after ${timeoutMs}ms`);
-    this.name = "WhatsappIntentTimeoutError";
-  }
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timeout: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => reject(new WhatsappIntentTimeoutError(timeoutMs)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
 }
 
 function deterministicInterpretation(
@@ -549,94 +539,66 @@ export async function interpretWhatsappMessageWithDiagnostics(
     );
   }
 
-  const timeoutMs = getWhatsappIntentTimeoutMs();
-  const maxRetries = getWhatsappIntentRetries();
-  const modelName = resolveWhatsappIntentModelName();
-  let lastErrorCode = "api_error";
-  let lastFallbackReason: WhatsappIntentFallbackReason = "api_error";
-  let attempts = 0;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-    attempts = attempt + 1;
-    try {
-      const response = await withTimeout(getAiProvider().createTextResponse({
-        model: modelName,
-        instructions: buildInstructions(context),
-        input: [{
-          role: "user",
-          content: [{ type: "input_text", text: buildUntrustedWhatsAppUserContent(text, "text") }],
-        }],
-        format: {
-          type: "json_schema",
-          name: "whatsapp_intent",
-          schema: whatsappIntentJsonSchema as unknown as Record<string, unknown>,
-          strict: true,
-        },
-      }), timeoutMs);
-
-      const json = parseJson(response.outputText);
-      if (!json.ok) {
-        return deterministicInterpretation(
-          text,
-          "invalid_json",
-          "invalid_json",
-          "invalid_json",
-          buildOperationalTrace({
-            startedAt,
-            strategy: "safe_fallback",
-            modelName,
-            estimatedCostUnits: attempts,
-            fallbackReason: "invalid_json",
-          }),
-        );
-      }
-      const parsed = parseWhatsappInterpretedIntent(json.value);
-      if (!parsed.success) {
-        return deterministicInterpretation(
-          text,
-          "invalid_payload",
-          "invalid_payload",
-          "invalid_payload",
-          buildOperationalTrace({
-            startedAt,
-            strategy: "safe_fallback",
-            modelName,
-            estimatedCostUnits: attempts,
-            fallbackReason: "invalid_payload",
-          }),
-        );
-      }
-      return {
-        intent: parsed.data,
-        source: "llm",
-        validationStatus: "valid",
-        operationalTrace: buildOperationalTrace({
-          startedAt,
-          strategy: "llm_structured",
-          modelName,
-          estimatedCostUnits: attempts,
-        }),
-      };
-    } catch (error) {
-      const timedOut = error instanceof WhatsappIntentTimeoutError;
-      lastFallbackReason = timedOut ? "timeout" : "api_error";
-      lastErrorCode = timedOut ? "timeout" : "api_error";
-    }
+  const policy = resolveCapabilityConfig("WHATSAPP_INTENT");
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    return deterministicInterpretation(
+      text,
+      "disabled",
+      "skipped",
+      undefined,
+      buildOperationalTrace({ startedAt, strategy: "deterministic", fallbackReason: "disabled" }),
+    );
   }
 
-  return deterministicInterpretation(
-    text,
-    lastFallbackReason,
-    "skipped",
-    lastErrorCode,
-    buildOperationalTrace({
-      startedAt,
-      strategy: "safe_fallback",
-      modelName,
-      estimatedCostUnits: attempts,
-      fallbackReason: lastFallbackReason,
-    }),
-  );
+  const primary = policy.primary;
+  let attemptsMade = 0;
+  try {
+    const result = await executeResolvedCapability(
+      policy,
+      attempt => {
+        attemptsMade += 1;
+        return callWhatsappIntentClassifier(attempt, context, text);
+      },
+    );
+    const modelName = result.source === "fallback"
+      ? policy.fallback.model
+      : primary.model;
+    return {
+      intent: result.value,
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: buildOperationalTrace({
+        startedAt,
+        strategy: "llm_structured",
+        modelName,
+        estimatedCostUnits: result.attempts,
+      }),
+    };
+  } catch (error) {
+    const errorCode = error instanceof AiOperationalError || error instanceof AiNonRetryableError
+      ? error.code
+      : "unknown";
+    const fallbackReason: WhatsappIntentFallbackReason =
+      errorCode === "invalid_json" || errorCode === "invalid_payload" || errorCode === "timeout"
+        ? errorCode
+        : "api_error";
+    const validationStatus: WhatsappIntentValidationStatus =
+      errorCode === "invalid_json" || errorCode === "invalid_payload" ? errorCode : "skipped";
+
+    return deterministicInterpretation(
+      text,
+      fallbackReason,
+      validationStatus,
+      errorCode,
+      buildOperationalTrace({
+        startedAt,
+        strategy: "safe_fallback",
+        modelName: primary.model,
+        estimatedCostUnits: attemptsMade,
+        fallbackReason,
+      }),
+    );
+  }
 }
 
 export async function interpretWhatsappMessage(

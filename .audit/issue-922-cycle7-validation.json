@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "issue": 922,
+  "cycle": 7,
+  "parent_sha": "19f4f12be74ce6ab397353d6daf5708c935adfc0",
+  "remediations": [
+    "cross-provider fallback blocked fail-closed in production until issue 927",
+    "same-provider fallback preserved",
+    "vision smoke prompt and fixture made discriminating",
+    "canonical reliability, security, privacy and WhatsApp documentation aligned"
+  ],
+  "validation_requested_at": "2026-07-30T21:15:00Z"
+}

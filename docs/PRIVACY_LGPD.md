@@ -88,12 +88,12 @@ Foto, áudio e transcrição podem envolver serviços externos de transcrição,
 A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
 
 - Fallback é desabilitado por padrão e nunca encadeia um terceiro provider.
-- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade. Sem essa flag, nenhum payload, prompt ou mídia é enviado ao segundo provider.
+- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade fora de produção. Em `NODE_ENV=production`, nenhum payload, prompt ou mídia é enviado ao segundo provider até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927, mesmo quando a flag estiver `true`.
 - Cada callback recebe `AbortSignal`. Após timeout, a execução aguarda a chamada anterior encerrar antes de iniciar retry ou fallback; se o provider não reconhecer o cancelamento dentro da janela de segurança, a execução termina em modo fail-closed, sem segundo envio.
 - `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
 - Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
 - Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
-- Nenhum consumidor foi migrado para o novo resolvedor nesta subissue; o adapter Gemini foi mantido compatível com o schema real já usado pelo consumidor legado.
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
 
 ## Riscos conhecidos e cuidados recorrentes
 
@@ -113,3 +113,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 - [ ] Dados de IA, mídia, WhatsApp e integrações externas têm retenção intencional?
 - [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas, inclusive totais e repetição?
 - [ ] Documentação canônica foi atualizada?
+
+### Aplicação em refeição e intenção (#922)
+
+Cada capacidade possui opt-in próprio de fallback. Habilitar fallback em `MEAL_TEXT` não habilita `MEAL_VISION` nem `WHATSAPP_INTENT`. Resultado funcional, inclusive `items: []`, não gera segundo envio. Respostas nativas `raw` permanecem dentro da camada `_core`; serviços de refeição e WhatsApp recebem somente texto/identificador e usage numérico sanitizado. `FOOD_CLASSIFICATION` não envia dados externamente nesta fase.

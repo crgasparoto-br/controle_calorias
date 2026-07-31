@@ -140,3 +140,11 @@ Todas as respostas e ações do WhatsApp usam o timezone efetivo do usuário vin
 ## Timezone e edição rápida
 
 O WhatsApp interpreta datas relativas no timezone efetivo do usuário identificado pelo telefone. A edição rápida exibe e converte horários no timezone do dono do registro; o navegador não substitui essa configuração e o backend não confia em timezone enviado pelo cliente.
+
+
+## Intenção por capacidade (#922)
+
+- `WHATSAPP_INTENT` resolve provider, modelo, timeout, tentativas e fallback como unidade; modelo OpenAI nunca é enviado ao adapter Gemini.
+- Segurança, callback, comando `/`, operação pendente e comandos determinísticos mantêm precedência e encerram o fluxo sem chamada genérica de intenção.
+- JSON ou payload inválido pode consumir a política operacional limitada. Autenticação, modelo inexistente, incompatibilidade, bloqueio de segurança e configuração inválida terminam sem retry ou fallback externo.
+- Depois de falha técnica, a resposta segue o classificador determinístico/clarificação segura, sem mutação silenciosa e sem alterar correlação, expiração, idempotência ou isolamento.

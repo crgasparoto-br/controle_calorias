@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WhatsAppConversationMessageRecord } from "../../repositories/whatsappConversationRepository";
 import type { WhatsappIntentContext } from "./intentContext";
 
@@ -29,8 +29,8 @@ vi.mock("../../_core/llm", () => ({
   invokeLLM: invokeLLMMock,
 }));
 
-vi.mock("../../_core/aiProvider", () => ({
-  getAiProvider: () => ({ createTextResponse: createTextResponseMock }),
+vi.mock("../../_core/ai/providerResolver", () => ({
+  getAiProviderById: () => ({ createTextResponse: createTextResponseMock }),
 }));
 
 vi.mock("../../db", () => ({
@@ -41,6 +41,8 @@ vi.mock("../../db", () => ({
 
 import { getOrRefreshConversationSummary } from "./conversationSummaryService";
 import { interpretWhatsappMessageWithDiagnostics } from "./intentInterpreter";
+
+const ORIGINAL_ENV = { ...process.env };
 
 function buildMessage(overrides: Partial<WhatsAppConversationMessageRecord> & { id: number }): WhatsAppConversationMessageRecord {
   const occurredAt = overrides.occurredAt ?? new Date(Date.UTC(2026, 6, 29, 15, overrides.id));
@@ -117,7 +119,11 @@ function llmIntentJson() {
 describe("segurança transitiva do resumo conversacional", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.OPENAI_WHATSAPP_INTENT_ENABLED = "true";
     process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
+    process.env.AI_WHATSAPP_INTENT_PROVIDER = "openai";
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
     invokeLLMMock.mockResolvedValue({
       choices: [{
         message: {
@@ -130,6 +136,10 @@ describe("segurança transitiva do resumo conversacional", () => {
       }],
     });
     createTextResponseMock.mockResolvedValue({ outputText: llmIntentJson() });
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
   });
 
   it("protege outbound no resumidor e delimita novamente o resumo persistido no consumidor", async () => {
