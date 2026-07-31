@@ -486,7 +486,7 @@ function assertRepresentableSchema(value: unknown): void {
 
 /**
  * Translates the internal, SDK-agnostic tool contract into `@google/genai`
- * tools. Only `web_search`/`web_search_preview` is representable today,
+ * tools. Only the internal `web_search` contract is representable today,
  * mapped to Gemini's "Google Search Grounding" (`googleSearch: {}`). Any
  * other tool type is rejected locally before network access, matching the
  * fail-closed posture of the rest of this adapter.
@@ -504,7 +504,7 @@ function translateGeminiTools(
     }
 
     const type = (tool as { type?: unknown }).type;
-    if (type === "web_search" || type === "web_search_preview") {
+    if (type === "web_search") {
       return { googleSearch: {} };
     }
 

@@ -263,6 +263,129 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(result).toBeNull();
   });
 
+  it.each([
+    {
+      name: "sabor divergente",
+      foodName: "kit kat morango 41,5g",
+      matchedProductName: "KitKat dark 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+    },
+    {
+      name: "embalagem divergente",
+      foodName: "kit kat 41,5g",
+      matchedProductName: "KitKat 80g",
+      brandName: "Nestlé",
+      servingLabel: "1 pacote (80g)",
+      gramsPerServing: 80,
+    },
+    {
+      name: "marca/produto divergente",
+      foodName: "oreo baunilha 90g",
+      matchedProductName: "Negresco baunilha 90g",
+      brandName: "Nestlé",
+      servingLabel: "1 pacote (90g)",
+      gramsPerServing: 90,
+    },
+    {
+      name: "SKU totalmente diferente",
+      foodName: "sonho de valsa 20g",
+      matchedProductName: "Bis branco 126g",
+      brandName: "Lacta",
+      servingLabel: "1 pacote (126g)",
+      gramsPerServing: 126,
+    },
+  ])("rejeita resultado pesquisado com $name mesmo com fonte e confiança válidas", async ({
+    foodName,
+    matchedProductName,
+    brandName,
+    servingLabel,
+    gramsPerServing,
+  }) => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName,
+      brandName,
+      servingLabel,
+      gramsPerServing,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.95,
+      sourceUrl: "https://example.com/produto",
+      evidence: "Tabela nutricional oficial do fabricante.",
+    }), {
+      executed: true,
+      sources: [{ url: "https://example.com/produto" }],
+    });
+
+    const result = await findPackagedSnackByWebSearch(foodName, "chocolate");
+
+    expect(result).toBeNull();
+  });
+
+  it("classifica JSON inválido dentro da tentativa para permitir o fallback único", async () => {
+    resolveCapabilityConfigMock.mockReturnValue({
+      ...READY_POLICY,
+      fallback: {
+        effectivelyEnabled: true,
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+      },
+    });
+
+    const validFallbackOutput = JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Tabela nutricional oficial do fabricante.",
+    });
+
+    executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
+      const buildAttempt = (providerId: "openai" | "gemini", outputText: string, source: "primary" | "fallback") => ({
+        signal: new AbortController().signal,
+        source,
+        attempt: source === "primary" ? 1 : 2,
+        timeoutMs: 8000,
+        providerId,
+        model: providerId === "openai" ? "gpt-4.1-mini" : "gemini-2.5-flash",
+        provider: {
+          createTextResponse: async () => ({
+            id: `resp-${providerId}`,
+            outputText,
+            webSearch: {
+              executed: true,
+              sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
+            },
+            raw: {},
+          }),
+        },
+      });
+
+      await expect(operation(buildAttempt("openai", "not-json", "primary")))
+        .rejects.toMatchObject({ code: "invalid_json" });
+      const value = await operation(buildAttempt("gemini", validFallbackOutput, "fallback"));
+      return { value, source: "fallback", attempts: 2, usedFallback: true };
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
+
+    expect(result?.name).toContain("KitKat");
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+  });
+
   it("returns null immediately without calling the network when the capability is disabled", async () => {
     resolveCapabilityConfigMock.mockReturnValue(DISABLED_POLICY);
 

@@ -11,6 +11,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory vitest run",
+    "smoke:issue-923:live": "tsx scripts/issue-923-live-provider-smoke.ts",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",

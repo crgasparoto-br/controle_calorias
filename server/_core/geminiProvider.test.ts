@@ -297,16 +297,14 @@ describe("GeminiProvider (@google/genai)", () => {
     ]);
   });
 
-  it("translates web_search_preview tool into Google Search Grounding", async () => {
-    generateContentMock.mockResolvedValue({ text: "resposta" });
-    await new GeminiProvider("fake-key").createTextResponse({
+  it("rejects the legacy web_search_preview SDK detail before network access", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
       model: "gemini-2.5-flash",
       input: [{ role: "user", content: "preço atual" }],
-      tools: [{ type: "web_search_preview" }],
-    });
-    expect(generateContentMock.mock.calls[0][0].config.tools).toEqual([
-      { googleSearch: {} },
-    ]);
+      tools: [{ type: "web_search_preview" }] as never,
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
   });
 
   it("extracts normalized web search sources from grounding metadata", async () => {

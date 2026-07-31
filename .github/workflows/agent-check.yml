@@ -2,46 +2,29 @@ name: Agent-first gate
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
+      - develop
 
 permissions:
   contents: read
 
 jobs:
-  issue-923-remediation:
-    if: github.event.pull_request.head.ref == 'feat/923-ai-capabilities-question-nutrition-embedding'
-    name: Issue 923 remediation publisher
+  agent-check:
+    name: Agent-first gate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: write
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
     steps:
-      - name: Checkout target branch
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-
-      - name: Apply audited remediation
-        env:
-          BASE_SHA: 673eed668e2d7113cb597152aca32ec60479ab1e
-          PATCH_BRANCH: automation/923-remediation-publisher
-        run: |
-          set -euo pipefail
-          git merge-base --is-ancestor "${BASE_SHA}" HEAD
-          git fetch --no-tags origin "${PATCH_BRANCH}"
-          for part in 00 01 02 03; do
-            git show "FETCH_HEAD:.automation/issue923-remediation.patch.part-${part}"
-          done > /tmp/issue923-remediation.patch
-          git apply --check --whitespace=error-all /tmp/issue923-remediation.patch
-          git apply --index --whitespace=error-all /tmp/issue923-remediation.patch
-          git show "FETCH_HEAD:.automation/issue923-cast-fix.patch" | git apply --index --whitespace=error-all
-          git show "FETCH_HEAD:.automation/issue923-alias-fix.patch" | git apply --index --whitespace=error-all
-          git checkout "${BASE_SHA}" -- .github/workflows/agent-check.yml
-          git rm --cached --ignore-unmatch .github/workflows/issue-923-apply-remediation.yml .automation/issue923-remediation-trigger
-          rm -f .github/workflows/issue-923-apply-remediation.yml .automation/issue923-remediation-trigger
-          git diff --cached --check
-          echo "remediated_tree=$(git write-tree)"
-          git diff --cached --stat
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -57,28 +40,178 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused remediation tests
+      - name: TypeScript check
+        run: |
+          if ! pnpm check > /tmp/typescript-check.log 2>&1; then
+            echo "TypeScript check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/typescript-check.log
+            exit 1
+          fi
+          cat /tmp/typescript-check.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-typescript-log
+          path: /tmp/typescript-check.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Tests
         env:
           NODE_ENV: test
-          PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-        run: pnpm exec vitest run server/_core/aiProvider.toolContract.test.ts server/_core/geminiProvider.test.ts server/catalogSemanticSearch.test.ts --maxWorkers=1 --minWorkers=1
+        run: |
+          : > /tmp/vitest.log
+          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
+          for shard_number in $(seq 1 24); do
+            shard="${shard_number}/24"
+            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
+            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
+              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
+              tail -n 250 /tmp/vitest.log
+              exit 1
+            fi
+          done
+          tail -n 120 /tmp/vitest.log
 
-      - name: Required gates
+      - name: Upload Vitest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: |
+          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
+            echo "Documentation check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/docs-check.log
+            exit 1
+          fi
+          cat /tmp/docs-check.log
+
+      - name: Upload documentation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-docs-log
+          path: /tmp/docs-check.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Build
+        run: pnpm build
+
+      - name: Agent check
         env:
-          PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
-        run: |
-          pnpm check
-          pnpm test
-          pnpm architecture:check
-          pnpm docs:check
-          pnpm build
-          pnpm agent:check
+          CI_SHARDED_TESTS_COMPLETE: "1"
+        run: pnpm agent:check
 
-      - name: Commit and publish remediated tree
+      - name: CI gate docs check
+        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+      - name: Create exact-head verification manifest
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(ai): remediate issue 923 audit findings"
-          echo "published_tree=$(git rev-parse HEAD^{tree})"
-          git push origin HEAD:feat/923-ai-capabilities-question-nutrition-embedding
+          mkdir -p /tmp/agent-first-verification
+          cat > /tmp/agent-first-verification/manifest.json <<EOF
+          {
+            "schemaVersion": 2,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${VERIFICATION_HEAD_SHA}",
+            "checkoutSha": "${GITHUB_SHA}",
+            "runId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "event": "${GITHUB_EVENT_NAME}",
+            "ref": "${GITHUB_REF}",
+            "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
+          cat /tmp/agent-first-verification/manifest.json
+
+      - name: Upload exact-head verification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-verification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/agent-first-verification/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create exact-head repository bundle
+        run: |
+          mkdir -p /tmp/agent-first-repository
+          git fetch --no-tags origin "${VERIFICATION_HEAD_SHA}"
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git update-ref refs/orchestrator/head "${VERIFICATION_HEAD_SHA}"
+          git update-ref refs/orchestrator/base "origin/${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git bundle create /tmp/agent-first-repository/repository.bundle \
+            refs/orchestrator/head refs/orchestrator/base
+          git bundle verify /tmp/agent-first-repository/repository.bundle
+          cat > /tmp/agent-first-repository/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${VERIFICATION_HEAD_SHA}",
+            "baseRef": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+            "baseSha": "$(git rev-parse refs/orchestrator/base)",
+            "runId": "${GITHUB_RUN_ID}",
+            "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload exact-head repository bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-repository-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/agent-first-repository
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Database integrity check
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          pnpm db:check-integrity
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test (24 sequential single-worker shards)"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo "- pnpm db:check-integrity"
+            echo ""
+            echo "Database integrity: executed with DATABASE_URL."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: |
+          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test (24 sequential single-worker shards)"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo ""
+            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"

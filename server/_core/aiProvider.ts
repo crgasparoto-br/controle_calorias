@@ -19,7 +19,7 @@ export type AiProviderResponseFormat =
     };
 
 export type AiProviderWebSearchTool = {
-  type: "web_search" | "web_search_preview";
+  type: "web_search";
 };
 
 export type AiProviderTextTool = AiProviderWebSearchTool;
@@ -185,8 +185,12 @@ function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
   }
 
   const type = (tool as { type?: unknown }).type;
-  if (type === "web_search" || type === "web_search_preview") {
-    return { type: "web_search_preview" };
+  if (type === "web_search") {
+    // openai@4.104 predates the stable `web_search` discriminant in some
+    // generated type surfaces, but the Responses API contract is stable. Keep
+    // the cast isolated inside the adapter instead of leaking SDK details into
+    // the domain contract.
+    return { type: "web_search" } as OpenAiSdkTextTool;
   }
 
   throw new AiNonRetryableError(
@@ -311,8 +315,40 @@ function normalizeOpenAiWebSearch(
     item => item.type === "web_search_call" && item.status === "completed",
   );
   const executed = webSearchCalls.length > 0;
+  const sourceByUrl = new Map<string, AiWebSearchSource>();
+  const searchQueries = new Set<string>();
 
-  const sources: AiWebSearchSource[] = [];
+  const addSource = (value: unknown, title?: unknown) => {
+    if (typeof value !== "string" || !value.trim()) return;
+    const url = value.trim();
+    const normalizedTitle = typeof title === "string" && title.trim() ? title.trim() : undefined;
+    const existing = sourceByUrl.get(url);
+    sourceByUrl.set(url, existing?.title || !normalizedTitle ? existing ?? { url } : { url, title: normalizedTitle });
+  };
+
+  for (const item of webSearchCalls) {
+    const action = typeof item.action === "object" && item.action !== null
+      ? (item.action as Record<string, unknown>)
+      : null;
+    if (!action) continue;
+
+    if (typeof action.query === "string" && action.query.trim()) {
+      searchQueries.add(action.query.trim());
+    }
+    if (Array.isArray(action.queries)) {
+      for (const query of action.queries) {
+        if (typeof query === "string" && query.trim()) searchQueries.add(query.trim());
+      }
+    }
+    if (Array.isArray(action.sources)) {
+      for (const source of action.sources) {
+        if (typeof source !== "object" || source === null) continue;
+        const sourceRecord = source as Record<string, unknown>;
+        addSource(sourceRecord.url, sourceRecord.title);
+      }
+    }
+  }
+
   for (const item of output) {
     if (item.type !== "message") continue;
     const content = Array.isArray(item.content) ? item.content : [];
@@ -325,15 +361,12 @@ function normalizeOpenAiWebSearch(
         if (
           typeof annotation === "object" &&
           annotation !== null &&
-          (annotation as { type?: unknown }).type === "url_citation" &&
-          typeof (annotation as { url?: unknown }).url === "string"
+          (annotation as { type?: unknown }).type === "url_citation"
         ) {
-          const url = (annotation as { url: string }).url;
-          const title = (annotation as { title?: unknown }).title;
-          sources.push({
-            url,
-            ...(typeof title === "string" && title ? { title } : {}),
-          });
+          addSource(
+            (annotation as { url?: unknown }).url,
+            (annotation as { title?: unknown }).title,
+          );
         }
       }
     }
@@ -342,7 +375,8 @@ function normalizeOpenAiWebSearch(
   return {
     executed,
     searchCount: webSearchCalls.length,
-    sources,
+    sources: [...sourceByUrl.values()],
+    ...(searchQueries.size ? { searchQueries: [...searchQueries] } : {}),
   };
 }
 
@@ -395,7 +429,14 @@ export class OpenAiProvider implements AiProvider {
     };
     if (request.instructions) payload.instructions = request.instructions;
     const tools = buildOpenAiTools(request.tools);
-    if (tools) payload.tools = tools;
+    if (tools) {
+      payload.tools = tools;
+      // Request the provider-native source list so the adapter can normalize
+      // evidence even when a URL is not repeated as a message annotation.
+      (payload as unknown as { include: string[] }).include = [
+        "web_search_call.action.sources",
+      ];
+    }
     const text = buildTextConfig(request.format);
     if (text) payload.text = text;
 
