@@ -127,6 +127,13 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
 
   addCatalogCandidate(candidates, sourceFoodName);
+  if (
+    Number.isFinite(item.estimatedGrams)
+    && item.estimatedGrams > 0
+    && !/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/iu.test(item.foodName)
+  ) {
+    addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
+  }
   if (item.brand) {
     addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
     addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
