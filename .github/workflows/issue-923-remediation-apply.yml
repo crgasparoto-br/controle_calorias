@@ -1,9 +1,11 @@
 name: Issue 923 remediation apply
 
 on:
-  push:
-    branches:
-      - feat/923-ai-capabilities-question-nutrition-embedding
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
@@ -14,7 +16,7 @@ concurrency:
 
 jobs:
   apply-remediation:
-    if: github.event.head_commit.message == 'ci: apply issue 923 remediation patch' || github.event.head_commit.message == 'ci: retrigger issue 923 remediation patch'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/923-ai-capabilities-question-nutrition-embedding'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -23,6 +25,7 @@ jobs:
       - name: Checkout remediation branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -31,7 +34,9 @@ jobs:
         run: |
           set -euo pipefail
           test "${GITHUB_REPOSITORY}" = "crgasparoto-br/controle_calorias"
-          test "${GITHUB_REF_NAME}" = "feat/923-ai-capabilities-question-nutrition-embedding"
+          test "${{ github.event.pull_request.head.repo.full_name }}" = "${GITHUB_REPOSITORY}"
+          test "${{ github.event.pull_request.head.ref }}" = "feat/923-ai-capabilities-question-nutrition-embedding"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           git merge-base --is-ancestor e53deec63f9efdaae34c0a8fcf0b4f264dcdc48c HEAD
           unexpected="$(git diff --name-only e53deec63f9efdaae34c0a8fcf0b4f264dcdc48c...HEAD | grep -Ev '^(\.github/workflows/issue-923-remediation-apply\.yml|\.automation/issue923-remediation-trigger)$' || true)"
           if [ -n "$unexpected" ]; then
