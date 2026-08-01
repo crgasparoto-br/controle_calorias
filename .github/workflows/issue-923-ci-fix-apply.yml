@@ -1,0 +1,71 @@
+name: Issue 923 CI fix apply
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-923-ci-fix-apply
+  cancel-in-progress: false
+
+jobs:
+  apply-ci-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/923-ai-capabilities-question-nutrition-embedding'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify identity and apply focused fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = "crgasparoto-br/controle_calorias"
+          test "${{ github.event.pull_request.head.ref }}" = "feat/923-ai-capabilities-question-nutrition-embedding"
+          git merge-base --is-ancestor d54842f0266c27209eecdd7bf22056431e883daa HEAD
+          unexpected="$(git diff --name-only d54842f0266c27209eecdd7bf22056431e883daa...HEAD | grep -Ev '^\.github/workflows/issue-923-ci-fix-apply\.yml$' || true)"
+          test -z "$unexpected"
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('server/nutritionEngine.ts')
+          s = p.read_text()
+          old = '''  addCatalogCandidate(candidates, sourceFoodName);
+          if (item.brand) {
+          '''
+          new = '''  addCatalogCandidate(candidates, sourceFoodName);
+          if (
+            Number.isFinite(item.estimatedGrams)
+            && item.estimatedGrams > 0
+            && !/\\b\\d+(?:[,.]\\d+)?\\s*(?:kg|mg|ml|g|l)\\b/iu.test(item.foodName)
+          ) {
+            addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
+          }
+          if (item.brand) {
+          '''
+          if old not in s:
+              raise SystemExit('expected source block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git add server/nutritionEngine.ts
+          git rm .github/workflows/issue-923-ci-fix-apply.yml
+          git diff --cached --check
+
+      - name: Commit and push focused fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(nutrition): preserve measured package in semantic lookup"
+          git push origin HEAD:feat/923-ai-capabilities-question-nutrition-embedding
