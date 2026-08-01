@@ -139,7 +139,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento Chocolate Branco Dark 32 g", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento Chocolate Branco Dark", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
