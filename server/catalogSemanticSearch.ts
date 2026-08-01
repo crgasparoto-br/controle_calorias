@@ -289,18 +289,35 @@ function isCommercialProductIdentityCompatible(input: {
     return false;
   }
 
+  const requestedTokenSet = new Set(requestedTokens);
+  const brandTokens = new Set(extractCommercialTokens(input.brandName ?? ""));
+  const candidateProductTokens = extractCommercialTokens(input.matchedProductName);
+  const unexpectedCandidateTokens = candidateProductTokens.filter(token =>
+    !requestedTokenSet.has(token)
+    && !brandTokens.has(token)
+    && token !== requestedCompact
+    && !requestedCompact.includes(token),
+  );
+  if (unexpectedCandidateTokens.length > 0) {
+    return false;
+  }
+
   const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
-  const candidateVariants = extractCommercialTokens(input.matchedProductName)
-    .filter(token => COMMERCIAL_VARIANT_TOKENS.has(token));
+  const candidateVariants = new Set(
+    candidateProductTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
+  );
   if (
-    requestedVariants.size
-    && [...requestedVariants].some(token => !candidateVariants.includes(token))
+    [...requestedVariants].some(token => !candidateVariants.has(token))
+    || [...candidateVariants].some(token => !requestedVariants.has(token))
   ) {
     return false;
   }
 
   const requestedMeasures = extractCommercialMeasures(input.foodName);
   const candidateMeasures = extractCommercialMeasures(`${input.matchedProductName} ${input.servingLabel}`);
+  if (!requestedMeasures.length && candidateMeasures.length) {
+    return false;
+  }
   if (!candidateMeasures.length && requestedMeasures.some(measure => measure.kind === "mass")) {
     candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
   }
@@ -374,17 +391,54 @@ function normalizeHttpUrl(value: unknown): string | null {
   }
 }
 
+function normalizeEvidenceText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9%]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sourceSupportsEvidence(sourceText: string, evidence: string): boolean {
+  const normalizedSource = normalizeEvidenceText(sourceText);
+  const normalizedEvidence = normalizeEvidenceText(evidence);
+  if (normalizedSource.length < 12 || normalizedEvidence.length < 12) return false;
+  if (normalizedSource.includes(normalizedEvidence) || normalizedEvidence.includes(normalizedSource)) {
+    return true;
+  }
+
+  const evidenceTokens = new Set(normalizedEvidence.split(" ").filter(token => token.length >= 3));
+  const sourceTokens = new Set(normalizedSource.split(" ").filter(token => token.length >= 3));
+  if (evidenceTokens.size < 3) return false;
+  const matched = [...evidenceTokens].filter(token => sourceTokens.has(token)).length;
+  return matched >= 3 && matched / evidenceTokens.size >= 0.6;
+}
+
 function findVerifiedNutritionSource(
   requestedSourceUrl: unknown,
+  evidence: string,
   webSearch: AiWebSearchResult | undefined,
 ): string | null {
   if (webSearch?.executed !== true || !webSearch.sources.length) return null;
   const normalizedRequested = normalizeHttpUrl(requestedSourceUrl);
-  if (!normalizedRequested) return null;
+
+  if (normalizedRequested) {
+    for (const source of webSearch.sources) {
+      const normalizedSource = normalizeHttpUrl(source.url);
+      if (normalizedSource === normalizedRequested) return source.url.trim();
+    }
+  }
 
   for (const source of webSearch.sources) {
-    const normalizedSource = normalizeHttpUrl(source.url);
-    if (normalizedSource === normalizedRequested) return source.url.trim();
+    if (
+      normalizeHttpUrl(source.url)
+      && source.supportingText?.some(text => sourceSupportsEvidence(text, evidence))
+    ) {
+      return source.url.trim();
+    }
   }
   return null;
 }
@@ -404,7 +458,7 @@ function parseSearchedNutritionResult(
   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
   const brandName = result.brandName?.trim() || null;
   const evidence = result.evidence?.trim();
-  const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, webSearch);
+  const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, evidence ?? "", webSearch);
   if (!sourceUrl || !evidence) return null;
   const sourceAlias = `fonte: ${sourceUrl}`;
   if (!isCommercialProductIdentityCompatible({

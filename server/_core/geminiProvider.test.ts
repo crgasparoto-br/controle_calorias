@@ -297,6 +297,51 @@ describe("GeminiProvider (@google/genai)", () => {
     ]);
   });
 
+  it("rejects Gemini 2.5 structured output combined with Google Search before network access", async () => {
+    const provider = new GeminiProvider("fake-key");
+    await expect(provider.createTextResponse({
+      model: "gemini-2.5-flash",
+      input: [{ role: "user", content: "pesquise e retorne JSON" }],
+      format: {
+        type: "json_schema",
+        name: "result",
+        schema: {
+          type: "object",
+          properties: { found: { type: "boolean" } },
+          required: ["found"],
+        },
+      },
+      tools: [{ type: "web_search" }],
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
+    expect(generateContentMock).not.toHaveBeenCalled();
+  });
+
+  it("allows Gemini 3 structured output combined with Google Search", async () => {
+    generateContentMock.mockResolvedValue({ text: '{"found":true}' });
+    await new GeminiProvider("fake-key").createTextResponse({
+      model: "gemini-3.1-pro-preview",
+      input: [{ role: "user", content: "pesquise e retorne JSON" }],
+      format: {
+        type: "json_schema",
+        name: "result",
+        schema: {
+          type: "object",
+          properties: { found: { type: "boolean" } },
+          required: ["found"],
+        },
+      },
+      tools: [{ type: "web_search" }],
+    });
+
+    expect(generateContentMock).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gemini-3.1-pro-preview",
+      config: expect.objectContaining({
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }],
+      }),
+    }));
+  });
+
   it("rejects the legacy web_search_preview SDK detail before network access", async () => {
     const provider = new GeminiProvider("fake-key");
     await expect(provider.createTextResponse({
@@ -317,6 +362,12 @@ describe("GeminiProvider (@google/genai)", () => {
               { web: { uri: "https://example.com/a", title: "Fonte A" } },
               { web: { uri: "https://example.com/b" } },
             ],
+            groundingSupports: [
+              {
+                segment: { text: "Fonte A confirma 218 kcal por unidade de 41,5 g." },
+                groundingChunkIndices: [0],
+              },
+            ],
             webSearchQueries: ["preço atual do produto"],
           },
         },
@@ -332,7 +383,11 @@ describe("GeminiProvider (@google/genai)", () => {
     expect(result.webSearch).toEqual({
       executed: true,
       sources: [
-        { url: "https://example.com/a", title: "Fonte A" },
+        {
+          url: "https://example.com/a",
+          title: "Fonte A",
+          supportingText: ["Fonte A confirma 218 kcal por unidade de 41,5 g."],
+        },
         { url: "https://example.com/b" },
       ],
       searchQueries: ["preço atual do produto"],

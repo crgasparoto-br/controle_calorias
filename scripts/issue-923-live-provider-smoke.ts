@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { executeResolvedCapability } from "../server/_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "../server/_core/ai/configResolver";
 import { createDomainTextResponse } from "../server/_core/ai/domainTextResponse";
@@ -11,16 +12,20 @@ function requireVariable(name: string) {
 
 function configureCapabilities() {
   const provider = requireVariable("SMOKE_PROVIDER");
-  const model = requireVariable("SMOKE_MODEL");
+  const sharedModel = process.env.SMOKE_MODEL?.trim();
+  const questionModel = process.env.SMOKE_QUESTION_MODEL?.trim() || sharedModel;
+  const nutritionModel = process.env.SMOKE_NUTRITION_MODEL?.trim() || sharedModel;
+  if (!questionModel) throw new Error("SMOKE_QUESTION_MODEL or SMOKE_MODEL is required");
+  if (!nutritionModel) throw new Error("SMOKE_NUTRITION_MODEL or SMOKE_MODEL is required");
 
   process.env.AI_QUESTION_PROVIDER = provider;
-  process.env.AI_QUESTION_MODEL = model;
+  process.env.AI_QUESTION_MODEL = questionModel;
   process.env.AI_QUESTION_MAX_ATTEMPTS = "1";
   process.env.AI_QUESTION_FALLBACK_ENABLED = "false";
   process.env.AI_QUESTION_WEB_SEARCH_MODE = "auto";
 
   process.env.AI_NUTRITION_SEARCH_PROVIDER = provider;
-  process.env.AI_NUTRITION_SEARCH_MODEL = model;
+  process.env.AI_NUTRITION_SEARCH_MODEL = nutritionModel;
   process.env.AI_NUTRITION_SEARCH_MAX_ATTEMPTS = "1";
   process.env.AI_NUTRITION_SEARCH_FALLBACK_ENABLED = "false";
 
@@ -29,7 +34,16 @@ function configureCapabilities() {
   process.env.AI_EMBEDDING_MAX_ATTEMPTS = "1";
   process.env.AI_EMBEDDING_FALLBACK_ENABLED = "false";
 
-  return { provider, model };
+  return { provider, questionModel, nutritionModel };
+}
+
+function verifyApprovedHead() {
+  const approvedSha = requireVariable("SMOKE_APPROVED_SHA");
+  const headSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (headSha !== approvedSha) {
+    throw new Error(`SMOKE_APPROVED_SHA does not match HEAD (${headSha})`);
+  }
+  return headSha;
 }
 
 async function runQuestion(prompt: string) {
@@ -73,7 +87,8 @@ async function runEmbedding() {
 }
 
 async function run() {
-  const { provider, model } = configureCapabilities();
+  const headSha = verifyApprovedHead();
+  const { provider, questionModel, nutritionModel } = configureCapabilities();
 
   const internalQuestionSearch = await runQuestion(
     "Sem pesquisar na internet, responda apenas com o resultado numérico de 2 + 2.",
@@ -97,8 +112,10 @@ async function run() {
   const embeddingDimensions = await runEmbedding();
 
   console.log(JSON.stringify({
+    headSha,
     provider,
-    model,
+    questionModel,
+    nutritionModel,
     questionWithoutSearchExecuted: internalQuestionSearch?.executed === true,
     questionWithSearchExecuted: researchedQuestionSearch.executed,
     questionSourceCount: researchedQuestionSearch.sources.length,

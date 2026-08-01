@@ -148,7 +148,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       evidence: "Tabela nutricional oficial do fabricante.",
     }));
 
-    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
 
     expect(result).not.toBeNull();
     expect(result?.name).toContain("KitKat");
@@ -226,7 +226,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       evidence,
     }), webSearch);
 
-    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
 
     expect(result).toBeNull();
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
@@ -268,6 +268,22 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       name: "sabor divergente",
       foodName: "kit kat morango 41,5g",
       matchedProductName: "KitKat dark 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+    },
+    {
+      name: "sabor ausente na entrada genérica",
+      foodName: "trento 32g",
+      matchedProductName: "Trento Chocolate Branco Dark 32g",
+      brandName: "Peccin",
+      servingLabel: "1 unidade (32g)",
+      gramsPerServing: 32,
+    },
+    {
+      name: "embalagem ausente na entrada genérica",
+      foodName: "kit kat",
+      matchedProductName: "KitKat 41,5g",
       brandName: "Nestlé",
       servingLabel: "1 unidade (41,5g)",
       gramsPerServing: 41.5,
@@ -328,13 +344,75 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(result).toBeNull();
   });
 
+  it("aceita URI opaca do Gemini quando groundingSupports vincula a evidência à fonte", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token",
+        title: "Nestlé",
+        supportingText: ["Tabela nutricional informa 218 kcal por unidade de 41,5 g."],
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
+
+    expect(result).not.toBeNull();
+    expect(result?.aliases).toContain(
+      "fonte: https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token",
+    );
+  });
+
+  it("rejeita URI opaca quando o grounding não sustenta a evidência nutricional", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token",
+        supportingText: ["A página descreve somente a história da marca."],
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
+
+    expect(result).toBeNull();
+  });
+
   it("classifica JSON inválido dentro da tentativa para permitir o fallback único", async () => {
     resolveCapabilityConfigMock.mockReturnValue({
       ...READY_POLICY,
       fallback: {
         effectivelyEnabled: true,
         provider: "gemini",
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-pro-preview",
       },
     });
 
@@ -360,7 +438,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
         attempt: source === "primary" ? 1 : 2,
         timeoutMs: 8000,
         providerId,
-        model: providerId === "openai" ? "gpt-4.1-mini" : "gemini-2.5-flash",
+        model: providerId === "openai" ? "gpt-4.1-mini" : "gemini-3.1-pro-preview",
         provider: {
           createTextResponse: async () => ({
             id: `resp-${providerId}`,
@@ -380,7 +458,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       return { value, source: "fallback", attempts: 2, usedFallback: true };
     });
 
-    const result = await findPackagedSnackByWebSearch("kit kat", "chocolate");
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
 
     expect(result?.name).toContain("KitKat");
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);

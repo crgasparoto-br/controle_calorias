@@ -8,6 +8,7 @@ import {
   type ToolListUnion,
 } from "@google/genai";
 import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
+import { findOperationCompatibilityIssues } from "./ai/supportMatrix";
 import type {
   AiProvider,
   AiProviderAudioTranscriptionRequest,
@@ -514,6 +515,18 @@ function translateGeminiTools(
   });
 }
 
+function assertGeminiRequestCompatibility(request: AiProviderTextRequest): void {
+  const operations = [
+    "text" as const,
+    ...(request.format?.type === "json_schema" ? ["structured_output" as const] : []),
+    ...(request.tools?.some(tool => tool.type === "web_search") ? ["web_search" as const] : []),
+  ];
+  const issue = findOperationCompatibilityIssues("gemini", request.model, operations)[0];
+  if (issue) {
+    throw incompatibleOperation(`GeminiProvider: ${issue.message}.`);
+  }
+}
+
 function buildGenerationConfig(
   request: AiProviderTextRequest,
   tools: ToolListUnion | undefined,
@@ -555,15 +568,35 @@ function normalizeGeminiWebSearch(
   const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
   const chunks = groundingMetadata?.groundingChunks ?? [];
   const searchQueries = groundingMetadata?.webSearchQueries ?? [];
+  const groundingSupports = (groundingMetadata as {
+    groundingSupports?: Array<{
+      segment?: { text?: string };
+      groundingChunkIndices?: number[];
+    }>;
+  } | undefined)?.groundingSupports ?? [];
+
+  const supportTextByChunk = new Map<number, Set<string>>();
+  for (const support of groundingSupports) {
+    const text = support.segment?.text?.trim();
+    if (!text || !Array.isArray(support.groundingChunkIndices)) continue;
+    for (const index of support.groundingChunkIndices) {
+      if (!Number.isInteger(index) || index < 0 || index >= chunks.length) continue;
+      const texts = supportTextByChunk.get(index) ?? new Set<string>();
+      texts.add(text);
+      supportTextByChunk.set(index, texts);
+    }
+  }
 
   const sources: AiWebSearchSource[] = [];
-  for (const chunk of chunks) {
+  for (const [index, chunk] of chunks.entries()) {
     const uri = chunk.web?.uri;
     if (typeof uri !== "string" || !uri) continue;
     const title = chunk.web?.title;
+    const supportingText = supportTextByChunk.get(index);
     sources.push({
       url: uri,
       ...(typeof title === "string" && title ? { title } : {}),
+      ...(supportingText?.size ? { supportingText: [...supportingText] } : {}),
     });
   }
 
@@ -587,6 +620,7 @@ export class GeminiProvider implements AiProvider {
     request: AiProviderTextRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderTextResponse> {
+    assertGeminiRequestCompatibility(request);
     const tools = translateGeminiTools(request.tools);
     const contents = buildGeminiContents(request.input);
     const response = await this.client.models.generateContent({

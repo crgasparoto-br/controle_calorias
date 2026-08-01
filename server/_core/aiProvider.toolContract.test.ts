@@ -51,8 +51,15 @@ describe("OpenAiProvider text tool contract", () => {
         {
           type: "message",
           content: [{
+            text: "Banana tem 89 kcal por 100 g.",
             annotations: [
-              { type: "url_citation", url: "https://example.com/banana", title: "Banana" },
+              {
+                type: "url_citation",
+                url: "https://example.com/banana",
+                title: "Banana",
+                start_index: 0,
+                end_index: 30,
+              },
             ],
           }],
         },
@@ -70,7 +77,11 @@ describe("OpenAiProvider text tool contract", () => {
       executed: true,
       searchCount: 1,
       sources: [
-        { url: "https://example.com/banana", title: "Banana" },
+        {
+          url: "https://example.com/banana",
+          title: "Banana",
+          supportingText: ["Banana tem 89 kcal por 100 g."],
+        },
         { url: "https://example.com/tbca" },
       ],
       searchQueries: ["banana tabela nutricional"],

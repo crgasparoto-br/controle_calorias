@@ -215,6 +215,62 @@ describe("capability config resolver", () => {
     expect(resolved.state).toBe("ready");
   });
 
+
+  it("rejects Gemini 2.5 for NUTRITION_SEARCH before network access", () => {
+    const resolved = resolveCapabilityConfig("NUTRITION_SEARCH", envWith({
+      GEMINI_API_KEY: "g-test",
+      AI_NUTRITION_SEARCH_PROVIDER: "gemini",
+      AI_NUTRITION_SEARCH_MODEL: "gemini-2.5-flash",
+    }));
+
+    expect(resolved.state).toBe("invalid");
+    expect(resolved.diagnostics.some(item =>
+      item.includes("structured_output+web_search combination"),
+    )).toBe(true);
+  });
+
+  it("allows an explicitly configured Gemini 3 model for NUTRITION_SEARCH", () => {
+    const resolved = resolveCapabilityConfig("NUTRITION_SEARCH", envWith({
+      GEMINI_API_KEY: "g-test",
+      AI_NUTRITION_SEARCH_PROVIDER: "gemini",
+      AI_NUTRITION_SEARCH_MODEL: "gemini-3.1-pro-preview",
+    }));
+
+    expect(resolved.state).toBe("ready");
+    expect(resolved.primary).toEqual({
+      provider: "gemini",
+      model: "gemini-3.1-pro-preview",
+    });
+  });
+
+  it("keeps Gemini 2.5 valid for QUESTION web search without structured output", () => {
+    const resolved = resolveCapabilityConfig("QUESTION", envWith({
+      GEMINI_API_KEY: "g-test",
+      AI_QUESTION_PROVIDER: "gemini",
+      AI_QUESTION_MODEL: "gemini-2.5-flash",
+    }));
+
+    expect(resolved.state).toBe("ready");
+  });
+
+  it("does not enable a Gemini 2.5 fallback for NUTRITION_SEARCH", () => {
+    const resolved = resolveCapabilityConfig("NUTRITION_SEARCH", envWith({
+      OPENAI_API_KEY: "sk-test",
+      GEMINI_API_KEY: "g-test",
+      AI_NUTRITION_SEARCH_PROVIDER: "openai",
+      AI_NUTRITION_SEARCH_FALLBACK_ENABLED: "true",
+      AI_NUTRITION_SEARCH_FALLBACK_PROVIDER: "gemini",
+      AI_NUTRITION_SEARCH_FALLBACK_MODEL: "gemini-2.5-flash",
+      AI_NUTRITION_SEARCH_CROSS_PROVIDER_FALLBACK_ENABLED: "true",
+    }));
+
+    expect(resolved.state).toBe("degraded");
+    expect(resolved.fallback.effectivelyEnabled).toBe(false);
+    expect(resolved.diagnostics.some(item =>
+      item.includes("fallback provider=gemini model=gemini-2.5-flash"),
+    )).toBe(true);
+  });
+
   it("does not treat Gemini as embedding-ready without an adapter method", () => {
     const resolved = resolveCapabilityConfig("EMBEDDING", envWith({
       GEMINI_API_KEY: "g-test",

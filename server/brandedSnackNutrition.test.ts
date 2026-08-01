@@ -107,8 +107,8 @@ describe("nutritionEngine branded snack photo nutrition", () => {
         outputText: JSON.stringify({
           mealLabel: "Lanche",
           confidence: 0.8,
-          reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
-          items: [{ foodName: "Trento", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }],
+          reasoning: "Embalagem Trento Chocolate Branco Dark 32 g identificada, mas sem tabela nutricional legível.",
+          items: [{ foodName: "Trento Chocolate Branco Dark 32 g", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }],
         }),
         raw: { mocked: true },
       })
@@ -139,7 +139,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento Chocolate Branco Dark 32 g", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);

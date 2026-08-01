@@ -54,6 +54,8 @@ export type AiProviderUsage = {
 export type AiWebSearchSource = {
   url: string;
   title?: string;
+  /** Provider-linked response segments supported by this source, when exposed. */
+  supportingText?: string[];
 };
 
 export type AiWebSearchResult = {
@@ -318,12 +320,21 @@ function normalizeOpenAiWebSearch(
   const sourceByUrl = new Map<string, AiWebSearchSource>();
   const searchQueries = new Set<string>();
 
-  const addSource = (value: unknown, title?: unknown) => {
+  const addSource = (value: unknown, title?: unknown, supportingText?: unknown) => {
     if (typeof value !== "string" || !value.trim()) return;
     const url = value.trim();
     const normalizedTitle = typeof title === "string" && title.trim() ? title.trim() : undefined;
+    const normalizedSupportingText = typeof supportingText === "string" && supportingText.trim()
+      ? supportingText.trim()
+      : undefined;
     const existing = sourceByUrl.get(url);
-    sourceByUrl.set(url, existing?.title || !normalizedTitle ? existing ?? { url } : { url, title: normalizedTitle });
+    const supportingTexts = new Set(existing?.supportingText ?? []);
+    if (normalizedSupportingText) supportingTexts.add(normalizedSupportingText);
+    sourceByUrl.set(url, {
+      url,
+      ...(existing?.title || normalizedTitle ? { title: existing?.title ?? normalizedTitle } : {}),
+      ...(supportingTexts.size ? { supportingText: [...supportingTexts] } : {}),
+    });
   };
 
   for (const item of webSearchCalls) {
@@ -354,8 +365,10 @@ function normalizeOpenAiWebSearch(
     const content = Array.isArray(item.content) ? item.content : [];
     for (const part of content) {
       if (typeof part !== "object" || part === null) continue;
-      const annotations = Array.isArray((part as { annotations?: unknown }).annotations)
-        ? ((part as { annotations: unknown[] }).annotations)
+      const partRecord = part as { text?: unknown; annotations?: unknown };
+      const partText = typeof partRecord.text === "string" ? partRecord.text : "";
+      const annotations = Array.isArray(partRecord.annotations)
+        ? partRecord.annotations
         : [];
       for (const annotation of annotations) {
         if (
@@ -363,10 +376,18 @@ function normalizeOpenAiWebSearch(
           annotation !== null &&
           (annotation as { type?: unknown }).type === "url_citation"
         ) {
-          addSource(
-            (annotation as { url?: unknown }).url,
-            (annotation as { title?: unknown }).title,
-          );
+          const citation = annotation as {
+            url?: unknown;
+            title?: unknown;
+            start_index?: unknown;
+            end_index?: unknown;
+          };
+          const start = typeof citation.start_index === "number" ? citation.start_index : null;
+          const end = typeof citation.end_index === "number" ? citation.end_index : null;
+          const supportingText = start !== null && end !== null && start >= 0 && end > start
+            ? partText.slice(start, end)
+            : undefined;
+          addSource(citation.url, citation.title, supportingText);
         }
       }
     }
