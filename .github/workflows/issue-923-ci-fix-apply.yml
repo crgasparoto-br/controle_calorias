@@ -33,6 +33,7 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REPOSITORY}" = "crgasparoto-br/controle_calorias"
           test "${{ github.event.pull_request.head.ref }}" = "feat/923-ai-capabilities-question-nutrition-embedding"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           git merge-base --is-ancestor d54842f0266c27209eecdd7bf22056431e883daa HEAD
           unexpected="$(git diff --name-only d54842f0266c27209eecdd7bf22056431e883daa...HEAD | grep -Ev '^\.github/workflows/issue-923-ci-fix-apply\.yml$' || true)"
           test -z "$unexpected"
@@ -40,22 +41,24 @@ jobs:
           from pathlib import Path
           p = Path('server/nutritionEngine.ts')
           s = p.read_text()
-          old = '''  addCatalogCandidate(candidates, sourceFoodName);
-          if (item.brand) {
-          '''
-          new = '''  addCatalogCandidate(candidates, sourceFoodName);
-          if (
-            Number.isFinite(item.estimatedGrams)
-            && item.estimatedGrams > 0
-            && !/\\b\\d+(?:[,.]\\d+)?\\s*(?:kg|mg|ml|g|l)\\b/iu.test(item.foodName)
-          ) {
-            addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
-          }
-          if (item.brand) {
-          '''
-          if old not in s:
-              raise SystemExit('expected source block not found')
-          p.write_text(s.replace(old, new, 1))
+          marker = 'addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);'
+          if marker not in s:
+              needle = '  addCatalogCandidate(candidates, sourceFoodName);'
+              pos = s.find(needle)
+              if pos < 0:
+                  raise SystemExit('catalog source candidate marker not found')
+              line_end = s.find('\n', pos) + 1
+              insertion = (
+                  '  if (\n'
+                  '    Number.isFinite(item.estimatedGrams)\n'
+                  '    && item.estimatedGrams > 0\n'
+                  '    && !/\\b\\d+(?:[,.]\\d+)?\\s*(?:kg|mg|ml|g|l)\\b/iu.test(item.foodName)\n'
+                  '  ) {\n'
+                  '    addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);\n'
+                  '  }\n'
+              )
+              s = s[:line_end] + insertion + s[line_end:]
+              p.write_text(s)
           PY
           git add server/nutritionEngine.ts
           git rm .github/workflows/issue-923-ci-fix-apply.yml
