@@ -40,6 +40,13 @@ jobs:
 
           source_path = Path('server/catalogSemanticSearch.ts')
           source = source_path.read_text()
+          singular_pattern = 'prote[ií]na|protein'
+          plural_pattern = 'prote[ií]nas?|proteins?'
+          occurrences = source.count(singular_pattern)
+          if occurrences < 2:
+              raise SystemExit(f'expected at least two protein label patterns, found {occurrences}')
+          source = source.replace(singular_pattern, plural_pattern)
+
           old = '''  const patterns = [
               new RegExp(`(?:${labelPattern})[^\\\\d]{0,24}(-?\\\\d+(?:[.,]\\\\d+)?)\\\\s*g`, "giu"),
               new RegExp(`(-?\\\\d+(?:[.,]\\\\d+)?)\\\\s*g[^a-z0-9]{0,12}(?:${labelPattern})`, "giu"),
