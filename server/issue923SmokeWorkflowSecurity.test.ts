@@ -86,6 +86,8 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(nutritionBlock).not.toContain("findPackagedSnackByWebSearch");
     expect(nutritionBlock).not.toContain("runNutritionProbe");
     expect(smokeScript).not.toContain("SMOKE_NUTRITION_ATTEMPTS");
+    expect(nutritionBlock).toContain("execute a Pesquisa Google antes de produzir o JSON");
+    expect(nutritionBlock).toContain("Não responda com conhecimento interno");
     expect(nutritionBlock).toContain('outcome: "matched-provider-payload"');
     expect(nutritionBlock).toContain('outcome: "safe-no-match"');
     expect(smokeScript).toContain("nutritionMatched: nutritionResult.matched");
