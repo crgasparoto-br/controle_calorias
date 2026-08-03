@@ -4,6 +4,39 @@ import { resolveCapabilityConfig } from "../server/_core/ai/configResolver";
 import { createDomainTextResponse } from "../server/_core/ai/domainTextResponse";
 import { findPackagedSnackByWebSearch } from "../server/catalogSemanticSearch";
 
+const nutritionDiagnosticJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    found: { type: "boolean" },
+    matchedProductName: { type: "string" },
+    brandName: { type: "string" },
+    servingLabel: { type: "string" },
+    gramsPerServing: { type: "number", minimum: 0, maximum: 1000 },
+    calories: { type: "number", minimum: 0, maximum: 5000 },
+    protein: { type: "number", minimum: 0, maximum: 500 },
+    carbs: { type: "number", minimum: 0, maximum: 500 },
+    fat: { type: "number", minimum: 0, maximum: 500 },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    sourceUrl: { type: "string" },
+    evidence: { type: "string" },
+  },
+  required: [
+    "found",
+    "matchedProductName",
+    "brandName",
+    "servingLabel",
+    "gramsPerServing",
+    "calories",
+    "protein",
+    "carbs",
+    "fat",
+    "confidence",
+    "sourceUrl",
+    "evidence",
+  ],
+} as const;
+
 function requireVariable(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
@@ -67,6 +100,74 @@ async function runQuestion(prompt: string) {
   return result.value.webSearch;
 }
 
+async function runNutritionProbe(foodName: string, category: "chocolate" | "cookie") {
+  const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
+  if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
+    return { policyState: policy.state };
+  }
+
+  const result = await executeResolvedCapability(policy, attempt =>
+    createDomainTextResponse(
+      attempt.provider,
+      {
+        model: attempt.model,
+        instructions: [
+          "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
+          "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
+          "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
+          "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
+          "Retorne apenas JSON válido no schema solicitado.",
+        ].join("\n"),
+        input: [{
+          role: "user",
+          content: [{
+            type: "input_text",
+            text: [
+              `Alimento reconhecido: ${foodName}`,
+              `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
+              "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
+              "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
+              "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
+              "Preencha sourceUrl com a melhor fonte usada e evidence com uma frase curta explicando a evidência.",
+            ].join("\n"),
+          }],
+        }],
+        tools: [{ type: "web_search" }],
+        format: {
+          type: "json_schema",
+          name: "packaged_food_nutrition_lookup_diagnostic",
+          schema: nutritionDiagnosticJsonSchema,
+          strict: true,
+        },
+      },
+      { signal: attempt.signal },
+    ),
+  );
+
+  let providerOutput: unknown = result.value.outputText;
+  try {
+    providerOutput = JSON.parse(result.value.outputText);
+  } catch {
+    // Keep the raw provider output when it is not valid JSON.
+  }
+
+  return {
+    providerOutput,
+    webSearch: result.value.webSearch
+      ? {
+          executed: result.value.webSearch.executed,
+          searchCount: result.value.webSearch.searchCount,
+          searchQueries: result.value.webSearch.searchQueries,
+          sources: result.value.webSearch.sources.map(source => ({
+            url: source.url,
+            title: source.title,
+            supportingText: source.supportingText,
+          })),
+        }
+      : null,
+  };
+}
+
 async function runEmbedding() {
   const policy = resolveCapabilityConfig("EMBEDDING");
   if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
@@ -104,12 +205,13 @@ async function run() {
     throw new Error("QUESTION web-search smoke did not return executed search with sources");
   }
 
-  // Keep the live lookup SKU-specific. Several KitKat variants are sold in
-  // the same 41.5 g package, and the production guard intentionally rejects
-  // provider-added flavors that were not present in the request.
-  const nutrition = await findPackagedSnackByWebSearch("KitKat ao leite 41,5g", "chocolate");
+  const nutritionQuery = process.env.SMOKE_NUTRITION_QUERY?.trim() || "KitKat ao leite 41,5g";
+  const nutrition = await findPackagedSnackByWebSearch(nutritionQuery, "chocolate");
   if (!nutrition || !nutrition.aliases.some(alias => alias.startsWith("fonte: https://"))) {
-    throw new Error("NUTRITION_SEARCH smoke did not return a verified sourced product");
+    const diagnostic = await runNutritionProbe(nutritionQuery, "chocolate");
+    throw new Error(
+      `NUTRITION_SEARCH smoke did not return a verified sourced product. Diagnostic: ${JSON.stringify(diagnostic)}`,
+    );
   }
 
   const embeddingDimensions = await runEmbedding();
@@ -119,6 +221,7 @@ async function run() {
     provider,
     questionModel,
     nutritionModel,
+    nutritionQuery,
     questionWithoutSearchExecuted: internalQuestionSearch?.executed === true,
     questionWithSearchExecuted: researchedQuestionSearch.executed,
     questionSourceCount: researchedQuestionSearch.sources.length,
