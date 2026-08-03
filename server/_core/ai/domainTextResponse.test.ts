@@ -110,8 +110,8 @@ describe("domain text response boundary", () => {
     expect(result.usage).toEqual({ inputTokens: 17, outputTokens: 9, totalTokens: 26 });
   });
 
-  it("does not issue an evidence probe when the structured response already has sources", async () => {
-    const source = { url: "https://example.com/kitkat" };
+  it("does not issue an evidence probe when the structured response already has evidence-bearing sources", async () => {
+    const source = { url: "https://example.com/kitkat", supportingText: ["220 kcal por unidade de 41,5 g"] };
     const { provider, createTextResponse } = providerWithResponses({
       id: "primary",
       outputText: '{"found":true}',
@@ -123,6 +123,66 @@ describe("domain text response boundary", () => {
 
     expect(createTextResponse).toHaveBeenCalledTimes(1);
     expect(result.webSearch).toEqual({ executed: true, sources: [source] });
+  });
+
+  it("recovers citation-linked evidence for OpenAI when the primary response contains URLs only", async () => {
+    const primaryOutput = '{"found":true,"calories":220,"gramsPerServing":41.5,"evidence":"220 kcal por unidade de 41,5 g"}';
+    const { provider, createTextResponse } = providerWithResponses(
+      {
+        id: "primary-openai",
+        outputText: primaryOutput,
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/kitkat" }],
+        },
+      },
+      {
+        id: "evidence-openai",
+        outputText: "220 kcal por unidade de 41,5 g",
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{
+            url: "https://example.com/kitkat",
+            supportingText: ["220 kcal por unidade de 41,5 g"],
+          }],
+        },
+      },
+    );
+    const request = {
+      ...structuredSearchRequest,
+      model: "gpt-4.1-mini",
+    } satisfies AiProviderTextRequest;
+
+    const result = await createDomainTextResponse(provider, request);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(createTextResponse.mock.calls[1][0].format).toBeUndefined();
+    expect(result.outputText).toBe(primaryOutput);
+    expect(result.webSearch?.sources[0]?.supportingText).toEqual(["220 kcal por unidade de 41,5 g"]);
+  });
+
+  it("treats URL-only sources as insufficient for structured nutrition evidence", async () => {
+    const { provider, createTextResponse } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true}',
+        raw: {},
+        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+      {
+        id: "probe",
+        outputText: "não confirmado",
+        raw: {},
+        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+    );
+
+    const result = await createDomainTextResponse(provider, structuredSearchRequest);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(result.webSearch).toEqual({ executed: true, sources: [{ url: "https://example.com/kitkat" }] });
   });
 
   it("does not duplicate an ordinary unstructured web search", async () => {
