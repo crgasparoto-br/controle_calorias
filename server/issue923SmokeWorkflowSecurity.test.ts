@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const workflowPath = resolve(process.cwd(), ".github/workflows/ai-provider-live-smoke.yml");
 const smokeScriptPath = resolve(process.cwd(), "scripts/issue-923-live-provider-smoke.ts");
+const catalogSearchPath = resolve(process.cwd(), "server/catalogSemanticSearch.ts");
 
 function readWorkflow() {
   return readFileSync(workflowPath, "utf8");
@@ -11,6 +12,10 @@ function readWorkflow() {
 
 function readSmokeScript() {
   return readFileSync(smokeScriptPath, "utf8");
+}
+
+function readCatalogSearch() {
+  return readFileSync(catalogSearchPath, "utf8");
 }
 
 describe("issue 923 live-provider smoke security boundary", () => {
@@ -72,7 +77,7 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).toContain("GitHub secret GEMINI_API_KEY is unavailable.");
   });
 
-  it("executes one nutrition provider call and rejects unverified matches locally", () => {
+  it("executes the real production nutrition path once and preserves safe degradation", () => {
     const smokeScript = readSmokeScript();
     const nutritionStart = smokeScript.indexOf("async function runNutrition");
     const embeddingStart = smokeScript.indexOf("async function runEmbedding");
@@ -80,21 +85,31 @@ describe("issue 923 live-provider smoke security boundary", () => {
 
     expect(nutritionStart).toBeGreaterThan(0);
     expect(embeddingStart).toBeGreaterThan(nutritionStart);
-    expect(nutritionBlock.match(/executeResolvedCapability\(/g)).toHaveLength(1);
-    expect(nutritionBlock.match(/createDomainTextResponse\(/g)).toHaveLength(1);
+    expect(nutritionBlock.match(/findPackagedSnackByWebSearch\(/g)).toHaveLength(1);
+    expect(nutritionBlock).not.toContain("createDomainTextResponse");
+    expect(nutritionBlock).not.toContain("executeResolvedCapability");
     expect(nutritionBlock).not.toMatch(/\bfor\s*\(|\bwhile\s*\(/);
-    expect(nutritionBlock).not.toContain("findPackagedSnackByWebSearch");
     expect(nutritionBlock).not.toContain("runNutritionProbe");
     expect(smokeScript).not.toContain("SMOKE_NUTRITION_ATTEMPTS");
-    expect(nutritionBlock).toContain(
-      "const hasVerifiedSearch = webSearch?.executed === true && webSearch.sources.length > 0",
-    );
-    expect(nutritionBlock).toContain("if (payload.found && hasVerifiedSearch)");
-    expect(nutritionBlock).toContain('outcome: "matched-provider-payload"');
-    expect(nutritionBlock).toContain('"safe-unverified-match" as const');
-    expect(nutritionBlock).toContain('"safe-no-match" as const');
-    expect(nutritionBlock).toContain("matched: false");
+    expect(nutritionBlock).toContain('/^fonte: https?:\\/\\//u.test(alias)');
+    expect(nutritionBlock).toContain('outcome: "matched-verified-production-result"');
+    expect(nutritionBlock).toContain('outcome: "safe-no-match"');
     expect(smokeScript).toContain("nutritionMatched: nutritionResult.matched");
     expect(smokeScript).not.toContain("nutritionMatched: true");
+  });
+
+  it("keeps the production path single-attempt and rejects source-less results", () => {
+    const catalogSearch = readCatalogSearch();
+    const start = catalogSearch.indexOf("export async function findPackagedSnackByWebSearch");
+    const end = catalogSearch.indexOf("function cosineSimilarity", start);
+    const productionBlock = catalogSearch.slice(start, end);
+
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(productionBlock.match(/executeResolvedCapability\(/g)).toHaveLength(1);
+    expect(productionBlock.match(/createDomainTextResponse\(/g)).toHaveLength(1);
+    expect(productionBlock).not.toMatch(/\bfor\s*\(|\bwhile\s*\(/);
+    expect(catalogSearch).toContain("if (!sourceUrl || !evidence) return null;");
+    expect(catalogSearch).toContain("const sourceUrl = findVerifiedNutritionSource");
   });
 });

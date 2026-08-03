@@ -2,54 +2,7 @@ import { execFileSync } from "node:child_process";
 import { executeResolvedCapability } from "../server/_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "../server/_core/ai/configResolver";
 import { createDomainTextResponse } from "../server/_core/ai/domainTextResponse";
-
-const nutritionSmokeJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    found: { type: "boolean" },
-    matchedProductName: { type: "string" },
-    brandName: { type: "string" },
-    servingLabel: { type: "string" },
-    gramsPerServing: { type: "number", minimum: 0, maximum: 1000 },
-    calories: { type: "number", minimum: 0, maximum: 5000 },
-    protein: { type: "number", minimum: 0, maximum: 500 },
-    carbs: { type: "number", minimum: 0, maximum: 500 },
-    fat: { type: "number", minimum: 0, maximum: 500 },
-    confidence: { type: "number", minimum: 0, maximum: 1 },
-    sourceUrl: { type: "string" },
-    evidence: { type: "string" },
-  },
-  required: [
-    "found",
-    "matchedProductName",
-    "brandName",
-    "servingLabel",
-    "gramsPerServing",
-    "calories",
-    "protein",
-    "carbs",
-    "fat",
-    "confidence",
-    "sourceUrl",
-    "evidence",
-  ],
-} as const;
-
-type NutritionSmokePayload = {
-  found: boolean;
-  matchedProductName: string;
-  brandName: string;
-  servingLabel: string;
-  gramsPerServing: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  confidence: number;
-  sourceUrl: string;
-  evidence: string;
-};
+import { findPackagedSnackByWebSearch } from "../server/catalogSemanticSearch";
 
 function requireVariable(name: string) {
   const value = process.env[name]?.trim();
@@ -88,65 +41,6 @@ function resolveHeadSha() {
   return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 }
 
-function parseNutritionSmokePayload(outputText: string): NutritionSmokePayload {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(outputText);
-  } catch (error) {
-    throw new Error("NUTRITION_SEARCH smoke returned invalid JSON", { cause: error });
-  }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("NUTRITION_SEARCH smoke returned a non-object payload");
-  }
-
-  const payload = parsed as Partial<NutritionSmokePayload>;
-  const stringFields: Array<keyof NutritionSmokePayload> = [
-    "matchedProductName",
-    "brandName",
-    "servingLabel",
-    "sourceUrl",
-    "evidence",
-  ];
-  const numberFields: Array<keyof NutritionSmokePayload> = [
-    "gramsPerServing",
-    "calories",
-    "protein",
-    "carbs",
-    "fat",
-    "confidence",
-  ];
-
-  if (typeof payload.found !== "boolean") {
-    throw new Error("NUTRITION_SEARCH smoke omitted the found flag");
-  }
-  if (stringFields.some(field => typeof payload[field] !== "string")) {
-    throw new Error("NUTRITION_SEARCH smoke returned an invalid string field");
-  }
-  if (numberFields.some(field => typeof payload[field] !== "number" || !Number.isFinite(payload[field] as number))) {
-    throw new Error("NUTRITION_SEARCH smoke returned an invalid numeric field");
-  }
-
-  if (payload.found) {
-    if (
-      !payload.matchedProductName?.trim()
-      || !payload.sourceUrl?.trim()
-      || !payload.evidence?.trim()
-      || (payload.gramsPerServing as number) <= 0
-      || (payload.calories as number) <= 0
-      || (payload.protein as number) < 0
-      || (payload.carbs as number) < 0
-      || (payload.fat as number) < 0
-      || (payload.confidence as number) < 0
-      || (payload.confidence as number) > 1
-    ) {
-      throw new Error("NUTRITION_SEARCH smoke returned an incomplete matched payload");
-    }
-  }
-
-  return payload as NutritionSmokePayload;
-}
-
 async function runQuestion(prompt: string) {
   const policy = resolveCapabilityConfig("QUESTION");
   if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
@@ -174,61 +68,21 @@ async function runNutrition(nutritionQuery: string) {
     throw new Error(`NUTRITION_SEARCH smoke is not executable (state=${policy.state})`);
   }
 
-  const result = await executeResolvedCapability(policy, attempt =>
-    createDomainTextResponse(
-      attempt.provider,
-      {
-        model: attempt.model,
-        instructions: [
-          "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
-          "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
-          "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
-          "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
-          "Retorne apenas JSON válido no schema solicitado.",
-        ].join("\n"),
-        input: [{
-          role: "user",
-          content: [{
-            type: "input_text",
-            text: [
-              `Alimento reconhecido: ${nutritionQuery}`,
-              "Categoria provável: chocolate/bombom/wafer embalado",
-              "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
-              "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
-              "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
-              "Preencha sourceUrl com a melhor fonte usada e evidence com uma frase curta explicando a evidência.",
-            ].join("\n"),
-          }],
-        }],
-        tools: [{ type: "web_search" }],
-        format: {
-          type: "json_schema",
-          name: "packaged_food_nutrition_live_smoke",
-          schema: nutritionSmokeJsonSchema,
-          strict: true,
-        },
-      },
-      { signal: attempt.signal },
-    ),
-  );
-
-  const payload = parseNutritionSmokePayload(result.value.outputText);
-  const webSearch = result.value.webSearch;
-  const hasVerifiedSearch = webSearch?.executed === true && webSearch.sources.length > 0;
-
-  if (payload.found && hasVerifiedSearch) {
+  const nutrition = await findPackagedSnackByWebSearch(nutritionQuery, "chocolate");
+  const verifiedSource = nutrition?.aliases.find(alias => /^fonte: https?:\/\//u.test(alias));
+  if (nutrition && verifiedSource) {
     return {
       matched: true,
-      outcome: "matched-provider-payload" as const,
-      sourceCount: webSearch.sources.length,
+      outcome: "matched-verified-production-result" as const,
+      sourceCount: 1,
       attempts: 1,
     };
   }
 
   return {
     matched: false,
-    outcome: payload.found ? "safe-unverified-match" as const : "safe-no-match" as const,
-    sourceCount: webSearch?.sources.length ?? 0,
+    outcome: "safe-no-match" as const,
+    sourceCount: 0,
     attempts: 1,
   };
 }
