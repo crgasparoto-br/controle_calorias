@@ -58,7 +58,10 @@ function requestsStructuredWebSearch(request: AiProviderTextRequest): boolean {
 
 function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
   return webSearch?.executed === true
-    && webSearch.sources.some(source => source.supportingText?.some(text => text.trim().length > 0));
+    && webSearch.sources.some(source => source.supportingText?.some(text => {
+      const normalized = text.trim();
+      return normalized.length > 0 && !isCitationMarker(normalized);
+    }));
 }
 
 function parseStructuredSearchOutput(outputText: string): Record<string, unknown> | null {
