@@ -40,11 +40,19 @@ const DISABLED_POLICY = {
 
 function mockExecuteWithOutput(
   outputText: string,
-  webSearch = {
-    executed: true,
-    sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
+  webSearch?: {
+    executed: boolean;
+    sources: Array<{ url: string; title?: string; supportingText?: string[] }>;
   },
 ) {
+  const parsedOutput = JSON.parse(outputText) as { evidence?: string };
+  const normalizedWebSearch = webSearch ?? {
+    executed: true,
+    sources: [{
+      url: "https://www.nestle.com.br/marcas/kitkat",
+      supportingText: parsedOutput.evidence ? [parsedOutput.evidence] : [],
+    }],
+  };
   executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
     const value = await operation({
       signal: new AbortController().signal,
@@ -57,7 +65,7 @@ function mockExecuteWithOutput(
           return {
             id: "resp-test",
             outputText: response?.outputText ?? outputText,
-            webSearch,
+            webSearch: normalizedWebSearch,
             raw: response,
           };
         },
@@ -145,7 +153,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional oficial do fabricante.",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
     }));
 
     const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
@@ -171,11 +179,12 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/",
-      evidence: "A página informa o produto KitKat ao leite de 41,5 g.",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
     }), {
       executed: true,
       sources: [{
         url: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/?utm_source=openai",
+        supportingText: ["Tabela nutricional informa 218 kcal por unidade de 41,5 g."],
       }],
     });
 
@@ -435,6 +444,106 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
 
     expect(result).toBeNull();
+  });
+
+  it("rejeita URL exata quando o trecho citado não contém evidência nutricional", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://www.nestle.com.br/marcas/kitkat",
+        supportingText: ["A página apresenta somente a história institucional da marca."],
+      }],
+    });
+
+    await expect(findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate")).resolves.toBeNull();
+  });
+
+  it.each([
+    {
+      name: "calorias divergentes no grounding",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      supportingText: "Tabela nutricional informa 100 kcal por unidade de 41,5 g.",
+    },
+    {
+      name: "porção divergente no grounding",
+      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      supportingText: "Tabela nutricional informa 218 kcal por unidade de 30 g.",
+    },
+    {
+      name: "calorias divergentes na evidência estruturada",
+      evidence: "Tabela nutricional informa 100 kcal por unidade de 41,5 g.",
+      supportingText: "Tabela nutricional informa 100 kcal por unidade de 41,5 g.",
+    },
+  ])("rejeita $name sem promover o resultado como pesquisado", async ({ evidence, supportingText }) => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence,
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://www.nestle.com.br/marcas/kitkat",
+        supportingText: [supportingText],
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
+
+    expect(result).toBeNull();
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejeita macronutriente explicitamente contraditório no grounding", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Porção de 41,5 g, 218 kcal, proteína 2,7 g, carboidratos 26,3 g e gorduras 11,2 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://www.nestle.com.br/marcas/kitkat",
+        supportingText: ["Porção de 41,5 g, 218 kcal, proteína 9 g, carboidratos 26,3 g e gorduras 11,2 g."],
+      }],
+    });
+
+    await expect(findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate")).resolves.toBeNull();
   });
 
   it("classifica JSON inválido dentro da tentativa para permitir o fallback único", async () => {

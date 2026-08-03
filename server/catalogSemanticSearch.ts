@@ -433,26 +433,82 @@ function sourceSupportsEvidence(sourceText: string, evidence: string): boolean {
   return matched >= 3 && matched / evidenceTokens.size >= 0.6;
 }
 
+function parseLocalizedNumber(value: string): number | null {
+  const normalized = value.replace(/\s+/g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function approximatelyEqual(left: number, right: number): boolean {
+  return Math.abs(left - right) <= 0.05;
+}
+
+function extractUnitValues(text: string, unitPattern: string): number[] {
+  const values: number[] = [];
+  const regex = new RegExp(`(-?\\d+(?:[.,]\\d+)?)\\s*(?:${unitPattern})`, "giu");
+  for (const match of text.matchAll(regex)) {
+    const parsed = parseLocalizedNumber(match[1] ?? "");
+    if (parsed !== null) values.push(parsed);
+  }
+  return values;
+}
+
+function extractLabelledGramValues(text: string, labelPattern: string): number[] {
+  const values: number[] = [];
+  const patterns = [
+    new RegExp(`(?:${labelPattern})[^\\d]{0,24}(-?\\d+(?:[.,]\\d+)?)\\s*g`, "giu"),
+    new RegExp(`(-?\\d+(?:[.,]\\d+)?)\\s*g[^a-z0-9]{0,12}(?:${labelPattern})`, "giu"),
+  ];
+  for (const regex of patterns) {
+    for (const match of text.matchAll(regex)) {
+      const parsed = parseLocalizedNumber(match[1] ?? "");
+      if (parsed !== null) values.push(parsed);
+    }
+  }
+  return values;
+}
+
+function numericClaimsSupportResult(text: string, result: Partial<SearchedNutritionResult>): boolean {
+  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return false;
+
+  const calorieValues = extractUnitValues(text, "kcal|calorias?");
+  const gramValues = extractUnitValues(text, "g|gramas?");
+  if (!calorieValues.some(value => approximatelyEqual(value, result.calories as number))) return false;
+  if (!gramValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
+
+  const labelledClaims: Array<[string, number | undefined]> = [
+    ["prote[ií]na|protein", result.protein],
+    ["carboidratos?|carbs?", result.carbs],
+    ["gorduras?(?:\\s+totais?)?|fat", result.fat],
+  ];
+  for (const [label, expected] of labelledClaims) {
+    if (!isNonNegativeNumber(expected)) continue;
+    const values = extractLabelledGramValues(text, label);
+    if (values.length && !values.some(value => approximatelyEqual(value, expected as number))) return false;
+  }
+  return true;
+}
+
 function findVerifiedNutritionSource(
   requestedSourceUrl: unknown,
   evidence: string,
+  result: Partial<SearchedNutritionResult>,
   webSearch: AiWebSearchResult | undefined,
 ): string | null {
   if (webSearch?.executed !== true || !webSearch.sources.length) return null;
+  if (!numericClaimsSupportResult(evidence, result)) return null;
   const normalizedRequested = normalizeHttpUrl(requestedSourceUrl);
 
-  if (normalizedRequested) {
-    for (const source of webSearch.sources) {
-      const normalizedSource = normalizeHttpUrl(source.url);
-      if (normalizedSource === normalizedRequested) return source.url.trim();
-    }
-  }
+  const candidates = normalizedRequested
+    ? webSearch.sources.filter(source => normalizeHttpUrl(source.url) === normalizedRequested)
+    : webSearch.sources;
 
-  for (const source of webSearch.sources) {
-    if (
-      normalizeHttpUrl(source.url)
-      && source.supportingText?.some(text => sourceSupportsEvidence(text, evidence))
-    ) {
+  for (const source of candidates) {
+    if (!normalizeHttpUrl(source.url)) continue;
+    if (source.supportingText?.some(text => (
+      sourceSupportsEvidence(text, evidence)
+      && numericClaimsSupportResult(text, result)
+    ))) {
       return source.url.trim();
     }
   }
@@ -474,7 +530,7 @@ function parseSearchedNutritionResult(
   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
   const brandName = result.brandName?.trim() || null;
   const evidence = result.evidence?.trim();
-  const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, evidence ?? "", webSearch);
+  const sourceUrl = findVerifiedNutritionSource(result.sourceUrl, evidence ?? "", result, webSearch);
   if (!sourceUrl || !evidence) return null;
   const sourceAlias = `fonte: ${sourceUrl}`;
   if (!isCommercialProductIdentityCompatible({

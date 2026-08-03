@@ -126,11 +126,11 @@ describe("nutritionEngine branded snack photo nutrition", () => {
           fat: 5.2,
           confidence: 0.86,
           sourceUrl: "https://example.test/trento-nutrition",
-          evidence: "Fonte informa tabela nutricional por unidade de 32 g.",
+          evidence: "Fonte informa 128 kcal por unidade de 32 g, proteína 2,1 g, carboidratos 19 g e gordura 5,2 g.",
         }),
         webSearch: {
           executed: true,
-          sources: [{ url: "https://example.test/trento-nutrition" }],
+          sources: [{ url: "https://example.test/trento-nutrition", supportingText: ["Fonte informa 128 kcal por unidade de 32 g, proteína 2,1 g, carboidratos 19 g e gordura 5,2 g."] }],
         },
         raw: { mocked: true },
       });
