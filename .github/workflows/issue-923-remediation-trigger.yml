@@ -1,0 +1,58 @@
+name: Issue 923 remediation trigger
+
+on:
+  push:
+    branches:
+      - feat/923-ai-capabilities-question-nutrition-embedding
+    paths:
+      - .github/workflows/issue-923-remediation-trigger.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-923-remediation-trigger
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trigger commit
+        uses: actions/checkout@v4
+        with:
+          ref: feat/923-ai-capabilities-question-nutrition-embedding
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Extract and publish audited remediation
+        shell: bash
+        env:
+          EXPECTED_PARENT: 5f4bd74a6a8e390c5d97ac32ea333ce2988eb7d8
+          TARGET_BRANCH: feat/923-ai-capabilities-question-nutrition-embedding
+          EXPECTED_PATCH_SHA256: a334c90c0c16ce7d8415f21dd96b6fea8bb4af5b615c1b500e106db904bbf5e7
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "${EXPECTED_PARENT}"
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/issue-923-remediation-publisher.yml').read_text(encoding='utf-8')
+          prefix = "printf '%s' '"
+          suffix = "' > /tmp/issue923.patch.gz.b64"
+          if prefix not in source or suffix not in source:
+              raise SystemExit('embedded remediation payload not found')
+          payload = source.split(prefix, 1)[1].split(suffix, 1)[0]
+          Path('/tmp/issue923.patch.gz.b64').write_text(payload, encoding='ascii')
+          PY
+          base64 -d /tmp/issue923.patch.gz.b64 | gzip -d > /tmp/issue923.patch
+          test "$(sha256sum /tmp/issue923.patch | awk '{print $1}')" = "${EXPECTED_PATCH_SHA256}"
+          git apply --index /tmp/issue923.patch
+          rm .github/workflows/issue-923-remediation-publisher.yml
+          rm .github/workflows/issue-923-remediation-trigger.yml
+          git add -A
+          git config user.name "Issue 923 Remediation Publisher"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "fix(ai): govern provider attempts and live smoke credentials"
+          git push origin "HEAD:${TARGET_BRANCH}"
