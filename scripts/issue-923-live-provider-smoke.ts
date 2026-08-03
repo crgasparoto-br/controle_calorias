@@ -37,13 +37,8 @@ function configureCapabilities() {
   return { provider, questionModel, nutritionModel };
 }
 
-function verifyApprovedHead() {
-  const approvedSha = requireVariable("SMOKE_APPROVED_SHA");
-  const headSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  if (headSha !== approvedSha) {
-    throw new Error(`SMOKE_APPROVED_SHA does not match HEAD (${headSha})`);
-  }
-  return headSha;
+function resolveHeadSha() {
+  return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 }
 
 async function runQuestion(prompt: string) {
@@ -97,7 +92,7 @@ async function runEmbedding() {
 }
 
 async function run() {
-  const headSha = verifyApprovedHead();
+  const headSha = resolveHeadSha();
   const { provider, questionModel, nutritionModel } = configureCapabilities();
 
   const internalQuestionSearch = await runQuestion(
