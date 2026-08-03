@@ -113,29 +113,50 @@ function buildEvidenceProbeRequest(
   };
 }
 
-function attachProbeEvidence(
-  webSearch: AiWebSearchResult | undefined,
-  probeOutputText: string | undefined,
-): AiWebSearchResult | undefined {
-  const supportingText = probeOutputText?.trim();
-  if (!webSearch || webSearch.executed !== true || !supportingText) return webSearch;
-  return {
-    ...webSearch,
-    sources: webSearch.sources.map(source => (
-      source.supportingText?.some(text => text.trim().length > 0)
-        ? source
-        : { ...source, supportingText: [supportingText] }
-    )),
-  };
-}
-
-function selectWebSearch(
+function combineWebSearch(
   primary: AiWebSearchResult | undefined,
   evidenceProbe: AiWebSearchResult | undefined,
 ): AiWebSearchResult | undefined {
-  if (hasCitableSources(primary)) return primary;
-  if (hasCitableSources(evidenceProbe)) return evidenceProbe;
-  return primary ?? evidenceProbe;
+  const results = [primary, evidenceProbe].filter(
+    (result): result is AiWebSearchResult => Boolean(result),
+  );
+  if (!results.length) return undefined;
+
+  const sourcesByUrl = new Map<string, AiWebSearchResult["sources"][number]>();
+  const searchQueries = new Set<string>();
+  let reportedSearchCount = 0;
+  let hasReportedSearchCount = false;
+
+  for (const result of results) {
+    if (typeof result.searchCount === "number") {
+      reportedSearchCount += result.searchCount;
+      hasReportedSearchCount = true;
+    }
+    for (const query of result.searchQueries ?? []) {
+      if (query.trim()) searchQueries.add(query.trim());
+    }
+    for (const source of result.sources) {
+      const url = source.url.trim();
+      if (!url) continue;
+      const existing = sourcesByUrl.get(url);
+      const supportingText = new Set(existing?.supportingText ?? []);
+      for (const text of source.supportingText ?? []) {
+        if (text.trim()) supportingText.add(text.trim());
+      }
+      sourcesByUrl.set(url, {
+        url,
+        ...(existing?.title || source.title ? { title: existing?.title ?? source.title } : {}),
+        ...(supportingText.size ? { supportingText: [...supportingText] } : {}),
+      });
+    }
+  }
+
+  return {
+    executed: results.some(result => result.executed),
+    ...(hasReportedSearchCount ? { searchCount: reportedSearchCount } : {}),
+    sources: [...sourcesByUrl.values()],
+    ...(searchQueries.size ? { searchQueries: [...searchQueries] } : {}),
+  };
 }
 
 /**
@@ -148,7 +169,9 @@ function selectWebSearch(
  * schema. The original structured output remains canonical, while the probe
  * receives that exact answer so provider-linked supporting text can confirm or
  * refute the same numeric claims. Downstream validation still requires an
- * independently returned source/evidence match.
+ * independently returned source/evidence match. The probe's free-form output is
+ * never promoted to `supportingText`; only citation/grounding segments linked by
+ * the provider may establish provenance.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
@@ -167,8 +190,7 @@ export async function createDomainTextResponse(
     )
   : undefined;
   const usage = combineUsage(response.usage, evidenceProbe?.usage);
-  const evidenceProbeWebSearch = attachProbeEvidence(evidenceProbe?.webSearch, evidenceProbe?.outputText);
-  const webSearch = selectWebSearch(response.webSearch, evidenceProbeWebSearch);
+  const webSearch = combineWebSearch(response.webSearch, evidenceProbe?.webSearch);
 
   return {
     id: response.id,
