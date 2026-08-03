@@ -63,7 +63,7 @@ describe("domain text response boundary", () => {
   });
 
   it("recovers citable sources with an evidence-only request while preserving structured output", async () => {
-    const primaryOutput = '{"found":true}';
+    const primaryOutput = '{"found":true,"evidence":"220 kcal por unidade"}';
     const { provider, createTextResponse } = providerWithResponses(
       {
         id: "primary",
@@ -74,15 +74,13 @@ describe("domain text response boundary", () => {
       },
       {
         id: "evidence",
-        outputText: "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
+        outputText: "220 kcal por unidade",
         raw: {},
         webSearch: {
           executed: true,
           sources: [{
             url: "https://example.com/kitkat",
-            supportingText: [
-              "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
-            ],
+            supportingText: ["220 kcal por unidade"],
           }],
           searchQueries: ["KitKat ao leite 41,5g tabela nutricional"],
         },
@@ -99,14 +97,13 @@ describe("domain text response boundary", () => {
     });
     expect(createTextResponse.mock.calls[1][0].format).toBeUndefined();
     expect(createTextResponse.mock.calls[1][0].instructions).toContain("evidências da busca web");
+    expect(createTextResponse.mock.calls[1][0].instructions).toContain(primaryOutput);
     expect(result.outputText).toBe(primaryOutput);
     expect(result.webSearch).toEqual({
       executed: true,
       sources: [{
         url: "https://example.com/kitkat",
-        supportingText: [
-          "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
-        ],
+        supportingText: ["220 kcal por unidade"],
       }],
       searchQueries: ["KitKat ao leite 41,5g tabela nutricional"],
     });
