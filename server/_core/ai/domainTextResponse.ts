@@ -167,22 +167,27 @@ function buildEvidenceProbeRequest(
   request: AiProviderTextRequest,
   structuredOutput: string,
 ): AiProviderTextRequest {
-  const { format: _format, ...withoutFormat } = request;
+  const { format: _format, instructions: _instructions, input: _input, ...baseRequest } = request;
   const evidenceInstruction = [
-    "Esta chamada adicional serve somente para recuperar evidências da busca web.",
-    "Execute a busca e responda em texto simples, sem JSON estruturado.",
-    "Verifique independentemente os dados da resposta estruturada abaixo.",
-    "Se os dados forem confirmados, escreva uma linha por fonte com porção, calorias, proteínas, carboidratos e gorduras, seguida imediatamente pela citação nativa dessa fonte.",
-    "Use somente fonte cuja página exponha literalmente todos esses valores; uma página que apenas identifica o produto é insuficiente.",
-    "Não escreva uma linha de dados sem a citação correspondente na mesma linha.",
-    "Se não forem confirmados, explique a divergência sem inventar ou adaptar valores.",
+    "Você está executando uma verificação isolada de procedência nutricional.",
+    "Use a ferramenta de busca web e verifique diretamente a página da fonte.",
+    "A resposta deve conter somente uma linha no formato:",
+    "Porção <gramas> g; <calorias> kcal; proteínas <valor> g; carboidratos <valor> g; gorduras <valor> g. <citação nativa>",
+    "A mesma linha deve conter todos os cinco valores e a citação nativa imediatamente após a afirmação.",
+    "Uma frase como 'encontrei a tabela nutricional' ou uma página que apenas identifica o produto é insuficiente.",
+    "Copie os números da fonte consultada; não use os números abaixo como prova.",
+    "Se a página não expuser literalmente todos os valores, responda somente: NÃO CONFIRMADO.",
     "Resposta estruturada a verificar:",
     structuredOutput,
   ].join("\n");
 
   return {
-    ...withoutFormat,
-    instructions: [request.instructions, evidenceInstruction].filter(Boolean).join("\n"),
+    ...baseRequest,
+    instructions: evidenceInstruction,
+    input: [{
+      role: "user",
+      content: "Verifique na web a procedência da resposta estruturada fornecida nas instruções.",
+    }],
   };
 }
 
@@ -277,13 +282,13 @@ function combineWebSearch(
  *
  * Providers may return a structured answer and a list of visited URLs without
  * citation-linked supporting text. For structured web searches only, a response
- * without evidence-bearing sources triggers one evidence-only request without the
- * schema. For nutrition-shaped results, a generic cited product description is
- * also insufficient, while a cited nutrition claim is left to the stricter
- * downstream completeness validator without another outbound call. The original
- * structured output remains canonical. The probe's free-form output is never
- * promoted on its own. A provider-linked citation marker may expand only to the
- * exact line that contains that marker; URL-only sources remain without evidence.
+ * without evidence-bearing sources triggers one isolated evidence-only request.
+ * For nutrition-shaped results, a generic cited product description is also
+ * insufficient, while a cited nutrition claim is left to the stricter downstream
+ * completeness validator without another outbound call. The original structured
+ * output remains canonical. The probe's free-form output is never promoted on
+ * its own. A provider-linked citation marker may expand only to the exact line
+ * that contains that marker; URL-only sources remain without evidence.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
