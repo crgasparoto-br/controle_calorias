@@ -56,14 +56,6 @@ function requestsStructuredWebSearch(request: AiProviderTextRequest): boolean {
     && request.tools?.some(tool => tool.type === "web_search") === true;
 }
 
-function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
-  return webSearch?.executed === true
-    && webSearch.sources.some(source => source.supportingText?.some(text => {
-      const normalized = text.trim();
-      return normalized.length > 0 && !isCitationMarker(normalized);
-    }));
-}
-
 function parseStructuredSearchOutput(outputText: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(outputText) as unknown;
@@ -75,18 +67,72 @@ function parseStructuredSearchOutput(outputText: string): Record<string, unknown
   }
 }
 
+function isCitationMarker(text: string): boolean {
+  return /^\s*(?:\(\s*)?\[[^\]]+\]\(https?:\/\/[^)]+\)(?:\s*\))?\s*$/u.test(text);
+}
+
+const NUTRITION_RESULT_FIELDS = [
+  "gramsPerServing",
+  "calories",
+  "protein",
+  "carbs",
+  "fat",
+] as const;
+
+function structuredNutritionValues(
+  parsed: Record<string, unknown>,
+): number[] | null {
+  const values = NUTRITION_RESULT_FIELDS.map(field => parsed[field]);
+  return values.every((value): value is number => typeof value === "number" && Number.isFinite(value))
+    ? values
+    : null;
+}
+
+function textContainsNumber(text: string, value: number): boolean {
+  const candidates = new Set([
+    String(value),
+    String(value).replace(".", ","),
+  ]);
+  return [...candidates].some(candidate => new RegExp(
+    `(^|[^0-9])${candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^0-9]|$)`,
+    "u",
+  ).test(text));
+}
+
+function sourceTextCanSupportStructuredResult(
+  text: string,
+  parsed: Record<string, unknown>,
+): boolean {
+  const normalized = text.trim();
+  if (!normalized || isCitationMarker(normalized)) return false;
+  const nutritionValues = structuredNutritionValues(parsed);
+  if (!nutritionValues) return true;
+  return nutritionValues.every(value => textContainsNumber(normalized, value));
+}
+
+function hasCitableSources(
+  webSearch: AiWebSearchResult | undefined,
+  parsed: Record<string, unknown>,
+): boolean {
+  return webSearch?.executed === true
+    && webSearch.sources.some(source => source.supportingText?.some(text => (
+      sourceTextCanSupportStructuredResult(text, parsed)
+    )));
+}
+
 function shouldRequestEvidenceProbe(
   request: AiProviderTextRequest,
   outputText: string,
   webSearch: AiWebSearchResult | undefined,
 ): boolean {
-  if (!requestsStructuredWebSearch(request) || hasCitableSources(webSearch)) return false;
+  if (!requestsStructuredWebSearch(request)) return false;
   const parsed = parseStructuredSearchOutput(outputText);
   if (
     parsed?.found !== true
     || typeof parsed.evidence !== "string"
     || parsed.evidence.trim().length === 0
   ) return false;
+  if (hasCitableSources(webSearch, parsed)) return false;
   if (request.model.startsWith("gemini-")) return true;
   return webSearch?.executed === true
     && webSearch.sources.length > 0
@@ -104,6 +150,7 @@ function buildEvidenceProbeRequest(
     "Execute a busca e responda em texto simples, sem JSON estruturado.",
     "Verifique independentemente os dados da resposta estruturada abaixo.",
     "Se os dados forem confirmados, escreva uma linha por fonte com porção, calorias, proteínas, carboidratos e gorduras, seguida imediatamente pela citação nativa dessa fonte.",
+    "Use somente fonte cuja página exponha literalmente todos esses valores; uma página que apenas identifica o produto é insuficiente.",
     "Não escreva uma linha de dados sem a citação correspondente na mesma linha.",
     "Se não forem confirmados, explique a divergência sem inventar ou adaptar valores.",
     "Resposta estruturada a verificar:",
@@ -114,10 +161,6 @@ function buildEvidenceProbeRequest(
     ...withoutFormat,
     instructions: [request.instructions, evidenceInstruction].filter(Boolean).join("\n"),
   };
-}
-
-function isCitationMarker(text: string): boolean {
-  return /^\s*(?:\(\s*)?\[[^\]]+\]\(https?:\/\/[^)]+\)(?:\s*\))?\s*$/u.test(text);
 }
 
 function expandCitationLinkedLines(
@@ -212,14 +255,12 @@ function combineWebSearch(
  * Providers may return a structured answer and a list of visited URLs without
  * citation-linked supporting text. For structured web searches only, a response
  * without evidence-bearing sources triggers one evidence-only request without the
- * schema. The original structured output remains canonical, while the probe
- * receives that exact answer so provider-linked supporting text can confirm or
- * refute the same numeric claims. Downstream validation still requires an
- * independently returned source/evidence match. The probe's free-form output is
- * never promoted on its own. A provider-linked citation marker may expand only
- * to the exact line that contains that marker; URL-only sources remain without
- * evidence. Only citation/grounding segments linked by the provider establish
- * provenance.
+ * schema. For nutrition-shaped results, a generic cited product description is
+ * also insufficient: the linked text must contain the structured portion,
+ * calories and macronutrient values or the probe is attempted. The original
+ * structured output remains canonical. The probe's free-form output is never
+ * promoted on its own. A provider-linked citation marker may expand only to the
+ * exact line that contains that marker; URL-only sources remain without evidence.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
