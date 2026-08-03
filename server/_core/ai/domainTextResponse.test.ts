@@ -182,6 +182,33 @@ describe("domain text response boundary", () => {
     const result = await createDomainTextResponse(provider, structuredSearchRequest);
 
     expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(result.webSearch).toEqual({
+      executed: true,
+      sources: [{
+        url: "https://example.com/kitkat",
+        supportingText: ["não confirmado"],
+      }],
+    });
+  });
+
+  it("does not manufacture evidence when the probe output is empty", async () => {
+    const { provider } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true}',
+        raw: {},
+        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+      {
+        id: "probe",
+        outputText: "   ",
+        raw: {},
+        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+    );
+
+    const result = await createDomainTextResponse(provider, structuredSearchRequest);
+
     expect(result.webSearch).toEqual({ executed: true, sources: [{ url: "https://example.com/kitkat" }] });
   });
 
