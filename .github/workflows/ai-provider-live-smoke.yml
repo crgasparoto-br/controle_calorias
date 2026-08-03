@@ -24,7 +24,7 @@ on:
       nutrition_query:
         description: Packaged product used by NUTRITION_SEARCH
         required: true
-        default: KitKat ao leite 41,5g
+        default: Trento Speciale Branco 26g
         type: string
 
 permissions:
@@ -50,7 +50,7 @@ jobs:
         provider: ${{ fromJSON((inputs.provider || 'both') == 'both' && '["openai","gemini"]' || format('["{0}"]', inputs.provider)) }}
     env:
       SMOKE_PROVIDER: ${{ matrix.provider }}
-      SMOKE_NUTRITION_QUERY: ${{ inputs.nutrition_query || 'KitKat ao leite 41,5g' }}
+      SMOKE_NUTRITION_QUERY: ${{ inputs.nutrition_query || 'Trento Speciale Branco 26g' }}
       SMOKE_NUTRITION_ATTEMPTS: "3"
 
     steps:
