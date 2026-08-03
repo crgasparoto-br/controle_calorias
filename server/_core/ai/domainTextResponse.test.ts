@@ -1,6 +1,35 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AiProvider } from "../aiProvider";
+import type {
+  AiProvider,
+  AiProviderTextRequest,
+  AiProviderTextResponse,
+} from "../aiProvider";
 import { createDomainTextResponse } from "./domainTextResponse";
+
+function providerWithResponses(...responses: AiProviderTextResponse[]) {
+  const createTextResponse = vi.fn();
+  for (const response of responses) createTextResponse.mockResolvedValueOnce(response);
+  return {
+    provider: { createTextResponse } as unknown as AiProvider,
+    createTextResponse,
+  };
+}
+
+const structuredSearchRequest = {
+  model: "gemini-3.5-flash",
+  instructions: "Pesquise o produto e retorne JSON.",
+  input: [{ role: "user", content: "KitKat ao leite 41,5g" }],
+  tools: [{ type: "web_search" }],
+  format: {
+    type: "json_schema",
+    name: "nutrition",
+    schema: {
+      type: "object",
+      properties: { found: { type: "boolean" } },
+      required: ["found"],
+    },
+  },
+} satisfies AiProviderTextRequest;
 
 describe("domain text response boundary", () => {
   it("removes SDK raw payloads from the response exposed to domain services", async () => {
@@ -31,5 +60,89 @@ describe("domain text response boundary", () => {
     expect(JSON.stringify(result)).not.toContain("raw");
     expect(JSON.stringify(result)).not.toContain("providerSpecific");
     expect(JSON.stringify(result)).not.toContain("full-response");
+  });
+
+  it("recovers citable sources with an evidence-only request while preserving structured output", async () => {
+    const primaryOutput = '{"found":true}';
+    const { provider, createTextResponse } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: primaryOutput,
+        raw: {},
+        webSearch: { executed: false, sources: [] },
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15, raw: {} },
+      },
+      {
+        id: "evidence",
+        outputText: "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{
+            url: "https://example.com/kitkat",
+            supportingText: [
+              "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
+            ],
+          }],
+          searchQueries: ["KitKat ao leite 41,5g tabela nutricional"],
+        },
+        usage: { inputTokens: 7, outputTokens: 4, totalTokens: 11, raw: {} },
+      },
+    );
+
+    const result = await createDomainTextResponse(provider, structuredSearchRequest);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(createTextResponse.mock.calls[1][0]).toMatchObject({
+      model: "gemini-3.5-flash",
+      tools: [{ type: "web_search" }],
+    });
+    expect(createTextResponse.mock.calls[1][0].format).toBeUndefined();
+    expect(createTextResponse.mock.calls[1][0].instructions).toContain("evidências da busca web");
+    expect(result.outputText).toBe(primaryOutput);
+    expect(result.webSearch).toEqual({
+      executed: true,
+      sources: [{
+        url: "https://example.com/kitkat",
+        supportingText: [
+          "KitKat 41,5 g: 220 kcal, 3,3 g de proteínas, 24 g de carboidratos e 12 g de gorduras.",
+        ],
+      }],
+      searchQueries: ["KitKat ao leite 41,5g tabela nutricional"],
+    });
+    expect(result.usage).toEqual({ inputTokens: 17, outputTokens: 9, totalTokens: 26 });
+  });
+
+  it("does not issue an evidence probe when the structured response already has sources", async () => {
+    const source = { url: "https://example.com/kitkat" };
+    const { provider, createTextResponse } = providerWithResponses({
+      id: "primary",
+      outputText: '{"found":true}',
+      raw: {},
+      webSearch: { executed: true, sources: [source] },
+    });
+
+    const result = await createDomainTextResponse(provider, structuredSearchRequest);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(1);
+    expect(result.webSearch).toEqual({ executed: true, sources: [source] });
+  });
+
+  it("does not duplicate an ordinary unstructured web search", async () => {
+    const { provider, createTextResponse } = providerWithResponses({
+      id: "primary",
+      outputText: "resposta",
+      raw: {},
+      webSearch: { executed: false, sources: [] },
+    });
+    const request = {
+      model: "gemini-3.5-flash",
+      input: [{ role: "user", content: "pergunta geral" }],
+      tools: [{ type: "web_search" }],
+    } satisfies AiProviderTextRequest;
+
+    await createDomainTextResponse(provider, request);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(1);
   });
 });
