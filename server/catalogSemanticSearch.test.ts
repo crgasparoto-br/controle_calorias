@@ -321,13 +321,11 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       sourceUrl: "https://fonte-inventada.example/produto",
       evidence: "Tabela nutricional oficial.",
       webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-      expectedProviderCalls: 2,
     },
   ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
     sourceUrl,
     evidence,
     webSearch,
-    expectedProviderCalls = 1,
   }) => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
@@ -350,7 +348,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
 
     expect(result).toBeNull();
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
-    expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejeita fonte que omite qualquer macronutriente estruturado", async () => {

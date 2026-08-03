@@ -13,8 +13,8 @@ const request = {
   },
 } satisfies AiProviderTextRequest;
 
-describe("nutrition provenance recovery", () => {
-  it("probes when a cited product description lacks the structured nutrition values", async () => {
+describe("nutrition provenance boundary", () => {
+  it("does not issue a hidden recovery call when the first response lacks nutrition evidence", async () => {
     const outputText = JSON.stringify({
       found: true,
       sourceUrl: "https://nutrition.test/product",
@@ -25,37 +25,29 @@ describe("nutrition provenance recovery", () => {
       carbs: 12,
       fat: 10,
     });
-    const createTextResponse = vi.fn()
-      .mockResolvedValueOnce({
-        id: "primary",
-        outputText,
-        raw: {},
-        webSearch: {
-          executed: true,
-          sources: [{
-            url: "https://nutrition.test/product",
-            supportingText: ["Produto Trento Speciale Branco identificado na página oficial."],
-          }],
-        },
-      })
-      .mockResolvedValueOnce({
-        id: "probe",
-        outputText: "Porção 26 g, 147 kcal, proteínas 2,3 g, carboidratos 12 g e gorduras 10 g.",
-        raw: {},
-        webSearch: {
-          executed: true,
-          sources: [{
-            url: "https://nutrition.test/product",
-            supportingText: ["Porção 26 g, 147 kcal, proteínas 2,3 g, carboidratos 12 g e gorduras 10 g."],
-          }],
-        },
-      });
+    const createTextResponse = vi.fn().mockResolvedValue({
+      id: "primary",
+      outputText,
+      raw: {},
+      webSearch: {
+        executed: true,
+        searchCount: 1,
+        sources: [{
+          url: "https://nutrition.test/product",
+          supportingText: ["Produto Trento Speciale Branco identificado na página oficial."],
+        }],
+      },
+    });
 
-    const result = await createDomainTextResponse({ createTextResponse } as unknown as AiProvider, request);
-
-    expect(createTextResponse).toHaveBeenCalledTimes(2);
-    expect(result.webSearch?.sources[0]?.supportingText).toContain(
-      "Porção 26 g, 147 kcal, proteínas 2,3 g, carboidratos 12 g e gorduras 10 g.",
+    const result = await createDomainTextResponse(
+      { createTextResponse } as unknown as AiProvider,
+      request,
     );
+
+    expect(createTextResponse).toHaveBeenCalledTimes(1);
+    expect(result.webSearch?.searchCount).toBe(1);
+    expect(result.webSearch?.sources[0]?.supportingText).toEqual([
+      "Produto Trento Speciale Branco identificado na página oficial.",
+    ]);
   });
 });
