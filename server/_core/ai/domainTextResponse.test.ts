@@ -180,32 +180,92 @@ describe("domain text response boundary", () => {
     expect(result.webSearch?.sources[0]?.supportingText).toEqual(["220 kcal por unidade de 41,5 g"]);
   });
 
-  it("treats URL-only sources as insufficient for structured nutrition evidence", async () => {
+  it("does not treat free-form probe output as source-linked evidence", async () => {
     const { provider, createTextResponse } = providerWithResponses(
       {
         id: "primary",
-        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
+        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras 11,2 g."}',
         raw: {},
-        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+        webSearch: { executed: true, searchCount: 1, sources: [{ url: "https://example.com/kitkat" }] },
       },
       {
         id: "probe",
-        outputText: "não confirmado",
+        outputText: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras 11,2 g.",
         raw: {},
-        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+        webSearch: { executed: true, searchCount: 1, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+    );
+
+    const request = { ...structuredSearchRequest, model: "gpt-4.1-mini" } satisfies AiProviderTextRequest;
+    const result = await createDomainTextResponse(provider, request);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(result.webSearch).toEqual({
+      executed: true,
+      searchCount: 2,
+      sources: [{ url: "https://example.com/kitkat" }],
+    });
+  });
+
+  it("keeps multiple URL-only sources without assigning the probe text to any of them", async () => {
+    const { provider } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true,"sourceUrl":"https://example.com/a","evidence":"220 kcal por unidade"}',
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
+        },
+      },
+      {
+        id: "probe",
+        outputText: "220 kcal por unidade",
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
+        },
       },
     );
 
     const result = await createDomainTextResponse(provider, structuredSearchRequest);
 
-    expect(createTextResponse).toHaveBeenCalledTimes(2);
-    expect(result.webSearch).toEqual({
-      executed: true,
-      sources: [{
-        url: "https://example.com/kitkat",
-        supportingText: ["não confirmado"],
-      }],
-    });
+    expect(result.webSearch?.sources).toEqual([
+      { url: "https://example.com/a" },
+      { url: "https://example.com/b" },
+    ]);
+    expect(result.webSearch?.sources.every(source => source.supportingText === undefined)).toBe(true);
+  });
+
+  it("preserves native support for one source without copying it to URL-only siblings", async () => {
+    const { provider } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true,"sourceUrl":"https://example.com/a","evidence":"220 kcal por unidade"}',
+        raw: {},
+        webSearch: { executed: false, sources: [] },
+      },
+      {
+        id: "probe",
+        outputText: "220 kcal por unidade",
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [
+            { url: "https://example.com/a", supportingText: ["220 kcal por unidade"] },
+            { url: "https://example.com/b" },
+          ],
+        },
+      },
+    );
+
+    const result = await createDomainTextResponse(provider, structuredSearchRequest);
+
+    expect(result.webSearch?.sources).toEqual([
+      { url: "https://example.com/a", supportingText: ["220 kcal por unidade"] },
+      { url: "https://example.com/b" },
+    ]);
   });
 
   it("does not manufacture evidence when the probe output is empty", async () => {
