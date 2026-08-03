@@ -385,6 +385,22 @@ function normalizeHttpUrl(value: unknown): string | null {
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     url.hash = "";
     if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/u, "");
+
+    // Search providers may append attribution parameters to an otherwise
+    // identical cited URL. Ignore tracking-only parameters while preserving
+    // functional query parameters that can identify a different resource.
+    for (const key of [...url.searchParams.keys()]) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.startsWith("utm_")
+        || normalizedKey === "gclid"
+        || normalizedKey === "fbclid"
+      ) {
+        url.searchParams.delete(key);
+      }
+    }
+    url.searchParams.sort();
+
     return url.toString();
   } catch {
     return null;

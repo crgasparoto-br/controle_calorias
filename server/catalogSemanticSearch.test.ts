@@ -156,6 +156,37 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a cited source when the provider appends tracking parameters", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "KITKAT AO LEITE 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/",
+      evidence: "A página informa o produto KitKat ao leite de 41,5 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/?utm_source=openai",
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat ao leite 41,5g", "chocolate");
+
+    expect(result).not.toBeNull();
+    expect(result?.aliases).toContain(
+      "fonte: https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/?utm_source=openai",
+    );
+  });
+
   it("returns null (without fabricating data) when confidence is below the threshold", async () => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
