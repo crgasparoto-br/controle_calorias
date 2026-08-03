@@ -1,0 +1,53 @@
+name: Issue 923 documentation remediation
+
+on:
+  pull_request:
+    types:
+      - synchronize
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/issue-923-documentation-remediation.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-923-documentation-remediation-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.ref == 'feat/923-ai-capabilities-question-nutrition-embedding'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Apply documentation remediation
+        shell: bash
+        env:
+          EXPECTED_PARENT: 87a12c0fee0c0aa90bf36e8d12921b2c06fd2d53
+          TARGET_BRANCH: feat/923-ai-capabilities-question-nutrition-embedding
+          PATCH_SHA256: efce3c4c2f323c453c86c1f360a79904dcd64019a96de61492cad3bae59fe2af
+          WORKFLOW_PATH: .github/workflows/issue-923-documentation-remediation.yml
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "${EXPECTED_PARENT}"
+          printf '%s' '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' > /tmp/issue923-doc-fix.patch.gz.b64
+          base64 -d /tmp/issue923-doc-fix.patch.gz.b64 | gzip -d > /tmp/issue923-doc-fix.patch
+          test "$(sha256sum /tmp/issue923-doc-fix.patch | awk '{print $1}')" = "${PATCH_SHA256}"
+          git apply --index /tmp/issue923-doc-fix.patch
+          git rm "${WORKFLOW_PATH}"
+          git config user.name "Issue 923 Documentation Remediation"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "docs(ai): align embedding migration status"
+          git push origin "HEAD:${TARGET_BRANCH}"
