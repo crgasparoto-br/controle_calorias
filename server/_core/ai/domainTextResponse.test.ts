@@ -127,6 +127,39 @@ describe("domain text response boundary", () => {
     expect(createTextResponse).toHaveBeenCalledTimes(1);
   });
 
+  it("issues an evidence probe when the primary source contains only a citation marker", async () => {
+    const citation = "([example.com](https://example.com/kitkat))";
+    const { provider, createTextResponse } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/kitkat", supportingText: [citation] }],
+        },
+      },
+      {
+        id: "probe",
+        outputText: `Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras 11,2 g. ${citation}`,
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/kitkat", supportingText: [citation] }],
+        },
+      },
+    );
+    const request = { ...structuredSearchRequest, model: "gpt-4.1-mini" } satisfies AiProviderTextRequest;
+
+    const result = await createDomainTextResponse(provider, request);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(2);
+    expect(result.webSearch?.sources[0]?.supportingText).toEqual([
+      citation,
+      `Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras 11,2 g. ${citation}`,
+    ]);
+  });
+
   it("does not issue an evidence probe when the structured response already has evidence-bearing sources", async () => {
     const source = { url: "https://example.com/kitkat", supportingText: ["220 kcal por unidade de 41,5 g"] };
     const { provider, createTextResponse } = providerWithResponses({
