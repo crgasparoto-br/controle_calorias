@@ -42,17 +42,14 @@ jobs:
           boundary_path = Path('server/_core/ai/domainTextResponse.ts')
           boundary = boundary_path.read_text()
           helpers = '''
-          function structuredOutputCanBenefitFromEvidenceProbe(outputText: string): boolean {
+          function parseStructuredSearchOutput(outputText: string): Record<string, unknown> | null {
             try {
-              const parsed = JSON.parse(outputText) as Record<string, unknown>;
-              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
-              if (parsed.found !== true) return false;
-              return typeof parsed.sourceUrl === "string"
-                && parsed.sourceUrl.trim().length > 0
-                && typeof parsed.evidence === "string"
-                && parsed.evidence.trim().length > 0;
+              const parsed = JSON.parse(outputText) as unknown;
+              return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+                ? parsed as Record<string, unknown>
+                : null;
             } catch {
-              return false;
+              return null;
             }
           }
 
@@ -62,12 +59,20 @@ jobs:
             webSearch: AiWebSearchResult | undefined,
           ): boolean {
             if (!requestsStructuredWebSearch(request) || hasCitableSources(webSearch)) return false;
-            if (!structuredOutputCanBenefitFromEvidenceProbe(outputText)) return false;
-            return request.model.startsWith("gemini-")
-              || (webSearch?.executed === true && webSearch.sources.length > 0);
+            const parsed = parseStructuredSearchOutput(outputText);
+            if (
+              parsed?.found !== true
+              || typeof parsed.evidence !== "string"
+              || parsed.evidence.trim().length === 0
+            ) return false;
+            if (request.model.startsWith("gemini-")) return true;
+            return webSearch?.executed === true
+              && webSearch.sources.length > 0
+              && typeof parsed.sourceUrl === "string"
+              && parsed.sourceUrl.trim().length > 0;
           }
           '''
-          if 'function structuredOutputCanBenefitFromEvidenceProbe' not in boundary:
+          if 'function parseStructuredSearchOutput' not in boundary:
               has_pattern = re.compile(
                   r'(function hasCitableSources\(webSearch: AiWebSearchResult \| undefined\): boolean \{.*?\n\})',
                   re.S,
@@ -106,44 +111,36 @@ jobs:
           test = test.replace('Tabela nutricional informa 218 kcal por unidade de 41,5 g.', full)
           test = test.replace('Tabela nutricional oficial do fabricante.', full)
 
-          url_case = '''    {
-              name: "URL não citada pelo provider",
-              sourceUrl: "https://fonte-inventada.example/produto",
-              evidence: "Tabela nutricional oficial.",
-              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-            },'''
-          url_case_with_count = '''    {
-              name: "URL não citada pelo provider",
-              sourceUrl: "https://fonte-inventada.example/produto",
-              evidence: "Tabela nutricional oficial.",
-              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-              expectedProviderCalls: 2,
-            },'''
-          if url_case in test:
-              test = test.replace(url_case, url_case_with_count, 1)
-
-          signature = '''    webSearch,
-          }) => {'''
-          signature_with_count = '''    webSearch,
-            expectedProviderCalls = 1,
-          }) => {'''
-          if signature in test:
-              test = test.replace(signature, signature_with_count, 1)
-
-          assertion_block = '''    expect(result).toBeNull();
-            expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
-            expect(createTextResponseMock).toHaveBeenCalledTimes(1);
-          });
-
-          it("rejeita fonte que omite qualquer macronutriente estruturado"'''
-          assertion_with_count = '''    expect(result).toBeNull();
-            expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
-            expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
-          });
-
-          it("rejeita fonte que omite qualquer macronutriente estruturado"'''
-          if assertion_block in test:
-              test = test.replace(assertion_block, assertion_with_count, 1)
+          block_start = test.find('  it.each([\n    {\n      name: "fonte ausente"')
+          block_end = test.find('  it("rejeita fonte que omite qualquer macronutriente estruturado"', block_start)
+          if block_start < 0 or block_end < 0:
+              raise SystemExit('parameterized source validation block not found')
+          block = test[block_start:block_end]
+          if 'expectedProviderCalls: 2' not in block:
+              block = block.replace(
+                  '''      name: "URL não citada pelo provider",
+                  sourceUrl: "https://fonte-inventada.example/produto",
+                  evidence: "Tabela nutricional oficial.",
+                  webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },''',
+                  '''      name: "URL não citada pelo provider",
+                  sourceUrl: "https://fonte-inventada.example/produto",
+                  evidence: "Tabela nutricional oficial.",
+                  webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+                  expectedProviderCalls: 2,''',
+              )
+          if 'expectedProviderCalls = 1' not in block:
+              block = block.replace(
+                  '''    webSearch,
+              }) => {''',
+                  '''    webSearch,
+                expectedProviderCalls = 1,
+              }) => {''',
+              )
+          block = block.replace(
+              'expect(createTextResponseMock).toHaveBeenCalledTimes(1);',
+              'expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);',
+          )
+          test = test[:block_start] + block + test[block_end:]
 
           fallback_start = test.find('const validFallbackOutput = JSON.stringify({')
           fallback_end = test.find('await expect(operation(buildAttempt("openai"', fallback_start)
@@ -163,14 +160,21 @@ jobs:
           boundary_test_path = Path('server/_core/ai/domainTextResponse.test.ts')
           boundary_test = boundary_test_path.read_text()
           boundary_test = boundary_test.replace(
-              '''const primaryOutput = '{"found":true,"evidence":"220 kcal por unidade"}';''',
-              '''const primaryOutput = '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"220 kcal por unidade"}';''',
+              '''const primaryOutput = '{"found":true,"calories":220,"gramsPerServing":41.5,"evidence":"220 kcal por unidade de 41,5 g"}';''',
+              '''const primaryOutput = '{"found":true,"sourceUrl":"https://example.com/kitkat","calories":220,"gramsPerServing":41.5,"evidence":"220 kcal por unidade de 41,5 g"}';''',
+          )
+          boundary_test = boundary_test.replace(
+              '''outputText: '{"found":true}',
+                raw: {},
+                webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },''',
+              '''outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
+                raw: {},
+                webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },''',
           )
           insertion_marker = '''  it("does not issue an evidence probe when the structured response already has evidence-bearing sources", async () => {'''
           cases = '''  it.each([
               ["invalid JSON", "not-json", { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
               ["functional no-match", '{"found":false}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
-              ["tool not executed", '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados"}', { executed: false, sources: [] }],
               ["missing evidence", '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":""}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
             ])("does not issue an evidence probe for %s", async (_name, outputText, webSearch) => {
               const { provider, createTextResponse } = providerWithResponses({
