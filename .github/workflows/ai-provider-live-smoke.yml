@@ -63,8 +63,8 @@ jobs:
             gemini)
               model="${GEMINI_MODEL:-gemini-3.5-flash}"
               if [[ ! "${model}" =~ ^gemini-3([.-]|$) ]]; then
-                echo "::error::AI_SMOKE_GEMINI_MODEL must be a Gemini 3 model because NUTRITION_SEARCH combines structured output with web search. Current value: ${model}"
-                exit 1
+                echo "::warning::AI_SMOKE_GEMINI_MODEL=${model} is incompatible with structured output plus web search; using gemini-3.5-flash."
+                model="gemini-3.5-flash"
               fi
               ;;
             *)
