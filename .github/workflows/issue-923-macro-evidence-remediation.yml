@@ -1,0 +1,121 @@
+name: Issue 923 macro evidence remediation
+
+on:
+  push:
+    branches:
+      - feat/923-ai-capabilities-question-nutrition-embedding
+    paths:
+      - .github/workflows/issue-923-macro-evidence-remediation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/923-ai-capabilities-question-nutrition-embedding
+          fetch-depth: 0
+
+      - name: Patch parser and regression test
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          source_path = Path("server/catalogSemanticSearch.ts")
+          source = source_path.read_text()
+          old = r'''  const patterns = [
+            new RegExp(`(?:${labelPattern})[^\\d]{0,24}(-?\\d+(?:[.,]\\d+)?)\\s*g`, "giu"),
+            new RegExp(`(-?\\d+(?:[.,]\\d+)?)\\s*g[^a-z0-9]{0,12}(?:${labelPattern})`, "giu"),
+          ];'''
+          new = r'''  const patterns = [
+            new RegExp(
+              `(?:${labelPattern})[^\\p{L}\\d]{0,16}(-?\\d+(?:[.,]\\d+)?)\\s*g`,
+              "giu",
+            ),
+            new RegExp(
+              `(-?\\d+(?:[.,]\\d+)?)\\s*g\\s*(?:de\\s+)?[^\\p{L}\\d]{0,8}(?:${labelPattern})`,
+              "giu",
+            ),
+          ];'''
+          if old not in source:
+              raise SystemExit("expected macro extraction block not found")
+          source_path.write_text(source.replace(old, new, 1))
+
+          test_path = Path("server/catalogSemanticSearch.test.ts")
+          tests = test_path.read_text()
+          anchor = '''  it("rejeita URI opaca quando o grounding não sustenta a evidência nutricional", async () => {'''
+          regression = '''  it("aceita macros antes dos rótulos no grounding do Gemini", async () => {
+            resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+            createTextResponseMock.mockResolvedValue({});
+            mockExecuteWithOutput(JSON.stringify({
+              found: true,
+              matchedProductName: "Chocolate KitKat Ao Leite 41,5g",
+              brandName: "Nestlé",
+              servingLabel: "1 unidade",
+              gramsPerServing: 41.5,
+              calories: 220,
+              protein: 3.3,
+              carbs: 24,
+              fat: 12,
+              confidence: 1,
+              sourceUrl: "https://www.lojasantoantonio.com.br/chocolate-kitkat-ao-leite-41-5g-24-unidades-nestle",
+              evidence: "De acordo com a tabela nutricional do KitKat ao leite de 41,5g (1 unidade) fornecida pela Loja Santo Antônio, a porção contém 220 kcal, 24g de carboidratos, 3,3g de proteínas e 12g de gorduras.",
+            }), {
+              executed: true,
+              sources: [{
+                url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-live-token",
+                title: "lojasantoantonio.com.br",
+                supportingText: [
+                  "De acordo com a tabela nutricional do KitKat ao leite de 41,5g (1 unidade) fornecida pela Loja Santo Antônio, a porção contém 220 kcal, 24g de carboidratos, 3,3g de proteínas e 12g de gorduras",
+                ],
+              }],
+            });
+
+            const result = await findPackagedSnackByWebSearch("KitKat ao leite 41,5g", "chocolate");
+
+            expect(result).not.toBeNull();
+            expect(result?.aliases).toContain(
+              "fonte: https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-live-token",
+            );
+          });
+
+'''
+          if regression in tests:
+              raise SystemExit("regression test already present")
+          if anchor not in tests:
+              raise SystemExit("test insertion anchor not found")
+          test_path.write_text(tests.replace(anchor, regression + anchor, 1))
+          PY
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run focused validation
+        run: |
+          pnpm exec vitest run server/catalogSemanticSearch.test.ts --maxWorkers=1 --minWorkers=1
+          pnpm check
+
+      - name: Commit remediation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/catalogSemanticSearch.ts server/catalogSemanticSearch.test.ts
+          git commit -m "fix(ai): aceitar macros antes dos rótulos no grounding"
+          git push origin HEAD:feat/923-ai-capabilities-question-nutrition-embedding
