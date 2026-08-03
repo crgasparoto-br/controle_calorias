@@ -1,0 +1,183 @@
+name: Issue 923 stabilize evidence probe
+
+on:
+  push:
+    branches:
+      - feat/923-ai-capabilities-question-nutrition-embedding
+
+permissions:
+  contents: write
+
+jobs:
+  stabilize:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/923-ai-capabilities-question-nutrition-embedding
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Stabilize evidence probe and fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          boundary_path = Path('server/_core/ai/domainTextResponse.ts')
+          boundary = boundary_path.read_text()
+          marker = '''function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
+            return webSearch?.executed === true
+              && webSearch.sources.some(source => source.supportingText?.some(text => text.trim().length > 0));
+          }
+          '''
+          addition = marker + '''
+          function structuredOutputCanBenefitFromEvidenceProbe(outputText: string): boolean {
+            try {
+              const parsed = JSON.parse(outputText) as Record<string, unknown>;
+              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+              if (!("found" in parsed)) return true;
+              if (parsed.found !== true) return false;
+              return typeof parsed.sourceUrl === "string"
+                && parsed.sourceUrl.trim().length > 0
+                && typeof parsed.evidence === "string"
+                && parsed.evidence.trim().length > 0;
+            } catch {
+              return false;
+            }
+          }
+
+          function shouldRequestEvidenceProbe(
+            request: AiProviderTextRequest,
+            outputText: string,
+            webSearch: AiWebSearchResult | undefined,
+          ): boolean {
+            return requestsStructuredWebSearch(request)
+              && webSearch?.executed === true
+              && webSearch.sources.length > 0
+              && !hasCitableSources(webSearch)
+              && structuredOutputCanBenefitFromEvidenceProbe(outputText);
+          }
+          '''
+          if boundary.count(marker) != 1:
+              raise SystemExit('hasCitableSources marker not found exactly once')
+          boundary = boundary.replace(marker, addition)
+          old_probe = '''  const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
+            ? await provider.createTextResponse(
+                buildEvidenceProbeRequest(request, response.outputText),
+                options,
+              )
+            : undefined;'''
+          new_probe = '''  const evidenceProbe = shouldRequestEvidenceProbe(
+            request,
+            response.outputText,
+            response.webSearch,
+          )
+            ? await provider.createTextResponse(
+                buildEvidenceProbeRequest(request, response.outputText),
+                options,
+              )
+            : undefined;'''
+          if boundary.count(old_probe) != 1:
+              raise SystemExit('evidence probe block not found exactly once')
+          boundary_path.write_text(boundary.replace(old_probe, new_probe))
+
+          test_path = Path('server/catalogSemanticSearch.test.ts')
+          test = test_path.read_text()
+          full = 'Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.'
+          test = test.replace('Tabela nutricional informa 218 kcal por unidade de 41,5 g.', full)
+          test = test.replace('Tabela nutricional oficial do fabricante.', full)
+
+          old_case = '''    {
+              name: "URL não citada pelo provider",
+              sourceUrl: "https://fonte-inventada.example/produto",
+              evidence: "Tabela nutricional oficial.",
+              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+            },'''
+          new_case = '''    {
+              name: "URL não citada pelo provider",
+              sourceUrl: "https://fonte-inventada.example/produto",
+              evidence: "Tabela nutricional oficial.",
+              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+              expectedProviderCalls: 2,
+            },'''
+          if test.count(old_case) != 1:
+              raise SystemExit('URL non-cited case not found exactly once')
+          test = test.replace(old_case, new_case)
+          old_signature = '''    webSearch,
+          }) => {'''
+          new_signature = '''    webSearch,
+            expectedProviderCalls = 1,
+          }) => {'''
+          if test.count(old_signature) != 1:
+              raise SystemExit('parameterized signature not found exactly once')
+          test = test.replace(old_signature, new_signature)
+          old_expect = '''    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+          });
+
+          it("rejeita fonte que omite qualquer macronutriente estruturado"'''
+          new_expect = '''    expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
+          });
+
+          it("rejeita fonte que omite qualquer macronutriente estruturado"'''
+          if test.count(old_expect) != 1:
+              raise SystemExit('parameterized expectation not found exactly once')
+          test = test.replace(old_expect, new_expect)
+
+          fallback_source = '''            webSearch: {
+                  executed: true,
+                  sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
+                },'''
+          fallback_replacement = '''            webSearch: {
+                  executed: true,
+                  sources: [{
+                    url: "https://www.nestle.com.br/marcas/kitkat",
+                    supportingText: ["Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."],
+                  }],
+                },'''
+          if test.count(fallback_source) < 1:
+              raise SystemExit('fallback source fixture not found')
+          test = test.replace(fallback_source, fallback_replacement, 1)
+          test_path.write_text(test)
+
+          boundary_test_path = Path('server/_core/ai/domainTextResponse.test.ts')
+          boundary_test = boundary_test_path.read_text()
+          insertion_marker = '''  it("does not issue an evidence probe when the structured response already has evidence-bearing sources", async () => {'''
+          cases = '''  it.each([
+              ["invalid JSON", "not-json", { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+              ["functional no-match", '{"found":false}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+              ["tool not executed", '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados"}', { executed: false, sources: [] }],
+              ["missing evidence", '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":""}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+            ])("does not issue an evidence probe for %s", async (_name, outputText, webSearch) => {
+              const { provider, createTextResponse } = providerWithResponses({
+                id: "primary",
+                outputText,
+                raw: {},
+                webSearch,
+              });
+
+              await createDomainTextResponse(provider, structuredSearchRequest);
+
+              expect(createTextResponse).toHaveBeenCalledTimes(1);
+            });
+
+          '''
+          if cases not in boundary_test:
+              if boundary_test.count(insertion_marker) != 1:
+                  raise SystemExit('boundary test insertion marker not found')
+              boundary_test_path.write_text(boundary_test.replace(insertion_marker, cases + insertion_marker))
+          PY
+          rm -f .github/workflows/issue-923-stabilize-evidence-probe.yml
+          git diff --check
+          pnpm exec vitest run server/_core/ai/domainTextResponse.test.ts server/catalogSemanticSearch.test.ts --maxWorkers=1 --minWorkers=1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ai): estabilizar recuperação de evidência pesquisada"
+          git push origin HEAD:feat/923-ai-capabilities-question-nutrition-embedding
