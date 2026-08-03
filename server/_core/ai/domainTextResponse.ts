@@ -51,8 +51,9 @@ function combineUsage(
   };
 }
 
-function requestsStructuredWebSearch(request: AiProviderTextRequest): boolean {
-  return request.format?.type === "json_schema"
+function requestsGeminiStructuredWebSearch(request: AiProviderTextRequest): boolean {
+  return request.model.trim().toLowerCase().startsWith("gemini-")
+    && request.format?.type === "json_schema"
     && request.tools?.some(tool => tool.type === "web_search") === true;
 }
 
@@ -95,12 +96,13 @@ function selectWebSearch(
  * inside `_core` and are never returned to meal or WhatsApp domain code.
  *
  * Gemini may omit `groundingChunks` when Google Search is combined with a JSON
- * schema even though the structured answer was grounded. When a structured
- * search returns no citable source, perform one evidence-only request without
- * the schema and keep the original structured output. The probe receives the
- * exact structured answer so provider-linked supporting text can confirm the
- * same evidence instead of an unrelated or rephrased claim. Downstream
- * validation still requires the independently returned source/evidence match.
+ * schema even though the structured answer was grounded. For Gemini structured
+ * searches only, a response without citable sources triggers one evidence-only
+ * request without the schema. The original structured output remains canonical,
+ * while the probe receives that exact answer so provider-linked supporting text
+ * can confirm the same evidence. Other providers keep their single-request
+ * behavior. Downstream validation still requires an independently returned
+ * source/evidence match.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
@@ -108,7 +110,7 @@ export async function createDomainTextResponse(
   options?: AiProviderRequestOptions,
 ): Promise<AiDomainTextResponse> {
   const response = await provider.createTextResponse(request, options);
-  const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
+  const evidenceProbe = requestsGeminiStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
     ? await provider.createTextResponse(
         buildEvidenceProbeRequest(request, response.outputText),
         options,
