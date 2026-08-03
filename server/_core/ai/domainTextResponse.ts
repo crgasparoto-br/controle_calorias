@@ -61,6 +61,37 @@ function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
     && webSearch.sources.some(source => source.supportingText?.some(text => text.trim().length > 0));
 }
 
+function parseStructuredSearchOutput(outputText: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(outputText) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldRequestEvidenceProbe(
+  request: AiProviderTextRequest,
+  outputText: string,
+  webSearch: AiWebSearchResult | undefined,
+): boolean {
+  if (!requestsStructuredWebSearch(request) || hasCitableSources(webSearch)) return false;
+  const parsed = parseStructuredSearchOutput(outputText);
+  if (
+    parsed?.found !== true
+    || typeof parsed.evidence !== "string"
+    || parsed.evidence.trim().length === 0
+  ) return false;
+  if (request.model.startsWith("gemini-")) return true;
+  return webSearch?.executed === true
+    && webSearch.sources.length > 0
+    && typeof parsed.sourceUrl === "string"
+    && parsed.sourceUrl.trim().length > 0;
+}
+
+
 function buildEvidenceProbeRequest(
   request: AiProviderTextRequest,
   structuredOutput: string,
@@ -125,12 +156,16 @@ export async function createDomainTextResponse(
   options?: AiProviderRequestOptions,
 ): Promise<AiDomainTextResponse> {
   const response = await provider.createTextResponse(request, options);
-  const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
-    ? await provider.createTextResponse(
-        buildEvidenceProbeRequest(request, response.outputText),
-        options,
-      )
-    : undefined;
+  const evidenceProbe = shouldRequestEvidenceProbe(
+  request,
+  response.outputText,
+  response.webSearch,
+)
+  ? await provider.createTextResponse(
+      buildEvidenceProbeRequest(request, response.outputText),
+      options,
+    )
+  : undefined;
   const usage = combineUsage(response.usage, evidenceProbe?.usage);
   const evidenceProbeWebSearch = attachProbeEvidence(evidenceProbe?.webSearch, evidenceProbe?.outputText);
   const webSearch = selectWebSearch(response.webSearch, evidenceProbeWebSearch);

@@ -153,7 +153,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }));
 
     const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
@@ -179,12 +179,12 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }), {
       executed: true,
       sources: [{
         url: "https://pitterpan.com.br/produto/chocolate-kit-kat-ao-leite-415g-nestle/?utm_source=openai",
-        supportingText: ["Tabela nutricional informa 218 kcal por unidade de 41,5 g."],
+        supportingText: ["Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."],
       }],
     });
 
@@ -284,11 +284,13 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       sourceUrl: "https://fonte-inventada.example/produto",
       evidence: "Tabela nutricional oficial.",
       webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+      expectedProviderCalls: 2,
     },
   ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
     sourceUrl,
     evidence,
     webSearch,
+    expectedProviderCalls = 1,
   }) => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
@@ -311,7 +313,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
 
     expect(result).toBeNull();
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
-    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
   });
 
   it("rejeita fonte que omite qualquer macronutriente estruturado", async () => {
@@ -445,7 +447,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.95,
       sourceUrl: "https://example.com/produto",
-      evidence: "Tabela nutricional oficial do fabricante.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }), {
       executed: true,
       sources: [{ url: "https://example.com/produto" }],
@@ -471,13 +473,13 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }), {
       executed: true,
       sources: [{
         url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token",
         title: "Nestlé",
-        supportingText: ["Tabela nutricional informa 218 kcal por unidade de 41,5 g."],
+        supportingText: ["Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."],
       }],
     });
 
@@ -504,7 +506,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }), {
       executed: true,
       sources: [{
@@ -533,7 +535,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     }), {
       executed: true,
       sources: [{
@@ -548,12 +550,12 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
   it.each([
     {
       name: "calorias divergentes no grounding",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
       supportingText: "Tabela nutricional informa 100 kcal por unidade de 41,5 g.",
     },
     {
       name: "porção divergente no grounding",
-      evidence: "Tabela nutricional informa 218 kcal por unidade de 41,5 g.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
       supportingText: "Tabela nutricional informa 218 kcal por unidade de 30 g.",
     },
     {
@@ -640,7 +642,7 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
       fat: 11.2,
       confidence: 0.9,
       sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
-      evidence: "Tabela nutricional oficial do fabricante.",
+      evidence: "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.",
     });
 
     executeResolvedCapabilityMock.mockImplementation(async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
@@ -657,7 +659,10 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
             outputText,
             webSearch: {
               executed: true,
-              sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],
+              sources: [{
+          url: "https://www.nestle.com.br/marcas/kitkat",
+          supportingText: ["Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."],
+        }],
             },
             raw: {},
           }),

@@ -110,11 +110,28 @@ describe("domain text response boundary", () => {
     expect(result.usage).toEqual({ inputTokens: 17, outputTokens: 9, totalTokens: 26 });
   });
 
+  it.each([
+    ["invalid JSON", "not-json", { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+    ["functional no-match", '{"found":false}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+    ["missing evidence", '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":""}', { executed: true, sources: [{ url: "https://example.com/kitkat" }] }],
+  ])("does not issue an evidence probe for %s", async (_name, outputText, webSearch) => {
+    const { provider, createTextResponse } = providerWithResponses({
+      id: "primary",
+      outputText,
+      raw: {},
+      webSearch,
+    });
+
+    await createDomainTextResponse(provider, structuredSearchRequest);
+
+    expect(createTextResponse).toHaveBeenCalledTimes(1);
+  });
+
   it("does not issue an evidence probe when the structured response already has evidence-bearing sources", async () => {
     const source = { url: "https://example.com/kitkat", supportingText: ["220 kcal por unidade de 41,5 g"] };
     const { provider, createTextResponse } = providerWithResponses({
       id: "primary",
-      outputText: '{"found":true}',
+      outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
       raw: {},
       webSearch: { executed: true, sources: [source] },
     });
@@ -126,7 +143,7 @@ describe("domain text response boundary", () => {
   });
 
   it("recovers citation-linked evidence for OpenAI when the primary response contains URLs only", async () => {
-    const primaryOutput = '{"found":true,"calories":220,"gramsPerServing":41.5,"evidence":"220 kcal por unidade de 41,5 g"}';
+    const primaryOutput = '{"found":true,"sourceUrl":"https://example.com/kitkat","calories":220,"gramsPerServing":41.5,"evidence":"220 kcal por unidade de 41,5 g"}';
     const { provider, createTextResponse } = providerWithResponses(
       {
         id: "primary-openai",
@@ -167,7 +184,7 @@ describe("domain text response boundary", () => {
     const { provider, createTextResponse } = providerWithResponses(
       {
         id: "primary",
-        outputText: '{"found":true}',
+        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
         raw: {},
         webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
       },
@@ -195,7 +212,7 @@ describe("domain text response boundary", () => {
     const { provider } = providerWithResponses(
       {
         id: "primary",
-        outputText: '{"found":true}',
+        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
         raw: {},
         webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
       },
