@@ -43,6 +43,16 @@ function requireVariable(name: string) {
   return value;
 }
 
+function boundedPositiveInteger(name: string, fallback: number, maximum: number) {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw new Error(`${name} must be an integer between 1 and ${maximum}`);
+  }
+  return parsed;
+}
+
 function configureCapabilities() {
   const provider = requireVariable("SMOKE_PROVIDER");
   const sharedModel = process.env.SMOKE_MODEL?.trim();
@@ -168,6 +178,21 @@ async function runNutritionProbe(foodName: string, category: "chocolate" | "cook
   };
 }
 
+async function runNutrition(nutritionQuery: string) {
+  const maximumAttempts = boundedPositiveInteger("SMOKE_NUTRITION_ATTEMPTS", 3, 5);
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    const nutrition = await findPackagedSnackByWebSearch(nutritionQuery, "chocolate");
+    if (nutrition?.aliases.some(alias => alias.startsWith("fonte: https://"))) {
+      return { nutrition, attempts: attempt };
+    }
+  }
+
+  const diagnostic = await runNutritionProbe(nutritionQuery, "chocolate");
+  throw new Error(
+    `NUTRITION_SEARCH smoke did not return a verified sourced product after ${maximumAttempts} attempts. Diagnostic: ${JSON.stringify(diagnostic)}`,
+  );
+}
+
 async function runEmbedding() {
   const policy = resolveCapabilityConfig("EMBEDDING");
   if (!policy.primary || (policy.state !== "ready" && policy.state !== "degraded")) {
@@ -206,14 +231,7 @@ async function run() {
   }
 
   const nutritionQuery = process.env.SMOKE_NUTRITION_QUERY?.trim() || "KitKat ao leite 41,5g";
-  const nutrition = await findPackagedSnackByWebSearch(nutritionQuery, "chocolate");
-  if (!nutrition || !nutrition.aliases.some(alias => alias.startsWith("fonte: https://"))) {
-    const diagnostic = await runNutritionProbe(nutritionQuery, "chocolate");
-    throw new Error(
-      `NUTRITION_SEARCH smoke did not return a verified sourced product. Diagnostic: ${JSON.stringify(diagnostic)}`,
-    );
-  }
-
+  const nutritionResult = await runNutrition(nutritionQuery);
   const embeddingDimensions = await runEmbedding();
 
   console.log(JSON.stringify({
@@ -222,6 +240,7 @@ async function run() {
     questionModel,
     nutritionModel,
     nutritionQuery,
+    nutritionAttempts: nutritionResult.attempts,
     questionWithoutSearchExecuted: internalQuestionSearch?.executed === true,
     questionWithSearchExecuted: researchedQuestionSearch.executed,
     questionSourceCount: researchedQuestionSearch.sources.length,
