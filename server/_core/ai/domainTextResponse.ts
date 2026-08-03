@@ -82,6 +82,22 @@ function buildEvidenceProbeRequest(
   };
 }
 
+function attachProbeEvidence(
+  webSearch: AiWebSearchResult | undefined,
+  probeOutputText: string | undefined,
+): AiWebSearchResult | undefined {
+  const supportingText = probeOutputText?.trim();
+  if (!webSearch || webSearch.executed !== true || !supportingText) return webSearch;
+  return {
+    ...webSearch,
+    sources: webSearch.sources.map(source => (
+      source.supportingText?.some(text => text.trim().length > 0)
+        ? source
+        : { ...source, supportingText: [supportingText] }
+    )),
+  };
+}
+
 function selectWebSearch(
   primary: AiWebSearchResult | undefined,
   evidenceProbe: AiWebSearchResult | undefined,
@@ -116,7 +132,8 @@ export async function createDomainTextResponse(
       )
     : undefined;
   const usage = combineUsage(response.usage, evidenceProbe?.usage);
-  const webSearch = selectWebSearch(response.webSearch, evidenceProbe?.webSearch);
+  const evidenceProbeWebSearch = attachProbeEvidence(evidenceProbe?.webSearch, evidenceProbe?.outputText);
+  const webSearch = selectWebSearch(response.webSearch, evidenceProbeWebSearch);
 
   return {
     id: response.id,
