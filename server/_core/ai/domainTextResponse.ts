@@ -186,7 +186,7 @@ function buildEvidenceProbeRequest(
 ): AiProviderTextRequest {
   const { format: _format, instructions: _instructions, input: _input, ...baseRequest } = request;
   const evidenceInstruction = [
-    "Você está executando uma verificação isolada de procedência nutricional.",
+    "Você está executando uma verificação isolada de procedência nutricional para recuperar evidências da busca web.",
     "Use a ferramenta de busca web e verifique diretamente a página da fonte.",
     "A resposta deve conter somente uma linha no formato:",
     "Porção <gramas> g; <calorias> kcal; proteínas <valor> g; carboidratos <valor> g; gorduras <valor> g. <citação nativa>",
