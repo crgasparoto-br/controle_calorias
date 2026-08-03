@@ -60,12 +60,19 @@ function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
   return webSearch?.executed === true && webSearch.sources.length > 0;
 }
 
-function buildEvidenceProbeRequest(request: AiProviderTextRequest): AiProviderTextRequest {
+function buildEvidenceProbeRequest(
+  request: AiProviderTextRequest,
+  structuredOutput: string,
+): AiProviderTextRequest {
   const { format: _format, ...withoutFormat } = request;
   const evidenceInstruction = [
     "Esta chamada adicional serve somente para recuperar evidências da busca web.",
     "Execute a busca e responda em texto simples, sem JSON estruturado.",
-    "Cite explicitamente nome do produto, porção, calorias, proteínas, carboidratos, gorduras e as fontes usadas.",
+    "Verifique independentemente os dados da resposta estruturada abaixo.",
+    "Se os dados forem confirmados, repita literalmente a frase do campo evidence e associe-a às fontes usadas.",
+    "Se não forem confirmados, explique a divergência sem inventar ou adaptar valores.",
+    "Resposta estruturada a verificar:",
+    structuredOutput,
   ].join("\n");
 
   return {
@@ -90,8 +97,10 @@ function selectWebSearch(
  * Gemini may omit `groundingChunks` when Google Search is combined with a JSON
  * schema even though the structured answer was grounded. When a structured
  * search returns no citable source, perform one evidence-only request without
- * the schema and keep the original structured output. Downstream validation
- * still requires the independently returned source/evidence to match.
+ * the schema and keep the original structured output. The probe receives the
+ * exact structured answer so provider-linked supporting text can confirm the
+ * same evidence instead of an unrelated or rephrased claim. Downstream
+ * validation still requires the independently returned source/evidence match.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
@@ -100,7 +109,10 @@ export async function createDomainTextResponse(
 ): Promise<AiDomainTextResponse> {
   const response = await provider.createTextResponse(request, options);
   const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
-    ? await provider.createTextResponse(buildEvidenceProbeRequest(request), options)
+    ? await provider.createTextResponse(
+        buildEvidenceProbeRequest(request, response.outputText),
+        options,
+      )
     : undefined;
   const usage = combineUsage(response.usage, evidenceProbe?.usage);
   const webSearch = selectWebSearch(response.webSearch, evidenceProbe?.webSearch);
