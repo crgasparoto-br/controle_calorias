@@ -1,0 +1,48 @@
+name: Issue 923 audit remediation
+
+on:
+  push:
+    branches:
+      - feat/923-ai-capabilities-question-nutrition-embedding
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-923-audit-remediation
+  cancel-in-progress: false
+
+jobs:
+  apply-remediation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/923-ai-capabilities-question-nutrition-embedding
+          fetch-depth: 0
+
+      - name: Verify staged patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "b96639e350425236df0a65cc3be0938c0537fffd"
+          echo "2a15f0fb367b864c96ea9d62c3a0fe02c1c49c71f4812013a8fc3406570ac1b1  .audit/remediation/issue-923-nutrition-evidence.patch" | sha256sum --check --strict
+          git apply --check .audit/remediation/issue-923-nutrition-evidence.patch
+
+      - name: Apply and publish remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply .audit/remediation/issue-923-nutrition-evidence.patch
+          rm .audit/remediation/issue-923-nutrition-evidence.patch
+          rm .github/workflows/issue-923-audit-remediation.yml
+          rmdir .audit/remediation 2>/dev/null || true
+          rmdir .audit 2>/dev/null || true
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ai): validate grounded nutrition claims"
+          git push origin HEAD:feat/923-ai-capabilities-question-nutrition-embedding
