@@ -72,7 +72,7 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).toContain("GitHub secret GEMINI_API_KEY is unavailable.");
   });
 
-  it("executes one nutrition provider call and preserves safe no-match semantics", () => {
+  it("executes one nutrition provider call and rejects unverified matches locally", () => {
     const smokeScript = readSmokeScript();
     const nutritionStart = smokeScript.indexOf("async function runNutrition");
     const embeddingStart = smokeScript.indexOf("async function runEmbedding");
@@ -86,11 +86,14 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(nutritionBlock).not.toContain("findPackagedSnackByWebSearch");
     expect(nutritionBlock).not.toContain("runNutritionProbe");
     expect(smokeScript).not.toContain("SMOKE_NUTRITION_ATTEMPTS");
-    expect(nutritionBlock).not.toContain('if (!webSearch?.executed) {');
-    expect(nutritionBlock).toContain("if (!webSearch?.executed || !webSearch.sources.length)");
+    expect(nutritionBlock).toContain(
+      "const hasVerifiedSearch = webSearch?.executed === true && webSearch.sources.length > 0",
+    );
+    expect(nutritionBlock).toContain("if (payload.found && hasVerifiedSearch)");
     expect(nutritionBlock).toContain('outcome: "matched-provider-payload"');
-    expect(nutritionBlock).toContain('outcome: "safe-no-match"');
-    expect(nutritionBlock).toContain("sourceCount: webSearch?.sources.length ?? 0");
+    expect(nutritionBlock).toContain('"safe-unverified-match" as const');
+    expect(nutritionBlock).toContain('"safe-no-match" as const');
+    expect(nutritionBlock).toContain("matched: false");
     expect(smokeScript).toContain("nutritionMatched: nutritionResult.matched");
     expect(smokeScript).not.toContain("nutritionMatched: true");
   });

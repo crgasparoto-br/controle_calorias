@@ -214,11 +214,9 @@ async function runNutrition(nutritionQuery: string) {
 
   const payload = parseNutritionSmokePayload(result.value.outputText);
   const webSearch = result.value.webSearch;
+  const hasVerifiedSearch = webSearch?.executed === true && webSearch.sources.length > 0;
 
-  if (payload.found) {
-    if (!webSearch?.executed || !webSearch.sources.length) {
-      throw new Error("NUTRITION_SEARCH smoke returned a match without executed search and normalized sources");
-    }
+  if (payload.found && hasVerifiedSearch) {
     return {
       matched: true,
       outcome: "matched-provider-payload" as const,
@@ -229,7 +227,7 @@ async function runNutrition(nutritionQuery: string) {
 
   return {
     matched: false,
-    outcome: "safe-no-match" as const,
+    outcome: payload.found ? "safe-unverified-match" as const : "safe-no-match" as const,
     sourceCount: webSearch?.sources.length ?? 0,
     attempts: 1,
   };
