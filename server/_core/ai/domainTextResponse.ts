@@ -129,7 +129,8 @@ function sourceTextCanSupportStructuredResult(
   // functional result, even if downstream validation later rejects it for
   // missing macros. Do not create another outbound recovery call in that case.
   // Product-identification text or serving weight alone remains insufficient and
-  // may trigger the single evidence probe.
+  // may trigger the single evidence probe for providers that do not expose
+  // grounding segments on the initial structured response.
   return sourceTextHasNutritionClaim(normalized, nutritionValues);
 }
 
@@ -141,6 +142,14 @@ function hasCitableSources(
     && webSearch.sources.some(source => source.supportingText?.some(text => (
       sourceTextCanSupportStructuredResult(text, parsed)
     )));
+}
+
+function hasProviderLinkedText(webSearch: AiWebSearchResult | undefined): boolean {
+  return webSearch?.executed === true
+    && webSearch.sources.some(source => source.supportingText?.some(text => {
+      const normalized = text.trim();
+      return normalized.length > 0 && !isCitationMarker(normalized);
+    }));
 }
 
 function shouldRequestEvidenceProbe(
@@ -155,8 +164,16 @@ function shouldRequestEvidenceProbe(
     || typeof parsed.evidence !== "string"
     || parsed.evidence.trim().length === 0
   ) return false;
+
+  if (request.model.startsWith("gemini-")) {
+    // Gemini groundingSupports already provides the native segment-to-source
+    // relation. Once any linked segment exists, even if nutritionally incomplete,
+    // downstream validation owns the functional rejection. Do not issue a second
+    // search for an insufficient but valid grounding result.
+    return !hasProviderLinkedText(webSearch);
+  }
+
   if (hasCitableSources(webSearch, parsed)) return false;
-  if (request.model.startsWith("gemini-")) return true;
   return webSearch?.executed === true
     && webSearch.sources.length > 0
     && typeof parsed.sourceUrl === "string"
@@ -281,14 +298,14 @@ function combineWebSearch(
  * inside `_core` and are never returned to meal or WhatsApp domain code.
  *
  * Providers may return a structured answer and a list of visited URLs without
- * citation-linked supporting text. For structured web searches only, a response
- * without evidence-bearing sources triggers one isolated evidence-only request.
- * For nutrition-shaped results, a generic cited product description is also
- * insufficient, while a cited nutrition claim is left to the stricter downstream
- * completeness validator without another outbound call. The original structured
- * output remains canonical. The probe's free-form output is never promoted on
- * its own. A provider-linked citation marker may expand only to the exact line
- * that contains that marker; URL-only sources remain without evidence.
+ * citation-linked supporting text. For structured OpenAI web searches only, a
+ * response without sufficient evidence-bearing sources may trigger one isolated
+ * evidence-only request. Gemini grounding segments are evaluated directly and an
+ * insufficient linked segment degrades locally without a second search. The
+ * original structured output remains canonical. The probe's free-form output is
+ * never promoted on its own. A provider-linked citation marker may expand only
+ * to the exact line that contains that marker; URL-only sources remain without
+ * evidence.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
