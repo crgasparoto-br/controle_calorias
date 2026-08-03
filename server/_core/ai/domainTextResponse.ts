@@ -99,6 +99,23 @@ function textContainsNumber(text: string, value: number): boolean {
   ).test(text));
 }
 
+function sourceTextHasNutritionClaim(
+  text: string,
+  values: number[],
+): boolean {
+  const [, calories, protein, carbs, fat] = values;
+  const calorieClaim = /\b(?:kcal|calorias?)\b/iu.test(text)
+    && textContainsNumber(text, calories as number);
+  const labelledMacroClaims: Array<[RegExp, number]> = [
+    [/\bprote[ií]nas?\b/iu, protein as number],
+    [/\bcarboidratos?\b/iu, carbs as number],
+    [/\bgorduras?(?:\s+totais?)?\b/iu, fat as number],
+  ];
+  return calorieClaim || labelledMacroClaims.some(([label, value]) => (
+    label.test(text) && textContainsNumber(text, value)
+  ));
+}
+
 function sourceTextCanSupportStructuredResult(
   text: string,
   parsed: Record<string, unknown>,
@@ -107,7 +124,13 @@ function sourceTextCanSupportStructuredResult(
   if (!normalized || isCitationMarker(normalized)) return false;
   const nutritionValues = structuredNutritionValues(parsed);
   if (!nutritionValues) return true;
-  return nutritionValues.every(value => textContainsNumber(normalized, value));
+
+  // A source that already exposes at least one labelled nutrition claim is a
+  // functional result, even if downstream validation later rejects it for
+  // missing macros. Do not create another outbound recovery call in that case.
+  // Product-identification text or serving weight alone remains insufficient and
+  // may trigger the single evidence probe.
+  return sourceTextHasNutritionClaim(normalized, nutritionValues);
 }
 
 function hasCitableSources(
@@ -256,8 +279,8 @@ function combineWebSearch(
  * citation-linked supporting text. For structured web searches only, a response
  * without evidence-bearing sources triggers one evidence-only request without the
  * schema. For nutrition-shaped results, a generic cited product description is
- * also insufficient: the linked text must contain the structured portion,
- * calories and macronutrient values or the probe is attempted. The original
+ * also insufficient, while a cited nutrition claim is left to the stricter
+ * downstream completeness validator without another outbound call. The original
  * structured output remains canonical. The probe's free-form output is never
  * promoted on its own. A provider-linked citation marker may expand only to the
  * exact line that contains that marker; URL-only sources remain without evidence.
