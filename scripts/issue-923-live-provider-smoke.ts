@@ -104,7 +104,10 @@ async function run() {
     throw new Error("QUESTION web-search smoke did not return executed search with sources");
   }
 
-  const nutrition = await findPackagedSnackByWebSearch("KitKat 41,5g", "chocolate");
+  // Keep the live lookup SKU-specific. Several KitKat variants are sold in
+  // the same 41.5 g package, and the production guard intentionally rejects
+  // provider-added flavors that were not present in the request.
+  const nutrition = await findPackagedSnackByWebSearch("KitKat ao leite 41,5g", "chocolate");
   if (!nutrition || !nutrition.aliases.some(alias => alias.startsWith("fonte: https://"))) {
     throw new Error("NUTRITION_SEARCH smoke did not return a verified sourced product");
   }
