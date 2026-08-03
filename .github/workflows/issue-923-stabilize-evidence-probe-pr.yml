@@ -114,39 +114,32 @@ jobs:
           block_end = test.find('  it("rejeita fonte que omite qualquer macronutriente estruturado"', block_start)
           if block_start < 0 or block_end < 0:
               raise SystemExit('parameterized source validation block not found')
-          block = test[block_start:block_end]
-          url_case = '''    {
-              name: "URL não citada pelo provider",
-              sourceUrl: "https://fonte-inventada.example/produto",
-              evidence: "Tabela nutricional oficial.",
-              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-            },'''
-          url_case_with_count = '''    {
-              name: "URL não citada pelo provider",
-              sourceUrl: "https://fonte-inventada.example/produto",
-              evidence: "Tabela nutricional oficial.",
-              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-              expectedProviderCalls: 2,
-            },'''
-          if 'expectedProviderCalls: 2' not in block:
-              if url_case not in block:
-                  raise SystemExit('URL non-cited fixture not found')
-              block = block.replace(url_case, url_case_with_count, 1)
-          signature = '''  ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
-              sourceUrl,
-              evidence,
-              webSearch,
-            }) => {'''
-          signature_with_count = '''  ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
-              sourceUrl,
-              evidence,
-              webSearch,
-              expectedProviderCalls = 1,
-            }) => {'''
-          if 'expectedProviderCalls = 1' not in block:
-              if signature not in block:
-                  raise SystemExit('parameterized callback signature not found')
-              block = block.replace(signature, signature_with_count, 1)
+          block_lines = test[block_start:block_end].splitlines()
+          transformed = []
+          in_url_case = False
+          callback_started = False
+          added_count_fixture = False
+          added_default = False
+          for line in block_lines:
+              stripped = line.strip()
+              if stripped == 'name: "URL não citada pelo provider",':
+                  in_url_case = True
+              if 'async ({' in line:
+                  callback_started = True
+              transformed.append(line)
+              if in_url_case and stripped.startswith('webSearch:'):
+                  indent = line[:len(line) - len(line.lstrip())]
+                  transformed.append(f'{indent}expectedProviderCalls: 2,')
+                  added_count_fixture = True
+                  in_url_case = False
+              if callback_started and stripped == 'webSearch,':
+                  indent = line[:len(line) - len(line.lstrip())]
+                  transformed.append(f'{indent}expectedProviderCalls = 1,')
+                  added_default = True
+                  callback_started = False
+          block = '\n'.join(transformed) + '\n'
+          if not added_count_fixture or not added_default:
+              raise SystemExit(f'parameterized transformation incomplete: fixture={added_count_fixture} default={added_default}')
           block = block.replace(
               'expect(createTextResponseMock).toHaveBeenCalledTimes(1);',
               'expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);',
