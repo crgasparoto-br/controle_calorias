@@ -14,7 +14,7 @@ function readSmokeScript() {
 }
 
 describe("issue 923 live-provider smoke security boundary", () => {
-  it("releases only dedicated smoke credentials after setup and installation", () => {
+  it("releases only the canonical provider credentials after setup and installation", () => {
     const workflow = readWorkflow();
     const stepsIndex = workflow.indexOf("    steps:");
     const installIndex = workflow.indexOf("Install dependencies without provider credentials");
@@ -24,14 +24,10 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(installIndex).toBeGreaterThan(stepsIndex);
     expect(firstSecretIndex).toBeGreaterThan(installIndex);
     expect(workflow.slice(0, stepsIndex)).not.toContain("${{ secrets.");
-    expect(workflow).toContain(
-      "AI_SMOKE_OPENAI_API_KEY: ${{ secrets.AI_SMOKE_OPENAI_API_KEY }}",
-    );
-    expect(workflow).toContain(
-      "AI_SMOKE_GEMINI_API_KEY: ${{ secrets.AI_SMOKE_GEMINI_API_KEY }}",
-    );
-    expect(workflow).not.toContain("secrets.OPENAI_API_KEY");
-    expect(workflow).not.toContain("secrets.GEMINI_API_KEY");
+    expect(workflow).toContain("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}");
+    expect(workflow).toContain("GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}");
+    expect(workflow).not.toContain("AI_SMOKE_OPENAI_API_KEY");
+    expect(workflow).not.toContain("AI_SMOKE_GEMINI_API_KEY");
   });
 
   it("runs automatically for the exact trusted PR head without manual approval state", () => {
@@ -40,7 +36,7 @@ describe("issue 923 live-provider smoke security boundary", () => {
     const identityIndex = workflow.indexOf("Verify trusted identity and exact selected SHA");
     const installIndex = workflow.indexOf("Install dependencies without provider credentials");
 
-    expect(workflow).toContain("environment:\n      name: issue-923-live-smoke");
+    expect(workflow).not.toContain("environment:\n");
     expect(workflow).not.toContain("AI_SMOKE_APPROVED_SHA");
     expect(workflow).not.toContain("SMOKE_APPROVED_SHA");
     expect(smokeScript).not.toContain("SMOKE_APPROVED_SHA");
@@ -65,17 +61,10 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).not.toContain("pull_request_target:");
   });
 
-  it("fails closed when dedicated credentials are absent", () => {
+  it("fails closed when the canonical provider credentials are absent", () => {
     const workflow = readWorkflow();
 
-    expect(workflow).toContain(
-      "The issue-923-live-smoke environment has no dedicated OpenAI smoke credential.",
-    );
-    expect(workflow).toContain(
-      "The issue-923-live-smoke environment has no dedicated Gemini smoke credential.",
-    );
-    expect(workflow).toContain(
-      "unset AI_SMOKE_OPENAI_API_KEY AI_SMOKE_GEMINI_API_KEY",
-    );
+    expect(workflow).toContain("GitHub secret OPENAI_API_KEY is unavailable.");
+    expect(workflow).toContain("GitHub secret GEMINI_API_KEY is unavailable.");
   });
 });

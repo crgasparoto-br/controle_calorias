@@ -50,8 +50,6 @@ jobs:
     name: ${{ matrix.provider }} live smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment:
-      name: issue-923-live-smoke
     strategy:
       fail-fast: false
       matrix:
@@ -138,7 +136,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+          cache: pnm
 
       - name: Install dependencies without provider credentials
         run: pnpm install --frozen-lockfile
@@ -146,26 +144,21 @@ jobs:
       - name: Run live provider smoke
         shell: bash
         env:
-          AI_SMOKE_OPENAI_API_KEY: ${{ secrets.AI_SMOKE_OPENAI_API_KEY }}
-          AI_SMOKE_GEMINI_API_KEY: ${{ secrets.AI_SMOKE_GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
 
-          if [[ -z "${AI_SMOKE_OPENAI_API_KEY:-}" ]]; then
-            echo "::error::The issue-923-live-smoke environment has no dedicated OpenAI smoke credential."
+          if [[ -z "${OPNAI_API_KEY:-}" ]]; then
+            echo "::error::GitHub secret OPENAI_API_KEY is unavailable."
             exit 1
           fi
-          export OPENAI_API_KEY="${AI_SMOKE_OPENAI_API_KEY}"
 
-          if [[ "${SMOKE_PROVIDER}" == "gemini" ]]; then
-            if [[ -z "${AI_SMOKE_GEMINI_API_KEY:-}" ]]; then
-              echo "::error::The issue-923-live-smoke environment has no dedicated Gemini smoke credential."
-              exit 1
-            fi
-            export GEMINI_API_KEY="${AI_SMOKE_GEMINI_API_KEY}"
+          if [[ "${SMOKE_PROVIDER}" == "gemini" && -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "::error::GitHub secret GEMINI_API_KEY is unavailable."
+            exit 1
           fi
 
-          unset AI_SMOKE_OPENAI_API_KEY AI_SMOKE_GEMINI_API_KEY
           pnpm smoke:ai:live 2>&1 | tee "/tmp/ai-provider-live-smoke-${SMOKE_PROVIDER}.log"
 
       - name: Upload smoke evidence
