@@ -32,7 +32,7 @@ permissions:
 
 concurrency:
   group: ai-provider-live-smoke-${{ github.ref }}-${{ inputs.provider || 'both' }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   live-smoke:
