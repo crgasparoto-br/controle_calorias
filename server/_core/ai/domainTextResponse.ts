@@ -51,14 +51,14 @@ function combineUsage(
   };
 }
 
-function requestsGeminiStructuredWebSearch(request: AiProviderTextRequest): boolean {
-  return request.model.trim().toLowerCase().startsWith("gemini-")
-    && request.format?.type === "json_schema"
+function requestsStructuredWebSearch(request: AiProviderTextRequest): boolean {
+  return request.format?.type === "json_schema"
     && request.tools?.some(tool => tool.type === "web_search") === true;
 }
 
 function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
-  return webSearch?.executed === true && webSearch.sources.length > 0;
+  return webSearch?.executed === true
+    && webSearch.sources.some(source => source.supportingText?.some(text => text.trim().length > 0));
 }
 
 function buildEvidenceProbeRequest(
@@ -95,14 +95,13 @@ function selectWebSearch(
  * Provider boundary used by domain services. SDK-native `raw` fields remain
  * inside `_core` and are never returned to meal or WhatsApp domain code.
  *
- * Gemini may omit `groundingChunks` when Google Search is combined with a JSON
- * schema even though the structured answer was grounded. For Gemini structured
- * searches only, a response without citable sources triggers one evidence-only
- * request without the schema. The original structured output remains canonical,
- * while the probe receives that exact answer so provider-linked supporting text
- * can confirm the same evidence. Other providers keep their single-request
- * behavior. Downstream validation still requires an independently returned
- * source/evidence match.
+ * Providers may return a structured answer and a list of visited URLs without
+ * citation-linked supporting text. For structured web searches only, a response
+ * without evidence-bearing sources triggers one evidence-only request without the
+ * schema. The original structured output remains canonical, while the probe
+ * receives that exact answer so provider-linked supporting text can confirm or
+ * refute the same numeric claims. Downstream validation still requires an
+ * independently returned source/evidence match.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
@@ -110,7 +109,7 @@ export async function createDomainTextResponse(
   options?: AiProviderRequestOptions,
 ): Promise<AiDomainTextResponse> {
   const response = await provider.createTextResponse(request, options);
-  const evidenceProbe = requestsGeminiStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
+  const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
     ? await provider.createTextResponse(
         buildEvidenceProbeRequest(request, response.outputText),
         options,
