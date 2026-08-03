@@ -136,7 +136,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnm
+          cache: pnpm
 
       - name: Install dependencies without provider credentials
         run: pnpm install --frozen-lockfile
@@ -149,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "${OPNAI_API_KEY:-}" ]]; then
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
             echo "::error::GitHub secret OPENAI_API_KEY is unavailable."
             exit 1
           fi

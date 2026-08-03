@@ -28,6 +28,10 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).toContain("GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}");
     expect(workflow).not.toContain("AI_SMOKE_OPENAI_API_KEY");
     expect(workflow).not.toContain("AI_SMOKE_GEMINI_API_KEY");
+    expect(workflow).toContain("cache: pnpm");
+    expect(workflow).not.toContain("cache: pnm");
+    expect(workflow).toContain('${OPENAI_API_KEY:-}');
+    expect(workflow).not.toContain("OPNAI_API_KEY");
   });
 
   it("runs automatically for the exact trusted PR head without manual approval state", () => {
