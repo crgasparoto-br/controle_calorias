@@ -482,9 +482,9 @@ function numericClaimsSupportResult(text: string, result: Partial<SearchedNutrit
     ["gorduras?(?:\\s+totais?)?|fat", result.fat],
   ];
   for (const [label, expected] of labelledClaims) {
-    if (!isNonNegativeNumber(expected)) continue;
+    if (!isNonNegativeNumber(expected)) return false;
     const values = extractLabelledGramValues(text, label);
-    if (values.length && !values.some(value => approximatelyEqual(value, expected as number))) return false;
+    if (!values.some(value => approximatelyEqual(value, expected))) return false;
   }
   return true;
 }

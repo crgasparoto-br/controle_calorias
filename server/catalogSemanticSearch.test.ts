@@ -273,6 +273,37 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(createTextResponseMock).toHaveBeenCalledTimes(1);
   });
 
+  it("rejeita fonte que omite qualquer macronutriente estruturado", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 218,
+      protein: 2.7,
+      carbs: 26.3,
+      fat: 11.2,
+      confidence: 0.9,
+      sourceUrl: "https://www.nestle.com.br/marcas/kitkat",
+      evidence: "Porção de 41,5 g: 218 kcal e proteínas 2,7 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://www.nestle.com.br/marcas/kitkat",
+        supportingText: ["Porção de 41,5 g: 218 kcal e proteínas 2,7 g."],
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat 41,5g", "chocolate");
+
+    expect(result).toBeNull();
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+  });
+
   it("returns null when the semantic compatibility guard rejects an ambiguous flavor/complement match", async () => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
