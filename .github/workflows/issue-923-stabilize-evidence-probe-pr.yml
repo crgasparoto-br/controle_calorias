@@ -36,16 +36,12 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import re
           from pathlib import Path
 
           boundary_path = Path('server/_core/ai/domainTextResponse.ts')
           boundary = boundary_path.read_text()
-          marker = '''function hasCitableSources(webSearch: AiWebSearchResult | undefined): boolean {
-            return webSearch?.executed === true
-              && webSearch.sources.some(source => source.supportingText?.some(text => text.trim().length > 0));
-          }
-          '''
-          addition = marker + '''
+          helpers = '''
           function structuredOutputCanBenefitFromEvidenceProbe(outputText: string): boolean {
             try {
               const parsed = JSON.parse(outputText) as Record<string, unknown>;
@@ -72,16 +68,23 @@ jobs:
           }
           '''
           if 'function structuredOutputCanBenefitFromEvidenceProbe' not in boundary:
-              if boundary.count(marker) != 1:
-                  raise SystemExit('hasCitableSources marker not found exactly once')
-              boundary = boundary.replace(marker, addition)
-          old_probe = '''  const evidenceProbe = requestsStructuredWebSearch(request) && !hasCitableSources(response.webSearch)
-            ? await provider.createTextResponse(
-                buildEvidenceProbeRequest(request, response.outputText),
-                options,
+              has_pattern = re.compile(
+                  r'(function hasCitableSources\(webSearch: AiWebSearchResult \| undefined\): boolean \{.*?\n\})',
+                  re.S,
               )
-            : undefined;'''
-          new_probe = '''  const evidenceProbe = shouldRequestEvidenceProbe(
+              boundary, inserted = has_pattern.subn(r'\1\n' + helpers, boundary, count=1)
+              if inserted != 1:
+                  raise SystemExit('hasCitableSources function not found exactly once')
+
+          probe_pattern = re.compile(
+              r'  const evidenceProbe = requestsStructuredWebSearch\(request\)\s*'
+              r'&& !hasCitableSources\(response\.webSearch\)\s*'
+              r'\? await provider\.createTextResponse\(\s*'
+              r'buildEvidenceProbeRequest\(request, response\.outputText\),\s*'
+              r'options,\s*\)\s*: undefined;',
+              re.S,
+          )
+          probe_replacement = '''  const evidenceProbe = shouldRequestEvidenceProbe(
             request,
             response.outputText,
             response.webSearch,
@@ -91,10 +94,10 @@ jobs:
                 options,
               )
             : undefined;'''
-          if old_probe in boundary:
-              boundary = boundary.replace(old_probe, new_probe)
-          elif new_probe not in boundary:
-              raise SystemExit('evidence probe block not found')
+          boundary, replaced = probe_pattern.subn(probe_replacement, boundary, count=1)
+          if replaced == 0 and probe_replacement not in boundary:
+              start = boundary.find('const evidenceProbe')
+              raise SystemExit(f'evidence probe block not found; context={boundary[start:start+500]!r}')
           boundary_path.write_text(boundary)
 
           full = 'Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.'
@@ -103,38 +106,58 @@ jobs:
           test = test.replace('Tabela nutricional informa 218 kcal por unidade de 41,5 g.', full)
           test = test.replace('Tabela nutricional oficial do fabricante.', full)
 
-          old_case = '''    {
+          url_case = '''    {
               name: "URL não citada pelo provider",
               sourceUrl: "https://fonte-inventada.example/produto",
               evidence: "Tabela nutricional oficial.",
               webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
             },'''
-          new_case = '''    {
+          url_case_with_count = '''    {
               name: "URL não citada pelo provider",
               sourceUrl: "https://fonte-inventada.example/produto",
               evidence: "Tabela nutricional oficial.",
               webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
               expectedProviderCalls: 2,
             },'''
-          if old_case in test:
-              test = test.replace(old_case, new_case)
-          old_signature = '''    webSearch,
+          if url_case in test:
+              test = test.replace(url_case, url_case_with_count, 1)
+
+          signature = '''    webSearch,
           }) => {'''
-          new_signature = '''    webSearch,
+          signature_with_count = '''    webSearch,
             expectedProviderCalls = 1,
           }) => {'''
-          if old_signature in test:
-              test = test.replace(old_signature, new_signature, 1)
-          old_expect = '''    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+          if signature in test:
+              test = test.replace(signature, signature_with_count, 1)
+
+          assertion_block = '''    expect(result).toBeNull();
+            expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+            expect(createTextResponseMock).toHaveBeenCalledTimes(1);
           });
 
           it("rejeita fonte que omite qualquer macronutriente estruturado"'''
-          new_expect = '''    expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
+          assertion_with_count = '''    expect(result).toBeNull();
+            expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+            expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);
           });
 
           it("rejeita fonte que omite qualquer macronutriente estruturado"'''
-          if old_expect in test:
-              test = test.replace(old_expect, new_expect, 1)
+          if assertion_block in test:
+              test = test.replace(assertion_block, assertion_with_count, 1)
+
+          fallback_start = test.find('const validFallbackOutput = JSON.stringify({')
+          fallback_end = test.find('await expect(operation(buildAttempt("openai"', fallback_start)
+          if fallback_start < 0 or fallback_end < 0:
+              raise SystemExit('fallback fixture block not found')
+          fallback_block = test[fallback_start:fallback_end]
+          bare_source = 'sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }],'
+          supported_source = '''sources: [{
+                    url: "https://www.nestle.com.br/marcas/kitkat",
+                    supportingText: ["Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."],
+                  }],'''
+          if bare_source in fallback_block:
+              fallback_block = fallback_block.replace(bare_source, supported_source, 1)
+              test = test[:fallback_start] + fallback_block + test[fallback_end:]
           test_path.write_text(test)
 
           boundary_test_path = Path('server/_core/ai/domainTextResponse.test.ts')
@@ -165,7 +188,7 @@ jobs:
           '''
           if cases not in boundary_test:
               if boundary_test.count(insertion_marker) != 1:
-                  raise SystemExit('boundary test insertion marker not found')
+                  raise SystemExit('boundary test insertion marker not found exactly once')
               boundary_test = boundary_test.replace(insertion_marker, cases + insertion_marker)
           boundary_test_path.write_text(boundary_test)
           PY
