@@ -73,11 +73,11 @@ jobs:
           }
           '''
           if 'function parseStructuredSearchOutput' not in boundary:
-              has_pattern = re.compile(
+              pattern = re.compile(
                   r'(function hasCitableSources\(webSearch: AiWebSearchResult \| undefined\): boolean \{.*?\n\})',
                   re.S,
               )
-              boundary, inserted = has_pattern.subn(r'\1\n' + helpers, boundary, count=1)
+              boundary, inserted = pattern.subn(r'\1\n' + helpers, boundary, count=1)
               if inserted != 1:
                   raise SystemExit('hasCitableSources function not found exactly once')
 
@@ -101,8 +101,7 @@ jobs:
             : undefined;'''
           boundary, replaced = probe_pattern.subn(probe_replacement, boundary, count=1)
           if replaced == 0 and probe_replacement not in boundary:
-              start = boundary.find('const evidenceProbe')
-              raise SystemExit(f'evidence probe block not found; context={boundary[start:start+500]!r}')
+              raise SystemExit('evidence probe block not found')
           boundary_path.write_text(boundary)
 
           full = 'Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g.'
@@ -116,29 +115,42 @@ jobs:
           if block_start < 0 or block_end < 0:
               raise SystemExit('parameterized source validation block not found')
           block = test[block_start:block_end]
+          url_case = '''    {
+              name: "URL não citada pelo provider",
+              sourceUrl: "https://fonte-inventada.example/produto",
+              evidence: "Tabela nutricional oficial.",
+              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+            },'''
+          url_case_with_count = '''    {
+              name: "URL não citada pelo provider",
+              sourceUrl: "https://fonte-inventada.example/produto",
+              evidence: "Tabela nutricional oficial.",
+              webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
+              expectedProviderCalls: 2,
+            },'''
           if 'expectedProviderCalls: 2' not in block:
-              block = block.replace(
-                  '''      name: "URL não citada pelo provider",
-                  sourceUrl: "https://fonte-inventada.example/produto",
-                  evidence: "Tabela nutricional oficial.",
-                  webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },''',
-                  '''      name: "URL não citada pelo provider",
-                  sourceUrl: "https://fonte-inventada.example/produto",
-                  evidence: "Tabela nutricional oficial.",
-                  webSearch: { executed: true, sources: [{ url: "https://www.nestle.com.br/marcas/kitkat" }] },
-                  expectedProviderCalls: 2,''',
-              )
+              if url_case not in block:
+                  raise SystemExit('URL non-cited fixture not found')
+              block = block.replace(url_case, url_case_with_count, 1)
+          signature = '''  ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
+              sourceUrl,
+              evidence,
+              webSearch,
+            }) => {'''
+          signature_with_count = '''  ])("rejeita resultado pesquisado com $name sem acionar fallback externo", async ({
+              sourceUrl,
+              evidence,
+              webSearch,
+              expectedProviderCalls = 1,
+            }) => {'''
           if 'expectedProviderCalls = 1' not in block:
-              block = block.replace(
-                  '''    webSearch,
-              }) => {''',
-                  '''    webSearch,
-                expectedProviderCalls = 1,
-              }) => {''',
-              )
+              if signature not in block:
+                  raise SystemExit('parameterized callback signature not found')
+              block = block.replace(signature, signature_with_count, 1)
           block = block.replace(
               'expect(createTextResponseMock).toHaveBeenCalledTimes(1);',
               'expect(createTextResponseMock).toHaveBeenCalledTimes(expectedProviderCalls);',
+              1,
           )
           test = test[:block_start] + block + test[block_end:]
 
