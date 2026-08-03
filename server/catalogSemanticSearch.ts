@@ -496,20 +496,54 @@ function findVerifiedNutritionSource(
   webSearch: AiWebSearchResult | undefined,
 ): string | null {
   if (webSearch?.executed !== true || !webSearch.sources.length) return null;
-  if (!numericClaimsSupportResult(evidence, result)) return null;
+
+  const evidenceHasNutritionClaim = (
+    extractUnitValues(evidence, "kcal|calorias?").length > 0
+    || ["prote[ií]na|protein", "carboidratos?|carbs?", "gorduras?(?:\\s+totais?)?|fat"]
+      .some(label => extractLabelledGramValues(evidence, label).length > 0)
+  );
+  const evidenceMatchesResult = numericClaimsSupportResult(evidence, result);
+  if (evidenceHasNutritionClaim && !evidenceMatchesResult) return null;
+
+  const sourcesByUrl = new Map<string, { url: string; supportingText: string[] }>();
+  for (const source of webSearch.sources) {
+    const normalized = normalizeHttpUrl(source.url);
+    if (normalized && !sourcesByUrl.has(normalized)) {
+      sourcesByUrl.set(normalized, { url: source.url.trim(), supportingText: [] });
+    }
+  }
+
+  for (const source of webSearch.sources) {
+    const ownUrl = normalizeHttpUrl(source.url);
+    for (const text of source.supportingText ?? []) {
+      const linkedUrls = [...text.matchAll(/https?:\/\/[^\s)\]]+/giu)]
+        .map(match => normalizeHttpUrl(match[0]))
+        .filter((url): url is string => Boolean(url && sourcesByUrl.has(url)));
+      const targets = linkedUrls.length > 0
+        ? [...new Set(linkedUrls)]
+        : ownUrl && sourcesByUrl.has(ownUrl)
+          ? [ownUrl]
+          : [];
+      for (const target of targets) {
+        sourcesByUrl.get(target)?.supportingText.push(text);
+      }
+    }
+  }
+
   const normalizedRequested = normalizeHttpUrl(requestedSourceUrl);
+  const orderedSources = [
+    ...(normalizedRequested && sourcesByUrl.has(normalizedRequested) ? [normalizedRequested] : []),
+    ...[...sourcesByUrl.keys()].filter(url => url !== normalizedRequested),
+  ];
 
-  const candidates = normalizedRequested
-    ? webSearch.sources.filter(source => normalizeHttpUrl(source.url) === normalizedRequested)
-    : webSearch.sources;
-
-  for (const source of candidates) {
-    if (!normalizeHttpUrl(source.url)) continue;
-    if (source.supportingText?.some(text => (
-      sourceSupportsEvidence(text, evidence)
-      && numericClaimsSupportResult(text, result)
+  for (const sourceUrl of orderedSources) {
+    const source = sourcesByUrl.get(sourceUrl);
+    if (!source) continue;
+    if (source.supportingText.some(text => (
+      numericClaimsSupportResult(text, result)
+      && (!evidenceMatchesResult || sourceSupportsEvidence(text, evidence))
     ))) {
-      return source.url.trim();
+      return source.url;
     }
   }
   return null;

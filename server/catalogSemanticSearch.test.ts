@@ -196,6 +196,47 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     );
   });
 
+  it("usa a URL realmente citada quando o JSON fornece uma URL não comprovada", async () => {
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat ao leite 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade (41,5g)",
+      gramsPerServing: 41.5,
+      calories: 220,
+      protein: 3.3,
+      carbs: 24,
+      fat: 12,
+      confidence: 0.95,
+      sourceUrl: "https://url-nao-citada.example/produto",
+      evidence: "Informação nutricional disponível no site oficial da Nestlé.",
+    }), {
+      executed: true,
+      sources: [
+        {
+          url: "https://www.nestle.com.br/marcas/chocolates/kitkat?utm_source=openai",
+          supportingText: ["([nestle.com.br](https://www.nestle.com.br/marcas/chocolates/kitkat?utm_source=openai))"],
+        },
+        {
+          url: "https://www.nestle.com.br/media/pressreleases/exemplo?utm_source=openai",
+          supportingText: [
+            "De acordo com a fonte, uma unidade de 41,5 g contém 220 kcal, proteínas 3,3 g, carboidratos 24 g e gorduras totais 12 g. ([nestle.com.br](https://www.nestle.com.br/marcas/chocolates/kitkat?utm_source=openai))",
+          ],
+        },
+      ],
+    });
+
+    const result = await findPackagedSnackByWebSearch("kit kat ao leite 41,5g", "chocolate");
+
+    expect(result).not.toBeNull();
+    expect(result?.aliases).toContain(
+      "fonte: https://www.nestle.com.br/marcas/chocolates/kitkat?utm_source=openai",
+    );
+    expect(result?.aliases).not.toContain("fonte: https://url-nao-citada.example/produto");
+  });
+
   it("returns null (without fabricating data) when confidence is below the threshold", async () => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});
