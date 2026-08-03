@@ -119,7 +119,7 @@ pnpm db:check-integrity
 
 `server/_core/ai/` define o registro de capacidades, a matriz de suporte, o resolvedor e o executor comum:
 
-- `QUESTION` exige geração textual e pesquisa web e usa somente o contrato interno estável `{ type: "web_search" }`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente com consumidor legado direto. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
+- `QUESTION` exige geração textual e pesquisa web e usa somente o contrato interno estável `{ type: "web_search" }`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente consumida pela busca semântica de catálogo por meio do resolvedor e do executor comuns. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
 - A matriz representa somente operações implementadas no adapter do projeto. OpenAI expõe métodos explícitos para texto/multimodal, pesquisa web, embeddings, transcrição e imagem; Gemini suporta texto, visão, Structured Output e Google Search Grounding. Embeddings Gemini permanecem indisponíveis até existir método dedicado e teste de integração.
 - Todo campo aceito pelo request comum precisa ser traduzido ou rejeitado localmente. O Gemini traduz somente `web_search` para Google Search Grounding e rejeita qualquer outro tipo de ferramenta antes da rede; nunca descarta ferramenta silenciosamente.
 - `OPENAI_BASE_URL` não vazio ativa automaticamente o modo `openai-compatible`; o endpoint começa sem operações suportadas e exige allowlist explícita em `AI_OPENAI_COMPATIBLE_OPERATIONS`.

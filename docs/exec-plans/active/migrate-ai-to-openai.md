@@ -114,7 +114,7 @@ Objetivos do rollout:
 
 Status: implementação corretiva preparada; aguarda auditoria independente do SHA final. Migração de consumidores é escopo das subissues seguintes de #917.
 
-- `capabilities.ts` registra todas as capacidades. `QUESTION` exige `text` e `web_search` conforme o consumidor real; `NUTRITION_SEARCH` exige `text`, `structured_output` e `web_search`; `EMBEDDING` exige somente `embeddings` e possui consumidor legado direto; `FOOD_CLASSIFICATION` permanece reservada.
+- `capabilities.ts` registra todas as capacidades. `QUESTION` exige `text` e `web_search` conforme o consumidor real; `NUTRITION_SEARCH` exige `text`, `structured_output` e `web_search`; `EMBEDDING` exige somente `embeddings` e, naquele estágio, ainda possuía consumidor legado direto (migrado na fase 10/#923); `FOOD_CLASSIFICATION` permanece reservada.
 - `supportMatrix.ts` representa métodos e traduções existentes nos adapters. OpenAI possui métodos explícitos para texto/multimodal, embeddings, transcrição e imagem. Gemini declara texto, visão e Structured Output nesta fase; pesquisa web e embeddings não são anunciados antes de tradução/método dedicado e teste.
 - `configResolver.ts` resolve adapter antes do modelo, aplica variável nova > variável legada compatível > default, preserva `OPENAI_MODEL`/`GEMINI_MODEL`, rejeita modelo vazio e valores inválidos, e seleciona modelo próprio para fallback.
 - `OPENAI_BASE_URL` não vazio é tratado automaticamente como `openai-compatible`. Nenhuma operação é assumida até constar em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
