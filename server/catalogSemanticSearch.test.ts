@@ -237,6 +237,43 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(result?.aliases).not.toContain("fonte: https://url-nao-citada.example/produto");
   });
 
+  it("aceita grounding Gemini opaco com valores antes dos rótulos", async () => {
+    const evidence = "De acordo com a tabela nutricional do KitKat ao leite de 41,5g (1 unidade) fornecida pela Loja Santo Antônio, a porção contém 220 kcal, 24g de carboidratos, 3,3g de proteínas e 12g de gorduras.";
+    const opaqueSource = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token";
+    resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Chocolate KitKat Ao Leite 41,5g",
+      brandName: "Nestlé",
+      servingLabel: "1 unidade",
+      gramsPerServing: 41.5,
+      calories: 220,
+      protein: 3.3,
+      carbs: 24,
+      fat: 12,
+      confidence: 1,
+      sourceUrl: "https://www.lojasantoantonio.com.br/chocolate-kitkat-ao-leite-41-5g-24-unidades-nestle",
+      evidence,
+    }), {
+      executed: true,
+      sources: [{
+        url: opaqueSource,
+        title: "lojasantoantonio.com.br",
+        supportingText: [evidence],
+      }],
+    });
+
+    const result = await findPackagedSnackByWebSearch("KitKat ao leite 41,5g", "chocolate");
+
+    expect(result).not.toBeNull();
+    expect(result?.calories).toBe(220);
+    expect(result?.protein).toBe(3.3);
+    expect(result?.carbs).toBe(24);
+    expect(result?.fat).toBe(12);
+    expect(result?.aliases).toContain(`fonte: ${opaqueSource}`);
+  });
+
   it("returns null (without fabricating data) when confidence is below the threshold", async () => {
     resolveCapabilityConfigMock.mockReturnValue(READY_POLICY);
     createTextResponseMock.mockResolvedValue({});

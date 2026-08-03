@@ -456,8 +456,8 @@ function extractUnitValues(text: string, unitPattern: string): number[] {
 function extractLabelledGramValues(text: string, labelPattern: string): number[] {
   const values: number[] = [];
   const patterns = [
-    new RegExp(`(?:${labelPattern})[^\\d]{0,24}(-?\\d+(?:[.,]\\d+)?)\\s*g`, "giu"),
-    new RegExp(`(-?\\d+(?:[.,]\\d+)?)\\s*g[^a-z0-9]{0,12}(?:${labelPattern})`, "giu"),
+    new RegExp(`(?:${labelPattern})\\s*(?::|=)?\\s*(-?\\d+(?:[.,]\\d+)?)\\s*g`, "giu"),
+    new RegExp(`(-?\\d+(?:[.,]\\d+)?)\\s*g\\s*(?:de\\s+)?(?:${labelPattern})`, "giu"),
   ];
   for (const regex of patterns) {
     for (const match of text.matchAll(regex)) {
@@ -477,7 +477,7 @@ function numericClaimsSupportResult(text: string, result: Partial<SearchedNutrit
   if (!gramValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
 
   const labelledClaims: Array<[string, number | undefined]> = [
-    ["prote[ií]na|protein", result.protein],
+    ["prote[ií]nas?|proteins?", result.protein],
     ["carboidratos?|carbs?", result.carbs],
     ["gorduras?(?:\\s+totais?)?|fat", result.fat],
   ];
@@ -499,7 +499,7 @@ function findVerifiedNutritionSource(
 
   const evidenceHasNutritionClaim = (
     extractUnitValues(evidence, "kcal|calorias?").length > 0
-    || ["prote[ií]na|protein", "carboidratos?|carbs?", "gorduras?(?:\\s+totais?)?|fat"]
+    || ["prote[ií]nas?|proteins?", "carboidratos?|carbs?", "gorduras?(?:\\s+totais?)?|fat"]
       .some(label => extractLabelledGramValues(evidence, label).length > 0)
   );
   const evidenceMatchesResult = numericClaimsSupportResult(evidence, result);
