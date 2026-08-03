@@ -174,7 +174,6 @@ async function runNutrition(nutritionQuery: string) {
     throw new Error(`NUTRITION_SEARCH smoke is not executable (state=${policy.state})`);
   }
 
-  const verificationDate = new Date().toISOString().slice(0, 10);
   const result = await executeResolvedCapability(policy, attempt =>
     createDomainTextResponse(
       attempt.provider,
@@ -182,11 +181,9 @@ async function runNutrition(nutritionQuery: string) {
         model: attempt.model,
         instructions: [
           "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
-          "Esta chamada valida grounding real: execute a Pesquisa Google antes de produzir o JSON.",
-          "Não responda com conhecimento interno, memória do modelo ou estimativa sem consultar a web nesta chamada.",
-          "Use a busca para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
+          "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
           "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
-          "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false somente depois de tentar a busca.",
+          "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
           "Retorne apenas JSON válido no schema solicitado.",
         ].join("\n"),
         input: [{
@@ -194,14 +191,12 @@ async function runNutrition(nutritionQuery: string) {
           content: [{
             type: "input_text",
             text: [
-              `Data da verificação: ${verificationDate}.`,
               `Alimento reconhecido: ${nutritionQuery}`,
               "Categoria provável: chocolate/bombom/wafer embalado",
-              "Execute a Pesquisa Google agora e localize uma página pública acessível na data da verificação.",
               "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
               "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
               "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
-              "Preencha sourceUrl com uma fonte obtida pela busca desta chamada e evidence com uma frase curta explicando a evidência.",
+              "Preencha sourceUrl com a melhor fonte usada e evidence com uma frase curta explicando a evidência.",
             ].join("\n"),
           }],
         }],
@@ -219,13 +214,10 @@ async function runNutrition(nutritionQuery: string) {
 
   const payload = parseNutritionSmokePayload(result.value.outputText);
   const webSearch = result.value.webSearch;
-  if (!webSearch?.executed) {
-    throw new Error("NUTRITION_SEARCH smoke did not execute web search");
-  }
 
   if (payload.found) {
-    if (!webSearch.sources.length) {
-      throw new Error("NUTRITION_SEARCH smoke returned a match without normalized sources");
+    if (!webSearch?.executed || !webSearch.sources.length) {
+      throw new Error("NUTRITION_SEARCH smoke returned a match without executed search and normalized sources");
     }
     return {
       matched: true,
@@ -238,7 +230,7 @@ async function runNutrition(nutritionQuery: string) {
   return {
     matched: false,
     outcome: "safe-no-match" as const,
-    sourceCount: webSearch.sources.length,
+    sourceCount: webSearch?.sources.length ?? 0,
     attempts: 1,
   };
 }

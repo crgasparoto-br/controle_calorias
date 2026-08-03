@@ -72,7 +72,7 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).toContain("GitHub secret GEMINI_API_KEY is unavailable.");
   });
 
-  it("executes one nutrition provider call and treats a valid no-match as safe degradation", () => {
+  it("executes one nutrition provider call and preserves safe no-match semantics", () => {
     const smokeScript = readSmokeScript();
     const nutritionStart = smokeScript.indexOf("async function runNutrition");
     const embeddingStart = smokeScript.indexOf("async function runEmbedding");
@@ -86,10 +86,11 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(nutritionBlock).not.toContain("findPackagedSnackByWebSearch");
     expect(nutritionBlock).not.toContain("runNutritionProbe");
     expect(smokeScript).not.toContain("SMOKE_NUTRITION_ATTEMPTS");
-    expect(nutritionBlock).toContain("execute a Pesquisa Google antes de produzir o JSON");
-    expect(nutritionBlock).toContain("Não responda com conhecimento interno");
+    expect(nutritionBlock).not.toContain('if (!webSearch?.executed) {');
+    expect(nutritionBlock).toContain("if (!webSearch?.executed || !webSearch.sources.length)");
     expect(nutritionBlock).toContain('outcome: "matched-provider-payload"');
     expect(nutritionBlock).toContain('outcome: "safe-no-match"');
+    expect(nutritionBlock).toContain("sourceCount: webSearch?.sources.length ?? 0");
     expect(smokeScript).toContain("nutritionMatched: nutritionResult.matched");
     expect(smokeScript).not.toContain("nutritionMatched: true");
   });
