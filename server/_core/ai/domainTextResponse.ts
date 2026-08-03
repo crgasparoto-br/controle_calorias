@@ -91,7 +91,6 @@ function shouldRequestEvidenceProbe(
     && parsed.sourceUrl.trim().length > 0;
 }
 
-
 function buildEvidenceProbeRequest(
   request: AiProviderTextRequest,
   structuredOutput: string,
@@ -101,7 +100,8 @@ function buildEvidenceProbeRequest(
     "Esta chamada adicional serve somente para recuperar evidências da busca web.",
     "Execute a busca e responda em texto simples, sem JSON estruturado.",
     "Verifique independentemente os dados da resposta estruturada abaixo.",
-    "Se os dados forem confirmados, repita literalmente a frase do campo evidence e associe-a às fontes usadas.",
+    "Se os dados forem confirmados, escreva uma linha por fonte com porção, calorias, proteínas, carboidratos e gorduras, seguida imediatamente pela citação nativa dessa fonte.",
+    "Não escreva uma linha de dados sem a citação correspondente na mesma linha.",
     "Se não forem confirmados, explique a divergência sem inventar ou adaptar valores.",
     "Resposta estruturada a verificar:",
     structuredOutput,
@@ -110,6 +110,49 @@ function buildEvidenceProbeRequest(
   return {
     ...withoutFormat,
     instructions: [request.instructions, evidenceInstruction].filter(Boolean).join("\n"),
+  };
+}
+
+function isCitationMarker(text: string): boolean {
+  return /^\s*(?:\(\s*)?\[[^\]]+\]\(https?:\/\/[^)]+\)(?:\s*\))?\s*$/u.test(text);
+}
+
+function expandCitationLinkedLines(
+  webSearch: AiWebSearchResult | undefined,
+  providerOutputText: string | undefined,
+): AiWebSearchResult | undefined {
+  if (!webSearch || !providerOutputText?.trim()) return webSearch;
+
+  return {
+    ...webSearch,
+    sources: webSearch.sources.map(source => {
+      const expanded = new Set<string>();
+      for (const linkedText of source.supportingText ?? []) {
+        const normalizedLinkedText = linkedText.trim();
+        if (!normalizedLinkedText) continue;
+        if (!isCitationMarker(normalizedLinkedText)) {
+          expanded.add(normalizedLinkedText);
+          continue;
+        }
+        const markerIndex = providerOutputText.indexOf(normalizedLinkedText);
+        if (markerIndex < 0) {
+          expanded.add(normalizedLinkedText);
+          continue;
+        }
+        const lineStart = providerOutputText.lastIndexOf("\n", Math.max(0, markerIndex - 1)) + 1;
+        const nextLineBreak = providerOutputText.indexOf(
+          "\n",
+          markerIndex + normalizedLinkedText.length,
+        );
+        const lineEnd = nextLineBreak === -1 ? providerOutputText.length : nextLineBreak;
+        const linkedLine = providerOutputText.slice(lineStart, lineEnd).trim();
+        expanded.add(linkedLine || normalizedLinkedText);
+      }
+      return {
+        ...source,
+        ...(expanded.size ? { supportingText: [...expanded] } : {}),
+      };
+    }),
   };
 }
 
@@ -170,8 +213,10 @@ function combineWebSearch(
  * receives that exact answer so provider-linked supporting text can confirm or
  * refute the same numeric claims. Downstream validation still requires an
  * independently returned source/evidence match. The probe's free-form output is
- * never promoted to `supportingText`; only citation/grounding segments linked by
- * the provider may establish provenance.
+ * never promoted on its own. A provider-linked citation marker may expand only
+ * to the exact line that contains that marker; URL-only sources remain without
+ * evidence. Only citation/grounding segments linked by the provider establish
+ * provenance.
  */
 export async function createDomainTextResponse(
   provider: AiProvider,
@@ -180,17 +225,21 @@ export async function createDomainTextResponse(
 ): Promise<AiDomainTextResponse> {
   const response = await provider.createTextResponse(request, options);
   const evidenceProbe = shouldRequestEvidenceProbe(
-  request,
-  response.outputText,
-  response.webSearch,
-)
-  ? await provider.createTextResponse(
-      buildEvidenceProbeRequest(request, response.outputText),
-      options,
-    )
-  : undefined;
+    request,
+    response.outputText,
+    response.webSearch,
+  )
+    ? await provider.createTextResponse(
+        buildEvidenceProbeRequest(request, response.outputText),
+        options,
+      )
+    : undefined;
   const usage = combineUsage(response.usage, evidenceProbe?.usage);
-  const webSearch = combineWebSearch(response.webSearch, evidenceProbe?.webSearch);
+  const evidenceProbeWebSearch = expandCitationLinkedLines(
+    evidenceProbe?.webSearch,
+    evidenceProbe?.outputText,
+  );
+  const webSearch = combineWebSearch(response.webSearch, evidenceProbeWebSearch);
 
   return {
     id: response.id,
