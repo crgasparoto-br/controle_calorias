@@ -3,9 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const workflowPath = resolve(process.cwd(), ".github/workflows/ai-provider-live-smoke.yml");
+const smokeScriptPath = resolve(process.cwd(), "scripts/issue-923-live-provider-smoke.ts");
 
 function readWorkflow() {
   return readFileSync(workflowPath, "utf8");
+}
+
+function readSmokeScript() {
+  return readFileSync(smokeScriptPath, "utf8");
 }
 
 describe("issue 923 live-provider smoke security boundary", () => {
@@ -29,18 +34,19 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(workflow).not.toContain("secrets.GEMINI_API_KEY");
   });
 
-  it("requires a protected environment and external approval of the exact SHA", () => {
+  it("runs automatically for the exact trusted PR head without manual approval state", () => {
     const workflow = readWorkflow();
-    const approvalIndex = workflow.indexOf("APPROVED_HEAD_SHA: ${{ vars.AI_SMOKE_APPROVED_SHA }}");
+    const smokeScript = readSmokeScript();
+    const identityIndex = workflow.indexOf("Verify trusted identity and exact selected SHA");
     const installIndex = workflow.indexOf("Install dependencies without provider credentials");
 
-    expect(workflow).toContain("environment:\n      name: issue-923-live-smoke");
-    expect(workflow).toContain('[ "${APPROVED_HEAD_SHA}" != "${EXPECTED_HEAD_SHA}" ]');
-    expect(workflow).toContain(
-      "Set protected-environment variable AI_SMOKE_APPROVED_SHA to the independently reviewed PR head before releasing provider credentials.",
-    );
-    expect(approvalIndex).toBeGreaterThan(0);
-    expect(installIndex).toBeGreaterThan(approvalIndex);
+    expect(workflow).not.toContain("environment:\n      name: issue-923-live-smoke");
+    expect(workflow).not.toContain("AI_SMOKE_APPROVED_SHA");
+    expect(workflow).not.toContain("SMOKE_APPROVED_SHA");
+    expect(smokeScript).not.toContain("SMOKE_APPROVED_SHA");
+    expect(workflow).toContain('test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"');
+    expect(identityIndex).toBeGreaterThan(0);
+    expect(installIndex).toBeGreaterThan(identityIndex);
   });
 
   it("locks checkout and execution to the trusted repository, owner and issue branch", () => {
@@ -63,10 +69,10 @@ describe("issue 923 live-provider smoke security boundary", () => {
     const workflow = readWorkflow();
 
     expect(workflow).toContain(
-      "The protected issue-923-live-smoke environment has no dedicated OpenAI smoke credential.",
+      "Dedicated repository or organization secret AI_SMOKE_OPENAI_API_KEY is unavailable.",
     );
     expect(workflow).toContain(
-      "The protected issue-923-live-smoke environment has no dedicated Gemini smoke credential.",
+      "Dedicated repository or organization secret AI_SMOKE_GEMINI_API_KEY is unavailable.",
     );
     expect(workflow).toContain(
       "unset AI_SMOKE_OPENAI_API_KEY AI_SMOKE_GEMINI_API_KEY",
