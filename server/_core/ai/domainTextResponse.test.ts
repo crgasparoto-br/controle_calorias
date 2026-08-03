@@ -180,6 +180,35 @@ describe("domain text response boundary", () => {
     expect(result.webSearch?.sources[0]?.supportingText).toEqual(["220 kcal por unidade de 41,5 g"]);
   });
 
+  it("expands a provider-linked citation marker only to its exact claim line", async () => {
+    const citation = "([pitterpan.com.br](https://example.com/kitkat))";
+    const claim = "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras 11,2 g.";
+    const { provider } = providerWithResponses(
+      {
+        id: "primary",
+        outputText: '{"found":true,"sourceUrl":"https://example.com/kitkat","evidence":"dados nutricionais a confirmar"}',
+        raw: {},
+        webSearch: { executed: true, sources: [{ url: "https://example.com/kitkat" }] },
+      },
+      {
+        id: "probe",
+        outputText: `Linha não citada\n${claim} ${citation}\nOutra linha sem relação`,
+        raw: {},
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.com/kitkat", supportingText: [citation] }],
+        },
+      },
+    );
+
+    const request = { ...structuredSearchRequest, model: "gpt-4.1-mini" } satisfies AiProviderTextRequest;
+    const result = await createDomainTextResponse(provider, request);
+
+    expect(result.webSearch?.sources[0]?.supportingText).toEqual([`${claim} ${citation}`]);
+    expect(result.webSearch?.sources[0]?.supportingText?.[0]).not.toContain("Linha não citada");
+    expect(result.webSearch?.sources[0]?.supportingText?.[0]).not.toContain("Outra linha");
+  });
+
   it("does not treat free-form probe output as source-linked evidence", async () => {
     const { provider, createTextResponse } = providerWithResponses(
       {
