@@ -38,19 +38,12 @@
 
 Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK e `usage.raw`. O executor preserva a taxonomia fail-closed: autenticação, modelo inexistente, operação incompatível, bloqueio de segurança e configuração inválida não podem provocar reenvio ao mesmo provider nem a fallback.
 
-### Smoke real protegido da issue #922
+### Fronteira dos consumidores #923
 
-O workflow `.github/workflows/issue-922-live-provider-smoke.yml` executa código do head da pull request e, por isso, nunca pode receber credenciais comuns de produção ou credenciais disponíveis automaticamente para qualquer PR.
+`QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. Cada chamada dessa fronteira executa exatamente uma chamada ao provider; recuperação, retry e fallback pertencem exclusivamente a `executeResolvedCapability`. Fonte ausente, URL-only ou evidência nutricional insuficiente degrada localmente sem probe oculto. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
 
-Controles obrigatórios:
+### Smokes temporários com providers externos
 
-- o job usa o ambiente protegido `issue-922-live-smoke` e esse ambiente deve exigir aprovação manual de um mantenedor antes de liberar secrets;
-- o repositório deve definir `ISSUE_922_SMOKE_APPROVED_SHA` com o SHA exato revisado; o job falha antes da instalação e antes de qualquer secret quando a variável está vazia ou diverge do head;
-- a aprovação e `ISSUE_922_SMOKE_APPROVED_SHA` devem ser renovadas após qualquer mudança do SHA da pull request;
-- somente PR do repositório `crgasparoto-br/controle_calorias`, criada por `crgasparoto-br` e com branch `feat/922-ai-capabilities-meal-whatsapp*` é elegível;
-- as únicas credenciais aceitas são `ISSUE_922_SMOKE_OPENAI_API_KEY` ou `ISSUE_922_SMOKE_GEMINI_API_KEY`, exclusivas para smoke, com quota e permissões mínimas; não reutilizar credencial de produção;
-- os secrets ficam restritos ao passo final de smoke e não são disponibilizados durante checkout, instalação de dependências ou validações anteriores;
-- `persist-credentials` permanece desabilitado no checkout do head;
-- a ausência de credencial dedicada deve falhar de forma explícita, sem fallback para `OPENAI_API_KEY` ou `GEMINI_API_KEY` genéricas.
+O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos. Para #923, `scripts/issue-923-live-provider-smoke.ts` fornece um harness que valida `QUESTION` em modo sem busca, `QUESTION` com pesquisa real, `NUTRITION_SEARCH` com fonte citada em uma única tentativa governada pelo executor e `EMBEDDING` com vetor real. O workflow executa automaticamente somente para o repositório, proprietário e branch confiáveis, confere que o checkout corresponde ao `HEAD` selecionado da PR e desabilita persistência de credenciais no checkout. Não há revisão manual do head nem variável `AI_SMOKE_APPROVED_SHA`.
 
-A proteção do ambiente, a aprovação do SHA e a criação/rotação das credenciais são configurações operacionais do GitHub/OpenAI ou Gemini e não devem ser simuladas por arquivo versionado.
+Testes e smokes reais de IA no GitHub Actions usam sempre os secrets de repositório padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`; aliases `AI_SMOKE_*` não devem ser criados. Os secrets são injetados somente no passo final que realiza as chamadas externas, depois de checkout, validação de identidade, setup e instalação sem credenciais. O harness permite modelos separados por `SMOKE_QUESTION_MODEL` e `SMOKE_NUTRITION_MODEL`; no Gemini, a pesquisa nutricional requer Gemini 3, enquanto perguntas podem continuar em Gemini 2.5. Ausência da chave necessária deve falhar fechado e ser registrada como limitação, não como smoke aprovado.

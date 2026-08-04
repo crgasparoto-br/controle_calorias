@@ -33,10 +33,40 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
   logInferenceEvent,
 }));
-vi.mock("../../_core/openaiClient", () => ({
-  OpenAiConfigurationError: class extends Error {},
-  isOpenAiConfigured: () => true,
-  createOpenAiClient: () => ({ responses: { create: createResponse } }),
+vi.mock("../../_core/ai/configResolver", () => ({
+  resolveCapabilityConfig: () => ({
+    state: "ready",
+    primary: { provider: "openai", model: "gpt-4.1-mini" },
+    fallback: { effectivelyEnabled: false },
+    timeoutMs: 8000,
+    maxAttempts: 1,
+    diagnostics: [],
+    usedLegacyVariables: false,
+  }),
+}));
+
+vi.mock("../../_core/ai/capabilityExecutor", () => ({
+  executeResolvedCapability: async (_policy: unknown, operation: (attempt: unknown) => Promise<unknown>) => {
+    const value = await operation({
+      signal: new AbortController().signal,
+      source: "primary",
+      attempt: 1,
+      timeoutMs: 8000,
+      provider: {
+        createTextResponse: async (request: unknown) => {
+          const response = await createResponse(request);
+          return {
+            id: response?.id ?? "resp-test",
+            outputText: response?.output_text ?? "",
+            raw: response,
+          };
+        },
+      },
+      providerId: "openai",
+      model: "gpt-4.1-mini",
+    });
+    return { value, source: "primary", attempts: 1, usedFallback: false };
+  },
 }));
 vi.mock("./timeZoneContext", () => ({
   getWhatsAppOperationTimeZone: vi.fn(async () => "America/Sao_Paulo"),

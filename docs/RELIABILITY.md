@@ -119,9 +119,9 @@ pnpm db:check-integrity
 
 `server/_core/ai/` define o registro de capacidades, a matriz de suporte, o resolvedor e o executor comum:
 
-- `QUESTION` exige geração textual e pesquisa web porque o consumidor legado de perguntas sempre envia `web_search_preview`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente com consumidor legado direto. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
-- A matriz representa somente operações implementadas no adapter do projeto. OpenAI expõe métodos explícitos para texto/multimodal, embeddings, transcrição e imagem; Gemini suporta hoje texto, visão e Structured Output. Pesquisa web e embeddings Gemini permanecem indisponíveis até existir tradução/método e teste de integração.
-- Todo campo aceito pelo request comum precisa ser traduzido ou rejeitado localmente. O Gemini rejeita requests com `tools` antes da rede enquanto a tradução para Google Search não estiver implementada; nunca descarta a ferramenta silenciosamente.
+- `QUESTION` exige geração textual e pesquisa web e usa somente o contrato interno estável `{ type: "web_search" }`. `NUTRITION_SEARCH` exige geração textual, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade independente consumida pela busca semântica de catálogo por meio do resolvedor e do executor comuns. Não reutilizar o modelo de embeddings como se executasse pesquisa nutricional.
+- A matriz representa somente operações implementadas no adapter do projeto. OpenAI expõe métodos explícitos para texto/multimodal, pesquisa web, embeddings, transcrição e imagem; Gemini suporta texto, visão, Structured Output e Google Search Grounding. Embeddings Gemini permanecem indisponíveis até existir método dedicado e teste de integração.
+- Todo campo aceito pelo request comum precisa ser traduzido ou rejeitado localmente. O Gemini traduz somente `web_search` para Google Search Grounding e rejeita qualquer outro tipo de ferramenta antes da rede; nunca descarta ferramenta silenciosamente.
 - `OPENAI_BASE_URL` não vazio ativa automaticamente o modo `openai-compatible`; o endpoint começa sem operações suportadas e exige allowlist explícita em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
 - Timeout e tentativas inválidos tornam a capacidade `invalid`; não são aceitos como configuração pronta.
 - O executor rejeita estados `invalid` e `disabled`, limites não positivos/não inteiros e fallback habilitado sem callback antes de qualquer chamada. Estado `degraded` só executa quando o primário continua válido.
@@ -150,6 +150,10 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 ## Consumidores migrados em #922
 
 `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam exclusivamente `executeResolvedCapability`; não mantêm loops locais de timeout/retry. Saída vazia, JSON inválido e payload inválido são recuperáveis dentro dos limites configurados. Erros de autenticação, modelo inexistente, incompatibilidade, segurança, configuração ou desconhecidos falham fechado sem retry/fallback. `items: []` válido encerra a execução na primeira resposta.
+
+## Consumidores migrados em #923
+
+`QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Em `QUESTION`, `AI_QUESTION_WEB_SEARCH_MODE=auto` oferece a ferramenta sem forçá-la; `disabled` (e o alias legado `off`) não envia a ferramenta, e valores desconhecidos falham fechados. Em `NUTRITION_SEARCH`, o resolvedor também valida a combinação provider + modelo + operações: Gemini 2.5 continua elegível para `QUESTION`, mas é rejeitado para Structured Output + Google Search na mesma chamada; apenas um Gemini 3 explicitamente aprovado pode executar essa combinação, sem alterar defaults antes da #927. Fonte insuficiente, ferramenta não executada, citação sem suporte à evidência ou incompatibilidade de marca, produto, sabor, peso ou embalagem degrada para o fallback nutricional canônico local, sem probe, retry ou fallback externo oculto dentro da tentativa do executor. Variantes ou medidas presentes apenas no candidato são tratadas como ambiguidade, não como correspondência. JSON/payload inválido pode consumir retry/fallback operacional; `found=false` é resultado funcional e não provoca segunda consulta. `EMBEDDING` indisponível ou com espaço vetorial divergente degrada para busca textual/canônica; Gemini segue inelegível por não anunciar `embeddings`.
 
 ## Metadados opcionais do contexto profissional
 

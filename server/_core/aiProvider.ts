@@ -19,7 +19,7 @@ export type AiProviderResponseFormat =
     };
 
 export type AiProviderWebSearchTool = {
-  type: "web_search" | "web_search_preview";
+  type: "web_search";
 };
 
 export type AiProviderTextTool = AiProviderWebSearchTool;
@@ -44,10 +44,37 @@ export type AiProviderUsage = {
   raw: unknown;
 };
 
+/**
+ * Normalized, SDK-agnostic outcome of a web search / grounding tool made
+ * available to a text response. `executed` reflects whether the model
+ * actually invoked the tool, never whether it was merely offered — callers
+ * must not attribute cost or a "researched" provenance to a call where the
+ * tool was available but unused (auto mode).
+ */
+export type AiWebSearchSource = {
+  url: string;
+  title?: string;
+  /** Provider-linked response segments supported by this source, when exposed. */
+  supportingText?: string[];
+};
+
+export type AiWebSearchResult = {
+  /** Whether the tool was actually invoked by the model in this response. */
+  executed: boolean;
+  /** Billable search invocation count, when the provider reports one. */
+  searchCount?: number;
+  /** Normalized citations/URLs backing the response. Empty when not executed. */
+  sources: AiWebSearchSource[];
+  /** Provider-reported search queries, when available (no user PII expected). */
+  searchQueries?: string[];
+};
+
 export type AiProviderTextResponse = {
   id: string;
   outputText: string;
   usage?: AiProviderUsage;
+  /** Present only when a web_search/grounding tool was offered on the request. */
+  webSearch?: AiWebSearchResult;
   raw: unknown;
 };
 
@@ -160,8 +187,12 @@ function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
   }
 
   const type = (tool as { type?: unknown }).type;
-  if (type === "web_search" || type === "web_search_preview") {
-    return { type: "web_search_preview" };
+  if (type === "web_search") {
+    // openai@4.104 predates the stable `web_search` discriminant in some
+    // generated type surfaces, but the Responses API contract is stable. Keep
+    // the cast isolated inside the adapter instead of leaking SDK details into
+    // the domain contract.
+    return { type: "web_search" } as unknown as OpenAiSdkTextTool;
   }
 
   throw new AiNonRetryableError(
@@ -271,6 +302,105 @@ function firstImageData(response: { data?: Array<{ b64_json?: string }> }) {
   return response.data?.[0]?.b64_json;
 }
 
+function normalizeOpenAiWebSearch(
+  response: OpenAiResponse,
+  requestedTool: boolean,
+): AiWebSearchResult | undefined {
+  if (!requestedTool) return undefined;
+
+  const rawOutput: unknown = (response as unknown as { output?: unknown }).output;
+  const output: Array<Record<string, unknown>> = Array.isArray(rawOutput)
+    ? (rawOutput as Array<Record<string, unknown>>)
+    : [];
+
+  const webSearchCalls = output.filter(
+    item => item.type === "web_search_call" && item.status === "completed",
+  );
+  const executed = webSearchCalls.length > 0;
+  const sourceByUrl = new Map<string, AiWebSearchSource>();
+  const searchQueries = new Set<string>();
+
+  const addSource = (value: unknown, title?: unknown, supportingText?: unknown) => {
+    if (typeof value !== "string" || !value.trim()) return;
+    const url = value.trim();
+    const normalizedTitle = typeof title === "string" && title.trim() ? title.trim() : undefined;
+    const normalizedSupportingText = typeof supportingText === "string" && supportingText.trim()
+      ? supportingText.trim()
+      : undefined;
+    const existing = sourceByUrl.get(url);
+    const supportingTexts = new Set(existing?.supportingText ?? []);
+    if (normalizedSupportingText) supportingTexts.add(normalizedSupportingText);
+    sourceByUrl.set(url, {
+      url,
+      ...(existing?.title || normalizedTitle ? { title: existing?.title ?? normalizedTitle } : {}),
+      ...(supportingTexts.size ? { supportingText: [...supportingTexts] } : {}),
+    });
+  };
+
+  for (const item of webSearchCalls) {
+    const action = typeof item.action === "object" && item.action !== null
+      ? (item.action as Record<string, unknown>)
+      : null;
+    if (!action) continue;
+
+    if (typeof action.query === "string" && action.query.trim()) {
+      searchQueries.add(action.query.trim());
+    }
+    if (Array.isArray(action.queries)) {
+      for (const query of action.queries) {
+        if (typeof query === "string" && query.trim()) searchQueries.add(query.trim());
+      }
+    }
+    if (Array.isArray(action.sources)) {
+      for (const source of action.sources) {
+        if (typeof source !== "object" || source === null) continue;
+        const sourceRecord = source as Record<string, unknown>;
+        addSource(sourceRecord.url, sourceRecord.title);
+      }
+    }
+  }
+
+  for (const item of output) {
+    if (item.type !== "message") continue;
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const part of content) {
+      if (typeof part !== "object" || part === null) continue;
+      const partRecord = part as { text?: unknown; annotations?: unknown };
+      const partText = typeof partRecord.text === "string" ? partRecord.text : "";
+      const annotations = Array.isArray(partRecord.annotations)
+        ? partRecord.annotations
+        : [];
+      for (const annotation of annotations) {
+        if (
+          typeof annotation === "object" &&
+          annotation !== null &&
+          (annotation as { type?: unknown }).type === "url_citation"
+        ) {
+          const citation = annotation as {
+            url?: unknown;
+            title?: unknown;
+            start_index?: unknown;
+            end_index?: unknown;
+          };
+          const start = typeof citation.start_index === "number" ? citation.start_index : null;
+          const end = typeof citation.end_index === "number" ? citation.end_index : null;
+          const supportingText = start !== null && end !== null && start >= 0 && end > start
+            ? partText.slice(start, end)
+            : undefined;
+          addSource(citation.url, citation.title, supportingText);
+        }
+      }
+    }
+  }
+
+  return {
+    executed,
+    searchCount: webSearchCalls.length,
+    sources: [...sourceByUrl.values()],
+    ...(searchQueries.size ? { searchQueries: [...searchQueries] } : {}),
+  };
+}
+
 function normalizeOpenAiUsage(response: OpenAiResponse): AiProviderUsage | undefined {
   const usage = (response as unknown as {
     usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
@@ -320,7 +450,14 @@ export class OpenAiProvider implements AiProvider {
     };
     if (request.instructions) payload.instructions = request.instructions;
     const tools = buildOpenAiTools(request.tools);
-    if (tools) payload.tools = tools;
+    if (tools) {
+      payload.tools = tools;
+      // Request the provider-native source list so the adapter can normalize
+      // evidence even when a URL is not repeated as a message annotation.
+      (payload as unknown as { include: string[] }).include = [
+        "web_search_call.action.sources",
+      ];
+    }
     const text = buildTextConfig(request.format);
     if (text) payload.text = text;
 
@@ -328,10 +465,12 @@ export class OpenAiProvider implements AiProvider {
       payload,
       openAiRequestOptions(options),
     )) as OpenAiResponse;
+    const webSearch = normalizeOpenAiWebSearch(response, Boolean(tools?.length));
     return {
       id: response.id,
       outputText: response.output_text ?? "",
       usage: normalizeOpenAiUsage(response),
+      ...(webSearch ? { webSearch } : {}),
       raw: response,
     };
   }

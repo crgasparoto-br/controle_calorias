@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createTextResponseMock, embeddingsCreateMock } = vi.hoisted(() => ({
   createTextResponseMock: vi.fn(),
@@ -13,16 +13,7 @@ vi.mock("./_core/aiProvider", () => ({
 vi.mock("./_core/ai/providerResolver", () => ({
   getAiProviderById: () => ({
     createTextResponse: (request: unknown) => createTextResponseMock(request),
-  }),
-}));
-
-
-vi.mock("./_core/openaiClient", () => ({
-  isOpenAiConfigured: () => true,
-  createOpenAiClient: () => ({
-    embeddings: {
-      create: embeddingsCreateMock,
-    },
+    createEmbeddings: (request: unknown) => embeddingsCreateMock(request),
   }),
 }));
 
@@ -35,9 +26,26 @@ vi.mock("./catalogRuntime", async () => {
 
 describe("nutritionEngine branded snack photo nutrition", () => {
   beforeEach(() => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("OPENAI_BASE_URL", "");
+    vi.stubEnv("AI_OPENAI_COMPATIBLE_OPERATIONS", "");
+    vi.stubEnv("AI_VISION_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_MODEL", "gpt-4.1-mini");
+    vi.stubEnv("AI_NUTRITION_SEARCH_PROVIDER", "openai");
+    vi.stubEnv("AI_NUTRITION_SEARCH_MODEL", "gpt-4.1-mini");
+    vi.stubEnv("AI_NUTRITION_SEARCH_MAX_ATTEMPTS", "1");
+    vi.stubEnv("AI_NUTRITION_SEARCH_FALLBACK_ENABLED", "false");
+    vi.stubEnv("AI_EMBEDDING_PROVIDER", "openai");
+    vi.stubEnv("AI_EMBEDDING_MODEL", "text-embedding-3-small");
+    vi.stubEnv("AI_EMBEDDING_MAX_ATTEMPTS", "1");
+    vi.stubEnv("AI_EMBEDDING_FALLBACK_ENABLED", "false");
     createTextResponseMock.mockReset();
     embeddingsCreateMock.mockReset();
-    embeddingsCreateMock.mockResolvedValue({ data: [] });
+    embeddingsCreateMock.mockResolvedValue({ embeddings: [], raw: {} });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("corrige chutes genéricos da IA para doces industrializados reconhecidos por embalagem", async () => {
@@ -99,8 +107,8 @@ describe("nutritionEngine branded snack photo nutrition", () => {
         outputText: JSON.stringify({
           mealLabel: "Lanche",
           confidence: 0.8,
-          reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
-          items: [{ foodName: "Trento", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }],
+          reasoning: "Embalagem Trento Chocolate Branco Dark 32 g identificada, mas sem tabela nutricional legível.",
+          items: [{ foodName: "Trento Chocolate Branco Dark 32 g", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }],
         }),
         raw: { mocked: true },
       })
@@ -118,8 +126,12 @@ describe("nutritionEngine branded snack photo nutrition", () => {
           fat: 5.2,
           confidence: 0.86,
           sourceUrl: "https://example.test/trento-nutrition",
-          evidence: "Fonte informa tabela nutricional por unidade de 32 g.",
+          evidence: "Fonte informa 128 kcal por unidade de 32 g, proteína 2,1 g, carboidratos 19 g e gordura 5,2 g.",
         }),
+        webSearch: {
+          executed: true,
+          sources: [{ url: "https://example.test/trento-nutrition", supportingText: ["Fonte informa 128 kcal por unidade de 32 g, proteína 2,1 g, carboidratos 19 g e gordura 5,2 g."] }],
+        },
         raw: { mocked: true },
       });
 
@@ -127,7 +139,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento Chocolate Branco Dark", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
@@ -135,7 +147,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
   });
 
   it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
-    embeddingsCreateMock.mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] }).mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] });
+    embeddingsCreateMock.mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} }).mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} });
     createTextResponseMock
       .mockResolvedValueOnce({ id: "resp_unknown_packaged_chocolate", outputText: JSON.stringify({ mealLabel: "Lanche", confidence: 0.8, reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.", items: [{ foodName: "Alpino", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }] }), raw: { mocked: true } })
       .mockResolvedValueOnce({ id: "resp_web_nutrition_lookup_empty", outputText: JSON.stringify({ found: false, matchedProductName: "", brandName: "", servingLabel: "", gramsPerServing: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 0.2, sourceUrl: "", evidence: "Nenhuma fonte específica confiável encontrada." }), raw: { mocked: true } });

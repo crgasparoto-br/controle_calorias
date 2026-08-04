@@ -1,9 +1,11 @@
 /**
  * Explicit, testable adapter support matrix.
  *
- * Support is never inferred from provider or model naming. `openai-compatible`
- * is fail-closed: an operator must configure OPENAI_BASE_URL and explicitly
- * list every operation validated for that endpoint.
+ * Operation support is explicit. Model-specific operation combinations are
+ * also validated before network access when a provider documents narrower
+ * support for a combined request. `openai-compatible` is fail-closed: an
+ * operator must configure OPENAI_BASE_URL and explicitly list every operation
+ * validated for that endpoint.
  */
 import { AI_OPERATIONS, type AiOperation } from "./capabilities";
 
@@ -25,7 +27,46 @@ const GEMINI_OPERATIONS: readonly AiOperation[] = [
   "text",
   "vision",
   "structured_output",
+  "web_search",
 ];
+
+
+export type AiOperationCompatibilityIssue = {
+  code: "unsupported_operation_combination";
+  operations: readonly AiOperation[];
+  message: string;
+};
+
+function isGeminiThreeSeriesModel(model: string): boolean {
+  return /^gemini-3(?:[.-]|$)/iu.test(model.trim());
+}
+
+/**
+ * Provider operations may be supported individually while their combination
+ * is not supported by a specific model. Gemini documents Structured Outputs
+ * with built-in tools (including Google Search Grounding) only for Gemini 3
+ * series models. Keep that constraint at the resolver boundary so an invalid
+ * request is rejected locally instead of consuming a provider call.
+ */
+export function findOperationCompatibilityIssues(
+  provider: AiProviderId,
+  model: string,
+  operations: readonly AiOperation[],
+): AiOperationCompatibilityIssue[] {
+  if (
+    provider === "gemini"
+    && operations.includes("structured_output")
+    && operations.includes("web_search")
+    && !isGeminiThreeSeriesModel(model)
+  ) {
+    return [{
+      code: "unsupported_operation_combination",
+      operations: ["structured_output", "web_search"],
+      message: `provider=gemini model=${model || "<empty>"} does not support the required structured_output+web_search combination; configure an explicitly approved Gemini 3 series model`,
+    }];
+  }
+  return [];
+}
 
 function hasOpenAiCompatibleEndpoint(env: NodeJS.ProcessEnv): boolean {
   return Boolean(env.OPENAI_BASE_URL?.trim());

@@ -16,6 +16,7 @@ import {
   DEFAULT_TIMEOUT_MS,
 } from "./policyDefaults";
 import {
+  findOperationCompatibilityIssues,
   findUnsupportedOperations,
   isKnownProvider,
   type AiProviderId,
@@ -300,6 +301,16 @@ export function resolveCapabilityConfig(
     state = "invalid";
   }
 
+  const primaryCompatibilityIssues = findOperationCompatibilityIssues(
+    provider,
+    modelResolution.model,
+    definition.requiredOperations,
+  );
+  for (const issue of primaryCompatibilityIssues) {
+    diagnostics.push(`capability=${capability} ${issue.message}`);
+    state = "invalid";
+  }
+
   const timeoutRaw = readTrimmed(env, `AI_${capability}_TIMEOUT_MS`);
   const timeoutParsed = parsePositiveInt(timeoutRaw);
   if (timeoutRaw && timeoutParsed === null) {
@@ -402,6 +413,11 @@ export function resolveCapabilityConfig(
           definition.requiredOperations,
           env,
         );
+        const fallbackCompatibilityIssues = findOperationCompatibilityIssues(
+          fallbackProvider,
+          fallbackModel,
+          definition.requiredOperations,
+        );
 
         if (!fallbackModel) {
           diagnostics.push(
@@ -418,13 +434,17 @@ export function resolveCapabilityConfig(
             `capability=${capability} fallback provider=${fallbackProvider} does not support required operation(s): ${fallbackUnsupported.join(", ")}`,
           );
         }
+        for (const issue of fallbackCompatibilityIssues) {
+          diagnostics.push(`capability=${capability} fallback ${issue.message}`);
+        }
 
         const primaryRunnable = state === "ready";
         const fallbackEligible =
           primaryRunnable &&
           Boolean(fallbackModel) &&
           fallbackSecretPresent &&
-          fallbackUnsupported.length === 0;
+          fallbackUnsupported.length === 0 &&
+          fallbackCompatibilityIssues.length === 0;
 
         fallback = {
           requested: true,

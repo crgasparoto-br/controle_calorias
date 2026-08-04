@@ -93,7 +93,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 - `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
 - Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
 - Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
-- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922; `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam o mesmo resolvedor desde #923. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
 
 ## Riscos conhecidos e cuidados recorrentes
 
@@ -117,3 +117,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 ### Aplicação em refeição e intenção (#922)
 
 Cada capacidade possui opt-in próprio de fallback. Habilitar fallback em `MEAL_TEXT` não habilita `MEAL_VISION` nem `WHATSAPP_INTENT`. Resultado funcional, inclusive `items: []`, não gera segundo envio. Respostas nativas `raw` permanecem dentro da camada `_core`; serviços de refeição e WhatsApp recebem somente texto/identificador e usage numérico sanitizado. `FOOD_CLASSIFICATION` não envia dados externamente nesta fase.
+
+### Aplicação em pergunta, pesquisa nutricional e embedding (#923)
+
+O mesmo isolamento por capacidade se aplica a `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`: habilitar fallback em uma delas não habilita as demais. `QUESTION` e `NUTRITION_SEARCH` recebem respostas via `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK antes de entregar dados ao domínio (assistente de perguntas do WhatsApp e busca nutricional do catálogo). `EMBEDDING` preserva `text-embedding-3-small` da OpenAI como default; como Gemini não anuncia a operação `embeddings`, cross-provider fallback para `EMBEDDING` fica indisponível hoje mesmo com opt-in explícito, sem exigir bloqueio manual adicional.

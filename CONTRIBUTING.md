@@ -57,6 +57,12 @@ Vercel preview/deploy é evidência complementar. Ele não substitui `pnpm check
 
 Não documente nem exija comando novo como obrigatório sem adicioná-lo ao `package.json` ou explicar qual comando existente é equivalente.
 
+### Credenciais para testes reais de IA no GitHub Actions
+
+Todo teste ou smoke versionado que faça chamadas reais a OpenAI ou Gemini deve usar os secrets de repositório já padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`. Não crie aliases específicos por issue ou workflow, como `AI_SMOKE_OPENAI_API_KEY` ou `AI_SMOKE_GEMINI_API_KEY`.
+
+As credenciais devem ser referenciadas somente no `env` do passo que executa a chamada externa. Checkout, setup, instalação de dependências, variáveis no nível do job e artefatos não podem receber esses secrets. O workflow deve falhar de forma explícita quando a chave necessária estiver ausente. Em execução local, use os mesmos nomes de ambiente.
+
 ## Validação local, manual e CI
 
 A validação local deve ser registrada na PR com os comandos executados e o resultado. Quando uma validação depender de serviço externo, credencial, banco ou webhook indisponível, registre a limitação e descreva o impacto. Falha por dependência externa não deve ser tratada como sucesso silencioso.

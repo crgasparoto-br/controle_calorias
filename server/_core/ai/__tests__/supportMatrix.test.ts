@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findOperationCompatibilityIssues,
   findUnsupportedOperations,
   getSupportedOperations,
   isKnownProvider,
@@ -18,10 +19,38 @@ describe("adapter support matrix", () => {
     expect(supportsOperation("gemini", "text")).toBe(true);
     expect(supportsOperation("gemini", "vision")).toBe(true);
     expect(supportsOperation("gemini", "structured_output")).toBe(true);
-    expect(supportsOperation("gemini", "web_search")).toBe(false);
+    expect(supportsOperation("gemini", "web_search")).toBe(true);
     expect(supportsOperation("gemini", "embeddings")).toBe(false);
     expect(supportsOperation("gemini", "transcription")).toBe(false);
     expect(supportsOperation("gemini", "image_generation")).toBe(false);
+  });
+
+
+  it("rejects Gemini 2.5 for the structured-output plus web-search combination", () => {
+    expect(findOperationCompatibilityIssues(
+      "gemini",
+      "gemini-2.5-flash",
+      ["text", "structured_output", "web_search"],
+    )).toEqual([expect.objectContaining({
+      code: "unsupported_operation_combination",
+      operations: ["structured_output", "web_search"],
+    })]);
+  });
+
+  it("allows Gemini 3 for the structured-output plus web-search combination", () => {
+    expect(findOperationCompatibilityIssues(
+      "gemini",
+      "gemini-3.1-pro-preview",
+      ["text", "structured_output", "web_search"],
+    )).toEqual([]);
+  });
+
+  it("keeps Gemini 2.5 eligible for QUESTION without structured output", () => {
+    expect(findOperationCompatibilityIssues(
+      "gemini",
+      "gemini-2.5-flash",
+      ["text", "web_search"],
+    )).toEqual([]);
   });
 
   it("treats an OpenAI-compatible endpoint as unsupported by default", () => {
@@ -49,7 +78,6 @@ describe("adapter support matrix", () => {
 
   it("finds every unsupported operation for a required set", () => {
     expect(findUnsupportedOperations("gemini", ["text", "web_search", "embeddings"])).toEqual([
-      "web_search",
       "embeddings",
     ]);
   });

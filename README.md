@@ -88,10 +88,10 @@ A seleção global abaixo continua funcionando durante a migração por capacida
 
 ## Fundação multi-provider por capacidade (#921)
 
-A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
+A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
 
 - **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings;
-- **matriz baseada no adapter real**: cada provider declara somente operações implementadas no projeto; Gemini declara texto, visão e Structured Output nesta fase, sem anunciar embeddings antes de existir método dedicado;
+- **matriz baseada no adapter real e na combinação por modelo**: cada provider declara somente operações implementadas; Gemini 2.5 pode executar `QUESTION` com Google Search, mas `NUTRITION_SEARCH` combina Google Search + Structured Output e exige modelo Gemini 3 explicitamente aprovado. `gemini-2.5-flash` é rejeitado antes da rede para essa combinação, sem promover novo default antes da #927. Gemini não anuncia embeddings, então `EMBEDDING` preserva `text-embedding-3-small` da OpenAI e não tem fallback cross-provider;
 - **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
 - **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
 - **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` fora de produção e usa modelo próprio do provider de destino; em `NODE_ENV=production`, cross-provider permanece bloqueado fail-closed até benchmark, revisão de privacidade e rollout aprovados na #927;
@@ -100,7 +100,7 @@ A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `
 - **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
 - **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
+Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; em #923, o assistente de perguntas do WhatsApp (`QUESTION`), a pesquisa nutricional de itens embalados (`NUTRITION_SEARCH`) e a busca semântica de catálogo (`EMBEDDING`) passaram pela mesma migração. `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
 
 ## Variáveis de ambiente obrigatórias
 
