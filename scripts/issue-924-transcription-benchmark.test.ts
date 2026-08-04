@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
 import {
   sanitizeFailureReason,
+  resolveBenchmarkOutputPath,
   resolveTestedSha,
   summarize,
   validateManifest,
@@ -63,6 +64,19 @@ describe("issue #924 transcription benchmark harness", () => {
       "Transcription request was rejected with classification model_not_found.",
     )).toBe("model_not_found");
     expect(sanitizeFailureReason("provider message with sensitive detail")).toBe("unknown");
+  });
+
+  it("accepts pnpm's argument separator before the output path", () => {
+    expect(resolveBenchmarkOutputPath(["--", "/tmp/result.json"])).toBe(
+      "/tmp/result.json",
+    );
+    expect(resolveBenchmarkOutputPath(["/tmp/result.json"])).toBe(
+      "/tmp/result.json",
+    );
+    expect(resolveBenchmarkOutputPath([])).toBeUndefined();
+    expect(() =>
+      resolveBenchmarkOutputPath(["first.json", "second.json"]),
+    ).toThrow("Transcription benchmark accepts at most one output path.");
   });
 
   it("records the explicitly trusted exact head and rejects identity drift", async () => {

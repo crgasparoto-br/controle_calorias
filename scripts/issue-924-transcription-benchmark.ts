@@ -388,10 +388,29 @@ export async function runBenchmark(outputPath?: string) {
   return output;
 }
 
+export function resolveBenchmarkOutputPath(args: string[]): string | undefined {
+  const normalizedArgs = args[0] === "--" ? args.slice(1) : args;
+  if (normalizedArgs.length > 1) {
+    throw new Error("Transcription benchmark accepts at most one output path.");
+  }
+  return normalizedArgs[0];
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(SCRIPT_PATH)) {
-  runBenchmark(process.argv[2]).catch(error => {
+  let outputPath: string | undefined;
+  try {
+    outputPath = resolveBenchmarkOutputPath(process.argv.slice(2));
+  } catch (error) {
     const message = error instanceof Error ? error.message : "benchmark failed";
     process.stderr.write(`${message}\n`);
     process.exitCode = 1;
-  });
+  }
+
+  if (process.exitCode !== 1) {
+    runBenchmark(outputPath).catch(error => {
+      const message = error instanceof Error ? error.message : "benchmark failed";
+      process.stderr.write(`${message}\n`);
+      process.exitCode = 1;
+    });
+  }
 }
