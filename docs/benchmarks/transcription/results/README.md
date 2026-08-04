@@ -17,7 +17,7 @@ jq empty "$RESULT_FILE"
 jq '{generatedAt, models, environment, executionPolicy, summary, limitations}' "$RESULT_FILE"
 ```
 
-A execução exige `OPENAI_API_KEY` no ambiente local autorizado. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
+A execução exige `OPENAI_API_KEY` no ambiente local autorizado e não deve ser movida para workflow de pull request. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
 
 ## Registro obrigatório
 

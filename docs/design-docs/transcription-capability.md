@@ -4,7 +4,7 @@
 
 Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. O default compatível permanece `openai` + `whisper-1` até uma decisão explícita na #927.
 
-A resposta de domínio contém texto útil após `trim`, provider e modelo efetivamente usados e metadados normalizados de execução. `language`, `duration`, `segments` e `usage` são opcionais. O campo SDK `raw` não atravessa a fronteira de domínio. Metadados ausentes não são preenchidos com valores artificiais.
+A resposta de domínio contém texto útil após `trim`, provider e modelo efetivamente usados e metadados normalizados de execução. Texto composto apenas por pontuação ou por um marcador exato de silêncio/áudio inaudível é classificado como `empty_output`, podendo consumir retry/fallback dentro dos limites configurados. Conteúdo misto que ainda carregue fala acionável permanece válido. `language`, `duration`, `segments` e `usage` são opcionais. O campo SDK `raw` não atravessa a fronteira de domínio. Metadados ausentes não são preenchidos com valores artificiais.
 
 `whisper-1` usa `verbose_json`, preservando segmentos quando fornecidos. `gpt-4o-mini-transcribe` usa `json`, conforme o contrato da Audio API, e o sistema não fabrica segmentos vazios. Consumidores devem depender somente de `text` para continuar o fluxo.
 
@@ -48,7 +48,7 @@ pnpm benchmark:transcription -- docs/benchmarks/transcription/results/<data>-<sh
 
 O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
 
-O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações e metadados do manifesto. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`.
+O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações e metadados do manifesto. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`. A execução real acontece somente em ambiente local autorizado; workflows de PR executam apenas testes herméticos e não recebem `OPENAI_API_KEY` para este benchmark.
 
 ## Documentação canônica e decisão
 

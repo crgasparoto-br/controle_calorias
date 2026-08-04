@@ -159,7 +159,7 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 
 ## Consumidor migrado em #924
 
-`TRANSCRIPTION` usa `resolveCapabilityConfig` + `executeResolvedCapability`, preserva `openai` + `whisper-1` como baseline e aceita texto útil sem `segments`. Validação de data URL/base64, MIME, tamanho, payload vazio e configuração ocorre antes do adapter. Retrys são sequenciais; fallback fica desabilitado por padrão e existe no máximo uma chamada posterior quando explicitamente habilitado e elegível.
+`TRANSCRIPTION` usa `resolveCapabilityConfig` + `executeResolvedCapability`, preserva `openai` + `whisper-1` como baseline e aceita texto útil sem `segments`. Texto somente com pontuação ou marcador exato de silêncio/inaudível é `empty_output` recuperável e pode acionar retry/fallback; o benchmark usa o mesmo predicado. Validação de data URL/base64, MIME, tamanho, payload vazio e configuração ocorre antes do adapter. Retrys são sequenciais; fallback fica desabilitado por padrão e existe no máximo uma chamada posterior quando explicitamente habilitado e elegível.
 
 A regressão do WhatsApp é comportamental: duas entregas do mesmo callback resultam em um único download, uma transcrição e uma mutação. O benchmark usa seis fixtures sintéticos, uma tentativa, sem fallback, execução sequencial e saída sanitizada. O manifesto vazio ou inválido falha antes da rede; taxas sem denominador são `0` e médias sem amostra são `null`, nunca `NaN`/`Infinity`.
 

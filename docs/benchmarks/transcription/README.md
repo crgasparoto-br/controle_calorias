@@ -6,9 +6,11 @@ Este diretório contém somente fixtures sintéticos e um manifesto versionado. 
 
 A matriz cobre alimentos comuns, marca, peso, unidades de volume, ambiguidade, produto comercial e ruído branco controlado. Cada fixture declara a frase de referência e os termos críticos usados no cálculo de recall.
 
-O harness falha antes de qualquer chamada externa quando o manifesto não é `synthetic-only`, está vazio, possui IDs repetidos, referência/arquivo ausente, lista de termos críticos vazia ou duração inválida.
+O harness falha antes de qualquer chamada externa quando o manifesto não é `synthetic-only`, está vazio, possui IDs repetidos, referência/arquivo ausente, lista de termos críticos vazia ou duração inválida. A métrica de texto útil usa a mesma regra do runtime: pontuação isolada e marcadores exatos de silêncio ou áudio inaudível não contam como sucesso.
 
 ## Execução e decisão
+
+A execução real deve ocorrer somente em ambiente local autorizado. O workflow de pull request não executa este benchmark nem disponibiliza `OPENAI_API_KEY` ao código da PR.
 
 Use:
 

@@ -8,78 +8,28 @@ function readWorkflow() {
   return readFileSync(workflowPath, "utf8");
 }
 
-function readBenchmarkJob() {
-  const workflow = readWorkflow();
-  const start = workflow.indexOf("  transcription-benchmark:");
-  expect(start).toBeGreaterThan(0);
-  return workflow.slice(start);
-}
-
-describe("issue 924 transcription benchmark workflow security boundary", () => {
-  it("runs only for the trusted same-repository owner branch and exact PR head", () => {
+describe("issue 924 benchmark secret boundary", () => {
+  it("keeps the real transcription benchmark outside pull-request workflows", () => {
     const workflow = readWorkflow();
-    const job = readBenchmarkJob();
 
-    expect(job).toContain("github.event_name == 'pull_request'");
-    expect(job).not.toContain("github.event_name == 'workflow_dispatch'");
-    expect(job).toContain(
-      "github.event.pull_request.head.repo.full_name == github.repository",
+    expect(workflow).not.toContain("  transcription-benchmark:");
+    expect(workflow).not.toContain("issue-924-transcription-benchmark");
+    expect(workflow).not.toContain("feat/924-transcription-capability-benchmark");
+    expect(workflow).not.toContain('"scripts/issue-924-transcription-benchmark.ts"');
+    expect(workflow).not.toContain('"docs/benchmarks/transcription/fixtures/**"');
+  });
+
+  it("does not expose provider secrets to issue 924 PR code", () => {
+    const workflow = readWorkflow();
+    const liveSmokeStart = workflow.indexOf("  live-smoke:");
+    expect(liveSmokeStart).toBeGreaterThan(0);
+    const liveSmoke = workflow.slice(liveSmokeStart);
+
+    expect(liveSmoke).toContain(
+      "startsWith(github.event.pull_request.head.ref, 'feat/923-ai-capabilities-question-nutrition-embedding')",
     );
-    expect(job).toContain(
-      "github.event.pull_request.user.login == github.repository_owner",
-    );
-    expect(job).toContain(
-      "startsWith(github.event.pull_request.head.ref, 'feat/924-transcription-capability-benchmark')",
-    );
-    expect(job).toContain('ref: ${{ github.event.pull_request.head.sha }}');
-    expect(job).toContain('test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"');
+    expect(liveSmoke).not.toContain("feat/924-transcription-capability-benchmark");
     expect(workflow).not.toContain("pull_request_target:");
-    expect(job).not.toContain("environment:\n");
-  });
-
-  it("releases OPENAI_API_KEY only after checkout, identity verification and installation", () => {
-    const job = readBenchmarkJob();
-    const checkoutIndex = job.indexOf("Checkout exact pull request head without credentials");
-    const identityIndex = job.indexOf("Verify trusted issue 924 identity and exact head");
-    const installIndex = job.indexOf("Install dependencies without provider credentials");
-    const secretIndex = job.indexOf("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}");
-
-    expect(checkoutIndex).toBeGreaterThan(0);
-    expect(identityIndex).toBeGreaterThan(checkoutIndex);
-    expect(installIndex).toBeGreaterThan(identityIndex);
-    expect(secretIndex).toBeGreaterThan(installIndex);
-    expect(job.slice(0, installIndex)).not.toContain("${{ secrets.");
-    expect(job).toContain('${OPENAI_API_KEY:-}');
-    expect(job).toContain("GitHub secret OPENAI_API_KEY is unavailable.");
-    expect(job).toContain("persist-credentials: false");
-  });
-
-  it("executes the fixed comparison and uploads only the sanitized JSON result", () => {
-    const workflow = readWorkflow();
-    const job = readBenchmarkJob();
-
-    expect(workflow).toContain('"scripts/issue-924-transcription-benchmark.ts"');
-    expect(workflow).toContain('"docs/benchmarks/transcription/fixtures/**"');
-    expect(job).toContain("TRANSCRIPTION_BENCHMARK_WHISPER_MODEL: whisper-1");
-    expect(job).toContain(
-      "TRANSCRIPTION_BENCHMARK_GPT4O_MINI_MODEL: gpt-4o-mini-transcribe",
-    );
-    expect(job).toContain('pnpm benchmark:transcription "${BENCHMARK_RESULT_PATH}"');
-    expect(job).toContain("Validate sanitized benchmark evidence");
-    expect(job).toContain('path: ${{ env.BENCHMARK_RESULT_PATH }}');
-    expect(job).toContain("forbiddenKeys");
-    expect(job).not.toContain("tee ");
-    expect(job).not.toMatch(/\/tmp\/.*\.log/u);
-  });
-
-  it("preserves classified provider failures as benchmark metrics", () => {
-    const job = readBenchmarkJob();
-
-    expect(job).toContain("allowedFailureReasons");
-    expect(job).toContain("Benchmark must produce six results for ${model}.");
-    expect(job).toContain("Benchmark produced no successful result for ${model}.");
-    expect(job).toContain("Benchmark contains an unsanitized or unknown failure shape.");
-    expect(job).toContain("Provider failures: ${failed.length}");
-    expect(job).not.toContain("Benchmark contains ${failed.length} failed provider calls");
+    expect(workflow).not.toContain("environment:\n");
   });
 });

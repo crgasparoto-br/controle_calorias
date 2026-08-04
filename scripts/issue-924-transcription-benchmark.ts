@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
 import { transcribeAudio } from "../server/_core/voiceTranscription";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -286,7 +287,7 @@ export async function runBenchmark(outputPath?: string) {
         model,
         status: "ok",
         latencyMs,
-        usefulText: result.text.trim().length > 0,
+        usefulText: isUsefulTranscriptionText(result.text),
         wordErrorRate: Number(wordErrorRate(fixture.reference, result.text).toFixed(4)),
         criticalTermRecall: Number(
           (criticalMatches.length / fixture.criticalTerms.length).toFixed(4),

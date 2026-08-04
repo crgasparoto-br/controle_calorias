@@ -6,7 +6,11 @@
 import type { AiProviderFactoryMap } from "./ai/providerResolver";
 import { executeResolvedCapability } from "./ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "./ai/configResolver";
-import { createDomainAudioTranscription, type AiDomainAudioUsage } from "./ai/domainAudioTranscription";
+import {
+  createDomainAudioTranscription,
+  isUsefulTranscriptionText,
+  type AiDomainAudioUsage,
+} from "./ai/domainAudioTranscription";
 import {
   AiNonRetryableError,
   AiOperationalError,
@@ -321,6 +325,15 @@ export async function transcribeAudio(
       {
         providerFactories:
           runtime.providerFactories ?? createTranscriptionProviderFactories(env),
+        validateResult: value => {
+          if (!isUsefulTranscriptionText(value.text)) {
+            throw new AiOperationalError(
+              "AI provider returned unusable transcription output",
+              undefined,
+              "empty_output",
+            );
+          }
+        },
       },
     );
 

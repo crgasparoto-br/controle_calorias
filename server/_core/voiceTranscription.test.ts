@@ -97,6 +97,53 @@ describe("TRANSCRIPTION capability", () => {
     expect(result).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
   });
 
+  it.each(["...", "[inaudível]", "(silence)"])(
+    "rejects non-empty but unusable provider output: %s",
+    async text => {
+      const call = vi.fn().mockResolvedValue(ok({ text, segments: undefined }));
+      const result = await transcribeAudio(audio(), {
+        env: env(),
+        providerFactories: factories(() => provider(call)),
+      });
+
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        code: "TRANSCRIPTION_FAILED",
+        details: expect.stringContaining("empty_output"),
+      });
+    },
+  );
+
+  it("uses fallback after an unusable transcription result", async () => {
+    const primary = vi.fn().mockResolvedValue(ok({
+      text: "[inaudível]",
+      segments: undefined,
+    }));
+    const fallback = vi.fn().mockResolvedValue(ok({
+      text: "arroz 100 g",
+      segments: undefined,
+    }));
+    const factory = vi.fn()
+      .mockReturnValueOnce(provider(primary))
+      .mockReturnValueOnce(provider(fallback));
+
+    const result = await transcribeAudio(audio(), {
+      env: env({
+        AI_TRANSCRIPTION_FALLBACK_ENABLED: "true",
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "openai",
+        AI_TRANSCRIPTION_FALLBACK_MODEL: "gpt-4o-mini-transcribe",
+      }),
+      providerFactories: factories(factory),
+    });
+
+    expect(primary).toHaveBeenCalledTimes(1);
+    expect(fallback).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      text: "arroz 100 g",
+      execution: { source: "fallback", attempts: 2, usedFallback: true },
+    });
+  });
+
   it("keeps fallback disabled by default", async () => {
     const primary = vi.fn().mockRejectedValue(new AiOperationalError("temporary", undefined, "network"));
     const factory = vi.fn(() => provider(primary));

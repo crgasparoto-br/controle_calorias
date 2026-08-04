@@ -6,6 +6,47 @@ import type {
 } from "../aiProvider";
 import type { OptionalSegmentTranscriptionResponse } from "./transcriptionProvider";
 
+const NON_SPEECH_TRANSCRIPTION_MARKERS = new Set([
+  "audio inaudivel",
+  "audio unavailable",
+  "background noise",
+  "inaudible",
+  "inaudivel",
+  "music",
+  "nao foi possivel entender",
+  "nao foi possivel transcrever",
+  "nenhuma fala detectada",
+  "no speech",
+  "sem audio",
+  "sem fala",
+  "silence",
+  "silencio",
+  "unintelligible",
+]);
+
+function normalizeTranscriptionMarker(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+/**
+ * A transcription is useful only when it contains lexical or numeric content
+ * and is not an exact provider placeholder for silence or unintelligible audio.
+ * Mixed content such as "[inaudível] arroz 100 g" remains valid because it
+ * still carries actionable speech.
+ */
+export function isUsefulTranscriptionText(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed || !/[\p{L}\p{N}]/u.test(trimmed)) return false;
+  return !NON_SPEECH_TRANSCRIPTION_MARKERS.has(normalizeTranscriptionMarker(trimmed));
+}
+
 export type AiDomainAudioUsage = {
   inputTokens?: number;
   outputTokens?: number;

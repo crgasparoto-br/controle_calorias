@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
 import {
   sanitizeFailureReason,
   summarize,
@@ -7,6 +8,16 @@ import {
 } from "./issue-924-transcription-benchmark";
 
 describe("issue #924 transcription benchmark harness", () => {
+  it.each([
+    ["arroz 100 g", true],
+    ["[inaudível] arroz 100 g", true],
+    ["...", false],
+    ["[inaudível]", false],
+    ["silêncio", false],
+  ])("classifies useful transcription text consistently: %s", (text, expected) => {
+    expect(isUsefulTranscriptionText(text)).toBe(expected);
+  });
+
   it("returns deterministic zero rates when a model has no results", () => {
     expect(summarize([], ["whisper-1"])).toEqual([
       {
