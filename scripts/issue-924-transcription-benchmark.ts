@@ -24,6 +24,24 @@ const PRICE_CATALOG = {
   },
 } as const;
 
+const SAFE_FAILURE_REASONS = new Set([
+  "timeout",
+  "network",
+  "rate_limit",
+  "empty_output",
+  "invalid_json",
+  "invalid_payload",
+  "missing_secret",
+  "authentication",
+  "model_not_found",
+  "incompatible_operation",
+  "safety_block",
+  "invalid_configuration",
+  "functional_result",
+  "abort_not_acknowledged",
+  "unknown",
+]);
+
 export type Fixture = {
   id: string;
   file: string;
@@ -63,6 +81,7 @@ export type BenchmarkResult = SuccessfulResult | {
   status: "error";
   latencyMs: number;
   code: string;
+  reason: string;
 };
 
 function normalize(value: string): string {
@@ -128,6 +147,12 @@ function average(values: number[]): number | null {
 function rate(numerator: number, denominator: number): number {
   if (denominator === 0) return 0;
   return Number((numerator / denominator).toFixed(4));
+}
+
+export function sanitizeFailureReason(details?: string): string {
+  const match = details?.match(/(?:recoverable |classification )([a-z_]+)/u);
+  const candidate = match?.[1] ?? "unknown";
+  return SAFE_FAILURE_REASONS.has(candidate) ? candidate : "unknown";
 }
 
 async function readFixtureAudio(fixture: Fixture): Promise<Buffer> {
@@ -247,6 +272,7 @@ export async function runBenchmark(outputPath?: string) {
           model,
           status: "error",
           code: result.code,
+          reason: sanitizeFailureReason(result.details),
           latencyMs,
         });
         continue;
