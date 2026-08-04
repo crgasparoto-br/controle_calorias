@@ -17,7 +17,9 @@ jq empty "$RESULT_FILE"
 jq '{generatedAt, testedSha, models, environment, executionPolicy, summary, limitations}' "$RESULT_FILE"
 ```
 
-A execução exige `OPENAI_API_KEY` no ambiente local autorizado e não deve ser movida para workflow de pull request. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
+A execução exige `OPENAI_API_KEY`. Localmente, disponibilize a variável apenas durante o comando e remova-a ao concluir. No GitHub Actions, use exclusivamente o secret canônico `OPENAI_API_KEY`, injetado somente no passo **Run exact-head transcription benchmark**, após checkout, validação de identidade, setup e instalação sem credenciais. A chave não pode ser gravada em `.env`, shell history, resultado, commit, comentário, log ou artefato.
+
+No job protegido, `TRANSCRIPTION_BENCHMARK_TESTED_SHA` recebe o head exato da PR e o harness recusa divergência em relação ao `HEAD` efetivamente checkoutado. O JSON sanitizado é publicado como artefato `issue-924-transcription-benchmark-<sha>`; ele pode ser incorporado a esta pasta somente depois da revisão de privacidade e da confirmação de identidade.
 
 ## Registro obrigatório
 

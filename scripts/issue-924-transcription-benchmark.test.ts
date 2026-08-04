@@ -65,7 +65,31 @@ describe("issue #924 transcription benchmark harness", () => {
     expect(sanitizeFailureReason("provider message with sensitive detail")).toBe("unknown");
   });
 
-  it("records the exact benchmark SHA from the environment when available", async () => {
+  it("records the explicitly trusted exact head and rejects identity drift", async () => {
+    const currentHead = await resolveTestedSha({});
+
+    await expect(
+      resolveTestedSha({
+        TRANSCRIPTION_BENCHMARK_TESTED_SHA: currentHead,
+      }),
+    ).resolves.toBe(currentHead);
+    await expect(
+      resolveTestedSha({
+        TRANSCRIPTION_BENCHMARK_TESTED_SHA: "0123456789abcdef0123456789abcdef01234567",
+      }),
+    ).rejects.toThrow(
+      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must match the checked-out HEAD.",
+    );
+    await expect(
+      resolveTestedSha({
+        TRANSCRIPTION_BENCHMARK_TESTED_SHA: "not-a-sha",
+      }),
+    ).rejects.toThrow(
+      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must contain the exact 40-character commit SHA.",
+    );
+  });
+
+  it("keeps GITHUB_SHA as a validated compatibility fallback", async () => {
     const sha = "0123456789abcdef0123456789abcdef01234567";
     await expect(resolveTestedSha({ GITHUB_SHA: sha })).resolves.toBe(sha);
     await expect(resolveTestedSha({ GITHUB_SHA: "not-a-sha" })).rejects.toThrow(

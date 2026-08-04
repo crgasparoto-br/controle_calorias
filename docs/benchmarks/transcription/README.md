@@ -10,7 +10,7 @@ O harness falha antes de qualquer chamada externa quando o manifesto não é `sy
 
 ## Execução e decisão
 
-A execução real deve ocorrer somente em ambiente local autorizado. O workflow de pull request não executa este benchmark nem disponibiliza `OPENAI_API_KEY` ao código da PR.
+A execução real pode ocorrer localmente ou no job protegido **transcription benchmark** do workflow `AI provider live smoke`. No GitHub Actions, o job aceita somente PR do próprio repositório, criada pelo proprietário e na branch da issue #924; confere o SHA exato, faz checkout com `persist-credentials: false`, instala dependências sem credenciais e injeta o secret canônico `OPENAI_API_KEY` somente no passo da chamada externa. O resultado sanitizado é publicado como artefato vinculado ao head da PR.
 
 Use:
 

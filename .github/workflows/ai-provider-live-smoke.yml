@@ -10,6 +10,12 @@ on:
       - ".github/workflows/ai-provider-live-smoke.yml"
       - "package.json"
       - "scripts/issue-923-live-provider-smoke.ts"
+      - "scripts/issue-924-transcription-benchmark.ts"
+      - "scripts/issue-924-transcription-benchmark.test.ts"
+      - "docs/benchmarks/transcription/fixtures/**"
+      - "server/_core/voiceTranscription.ts"
+      - "server/_core/voiceTranscription.test.ts"
+      - "server/issue924TranscriptionBenchmarkWorkflowSecurity.test.ts"
       - "server/_core/ai/**"
       - "server/_core/aiProvider.ts"
       - "server/_core/geminiProvider.ts"
@@ -167,5 +173,97 @@ jobs:
         with:
           name: ai-provider-live-smoke-${{ matrix.provider }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: /tmp/ai-provider-live-smoke-${{ matrix.provider }}.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+  transcription-benchmark:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.ref == 'feat/924-transcription-capability-benchmark'
+    name: transcription benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact transcription candidate without credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify trusted transcription identity and exact head SHA
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          ACTUAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EXPECTED_OWNER: ${{ github.repository_owner }}
+          ACTUAL_OWNER: ${{ github.event.pull_request.user.login }}
+          ACTUAL_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+          test "${ACTUAL_REPOSITORY}" = "${EXPECTED_REPOSITORY}"
+          test "${ACTUAL_OWNER}" = "${EXPECTED_OWNER}"
+          test "${ACTUAL_BRANCH}" = "feat/924-transcription-capability-benchmark"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies without transcription credentials
+        run: pnpm install --frozen-lockfile
+
+      - name: Run exact-head transcription benchmark
+        shell: bash
+        env:
+          TRANSCRIPTION_BENCHMARK_RESULT: ${{ runner.temp }}/issue-924-transcription-benchmark-${{ github.event.pull_request.head.sha }}.json
+          TRANSCRIPTION_BENCHMARK_TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+          TRANSCRIPTION_BENCHMARK_WHISPER_MODEL: whisper-1
+          TRANSCRIPTION_BENCHMARK_GPT4O_MINI_MODEL: gpt-4o-mini-transcribe
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "::error::GitHub secret OPENAI_API_KEY is unavailable."
+            exit 1
+          fi
+
+          pnpm benchmark:transcription -- "${TRANSCRIPTION_BENCHMARK_RESULT}"
+
+          jq -e --arg expected_sha "${TRANSCRIPTION_BENCHMARK_TESTED_SHA}" '
+            .testedSha == $expected_sha and
+            .models == ["whisper-1", "gpt-4o-mini-transcribe"] and
+            (.results | length == 12) and
+            ([.results[].model] | unique | length == 2) and
+            ([.results[] | select(.status == "ok")] | length == 12) and
+            ([.results[] | select(.status == "ok" and .usefulText != true)] | length == 0) and
+            ([.results[] | select(.status == "ok" and (.attempts != 1 or .usedFallback != false))] | length == 0)
+          ' "${TRANSCRIPTION_BENCHMARK_RESULT}" > /dev/null
+
+          {
+            echo "### Issue #924 exact-head transcription benchmark"
+            echo ""
+            jq -r '"- Tested SHA: `" + .testedSha + "`"' "${TRANSCRIPTION_BENCHMARK_RESULT}"
+            jq -r '.summary[] | "- `" + .model + "`: success=" + ((.successRate * 100) | tostring) + "%, useful=" + ((.usefulTextRate * 100) | tostring) + "%, WER=" + (.averageWordErrorRate | tostring) + ", critical recall=" + (.averageCriticalTermRecall | tostring) + ", latency=" + (.averageLatencyMs | tostring) + " ms, cost=US$ " + (.estimatedTotalCostUsd | tostring)' "${TRANSCRIPTION_BENCHMARK_RESULT}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload sanitized exact-head benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-924-transcription-benchmark-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/issue-924-transcription-benchmark-${{ github.event.pull_request.head.sha }}.json
           if-no-files-found: ignore
           retention-days: 30

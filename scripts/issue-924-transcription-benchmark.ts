@@ -163,8 +163,15 @@ export async function resolveTestedSha(
   env: NodeJS.ProcessEnv = process.env,
   cwd = ROOT,
 ): Promise<string> {
+  const exactHeadSha = env.TRANSCRIPTION_BENCHMARK_TESTED_SHA?.trim();
+  if (exactHeadSha && !/^[a-f0-9]{40}$/u.test(exactHeadSha)) {
+    throw new Error(
+      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must contain the exact 40-character commit SHA.",
+    );
+  }
+
   const environmentSha = env.GITHUB_SHA?.trim();
-  if (environmentSha) {
+  if (!exactHeadSha && environmentSha) {
     if (!/^[a-f0-9]{40}$/u.test(environmentSha)) {
       throw new Error("GITHUB_SHA must contain the exact 40-character commit SHA.");
     }
@@ -179,7 +186,14 @@ export async function resolveTestedSha(
   if (!/^[a-f0-9]{40}$/u.test(gitSha)) {
     throw new Error("Unable to resolve the exact commit SHA for the benchmark result.");
   }
-  return gitSha;
+
+  if (exactHeadSha && exactHeadSha !== gitSha) {
+    throw new Error(
+      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must match the checked-out HEAD.",
+    );
+  }
+
+  return exactHeadSha ?? gitSha;
 }
 
 async function readFixtureAudio(fixture: Fixture): Promise<Buffer> {

@@ -48,7 +48,7 @@ pnpm benchmark:transcription -- docs/benchmarks/transcription/results/<data>-<sh
 
 O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
 
-O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`. A execução real acontece somente em ambiente local autorizado; workflows de PR executam apenas testes herméticos e não recebem `OPENAI_API_KEY` para este benchmark.
+O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`. A execução pode ser local ou ocorrer no job protegido de transcrição do workflow `AI provider live smoke`; no CI, o secret canônico `OPENAI_API_KEY` existe apenas no passo externo, depois da validação do repositório, proprietário, branch e SHA e da instalação sem credenciais.
 
 ## Documentação canônica e decisão
 
