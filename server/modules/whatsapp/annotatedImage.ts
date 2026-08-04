@@ -1,4 +1,8 @@
-import { generateImage, type GenerateImageResponse } from "../../_core/imageGeneration";
+import {
+  generateExternalImageAnnotation,
+  resolveImageAnnotationRuntimeConfig,
+  type ImageAnnotationResponse,
+} from "../../_core/imageAnnotation";
 import type { MealProcessingResult } from "../../nutritionEngine";
 import { createLocalMealPhotoOverlay } from "./localMealPhotoOverlay";
 
@@ -8,12 +12,14 @@ function formatMacro(value: number) {
 
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
-  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
+  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0
+    ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)`
+    : "";
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
 export function imageDataFromDataUrl(dataUrl?: string) {
-  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
+  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/u);
   if (!match) return null;
   return { mimeType: match[1], b64Json: match[2] };
 }
@@ -42,45 +48,84 @@ export function buildMealCardsImagePrompt(processed: MealProcessingResult) {
     .join("\n");
 
   return [
-    "Crie uma imagem quadrada com cards nutricionais limpos e legíveis para celular.",
+    "Crie um resumo visual quadrado com cards nutricionais limpos e legíveis para celular.",
     "Use fundo claro, cards organizados, ícones simples de comida e texto em português do Brasil.",
     "Cada card deve mostrar alimento, porção, calorias e macronutrientes P/C/G.",
-    "Não inclua foto real nem alimentos novos; use apenas os dados abaixo.",
+    "Este artefato é um resumo visual separado e não é uma anotação da foto original.",
     `Refeição: ${processed.detectedMealLabel || "Refeição"}`,
     `Total: ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
     `Itens:\n${labels || "Alimentos identificados na refeição."}`,
   ].join("\n");
 }
 
+async function applyLocalOverlay(
+  processed: MealProcessingResult,
+  sourceImage: NonNullable<ReturnType<typeof imageDataFromDataUrl>>,
+  degradation: "none" | "external_to_local",
+): Promise<ImageAnnotationResponse> {
+  try {
+    const result = await createLocalMealPhotoOverlay({
+      image: sourceImage,
+      processed,
+    });
+    return { ...result, degradation };
+  } catch {
+    console.warn(
+      "[WhatsAppAnnotatedImage] Local annotation failed without blocking the meal flow.",
+      { code: "local_annotation_failed" },
+    );
+    return {
+      skippedReason: "local_failed",
+      mode: "local",
+      degradation,
+      detail: "Não foi possível criar o derivado local; a foto original e a refeição foram preservadas.",
+    };
+  }
+}
+
 export async function generateAnnotatedMealImage(
   processed: MealProcessingResult,
   imageAnalysisUrl?: string,
-): Promise<GenerateImageResponse> {
-  const sourceImage = imageDataFromDataUrl(imageAnalysisUrl);
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ImageAnnotationResponse> {
   if (!processed.items.length) {
     return { skippedReason: "no_prompt" };
   }
 
-  if (sourceImage) {
-    try {
-      return await createLocalMealPhotoOverlay({
-        image: sourceImage,
-        processed,
-      });
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Erro desconhecido ao aplicar overlay local.";
-      console.warn(
-        "[WhatsAppAnnotatedImage] Local overlay failed; skipping generated-image fallback for original meal photo.",
-        detail,
-      );
-      return {
-        skippedReason: "provider_failed",
-        detail: `Não foi possível aplicar os cards localmente sobre a foto original: ${detail}`,
-      };
-    }
+  const runtime = resolveImageAnnotationRuntimeConfig(env);
+  if (runtime.mode === "off") {
+    return {
+      skippedReason: "disabled",
+      mode: "off",
+      detail: "A anotação de foto está desabilitada.",
+    };
   }
 
-  return generateImage({
-    prompt: buildMealCardsImagePrompt(processed),
-  });
+  const sourceImage = imageDataFromDataUrl(imageAnalysisUrl);
+  if (!sourceImage) {
+    return {
+      skippedReason: "no_original_image",
+      mode: runtime.mode,
+      detail: "A anotação exige a foto original; nenhum cartão genérico foi usado como substituto.",
+    };
+  }
+
+  if (runtime.mode === "local") {
+    return applyLocalOverlay(processed, sourceImage, "none");
+  }
+
+  const external = await generateExternalImageAnnotation(
+    {
+      prompt: buildAnnotatedMealImagePrompt(processed),
+      originalImages: [sourceImage],
+    },
+    { env },
+  );
+
+  const shouldDegradeLocally = runtime.externalFailureMode === "local"
+    && (external.skippedReason === "provider_failed"
+      || external.skippedReason === "not_configured");
+  if (!shouldDegradeLocally) return external;
+
+  return applyLocalOverlay(processed, sourceImage, "external_to_local");
 }
