@@ -110,7 +110,7 @@ export class OpenAiCapabilityTranscriptionProvider extends OpenAiProvider {
     };
 
     const response = await this.getTranscriptionClient().audio.transcriptions.create(
-      payload as Parameters<OpenAI["audio"]["transcriptions"]["create"]>[0],
+      payload as unknown as Parameters<OpenAI["audio"]["transcriptions"]["create"]>[0],
       options?.signal ? { signal: options.signal } : undefined,
     );
 
