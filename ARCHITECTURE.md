@@ -30,7 +30,10 @@ server/_core/geminiProvider.ts -> implementação do provider Gemini, sobre o SD
 server/_core/aiProvider.ts     -> interface interna e factory global legada que seleciona o provider ativo (AI_VISION_PROVIDER)
 server/_core/ai/               -> fundação multi-provider (#921): registro, matriz, resolvedor e execução vinculada por capacidade
 server/_core/voiceTranscription.ts -> fronteira da capacidade TRANSCRIPTION para web e WhatsApp
-server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
+server/_core/imageAnnotation.ts -> fronteira externa da capacidade IMAGE_ANNOTATION, isolada de MEAL_VISION
+server/modules/whatsapp/localMealPhotoOverlay.ts -> compositor local determinístico da anotação sobre uma cópia da foto
+server/modules/whatsapp/annotatedImage.ts -> consumidor que seleciona local, external ou off e aplica degradação explícita
+server/_core/imageGeneration.ts -> helper legado de resumo visual separado; não representa anotação da foto
 server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
 drizzle/schema.ts              -> fonte de verdade do modelo relacional
 shared/*                       -> tipos, cálculos e mensagens sem dependência de ambiente
@@ -96,6 +99,8 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 - `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
 - `webhookMediaPipeline.ts` -> download/persistência de mídia recebida (imagem/áudio) e preparo de texto/transcrição para inferência.
+- `annotatedImage.ts` -> seleção dos modos de anotação `local`, `external` e `off`; exige a foto original e nunca substitui silenciosamente a anotação por cartão genérico.
+- `localMealPhotoOverlay.ts` -> criação do PNG derivado por composição determinística, sem sobrescrever os bytes originais e sem provider externo.
 - `replyFormatting.ts` -> formatação compartilhada de número e horário nas respostas do WhatsApp.
 - `mealConsolidationService.ts` / `mealConsolidation.ts` -> consolidação de refeições do mesmo dia/tipo (ver #663).
 
@@ -107,16 +112,16 @@ Fluxos de comunicação profissional devem reutilizar o contrato central de mens
 
 ## Fundação multi-provider de IA (#921)
 
-`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION` para `resolveCapabilityConfig` + `executeResolvedCapability`.
+`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION` para `resolveCapabilityConfig` + `executeResolvedCapability`, mantendo o modo local como default seguro.
 
-- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio. `FOOD_CLASSIFICATION` permanece reservada.
+- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio; `IMAGE_ANNOTATION` externa exige geração e edição de imagem. `FOOD_CLASSIFICATION` permanece reservada.
 - `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`. Gemini declara texto, visão, Structured Output e pesquisa web, mas não anuncia embeddings nem transcrição.
 - `openai-compatible` é fail-closed. Qualquer `OPENAI_BASE_URL` não vazio faz o resolvedor aplicar automaticamente essa identidade, e somente operações explicitamente listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam disponíveis.
 - `policyDefaults.ts` concentra timeout, tentativas e janela de confirmação do cancelamento.
 - `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica `AI_<CAPABILITY>_*` novo > variável legada compatível > default equivalente ao baseline; rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
 - `providerResolver.ts` transforma somente um `AiProviderId` já resolvido no adapter correspondente; não consulta nome de modelo nem a seleção global legada.
 - `capabilityExecutor.ts` recebe o `ResolvedCapabilityConfig` completo e vincula provider, modelo e adapter em cada tentativa. Primário e retries permanecem no alvo primário resolvido; o fallback usa somente o provider/modelo resolvido para fallback.
-- `domainTextResponse.ts` e `domainAudioTranscription.ts` são as fronteiras entre adapters e domínio: removem `raw` do SDK e de usage antes de entregar resposta a consumidores.
+- `domainTextResponse.ts`, `domainAudioTranscription.ts` e a fronteira externa de `imageAnnotation.ts` removem `raw` do SDK antes de entregar resposta a consumidores.
 - `policyExecutor.ts` aplica timeout, retry, fallback e classificação de erro depois que a identidade da capacidade foi vinculada. Estados `disabled` e `invalid`, limites não inteiros/positivos e fallback habilitado sem alvo executável são rejeitados antes de outbound.
 - O executor classifica erros concretos de SDK/HTTP/rede e valida saída vazia, JSON inválido e payload inválido. Cada tentativa recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar. `MAX_ATTEMPTS` conta todas as chamadas do primário e existe no máximo uma chamada posterior de fallback.
 - `AiOperationalError` representa timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido. `AiNonRetryableError` cobre autenticação, modelo ausente, incompatibilidade, bloqueio de segurança, configuração inválida, cancelamento não reconhecido e erro desconhecido.
@@ -145,9 +150,33 @@ web / WhatsApp
 - O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
 - Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
 
+### Contrato de `IMAGE_ANNOTATION` (#925)
+
+```text
+WhatsApp com preferência ativa
+  -> annotatedImage.generateAnnotatedMealImage
+     -> resolveImageAnnotationRuntimeConfig
+        -> local: valida foto, auto-orienta cópia e compõe SVG via Sharp
+        -> external: valida foto e resolveCapabilityConfig("IMAGE_ANNOTATION")
+             -> executeResolvedCapability
+                -> AiProvider.createImageGeneration com originalImages
+        -> off: não produz derivado
+  -> resposta textual e refeição continuam independentes do artefato auxiliar
+```
+
+- `local` é o default e não cria adapter externo, mesmo que `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` apontem para outro provider.
+- `external` exige configuração explícita da capacidade e representa novo envio da foto ao provider de imagem.
+- Uma tentativa do executor corresponde a exatamente uma operação de imagem; existe no máximo uma chamada posterior de fallback.
+- Fallback externo permanece desabilitado por padrão; provider diferente exige opt-in específico e continua bloqueado em produção até a #927.
+- A transição `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; é degradação funcional do consumidor, não fallback de provider.
+- O original e o derivado têm buffers e chaves de storage distintos. Falha de renderização, provider, upload ou envio não remove o original nem bloqueia o registro textual.
+- Um cartão-resumo sem a foto original é outro tipo de artefato e não pode ser apresentado como anotação.
+- O resultado normalizado distingue `mode`, `artifactKind`, `degradation`, `providerSource`, `attempts` e `skippedReason` sem expor foto, prompt, payload ou resposta bruta.
+- Detalhes de segurança, privacidade, rollout e rollback ficam em `docs/design-docs/image-annotation-capability.md`.
+
 **Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` e a superfície `models.generateContent`. Structured Output usa `responseJsonSchema`, preservando `additionalProperties: false`, tipos anuláveis, limites numéricos e demais recursos presentes nos schemas reais do projeto. O fluxo legado de refeição é testado pelo entrypoint `mealAiExtraction` em variantes textual e visual, usando o data URL inline realmente produzido pelo pipeline do WhatsApp. Metadados de usage são normalizados em `AiProviderTextResponse.usage` quando o provider os retorna.
 
-**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada. `TRANSCRIPTION` usa `AI_TRANSCRIPTION_*` e não depende de `AI_VISION_PROVIDER`.
+**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada. `TRANSCRIPTION` usa `AI_TRANSCRIPTION_*`; `IMAGE_ANNOTATION` usa seu modo e `AI_IMAGE_ANNOTATION_*`; nenhuma das duas depende de `AI_VISION_PROVIDER`.
 
 ## Regras de dependência
 
@@ -157,8 +186,9 @@ web / WhatsApp
 - Serviços não devem depender de componentes React.
 - Schemas devem ser reutilizados pelo router e, quando útil, pelo frontend via tipos inferidos.
 - O SDK oficial da OpenAI deve ficar restrito à camada `_core` do backend.
-- `voiceTranscription`, inferência nutricional e visual auxiliar não devem chamar o provider legado.
+- `voiceTranscription`, inferência nutricional e anotação externa devem usar suas capacidades específicas; o compositor local não acessa provider.
 - Falha de imagem auxiliar nunca deve bloquear criação ou confirmação de refeição.
+- A foto original nunca deve ser sobrescrita pelo derivado; resumo visual separado não pode mascarar ausência de anotação.
 - Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.
 - Dependências legadas remanescentes devem ficar documentadas e fora do fluxo principal de refeição.
 - Páginas profissionais podem reutilizar componentes visuais genéricos, mas não devem importar páginas da Área do Paciente.
@@ -195,12 +225,14 @@ Dados de saúde e alimentação são sensíveis. Campos como `sourceText`, `tran
 
 Proibições:
 
-- não logar texto cru de refeição, transcrição, tokens, URLs assinadas ou telefone completo;
+- não logar texto cru de refeição, transcrição, fotos, base64, prompts de anotação, URLs assinadas, tokens ou telefone completo;
 - não enviar dados sensíveis para analytics;
 - não retornar detalhes internos de erro para o usuário final;
 - não persistir novo dado sensível sem documentar finalidade, retenção e exclusão;
 - não expor dados de um paciente a profissional sem vínculo vigente e escopo autorizado;
 - não misturar dados pessoais do nutricionista com dados do paciente selecionado.
+
+A anotação externa representa tratamento adicional da foto e só pode ocorrer no modo explicitamente configurado. O modo local não envia foto nem dados nutricionais a provider de imagem. Original e derivado seguem retenção, exportação e exclusão como artefatos independentes vinculados à refeição.
 
 ## Comandos de qualidade
 
