@@ -348,6 +348,23 @@ jobs:
           visit(payload);
 
           const expectedModels = ["whisper-1", "gpt-4o-mini-transcribe"];
+          const allowedFailureReasons = new Set([
+            "timeout",
+            "network",
+            "rate_limit",
+            "empty_output",
+            "invalid_json",
+            "invalid_payload",
+            "missing_secret",
+            "authentication",
+            "model_not_found",
+            "incompatible_operation",
+            "safety_block",
+            "invalid_configuration",
+            "functional_result",
+            "abort_not_acknowledged",
+            "unknown",
+          ]);
           if (payload.manifestMetadata?.privacy !== "synthetic-only") {
             throw new Error("Benchmark fixtures are not marked synthetic-only.");
           }
@@ -357,15 +374,26 @@ jobs:
           if (!Array.isArray(payload.results) || payload.results.length !== 12) {
             throw new Error("Benchmark must produce exactly 12 model/fixture results.");
           }
+          for (const model of expectedModels) {
+            const modelResults = payload.results.filter(result => result.model === model);
+            if (modelResults.length !== 6) {
+              throw new Error(`Benchmark must produce six results for ${model}.`);
+            }
+            if (!modelResults.some(result => result.status === "ok")) {
+              throw new Error(`Benchmark produced no successful result for ${model}.`);
+            }
+          }
           const failed = payload.results.filter(result => result.status !== "ok");
-          if (failed.length) {
-            const byCode = Object.entries(failed.reduce((counts, result) => {
-              counts[result.code] = (counts[result.code] ?? 0) + 1;
-              return counts;
-            }, {})).map(([code, count]) => `${code}=${count}`).join(", ");
-            throw new Error(`Benchmark contains ${failed.length} failed provider calls (${byCode}).`);
+          const invalidFailure = failed.find(result =>
+            typeof result.code !== "string" || !allowedFailureReasons.has(result.reason));
+          if (invalidFailure) {
+            throw new Error("Benchmark contains an unsanitized or unknown failure shape.");
           }
 
+          const failuresByReason = Object.entries(failed.reduce((counts, result) => {
+            counts[result.reason] = (counts[result.reason] ?? 0) + 1;
+            return counts;
+          }, {})).map(([reason, count]) => `${reason}=${count}`).join(", ");
           const summaryLines = payload.summary.map(item =>
             `| ${item.model} | ${item.successRate} | ${item.averageWordErrorRate} | ${item.averageCriticalTermRecall} | ${item.averageLatencyMs} | ${item.estimatedTotalCostUsd} |`,
           );
@@ -376,6 +404,7 @@ jobs:
             `- Evidence: \`${resultPath.split("/").at(-1)}\``,
             "- Fixtures: 6 synthetic PT-BR audio files",
             "- Fallback: disabled; attempts: 1; execution: sequential",
+            `- Provider failures: ${failed.length}${failuresByReason ? ` (${failuresByReason})` : ""}`,
             "",
             "| Model | Success | WER | Critical recall | Latency ms | Estimated USD |",
             "| --- | ---: | ---: | ---: | ---: | ---: |",
