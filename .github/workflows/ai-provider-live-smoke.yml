@@ -237,7 +237,7 @@ jobs:
           scripts/issue-924-transcription-benchmark.test.ts
           server/issue924TranscriptionBenchmarkWorkflowSecurity.test.ts
 
-      - name: Probe transcription provider with sanitized diagnostics
+      - name: Probe OpenAI transcription endpoint with sanitized diagnostics
         shell: bash
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -251,7 +251,7 @@ jobs:
           import { performance } from "node:perf_hooks";
           import { readFile } from "node:fs/promises";
           import path from "node:path";
-          import { transcribeAudio } from "./server/_core/voiceTranscription.ts";
+          import { createOpenAiClient } from "./server/_core/openaiClient.ts";
 
           const fixtureDir = path.resolve("docs/benchmarks/transcription/fixtures");
           const manifest = JSON.parse(
@@ -268,42 +268,39 @@ jobs:
                 "base64",
               )
             : raw;
+          const safeToken = value =>
+            typeof value === "string" && /^[A-Za-z0-9_.:-]{1,100}$/u.test(value)
+              ? value
+              : null;
           const started = performance.now();
-          const result = await transcribeAudio(
-            {
-              audioBase64: audio.toString("base64"),
-              mimeType: fixture.mimeType,
+          try {
+            const result = await createOpenAiClient().audio.transcriptions.create({
+              file: new File([audio], "probe.ogg", { type: fixture.mimeType }),
+              model: "whisper-1",
+              response_format: "verbose_json",
               language: "pt",
               prompt: "Transcreva em português do Brasil, preservando alimentos, marcas, números, pesos e unidades.",
-            },
-            {
-              env: {
-                ...process.env,
-                AI_TRANSCRIPTION_PROVIDER: "openai",
-                AI_TRANSCRIPTION_MODEL: "whisper-1",
-                AI_TRANSCRIPTION_TIMEOUT_MS: "30000",
-                AI_TRANSCRIPTION_MAX_ATTEMPTS: "1",
-                AI_TRANSCRIPTION_FALLBACK_ENABLED: "false",
-              },
-            },
-          );
-          const latencyMs = Math.round(performance.now() - started);
-          if ("error" in result) {
-            process.stderr.write(`${JSON.stringify({
-              status: "error",
-              code: result.code,
-              details: result.details ?? null,
-              latencyMs,
-            })}\n`);
-            process.exitCode = 1;
-          } else {
+            });
             process.stdout.write(`${JSON.stringify({
               status: "ok",
-              provider: result.provider,
-              model: result.model,
-              usefulText: result.text.trim().length > 0,
-              latencyMs,
+              model: "whisper-1",
+              usefulText: typeof result.text === "string" && result.text.trim().length > 0,
+              latencyMs: Math.round(performance.now() - started),
             })}\n`);
+          } catch (error) {
+            const shape = error && typeof error === "object" ? error : {};
+            const nested = shape.error && typeof shape.error === "object" ? shape.error : {};
+            const candidateStatus = shape.status ?? shape.statusCode;
+            process.stderr.write(`${JSON.stringify({
+              status: "error",
+              httpStatus: Number.isInteger(candidateStatus) ? candidateStatus : null,
+              providerCode: safeToken(shape.code ?? nested.code),
+              providerType: safeToken(shape.type ?? nested.type),
+              parameter: safeToken(shape.param ?? nested.param),
+              errorName: safeToken(shape.name),
+              latencyMs: Math.round(performance.now() - started),
+            })}\n`);
+            process.exitCode = 1;
           }
           NODE
 
