@@ -71,4 +71,15 @@ describe("issue 924 transcription benchmark workflow security boundary", () => {
     expect(job).not.toContain("tee ");
     expect(job).not.toMatch(/\/tmp\/.*\.log/u);
   });
+
+  it("preserves classified provider failures as benchmark metrics", () => {
+    const job = readBenchmarkJob();
+
+    expect(job).toContain("allowedFailureReasons");
+    expect(job).toContain("Benchmark must produce six results for ${model}.");
+    expect(job).toContain("Benchmark produced no successful result for ${model}.");
+    expect(job).toContain("Benchmark contains an unsanitized or unknown failure shape.");
+    expect(job).toContain("Provider failures: ${failed.length}");
+    expect(job).not.toContain("Benchmark contains ${failed.length} failed provider calls");
+  });
 });
