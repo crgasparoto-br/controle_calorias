@@ -41,6 +41,17 @@ function isGeminiThreeSeriesModel(model: string): boolean {
   return /^gemini-3(?:[.-]|$)/iu.test(model.trim());
 }
 
+const OPENAI_TRANSCRIPTION_MODELS = new Set([
+  "whisper-1",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-mini-transcribe-2025-12-15",
+  "gpt-4o-transcribe",
+]);
+
+function isOpenAiTranscriptionModel(model: string): boolean {
+  return OPENAI_TRANSCRIPTION_MODELS.has(model.trim().toLowerCase());
+}
+
 /**
  * Provider operations may be supported individually while their combination
  * is not supported by a specific model. Gemini documents Structured Outputs
@@ -53,6 +64,18 @@ export function findOperationCompatibilityIssues(
   model: string,
   operations: readonly AiOperation[],
 ): AiOperationCompatibilityIssue[] {
+  if (
+    provider === "openai"
+    && operations.includes("transcription")
+    && !isOpenAiTranscriptionModel(model)
+  ) {
+    return [{
+      code: "unsupported_operation_combination",
+      operations: ["transcription"],
+      message: `provider=openai model=${model || "<empty>"} is not an approved transcription model; configure an explicitly approved Audio API transcription model`,
+    }];
+  }
+
   if (
     provider === "gemini"
     && operations.includes("structured_output")

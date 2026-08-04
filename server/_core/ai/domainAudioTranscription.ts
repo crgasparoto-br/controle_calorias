@@ -8,61 +8,178 @@ import type { OptionalSegmentTranscriptionResponse } from "./transcriptionProvid
 
 const NON_SPEECH_TRANSCRIPTION_TOKENS = new Set([
   "again",
+  "any",
+  "anything",
+  "are",
   "apenas",
   "audio",
+  "audible",
+  "audivel",
   "background",
+  "be",
+  "been",
+  "being",
+  "can",
   "cannot",
   "cant",
+  "contains",
+  "contain",
+  "contained",
+  "contem",
+  "consigo",
   "consegui",
   "conseguimos",
   "conteudo",
   "could",
+  "couldn",
   "couldnt",
   "de",
   "detectada",
   "detectado",
+  "detectavel",
   "detectar",
   "detected",
+  "do",
+  "does",
+  "e",
   "entender",
+  "escutar",
+  "eu",
+  "existe",
   "esta",
   "fala",
   "foi",
+  "found",
   "fundo",
+  "gravacao",
+  "ha",
+  "has",
+  "hear",
+  "heard",
+  "hearing",
   "inaudible",
   "inaudivel",
   "in",
   "identificar",
+  "i",
   "indisponivel",
   "is",
+  "listen",
   "music",
   "musica",
   "nao",
+  "nada",
   "nenhum",
   "nenhuma",
   "no",
+  "not",
+  "nothing",
   "noise",
   "novamente",
   "o",
   "only",
+  "ouvir",
+  "ouve",
   "please",
   "possivel",
+  "recording",
   "ruido",
   "sem",
+  "se",
   "silence",
   "silencio",
+  "som",
   "somente",
+  "sound",
   "speech",
   "the",
+  "there",
   "tente",
+  "t",
   "transcribe",
   "transcrever",
   "try",
+  "unable",
   "unavailable",
   "understand",
   "unintelligible",
+  "was",
+  "wasn",
+  "were",
+  "without",
   "voice",
   "voz",
   "we",
+]);
+
+const NON_SPEECH_SUBJECT_TOKENS = new Set([
+  "audio",
+  "fala",
+  "gravacao",
+  "recording",
+  "som",
+  "sound",
+  "speech",
+  "voice",
+  "voz",
+]);
+
+const NON_SPEECH_NEGATION_TOKENS = new Set([
+  "anything",
+  "cannot",
+  "cant",
+  "couldnt",
+  "nada",
+  "nao",
+  "nenhum",
+  "nenhuma",
+  "no",
+  "not",
+  "nothing",
+  "sem",
+  "unable",
+  "without",
+]);
+
+const NON_SPEECH_FAILURE_TOKENS = new Set([
+  "contain",
+  "contained",
+  "contains",
+  "contem",
+  "detectada",
+  "detectado",
+  "detectavel",
+  "detected",
+  "entender",
+  "escutar",
+  "existe",
+  "found",
+  "hear",
+  "heard",
+  "hearing",
+  "identificar",
+  "inaudible",
+  "inaudivel",
+  "listen",
+  "ouvir",
+  "ouve",
+  "possivel",
+  "transcribe",
+  "transcrever",
+  "unavailable",
+  "understand",
+  "unintelligible",
+]);
+
+const DIRECT_NON_SPEECH_MARKERS = new Set([
+  "inaudible",
+  "inaudivel",
+  "music",
+  "musica",
+  "noise",
+  "ruido",
+  "silence",
+  "silencio",
 ]);
 
 const NON_SPEECH_TRANSCRIPTION_PATTERNS = [
@@ -87,6 +204,22 @@ function normalizeTranscriptionMarker(value: string): string {
     .trim();
 }
 
+function isSemanticNonSpeechStatement(tokens: string[]): boolean {
+  if (!tokens.length) return true;
+  if (!tokens.every(token => NON_SPEECH_TRANSCRIPTION_TOKENS.has(token))) {
+    return false;
+  }
+
+  const hasDirectMarker = tokens.some(token => DIRECT_NON_SPEECH_MARKERS.has(token));
+  const hasSubject = tokens.some(token => NON_SPEECH_SUBJECT_TOKENS.has(token));
+  const hasNegation = tokens.some(token => NON_SPEECH_NEGATION_TOKENS.has(token));
+  const hasFailure = tokens.some(token => NON_SPEECH_FAILURE_TOKENS.has(token));
+
+  return hasDirectMarker
+    || (hasSubject && (hasNegation || hasFailure))
+    || (hasNegation && hasFailure);
+}
+
 /**
  * A transcription is useful only when it contains lexical or numeric content
  * beyond provider boilerplate for silence or unintelligible audio. Marker-only
@@ -107,7 +240,7 @@ export function isUsefulTranscriptionText(value: unknown): value is string {
     return false;
   }
   const tokens = normalized.split(" ").filter(Boolean);
-  return tokens.some(token => !NON_SPEECH_TRANSCRIPTION_TOKENS.has(token));
+  return !isSemanticNonSpeechStatement(tokens);
 }
 
 export type AiDomainAudioUsage = {
