@@ -93,6 +93,12 @@ type DownloadedAudio = {
   mimeType: string;
 };
 
+type ExtractedBase64Payload = {
+  mimeType: string | null;
+  payload: string;
+  malformedDataUrl: boolean;
+};
+
 function normalizeMimeType(mimeType: string | null) {
   return (mimeType ?? DEFAULT_AUDIO_MIME_TYPE).split(";")[0]?.trim().toLowerCase() || DEFAULT_AUDIO_MIME_TYPE;
 }
@@ -101,21 +107,27 @@ function hasInlineAudio(options: TranscribeOptions): options is Extract<Transcri
   return "audioBase64" in options;
 }
 
-function extractBase64Payload(value: string): { mimeType: string | null; payload: string } {
+function extractBase64Payload(value: string): ExtractedBase64Payload {
+  if (!value.toLowerCase().startsWith("data:")) {
+    return { mimeType: null, payload: value, malformedDataUrl: false };
+  }
+
   const markerIndex = value.indexOf(",");
-  if (!value.toLowerCase().startsWith("data:") || markerIndex < 0) {
-    return { mimeType: null, payload: value };
+  if (markerIndex < 0) {
+    return { mimeType: null, payload: value, malformedDataUrl: true };
   }
 
   const header = value.slice(5, markerIndex);
   const parts = header.split(";");
+  const mimeType = parts[0]?.trim() || null;
   if (parts.at(-1)?.toLowerCase() !== "base64") {
-    return { mimeType: null, payload: "" };
+    return { mimeType, payload: value, malformedDataUrl: true };
   }
 
   return {
-    mimeType: parts[0]?.trim() || null,
+    mimeType,
     payload: value.slice(markerIndex + 1),
+    malformedDataUrl: false,
   };
 }
 
@@ -143,6 +155,14 @@ function decodeInlineAudio(
   options: Extract<TranscribeOptions, { audioBase64: string }>,
 ): DownloadedAudio | TranscriptionError {
   const extracted = extractBase64Payload(options.audioBase64);
+  if (extracted.malformedDataUrl) {
+    return {
+      error: "Failed to decode inline audio",
+      code: "INVALID_FORMAT",
+      details: "Inline audio data URL must use the ;base64 encoding marker.",
+    };
+  }
+
   const maximumEncodedLength = Math.ceil(MAX_AUDIO_FILE_SIZE_BYTES / 3) * 4 + 4;
   if (extracted.payload.length > maximumEncodedLength) {
     return {

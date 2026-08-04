@@ -29,7 +29,7 @@ server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
 server/_core/geminiProvider.ts -> implementação do provider Gemini, sobre o SDK @google/genai
 server/_core/aiProvider.ts     -> interface interna e factory global legada que seleciona o provider ativo (AI_VISION_PROVIDER)
 server/_core/ai/               -> fundação multi-provider (#921): registro, matriz, resolvedor e execução vinculada por capacidade
-server/_core/voiceTranscription.ts -> helper de transcrição baseado no provider interno
+server/_core/voiceTranscription.ts -> fronteira da capacidade TRANSCRIPTION para web e WhatsApp
 server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
 server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
 drizzle/schema.ts              -> fonte de verdade do modelo relacional
@@ -101,31 +101,53 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsAppWebhook`, `verifyWhatsAppWebhook`, `__resetWhatsAppWebhookDeduplicationForTests`) deve ser preservada ao mover código para esses módulos.
 
+A deduplicação por `message.id` ocorre no orquestrador antes de `beginInboundMessage` e antes de `prepareMessageInput`. Portanto, callback duplicado não baixa mídia, não transcreve e não cria nova mutação. Essa ordem é um contrato comportamental coberto por teste no limite HTTP do webhook, não por inspeção textual de código.
+
 Fluxos de comunicação profissional devem reutilizar o contrato central de mensagens e o transporte oficial. Não criar cliente, formatter ou fila paralela somente para a Área Profissional.
 
 ## Fundação multi-provider de IA (#921)
 
-`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` para `resolveCapabilityConfig` + `executeResolvedCapability`; #923 migrou `QUESTION` (`aiQuestionAssistant`), `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch` em `catalogSemanticSearch.ts`) e `EMBEDDING` (busca semântica de catálogo) para a mesma fundação.
+`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION` para `resolveCapabilityConfig` + `executeResolvedCapability`.
 
-- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada consumida pela busca semântica de catálogo por meio do resolvedor e do executor comuns. `FOOD_CLASSIFICATION` permanece reservada, pois a NOVA continua embutida em `MEAL_TEXT`/`MEAL_VISION` nesta fase.
-- `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`; cada família possui tradução local e teste do adapter. Gemini declara texto, visão, Structured Output e pesquisa web: o contrato interno `{ type: "web_search" }` é traduzido para Google Search Grounding. `QUESTION` permanece elegível no Gemini 2.5 porque exige somente texto + busca. `NUTRITION_SEARCH` combina Structured Output + busca e, conforme o contrato do provider, só é elegível com um modelo Gemini 3 explicitamente configurado; `gemini-2.5-flash` é rejeitado localmente e nenhum novo default é promovido antes da #927. Gemini não anuncia `embeddings`, então permanece inelegível para `EMBEDDING`; o default continua `text-embedding-3-small` da OpenAI.
+- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio. `FOOD_CLASSIFICATION` permanece reservada.
+- `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`. Gemini declara texto, visão, Structured Output e pesquisa web, mas não anuncia embeddings nem transcrição.
 - `openai-compatible` é fail-closed. Qualquer `OPENAI_BASE_URL` não vazio faz o resolvedor aplicar automaticamente essa identidade, e somente operações explicitamente listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam disponíveis.
 - `policyDefaults.ts` concentra timeout, tentativas e janela de confirmação do cancelamento.
-- `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica `AI_<CAPABILITY>_*` novo > variável legada compatível > default equivalente ao baseline; preserva `OPENAI_MODEL` ou `GEMINI_MODEL` conforme o provider; rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
+- `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica `AI_<CAPABILITY>_*` novo > variável legada compatível > default equivalente ao baseline; rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
 - `providerResolver.ts` transforma somente um `AiProviderId` já resolvido no adapter correspondente; não consulta nome de modelo nem a seleção global legada.
-- `capabilityExecutor.ts` recebe o `ResolvedCapabilityConfig` completo e vincula provider, modelo e adapter em cada tentativa. Primário e retries permanecem no alvo primário resolvido; o fallback usa somente o provider/modelo resolvido para fallback. Consumidores não devem reconstruir essa associação manualmente.
-- `domainTextResponse.ts` é a fronteira entre adapters e domínio: remove `raw` do SDK e de usage antes de entregar resposta a refeição ou WhatsApp. Os adapters podem manter dados nativos internamente para observabilidade posterior, mas serviços de domínio recebem somente `id`, `outputText` e usage normalizado.
-- `policyExecutor.ts` aplica timeout, retry, fallback e classificação de erro depois que a identidade da capacidade foi vinculada. Estados `disabled` e `invalid`, limites não inteiros/positivos e fallback habilitado sem alvo executável são rejeitados antes de qualquer callback ou outbound. Estados `ready` e `degraded` são executáveis somente quando o primário permanece válido.
-- O executor classifica erros concretos de SDK/HTTP/rede e valida saída vazia, JSON inválido e payload inválido. Cada tentativa recebe `AbortSignal`; o contrato `AiProvider` aceita esse sinal e os adapters OpenAI/Gemini o propagam à chamada do SDK. Depois de timeout, retry/fallback só começa após a chamada anterior encerrar; se o provider não confirmar cancelamento dentro da janela, a execução termina fail-closed sem nova chamada. `MAX_ATTEMPTS` conta todas as chamadas do primário e existe no máximo uma chamada posterior de fallback.
-- `AiOperationalError` representa timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido. `AiNonRetryableError` cobre autenticação, modelo ausente, incompatibilidade, bloqueio de segurança, configuração inválida, cancelamento não reconhecido e erro desconhecido. Erro desconhecido nunca aciona um segundo provider.
-- Requests comuns são fail-closed: toda mensagem e parte recebida pelo adapter deve ser traduzida integralmente ou a requisição é rejeitada antes da rede. O Gemini rejeita partes desconhecidas, partes conhecidas malformadas e `tools` sem tradução explícita; nunca reduz silenciosamente uma entrada multimodal para somente texto.
-- Structured Output no OpenAI passa por preflight local antes do SDK. A raiz deve ser objeto, todas as propriedades de objetos devem ser obrigatórias, `additionalProperties` deve ser `false`, referências precisam ser locais e keywords/limites fora do subconjunto documentado falham como `incompatible_operation` sem consumir rede, quota, retry ou fallback.
-- Structured Output no Gemini aceita apenas o subconjunto validado localmente. Referências devem ser locais e resolvíveis; ciclos são aceitos somente quando atravessam propriedade opcional. Referência externa, destino ausente ou recursão exclusivamente obrigatória falham antes do outbound.
-- Escalonamento de qualidade é política separada e permanece desativada. Degradação funcional local, como busca não semântica ou anotação local, não é fallback externo.
+- `capabilityExecutor.ts` recebe o `ResolvedCapabilityConfig` completo e vincula provider, modelo e adapter em cada tentativa. Primário e retries permanecem no alvo primário resolvido; o fallback usa somente o provider/modelo resolvido para fallback.
+- `domainTextResponse.ts` e `domainAudioTranscription.ts` são as fronteiras entre adapters e domínio: removem `raw` do SDK e de usage antes de entregar resposta a consumidores.
+- `policyExecutor.ts` aplica timeout, retry, fallback e classificação de erro depois que a identidade da capacidade foi vinculada. Estados `disabled` e `invalid`, limites não inteiros/positivos e fallback habilitado sem alvo executável são rejeitados antes de outbound.
+- O executor classifica erros concretos de SDK/HTTP/rede e valida saída vazia, JSON inválido e payload inválido. Cada tentativa recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar. `MAX_ATTEMPTS` conta todas as chamadas do primário e existe no máximo uma chamada posterior de fallback.
+- `AiOperationalError` representa timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido. `AiNonRetryableError` cobre autenticação, modelo ausente, incompatibilidade, bloqueio de segurança, configuração inválida, cancelamento não reconhecido e erro desconhecido.
+- Requests comuns são fail-closed: todo campo recebido pelo adapter deve ser traduzido integralmente ou a requisição é rejeitada antes da rede.
+- Structured Output no OpenAI e Gemini passa por preflight local específico ao provider.
+- Escalonamento de qualidade é política separada e permanece desativada. Degradação funcional local não é fallback externo.
+
+### Contrato de `TRANSCRIPTION` (#924)
+
+```text
+web / WhatsApp
+  -> voiceTranscription.transcribeAudio
+     -> validação de URL/base64, MIME, vazio e 16 MiB
+     -> resolveCapabilityConfig("TRANSCRIPTION")
+     -> executeResolvedCapability
+        -> transcriptionProvider / AiProvider.createAudioTranscription
+        -> domainAudioTranscription remove raw e normaliza texto
+  -> consumidor usa text; metadados são opcionais
+```
+
+- O baseline continua `openai` + `whisper-1`; a issue não promove novo modelo.
+- `whisper-1` usa `verbose_json`; modelos GPT-4o de transcrição usam `json`.
+- O contrato raiz e o contrato de domínio exigem `task` e `text`; `language`, `duration`, `segments` e `usage` são opcionais. Adapters não fabricam `segments: []`, `duration: 0` ou idioma vazio quando o provider omite esses campos.
+- Data URL sem `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes da criação do adapter.
+- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; cross-provider é bloqueado em produção até a #927.
+- O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
+- Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
 
 **Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` e a superfície `models.generateContent`. Structured Output usa `responseJsonSchema`, preservando `additionalProperties: false`, tipos anuláveis, limites numéricos e demais recursos presentes nos schemas reais do projeto. O fluxo legado de refeição é testado pelo entrypoint `mealAiExtraction` em variantes textual e visual, usando o data URL inline realmente produzido pelo pipeline do WhatsApp. Metadados de usage são normalizados em `AiProviderTextResponse.usage` quando o provider os retorna.
 
-**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada.
+**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada. `TRANSCRIPTION` usa `AI_TRANSCRIPTION_*` e não depende de `AI_VISION_PROVIDER`.
 
 ## Regras de dependência
 

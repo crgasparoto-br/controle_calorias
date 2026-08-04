@@ -42,8 +42,16 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 `QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. Cada chamada dessa fronteira executa exatamente uma chamada ao provider; recuperação, retry e fallback pertencem exclusivamente a `executeResolvedCapability`. Fonte ausente, URL-only ou evidência nutricional insuficiente degrada localmente sem probe oculto. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
 
+### Fronteira de transcrição #924
+
+`TRANSCRIPTION` aceita somente áudio validado antes da rede. Data URL sem marcador `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes de instanciar o adapter. O domínio exige texto útil e recebe provider/modelo efetivos; `language`, `duration`, `segments` e `usage` são opcionais, e `raw` do SDK não atravessa `_core`.
+
+Áudio, transcrição, prompt, base64 e URL de mídia não podem compor diagnóstico, telemetria ou resultado de benchmark. O callback duplicado do WhatsApp é descartado antes do download e da transcrição. Fallback de `TRANSCRIPTION` permanece desabilitado por padrão; cross-provider continua bloqueado em produção até benchmark, revisão LGPD e rollout da #927.
+
 ### Smokes temporários com providers externos
 
 O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos. Para #923, `scripts/issue-923-live-provider-smoke.ts` fornece um harness que valida `QUESTION` em modo sem busca, `QUESTION` com pesquisa real, `NUTRITION_SEARCH` com fonte citada em uma única tentativa governada pelo executor e `EMBEDDING` com vetor real. O workflow executa automaticamente somente para o repositório, proprietário e branch confiáveis, confere que o checkout corresponde ao `HEAD` selecionado da PR e desabilita persistência de credenciais no checkout. Não há revisão manual do head nem variável `AI_SMOKE_APPROVED_SHA`.
 
 Testes e smokes reais de IA no GitHub Actions usam sempre os secrets de repositório padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`; aliases `AI_SMOKE_*` não devem ser criados. Os secrets são injetados somente no passo final que realiza as chamadas externas, depois de checkout, validação de identidade, setup e instalação sem credenciais. O harness permite modelos separados por `SMOKE_QUESTION_MODEL` e `SMOKE_NUTRITION_MODEL`; no Gemini, a pesquisa nutricional requer Gemini 3, enquanto perguntas podem continuar em Gemini 2.5. Ausência da chave necessária deve falhar fechado e ser registrada como limitação, não como smoke aprovado.
+
+O benchmark de #924 é executado localmente em ambiente autorizado e não deve motivar workflow novo, rerun manual ou exposição de `OPENAI_API_KEY`. Somente o JSON sanitizado descrito em `docs/benchmarks/transcription/results/README.md` pode ser versionado.

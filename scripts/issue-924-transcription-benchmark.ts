@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { transcribeAudio } from "../server/_core/voiceTranscription";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const FIXTURE_DIR = path.join(ROOT, "docs/benchmarks/transcription/fixtures");
 const TIMEOUT_MS = 30_000;
 const MODELS = [
@@ -23,7 +24,7 @@ const PRICE_CATALOG = {
   },
 } as const;
 
-type Fixture = {
+export type Fixture = {
   id: string;
   file: string;
   reference: string;
@@ -34,7 +35,7 @@ type Fixture = {
   encoding?: "base64";
 };
 
-type Manifest = {
+export type Manifest = {
   schemaVersion: number;
   generatedAt: string;
   generator: string;
@@ -42,7 +43,7 @@ type Manifest = {
   fixtures: Fixture[];
 };
 
-type SuccessfulResult = {
+export type SuccessfulResult = {
   fixtureId: string;
   model: string;
   status: "ok";
@@ -56,7 +57,7 @@ type SuccessfulResult = {
   estimatedCostUsd: number | null;
 };
 
-type BenchmarkResult = SuccessfulResult | {
+export type BenchmarkResult = SuccessfulResult | {
   fixtureId: string;
   model: string;
   status: "error";
@@ -124,6 +125,11 @@ function average(values: number[]): number | null {
   return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(4));
 }
 
+function rate(numerator: number, denominator: number): number {
+  if (denominator === 0) return 0;
+  return Number((numerator / denominator).toFixed(4));
+}
+
 async function readFixtureAudio(fixture: Fixture): Promise<Buffer> {
   const raw = await readFile(path.join(FIXTURE_DIR, fixture.file));
   if (fixture.encoding !== "base64") return raw;
@@ -136,8 +142,36 @@ async function readFixtureAudio(fixture: Fixture): Promise<Buffer> {
   return Buffer.from(encoded, "base64");
 }
 
-function summarize(results: BenchmarkResult[]) {
-  return MODELS.map(model => {
+export function validateManifest(manifest: Manifest): void {
+  if (manifest.privacy !== "synthetic-only") {
+    throw new Error("Benchmark refuses fixtures that are not marked synthetic-only.");
+  }
+  if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length === 0) {
+    throw new Error("Transcription benchmark manifest must contain at least one fixture.");
+  }
+  const fixtureIds = new Set<string>();
+  for (const fixture of manifest.fixtures) {
+    if (!fixture.id.trim() || fixtureIds.has(fixture.id)) {
+      throw new Error("Transcription benchmark fixture IDs must be unique and non-empty.");
+    }
+    fixtureIds.add(fixture.id);
+    if (!fixture.file.trim() || !fixture.reference.trim()) {
+      throw new Error(`Transcription benchmark fixture ${fixture.id} is incomplete.`);
+    }
+    if (!Array.isArray(fixture.criticalTerms) || fixture.criticalTerms.length === 0) {
+      throw new Error(`Transcription benchmark fixture ${fixture.id} requires critical terms.`);
+    }
+    if (!Number.isFinite(fixture.durationSeconds) || fixture.durationSeconds <= 0) {
+      throw new Error(`Transcription benchmark fixture ${fixture.id} has invalid duration.`);
+    }
+  }
+}
+
+export function summarize(
+  results: BenchmarkResult[],
+  models: readonly string[] = MODELS,
+) {
+  return models.map(model => {
     const modelResults = results.filter(result => result.model === model);
     const successful = modelResults.filter(
       (result): result is SuccessfulResult => result.status === "ok",
@@ -145,14 +179,26 @@ function summarize(results: BenchmarkResult[]) {
     return {
       model,
       fixtures: modelResults.length,
-      successRate: Number((successful.length / modelResults.length).toFixed(4)),
-      usefulTextRate: Number((successful.filter(result => result.usefulText).length / modelResults.length).toFixed(4)),
+      successRate: rate(successful.length, modelResults.length),
+      usefulTextRate: rate(
+        successful.filter(result => result.usefulText).length,
+        modelResults.length,
+      ),
       averageLatencyMs: average(successful.map(result => result.latencyMs)),
       averageWordErrorRate: average(successful.map(result => result.wordErrorRate)),
       averageCriticalTermRecall: average(successful.map(result => result.criticalTermRecall)),
-      retryRate: Number((successful.filter(result => result.attempts > 1).length / modelResults.length).toFixed(4)),
-      fallbackRate: Number((successful.filter(result => result.usedFallback).length / modelResults.length).toFixed(4)),
-      segmentAvailabilityRate: Number((successful.filter(result => result.segmentsPresent).length / modelResults.length).toFixed(4)),
+      retryRate: rate(
+        successful.filter(result => result.attempts > 1).length,
+        modelResults.length,
+      ),
+      fallbackRate: rate(
+        successful.filter(result => result.usedFallback).length,
+        modelResults.length,
+      ),
+      segmentAvailabilityRate: rate(
+        successful.filter(result => result.segmentsPresent).length,
+        modelResults.length,
+      ),
       estimatedTotalCostUsd: Number(successful.reduce(
         (sum, result) => sum + (result.estimatedCostUsd ?? 0),
         0,
@@ -161,16 +207,14 @@ function summarize(results: BenchmarkResult[]) {
   });
 }
 
-async function main() {
+export async function runBenchmark(outputPath?: string) {
   if (!process.env.OPENAI_API_KEY?.trim()) {
     throw new Error("OPENAI_API_KEY is required to execute the transcription benchmark.");
   }
   const manifest = JSON.parse(
     await readFile(path.join(FIXTURE_DIR, "manifest.json"), "utf8"),
   ) as Manifest;
-  if (manifest.privacy !== "synthetic-only") {
-    throw new Error("Benchmark refuses fixtures that are not marked synthetic-only.");
-  }
+  validateManifest(manifest);
 
   const results: BenchmarkResult[] = [];
   for (const model of MODELS) {
@@ -267,16 +311,18 @@ async function main() {
     summary: summarize(results),
     results,
   };
-  const outputPath = process.argv[2];
   if (outputPath) {
     await writeFile(path.resolve(outputPath), `${JSON.stringify(output, null, 2)}\n`);
   } else {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   }
+  return output;
 }
 
-main().catch(error => {
-  const message = error instanceof Error ? error.message : "benchmark failed";
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(SCRIPT_PATH)) {
+  runBenchmark(process.argv[2]).catch(error => {
+    const message = error instanceof Error ? error.message : "benchmark failed";
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });
+}

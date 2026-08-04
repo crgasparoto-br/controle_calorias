@@ -172,6 +172,8 @@ describe("TRANSCRIPTION capability", () => {
     [{ ...audio(), mimeType: "application/pdf" }, "INVALID_FORMAT"],
     [audio(Buffer.alloc(0)), "EMPTY_FILE"],
     [{ audioBase64: "%%%", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
+    [{ audioBase64: "data:audio/ogg,not-base64", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
+    [{ audioBase64: "data:audio/ogg;charset=utf-8,not-base64", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
     [audio(Buffer.alloc(MAX_AUDIO_FILE_SIZE_BYTES + 1, 1)), "FILE_TOO_LARGE"],
   ])("rejects invalid input before provider creation", async (input, code) => {
     const factory = vi.fn(() => provider(vi.fn()));
@@ -181,6 +183,16 @@ describe("TRANSCRIPTION capability", () => {
     });
     expect(factory).not.toHaveBeenCalled();
     expect(result).toMatchObject({ code });
+  });
+
+  it("distinguishes a valid empty base64 data URL from a malformed data URL", async () => {
+    const factory = vi.fn(() => provider(vi.fn()));
+    const result = await transcribeAudio(
+      { audioBase64: "data:audio/ogg;base64,", mimeType: "audio/ogg" },
+      { env: env(), providerFactories: factories(factory) },
+    );
+    expect(factory).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code: "EMPTY_FILE" });
   });
 
   it("fails invalid configuration before provider creation", async () => {
