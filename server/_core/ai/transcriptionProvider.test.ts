@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type OpenAI from "openai";
-import { OpenAiCapabilityTranscriptionProvider } from "./transcriptionProvider";
+import {
+  createTranscriptionProviderFactories,
+  OpenAiCapabilityTranscriptionProvider,
+} from "./transcriptionProvider";
 
 function createClient(response: unknown) {
   const create = vi.fn().mockResolvedValue(response);
@@ -72,5 +75,12 @@ describe("OpenAiCapabilityTranscriptionProvider", () => {
     );
     expect(result).not.toHaveProperty("segments");
     expect(result).toMatchObject({ text: "banana" });
+  });
+
+  it("keeps unsupported transcription providers fail-closed", () => {
+    const factories = createTranscriptionProviderFactories({});
+    expect(() => factories.gemini()).toThrow(
+      "Gemini does not implement the TRANSCRIPTION adapter.",
+    );
   });
 });

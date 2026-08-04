@@ -14,10 +14,7 @@ import type {
 } from "../aiProvider";
 import { ENV } from "../env";
 import { createOpenAiClient } from "../openaiClient";
-import {
-  DEFAULT_AI_PROVIDER_FACTORIES,
-  type AiProviderFactoryMap,
-} from "./providerResolver";
+import type { AiProviderFactoryMap } from "./providerResolver";
 import { AiNonRetryableError } from "./policyExecutor";
 
 export type OptionalSegmentTranscriptionResponse = Omit<
@@ -96,9 +93,8 @@ function unsupportedOperation(operation: string): AiNonRetryableError {
 
 /**
  * Capability-scoped OpenAI adapter. It implements only audio transcription;
- * unrelated operations fail closed instead of importing the global provider
- * implementation during module evaluation. This keeps isolated consumer tests
- * compatible with partial mocks of aiProvider.
+ * unrelated operations fail closed. All imports from aiProvider/providerResolver
+ * are type-only, so consumer tests with partial module mocks remain isolated.
  */
 export class OpenAiCapabilityTranscriptionProvider implements AiProvider {
   private resolvedTranscriptionClient: OpenAI | null = null;
@@ -152,11 +148,18 @@ export class OpenAiCapabilityTranscriptionProvider implements AiProvider {
   }
 }
 
+function unsupportedTranscriptionProvider(provider: string): AiProvider {
+  throw new AiNonRetryableError(
+    `${provider} does not implement the TRANSCRIPTION adapter.`,
+    undefined,
+    "incompatible_operation",
+  );
+}
+
 export function createTranscriptionProviderFactories(
   env: NodeJS.ProcessEnv = process.env,
 ): AiProviderFactoryMap {
   return {
-    ...DEFAULT_AI_PROVIDER_FACTORIES,
     openai: () => new OpenAiCapabilityTranscriptionProvider(() => createOpenAiClient()),
     "openai-compatible": () => {
       const baseURL = (env.OPENAI_BASE_URL ?? ENV.openaiBaseUrl).trim();
@@ -169,5 +172,6 @@ export function createTranscriptionProviderFactories(
       }
       return new OpenAiCapabilityTranscriptionProvider(() => createOpenAiClient({ baseURL }));
     },
+    gemini: () => unsupportedTranscriptionProvider("Gemini"),
   };
 }
