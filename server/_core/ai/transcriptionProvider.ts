@@ -1,11 +1,17 @@
 import type OpenAI from "openai";
 import type {
+  AiProvider,
   AiProviderAudioTranscriptionRequest,
   AiProviderAudioTranscriptionResponse,
+  AiProviderEmbeddingRequest,
+  AiProviderEmbeddingResponse,
+  AiProviderImageGenerationRequest,
+  AiProviderImageGenerationResponse,
   AiProviderRequestOptions,
+  AiProviderTextRequest,
+  AiProviderTextResponse,
   AiProviderUsage,
 } from "../aiProvider";
-import { OpenAiProvider } from "../aiProvider";
 import { ENV } from "../env";
 import { createOpenAiClient } from "../openaiClient";
 import {
@@ -35,7 +41,8 @@ type OpenAiTranscriptionPayload = {
 };
 
 function usesVerboseJson(model: string): boolean {
-  return model.trim().toLowerCase() === "whisper-1";
+  const normalized = model.trim().toLowerCase();
+  return normalized === "whisper-1" || normalized.startsWith("whisper-1-");
 }
 
 function normalizeUsage(value: unknown): AiProviderUsage | undefined {
@@ -79,25 +86,52 @@ function normalizeResponse(response: unknown): OptionalSegmentTranscriptionRespo
   };
 }
 
+function unsupportedOperation(operation: string): AiNonRetryableError {
+  return new AiNonRetryableError(
+    `Transcription provider does not support ${operation}.`,
+    undefined,
+    "incompatible_operation",
+  );
+}
+
 /**
- * OpenAI adapter variant dedicated to transcription. The Audio API accepts
- * verbose_json for whisper-1, while GPT-4o transcription models accept json.
- * Keeping this decision inside the adapter prevents SDK details from leaking
- * into the domain and makes segment absence an honest optional capability.
+ * Capability-scoped OpenAI adapter. It implements only audio transcription;
+ * unrelated operations fail closed instead of importing the global provider
+ * implementation during module evaluation. This keeps isolated consumer tests
+ * compatible with partial mocks of aiProvider.
  */
-export class OpenAiCapabilityTranscriptionProvider extends OpenAiProvider {
+export class OpenAiCapabilityTranscriptionProvider implements AiProvider {
   private resolvedTranscriptionClient: OpenAI | null = null;
 
-  constructor(private readonly transcriptionClientFactory: OpenAiClientFactory) {
-    super(transcriptionClientFactory);
-  }
+  constructor(private readonly transcriptionClientFactory: OpenAiClientFactory) {}
 
   private getTranscriptionClient(): OpenAI {
     this.resolvedTranscriptionClient ??= this.transcriptionClientFactory();
     return this.resolvedTranscriptionClient;
   }
 
-  override async createAudioTranscription(
+  async createTextResponse(
+    _request: AiProviderTextRequest,
+    _options?: AiProviderRequestOptions,
+  ): Promise<AiProviderTextResponse> {
+    throw unsupportedOperation("text responses");
+  }
+
+  async createEmbeddings(
+    _request: AiProviderEmbeddingRequest,
+    _options?: AiProviderRequestOptions,
+  ): Promise<AiProviderEmbeddingResponse> {
+    throw unsupportedOperation("embeddings");
+  }
+
+  async createImageGeneration(
+    _request: AiProviderImageGenerationRequest,
+    _options?: AiProviderRequestOptions,
+  ): Promise<AiProviderImageGenerationResponse> {
+    throw unsupportedOperation("image generation");
+  }
+
+  async createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
     options?: AiProviderRequestOptions,
   ): Promise<AiProviderAudioTranscriptionResponse> {

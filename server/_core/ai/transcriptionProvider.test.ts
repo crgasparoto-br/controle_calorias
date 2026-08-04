@@ -42,6 +42,21 @@ describe("OpenAiCapabilityTranscriptionProvider", () => {
     expect(result).toHaveProperty("segments");
   });
 
+  it("requests verbose_json for whisper-1 snapshots", async () => {
+    const { client, create } = createClient({ text: "arroz", segments: [] });
+    const provider = new OpenAiCapabilityTranscriptionProvider(() => client);
+
+    await provider.createAudioTranscription(request("whisper-1-2026-08-03"));
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: "verbose_json",
+        model: "whisper-1-2026-08-03",
+      }),
+      undefined,
+    );
+  });
+
   it("requests json for gpt-4o-mini-transcribe and does not fabricate segments", async () => {
     const { client, create } = createClient({
       text: "banana",
