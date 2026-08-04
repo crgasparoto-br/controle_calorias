@@ -64,11 +64,12 @@ Situação atual:
 
 - Transcrição de áudio resolve `TRANSCRIPTION` pelo executor comum; `openai` + `whisper-1` permanecem como baseline compatível até a decisão de rollout da #927.
 - Inferência nutricional de texto e imagem resolve `MEAL_TEXT` e `MEAL_VISION` independentemente pelo executor comum, com saída estruturada e validação Zod.
-- Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
+- Anotação de foto resolve seu próprio modo e, quando externa, a capacidade `IMAGE_ANNOTATION`. O default `local` cria um PNG derivado por composição determinística sobre uma cópia da foto original, sem novo envio a provider; `external` exige configuração explícita e `off` não produz derivado.
+- Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise e o registro da refeição continuam normalmente.
 
 ## Seleção legada de Provider de IA (Visão e Texto)
 
-A seleção global abaixo continua funcionando durante a migração por capacidade. Ela se aplica ao consumidor legado de inferência nutricional de texto/imagem; perguntas, pesquisa nutricional, embeddings e transcrição já possuem configuração própria por capacidade. Imagem anotada mantém seu caminho específico até a subissue correspondente.
+A seleção global abaixo continua funcionando durante a migração por capacidade. Ela se aplica ao consumidor legado de inferência nutricional de texto/imagem; perguntas, pesquisa nutricional, embeddings, transcrição e anotação de foto já possuem configuração própria por capacidade. Alterar `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` não autoriza nem redireciona um segundo envio da foto para anotação.
 
 - **OpenAI (Padrão):**
   ```env
@@ -88,9 +89,9 @@ A seleção global abaixo continua funcionando durante a migração por capacida
 
 ## Fundação multi-provider por capacidade (#921)
 
-A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING` e `TRANSCRIPTION` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION` (reservada, ver #922) — com:
+A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION` e `IMAGE_ANNOTATION` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `FOOD_CLASSIFICATION` permanece reservada (ver #922) — com:
 
-- **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings; `TRANSCRIPTION` exige a operação de áudio do adapter;
+- **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings; `TRANSCRIPTION` exige a operação de áudio do adapter; `IMAGE_ANNOTATION` externa exige geração e edição de imagem, enquanto o modo local não cria adapter externo;
 - **matriz baseada no adapter real e na combinação por modelo**: cada provider declara somente operações implementadas; Gemini 2.5 pode executar `QUESTION` com Google Search, mas `NUTRITION_SEARCH` combina Google Search + Structured Output e exige modelo Gemini 3 explicitamente aprovado. `gemini-2.5-flash` é rejeitado antes da rede para essa combinação, sem promover novo default antes da #927. Gemini não anuncia embeddings nem transcrição, então `EMBEDDING` e `TRANSCRIPTION` não obtêm fallback Gemini implícito;
 - **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
 - **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
@@ -98,10 +99,11 @@ A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `
 - **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
 - **erros e saídas normalizados**: timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
 - **contrato de transcrição sem granularidade fabricada**: texto é obrigatório; `language`, `duration`, `segments` e `usage` são opcionais, e consumidores continuam apenas com texto útil;
+- **anotação local segura por padrão**: a foto original é preservada, o derivado usa chave de storage distinta, a transição `external -> local` só ocorre por opt-in e não conta como fallback de provider;
 - **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
 - **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; em #923, o assistente de perguntas do WhatsApp (`QUESTION`), a pesquisa nutricional de itens embalados (`NUTRITION_SEARCH`) e a busca semântica de catálogo (`EMBEDDING`) passaram pela mesma migração. Em #924, a ingestão de áudio passou a `TRANSCRIPTION`, com segmentos opcionais, validação anterior à rede e benchmark reproduzível documentado em `docs/design-docs/transcription-capability.md`. `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
+Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; em #923, o assistente de perguntas do WhatsApp (`QUESTION`), a pesquisa nutricional de itens embalados (`NUTRITION_SEARCH`) e a busca semântica de catálogo (`EMBEDDING`) passaram pela mesma migração. Em #924, a ingestão de áudio passou a `TRANSCRIPTION`, com segmentos opcionais, validação anterior à rede e benchmark reproduzível documentado em `docs/design-docs/transcription-capability.md`. Em #925, a foto anotada passou a usar modo local seguro por padrão e `IMAGE_ANNOTATION` somente no modo externo explícito; o contrato completo está em `docs/design-docs/image-annotation-capability.md`. `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
 
 ## Variáveis de ambiente obrigatórias
 
@@ -133,6 +135,7 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
 | Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS` | Configuração inválida produz estado `invalid`/`disabled`; fallback nunca é habilitado implicitamente. |
 | Transcrição | `AI_TRANSCRIPTION_*`, `OPENAI_API_KEY` quando OpenAI for o provider efetivo | Sem configuração executável, áudio falha antes da rede com diagnóstico sanitizado; `whisper-1` permanece o default compatível. |
+| Anotação de imagem | `AI_IMAGE_ANNOTATION_MODE`, `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE`, `AI_IMAGE_ANNOTATION_*` | Sem override, usa `local` e não envia a foto a provider de imagem. `external` sem configuração executável encerra sem anotação, salvo degradação local explicitamente autorizada. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
@@ -154,7 +157,7 @@ Estratégia de migração:
 3. Segredos ainda não reescritos continuam sendo lidos com a chave legada derivada de `JWT_SECRET`. Rotacionar `JWT_SECRET` antes de reescrever esses segredos os torna ilegíveis — force a reescrita (ex.: reenviando o token do WhatsApp) antes de rotacionar `JWT_SECRET` se a chave dedicada ainda não estiver configurada.
 4. Risco residual: enquanto algum segredo persistido não tiver sido reescrito com a chave dedicada, ele permanece dependente de `JWT_SECRET`. Nenhum valor de chave ou segredo decriptado é logado; falhas de decriptação retornam erro sanitizado.
 
-`OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para a autenticação nem para o login web.
+`OPENAI_IMAGE_MODEL` permanece compatível apenas como fallback legado do modelo OpenAI para `IMAGE_ANNOTATION` externa. O modo local padrão não usa essa variável nem cria chamada externa.
 
 Durante o startup, o backend registra aviso para features opcionais sem configuração suficiente. Esses avisos não exibem valores de segredos.
 
@@ -165,6 +168,8 @@ A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUM
 O webhook localiza o usuário pelo telefone de origem, processa a refeição no contexto desse usuário e responde pelo mesmo canal oficial configurado no ambiente.
 
 Áudio recebido é deduplicado antes do download e da transcrição. O pipeline aceita texto útil mesmo sem segmentos, não repete transcrição ou mutação para o mesmo callback e não persiste áudio, prompt ou texto transcrito em telemetria de IA. O armazenamento funcional da mídia e da conversa segue as políticas explícitas do produto; detalhes da capacidade estão em `docs/design-docs/transcription-capability.md`.
+
+Quando a preferência de imagem anotada está ativa, o WhatsApp mantém a foto recebida como artefato original e tenta produzir um derivado separado. O modo local padrão apenas compõe uma camada nutricional sobre uma cópia e não envia novamente a foto a provider. Falhas de renderização, provider, upload ou envio do derivado não impedem o registro nem a resposta textual. Um resumo visual genérico não pode ser apresentado como anotação da foto. Detalhes em `docs/design-docs/image-annotation-capability.md`.
 
 **Inteligência do WhatsApp:**
 O canal possui um classificador de intenções (LLM) que atua antes do pipeline nutricional para evitar registros acidentais. Ele avalia o histórico conversacional recente do usuário para resolver ambiguidades (ex: distinguir "frango grelhado" como consulta vs. registro). O sistema também conta com aprendizado silencioso de aliases pessoais, associando automaticamente apelidos informais aos nomes canônicos do catálogo após registros bem-sucedidos.
@@ -222,7 +227,8 @@ Resumo do rollout:
 - validar que `NODE_ENV=production` falha o startup sem `DATABASE_URL` ou com conexão de banco inválida;
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter `AI_TRANSCRIPTION_FALLBACK_ENABLED=false` e o default `whisper-1` até a decisão explícita da #927;
-- executar e registrar o benchmark sanitizado antes de promover outro modelo de transcrição;
+- manter `AI_IMAGE_ANNOTATION_MODE=local`, `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=off` e fallback/cross-provider externos desabilitados até a avaliação da #927;
+- executar e registrar o benchmark sanitizado antes de promover outro modelo de transcrição ou ativar anotação externa;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
 - configurar `STRAVA_REDIRECT_URI` com o domínio público da API;
