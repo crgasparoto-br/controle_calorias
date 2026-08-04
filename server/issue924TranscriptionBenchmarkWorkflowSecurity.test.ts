@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const workflowPath = resolve(process.cwd(), ".github/workflows/ai-provider-live-smoke.yml");
+const temporaryBenchmarkWorkflowPath = resolve(
+  process.cwd(),
+  ".github/workflows/issue-924-transcription-benchmark.yml",
+);
 const benchmarkReadmePath = resolve(
   process.cwd(),
   "docs/benchmarks/transcription/README.md",
@@ -28,6 +32,7 @@ describe("issue 924 benchmark credential boundary", () => {
     expect(workflow).not.toContain("pnpm benchmark:transcription");
     expect(workflow).not.toContain("issue-924-transcription-benchmark");
     expect(workflow).not.toContain("TRANSCRIPTION_BENCHMARK_TESTED_SHA");
+    expect(existsSync(temporaryBenchmarkWorkflowPath)).toBe(false);
   });
 
   it("documents that repository secrets cannot be exposed to mutable PR code", () => {
@@ -42,11 +47,22 @@ describe("issue 924 benchmark credential boundary", () => {
     );
   });
 
-  it("does not promote benchmark evidence produced across an untrusted PR-secret boundary", () => {
+  it("promotes only the reviewed push benchmark and keeps unsafe history invalidated", () => {
     const manifest = JSON.parse(read(evidenceManifestPath)) as {
       schemaVersion: number;
-      canonicalRun: null;
-      trustedRunRequired: { status: string };
+      canonicalRun: null | {
+        status: string;
+        testedSha: string;
+        resultPath: string;
+        workflowRunId: number;
+        event: string;
+        artifactDigestSha256: string;
+        jsonSha256: string;
+      };
+      trustedRunRequired: {
+        status: string;
+        satisfiedByTestedSha?: string;
+      };
       invalidatedRuns: Array<{
         testedSha: string;
         workflowRunId?: number;
@@ -55,9 +71,27 @@ describe("issue 924 benchmark credential boundary", () => {
       }>;
     };
 
+    const canonicalSha = "af087f9b0c643a3146d46c1567c8fd80bbeff03e";
+
     expect(manifest.schemaVersion).toBe(2);
-    expect(manifest.canonicalRun).toBeNull();
-    expect(manifest.trustedRunRequired.status).toBe("pending");
+    expect(manifest.canonicalRun).toEqual(
+      expect.objectContaining({
+        status: "trusted",
+        testedSha: canonicalSha,
+        resultPath:
+          "docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.json",
+        workflowRunId: 30954486742,
+        event: "push",
+        artifactDigestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        jsonSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      }),
+    );
+    expect(manifest.trustedRunRequired).toEqual(
+      expect.objectContaining({
+        status: "satisfied",
+        satisfiedByTestedSha: canonicalSha,
+      }),
+    );
     expect(manifest.invalidatedRuns).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
