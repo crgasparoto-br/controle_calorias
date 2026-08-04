@@ -1,28 +1,38 @@
 {
-  "schemaVersion": 1,
-  "canonicalRun": {
-    "testedSha": "751c3c7096748c16a1546b2ab8161e512ecf133a",
-    "resultPath": "docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json",
-    "workflowRunId": 30935644636,
-    "workflowName": "AI provider live smoke",
-    "jobName": "transcription benchmark",
-    "artifactId": 8902997514,
-    "artifactName": "issue-924-transcription-benchmark-751c3c7096748c16a1546b2ab8161e512ecf133a",
-    "artifactDigestSha256": "6c3053868ad3e0476e70d133578dc118fd93aa2b24c36579ed70bec16463cc72",
-    "jsonSha256": "3b76faf61b66d4acc4936799864895cb1d4f93105bb0e7bc52aaefaba5f623b2",
-    "generatedAt": "2026-08-04T17:49:38.482Z",
-    "importedAt": "2026-08-04T18:21:08Z",
-    "privacy": "synthetic-only-sanitized"
+  "schemaVersion": 2,
+  "canonicalRun": null,
+  "trustedRunRequired": {
+    "status": "pending",
+    "reason": "No benchmark run currently satisfies the trusted-execution boundary. A new real comparison must execute reviewed immutable code without exposing a repository secret to mutable pull-request code.",
+    "requiredControls": [
+      "checked-out HEAD is resolved locally and matches every declared SHA",
+      "working tree is clean before execution",
+      "provider credential is scoped only to the trusted benchmark process",
+      "execution is not a pull_request workflow running mutable head code with repository secrets",
+      "result JSON is sanitized and hash-addressed"
+    ]
   },
-  "historicalRuns": [
+  "invalidatedRuns": [
+    {
+      "testedSha": "751c3c7096748c16a1546b2ab8161e512ecf133a",
+      "resultPath": "docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json",
+      "workflowRunId": 30935644636,
+      "artifactId": 8902997514,
+      "artifactDigestSha256": "6c3053868ad3e0476e70d133578dc118fd93aa2b24c36579ed70bec16463cc72",
+      "jsonSha256": "3b76faf61b66d4acc4936799864895cb1d4f93105bb0e7bc52aaefaba5f623b2",
+      "role": "historical-untrusted-provenance",
+      "invalidatedReason": "The pull_request workflow checked out mutable PR code and exposed OPENAI_API_KEY to the benchmark step. No credential leak was observed, but the run cannot be canonical evidence."
+    },
     {
       "testedSha": "7758bbdafc0b80f6b0ac37338eff4bd2005450e9",
       "resultPath": "docs/benchmarks/transcription/results/2026-08-04-7758bbdafc0b.json",
-      "role": "historical-comparison"
+      "role": "historical-comparison-only",
+      "invalidatedReason": "The repository does not contain a trusted-execution attestation sufficient to promote this run as canonical evidence."
     }
   ],
   "reusePolicy": {
-    "allowedOnlyWhenUnchanged": [
+    "allowedOnlyForTrustedRunsWhenUnchanged": [
+      "scripts/issue-924-benchmark-identity.ts",
       "scripts/issue-924-transcription-benchmark.ts",
       "scripts/issue-924-transcription-benchmark.test.ts",
       "server/_core/voiceTranscription.ts",
@@ -37,12 +47,13 @@
     ],
     "invalidatedBy": [
       "runtime change",
-      "harness change",
+      "harness or identity-validation change",
       "fixture or manifest change",
       "model identifier change",
       "price catalog change",
-      "execution policy change"
+      "execution policy change",
+      "missing or untrusted execution provenance"
     ],
-    "note": "Documentation-only remediation and restoration of the base workflow do not change the measured runtime. Any change to a protected path requires a new benchmark in a trusted context."
+    "note": "Historical results remain versioned for transparency but cannot satisfy the acceptance criterion until a trusted run replaces canonicalRun."
   }
 }

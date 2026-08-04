@@ -11,10 +11,6 @@ const resultsReadmePath = resolve(
   process.cwd(),
   "docs/benchmarks/transcription/results/README.md",
 );
-const canonicalResultPath = resolve(
-  process.cwd(),
-  "docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json",
-);
 const evidenceManifestPath = resolve(
   process.cwd(),
   "docs/benchmarks/transcription/results/evidence-manifest.json",
@@ -46,38 +42,31 @@ describe("issue 924 benchmark credential boundary", () => {
     );
   });
 
-  it("keeps the sanitized exact-runtime evidence durable and hash-addressed", () => {
-    const result = JSON.parse(read(canonicalResultPath)) as {
-      testedSha: string;
-      results: Array<{
-        status: string;
-        usefulText?: boolean;
-        attempts?: number;
-        usedFallback?: boolean;
+  it("does not promote benchmark evidence produced across an untrusted PR-secret boundary", () => {
+    const manifest = JSON.parse(read(evidenceManifestPath)) as {
+      schemaVersion: number;
+      canonicalRun: null;
+      trustedRunRequired: { status: string };
+      invalidatedRuns: Array<{
+        testedSha: string;
+        workflowRunId?: number;
+        role: string;
+        invalidatedReason: string;
       }>;
     };
-    const manifest = JSON.parse(read(evidenceManifestPath)) as {
-      canonicalRun: {
-        testedSha: string;
-        resultPath: string;
-        artifactDigestSha256: string;
-        jsonSha256: string;
-      };
-    };
 
-    expect(result.testedSha).toBe(
-      "751c3c7096748c16a1546b2ab8161e512ecf133a",
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.canonicalRun).toBeNull();
+    expect(manifest.trustedRunRequired.status).toBe("pending");
+    expect(manifest.invalidatedRuns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          testedSha: "751c3c7096748c16a1546b2ab8161e512ecf133a",
+          workflowRunId: 30935644636,
+          role: "historical-untrusted-provenance",
+          invalidatedReason: expect.stringContaining("OPENAI_API_KEY"),
+        }),
+      ]),
     );
-    expect(result.results).toHaveLength(12);
-    expect(result.results.every(item => item.status === "ok")).toBe(true);
-    expect(result.results.every(item => item.usefulText === true)).toBe(true);
-    expect(result.results.every(item => item.attempts === 1)).toBe(true);
-    expect(result.results.every(item => item.usedFallback === false)).toBe(true);
-    expect(manifest.canonicalRun.testedSha).toBe(result.testedSha);
-    expect(manifest.canonicalRun.resultPath).toBe(
-      "docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json",
-    );
-    expect(manifest.canonicalRun.artifactDigestSha256).toMatch(/^[a-f0-9]{64}$/u);
-    expect(manifest.canonicalRun.jsonSha256).toMatch(/^[a-f0-9]{64}$/u);
   });
 });

@@ -1,5 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
+import { assertCleanWorkingTree } from "./issue-924-benchmark-identity";
 import {
   sanitizeFailureReason,
   resolveBenchmarkOutputPath,
@@ -21,6 +26,16 @@ describe("issue #924 transcription benchmark harness", () => {
     ["[inaudível] [inaudível]", false],
     ["The audio is inaudible.", false],
     ["Sem fala detectada no áudio.", false],
+    ["Silêncio detectado.", false],
+    ["Não foi possível detectar fala.", false],
+    ["Não consegui entender o áudio.", false],
+    ["Nenhuma voz detectada.", false],
+    ["Somente ruído de fundo.", false],
+    ["Áudio sem conteúdo.", false],
+    ["No speech detected in the audio.", false],
+    ["Only background noise.", false],
+    ["Could not understand the audio. Please try again.", false],
+    ["iogurte sem açúcar", true],
   ])("classifies useful transcription text consistently: %s", (text, expected) => {
     expect(isUsefulTranscriptionText(text)).toBe(expected);
   });
@@ -103,11 +118,34 @@ describe("issue #924 transcription benchmark harness", () => {
     );
   });
 
-  it("keeps GITHUB_SHA as a validated compatibility fallback", async () => {
-    const sha = "0123456789abcdef0123456789abcdef01234567";
-    await expect(resolveTestedSha({ GITHUB_SHA: sha })).resolves.toBe(sha);
+  it("accepts GITHUB_SHA only when it matches the checked-out HEAD", async () => {
+    const currentHead = await resolveTestedSha({});
+    await expect(resolveTestedSha({ GITHUB_SHA: currentHead })).resolves.toBe(
+      currentHead,
+    );
+    await expect(
+      resolveTestedSha({
+        GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
+      }),
+    ).rejects.toThrow("GITHUB_SHA must match the checked-out HEAD.");
     await expect(resolveTestedSha({ GITHUB_SHA: "not-a-sha" })).rejects.toThrow(
       "GITHUB_SHA must contain the exact 40-character commit SHA.",
+    );
+  });
+
+  it("rejects an uncommitted benchmark runtime before provider access", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "issue-924-benchmark-"));
+    execFileSync("git", ["init", "-q"], { cwd });
+    execFileSync("git", ["config", "user.email", "issue-924@example.invalid"], { cwd });
+    execFileSync("git", ["config", "user.name", "Issue 924 Test"], { cwd });
+    writeFileSync(join(cwd, "runtime.ts"), "export const version = 1;\n");
+    execFileSync("git", ["add", "runtime.ts"], { cwd });
+    execFileSync("git", ["commit", "-q", "-m", "fixture"], { cwd });
+
+    await expect(assertCleanWorkingTree(cwd)).resolves.toBeUndefined();
+    writeFileSync(join(cwd, "runtime.ts"), "export const version = 2;\n");
+    await expect(assertCleanWorkingTree(cwd)).rejects.toThrow(
+      "Transcription benchmark requires a clean working tree before provider access.",
     );
   });
 });

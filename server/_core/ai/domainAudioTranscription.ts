@@ -8,12 +8,20 @@ import type { OptionalSegmentTranscriptionResponse } from "./transcriptionProvid
 
 const NON_SPEECH_TRANSCRIPTION_TOKENS = new Set([
   "again",
+  "apenas",
   "audio",
   "background",
   "cannot",
+  "cant",
+  "consegui",
+  "conseguimos",
+  "conteudo",
   "could",
+  "couldnt",
   "de",
   "detectada",
+  "detectado",
+  "detectar",
   "detected",
   "entender",
   "esta",
@@ -23,22 +31,26 @@ const NON_SPEECH_TRANSCRIPTION_TOKENS = new Set([
   "inaudible",
   "inaudivel",
   "in",
+  "identificar",
   "indisponivel",
   "is",
   "music",
   "musica",
   "nao",
+  "nenhum",
   "nenhuma",
   "no",
   "noise",
   "novamente",
   "o",
+  "only",
   "please",
   "possivel",
   "ruido",
   "sem",
   "silence",
   "silencio",
+  "somente",
   "speech",
   "the",
   "tente",
@@ -48,8 +60,22 @@ const NON_SPEECH_TRANSCRIPTION_TOKENS = new Set([
   "unavailable",
   "understand",
   "unintelligible",
+  "voice",
+  "voz",
   "we",
 ]);
+
+const NON_SPEECH_TRANSCRIPTION_PATTERNS = [
+  /^(?:silencio|silence)$/u,
+  /^(?:audio|the audio) (?:esta |is )?(?:inaudivel|unintelligible|indisponivel|unavailable)$/u,
+  /^(?:audio|the audio) (?:sem conteudo|without content)$/u,
+  /^(?:nenhuma?|nenhum|no) (?:fala|voz|speech|voice)(?: foi| was)? (?:detectad[oa]|detected|identificad[oa]|identified|encontrad[oa]|found)$/u,
+  /^(?:sem|no) (?:fala|voz|speech|voice)(?: foi| was)? (?:detectad[oa]|detected)?(?: no| in the)? ?(?:audio)?$/u,
+  /^(?:somente|apenas|only) (?:ruido|noise|silencio|silence|musica|music)(?: de fundo| in the background| background)?$/u,
+  /^(?:ruido|noise|musica|music)(?: de fundo| in the background| background)?(?: foi| was)? (?:detectad[oa]|detected)$/u,
+  /^(?:nao foi possivel|nao consegui(?:mos)?|impossivel) (?:detectar|identificar|entender|transcrever) (?:a |o )?(?:fala|voz|audio)?$/u,
+  /^(?:could not|couldnt|unable to|cannot|cant) (?:detect|identify|understand|transcribe) (?:the )?(?:speech|voice|audio)?$/u,
+];
 
 function normalizeTranscriptionMarker(value: string): string {
   return value
@@ -72,7 +98,14 @@ export function isUsefulTranscriptionText(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed || !/[\p{L}\p{N}]/u.test(trimmed)) return false;
-  const normalized = normalizeTranscriptionMarker(trimmed);
+  const normalized = normalizeTranscriptionMarker(trimmed)
+    .replace(/(?:por favor )?tente novamente$/u, "")
+    .replace(/(?:please )?try again$/u, "")
+    .trim();
+  if (!normalized) return false;
+  if (NON_SPEECH_TRANSCRIPTION_PATTERNS.some(pattern => pattern.test(normalized))) {
+    return false;
+  }
   const tokens = normalized.split(" ").filter(Boolean);
   return tokens.some(token => !NON_SPEECH_TRANSCRIPTION_TOKENS.has(token));
 }

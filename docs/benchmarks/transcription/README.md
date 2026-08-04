@@ -12,6 +12,8 @@ O harness falha antes de qualquer chamada externa quando o manifesto não é `sy
 
 Use o harness somente em um contexto confiável no qual o código executado já tenha sido revisado. Um workflow de `pull_request` não deve executar este benchmark com secrets permanentes do repositório, porque o código do head da PR poderia ler ou exfiltrar a credencial.
 
+Resultado produzido fora dessa fronteira deve permanecer apenas como histórico não canônico. Integridade por hash não corrige proveniência insegura. O manifesto mantém `canonicalRun: null` até existir nova coleta real em contexto confiável.
+
 A execução pode ocorrer localmente ou em infraestrutura protegida que execute uma revisão imutável do código. Disponibilize `OPENAI_API_KEY` apenas durante o processo da chamada externa, sem gravá-la em `.env`, shell history, logs, comentários, resultados ou artefatos.
 
 ```bash
@@ -19,6 +21,8 @@ OPENAI_API_KEY="..." \
   pnpm benchmark:transcription -- \
   docs/benchmarks/transcription/results/<data>-<sha>.json
 ```
+
+O harness sempre resolve `git rev-parse HEAD` e compara qualquer SHA informado por ambiente. `GITHUB_SHA` de merge preview, variável antiga ou SHA de outro commit causa falha antes da primeira chamada ao provider.
 
 A PR deve provar o comportamento por testes herméticos, doubles e controles de contagem de chamadas. Evidência real de provider é complementar e somente pode ser reutilizada quando estiver vinculada ao SHA testado e quando nenhum arquivo de runtime, harness ou fixture tiver mudado depois da coleta.
 

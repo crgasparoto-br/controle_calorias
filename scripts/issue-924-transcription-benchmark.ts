@@ -1,17 +1,18 @@
 import { performance } from "node:perf_hooks";
-import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
 import { transcribeAudio } from "../server/_core/voiceTranscription";
+import {
+  assertCleanWorkingTree,
+  resolveTestedSha as resolveBenchmarkTestedSha,
+} from "./issue-924-benchmark-identity";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const FIXTURE_DIR = path.join(ROOT, "docs/benchmarks/transcription/fixtures");
-const execFileAsync = promisify(execFile);
 const TIMEOUT_MS = 30_000;
 const MODELS = [
   process.env.TRANSCRIPTION_BENCHMARK_WHISPER_MODEL?.trim() || "whisper-1",
@@ -163,37 +164,7 @@ export async function resolveTestedSha(
   env: NodeJS.ProcessEnv = process.env,
   cwd = ROOT,
 ): Promise<string> {
-  const exactHeadSha = env.TRANSCRIPTION_BENCHMARK_TESTED_SHA?.trim();
-  if (exactHeadSha && !/^[a-f0-9]{40}$/u.test(exactHeadSha)) {
-    throw new Error(
-      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must contain the exact 40-character commit SHA.",
-    );
-  }
-
-  const environmentSha = env.GITHUB_SHA?.trim();
-  if (!exactHeadSha && environmentSha) {
-    if (!/^[a-f0-9]{40}$/u.test(environmentSha)) {
-      throw new Error("GITHUB_SHA must contain the exact 40-character commit SHA.");
-    }
-    return environmentSha;
-  }
-
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
-    cwd,
-    encoding: "utf8",
-  });
-  const gitSha = stdout.trim();
-  if (!/^[a-f0-9]{40}$/u.test(gitSha)) {
-    throw new Error("Unable to resolve the exact commit SHA for the benchmark result.");
-  }
-
-  if (exactHeadSha && exactHeadSha !== gitSha) {
-    throw new Error(
-      "TRANSCRIPTION_BENCHMARK_TESTED_SHA must match the checked-out HEAD.",
-    );
-  }
-
-  return exactHeadSha ?? gitSha;
+  return resolveBenchmarkTestedSha(env, cwd);
 }
 
 async function readFixtureAudio(fixture: Fixture): Promise<Buffer> {
@@ -274,14 +245,15 @@ export function summarize(
 }
 
 export async function runBenchmark(outputPath?: string) {
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    throw new Error("OPENAI_API_KEY is required to execute the transcription benchmark.");
-  }
   const manifest = JSON.parse(
     await readFile(path.join(FIXTURE_DIR, "manifest.json"), "utf8"),
   ) as Manifest;
   validateManifest(manifest);
+  await assertCleanWorkingTree(ROOT);
   const testedSha = await resolveTestedSha();
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    throw new Error("OPENAI_API_KEY is required to execute the transcription benchmark.");
+  }
 
   const results: BenchmarkResult[] = [];
   for (const model of MODELS) {
