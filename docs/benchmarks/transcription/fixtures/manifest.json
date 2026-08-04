@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-03",
+  "generator": "espeak 1.48.15 voice pt-br, rate 220 words/minute; ffmpeg OGG/Opus mono 16 kHz at 12 kbps",
+  "privacy": "synthetic-only",
+  "fixtures": [
+    {
+      "id": "meal-staples",
+      "file": "01.ogg",
+      "reference": "Arroz, feijão, cento e vinte gramas de frango grelhado e uma colher de azeite.",
+      "criticalTerms": [
+        "arroz",
+        "feijão",
+        "cento e vinte",
+        "frango",
+        "azeite"
+      ],
+      "scenario": "alimentos comuns, peso e ingrediente culinário",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 4.076688
+    },
+    {
+      "id": "brand-and-weight",
+      "file": "02.ogg",
+      "reference": "Iogurte Itambé, pote de cento e setenta gramas, com vinte gramas de granola.",
+      "criticalTerms": [
+        "iogurte",
+        "Itambé",
+        "cento e setenta",
+        "vinte",
+        "granola"
+      ],
+      "scenario": "marca, peso e complemento",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 4.198938
+    },
+    {
+      "id": "liquid-units",
+      "file": "03.ogg.b64",
+      "reference": "Bebi seiscentos mililitros de água e duzentos mililitros de suco de laranja.",
+      "criticalTerms": [
+        "seiscentos",
+        "mililitros",
+        "água",
+        "duzentos",
+        "laranja"
+      ],
+      "scenario": "volumes e unidades",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 3.6855,
+      "encoding": "base64"
+    },
+    {
+      "id": "ambiguity",
+      "file": "04.ogg.b64",
+      "reference": "Comi dois pães de queijo, ou talvez três, não tenho certeza.",
+      "criticalTerms": [
+        "dois",
+        "pães de queijo",
+        "três",
+        "não tenho certeza"
+      ],
+      "scenario": "ambiguidade explícita",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 3.082375,
+      "encoding": "base64"
+    },
+    {
+      "id": "commercial-product",
+      "file": "05.ogg.b64",
+      "reference": "Uma barra de Trento Speciale Branco de vinte e seis gramas.",
+      "criticalTerms": [
+        "Trento",
+        "Speciale",
+        "Branco",
+        "vinte e seis",
+        "gramas"
+      ],
+      "scenario": "produto comercial e peso",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 2.903188,
+      "encoding": "base64"
+    },
+    {
+      "id": "meal-staples-noisy",
+      "file": "06.ogg.b64",
+      "reference": "Arroz, feijão, cento e vinte gramas de frango grelhado e uma colher de azeite.",
+      "criticalTerms": [
+        "arroz",
+        "feijão",
+        "cento e vinte",
+        "frango",
+        "azeite"
+      ],
+      "scenario": "fala sintética com ruído branco controlado",
+      "mimeType": "audio/ogg",
+      "durationSeconds": 4.076688,
+      "encoding": "base64"
+    }
+  ]
+}
