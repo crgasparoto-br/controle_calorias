@@ -114,10 +114,10 @@ export type AiProviderAudioTranscriptionSegment = {
 
 export type AiProviderAudioTranscriptionResponse = {
   task: "transcribe";
-  language: string;
-  duration: number;
+  language?: string;
+  duration?: number;
   text: string;
-  segments: AiProviderAudioTranscriptionSegment[];
+  segments?: AiProviderAudioTranscriptionSegment[];
   raw: unknown;
 };
 
@@ -188,10 +188,6 @@ function translateOpenAiTextTool(tool: unknown): OpenAiSdkTextTool {
 
   const type = (tool as { type?: unknown }).type;
   if (type === "web_search") {
-    // openai@4.104 predates the stable `web_search` discriminant in some
-    // generated type surfaces, but the Responses API contract is stable. Keep
-    // the cast isolated inside the adapter instead of leaking SDK details into
-    // the domain contract.
     return { type: "web_search" } as unknown as OpenAiSdkTextTool;
   }
 
@@ -227,12 +223,12 @@ function buildTranscriptionResponse(
   const data = response as Partial<AiProviderAudioTranscriptionResponse>;
   return {
     task: "transcribe",
-    language: typeof data.language === "string" ? data.language : "",
-    duration: typeof data.duration === "number" ? data.duration : 0,
     text: typeof data.text === "string" ? data.text : "",
-    segments: Array.isArray(data.segments)
-      ? (data.segments as AiProviderAudioTranscriptionSegment[])
-      : [],
+    ...(typeof data.language === "string" ? { language: data.language } : {}),
+    ...(typeof data.duration === "number" ? { duration: data.duration } : {}),
+    ...(Array.isArray(data.segments)
+      ? { segments: data.segments as AiProviderAudioTranscriptionSegment[] }
+      : {}),
     raw: response,
   };
 }
@@ -452,8 +448,6 @@ export class OpenAiProvider implements AiProvider {
     const tools = buildOpenAiTools(request.tools);
     if (tools) {
       payload.tools = tools;
-      // Request the provider-native source list so the adapter can normalize
-      // evidence even when a URL is not repeated as a message annotation.
       (payload as unknown as { include: string[] }).include = [
         "web_search_call.action.sources",
       ];

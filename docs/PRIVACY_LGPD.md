@@ -83,6 +83,21 @@ O assistente alimentar não deve enviar nome, e-mail ou identificador interno do
 
 Foto, áudio e transcrição podem envolver serviços externos de transcrição, visão ou LLM. Sempre que o fluxo usar mídia com IA, mantenha o comportamento documentado, evite retenção acidental e prefira URLs com expiração quando houver necessidade de acesso externo.
 
+### Transcrição de áudio e benchmark (#924)
+
+A finalidade do envio de áudio é produzir texto para o fluxo solicitado pelo próprio usuário. O envio ocorre somente ao provider efetivamente resolvido para `TRANSCRIPTION`; o baseline permanece OpenAI + `whisper-1`. A configuração de visão, texto ou outra capacidade não autoriza envio de áudio.
+
+- Áudio, prompt e texto transcrito não entram em diagnóstico, métricas de capacidade ou resultado do benchmark.
+- O adapter pode manter o objeto nativo apenas dentro de `_core`; `raw` é removido antes do domínio.
+- `language`, `duration`, `segments` e `usage` são opcionais. Ausência não deve gerar informação artificial nem ampliar retenção.
+- Callback duplicado do WhatsApp é descartado antes de baixar ou reenviar mídia.
+- Fallback é desabilitado por padrão. Envio de áudio a provider diferente continua bloqueado em produção até adapter compatível, benchmark, validação de privacidade e rollout da #927.
+- Os fixtures versionados são sintéticos e marcados `synthetic-only`. O harness recusa manifesto vazio ou fora dessa política.
+- O JSON de resultado contém apenas métricas, modelos, ambiente, política, custos estimados, limitações e códigos sanitizados. Não contém áudio, referência externa, prompt nem texto retornado.
+- A chave de API usada para executar o benchmark fica somente no ambiente autorizado e não pode ser versionada ou copiada para comentário, artefato ou log.
+
+A retenção funcional de mídia/conversa já prevista pelo produto é diferente da telemetria de IA: não se deve usar o benchmark ou diagnóstico operacional como nova base de retenção de áudio/transcrição.
+
 ### Segundo envio a provider (fallback) e diagnósticos sanitizados (#921)
 
 A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
@@ -93,7 +108,7 @@ A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máxi
 - `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
 - Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
 - Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
-- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922; `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam o mesmo resolvedor desde #923. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922; `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam o mesmo resolvedor desde #923; `TRANSCRIPTION` usa o resolvedor desde #924. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
 
 ## Riscos conhecidos e cuidados recorrentes
 

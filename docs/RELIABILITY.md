@@ -82,6 +82,9 @@ pnpm db:check-integrity
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
 - Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
 - Chave ou configuração de IA exposta no frontend.
+- Callback duplicado do WhatsApp baixando ou transcrevendo o mesmo áudio novamente.
+- Modelo de transcrição sem segmentos sendo rejeitado apesar de retornar texto útil.
+- Data URL malformada sendo confundida com arquivo vazio.
 
 ## Metas profissionais oficiais
 
@@ -146,7 +149,6 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 - falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
 - a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.
 
-
 ## Consumidores migrados em #922
 
 `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam exclusivamente `executeResolvedCapability`; não mantêm loops locais de timeout/retry. Saída vazia, JSON inválido e payload inválido são recuperáveis dentro dos limites configurados. Erros de autenticação, modelo inexistente, incompatibilidade, segurança, configuração ou desconhecidos falham fechado sem retry/fallback. `items: []` válido encerra a execução na primeira resposta.
@@ -154,6 +156,14 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 ## Consumidores migrados em #923
 
 `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Em `QUESTION`, `AI_QUESTION_WEB_SEARCH_MODE=auto` oferece a ferramenta sem forçá-la; `disabled` (e o alias legado `off`) não envia a ferramenta, e valores desconhecidos falham fechados. Em `NUTRITION_SEARCH`, o resolvedor também valida a combinação provider + modelo + operações: Gemini 2.5 continua elegível para `QUESTION`, mas é rejeitado para Structured Output + Google Search na mesma chamada; apenas um Gemini 3 explicitamente aprovado pode executar essa combinação, sem alterar defaults antes da #927. Fonte insuficiente, ferramenta não executada, citação sem suporte à evidência ou incompatibilidade de marca, produto, sabor, peso ou embalagem degrada para o fallback nutricional canônico local, sem probe, retry ou fallback externo oculto dentro da tentativa do executor. Variantes ou medidas presentes apenas no candidato são tratadas como ambiguidade, não como correspondência. JSON/payload inválido pode consumir retry/fallback operacional; `found=false` é resultado funcional e não provoca segunda consulta. `EMBEDDING` indisponível ou com espaço vetorial divergente degrada para busca textual/canônica; Gemini segue inelegível por não anunciar `embeddings`.
+
+## Consumidor migrado em #924
+
+`TRANSCRIPTION` usa `resolveCapabilityConfig` + `executeResolvedCapability`, preserva `openai` + `whisper-1` como baseline e aceita texto útil sem `segments`. Texto somente com pontuação ou composto integralmente por marcadores e mensagens auxiliares de silêncio/inaudibilidade, como orientação para tentar novamente, é `empty_output` recuperável e pode acionar retry/fallback; o benchmark usa o mesmo predicado. Conteúdo misto com fala acionável permanece válido. Validação de data URL/base64, MIME, tamanho, payload vazio e configuração ocorre antes do adapter. Retrys são sequenciais; fallback fica desabilitado por padrão e existe no máximo uma chamada posterior quando explicitamente habilitado e elegível.
+
+A regressão do WhatsApp é comportamental: duas entregas do mesmo callback resultam em um único download, uma transcrição e uma mutação. O benchmark usa seis fixtures sintéticos, uma tentativa, sem fallback, execução sequencial e saída sanitizada. O manifesto vazio ou inválido falha antes da rede; taxas sem denominador são `0` e médias sem amostra são `null`, nunca `NaN`/`Infinity`.
+
+Antes de promover modelo em produção, executar `pnpm agent:check`, `pnpm build`, o smoke controlado e o benchmark real descrito em `docs/benchmarks/transcription/results/README.md`. A comparação não altera o default automaticamente.
 
 ## Metadados opcionais do contexto profissional
 

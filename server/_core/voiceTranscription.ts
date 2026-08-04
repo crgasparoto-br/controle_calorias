@@ -1,36 +1,27 @@
 /**
- * Voice transcription helper using the dedicated OpenAI audio provider.
- *
- * Frontend implementation guide:
- * 1. Capture audio using MediaRecorder API
- * 2. Upload audio to storage (e.g., S3) to get URL
- * 3. Call transcription with the URL
- *
- * Example usage:
- * ```tsx
- * const transcribeMutation = trpc.voice.transcribe.useMutation({
- *   onSuccess: (data) => {
- *     console.log(data.text);
- *     console.log(data.language);
- *     console.log(data.segments);
- *   }
- * });
- *
- * transcribeMutation.mutate({
- *   audioUrl: uploadedAudioUrl,
- *   language: 'en',
- *   prompt: 'Transcribe the meeting'
- * });
- * ```
+ * Capability-governed voice transcription used by web and WhatsApp consumers.
+ * Provider/model selection, timeout, retry and fallback are owned by the
+ * TRANSCRIPTION capability resolver and common executor.
  */
-import { OpenAiProvider } from "./aiProvider";
-import { ENV } from "./env";
-import { createOpenAiClient } from "./openaiClient";
+import type { AiProviderFactoryMap } from "./ai/providerResolver";
+import { executeResolvedCapability } from "./ai/capabilityExecutor";
+import { resolveCapabilityConfig } from "./ai/configResolver";
+import {
+  createDomainAudioTranscription,
+  isUsefulTranscriptionText,
+  type AiDomainAudioUsage,
+} from "./ai/domainAudioTranscription";
+import {
+  AiNonRetryableError,
+  AiOperationalError,
+} from "./ai/policyExecutor";
+import { createTranscriptionProviderFactories } from "./ai/transcriptionProvider";
+import type { AiProviderId } from "./ai/supportMatrix";
 
-const MAX_AUDIO_FILE_SIZE_BYTES = 16 * 1024 * 1024;
+export const MAX_AUDIO_FILE_SIZE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_AUDIO_MIME_TYPE = "audio/mpeg";
 
-const SUPPORTED_AUDIO_MIME_TYPES = new Set([
+export const SUPPORTED_AUDIO_MIME_TYPES = new Set([
   "audio/webm",
   "audio/mp3",
   "audio/mpeg",
@@ -67,25 +58,38 @@ export type WhisperSegment = {
   no_speech_prob: number;
 };
 
-export type WhisperResponse = {
+export type TranscriptionResponse = {
   task: "transcribe";
-  language: string;
-  duration: number;
   text: string;
-  segments: WhisperSegment[];
+  provider: AiProviderId;
+  model: string;
+  language?: string;
+  duration?: number;
+  segments?: WhisperSegment[];
+  usage?: AiDomainAudioUsage;
+  execution: {
+    source: "primary" | "primary_retry" | "fallback";
+    attempts: number;
+    usedFallback: boolean;
+  };
 };
-
-export type TranscriptionResponse = WhisperResponse;
 
 export type TranscriptionError = {
   error: string;
   code:
     | "FILE_TOO_LARGE"
+    | "EMPTY_FILE"
     | "INVALID_FORMAT"
+    | "INVALID_CONFIGURATION"
     | "TRANSCRIPTION_FAILED"
     | "UPLOAD_FAILED"
     | "SERVICE_ERROR";
   details?: string;
+};
+
+export type TranscriptionRuntimeOptions = {
+  env?: NodeJS.ProcessEnv;
+  providerFactories?: AiProviderFactoryMap;
 };
 
 type DownloadedAudio = {
@@ -93,51 +97,97 @@ type DownloadedAudio = {
   mimeType: string;
 };
 
+type ExtractedBase64Payload = {
+  mimeType: string | null;
+  payload: string;
+  malformedDataUrl: boolean;
+};
+
 function normalizeMimeType(mimeType: string | null) {
   return (mimeType ?? DEFAULT_AUDIO_MIME_TYPE).split(";")[0]?.trim().toLowerCase() || DEFAULT_AUDIO_MIME_TYPE;
-}
-
-function isWhisperResponse(value: unknown): value is WhisperResponse {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const response = value as Partial<WhisperResponse>;
-  return (
-    response.task === "transcribe" &&
-    typeof response.language === "string" &&
-    typeof response.duration === "number" &&
-    typeof response.text === "string" &&
-    Array.isArray(response.segments)
-  );
 }
 
 function hasInlineAudio(options: TranscribeOptions): options is Extract<TranscribeOptions, { audioBase64: string }> {
   return "audioBase64" in options;
 }
 
-function extractBase64Payload(value: string) {
-  const match = value.match(/^data:(.+);base64,(.*)$/);
+function extractBase64Payload(value: string): ExtractedBase64Payload {
+  if (!value.toLowerCase().startsWith("data:")) {
+    return { mimeType: null, payload: value, malformedDataUrl: false };
+  }
+
+  const markerIndex = value.indexOf(",");
+  if (markerIndex < 0) {
+    return { mimeType: null, payload: value, malformedDataUrl: true };
+  }
+
+  const header = value.slice(5, markerIndex);
+  const parts = header.split(";");
+  const mimeType = parts[0]?.trim() || null;
+  if (parts.at(-1)?.toLowerCase() !== "base64") {
+    return { mimeType, payload: value, malformedDataUrl: true };
+  }
+
   return {
-    mimeType: normalizeMimeType(match?.[1] ?? null),
-    payload: match ? match[2] : value,
+    mimeType,
+    payload: value.slice(markerIndex + 1),
+    malformedDataUrl: false,
   };
 }
 
-function decodeInlineAudio(options: Extract<TranscribeOptions, { audioBase64: string }>): DownloadedAudio | TranscriptionError {
-  try {
-    const extracted = extractBase64Payload(options.audioBase64);
-    return {
-      buffer: Buffer.from(extracted.payload, "base64"),
-      mimeType: normalizeMimeType(options.mimeType ?? extracted.mimeType),
-    };
-  } catch {
+function decodeBase64Strict(rawPayload: string): Buffer | null {
+  if (rawPayload === "") return Buffer.alloc(0);
+  if (/\s/u.test(rawPayload) || !/^[A-Za-z0-9+/]*={0,2}$/u.test(rawPayload)) {
+    return null;
+  }
+  const paddingLength = rawPayload.endsWith("==") ? 2 : rawPayload.endsWith("=") ? 1 : 0;
+  const dataLength = rawPayload.length - paddingLength;
+  const remainder = dataLength % 4;
+  if (remainder === 1) return null;
+  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
+  if (paddingLength > 0 && (rawPayload.length % 4 !== 0 || paddingLength !== expectedPadding)) {
+    return null;
+  }
+
+  const padded = rawPayload.padEnd(Math.ceil(rawPayload.length / 4) * 4, "=");
+  const decoded = Buffer.from(padded, "base64");
+  const canonical = decoded.toString("base64").replace(/=+$/u, "");
+  return canonical === rawPayload.replace(/=+$/u, "") ? decoded : null;
+}
+
+function decodeInlineAudio(
+  options: Extract<TranscribeOptions, { audioBase64: string }>,
+): DownloadedAudio | TranscriptionError {
+  const extracted = extractBase64Payload(options.audioBase64);
+  if (extracted.malformedDataUrl) {
     return {
       error: "Failed to decode inline audio",
       code: "INVALID_FORMAT",
-      details: "Inline audio payload is not valid base64 data.",
+      details: "Inline audio data URL must use the ;base64 encoding marker.",
     };
   }
+
+  const maximumEncodedLength = Math.ceil(MAX_AUDIO_FILE_SIZE_BYTES / 3) * 4 + 4;
+  if (extracted.payload.length > maximumEncodedLength) {
+    return {
+      error: "Audio file exceeds maximum size limit",
+      code: "FILE_TOO_LARGE",
+      details: "Inline audio payload exceeds the 16MB decoded size limit.",
+    };
+  }
+  const decoded = decodeBase64Strict(extracted.payload);
+  if (!decoded) {
+    return {
+      error: "Failed to decode inline audio",
+      code: "INVALID_FORMAT",
+      details: "Inline audio payload is not canonical base64 data.",
+    };
+  }
+
+  return {
+    buffer: decoded,
+    mimeType: normalizeMimeType(options.mimeType ?? extracted.mimeType),
+  };
 }
 
 async function downloadAudio(audioUrl: string): Promise<DownloadedAudio | TranscriptionError> {
@@ -147,16 +197,13 @@ async function downloadAudio(audioUrl: string): Promise<DownloadedAudio | Transc
       return {
         error: "Failed to download audio file",
         code: "INVALID_FORMAT",
-        details: `HTTP ${response.status}: ${response.statusText}`,
+        details: `Audio download returned HTTP ${response.status}.`,
       };
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const mimeType = normalizeMimeType(response.headers.get("content-type"));
-
     return {
-      buffer,
-      mimeType,
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mimeType: normalizeMimeType(response.headers.get("content-type")),
     };
   } catch {
     return {
@@ -167,29 +214,38 @@ async function downloadAudio(audioUrl: string): Promise<DownloadedAudio | Transc
   }
 }
 
-function buildPrompt(options: TranscribeOptions) {
-  if (options.prompt) {
-    return options.prompt;
+function validateAudio(audio: DownloadedAudio): TranscriptionError | null {
+  if (!SUPPORTED_AUDIO_MIME_TYPES.has(audio.mimeType)) {
+    return {
+      error: "Audio file format is not supported",
+      code: "INVALID_FORMAT",
+      details: `Unsupported audio MIME type: ${audio.mimeType}`,
+    };
   }
+  if (audio.buffer.length === 0) {
+    return {
+      error: "Audio file is empty",
+      code: "EMPTY_FILE",
+      details: "Audio payload must contain at least one byte.",
+    };
+  }
+  if (audio.buffer.length > MAX_AUDIO_FILE_SIZE_BYTES) {
+    const sizeMB = audio.buffer.length / (1024 * 1024);
+    return {
+      error: "Audio file exceeds maximum size limit",
+      code: "FILE_TOO_LARGE",
+      details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`,
+    };
+  }
+  return null;
+}
 
+function buildPrompt(options: TranscribeOptions) {
+  if (options.prompt) return options.prompt;
   if (options.language) {
     return `Transcribe the user's voice to text, the user's working language is ${getLanguageName(options.language)}`;
   }
-
   return "Transcribe the user's voice to text";
-}
-
-function sanitizeProviderError(error: unknown) {
-  if (
-    error &&
-    typeof error === "object" &&
-    "status" in error &&
-    typeof (error as { status?: unknown }).status === "number"
-  ) {
-    return `OpenAI transcription provider returned status ${(error as { status: number }).status}.`;
-  }
-
-  return "OpenAI transcription provider request failed.";
 }
 
 function toFileBuffer(buffer: Buffer) {
@@ -199,76 +255,101 @@ function toFileBuffer(buffer: Buffer) {
   ) as ArrayBuffer;
 }
 
-function createAudioTranscriptionProvider() {
-  return new OpenAiProvider(() => createOpenAiClient());
+function sanitizeExecutionError(error: unknown): string {
+  if (error instanceof AiOperationalError) {
+    return `Transcription provider failed with a recoverable ${error.code} condition.`;
+  }
+  if (error instanceof AiNonRetryableError) {
+    return `Transcription request was rejected with classification ${error.code}.`;
+  }
+  return "Transcription provider request failed.";
+}
+
+function configurationError(state: string): TranscriptionError {
+  return {
+    error: "Voice transcription is unavailable",
+    code: "INVALID_CONFIGURATION",
+    details: `TRANSCRIPTION capability is not executable (state=${state}).`,
+  };
 }
 
 /**
- * Transcribe audio to text using OpenAI Whisper, independent of the text/vision provider.
+ * Transcribe audio using the capability-specific provider/model and the common
+ * timeout/retry/fallback policy. Invalid input and invalid configuration fail
+ * before any provider adapter is instantiated.
  */
 export async function transcribeAudio(
   options: TranscribeOptions,
+  runtime: TranscriptionRuntimeOptions = {},
 ): Promise<TranscriptionResponse | TranscriptionError> {
+  const env = runtime.env ?? process.env;
+  const config = resolveCapabilityConfig("TRANSCRIPTION", env);
+  if (config.state !== "ready" && config.state !== "degraded") {
+    return configurationError(config.state);
+  }
+
   const downloaded = hasInlineAudio(options)
     ? decodeInlineAudio(options)
     : await downloadAudio(options.audioUrl);
-  if ("error" in downloaded) {
-    return downloaded;
-  }
+  if ("error" in downloaded) return downloaded;
 
-  if (!SUPPORTED_AUDIO_MIME_TYPES.has(downloaded.mimeType)) {
-    return {
-      error: "Audio file format is not supported",
-      code: "INVALID_FORMAT",
-      details: `Unsupported audio MIME type: ${downloaded.mimeType}`,
-    };
-  }
+  const validationError = validateAudio(downloaded);
+  if (validationError) return validationError;
 
-  if (downloaded.buffer.length > MAX_AUDIO_FILE_SIZE_BYTES) {
-    const sizeMB = downloaded.buffer.length / (1024 * 1024);
-    return {
-      error: "Audio file exceeds maximum size limit",
-      code: "FILE_TOO_LARGE",
-      details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`,
-    };
-  }
+  const audioFile = new File(
+    [toFileBuffer(downloaded.buffer)],
+    `audio.${getFileExtension(downloaded.mimeType)}`,
+    { type: downloaded.mimeType },
+  );
 
   try {
-    const audioFile = new File(
-      [toFileBuffer(downloaded.buffer)],
-      `audio.${getFileExtension(downloaded.mimeType)}`,
-      { type: downloaded.mimeType },
+    const result = await executeResolvedCapability(
+      config,
+      async context => {
+        const transcription = await createDomainAudioTranscription(
+          context.provider,
+          {
+            file: audioFile,
+            model: context.model,
+            language: options.language,
+            prompt: buildPrompt(options),
+          },
+          { signal: context.signal },
+        );
+        return {
+          ...transcription,
+          provider: context.providerId,
+          model: context.model,
+        };
+      },
+      {
+        providerFactories:
+          runtime.providerFactories ?? createTranscriptionProviderFactories(env),
+        validateResult: value => {
+          if (!isUsefulTranscriptionText(value.text)) {
+            throw new AiOperationalError(
+              "AI provider returned unusable transcription output",
+              undefined,
+              "empty_output",
+            );
+          }
+        },
+      },
     );
 
-    const transcription = await createAudioTranscriptionProvider().createAudioTranscription({
-      file: audioFile,
-      model: ENV.openaiTranscriptionModel,
-      language: options.language,
-      prompt: buildPrompt(options),
-    });
-
-    const response: WhisperResponse = {
-      task: "transcribe",
-      language: transcription.language,
-      duration: transcription.duration,
-      text: transcription.text,
-      segments: transcription.segments,
+    return {
+      ...result.value,
+      execution: {
+        source: result.source,
+        attempts: result.attempts,
+        usedFallback: result.usedFallback,
+      },
     };
-
-    if (!isWhisperResponse(response)) {
-      return {
-        error: "Invalid transcription response",
-        code: "SERVICE_ERROR",
-        details: "Transcription service returned an invalid response format",
-      };
-    }
-
-    return response;
   } catch (error) {
     return {
       error: "Voice transcription failed",
       code: "TRANSCRIPTION_FAILED",
-      details: sanitizeProviderError(error),
+      details: sanitizeExecutionError(error),
     };
   }
 }
@@ -284,7 +365,6 @@ function getFileExtension(mimeType: string): string {
     "audio/m4a": "m4a",
     "audio/mp4": "m4a",
   };
-
   return mimeToExt[mimeType] || "audio";
 }
 
@@ -310,6 +390,5 @@ function getLanguageName(langCode: string) {
     no: "Norwegian",
     fi: "Finnish",
   };
-
   return langMap[langCode] || langCode;
 }

@@ -25,6 +25,7 @@
 - O executor comum fornece `AbortSignal` a cada chamada. Depois de timeout, retry ou fallback só pode começar após a chamada anterior confirmar encerramento. Provider que ignora o cancelamento encerra a execução em modo fail-closed, sem segundo envio.
 - Erros concretos de SDK/HTTP são classificados pela fronteira comum. Erros desconhecidos são não recuperáveis por padrão e não acionam fallback.
 - Resolução de capacidade por variável legada (`AI_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`, etc.) inclui aviso `[deprecated]` sanitizado em `diagnostics`, sem expor o valor configurado.
+- Código mutável de uma PR não pode receber secrets permanentes do repositório para executar smoke ou benchmark de provider. Validação em PR usa testes herméticos, fake server, contract tests, replay sanitizado ou doubles. Uma coleta real deve ocorrer em contexto confiável que execute código já revisado.
 
 ## Checklist para mudanças
 
@@ -33,6 +34,7 @@
 - [ ] Erros conhecidos são traduzidos para mensagens seguras?
 - [ ] Não há segredo em código, teste ou documentação?
 - [ ] Tokens e telefones não aparecem completos em logs?
+- [ ] Nenhum workflow de PR entrega credencial real a código alterável pelo próprio head?
 
 ### Fronteira dos consumidores #922
 
@@ -42,8 +44,18 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 `QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. Cada chamada dessa fronteira executa exatamente uma chamada ao provider; recuperação, retry e fallback pertencem exclusivamente a `executeResolvedCapability`. Fonte ausente, URL-only ou evidência nutricional insuficiente degrada localmente sem probe oculto. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
 
-### Smokes temporários com providers externos
+### Fronteira de transcrição #924
 
-O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos. Para #923, `scripts/issue-923-live-provider-smoke.ts` fornece um harness que valida `QUESTION` em modo sem busca, `QUESTION` com pesquisa real, `NUTRITION_SEARCH` com fonte citada em uma única tentativa governada pelo executor e `EMBEDDING` com vetor real. O workflow executa automaticamente somente para o repositório, proprietário e branch confiáveis, confere que o checkout corresponde ao `HEAD` selecionado da PR e desabilita persistência de credenciais no checkout. Não há revisão manual do head nem variável `AI_SMOKE_APPROVED_SHA`.
+`TRANSCRIPTION` aceita somente áudio validado antes da rede. Data URL sem marcador `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes de instanciar o adapter. O domínio exige texto útil e recebe provider/modelo efetivos; `language`, `duration`, `segments` e `usage` são opcionais, e `raw` do SDK não atravessa `_core`.
 
-Testes e smokes reais de IA no GitHub Actions usam sempre os secrets de repositório padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`; aliases `AI_SMOKE_*` não devem ser criados. Os secrets são injetados somente no passo final que realiza as chamadas externas, depois de checkout, validação de identidade, setup e instalação sem credenciais. O harness permite modelos separados por `SMOKE_QUESTION_MODEL` e `SMOKE_NUTRITION_MODEL`; no Gemini, a pesquisa nutricional requer Gemini 3, enquanto perguntas podem continuar em Gemini 2.5. Ausência da chave necessária deve falhar fechado e ser registrada como limitação, não como smoke aprovado.
+Áudio, transcrição, prompt, base64 e URL de mídia não podem compor diagnóstico, telemetria ou resultado de benchmark. O callback duplicado do WhatsApp é descartado antes do download e da transcrição. Fallback de `TRANSCRIPTION` permanece desabilitado por padrão; cross-provider continua bloqueado em produção até benchmark, revisão LGPD e rollout da #927.
+
+### Smokes e benchmarks com providers externos
+
+O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos.
+
+O harness `scripts/issue-923-live-provider-smoke.ts` e o benchmark `scripts/issue-924-transcription-benchmark.ts` podem ser executados somente em contexto confiável. Restringir repositório, proprietário, branch ou SHA não torna seguro entregar um secret a código ainda controlado pela PR: o próprio head pode ler ou exfiltrar a credencial. Portanto, workflows de `pull_request` não devem executar esses harnesses com `OPENAI_API_KEY`, `GEMINI_API_KEY` ou aliases.
+
+Para PRs, provar comportamento com testes herméticos, adapters determinísticos, fake server, replay sanitizado e controles de contagem de chamadas. Quando uma comparação real for necessária, executá-la localmente ou em infraestrutura protegida sobre código imutável e revisado, disponibilizando a chave somente no processo externo. O resultado deve ser sanitizado, vinculado ao SHA testado, hasheado e versionado antes de ser usado como evidência durável.
+
+Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b0ac37338eff4bd2005450e9` permanecem versionados apenas como histórico não canônico. O primeiro foi produzido por workflow de `pull_request` que disponibilizou `OPENAI_API_KEY` ao código mutável da PR; o segundo não possui atestação de execução confiável suficiente. Hash e sanitização comprovam integridade do arquivo, não a custódia do segredo nem a confiabilidade do executor. A execução canônica confiável está registrada no `evidence-manifest.json`, vinculada ao SHA testado, ao run, ao artifact e aos respectivos hashes; sua reutilização exige que runtime, harness e fixtures permaneçam inalterados.
