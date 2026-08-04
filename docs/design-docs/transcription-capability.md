@@ -54,7 +54,7 @@ O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente m�
 
 O benchmark real não pode ser executado por workflow de `pull_request` que entregue secrets permanentes do repositório ao código mutável do head. PRs validam o contrato com testes herméticos, doubles, regressões e controles de contagem. Uma coleta real pode ser feita localmente ou em contexto protegido que execute código já revisado; sua reutilização exige identidade do SHA e ausência de mudanças posteriores em runtime, harness e fixtures.
 
-Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b0ac37338eff4bd2005450e9` permanecem versionados somente como histórico sanitizado. A proveniência disponível não satisfaz a fronteira de execução confiável, portanto `evidence-manifest.json` mantém `canonicalRun: null` até nova comparação real em código revisado e imutável, sem secret entregue a código mutável de PR.
+Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b0ac37338eff4bd2005450e9` permanecem versionados somente como histórico sanitizado. A execução canônica confiável está registrada em `evidence-manifest.json`, com SHA testado, proveniência, run, artifact e hashes verificados. Como os commits posteriores apenas versionam a evidência, removem o workflow temporário e reforçam o teste de segurança, a coleta continua reutilizável enquanto runtime, harness e fixtures listados no manifesto não mudarem.
 
 ## Documentação canônica e decisão
 

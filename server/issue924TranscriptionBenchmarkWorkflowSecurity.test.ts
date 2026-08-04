@@ -19,6 +19,11 @@ const evidenceManifestPath = resolve(
   process.cwd(),
   "docs/benchmarks/transcription/results/evidence-manifest.json",
 );
+const securityDocPath = resolve(process.cwd(), "docs/SECURITY.md");
+const designDocPath = resolve(
+  process.cwd(),
+  "docs/design-docs/transcription-capability.md",
+);
 
 function read(path: string) {
   return readFileSync(path, "utf8");
@@ -45,6 +50,11 @@ describe("issue 924 benchmark credential boundary", () => {
     expect(resultsReadme).toContain(
       "Não executar o benchmark em workflow de `pull_request` com secrets permanentes do repositório",
     );
+  });
+
+  it("does not retain the pre-benchmark canonicalRun-null claim", () => {
+    expect(read(securityDocPath)).not.toContain("canonicalRun: null");
+    expect(read(designDocPath)).not.toContain("canonicalRun: null");
   });
 
   it("promotes only the reviewed push benchmark and keeps unsafe history invalidated", () => {
