@@ -17,7 +17,7 @@ jq empty "$RESULT_FILE"
 jq '{generatedAt, models, environment, executionPolicy, summary, limitations}' "$RESULT_FILE"
 ```
 
-A execução exige `OPENAI_API_KEY` no ambiente autorizado. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
+A execução exige `OPENAI_API_KEY` no ambiente local autorizado. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
 
 ## Registro obrigatório
 
@@ -26,26 +26,21 @@ Antes de versionar, confirme:
 - o SHA avaliado corresponde ao `HEAD` limpo;
 - os seis fixtures sintéticos foram processados pelos dois modelos;
 - o JSON é válido e não contém `NaN`/`Infinity`;
-- todas as 12 combinações modelo/fixture retornaram `status: "ok"`;
+- `.results[].status == "error"` foi revisado e possui somente classificação sanitizada;
 - o arquivo não contém texto transcrito nem material sensível;
 - a PR registra data UTC, SHA, modelos efetivos, quantidade de erros, WER, recall, latência, custo e limitações;
 - nenhuma configuração de produção foi alterada.
 
-Falhas de autenticação, permissão ou disponibilidade de modelo devem permanecer como evidência do GitHub Actions e como impedimento registrado na PR; não devem ser convertidas em métricas de qualidade.
+## Resultado de 2026-08-04
 
-## Estado da execução da issue #924
+O arquivo `2026-08-04-7758bbdafc0b.json` registra a execução protegida do SHA `7758bbdafc0b80f6b0ac37338eff4bd2005450e9`:
 
-Em 2026-08-04, o job protegido foi executado com o secret `OPENAI_API_KEY` disponibilizado pelo GitHub Actions. A primeira execução tentou as 12 combinações e todas falharam antes da produção de métricas válidas. Um probe posterior, limitado a uma chamada e sem registrar mensagem, corpo, áudio ou transcrição, confirmou para `whisper-1`:
+- 12 de 12 combinações concluídas com texto útil;
+- `whisper-1`: WER médio `0.3069`, recall crítico `0.625`, latência média `948.6667 ms`, custo estimado total `US$ 0.00220234` e segmentos em 100% dos fixtures;
+- `gpt-4o-mini-transcribe`: WER médio `0.3283`, recall crítico `0.6167`, latência média `616.6667 ms`, custo estimado total `US$ 0.00107125` e ausência de segmentos;
+- retries e fallback permaneceram em zero.
 
-```json
-{
-  "httpStatus": 403,
-  "providerCode": "model_not_found",
-  "providerType": "invalid_request_error"
-}
-```
-
-O benchmark permanece pendente até que o projeto associado à chave tenha acesso aos dois modelos exigidos. Depois da correção externa, o job protegido da PR deverá produzir o JSON sanitizado; somente esse resultado bem-sucedido deve ser adicionado a este diretório.
+Nesta amostra sintética, `whisper-1` teve pequena vantagem de WER e recall e preservou segmentos; `gpt-4o-mini-transcribe` foi mais rápido e mais barato. A issue #924 mantém `whisper-1` como default compatível. Qualquer promoção de modelo pertence ao rollout da #927.
 
 ## Decisão
 
