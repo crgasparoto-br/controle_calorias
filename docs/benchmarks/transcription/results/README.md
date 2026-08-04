@@ -14,7 +14,7 @@ RESULT_FILE="docs/benchmarks/transcription/results/${BENCHMARK_DATE}-${BENCHMARK
 
 pnpm benchmark:transcription -- "$RESULT_FILE"
 jq empty "$RESULT_FILE"
-jq '{generatedAt, models, environment, executionPolicy, summary, limitations}' "$RESULT_FILE"
+jq '{generatedAt, testedSha, models, environment, executionPolicy, summary, limitations}' "$RESULT_FILE"
 ```
 
 A execução exige `OPENAI_API_KEY` no ambiente local autorizado e não deve ser movida para workflow de pull request. A chave não deve ser gravada em `.env`, shell history, resultado, commit, comentário ou log. Remova-a do ambiente ao concluir.
@@ -23,7 +23,7 @@ A execução exige `OPENAI_API_KEY` no ambiente local autorizado e não deve ser
 
 Antes de versionar, confirme:
 
-- o SHA avaliado corresponde ao `HEAD` limpo;
+- o campo `testedSha` corresponde ao `HEAD` limpo e ao SHA indicado no nome do arquivo;
 - os seis fixtures sintéticos foram processados pelos dois modelos;
 - o JSON é válido e não contém `NaN`/`Infinity`;
 - `.results[].status == "error"` foi revisado e possui somente classificação sanitizada;
@@ -33,7 +33,7 @@ Antes de versionar, confirme:
 
 ## Resultado de 2026-08-04
 
-O arquivo `2026-08-04-7758bbdafc0b.json` registra a execução protegida do SHA `7758bbdafc0b80f6b0ac37338eff4bd2005450e9`:
+O arquivo `2026-08-04-7758bbdafc0b.json` registra a execução protegida do SHA `7758bbdafc0b80f6b0ac37338eff4bd2005450e9`, também gravado no campo `testedSha` do JSON:
 
 - 12 de 12 combinações concluídas com texto útil;
 - `whisper-1`: WER médio `0.3069`, recall crítico `0.625`, latência média `948.6667 ms`, custo estimado total `US$ 0.00220234` e segmentos em 100% dos fixtures;

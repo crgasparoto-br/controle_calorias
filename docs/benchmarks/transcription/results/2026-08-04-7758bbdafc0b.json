@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedAt": "2026-08-04T14:14:33.583Z",
+  "testedSha": "7758bbdafc0b80f6b0ac37338eff4bd2005450e9",
   "fixtureManifest": "docs/benchmarks/transcription/fixtures/manifest.json",
   "manifestMetadata": {
     "generatedAt": "2026-08-03",

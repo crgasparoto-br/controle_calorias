@@ -6,22 +6,49 @@ import type {
 } from "../aiProvider";
 import type { OptionalSegmentTranscriptionResponse } from "./transcriptionProvider";
 
-const NON_SPEECH_TRANSCRIPTION_MARKERS = new Set([
-  "audio inaudivel",
-  "audio unavailable",
-  "background noise",
+const NON_SPEECH_TRANSCRIPTION_TOKENS = new Set([
+  "again",
+  "audio",
+  "background",
+  "cannot",
+  "could",
+  "de",
+  "detectada",
+  "detected",
+  "entender",
+  "esta",
+  "fala",
+  "foi",
+  "fundo",
   "inaudible",
   "inaudivel",
+  "in",
+  "indisponivel",
+  "is",
   "music",
-  "nao foi possivel entender",
-  "nao foi possivel transcrever",
-  "nenhuma fala detectada",
-  "no speech",
-  "sem audio",
-  "sem fala",
+  "musica",
+  "nao",
+  "nenhuma",
+  "no",
+  "noise",
+  "novamente",
+  "o",
+  "please",
+  "possivel",
+  "ruido",
+  "sem",
   "silence",
   "silencio",
+  "speech",
+  "the",
+  "tente",
+  "transcribe",
+  "transcrever",
+  "try",
+  "unavailable",
+  "understand",
   "unintelligible",
+  "we",
 ]);
 
 function normalizeTranscriptionMarker(value: string): string {
@@ -36,15 +63,18 @@ function normalizeTranscriptionMarker(value: string): string {
 
 /**
  * A transcription is useful only when it contains lexical or numeric content
- * and is not an exact provider placeholder for silence or unintelligible audio.
- * Mixed content such as "[inaudível] arroz 100 g" remains valid because it
- * still carries actionable speech.
+ * beyond provider boilerplate for silence or unintelligible audio. Marker-only
+ * phrases may contain articles, helper verbs and retry guidance; mixed content
+ * such as "[inaudível] arroz 100 g" remains valid because it still carries
+ * actionable speech.
  */
 export function isUsefulTranscriptionText(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed || !/[\p{L}\p{N}]/u.test(trimmed)) return false;
-  return !NON_SPEECH_TRANSCRIPTION_MARKERS.has(normalizeTranscriptionMarker(trimmed));
+  const normalized = normalizeTranscriptionMarker(trimmed);
+  const tokens = normalized.split(" ").filter(Boolean);
+  return tokens.some(token => !NON_SPEECH_TRANSCRIPTION_TOKENS.has(token));
 }
 
 export type AiDomainAudioUsage = {

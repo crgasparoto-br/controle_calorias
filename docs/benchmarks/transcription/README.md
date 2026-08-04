@@ -6,7 +6,7 @@ Este diretório contém somente fixtures sintéticos e um manifesto versionado. 
 
 A matriz cobre alimentos comuns, marca, peso, unidades de volume, ambiguidade, produto comercial e ruído branco controlado. Cada fixture declara a frase de referência e os termos críticos usados no cálculo de recall.
 
-O harness falha antes de qualquer chamada externa quando o manifesto não é `synthetic-only`, está vazio, possui IDs repetidos, referência/arquivo ausente, lista de termos críticos vazia ou duração inválida. A métrica de texto útil usa a mesma regra do runtime: pontuação isolada e marcadores exatos de silêncio ou áudio inaudível não contam como sucesso.
+O harness falha antes de qualquer chamada externa quando o manifesto não é `synthetic-only`, está vazio, possui IDs repetidos, referência/arquivo ausente, lista de termos críticos vazia ou duração inválida. A métrica de texto útil usa a mesma regra do runtime: pontuação isolada e frases compostas somente por marcadores ou mensagens auxiliares de silêncio/áudio inaudível não contam como sucesso; conteúdo misto com fala acionável continua válido.
 
 ## Execução e decisão
 
@@ -32,7 +32,7 @@ A troca do modelo padrão não é automática. O resultado subsidia decisão pos
 
 ## Modelos e snapshots
 
-Por padrão, o harness usa os aliases `whisper-1` e `gpt-4o-mini-transcribe`. Para registrar snapshots exatos sem alterar o código, defina `TRANSCRIPTION_BENCHMARK_WHISPER_MODEL` e `TRANSCRIPTION_BENCHMARK_GPT4O_MINI_MODEL`. O JSON registra os IDs efetivos, ambiente, política, data e catálogo de preços.
+Por padrão, o harness usa os aliases `whisper-1` e `gpt-4o-mini-transcribe`. Para registrar snapshots exatos sem alterar o código, defina `TRANSCRIPTION_BENCHMARK_WHISPER_MODEL` e `TRANSCRIPTION_BENCHMARK_GPT4O_MINI_MODEL`. O JSON registra os IDs efetivos, ambiente, política, data, catálogo de preços e o `testedSha` obtido do `HEAD` executado.
 
 ## Privacidade e registro
 

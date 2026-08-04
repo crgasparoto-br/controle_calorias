@@ -97,7 +97,16 @@ describe("TRANSCRIPTION capability", () => {
     expect(result).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
   });
 
-  it.each(["...", "[inaudível]", "(silence)"])(
+  it.each([
+    "...",
+    "[inaudível]",
+    "(silence)",
+    "Não foi possível transcrever o áudio.",
+    "Áudio inaudível. Tente novamente.",
+    "[inaudível] [inaudível]",
+    "The audio is inaudible.",
+    "Sem fala detectada no áudio.",
+  ])(
     "rejects non-empty but unusable provider output: %s",
     async text => {
       const call = vi.fn().mockResolvedValue(ok({ text, segments: undefined }));
@@ -114,9 +123,22 @@ describe("TRANSCRIPTION capability", () => {
     },
   );
 
+  it("keeps actionable speech when a non-speech marker is mixed with content", async () => {
+    const call = vi.fn().mockResolvedValue(ok({
+      text: "[inaudível] arroz 100 g",
+      segments: undefined,
+    }));
+    const result = await transcribeAudio(audio(), {
+      env: env(),
+      providerFactories: factories(() => provider(call)),
+    });
+
+    expect(result).toMatchObject({ text: "[inaudível] arroz 100 g" });
+  });
+
   it("uses fallback after an unusable transcription result", async () => {
     const primary = vi.fn().mockResolvedValue(ok({
-      text: "[inaudível]",
+      text: "Áudio inaudível. Tente novamente.",
       segments: undefined,
     }));
     const fallback = vi.fn().mockResolvedValue(ok({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isUsefulTranscriptionText } from "../server/_core/ai/domainAudioTranscription";
 import {
   sanitizeFailureReason,
+  resolveTestedSha,
   summarize,
   validateManifest,
   type Manifest,
@@ -14,6 +15,11 @@ describe("issue #924 transcription benchmark harness", () => {
     ["...", false],
     ["[inaudível]", false],
     ["silêncio", false],
+    ["Não foi possível transcrever o áudio.", false],
+    ["Áudio inaudível. Tente novamente.", false],
+    ["[inaudível] [inaudível]", false],
+    ["The audio is inaudible.", false],
+    ["Sem fala detectada no áudio.", false],
   ])("classifies useful transcription text consistently: %s", (text, expected) => {
     expect(isUsefulTranscriptionText(text)).toBe(expected);
   });
@@ -57,5 +63,13 @@ describe("issue #924 transcription benchmark harness", () => {
       "Transcription request was rejected with classification model_not_found.",
     )).toBe("model_not_found");
     expect(sanitizeFailureReason("provider message with sensitive detail")).toBe("unknown");
+  });
+
+  it("records the exact benchmark SHA from the environment when available", async () => {
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    await expect(resolveTestedSha({ GITHUB_SHA: sha })).resolves.toBe(sha);
+    await expect(resolveTestedSha({ GITHUB_SHA: "not-a-sha" })).rejects.toThrow(
+      "GITHUB_SHA must contain the exact 40-character commit SHA.",
+    );
   });
 });
