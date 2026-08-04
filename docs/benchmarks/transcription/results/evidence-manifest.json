@@ -1,9 +1,77 @@
 {
   "schemaVersion": 2,
-  "canonicalRun": null,
+  "canonicalRun": {
+    "status": "trusted",
+    "testedSha": "af087f9b0c643a3146d46c1567c8fd80bbeff03e",
+    "resultPath": "docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.json",
+    "provenancePath": "docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.provenance.json",
+    "generatedAt": "2026-08-04T21:57:59.313Z",
+    "workflowRunId": 30954486742,
+    "workflowRunAttempt": 1,
+    "artifactId": 8910458299,
+    "artifactName": "issue-924-transcription-benchmark-af087f9b0c64",
+    "artifactDigestSha256": "4b60574595b9ebfc02a65bd804ade1c9801e9d81dfcb2ee74909c61ff39f9423",
+    "jsonSha256": "0ce13fcc23a6a5629d0871702c669bb505725fa932104ab6bc28e8cfb93f3029",
+    "repository": "crgasparoto-br/controle_calorias",
+    "branch": "feat/924-transcription-capability-benchmark",
+    "event": "push",
+    "models": [
+      "whisper-1",
+      "gpt-4o-mini-transcribe"
+    ],
+    "fixturesPerModel": 6,
+    "totalResults": 12,
+    "allResultsSuccessful": true,
+    "summary": [
+      {
+        "model": "whisper-1",
+        "fixtures": 6,
+        "successRate": 1,
+        "usefulTextRate": 1,
+        "averageLatencyMs": 1360.8333,
+        "averageWordErrorRate": 0.3069,
+        "averageCriticalTermRecall": 0.625,
+        "retryRate": 0,
+        "fallbackRate": 0,
+        "segmentAvailabilityRate": 1,
+        "estimatedTotalCostUsd": 0.00220234
+      },
+      {
+        "model": "gpt-4o-mini-transcribe",
+        "fixtures": 6,
+        "successRate": 1,
+        "usefulTextRate": 1,
+        "averageLatencyMs": 786,
+        "averageWordErrorRate": 0.2921,
+        "averageCriticalTermRecall": 0.6583,
+        "retryRate": 0,
+        "fallbackRate": 0,
+        "segmentAvailabilityRate": 0,
+        "estimatedTotalCostUsd": 0.00107125
+      }
+    ],
+    "limitations": [
+      "Synthetic voices do not represent the full diversity of real PT-BR speech.",
+      "Network latency and provider load vary between executions.",
+      "Cost is estimated from duration or provider-reported token usage and the versioned price catalog.",
+      "The harness does not persist audio, prompts, or returned transcripts in its result file."
+    ],
+    "trustBasis": [
+      "push event, not pull_request or pull_request_target",
+      "detached checkout of the exact GITHUB_SHA",
+      "testedSha matched git rev-parse HEAD and TRANSCRIPTION_BENCHMARK_TESTED_SHA",
+      "working tree was clean before and after provider access",
+      "OPENAI_API_KEY was scoped to the benchmark step and masked in logs",
+      "GITHUB_TOKEN had contents:read only and checkout credentials were not persisted",
+      "result contained 12 sanitized observations, no transcripts, audio, prompts or credential material",
+      "artifact digest and result SHA-256 were independently revalidated after download"
+    ]
+  },
   "trustedRunRequired": {
-    "status": "pending",
-    "reason": "No benchmark run currently satisfies the trusted-execution boundary. A new real comparison must execute reviewed immutable code without exposing a repository secret to mutable pull-request code.",
+    "status": "satisfied",
+    "satisfiedByTestedSha": "af087f9b0c643a3146d46c1567c8fd80bbeff03e",
+    "workflowRunId": 30954486742,
+    "reviewedAt": "2026-08-04T22:00:00Z",
     "requiredControls": [
       "checked-out HEAD is resolved locally and matches every declared SHA",
       "working tree is clean before execution",
@@ -54,6 +122,6 @@
       "execution policy change",
       "missing or untrusted execution provenance"
     ],
-    "note": "Historical results remain versioned for transparency but cannot satisfy the acceptance criterion until a trusted run replaces canonicalRun."
+    "note": "The canonical run may be reused by a later evidence-only head only after proving that every listed runtime, harness, test and fixture path is unchanged from canonicalRun.testedSha."
   }
 }

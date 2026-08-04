@@ -12,7 +12,7 @@ O harness falha antes de qualquer chamada externa quando o manifesto não é `sy
 
 Use o harness somente em um contexto confiável no qual o código executado já tenha sido revisado. Um workflow de `pull_request` não deve executar este benchmark com secrets permanentes do repositório, porque o código do head da PR poderia ler ou exfiltrar a credencial.
 
-Resultado produzido fora dessa fronteira deve permanecer apenas como histórico não canônico. Integridade por hash não corrige proveniência insegura. O manifesto mantém `canonicalRun: null` até existir nova coleta real em contexto confiável.
+Resultado produzido fora dessa fronteira deve permanecer apenas como histórico não canônico. Integridade por hash não corrige proveniência insegura. O manifesto identifica explicitamente a execução canônica confiável e mantém execuções anteriores como histórico invalidado.
 
 A execução pode ocorrer localmente ou em infraestrutura protegida que execute uma revisão imutável do código. Disponibilize `OPENAI_API_KEY` apenas durante o processo da chamada externa, sem gravá-la em `.env`, shell history, logs, comentários, resultados ou artefatos.
 
@@ -48,4 +48,4 @@ Por padrão, o harness usa os aliases `whisper-1` e `gpt-4o-mini-transcribe`. Pa
 
 O arquivo de resultado deliberadamente não contém o texto transcrito. Ele registra apenas métricas e códigos sanitizados; assim pode ser compartilhado com a #927 sem transportar conteúdo de áudio.
 
-O nome, validação, resumo, proveniência e checklist para registrar uma execução estão em `results/README.md` e `results/evidence-manifest.json`. Não versionar `OPENAI_API_KEY`, áudio, prompt, URL de mídia ou saída textual do provider.
+O nome, validação, resumo, proveniência, execução canônica e checklist estão em `results/README.md` e `results/evidence-manifest.json`. Não versionar `OPENAI_API_KEY`, áudio, prompt, URL de mídia ou saída textual do provider.

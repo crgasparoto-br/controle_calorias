@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-04T21:57:59.313Z",
+  "testedSha": "af087f9b0c643a3146d46c1567c8fd80bbeff03e",
+  "fixtureManifest": "docs/benchmarks/transcription/fixtures/manifest.json",
+  "manifestMetadata": {
+    "generatedAt": "2026-08-03",
+    "generator": "espeak 1.48.15 voice pt-br, rate 220 words/minute; ffmpeg OGG/Opus mono 16 kHz at 12 kbps",
+    "privacy": "synthetic-only"
+  },
+  "environment": {
+    "node": "v22.23.1",
+    "platform": "linux",
+    "architecture": "x64",
+    "cpuCount": 4,
+    "provider": "openai",
+    "endpoint": "/v1/audio/transcriptions"
+  },
+  "executionPolicy": {
+    "timeoutMs": 30000,
+    "maxAttempts": 1,
+    "fallbackEnabled": false,
+    "sequential": true
+  },
+  "priceCatalog": {
+    "version": "2026-08-03",
+    "source": "OpenAI model catalog",
+    "whisper": {
+      "usdPerMinute": 0.006
+    },
+    "gpt4oMiniTranscribe": {
+      "usdPerMillionInputTokens": 1.25,
+      "usdPerMillionOutputTokens": 5
+    }
+  },
+  "models": [
+    "whisper-1",
+    "gpt-4o-mini-transcribe"
+  ],
+  "limitations": [
+    "Synthetic voices do not represent the full diversity of real PT-BR speech.",
+    "Network latency and provider load vary between executions.",
+    "Cost is estimated from duration or provider-reported token usage and the versioned price catalog.",
+    "The harness does not persist audio, prompts, or returned transcripts in its result file."
+  ],
+  "summary": [
+    {
+      "model": "whisper-1",
+      "fixtures": 6,
+      "successRate": 1,
+      "usefulTextRate": 1,
+      "averageLatencyMs": 1360.8333,
+      "averageWordErrorRate": 0.3069,
+      "averageCriticalTermRecall": 0.625,
+      "retryRate": 0,
+      "fallbackRate": 0,
+      "segmentAvailabilityRate": 1,
+      "estimatedTotalCostUsd": 0.00220234
+    },
+    {
+      "model": "gpt-4o-mini-transcribe",
+      "fixtures": 6,
+      "successRate": 1,
+      "usefulTextRate": 1,
+      "averageLatencyMs": 786,
+      "averageWordErrorRate": 0.2921,
+      "averageCriticalTermRecall": 0.6583,
+      "retryRate": 0,
+      "fallbackRate": 0,
+      "segmentAvailabilityRate": 0,
+      "estimatedTotalCostUsd": 0.00107125
+    }
+  ],
+  "results": [
+    {
+      "fixtureId": "meal-staples",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 1776,
+      "usefulText": true,
+      "wordErrorRate": 0.2143,
+      "criticalTermRecall": 0.8,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00040766880000000003
+    },
+    {
+      "fixtureId": "brand-and-weight",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 1459,
+      "usefulText": true,
+      "wordErrorRate": 0.5385,
+      "criticalTermRecall": 0.2,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.0004198938
+    },
+    {
+      "fixtureId": "liquid-units",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 1696,
+      "usefulText": true,
+      "wordErrorRate": 0.1667,
+      "criticalTermRecall": 0.6,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00036855
+    },
+    {
+      "fixtureId": "ambiguity",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 669,
+      "usefulText": true,
+      "wordErrorRate": 0.1818,
+      "criticalTermRecall": 0.75,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.0003082375
+    },
+    {
+      "fixtureId": "commercial-product",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 1977,
+      "usefulText": true,
+      "wordErrorRate": 0.4545,
+      "criticalTermRecall": 0.6,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.0002903188
+    },
+    {
+      "fixtureId": "meal-staples-noisy",
+      "model": "whisper-1",
+      "status": "ok",
+      "latencyMs": 588,
+      "usefulText": true,
+      "wordErrorRate": 0.2857,
+      "criticalTermRecall": 0.8,
+      "segmentsPresent": true,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00040766880000000003
+    },
+    {
+      "fixtureId": "meal-staples",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 766,
+      "usefulText": true,
+      "wordErrorRate": 0.2857,
+      "criticalTermRecall": 0.6,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00018875
+    },
+    {
+      "fixtureId": "brand-and-weight",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 730,
+      "usefulText": true,
+      "wordErrorRate": 0.4615,
+      "criticalTermRecall": 0.4,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.0002
+    },
+    {
+      "fixtureId": "liquid-units",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 951,
+      "usefulText": true,
+      "wordErrorRate": 0.0833,
+      "criticalTermRecall": 1,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00019874999999999998
+    },
+    {
+      "fixtureId": "ambiguity",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 887,
+      "usefulText": true,
+      "wordErrorRate": 0.1818,
+      "criticalTermRecall": 0.75,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00014125
+    },
+    {
+      "fixtureId": "commercial-product",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 744,
+      "usefulText": true,
+      "wordErrorRate": 0.4545,
+      "criticalTermRecall": 0.6,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00014875
+    },
+    {
+      "fixtureId": "meal-staples-noisy",
+      "model": "gpt-4o-mini-transcribe",
+      "status": "ok",
+      "latencyMs": 638,
+      "usefulText": true,
+      "wordErrorRate": 0.2857,
+      "criticalTermRecall": 0.6,
+      "segmentsPresent": false,
+      "attempts": 1,
+      "usedFallback": false,
+      "estimatedCostUsd": 0.00019375000000000002
+    }
+  ]
+}

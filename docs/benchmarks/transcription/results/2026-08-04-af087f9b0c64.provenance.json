@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "testedSha": "af087f9b0c643a3146d46c1567c8fd80bbeff03e",
+  "repository": "crgasparoto-br/controle_calorias",
+  "branch": "feat/924-transcription-capability-benchmark",
+  "workflow": "Issue 924 - benchmark confiavel de transcricao",
+  "workflowRunId": "30954486742",
+  "workflowRunAttempt": "1",
+  "event": "push",
+  "runner": {
+    "os": "Linux",
+    "architecture": "X64"
+  },
+  "credentialHandling": {
+    "secretName": "OPENAI_API_KEY",
+    "scope": "benchmark-step-only",
+    "persisted": false
+  }
+}
