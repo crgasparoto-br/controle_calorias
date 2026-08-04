@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  sanitizeFailureReason,
   summarize,
   validateManifest,
   type Manifest,
@@ -35,5 +36,15 @@ describe("issue #924 transcription benchmark harness", () => {
     expect(() => validateManifest(manifest)).toThrow(
       "Transcription benchmark manifest must contain at least one fixture.",
     );
+  });
+
+  it("records only allow-listed provider failure classifications", () => {
+    expect(sanitizeFailureReason(
+      "Transcription provider failed with a recoverable rate_limit condition.",
+    )).toBe("rate_limit");
+    expect(sanitizeFailureReason(
+      "Transcription request was rejected with classification model_not_found.",
+    )).toBe("model_not_found");
+    expect(sanitizeFailureReason("provider message with sensitive detail")).toBe("unknown");
   });
 });
