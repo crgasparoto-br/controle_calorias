@@ -99,8 +99,13 @@ function isAuthenticationFailure(status: number | null, normalizedMessage: strin
     normalizedMessage.includes(token));
 }
 
-function isModelFailure(status: number | null, normalizedMessage: string): boolean {
-  return status === 404 ||
+function isModelFailure(
+  status: number | null,
+  code: string,
+  normalizedMessage: string,
+): boolean {
+  return code === "MODEL_NOT_FOUND" ||
+    status === 404 ||
     normalizedMessage.includes("model not found") ||
     normalizedMessage.includes("unknown model");
 }
@@ -151,7 +156,7 @@ export function classifyAiError(error: unknown): AiOperationalError | AiNonRetry
   if (isAuthenticationFailure(status, normalizedMessage)) {
     return new AiNonRetryableError(message, error, "authentication");
   }
-  if (isModelFailure(status, normalizedMessage)) {
+  if (isModelFailure(status, code, normalizedMessage)) {
     return new AiNonRetryableError(message, error, "model_not_found");
   }
   if (isSafetyFailure(normalizedMessage)) {
