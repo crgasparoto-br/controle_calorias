@@ -40,15 +40,21 @@ Falha de storage ainda permite processamento inline, preservando a identidade da
 
 ## Benchmark reproduzível
 
-Os fixtures em `docs/benchmarks/transcription/fixtures` são vozes sintéticas PT-BR, sem dados pessoais. Execute:
+Os fixtures em `docs/benchmarks/transcription/fixtures` são vozes sintéticas PT-BR, sem dados pessoais. Execute somente em um contexto confiável:
 
 ```bash
-pnpm benchmark:transcription -- docs/benchmarks/transcription/results/<data>-<sha>.json
+OPENAI_API_KEY="..." \
+  pnpm benchmark:transcription -- \
+  docs/benchmarks/transcription/results/<data>-<sha>.json
 ```
 
 O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
 
-O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`. A execução pode ser local ou ocorrer no job protegido de transcrição do workflow `AI provider live smoke`; no CI, o secret canônico `OPENAI_API_KEY` existe apenas no passo externo, depois da validação do repositório, proprietário, branch e SHA e da instalação sem credenciais.
+O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`.
+
+O benchmark real não pode ser executado por workflow de `pull_request` que entregue secrets permanentes do repositório ao código mutável do head. PRs validam o contrato com testes herméticos, doubles, regressões e controles de contagem. Uma coleta real pode ser feita localmente ou em contexto protegido que execute código já revisado; sua reutilização exige identidade do SHA e ausência de mudanças posteriores em runtime, harness e fixtures.
+
+A evidência sanitizada do runtime `751c3c7096748c16a1546b2ab8161e512ecf133a` foi incorporada de forma durável em `docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json`, com proveniência e hashes em `evidence-manifest.json`.
 
 ## Documentação canônica e decisão
 

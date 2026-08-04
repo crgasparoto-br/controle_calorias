@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "canonicalRun": {
+    "testedSha": "751c3c7096748c16a1546b2ab8161e512ecf133a",
+    "resultPath": "docs/benchmarks/transcription/results/2026-08-04-751c3c709674.json",
+    "workflowRunId": 30935644636,
+    "workflowName": "AI provider live smoke",
+    "jobName": "transcription benchmark",
+    "artifactId": 8902997514,
+    "artifactName": "issue-924-transcription-benchmark-751c3c7096748c16a1546b2ab8161e512ecf133a",
+    "artifactDigestSha256": "6c3053868ad3e0476e70d133578dc118fd93aa2b24c36579ed70bec16463cc72",
+    "jsonSha256": "3b76faf61b66d4acc4936799864895cb1d4f93105bb0e7bc52aaefaba5f623b2",
+    "generatedAt": "2026-08-04T17:49:38.482Z",
+    "importedAt": "2026-08-04T18:21:08Z",
+    "privacy": "synthetic-only-sanitized"
+  },
+  "historicalRuns": [
+    {
+      "testedSha": "7758bbdafc0b80f6b0ac37338eff4bd2005450e9",
+      "resultPath": "docs/benchmarks/transcription/results/2026-08-04-7758bbdafc0b.json",
+      "role": "historical-comparison"
+    }
+  ],
+  "reusePolicy": {
+    "allowedOnlyWhenUnchanged": [
+      "scripts/issue-924-transcription-benchmark.ts",
+      "scripts/issue-924-transcription-benchmark.test.ts",
+      "server/_core/voiceTranscription.ts",
+      "server/_core/voiceTranscription.test.ts",
+      "server/_core/ai/domainAudioTranscription.ts",
+      "server/_core/ai/transcriptionProvider.ts",
+      "server/_core/ai/transcriptionProvider.test.ts",
+      "server/_core/ai/policyExecutor.ts",
+      "server/_core/ai/policyExecutor.issue924.test.ts",
+      "server/modules/whatsapp/webhookMediaPipeline.issue924.test.ts",
+      "docs/benchmarks/transcription/fixtures/**"
+    ],
+    "invalidatedBy": [
+      "runtime change",
+      "harness change",
+      "fixture or manifest change",
+      "model identifier change",
+      "price catalog change",
+      "execution policy change"
+    ],
+    "note": "Documentation-only remediation and restoration of the base workflow do not change the measured runtime. Any change to a protected path requires a new benchmark in a trusted context."
+  }
+}

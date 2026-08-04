@@ -1,6 +1,6 @@
 # Benchmark de transcrição
 
-Este diretório contém somente fixtures sintéticos e um manifesto versionado. Nenhum áudio de usuário, transcrição real, número de telefone, URL de mídia ou prompt de produção pode ser incluído.
+Este diretório contém somente fixtures sintéticos, o manifesto versionado e resultados sanitizados. Nenhum áudio de usuário, transcrição real, número de telefone, URL de mídia, prompt de produção ou credencial pode ser incluído.
 
 ## Cenários
 
@@ -8,15 +8,21 @@ A matriz cobre alimentos comuns, marca, peso, unidades de volume, ambiguidade, p
 
 O harness falha antes de qualquer chamada externa quando o manifesto não é `synthetic-only`, está vazio, possui IDs repetidos, referência/arquivo ausente, lista de termos críticos vazia ou duração inválida. A métrica de texto útil usa a mesma regra do runtime: pontuação isolada e frases compostas somente por marcadores ou mensagens auxiliares de silêncio/áudio inaudível não contam como sucesso; conteúdo misto com fala acionável continua válido.
 
-## Execução e decisão
+## Execução segura
 
-A execução real pode ocorrer localmente ou no job protegido **transcription benchmark** do workflow `AI provider live smoke`. No GitHub Actions, o job aceita somente PR do próprio repositório, criada pelo proprietário e na branch da issue #924; confere o SHA exato, faz checkout com `persist-credentials: false`, instala dependências sem credenciais e injeta o secret canônico `OPENAI_API_KEY` somente no passo da chamada externa. O resultado sanitizado é publicado como artefato vinculado ao head da PR.
+Use o harness somente em um contexto confiável no qual o código executado já tenha sido revisado. Um workflow de `pull_request` não deve executar este benchmark com secrets permanentes do repositório, porque o código do head da PR poderia ler ou exfiltrar a credencial.
 
-Use:
+A execução pode ocorrer localmente ou em infraestrutura protegida que execute uma revisão imutável do código. Disponibilize `OPENAI_API_KEY` apenas durante o processo da chamada externa, sem gravá-la em `.env`, shell history, logs, comentários, resultados ou artefatos.
 
 ```bash
-pnpm benchmark:transcription -- docs/benchmarks/transcription/results/<data>-<sha>.json
+OPENAI_API_KEY="..." \
+  pnpm benchmark:transcription -- \
+  docs/benchmarks/transcription/results/<data>-<sha>.json
 ```
+
+A PR deve provar o comportamento por testes herméticos, doubles e controles de contagem de chamadas. Evidência real de provider é complementar e somente pode ser reutilizada quando estiver vinculada ao SHA testado e quando nenhum arquivo de runtime, harness ou fixture tiver mudado depois da coleta.
+
+## Métricas e decisão
 
 Compare:
 
@@ -28,7 +34,7 @@ Compare:
 
 Taxas com denominador zero são registradas como `0`, e médias sem observações são `null`; o JSON nunca contém `NaN` ou `Infinity`.
 
-A troca do modelo padrão não é automática. O resultado subsidia decisão posterior e deve considerar qualidade, custo, latência, privacidade e rollback.
+A troca do modelo padrão não é automática. O resultado subsidia decisão posterior e deve considerar qualidade, custo, latência, privacidade, variabilidade entre execuções e rollback.
 
 ## Modelos e snapshots
 
@@ -38,4 +44,4 @@ Por padrão, o harness usa os aliases `whisper-1` e `gpt-4o-mini-transcribe`. Pa
 
 O arquivo de resultado deliberadamente não contém o texto transcrito. Ele registra apenas métricas e códigos sanitizados; assim pode ser compartilhado com a #927 sem transportar conteúdo de áudio.
 
-O nome, validação, resumo e checklist para registrar uma execução estão em `results/README.md`. Não versionar `OPENAI_API_KEY`, áudio, prompt, URL de mídia ou saída textual do provider.
+O nome, validação, resumo, proveniência e checklist para registrar uma execução estão em `results/README.md` e `results/evidence-manifest.json`. Não versionar `OPENAI_API_KEY`, áudio, prompt, URL de mídia ou saída textual do provider.
