@@ -48,6 +48,21 @@ describe("WhatsApp webhook image routing facade", () => {
     expect(legacyHandleMock).not.toHaveBeenCalled();
   });
 
+  it("falls through to legacy on structured-router re-entry", async () => {
+    const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
+    const req = request({
+      id: "unclaimed-image-1",
+      from: "5511999999999",
+      image: { id: "image-1", mime_type: "image/jpeg" },
+    });
+    const res = response();
+    annotatedHandleMock.mockImplementationOnce(() => handleWhatsAppWebhook(req, res));
+
+    await expect(handleWhatsAppWebhook(req, res)).resolves.toBe("legacy");
+    expect(annotatedHandleMock).toHaveBeenCalledTimes(1);
+    expect(legacyHandleMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps non-image payloads in the legacy domain handler", async () => {
     const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
     const req = request({
