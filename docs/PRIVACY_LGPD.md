@@ -1,253 +1,148 @@
 # Privacidade e LGPD
 
-## Objetivo
+## Comunicação profissional
 
-Este documento resume os dados pessoais tratados pelo Controle de Calorias e os cuidados mínimos esperados em desenvolvimento, suporte e operação.
+Mensagens de acompanhamento são dados pessoais potencialmente sensíveis. A finalidade é permitir orientação e acompanhamento individual autorizado. O conteúdo não pode ser enviado a analytics nem logs; eventos operacionais registram apenas estado, canal, identificadores internos e erro sanitizado. Revogação bloqueia novas leituras pelo profissional, sem apagar automaticamente o histórico auditável nem substituir o fluxo de exportação/exclusão do titular.
 
-## Papéis e superfícies do produto
+Solicitações profissionais por e-mail ou celular usam minimização antes do consentimento. O profissional recebe apenas um comprovante opaco `pending`, independentemente de a pessoa existir, não existir ou coincidir com a própria conta. Contato, nome, telefone, e-mail, `patientUserId`, objeto de paciente, erro de entrega e eventos internos de resolução não atravessam `requestAccess`, `myAccesses`, `portfolio` ou `history` enquanto não houver autorização aprovada. Busca identificável na carteira é restrita a vínculos aprovados.
 
-O modelo completo de experiência está em `docs/product-specs/product-experience-model.md`.
+Comprovantes são persistidos em `professionalHistoryEvents` sem contato nem motivo. Cada tentativa aceita gera um comprovante próprio, tanto para alvo resolvido quanto não resolvido, para que repetição e contagem não confirmem a existência da conta. A associação interna com uma autorização canônica serve somente para validar uma decisão do próprio paciente e para deixar de exibir os comprovantes quando o vínculo sai de `pending`; ela não é exposta ao profissional. Comprovantes sem vínculo resolvido expiram da carteira após trinta dias. Eles não constituem autorização, cadastro paralelo ou base para leitura de dados do titular.
 
-- Na Área do Paciente, o usuário trata seus próprios dados de alimentação, saúde, metas, peso, exercícios, mensagens e integrações.
-- Na Área Profissional, o nutricionista pode atuar como usuário autenticado e acessar dados de pacientes somente mediante perfil profissional ativo, vínculo vigente, consentimento e escopo autorizado.
-- O mesmo paciente pode usar o produto de forma independente ou vinculado a um profissional.
-- A existência de perfil profissional adicional não cria uma segunda identidade nem transfere automaticamente dados pessoais ou de saúde.
-- Billing, assinatura ou entitlement não substituem autorização de acesso a dados.
+Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudança em IA, WhatsApp, mídia, logs, analytics, exportação, exclusão, acesso profissional e integrações de saúde como mudança sensível.
 
-### Responsabilidade do profissional
+## Dados pessoais e sensíveis
 
-Quando o profissional registra orientação, comentário, meta, sugestão ou mensagem relacionada ao paciente, o sistema deve manter separação entre:
-
-- identidade e dados pessoais do profissional;
-- dados pessoais e de saúde do paciente;
-- autoria da ação;
-- origem manual, automática ou sugerida pela IA;
-- data, vigência, justificativa e histórico aplicável.
-
-O produto não deve misturar dados pessoais do nutricionista ao prontuário, relatório ou exportação do paciente além do necessário para autoria e prestação do serviço.
-
-## Inventário de dados
-
-| Categoria | Exemplos | Finalidade |
-|---|---|---|
-| Conta | nome, e-mail, role | autenticação e identificação |
-| Perfil nutricional | altura, idade, sexo, objetivo, peso | cálculo e acompanhamento |
-| Alimentação | refeições, porções, macros, texto original | registro e relatórios |
-| Mídia | fotos, áudios e metadados | inferência multimodal e revisão |
-| Derivados de mídia | PNG anotado local/externo, chave de storage e estado do artefato | apoio visual opcional sem substituir o original |
-| Conversa | telefone, mensagens e contexto WhatsApp | operação conversacional |
-| Integrações | credenciais e tokens Strava/WhatsApp | conexão com serviços externos |
-| Profissional | perfil, CRN opcional, vínculos, comentários e sugestões | acompanhamento por nutricionista |
-| Acompanhamento clínico | metas oficiais, janelas de vigência, justificativas, histórico e orientações | condução e auditoria do acompanhamento nutricional |
-| Logs | ação, entidade, ator e erro sanitizado | suporte e auditoria |
-
-## Dados sensíveis
-
-Dados de saúde e alimentação devem ser tratados como sensíveis. Isso inclui:
-
-- texto de refeição;
-- fotos de alimentos;
-- áudio e transcrição;
-- restrições alimentares e condições de saúde;
-- peso, idade, altura e metas;
-- comentários e sugestões profissionais;
-- metas oficiais definidas por profissional;
-- histórico de ajustes e justificativas;
-- métricas detalhadas de atividades do Strava, como distância, duração, elevação, frequência cardíaca, cadência, potência, equipamento, visibilidade e interação social;
-- vínculo e consentimento entre paciente e profissional.
+| Categoria                     | Exemplos                                                                                                                                        | Onde aparece                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Identidade                    | Nome, e-mail, `openId`, telefone WhatsApp e nome exibido                                                                                        | `users`, `userProfiles`, `whatsappConnections`                                                                         |
+| Saúde/nutrição                | Idade, altura, peso, objetivo, restrições, refeições, macros, hidratação e exercícios                                                           | `userProfiles`, `weightEntries`, `meals`, `mealItems`, `waterLogs`, `exercises`                                        |
+| Conteúdo bruto                | Texto de refeição, transcrição, imagem, áudio, notas livres e mídia                                                                             | `mealMedia`, `mealInferences`, fluxos de IA e WhatsApp                                                                 |
+| Contexto conversacional       | Mensagens sanitizadas, transcrições sanitizadas, referências opacas de mídia, resumos e vínculos de domínio                                     | `whatsappConversations`, `whatsappConversationMessages`, `whatsappConversationSummaries`, `whatsappMessageDomainLinks` |
+| Integrações externas          | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência | `appSecrets`, módulos de integrações de saúde                                                                          |
+| IA                            | Prompt, contexto nutricional, reasoning, confidence, inferências e logs                                                                         | `server/_core`, `server/modules/assistant`, `server/modules/meals`                                                     |
+| Operação                      | Tokens, IDs de canal, URLs de mídia, detalhes técnicos e logs de erro                                                                           | `appSecrets`, logs operacionais e analytics                                                                            |
+| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários, sugestões, metas oficiais, justificativas e pedidos de revisão                      | módulo `professionals`                                                                                                 |
 
 ## Princípios
 
-- **Minimização**: enviar a provedores apenas o necessário.
-- **Finalidade**: coletar somente para funcionalidades explícitas.
-- **Segurança**: manter segredos e processamento sensível no backend.
-- **Transparência**: distinguir conteúdo do paciente, do profissional e sugestão da IA.
-- **Controle**: permitir exportação e exclusão de conta.
-- **Autorização**: compartilhar dados profissionais apenas mediante vínculo e escopo vigentes.
-- **Revogabilidade**: permitir que o paciente encerre o compartilhamento futuro.
-- **Rastreabilidade**: registrar autoria e histórico para alterações profissionais relevantes.
+- Minimização: persistir apenas o necessário para o produto.
+- Finalidade: documentar por que cada novo dado sensível é necessário.
+- Transparência: exportação deve ser compreensível para o usuário.
+- Segurança: logs, analytics e mensagens de erro devem ser sanitizados.
+- Retenção: dados brutos de IA, mídia, logs, contexto conversacional e integrações externas devem ter retenção intencional, não acidental.
+- Consentimento: fluxos de profissional, WhatsApp, IA multimodal e integrações externas devem respeitar autorização explícita ou ação consciente do usuário.
+- Não enumeração: superfícies de convite não devem confirmar cadastro, elegibilidade ou identidade antes do consentimento por diferenças de payload, status público, metadados, totais, repetição ou consultas auxiliares.
 
-## Compartilhamento e vínculo profissional
+## Regras práticas
 
-- O paciente inicia ou aceita o compartilhamento conforme o fluxo de produto.
-- O profissional não pode descobrir dados de saúde apenas por conhecer e-mail, telefone ou identificador do paciente.
-- Solicitação de acesso não autoriza leitura de dados.
-- O backend valida perfil profissional ativo, vínculo aprovado, não revogado e escopo aplicável em cada leitura ou mutação.
-- A UI não deve manter dados do paciente anterior após troca de contexto ou revogação.
-- Revogação bloqueia novos acessos e comunicações, preservando apenas histórico legal/auditável quando necessário.
-- Mensagens, comentários, metas e sugestões devem indicar autoria e não podem ser atribuídos automaticamente ao paciente.
-- Sugestões da IA não podem ser aplicadas como decisão clínica sem confirmação explícita do profissional autorizado.
+- Não logar `sourceText`, `transcript`, `reasoning`, token, telefone completo, URL assinada, payload bruto de atividade externa ou objetos crus de saúde.
+- Não enviar dados de saúde identificáveis para analytics.
+- Usar `safeLogDetail` ou helper equivalente para detalhes operacionais.
+- Sanitizar erros de IA, webhooks, storage, OAuth e integrações antes de persistir ou exibir.
+- Ao adicionar integração externa, documentar dados enviados/recebidos, motivo, retenção e comportamento de exclusão.
+- Tokens do Strava devem permanecer criptografados em `appSecrets`; logs de sincronização automática devem conter apenas contadores, status e mensagens sanitizadas.
+- Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
+- Métricas detalhadas do Strava, incluindo frequência cardíaca, cadência, potência, equipamento, visibilidade e contadores sociais, devem ser exibidas apenas para o usuário autenticado e não devem aparecer em logs ou analytics.
+- O escopo `activity:read_all` deve ser usado apenas para permitir importação de atividades privadas ou Only Me quando o usuário reconectar e conceder esse acesso.
+- Mídias salvas em qualquer provider devem usar chaves opacas, sem telefone, `userId`, `imageId`, `audioId` ou nome original no caminho persistido.
+- URLs públicas devem ser usadas apenas para artefatos que precisam sair do backend, como a imagem anotada enviada pelo WhatsApp. Mídias originais e recebidas devem manter referência interna quando armazenadas pelo backend.
+- Se um bucket tiver domínio público de leitura, trate a posse do caminho do objeto como acesso potencial à mídia. Não registre caminhos completos em logs desnecessários e configure lifecycle policy para limitar retenção.
+- A exclusão de conta remove os vínculos e linhas principais do produto. Objetos externos exigem rotina operacional ou lifecycle policy até existir deleção automatizada por chave.
+- Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
+- Justificativas de metas profissionais e motivos de revisão são dados nutricionais sensíveis: permanecem no banco e nas telas autorizadas, não entram em logs, analytics nem na notificação ao paciente quando a justificativa for privada.
+- Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
+- Eventos internos de comprovante de acesso não podem ser retornados por históricos públicos nem conter o contato solicitado.
+- A resolução de comprovante em aprovação ou revogação deve validar que o usuário autenticado é o paciente dono da autorização; comprovantes apresentados por terceiros não podem revelar associação ou existência.
+- O stream SSE de revogação profissional exige sessão autenticada e autorização vigente na abertura, isola conexões por profissional e paciente e transmite somente `patientId` e instante da revogação; nome, contato, conteúdo clínico, motivo e identificador da autorização não atravessam o stream.
+- Rascunhos profissionais não salvos permanecem somente em memória e são isolados pelo identificador da autorização e do paciente. Revogação, perda do perfil profissional, encerramento da sessão ou desmontagem do shell removem esse conteúdo antes que outro contexto possa ser exibido.
 
-## Não enumeração em solicitações de acesso
+## Contexto persistente do WhatsApp
 
-- A solicitação aceita somente e-mail ou telefone normalizados e responde sempre com a mesma mensagem pública, sem nome, contato, `patientUserId`, objeto de paciente, confirmação de existência, erro de entrega ou indicação de solicitação já aberta.
-- Toda tentativa aceita cria um comprovante opaco `pending` em `professionalHistoryEvents`, sem o contato solicitado. O comprovante não autoriza acesso e não é sinônimo de conta existente.
-- Repetir a solicitação produz novo comprovante opaco, sem alterar resposta, quantidade, ordem ou shape de resultados que permitam inferência.
-- `myAccesses`, carteira, histórico e qualquer busca auxiliar não podem expor a associação entre comprovante e autorização antes de o vínculo estar `approved`.
-- A associação interna serve exclusivamente para o paciente dono decidir a solicitação; auto-solicitação nunca cria autorização, mesmo que a resposta pública continue uniforme.
-- A busca identificável da carteira retorna somente vínculos `approved`. Comprovantes sem vínculo resolvido expiram após trinta dias.
-- Rate limit por profissional e janela de tempo é obrigatório. Telemetria de abuso usa apenas hashes efêmeros e metadados operacionais sanitizados.
+- A chave idempotente usa o `message.id` da Meta somente para impedir duplicação; o payload bruto da Meta não é persistido como log operacional.
+- Texto e transcrição passam pela política de sanitização antes de alimentar contexto ou resumo. A retenção de conteúdo bruto é separada da retenção sanitizada e da trilha de auditoria.
+- Imagem e áudio são representados no contexto por chave opaca e MIME type; URL temporária, telefone e identificador externo da mídia não devem compor a chave persistida.
+- Resumos guardam proveniência por intervalo de mensagens e nunca substituem os dados nutricionais atuais como fonte de verdade.
+- Vínculos entre mensagem e refeição, item, água, peso ou exercício são auditáveis e não devem duplicar o registro de domínio.
+- Os modos `legacy`, `write_only`, `shadow` e `persistent` registram somente contadores, origem escolhida, fluxo, truncamento e divergência booleana. O conteúdo comparado não entra na telemetria.
+- Rollback desativa leitura persistente por fluxo e mantém escrita, schema, retenção e dados já gravados; não deve executar downgrade destrutivo.
+- Limpeza do histórico conversacional não pode remover refeições, itens, água, peso, exercícios ou outros dados nutricionais.
 
-## Provedores de IA
+## Exportação e exclusão
 
-### OpenAI
+A especificação funcional está em `docs/product-specs/privacy-export-deletion.md`.
 
-A migração do fluxo principal deve minimizar dependência de terceiros desnecessários.
+O endpoint autenticado `nutrition.privacy.exportData` deve retornar os dados principais do próprio usuário em formato compreensível, incluindo conta/perfil, metas, refeições, exercícios, hidratação, peso, preferências, restrições e estado de canais quando aplicável.
 
-Regras:
+O endpoint autenticado `nutrition.privacy.requestAccountDeletion` deve remover ou desvincular dados principais vinculados ao usuário, incluindo conta, perfil, refeições, itens, mídias, favoritos, inferências, hábitos, metas, água, exercícios, preferências, restrições, gamificação, vínculos WhatsApp, contexto conversacional e logs de inferência. Alimentos criados pelo usuário podem ser desvinculados quando a remoção direta causar conflito de integridade.
 
-- usar somente o backend para chamadas;
-- não enviar IDs internos quando não forem necessários;
-- não logar prompts ou respostas completas;
-- não manter áudio ou imagem além do necessário para a funcionalidade;
-- documentar qualquer retenção configurada no provedor;
-- aplicar fallback que preserve o fluxo sem expor dados adicionais;
-- não permitir que mudança de provider global redirecione silenciosamente o segundo envio da foto para anotação.
+Backups, logs de infraestrutura fora do banco e arquivos externos em storage dependem de política operacional de retenção ou automação específica.
 
-### Gemini
+## IA e serviços externos
 
-Enquanto houver suporte ao Gemini como provider de inferência nutricional:
+O assistente alimentar não deve enviar nome, e-mail ou identificador interno do usuário para o provedor de IA. Ainda assim, preferências, restrições alimentares, texto livre, foto, áudio ou transcrição podem conter dados sensíveis e devem ser tratados como conteúdo protegido.
 
-- tratar foto e texto de refeição como dados sensíveis;
-- manter chave somente no backend;
-- evitar incluir e-mail, telefone ou IDs internos no prompt;
-- manter a confirmação da refeição independente do provider;
-- documentar fallback e desligamento antes da remoção futura.
+Foto, áudio e transcrição podem envolver serviços externos de transcrição, visão ou LLM. Sempre que o fluxo usar mídia com IA, mantenha o comportamento documentado, evite retenção acidental e prefira URLs com expiração quando houver necessidade de acesso externo.
 
-### Seleção por capacidade (#921)
+### Transcrição de áudio e benchmark (#924)
 
-- `server/_core/ai/` registra somente capacidades conhecidas e operações implementadas no adapter local. `openai-compatible` não herda suporte implícito: cada operação externa precisa constar em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
-- Provider é resolvido antes do modelo, e o executor recebe provider/modelo/adaptador já vinculados. Uma variável global ou o nome do modelo não podem redirecionar a chamada para outro provider.
-- Variáveis novas por capacidade prevalecem sobre compatibilidade legada; o uso de legado produz somente diagnóstico sanitizado.
-- Campos de request não suportados são rejeitados antes da rede. Mídia, ferramenta ou schema nunca podem ser descartados silenciosamente pelo adapter.
-- `raw` do SDK é removido na fronteira `_core`; consumidores recebem somente resultado normalizado e metadados de uso numéricos permitidos.
-- Estados `disabled`/`invalid`, operação incompatível, timeout/tentativas inválidos e fallback incompleto falham antes da criação da chamada.
-- Fallback é desabilitado por padrão e isolado por capacidade. Provider diferente exige opt-in explícito da capacidade fora de produção e continua inelegível em produção até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927.
-- O modelo de fallback pertence ao provider de destino. O modelo primário não é reutilizado silenciosamente em provider diferente.
-- `AbortSignal` é propagado até o SDK. Retry/fallback só começa depois que a chamada anterior encerra; provider que ignora cancelamento faz a execução falhar fechado, sem um segundo envio. O sinal não garante que o provider remoto interrompa processamento ou cobrança.
-- Cada tentativa contém exatamente uma operação externa da capacidade; existe no máximo uma chamada posterior de fallback, sem cadeia ou retorno ao primário.
-- Diagnósticos, erros e metadados de execução nunca incluem mídia, base64, prompt, schema de entrada com dados, resposta completa, chave, token ou mensagem bruta do provider.
-- Escalonamento de qualidade é política separada e não pode ser ativado implicitamente por fallback ou modo degradado.
-- Qualquer mudança de provider, endpoint, operação, ferramenta ou combinação por modelo exige atualizar `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e este inventário antes do rollout.
+A finalidade do envio de áudio é produzir texto para o fluxo solicitado pelo próprio usuário. O envio ocorre somente ao provider efetivamente resolvido para `TRANSCRIPTION`; o baseline permanece OpenAI + `whisper-1`. A configuração de visão, texto ou outra capacidade não autoriza envio de áudio.
 
-### `TRANSCRIPTION` (#924)
+- Áudio, prompt e texto transcrito não entram em diagnóstico, métricas de capacidade ou resultado do benchmark.
+- O adapter pode manter o objeto nativo apenas dentro de `_core`; `raw` é removido antes do domínio.
+- `language`, `duration`, `segments` e `usage` são opcionais. Ausência não deve gerar informação artificial nem ampliar retenção.
+- Callback duplicado do WhatsApp é descartado antes de baixar ou reenviar mídia.
+- Fallback é desabilitado por padrão. Envio de áudio a provider diferente continua bloqueado em produção até adapter compatível, benchmark, validação de privacidade e rollout da #927.
+- Os fixtures versionados são sintéticos e marcados `synthetic-only`. O harness recusa manifesto vazio ou fora dessa política.
+- O JSON de resultado contém apenas métricas, modelos, ambiente, política, custos estimados, limitações e códigos sanitizados. Não contém áudio, referência externa, prompt nem texto retornado.
+- A chave de API usada para executar o benchmark fica somente no ambiente autorizado e não pode ser versionada ou copiada para comentário, artefato ou log.
 
-- Áudio do WhatsApp é deduplicado antes do download e da transcrição; callback duplicado não repete envio, custo nem mutação.
-- URL/base64, MIME, tamanho e arquivo vazio são validados antes da criação do adapter.
-- O baseline é `openai` + `whisper-1`; fallback permanece desabilitado por padrão e cross-provider é bloqueado em produção até a #927.
-- O request para o provider contém somente bytes, nome técnico do arquivo, MIME e opções de transcrição. ID interno, telefone, mensagem bruta e metadados desnecessários não fazem parte do contrato.
-- A resposta de domínio exige texto e mantém `language`, `duration`, `segments` e `usage` opcionais. `raw` e campos adicionais do SDK são descartados antes de chegar a web, WhatsApp ou benchmark.
-- Logs registram apenas provider, modelo, origem normalizada, tentativas, duração, presença de texto/metadados e código de falha sanitizado. Áudio, transcrição, prompt, base64, URL assinada e erro bruto são proibidos.
-- O benchmark usa seis fixtures sintéticos, execução sequencial, uma tentativa, sem fallback e saída sanitizada. Resultados locais brutos ficam em diretório ignorado pelo Git e não podem ser commitados.
+A retenção funcional de mídia/conversa já prevista pelo produto é diferente da telemetria de IA: não se deve usar o benchmark ou diagnóstico operacional como nova base de retenção de áudio/transcrição.
 
-### `IMAGE_ANNOTATION` (#925)
+### Anotação derivada da foto (#925)
 
-- O modo `local` é o default e não envia foto, prompt ou dados nutricionais a provider de imagem. Ele valida a mídia, auto-orienta uma cópia e compõe uma camada determinística, preservando os bytes originais.
-- O modo `external` representa um tratamento adicional e um novo envio da foto ao provider específico da capacidade. Só pode ocorrer com configuração explícita e executável de `AI_IMAGE_ANNOTATION_*`.
-- `AI_VISION_PROVIDER`, `AI_MEAL_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL` e a seleção usada para inferência não autorizam nem redirecionam a anotação externa.
-- A foto original e o PNG derivado usam buffers e chaves de storage distintos. Falha ao gerar, armazenar ou enviar o derivado não remove nem substitui o original.
-- Um resumo visual sem a foto original é outro artefato e não pode ser apresentado como anotação.
-- Fallback externo é desabilitado por padrão. Provider diferente exige opt-in específico e permanece bloqueado em produção até benchmark, análise de transferência internacional, revisão LGPD e rollout aprovados na #927.
-- A degradação `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; não constitui fallback externo e não adiciona outro compartilhamento.
-- Logs e telemetria registram apenas modo, degradação, origem normalizada, tentativas, tipo do artefato e código de falha sanitizado. Foto, base64, URL assinada, prompt, conteúdo nutricional, resposta bruta, segredo e mensagem do SDK são proibidos.
-- Original e derivado devem ser incluídos de forma independente na exportação e exclusão de dados e seguir a política de retenção aplicável às mídias da refeição.
+A finalidade do modo local é produzir um auxílio visual determinístico sobre uma cópia da foto enviada pelo próprio usuário. Esse modo é o padrão, não usa IA generativa e não envia foto, prompt ou dados nutricionais a provider de imagem. A seleção de `MEAL_VISION`, texto ou outro provider não autoriza nem redireciona a anotação.
 
-## Strava
+O modo `external` é tratamento adicional e exige configuração explícita e executável de `AI_IMAGE_ANNOTATION_*`. Ele constitui novo compartilhamento da foto com o provider específico da capacidade. Fallback externo é desabilitado por padrão; cross-provider permanece bloqueado em produção até análise de transferência internacional, benchmark, revisão LGPD e rollout da #927. A degradação local configurada após falha externa não é fallback de provider e não cria outro envio.
 
-- OAuth usa backend.
-- Tokens ficam criptografados.
-- Eventos de webhook são idempotentes.
-- Apenas dados necessários ao exercício são persistidos.
-- O ID externo da atividade é tratado como referência opaca para idempotência e não deve ser exposto fora do contexto do próprio usuário.
-- Atividades privadas ou marcadas como Only Me só podem ser importadas quando o usuário reconectar e conceder `activity:read_all`.
-- Métricas opcionais, como frequência cardíaca, cadência, potência, equipamento, visibilidade e contadores sociais, só devem ser persistidas quando retornadas pela API e nunca devem aparecer em logs, analytics ou respostas de outro usuário.
-- Calorias estimadas por MET para treino de força devem ser identificadas como estimativas, preservando transparência no relatório e no detalhe do exercício.
-- O usuário pode desconectar e excluir a conta, removendo dados e segredos vinculados conforme a política de exclusão.
+A foto original permanece inalterada. Original e derivado usam buffers e chaves de storage distintos, devem ser exportados e excluídos de forma independente e seguem a política de retenção aplicável às mídias da refeição. Falha de geração, armazenamento ou envio do derivado não remove o original, não altera a resposta textual e não impede a persistência da refeição. Cartão-resumo sem foto original é artefato separado e não pode ser descrito como anotação.
 
-## WhatsApp
+Diagnósticos, logs e telemetria não podem conter foto, base64, URL assinada, prompt, texto nutricional, resposta bruta do provider, segredo ou mensagem de SDK. Entradas base64 são rejeitadas por tamanho antes da alocação do buffer decodificado, reduzindo exposição a pressão de memória sem ampliar retenção.
 
-- O telefone do usuário serve para resolução de identidade no canal.
-- O número oficial da solução é o único canal de resposta.
-- Mensagens e mídias não devem ser logadas integralmente.
-- Tokens devem ficar criptografados e restritos ao backend.
-- A imagem anotada é auxiliar; falha local, externa, de upload ou de envio não bloqueia registro, resposta textual ou preservação do original.
-- O canal não pode enviar cartão-resumo como se fosse uma anotação quando a foto original estiver ausente ou inválida.
+### Segundo envio a provider (fallback) e diagnósticos sanitizados (#921)
 
-## Logs e observabilidade
+A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
 
-Pode ser registrado:
+- Fallback é desabilitado por padrão e nunca encadeia um terceiro provider.
+- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade fora de produção. Em `NODE_ENV=production`, nenhum payload, prompt ou mídia é enviado ao segundo provider até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927, mesmo quando a flag estiver `true`.
+- Cada callback recebe `AbortSignal`. Após timeout, a execução aguarda a chamada anterior encerrar antes de iniciar retry ou fallback; se o provider não reconhecer o cancelamento dentro da janela de segurança, a execução termina em modo fail-closed, sem segundo envio.
+- `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
+- Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.
+- Degradação funcional local, como busca textual sem embeddings ou anotação local, não é fallback externo e não cria um segundo envio.
+- `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT` usam o resolvedor desde #922; `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam o mesmo resolvedor desde #923; `TRANSCRIPTION` usa o resolvedor desde #924. `FOOD_CLASSIFICATION` permanece sem consumidor externo; a NOVA viaja somente na mesma chamada de refeição.
 
-- `userId` interno quando necessário;
-- tipo de ação;
-- status;
-- duração;
-- código de erro sanitizado.
+## Riscos conhecidos e cuidados recorrentes
 
-Não deve ser registrado:
+- Novos `console.*` ou logs de objetos crus podem vazar dados sensíveis se não forem revisados.
+- Dados de saúde em tabelas principais dependem da criptografia do banco/disco gerenciado; o código atual não aplica criptografia de campo ampla.
+- Mídias em storage externo podem exigir lifecycle policy ou rotina de deleção por chave para alinhamento completo com exclusão de conta.
+- `mealInferences.sourceText`, transcrições e contexto conversacional armazenam conteúdo alimentar sensível; alterações nessa área devem avaliar minimização e retenção curta.
+- Integrações de saúde devem manter rastreabilidade externa suficiente para evitar duplicidade sem expor identificadores sensíveis em logs.
+- Convites profissionais podem voltar a enumerar contas se uma nova superfície expuser diferenças entre alvo existente e inexistente; toda rota auxiliar deve reutilizar a política pública canônica.
 
-- senha;
-- hash de senha;
-- token;
-- cookie;
-- áudio bruto;
-- base64 de imagem;
-- texto cru da refeição;
-- transcrição completa;
-- prompt de IA;
-- resposta completa de IA;
-- erro bruto de SDK;
-- URL assinada;
-- mensagem WhatsApp completa;
-- telefone completo;
-- comentário ou orientação clínica completa;
-- metadados detalhados do Strava associados ao usuário.
+## Checklist para PRs sensíveis
 
-## Exportação
+- [ ] O dado coletado é necessário?
+- [ ] Existe base clara no produto para uso do dado?
+- [ ] Exportação e exclusão continuam coerentes?
+- [ ] Logs e analytics foram sanitizados?
+- [ ] Dados de IA, mídia, WhatsApp e integrações externas têm retenção intencional?
+- [ ] Convites evitam enumeração antes do consentimento em todas as superfícies públicas, inclusive totais e repetição?
+- [ ] Documentação canônica foi atualizada?
 
-A exportação deve incluir dados do próprio usuário em formato legível. Quando houver vínculo profissional, deve distinguir:
+### Aplicação em refeição e intenção (#922)
 
-- dados fornecidos pelo paciente;
-- conteúdo criado pelo profissional;
-- sugestões da IA;
-- histórico de vínculo, consentimento e revogação;
-- foto original e derivados visuais associados, com identificação do tipo de artefato.
+Cada capacidade possui opt-in próprio de fallback. Habilitar fallback em `MEAL_TEXT` não habilita `MEAL_VISION` nem `WHATSAPP_INTENT`. Resultado funcional, inclusive `items: []`, não gera segundo envio. Respostas nativas `raw` permanecem dentro da camada `_core`; serviços de refeição e WhatsApp recebem somente texto/identificador e usage numérico sanitizado. `FOOD_CLASSIFICATION` não envia dados externamente nesta fase.
 
-## Exclusão
+### Aplicação em pergunta, pesquisa nutricional e embedding (#923)
 
-A exclusão deve remover ou anonimizar:
-
-- conta;
-- perfil;
-- refeições e itens;
-- fotos, áudios e derivados visuais;
-- pesos, exercícios e metas;
-- integrações e tokens;
-- mensagens e contexto conversacional quando aplicável;
-- vínculos e acessos futuros.
-
-Históricos profissionais que precisem ser preservados por obrigação legal ou contratual devem ser separados, minimizados e documentados. O vínculo revogado não pode continuar autorizando acesso operacional.
-
-## Retenção
-
-- Definir prazo por categoria.
-- Evitar retenção indefinida de mídia.
-- Expurgar logs operacionais em prazo curto.
-- Manter auditoria profissional somente pelo período necessário.
-- Documentar exceções regulatórias ou contratuais.
-- O derivado de imagem não herda permanência adicional: segue o prazo da mídia vinculada e deve ser removido sem afetar a integridade do original já excluído ou exportado.
-
-## Checklist para novas features
-
-- Qual dado é coletado?
-- É necessário?
-- Quem pode acessar?
-- Há vínculo e consentimento quando o acesso é profissional?
-- O paciente pode revogar?
-- O dado distingue paciente, profissional e IA?
-- O dado será enviado a terceiro?
-- A mudança de provider ou modo pode criar novo envio da foto?
-- Existe alternativa local que reduza compartilhamento?
-- Por quanto tempo será mantido?
-- Entra em exportação?
-- Entra em exclusão?
-- Pode aparecer em logs?
+O mesmo isolamento por capacidade se aplica a `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`: habilitar fallback em uma delas não habilita as demais. `QUESTION` e `NUTRITION_SEARCH` recebem respostas via `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK antes de entregar dados ao domínio (assistente de perguntas do WhatsApp e busca nutricional do catálogo). `EMBEDDING` preserva `text-embedding-3-small` da OpenAI como default; como Gemini não anuncia a operação `embeddings`, cross-provider fallback para `EMBEDDING` fica indisponível hoje mesmo com opt-in explícito, sem exigir bloqueio manual adicional.

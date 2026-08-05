@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { storagePut } from "../storage";
+import { decodeStrictBase64, StrictBase64Error } from "./imageBase64";
 import type {
   AiProvider,
   AiProviderImageGenerationRequest,
@@ -137,32 +138,18 @@ function normalizeBase64(
   label: string,
   maxBytes: number,
 ): { compact: string; buffer: Buffer } {
-  const compact = value.replace(/\s+/gu, "");
-  if (!compact) throw invalidSource(`${label} is empty`);
-  if (!/^[A-Za-z0-9+/]*={0,2}$/u.test(compact)) {
-    throw invalidSource(`${label} is malformed`);
+  try {
+    return decodeStrictBase64(value, maxBytes);
+  } catch (error) {
+    if (error instanceof StrictBase64Error) {
+      if (error.code === "empty") throw invalidSource(`${label} is empty`);
+      if (error.code === "too_large") {
+        throw invalidSource(`${label} exceeds the size limit`);
+      }
+      throw invalidSource(`${label} is malformed`);
+    }
+    throw error;
   }
-
-  const paddingLength = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
-  const dataLength = compact.length - paddingLength;
-  const remainder = dataLength % 4;
-  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
-  if (
-    remainder === 1
-    || (paddingLength > 0
-      && (compact.length % 4 !== 0 || paddingLength !== expectedPadding))
-  ) {
-    throw invalidSource(`${label} is malformed`);
-  }
-
-  const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
-  const buffer = Buffer.from(padded, "base64");
-  const canonical = buffer.toString("base64").replace(/=+$/u, "");
-  if (!buffer.length || canonical !== compact.replace(/=+$/u, "")) {
-    throw invalidSource(`${label} is malformed`);
-  }
-  if (buffer.length > maxBytes) throw invalidSource(`${label} exceeds the size limit`);
-  return { compact, buffer };
 }
 
 function normalizeSourceImages(images: ImageAnnotationSource[]): ImageAnnotationSource[] {

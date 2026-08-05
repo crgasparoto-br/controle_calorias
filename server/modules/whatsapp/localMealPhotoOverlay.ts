@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { decodeStrictBase64, StrictBase64Error } from "../../_core/imageBase64";
 import { storagePut } from "../../storage";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
@@ -57,6 +58,8 @@ type OverlayLayout = {
   cards: OverlayCard[];
   titleSize: number;
   bodySize: number;
+  contentInset: number;
+  contentWidth: number;
 };
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
@@ -80,10 +83,59 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
-function truncateText(value: string, maxLength: number) {
-  const normalized = value.replace(/\s+/gu, " ").trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+function normalizeText(value: string) {
+  return value.replace(/\s+/gu, " ").trim();
+}
+
+function glyphWidthFactor(character: string) {
+  if (/\s/u.test(character)) return 0.34;
+  if (/[ilI1.,:;|'`]/u.test(character)) return 0.32;
+  if (/[MW@#%&]/u.test(character)) return 0.9;
+  if (/[^\u0000-\u00ff]/u.test(character)) return 0.78;
+  return 0.58;
+}
+
+function estimateTextWidth(value: string, fontSize: number, fontWeight = 400) {
+  const weightFactor = fontWeight >= 700 ? 1.06 : 1;
+  return Array.from(value).reduce(
+    (total, character) => total + glyphWidthFactor(character) * fontSize * weightFactor,
+    0,
+  );
+}
+
+export function fitTextToWidth(
+  value: string,
+  maxWidth: number,
+  fontSize: number,
+  fontWeight = 400,
+) {
+  const normalized = normalizeText(value);
+  if (!normalized || maxWidth <= 0) return "";
+  if (estimateTextWidth(normalized, fontSize, fontWeight) <= maxWidth) {
+    return normalized;
+  }
+
+  const characters = Array.from(normalized);
+  const ellipsis = "…";
+  if (estimateTextWidth(ellipsis, fontSize, fontWeight) > maxWidth) return "";
+
+  let low = 0;
+  let high = characters.length;
+  let best = ellipsis;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const prefix = characters.slice(0, middle).join("").trimEnd();
+    const candidate = `${prefix}${ellipsis}`;
+    if (estimateTextWidth(candidate, fontSize, fontWeight) <= maxWidth) {
+      best = candidate;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return best;
 }
 
 function decodeSourceImage(image: LocalMealPhotoOverlayInput["image"]): Buffer {
@@ -92,42 +144,36 @@ function decodeSourceImage(image: LocalMealPhotoOverlayInput["image"]): Buffer {
     throw new Error("unsupported_image_mime_type");
   }
 
-  const compact = image.b64Json.replace(/\s+/gu, "");
-  if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/u.test(compact)) {
-    throw new Error("invalid_image_base64");
+  try {
+    return decodeStrictBase64(image.b64Json, MAX_SOURCE_BYTES).buffer;
+  } catch (error) {
+    if (error instanceof StrictBase64Error) {
+      throw new Error(
+        error.code === "too_large" ? "image_too_large" : "invalid_image_base64",
+      );
+    }
+    throw error;
   }
-  const paddingLength = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
-  const dataLength = compact.length - paddingLength;
-  const remainder = dataLength % 4;
-  const expectedPadding = remainder === 0 ? 0 : 4 - remainder;
-  if (
-    remainder === 1
-    || (paddingLength > 0
-      && (compact.length % 4 !== 0 || paddingLength !== expectedPadding))
-  ) {
-    throw new Error("invalid_image_base64");
-  }
-
-  const padded = compact.padEnd(Math.ceil(compact.length / 4) * 4, "=");
-  const decoded = Buffer.from(padded, "base64");
-  const canonical = decoded.toString("base64").replace(/=+$/u, "");
-  if (!decoded.length || canonical !== compact.replace(/=+$/u, "")) {
-    throw new Error("invalid_image_base64");
-  }
-  if (decoded.length > MAX_SOURCE_BYTES) throw new Error("image_too_large");
-  return decoded;
 }
 
 function buildCards(
   processed: MealProcessingResult,
   maxCards: number,
-  maxTitleChars: number,
+  contentWidth: number,
+  titleSize: number,
+  bodySize: number,
 ): OverlayCard[] {
   return processed.items.slice(0, maxCards).map((item) => ({
-    title: truncateText(item.foodName || "Alimento identificado", maxTitleChars),
-    line: truncateText(
+    title: fitTextToWidth(
+      item.foodName || "Alimento identificado",
+      contentWidth,
+      titleSize,
+      700,
+    ),
+    line: fitTextToWidth(
       `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`,
-      maxTitleChars + 18,
+      contentWidth,
+      bodySize,
     ),
   }));
 }
@@ -161,7 +207,14 @@ export function buildLocalOverlayLayout(
     ? 0
     : Math.max(0, Math.floor((availableForCards + cardGap) / (cardHeight + cardGap)));
   const maxCards = Math.min(4, maxCardsByHeight);
-  const maxTitleChars = clamp(Math.floor(panelWidth / (compact ? 9 : 12)), 12, 38);
+  const titleSize = verySmall
+    ? clamp(Math.round(width * 0.065), 10, 16)
+    : clamp(Math.round(width * 0.035), 18, 34);
+  const bodySize = verySmall
+    ? clamp(Math.round(width * 0.047), 8, 12)
+    : clamp(Math.round(width * 0.025), 14, 24);
+  const contentInset = clamp(Math.round(panelWidth * 0.025), 6, 20);
+  const contentWidth = Math.max(1, panelWidth - contentInset * 2);
 
   return {
     compact,
@@ -172,13 +225,11 @@ export function buildLocalOverlayLayout(
     headerHeight,
     cardHeight,
     cardGap,
-    cards: buildCards(processed, maxCards, maxTitleChars),
-    titleSize: verySmall
-      ? clamp(Math.round(width * 0.065), 12, 18)
-      : clamp(Math.round(width * 0.035), 18, 34),
-    bodySize: verySmall
-      ? clamp(Math.round(width * 0.047), 10, 14)
-      : clamp(Math.round(width * 0.025), 14, 24),
+    cards: buildCards(processed, maxCards, contentWidth, titleSize, bodySize),
+    titleSize,
+    bodySize,
+    contentInset,
+    contentWidth,
   };
 }
 
@@ -188,18 +239,33 @@ function renderCard(
   layout: OverlayLayout,
   height: number,
 ) {
-  const { panelX, panelWidth, margin, cardHeight, cardGap, titleSize, bodySize } = layout;
+  const {
+    panelX,
+    panelWidth,
+    margin,
+    cardHeight,
+    cardGap,
+    titleSize,
+    bodySize,
+    contentInset,
+    contentWidth,
+  } = layout;
   const y = height - margin - (cardHeight + cardGap) * (index + 1) + cardGap;
-  const inset = clamp(Math.round(panelWidth * 0.025), 8, 20);
   const titleY = y + clamp(Math.round(cardHeight * 0.39), 20, 38);
   const bodyY = y + clamp(Math.round(cardHeight * 0.75), 34, 70);
+  const clipId = `card-content-${index}`;
 
   return `
     <g>
+      <clipPath id="${clipId}">
+        <rect x="${panelX + contentInset}" y="${y}" width="${contentWidth}" height="${cardHeight}" />
+      </clipPath>
       <rect x="${panelX}" y="${y}" width="${panelWidth}" height="${cardHeight}" rx="${layout.compact ? 10 : 16}" fill="rgba(6,78,59,0.84)" />
       <rect x="${panelX + 1}" y="${y + 1}" width="${Math.max(0, panelWidth - 2)}" height="${Math.max(0, cardHeight - 2)}" rx="${layout.compact ? 9 : 15}" fill="none" stroke="rgba(209,250,229,0.78)" stroke-width="2" />
-      <text x="${panelX + inset}" y="${titleY}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="700">${escapeXml(card.title)}</text>
-      <text x="${panelX + inset}" y="${bodyY}" fill="#d1fae5" font-family="Arial, Helvetica, sans-serif" font-size="${bodySize}">${escapeXml(card.line)}</text>
+      <g clip-path="url(#${clipId})">
+        <text x="${panelX + contentInset}" y="${titleY}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="700">${escapeXml(card.title)}</text>
+        <text x="${panelX + contentInset}" y="${bodyY}" fill="#d1fae5" font-family="Arial, Helvetica, sans-serif" font-size="${bodySize}">${escapeXml(card.line)}</text>
+      </g>
     </g>`;
 }
 
@@ -209,26 +275,39 @@ export function buildLocalOverlaySvg(
   height: number,
 ) {
   const layout = buildLocalOverlayLayout(processed, width, height);
-  const title = truncateText(processed.detectedMealLabel || "Refeição", 36);
-  const total = truncateText(
-    `Total ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
-    layout.compact ? 54 : 78,
+  const title = fitTextToWidth(
+    processed.detectedMealLabel || "Refeição",
+    layout.contentWidth,
+    layout.titleSize,
+    700,
   );
-  const inset = clamp(Math.round(layout.panelWidth * 0.025), 8, 20);
+  const total = fitTextToWidth(
+    `Total ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
+    layout.contentWidth,
+    layout.bodySize,
+  );
   const titleY = layout.headerY + clamp(Math.round(layout.headerHeight * 0.42), 18, 42);
   const bodyY = layout.headerY + clamp(Math.round(layout.headerHeight * 0.78), 31, 76);
-  const itemFallback = processed.items.length
-    ? ""
-    : `<text x="${layout.panelX + inset}" y="${Math.min(height - layout.margin, bodyY + layout.bodySize + 5)}" fill="#bbf7d0" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(9, layout.bodySize - 2)}">Sem itens detalhados para exibir</text>`;
+  const secondaryText = processed.items.length
+    ? total
+    : fitTextToWidth(
+      "Sem itens detalhados para exibir",
+      layout.contentWidth,
+      layout.bodySize,
+    );
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <clipPath id="header-content-clip">
+        <rect x="${layout.panelX + layout.contentInset}" y="${layout.headerY}" width="${layout.contentWidth}" height="${layout.headerHeight}" />
+      </clipPath>
       <rect x="0" y="0" width="${width}" height="${height}" fill="rgba(0,0,0,0)" />
       <rect x="${layout.panelX}" y="${layout.headerY}" width="${layout.panelWidth}" height="${layout.headerHeight}" rx="${layout.compact ? 10 : 16}" fill="rgba(15,23,42,0.72)" />
       <rect x="${layout.panelX + 1}" y="${layout.headerY + 1}" width="${Math.max(0, layout.panelWidth - 2)}" height="${Math.max(0, layout.headerHeight - 2)}" rx="${layout.compact ? 9 : 15}" fill="none" stroke="rgba(226,232,240,0.62)" stroke-width="2" />
-      <text x="${layout.panelX + inset}" y="${titleY}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleSize}" font-weight="700">${escapeXml(title)}</text>
-      <text x="${layout.panelX + inset}" y="${bodyY}" fill="#d1fae5" font-family="Arial, Helvetica, sans-serif" font-size="${layout.bodySize}">${escapeXml(total)}</text>
-      ${itemFallback}
+      <g clip-path="url(#header-content-clip)">
+        <text x="${layout.panelX + layout.contentInset}" y="${titleY}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleSize}" font-weight="700">${escapeXml(title)}</text>
+        <text x="${layout.panelX + layout.contentInset}" y="${bodyY}" fill="#d1fae5" font-family="Arial, Helvetica, sans-serif" font-size="${layout.bodySize}">${escapeXml(secondaryText)}</text>
+      </g>
       ${layout.cards.map((card, index) => renderCard(card, index, layout, height)).join("\n")}
     </svg>`, "utf8");
 }
