@@ -9,7 +9,21 @@ import type { AiProviderFactoryMap } from "../providerResolver";
 import { AiOperationalError } from "../policyExecutor";
 
 function provider(id: string): AiProvider {
-  return { id } as unknown as AiProvider;
+  return {
+    id,
+    createTextResponse: vi.fn(async () => ({
+      id: `${id}-response`,
+      outputText: "ok",
+      raw: { payload: "must-not-cross" },
+      usage: {
+        inputTokens: 1,
+        raw: { request: "must-not-cross" },
+      },
+    })),
+    createEmbeddings: vi.fn(),
+    createAudioTranscription: vi.fn(),
+    createImageGeneration: vi.fn(),
+  } as unknown as AiProvider;
 }
 
 function factories(): {
@@ -51,14 +65,14 @@ function config(overrides: Partial<ResolvedCapabilityConfig> = {}): ResolvedCapa
 }
 
 describe("resolved capability executor", () => {
-  it("binds the resolved primary provider and model to the operation", async () => {
+  it("binds the resolved primary provider and model through the normalized boundary", async () => {
     const adapters = factories();
     const operation = vi.fn(async ({
       provider: adapter,
       providerId,
       model,
     }: ResolvedCapabilityAttemptContext) => ({
-      adapter,
+      response: await adapter.createTextResponse({ model, input: "test" }),
       providerId,
       model,
     }));
@@ -68,10 +82,18 @@ describe("resolved capability executor", () => {
     });
 
     expect(result.value).toEqual({
-      adapter: adapters.openai,
+      response: {
+        id: "openai-response",
+        outputText: "ok",
+        usage: { inputTokens: 1 },
+      },
       providerId: "openai",
       model: "gpt-primary",
     });
+    expect(JSON.stringify(result.value)).not.toContain("must-not-cross");
+    expect(JSON.stringify(result.value)).not.toContain('"raw"');
+    expect(adapters.openai.createTextResponse).toHaveBeenCalledTimes(1);
+    expect(adapters.gemini.createTextResponse).not.toHaveBeenCalled();
     expect(adapters.map.openai).toHaveBeenCalledTimes(1);
     expect(adapters.map.gemini).not.toHaveBeenCalled();
   });
