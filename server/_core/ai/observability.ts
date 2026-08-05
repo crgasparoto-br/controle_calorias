@@ -16,6 +16,7 @@ import {
   AI_PRICING_CATALOG_EFFECTIVE_DATE,
   AI_PRICING_CATALOG_VERSION,
   estimateAiCallCostUsd,
+  resolveAiBillableTools,
   sumAiExecutionCostUsd,
   type AiBillableTool,
 } from "./pricingCatalog";
@@ -294,7 +295,10 @@ export function buildAiInferenceEvents<T>(input: {
       : config.primary;
     const value = "value" in completion.result ? completion.result.value : undefined;
     const usage = completion.providerCall?.usage ?? usageFrom(value);
-    const tools = completion.providerCall?.tools ?? toolsFrom(value);
+    const observedTools = completion.providerCall?.tools ?? toolsFrom(value);
+    const tools = target
+      ? resolveAiBillableTools({ provider: target.provider, model: target.model, tools: observedTools })
+      : observedTools;
     const estimatedCostUsd = target
       ? estimateAiCallCostUsd({ provider: target.provider, model: target.model, usage, tools })
       : null;

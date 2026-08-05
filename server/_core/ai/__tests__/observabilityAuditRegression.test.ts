@@ -25,14 +25,6 @@ function config(overrides: Partial<ResolvedCapabilityConfig> = {}): ResolvedCapa
   };
 }
 
-function factories(provider: AiProvider) {
-  return {
-    openai: () => provider,
-    "openai-compatible": () => provider,
-    gemini: () => provider,
-  } as const;
-}
-
 function emptyProvider(): AiProvider {
   return {
     createTextResponse: vi.fn(),
@@ -42,42 +34,53 @@ function emptyProvider(): AiProvider {
   } as unknown as AiProvider;
 }
 
+function factories(provider: AiProvider) {
+  return {
+    openai: () => provider,
+    "openai-compatible": () => provider,
+    gemini: () => provider,
+  } as const;
+}
+
+async function collectEvent(
+  provider: AiProvider,
+  resolved: ResolvedCapabilityConfig,
+  operation: Parameters<typeof executeResolvedCapability>[1],
+): Promise<AiInferenceEvent> {
+  const events: AiInferenceEvent[] = [];
+  await executeResolvedCapability(resolved, operation, {
+    providerFactories: factories(provider),
+    observabilitySink: event => events.push(event),
+  });
+  return events[0];
+}
+
 describe("issue #926 audit regressions", () => {
-  it("captures usage and tools before the domain projection discards provider metadata", async () => {
-    const events: AiInferenceEvent[] = [];
+  it("captures usage and executed OpenAI tool units before domain projection", async () => {
     const provider = {
       ...emptyProvider(),
       createTextResponse: vi.fn(async () => ({
         id: "response-1",
         outputText: '{"items":[]}',
         usage: { inputTokens: 1_000, outputTokens: 100 },
-        webSearch: { executed: true, sources: [] },
+        webSearch: { executed: true, searchCount: 1, sources: [] },
         raw: { private: "discarded" },
       })),
     } as unknown as AiProvider;
 
-    const result = await executeResolvedCapability(
-      config(),
-      async ({ provider: normalizedProvider, model }) => {
-        const response = await normalizedProvider.createTextResponse({ model, input: "synthetic" });
-        return { items: JSON.parse(response.outputText).items as unknown[] };
-      },
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
-    );
+    const event = await collectEvent(provider, config(), async ({ provider: normalized, model }) => {
+      const response = await normalized.createTextResponse({ model, input: "synthetic" });
+      return { items: JSON.parse(response.outputText).items as unknown[] };
+    });
 
-    expect(result.value).toEqual({ items: [] });
-    expect(events[0]).toMatchObject({
+    expect(event).toMatchObject({
       usage: { inputTokens: 1_000, outputTokens: 100 },
       tools: [{ tool: "web_search", executed: true, billableUnits: 1 }],
       estimatedCostUsd: 0.01056,
     });
   });
 
-  it("adds Gemini thinking tokens to the estimated output cost", async () => {
-    const events: AiInferenceEvent[] = [];
+  it("adds Gemini thinking tokens to billable output", async () => {
     const provider = {
       ...emptyProvider(),
       createTextResponse: vi.fn(async () => ({
@@ -93,24 +96,19 @@ describe("issue #926 audit regressions", () => {
       })),
     } as unknown as AiProvider;
 
-    await executeResolvedCapability(
+    const event = await collectEvent(
+      provider,
       config({ primary: { provider: "gemini", model: "gemini-2.5-flash" } }),
-      async ({ provider: normalizedProvider, model }) =>
-        normalizedProvider.createTextResponse({ model, input: "synthetic" }),
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
+      ({ provider: normalized, model }) => normalized.createTextResponse({ model, input: "synthetic" }),
     );
 
-    expect(events[0]).toMatchObject({
+    expect(event).toMatchObject({
       usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 80 },
       estimatedCostUsd: 0.00028,
     });
   });
 
-  it("prices a Gemini grounded prompt without inferring internal query counts", async () => {
-    const events: AiInferenceEvent[] = [];
+  it("materializes one Gemini grounded-prompt unit without inferring query counts", async () => {
     const provider = {
       ...emptyProvider(),
       createTextResponse: vi.fn(async () => ({
@@ -122,24 +120,19 @@ describe("issue #926 audit regressions", () => {
       })),
     } as unknown as AiProvider;
 
-    await executeResolvedCapability(
+    const event = await collectEvent(
+      provider,
       config({ primary: { provider: "gemini", model: "gemini-2.5-flash" } }),
-      async ({ provider: normalizedProvider, model }) =>
-        normalizedProvider.createTextResponse({ model, input: "synthetic" }),
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
+      ({ provider: normalized, model }) => normalized.createTextResponse({ model, input: "synthetic" }),
     );
 
-    expect(events[0]).toMatchObject({
+    expect(event).toMatchObject({
       tools: [{ tool: "web_search", executed: true, billableUnits: 1 }],
       estimatedCostUsd: 0.035,
     });
   });
 
   it("keeps GPT Image usage through the boundary and prices text, image input and output", async () => {
-    const events: AiInferenceEvent[] = [];
     const provider = {
       ...emptyProvider(),
       createImageGeneration: vi.fn(async () => ({
@@ -157,20 +150,17 @@ describe("issue #926 audit regressions", () => {
       })),
     } as unknown as AiProvider;
 
-    await executeResolvedCapability(
+    const event = await collectEvent(
+      provider,
       config({
         capability: "IMAGE_ANNOTATION",
         primary: { provider: "openai", model: "gpt-image-1" },
       }),
-      async ({ provider: normalizedProvider, model }) =>
-        normalizedProvider.createImageGeneration({ model, prompt: "synthetic" }),
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
+      ({ provider: normalized, model }) =>
+        normalized.createImageGeneration({ model, prompt: "synthetic" }),
     );
 
-    expect(events[0]).toMatchObject({
+    expect(event).toMatchObject({
       usage: {
         inputTokens: 120,
         inputImageTokens: 100,
@@ -191,22 +181,18 @@ describe("issue #926 audit regressions", () => {
     }));
     const provider = { ...emptyProvider(), createTextResponse } as unknown as AiProvider;
 
-    await expect(executeResolvedCapability(
-      config(),
-      async ({ provider: normalizedProvider, model }) => {
-        await normalizedProvider.createTextResponse({ model, input: "first" });
-        try {
-          await normalizedProvider.createTextResponse({ model, input: "second" });
-        } catch {
-          // The executor must still fail the attempt.
-        }
-        return { outputText: "ok" };
-      },
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
-    )).rejects.toMatchObject({ code: "incompatible_operation" });
+    await expect(executeResolvedCapability(config(), async ({ provider: normalized, model }) => {
+      await normalized.createTextResponse({ model, input: "first" });
+      try {
+        await normalized.createTextResponse({ model, input: "second" });
+      } catch {
+        // The executor must still fail the attempt.
+      }
+      return { outputText: "ok" };
+    }, {
+      providerFactories: factories(provider),
+      observabilitySink: event => events.push(event),
+    })).rejects.toMatchObject({ code: "incompatible_operation" });
 
     expect(createTextResponse).toHaveBeenCalledTimes(1);
     expect(events[0]).toMatchObject({
@@ -215,27 +201,23 @@ describe("issue #926 audit regressions", () => {
     });
   });
 
-  it("keeps safety blocks ineligible when fallback is configured", async () => {
+  it("keeps safety blocks ineligible for configured fallback", async () => {
     const events: AiInferenceEvent[] = [];
     const provider = emptyProvider();
-    await expect(executeResolvedCapability(
-      config({
-        fallback: {
-          requested: true,
-          effectivelyEnabled: true,
-          provider: "gemini",
-          model: "gemini-2.5-flash",
-          crossProviderEnabled: true,
-        },
-      }),
-      async () => {
-        throw new AiNonRetryableError("blocked", undefined, "safety_block");
+    await expect(executeResolvedCapability(config({
+      fallback: {
+        requested: true,
+        effectivelyEnabled: true,
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        crossProviderEnabled: true,
       },
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
-    )).rejects.toThrow("blocked");
+    }), async () => {
+      throw new AiNonRetryableError("blocked", undefined, "safety_block");
+    }, {
+      providerFactories: factories(provider),
+      observabilitySink: event => events.push(event),
+    })).rejects.toThrow("blocked");
 
     expect(events[0]).toMatchObject({
       outcome: "safety_block",
@@ -243,7 +225,7 @@ describe("issue #926 audit regressions", () => {
     });
   });
 
-  it("marks embedding degradation only when the external execution ends in failure", async () => {
+  it("marks embedding degradation only when external execution fails", async () => {
     const successEvents: AiInferenceEvent[] = [];
     const failureEvents: AiInferenceEvent[] = [];
     const provider = emptyProvider();
@@ -275,18 +257,12 @@ describe("issue #926 audit regressions", () => {
     });
   });
 
-  it("uses the canonical WhatsApp intent context without callsite-specific options", async () => {
-    const events: AiInferenceEvent[] = [];
-    const provider = emptyProvider();
-    await executeResolvedCapability(
+  it("uses the canonical WhatsApp intent context without callsite options", async () => {
+    const event = await collectEvent(
+      emptyProvider(),
       config({ capability: "WHATSAPP_INTENT" }),
       async () => ({ intent: "unknown" }),
-      {
-        providerFactories: factories(provider),
-        observabilitySink: event => events.push(event),
-      },
     );
-
-    expect(events[0]).toMatchObject({ origin: "whatsapp", flow: "whatsapp_intent" });
+    expect(event).toMatchObject({ origin: "whatsapp", flow: "whatsapp_intent" });
   });
 });

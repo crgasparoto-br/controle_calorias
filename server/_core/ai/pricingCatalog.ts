@@ -191,6 +191,20 @@ export function sumAiExecutionCostUsd(
   return roundUsd(costs.reduce<number>((total, cost) => total + (cost ?? 0), 0));
 }
 
+export function resolveAiBillableTools(input: {
+  provider: AiProviderId;
+  model: string;
+  tools?: readonly AiBillableTool[];
+}): AiBillableTool[] {
+  const price = findAiModelPrice(input.provider, input.model);
+  return (input.tools ?? []).map(tool => {
+    if (!tool.executed || validUnit(tool.billableUnits)) return { ...tool };
+    return price?.rates.webSearch?.unit === "grounded_prompt"
+      ? { ...tool, billableUnits: 1 }
+      : { ...tool };
+  });
+}
+
 export function estimateAiCallCostUsd(input: {
   provider: AiProviderId;
   model: string;
@@ -279,16 +293,10 @@ export function estimateAiCallCostUsd(input: {
     }
   }
 
-  for (const tool of input.tools ?? []) {
+  for (const tool of resolveAiBillableTools(input)) {
     if (!tool.executed) continue;
-    if (price.rates.webSearch === undefined) return null;
-    const billableUnits = validUnit(tool.billableUnits)
-      ? tool.billableUnits
-      : price.rates.webSearch.unit === "grounded_prompt"
-        ? 1
-        : undefined;
-    if (billableUnits === undefined) return null;
-    cost += billableUnits * price.rates.webSearch.priceUsd;
+    if (price.rates.webSearch === undefined || !validUnit(tool.billableUnits)) return null;
+    cost += tool.billableUnits * price.rates.webSearch.priceUsd;
     metered = true;
   }
 
