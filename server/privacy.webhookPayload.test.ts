@@ -76,7 +76,7 @@ describe("logInferenceEvent redige payload de webhook sensível de ponta a ponta
       },
       degradation: "none",
       correlation: {
-        request_id: "req_1234567890",
+        request_id: "req_alpha_1234",
         route: "whatsapp_question_assistant",
         tenant: "tenant_42",
         trace: "person@example.com",
