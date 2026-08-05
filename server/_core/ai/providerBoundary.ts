@@ -62,8 +62,10 @@ function sanitizedFailure(error: unknown): AiOperationalError | AiNonRetryableEr
     : new AiNonRetryableError(message, undefined, classified.code);
 }
 
-function omitRaw<T extends Record<string, unknown>>(value: T): Omit<T, "raw"> {
-  const { raw: _raw, ...rest } = value;
+function omitProviderMetadata<T extends Record<string, unknown>>(
+  value: T,
+): Omit<T, "raw" | "usage"> {
+  const { raw: _raw, usage: _usage, ...rest } = value;
   return rest;
 }
 
@@ -77,11 +79,10 @@ export function createNormalizedProviderBoundary(provider: AiProvider): AiProvid
     async createTextResponse(request, options) {
       try {
         const response = await provider.createTextResponse(request, options);
+        const usage = normalizeProviderUsage(response.usage);
         return {
-          ...omitRaw(response as unknown as Record<string, unknown>),
-          ...(normalizeProviderUsage(response.usage)
-            ? { usage: normalizeProviderUsage(response.usage) }
-            : {}),
+          ...omitProviderMetadata(response as unknown as Record<string, unknown>),
+          ...(usage ? { usage } : {}),
         } as unknown as AiProviderTextResponse;
       } catch (error) {
         throw sanitizedFailure(error);
@@ -90,11 +91,10 @@ export function createNormalizedProviderBoundary(provider: AiProvider): AiProvid
     async createEmbeddings(request, options) {
       try {
         const response = await provider.createEmbeddings(request, options);
+        const usage = normalizeProviderUsage(response.usage);
         return {
-          ...omitRaw(response as unknown as Record<string, unknown>),
-          ...(normalizeProviderUsage(response.usage)
-            ? { usage: normalizeProviderUsage(response.usage) }
-            : {}),
+          ...omitProviderMetadata(response as unknown as Record<string, unknown>),
+          ...(usage ? { usage } : {}),
         } as unknown as AiProviderEmbeddingResponse;
       } catch (error) {
         throw sanitizedFailure(error);
@@ -108,7 +108,7 @@ export function createNormalizedProviderBoundary(provider: AiProvider): AiProvid
           { audioSeconds: response.duration },
         );
         return {
-          ...omitRaw(response as unknown as Record<string, unknown>),
+          ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderAudioTranscriptionResponse;
       } catch (error) {
@@ -123,7 +123,7 @@ export function createNormalizedProviderBoundary(provider: AiProvider): AiProvid
           { generatedImages: 1 },
         );
         return {
-          ...omitRaw(response as unknown as Record<string, unknown>),
+          ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderImageGenerationResponse;
       } catch (error) {
