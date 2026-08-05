@@ -18,7 +18,7 @@ const activeImageRoutingRequests = new WeakSet<object>();
  * the structured annotation router before the legacy non-image handler.
  * Re-entry from that router falls through to the legacy handler exactly once.
  */
-export async function handleWhatsAppWebhook(req: Request, res: Response) {
+export async function handleWhatsAppWebhook(req: Request, res: Response): Promise<unknown> {
   const hasImage = extractWhatsAppWebhookMessages(req.body)
     .some(message => Boolean(message.image?.id));
 
