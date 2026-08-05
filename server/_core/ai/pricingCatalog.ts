@@ -177,7 +177,7 @@ export function sumAiExecutionCostUsd(
   costs: readonly (number | null)[],
 ): number | null {
   if (!costs.length || costs.some(cost => cost === null)) return null;
-  return roundUsd(costs.reduce((total, cost) => total + (cost ?? 0), 0));
+  return roundUsd(costs.reduce<number>((total, cost) => total + (cost ?? 0), 0));
 }
 
 export function estimateAiCallCostUsd(input: {
