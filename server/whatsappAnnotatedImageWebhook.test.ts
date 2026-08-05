@@ -591,7 +591,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       origin: "whatsapp",
       status: "warning",
       eventType: "whatsapp.annotated_image_skipped",
-      detail: expect.stringContaining("provedor indisponível"),
+      detail: expect.stringContaining("foto original e a refeição foram preservadas"),
     }));
   });
 
