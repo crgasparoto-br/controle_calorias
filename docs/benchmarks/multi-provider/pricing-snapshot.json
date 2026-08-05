@@ -1,0 +1,21 @@
+{
+  "version": "2026-08-05.4",
+  "effectiveDate": "2026-08-05",
+  "estimatedNotBilling": true,
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-transcribe-2025-12-15",
+      "aliases": ["gpt-4o-mini-transcribe"],
+      "rates": {
+        "inputPerMillionTokensUsd": 1.25,
+        "outputPerMillionTokensUsd": 5
+      },
+      "source": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe"
+    }
+  ],
+  "notes": [
+    "This snapshot is used only by the issue #927 benchmark report.",
+    "It does not change runtime provider selection or production billing."
+  ]
+}
