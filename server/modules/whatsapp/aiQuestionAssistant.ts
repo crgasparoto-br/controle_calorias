@@ -1,5 +1,6 @@
 import {
   executeResolvedCapability,
+  observeUnavailableResolvedCapability,
   type ResolvedCapabilityAttemptContext,
 } from "../../_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";
@@ -299,6 +300,12 @@ async function answerWithAi(
         },
         { signal: attempt.signal },
       ),
+    {
+      observability: {
+        origin: "whatsapp",
+        flow: "whatsapp_question",
+      },
+    },
   );
 
   return {
@@ -334,6 +341,10 @@ export async function executeWhatsappAiQuestionIntent(
 
   const policy = resolveCapabilityConfig("QUESTION");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    await observeUnavailableResolvedCapability(policy, {
+      origin: "whatsapp",
+      flow: "whatsapp_question",
+    });
     return {
       handled: true,
       action: "ai_question_unavailable",

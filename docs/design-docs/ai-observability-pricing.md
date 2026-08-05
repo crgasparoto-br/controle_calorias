@@ -4,7 +4,7 @@
 
 Toda execução feita por `executeResolvedCapability` emite um evento técnico normalizado por tentativa. O evento permite auditar capacidade, provider/modelo efetivos, retry, fallback, ferramentas, latência, resultado, usage e custo estimado sem persistir prompt, conteúdo, mídia, URL assinada, resposta, reasoning textual, erro bruto ou objeto nativo de SDK.
 
-A implementação reutiliza `logInferenceEvent` com `eventType=ai.inference_call`. Não cria tabela, migration, router ou fonte concorrente. O detalhe persistido é JSON limitado e versionado, sujeito à retenção e audiência dos logs técnicos existentes.
+A implementação reutiliza `logInferenceEvent` com `eventType=ai.inference_call`. Não cria tabela, migration, router ou fonte concorrente. O detalhe persistido é JSON versionado, sanitizado e válido, limitado a 4096 caracteres; o corte de 500 caracteres permanece exclusivo das mensagens livres. O evento segue a retenção e audiência dos logs técnicos existentes.
 
 ## Fronteira normalizada
 
@@ -12,8 +12,9 @@ A implementação reutiliza `logInferenceEvent` com `eventType=ai.inference_call
 
 - remove `raw` da resposta e de `usage` em runtime;
 - normaliza input, cache, output, reasoning, áudio, imagem e total quando o SDK os fornece;
+- captura usage e ferramenta executada imediatamente após o retorno do provider, antes de o domínio projetar ou descartar metadados;
 - converte exceções do SDK para a taxonomia comum sem preservar mensagem, payload ou causa nativa;
-- mantém uma tentativa configurada equivalente a no máximo uma chamada outbound.
+- mantém uma tentativa configurada equivalente a no máximo uma chamada outbound, bloqueando a segunda chamada antes de alcançar o adapter bruto.
 
 Os adapters legados podem continuar usando tipos internos com `raw`, mas esse conteúdo não atravessa a fronteira executável, não chega aos serviços de domínio e não entra em observabilidade.
 
@@ -28,8 +29,8 @@ Os adapters legados podem continuar usando tipos internos com `raw`, mas esse co
 - resultado normalizado: `success`, `timeout`, `rate_limit`, `external_error`, `safety_block`, `empty_output`, `invalid_json`, `invalid_payload` ou `invalid_configuration`;
 - usage numérico, ferramenta realmente executada e unidade faturável disponível;
 - custo estimado da tentativa e da execução em USD ou `null`, versão e data efetiva do catálogo;
-- política de fallback, incluindo same/cross-provider, elegibilidade, razão e contadores;
-- degradação local separada de fallback e correlação técnica sanitizada.
+- política de fallback, incluindo same/cross-provider, elegibilidade derivada da mesma taxonomia do executor, razão e contadores;
+- degradação local separada de fallback e correlação técnica sanitizada. Degradação só é marcada quando a execução externa termina em falha e o consumidor realmente segue por alternativa local.
 
 O hook roda após validação comum e semântica. Falha do sink é best effort e nunca altera retry, fallback ou o resultado funcional.
 
@@ -46,12 +47,14 @@ Regras:
 5. cache é subtraído do input comum e tarifado separadamente;
 6. áudio usa duração; imagem separa tokens de entrada de texto e imagem quando a tarifa diverge e usa tokens ou unidade de saída sem dupla contagem;
 7. ferramenta só é somada quando `executed=true` e há quantidade faturável;
-8. preço, modelo ou usage necessário ausente resulta em `null`; cache multimodal sem atribuição por modalidade também retorna `null`, em vez de presumir a tarifa mais barata.
+8. preço, modelo ou usage necessário ausente resulta em `null`, inclusive quando uma ferramenta foi executada; cache multimodal sem atribuição por modalidade também retorna `null`, em vez de presumir a tarifa mais barata.
 
 O custo total soma primário, retries e fallback efetivamente executados. Se qualquer tentativa não tiver dados suficientes, o total permanece `null`.
 
 ## Privacidade e operação
 
-Correlação aceita no máximo oito escalares limitados. Chaves relacionadas a prompt, conteúdo, texto, mensagem, transcrição, áudio, imagem, mídia, payload, erro, segredo, token, header, cookie ou URL são descartadas. Objetos e arrays arbitrários também são ignorados.
+Correlação aceita no máximo oito escalares limitados. Chaves relacionadas a prompt, conteúdo, texto, mensagem, transcrição, áudio, imagem, mídia, payload, erro, segredo, token, header, cookie ou URL são descartadas. Objetos e arrays arbitrários também são ignorados. Datas ISO, snapshots de modelo e versões de catálogo são identificadores técnicos permitidos; valores livres continuam sujeitos à redação de e-mail, telefone e bearer token.
+
+O contrato central define `origin` e `flow` por capacidade, e os consumidores podem sobrescrever esse contexto quando conhecem uma origem mais específica. Consumidores que detectam configuração indisponível antes da execução emitem evento de tentativa zero. Embeddings e anotação podem marcar degradação local apenas no encerramento externo malsucedido; retry ou fallback que recupera a execução mantém `degradation=none`.
 
 Consulta operacional: filtrar `eventType=ai.inference_call` e agrupar por `capability`, `outcome`, provider/modelo efetivo, `callRole`, `fallback.kind` e versão do catálogo. Antes de usar os dados em relatórios financeiros, validar volume, cardinalidade, ausência de conteúdo sensível e percentual de custos `null`.

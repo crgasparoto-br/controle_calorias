@@ -5,6 +5,7 @@ import type {
   AiProviderImageGenerationResponse,
   AiProviderTextResponse,
   AiProviderUsage,
+  AiWebSearchResult,
 } from "../aiProvider";
 import { classifyAiError, AiNonRetryableError, AiOperationalError } from "./policyExecutor";
 
@@ -17,6 +18,21 @@ export type AiNormalizedUsage = Omit<AiProviderUsage, "raw"> & {
   inputImageTokens?: number;
   outputImageTokens?: number;
   generatedImages?: number;
+};
+
+export type AiProviderCallObservation = {
+  usage?: AiNormalizedUsage;
+  tools: Array<{
+    tool: "web_search";
+    executed: boolean;
+    billableUnits?: number;
+  }>;
+};
+
+export type NormalizedProviderBoundaryOptions = {
+  onCallCompleted?: (observation: AiProviderCallObservation) => void;
+  onCallLimitExceeded?: () => void;
+  maxCalls?: number;
 };
 
 function finite(value: unknown): number | undefined {
@@ -69,63 +85,120 @@ function omitProviderMetadata<T extends Record<string, unknown>>(
   return rest;
 }
 
+function observedTools(webSearch: AiWebSearchResult | undefined): AiProviderCallObservation["tools"] {
+  if (!webSearch) return [];
+  return [{
+    tool: "web_search",
+    executed: webSearch.executed,
+    ...(typeof webSearch.searchCount === "number" && webSearch.searchCount >= 0
+      ? { billableUnits: webSearch.searchCount }
+      : {}),
+  }];
+}
+
+function notifyObservation(
+  options: NormalizedProviderBoundaryOptions,
+  observation: AiProviderCallObservation,
+): void {
+  try {
+    options.onCallCompleted?.(observation);
+  } catch {
+    // Metadata collection is best effort and must not alter provider behavior.
+  }
+}
+
 /**
  * Last internal boundary before capability/domain code. It normalizes billable
  * usage, removes SDK-native response objects and converts SDK exceptions into
  * the shared taxonomy without preserving raw causes or provider messages.
  */
-export function createNormalizedProviderBoundary(provider: AiProvider): AiProvider {
-  return {
-    async createTextResponse(request, options) {
+export function createNormalizedProviderBoundary(
+  provider: AiProvider,
+  boundaryOptions: NormalizedProviderBoundaryOptions = {},
+): AiProvider {
+  let startedCalls = 0;
+  const beginCall = (): void => {
+    startedCalls += 1;
+    if (boundaryOptions.maxCalls !== undefined && startedCalls > boundaryOptions.maxCalls) {
       try {
-        const response = await provider.createTextResponse(request, options);
+        boundaryOptions.onCallLimitExceeded?.();
+      } catch {
+        // Enforcement does not depend on the diagnostic callback.
+      }
+      throw new AiNonRetryableError(
+        "AI capability attempt performed more than one provider call.",
+        undefined,
+        "incompatible_operation",
+      );
+    }
+  };
+
+  return {
+    async createTextResponse(request, requestOptions) {
+      beginCall();
+      try {
+        const response = await provider.createTextResponse(request, requestOptions);
         const usage = normalizeProviderUsage(response.usage);
-        return {
+        const normalized = {
           ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderTextResponse;
+        notifyObservation(boundaryOptions, {
+          ...(usage ? { usage } : {}),
+          tools: observedTools(response.webSearch),
+        });
+        return normalized;
       } catch (error) {
         throw sanitizedFailure(error);
       }
     },
-    async createEmbeddings(request, options) {
+    async createEmbeddings(request, requestOptions) {
+      beginCall();
       try {
-        const response = await provider.createEmbeddings(request, options);
+        const response = await provider.createEmbeddings(request, requestOptions);
         const usage = normalizeProviderUsage(response.usage);
-        return {
+        const normalized = {
           ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderEmbeddingResponse;
+        notifyObservation(boundaryOptions, { ...(usage ? { usage } : {}), tools: [] });
+        return normalized;
       } catch (error) {
         throw sanitizedFailure(error);
       }
     },
-    async createAudioTranscription(request, options) {
+    async createAudioTranscription(request, requestOptions) {
+      beginCall();
       try {
-        const response = await provider.createAudioTranscription(request, options);
+        const response = await provider.createAudioTranscription(request, requestOptions);
         const usage = normalizeProviderUsage(
           (response as unknown as { usage?: AiProviderUsage }).usage,
           { audioSeconds: response.duration },
         );
-        return {
+        const normalized = {
           ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderAudioTranscriptionResponse;
+        notifyObservation(boundaryOptions, { ...(usage ? { usage } : {}), tools: [] });
+        return normalized;
       } catch (error) {
         throw sanitizedFailure(error);
       }
     },
-    async createImageGeneration(request, options) {
+    async createImageGeneration(request, requestOptions) {
+      beginCall();
       try {
-        const response = await provider.createImageGeneration(request, options);
+        const response = await provider.createImageGeneration(request, requestOptions);
         const usage = normalizeProviderUsage(
           (response as unknown as { usage?: AiProviderUsage }).usage,
           { generatedImages: 1 },
         );
-        return {
+        const normalized = {
           ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),
         } as unknown as AiProviderImageGenerationResponse;
+        notifyObservation(boundaryOptions, { ...(usage ? { usage } : {}), tools: [] });
+        return normalized;
       } catch (error) {
         throw sanitizedFailure(error);
       }

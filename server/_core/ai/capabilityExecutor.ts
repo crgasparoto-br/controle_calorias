@@ -14,10 +14,14 @@ import {
   type AiProviderFactoryMap,
 } from "./providerResolver";
 import type { AiProviderId } from "./supportMatrix";
-import { createNormalizedProviderBoundary } from "./providerBoundary";
+import {
+  createNormalizedProviderBoundary,
+  type AiProviderCallObservation,
+} from "./providerBoundary";
 import {
   buildAiInferenceEvents,
   emitAiInferenceEvents,
+  type AiObservedAttemptCompletion,
   type AiObservabilityContext,
   type AiObservabilitySink,
 } from "./observability";
@@ -93,22 +97,61 @@ export async function executeResolvedCapability<T>(
     onAttemptComplete,
     ...policyOptions
   } = options;
-  const attemptCompletions: AiAttemptCompletion<T>[] = [];
+  const attemptCompletions: AiObservedAttemptCompletion<T>[] = [];
+  const providerCalls = new Map<string, AiProviderCallObservation>();
   const executionStartedAt = performance.now();
+  let executionSucceeded = false;
   let primaryAdapter: AiProvider | null = null;
   let fallbackAdapter: AiProvider | null = null;
 
+  const executeAttemptOperation = async (
+    context: AiAttemptContext,
+    adapter: AiProvider,
+    providerId: AiProviderId,
+    model: string,
+  ): Promise<T> => {
+    const key = `${context.source}:${context.attempt}`;
+    let observation: AiProviderCallObservation | undefined;
+    let callLimitExceeded = false;
+    const normalizedProvider = createNormalizedProviderBoundary(adapter, {
+      maxCalls: 1,
+      onCallLimitExceeded: () => {
+        callLimitExceeded = true;
+      },
+      onCallCompleted: current => {
+        observation ??= current;
+      },
+    });
+
+    try {
+      const value = await operation({
+        ...context,
+        provider: normalizedProvider,
+        providerId,
+        model,
+      });
+      if (callLimitExceeded) {
+        throw new AiNonRetryableError(
+          "AI capability attempt performed more than one provider call.",
+          undefined,
+          "incompatible_operation",
+        );
+      }
+      return value;
+    } finally {
+      if (observation) providerCalls.set(key, observation);
+    }
+  };
+
   const primaryCall = async (context: AiAttemptContext): Promise<T> => {
     const target = requireTarget(config.primary, "primary");
-    primaryAdapter ??= createNormalizedProviderBoundary(
-      getAiProviderById(target.provider, providerFactories),
+    primaryAdapter ??= getAiProviderById(target.provider, providerFactories);
+    return executeAttemptOperation(
+      context,
+      primaryAdapter,
+      target.provider,
+      target.model,
     );
-    return operation({
-      ...context,
-      provider: primaryAdapter,
-      providerId: target.provider,
-      model: target.model,
-    });
   };
 
   const fallbackTarget = config.fallback.effectivelyEnabled
@@ -122,26 +165,30 @@ export async function executeResolvedCapability<T>(
 
   const fallbackCall = fallbackTarget
     ? async (context: AiAttemptContext): Promise<T> => {
-        fallbackAdapter ??= createNormalizedProviderBoundary(
-          getAiProviderById(fallbackTarget.provider, providerFactories),
+        fallbackAdapter ??= getAiProviderById(fallbackTarget.provider, providerFactories);
+        return executeAttemptOperation(
+          context,
+          fallbackAdapter,
+          fallbackTarget.provider,
+          fallbackTarget.model,
         );
-        return operation({
-          ...context,
-          provider: fallbackAdapter,
-          providerId: fallbackTarget.provider,
-          model: fallbackTarget.model,
-        });
       }
     : undefined;
 
   try {
-    return await executeWithPolicy(config, primaryCall, fallbackCall, {
+    const result = await executeWithPolicy(config, primaryCall, fallbackCall, {
       ...policyOptions,
       onAttemptComplete: async completion => {
-        attemptCompletions.push(completion);
+        const key = `${completion.context.source}:${completion.context.attempt}`;
+        attemptCompletions.push({
+          ...completion,
+          ...(providerCalls.get(key) ? { providerCall: providerCalls.get(key) } : {}),
+        });
         if (onAttemptComplete) await onAttemptComplete(completion);
       },
     });
+    executionSucceeded = true;
+    return result;
   } catch (error) {
     if (attemptCompletions.length === 0) {
       attemptCompletions.push({
@@ -155,7 +202,9 @@ export async function executeResolvedCapability<T>(
     const events = buildAiInferenceEvents({
       config,
       attempts: attemptCompletions,
-      context: observability,
+      context: observability && executionSucceeded && observability.degradationOnFailure
+        ? { ...observability, degradationOnFailure: undefined }
+        : observability,
       totalLatencyMs: performance.now() - executionStartedAt,
     });
     await emitAiInferenceEvents(events, observabilitySink === undefined ? undefined : observabilitySink);

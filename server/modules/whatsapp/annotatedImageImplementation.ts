@@ -133,7 +133,17 @@ export async function generateAnnotatedMealImage(
       prompt: buildAnnotatedMealImagePrompt(processed),
       originalImages: [sourceImage],
     },
-    { ...dependencies.external, env },
+    {
+      ...dependencies.external,
+      env,
+      observability: {
+        origin: "whatsapp",
+        flow: "whatsapp_image_annotation",
+        ...(runtime.externalFailureMode === "local"
+          ? { degradationOnFailure: "local" as const }
+          : {}),
+      },
+    },
   );
 
   const shouldDegradeLocally = runtime.externalFailureMode === "local"

@@ -61,6 +61,14 @@ describe("AI pricing catalog", () => {
     })).toBeNull();
   });
 
+  it("returns null when a tool executed but provider usage is unavailable", () => {
+    expect(estimateAiCallCostUsd({
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      tools: [{ tool: "web_search", executed: true, billableUnits: 1 }],
+    })).toBeNull();
+  });
+
   it("prices image input tokens separately from text and image output tokens", () => {
     expect(estimateAiCallCostUsd({
       provider: "openai",

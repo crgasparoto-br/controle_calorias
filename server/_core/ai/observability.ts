@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { AiWebSearchResult } from "../aiProvider";
-import type { AiNormalizedUsage } from "./providerBoundary";
+import type {
+  AiNormalizedUsage,
+  AiProviderCallObservation,
+} from "./providerBoundary";
 import type { AiCapabilityId } from "./capabilities";
 import type { ResolvedCapabilityConfig } from "./configResolver";
-import type { AiAttemptCompletion, AiCallSource } from "./policyExecutor";
+import {
+  AiOperationalError,
+  type AiAttemptCompletion,
+  type AiCallSource,
+} from "./policyExecutor";
 import type { AiProviderId } from "./supportMatrix";
 import {
   AI_PRICING_CATALOG_EFFECTIVE_DATE,
@@ -32,8 +39,11 @@ export type AiObservabilityFlow =
   | "whatsapp_question"
   | "nutrition_product_web_search"
   | "catalog_embeddings"
+  | "voice_transcription"
+  | "image_annotation"
   | "whatsapp_voice_transcription"
   | "whatsapp_image_annotation"
+  | "food_classification"
   | "question_answer";
 
 export type AiObservabilityContext = {
@@ -42,6 +52,12 @@ export type AiObservabilityContext = {
   correlation?: Record<string, string | number | boolean | null | undefined>;
   callRole?: "escalation";
   degradation?: "none" | "local";
+  /** Applied only when the external attempt fails and the caller degrades locally. */
+  degradationOnFailure?: "local";
+};
+
+export type AiObservedAttemptCompletion<T> = AiAttemptCompletion<T> & {
+  providerCall?: AiProviderCallObservation;
 };
 
 export type AiInferenceEvent = {
@@ -171,6 +187,18 @@ function outcomeFrom(completion: AiAttemptCompletion<unknown>): AiObservabilityO
   return "external_error";
 }
 
+function fallbackEligibility(
+  config: ResolvedCapabilityConfig,
+  completion: AiAttemptCompletion<unknown>,
+  isFallback: boolean,
+): AiInferenceEvent["fallback"]["eligibility"] {
+  if (isFallback) return "executed";
+  if (completion.result.status === "success") return "not_needed";
+  return config.fallback.effectivelyEnabled && completion.result.error instanceof AiOperationalError
+    ? "eligible"
+    : "not_eligible";
+}
+
 function roleFrom(source: AiCallSource): AiInferenceEvent["callRole"] {
   if (source === "fallback") return "fallback";
   if (source === "primary_retry") return "retry";
@@ -206,14 +234,49 @@ function fallbackReason(
   return "fallback_disabled";
 }
 
+function defaultObservabilityContext(
+  capability: AiCapabilityId,
+): Required<Pick<AiObservabilityContext, "origin" | "flow">> &
+  Pick<AiObservabilityContext, "degradationOnFailure"> {
+  switch (capability) {
+    case "MEAL_TEXT":
+      return { origin: "system", flow: "meal_text_extraction" };
+    case "MEAL_VISION":
+      return { origin: "system", flow: "meal_vision_extraction" };
+    case "WHATSAPP_INTENT":
+      return { origin: "whatsapp", flow: "whatsapp_intent" };
+    case "QUESTION":
+      return { origin: "whatsapp", flow: "whatsapp_question" };
+    case "NUTRITION_SEARCH":
+      return { origin: "system", flow: "nutrition_product_web_search" };
+    case "EMBEDDING":
+      return {
+        origin: "system",
+        flow: "catalog_embeddings",
+        degradationOnFailure: "local",
+      };
+    case "TRANSCRIPTION":
+      return { origin: "system", flow: "voice_transcription" };
+    case "IMAGE_ANNOTATION":
+      return { origin: "system", flow: "image_annotation" };
+    case "FOOD_CLASSIFICATION":
+      return { origin: "system", flow: "food_classification" };
+  }
+}
+
 export function buildAiInferenceEvents<T>(input: {
   config: ResolvedCapabilityConfig;
-  attempts: readonly AiAttemptCompletion<T>[];
+  attempts: readonly AiObservedAttemptCompletion<T>[];
   context?: AiObservabilityContext;
   totalLatencyMs?: number;
   executionId?: string;
 }): AiInferenceEvent[] {
   const { config, attempts } = input;
+  const defaultContext = defaultObservabilityContext(config.capability);
+  const context: AiObservabilityContext = {
+    ...defaultContext,
+    ...input.context,
+  };
   const executionId = bounded(input.executionId ?? randomUUID(), 80);
   const totalAttempts = attempts.filter(item => item.context.attempt > 0).length;
   const primaryAttempts = attempts.filter(
@@ -230,8 +293,8 @@ export function buildAiInferenceEvents<T>(input: {
       ? { provider: config.fallback.provider, model: config.fallback.model }
       : config.primary;
     const value = "value" in completion.result ? completion.result.value : undefined;
-    const usage = usageFrom(value);
-    const tools = toolsFrom(value);
+    const usage = completion.providerCall?.usage ?? usageFrom(value);
+    const tools = completion.providerCall?.tools ?? toolsFrom(value);
     const estimatedCostUsd = target
       ? estimateAiCallCostUsd({ provider: target.provider, model: target.model, usage, tools })
       : null;
@@ -255,13 +318,13 @@ export function buildAiInferenceEvents<T>(input: {
     occurredAt: new Date().toISOString(),
     executionId,
     capability: config.capability,
-    origin: input.context?.origin ?? "system",
-    flow: bounded(input.context?.flow ?? config.capability.toLowerCase(), 64),
+    origin: context.origin ?? "system",
+    flow: bounded(context.flow ?? config.capability.toLowerCase(), 64),
     configuredProvider: config.primary?.provider ?? null,
     configuredModel: config.primary?.model ? bounded(config.primary.model, 120) : null,
     effectiveProvider: target?.provider ?? null,
     effectiveModel: target?.model ? bounded(target.model, 120) : null,
-    callRole: input.context?.callRole === "escalation"
+    callRole: context.callRole === "escalation"
       ? "escalation"
       : roleFrom(source),
     attemptIndex: completion.context.attempt > 0 ? index + 1 : 0,
@@ -279,9 +342,11 @@ export function buildAiInferenceEvents<T>(input: {
       requested: config.fallback.requested,
       enabled: config.fallback.effectivelyEnabled,
       kind,
-      eligibility: isFallback ? "executed" : completion.result.status === "success"
-        ? "not_needed"
-        : config.fallback.effectivelyEnabled ? "eligible" : "not_eligible",
+      eligibility: fallbackEligibility(
+        config,
+        completion as AiAttemptCompletion<unknown>,
+        isFallback,
+      ),
       reason: fallbackReason(
         config,
         completion as AiAttemptCompletion<unknown>,
@@ -290,8 +355,10 @@ export function buildAiInferenceEvents<T>(input: {
       primaryAttempts,
       fallbackCalls: fallbackCalls as 0 | 1,
     },
-    degradation: input.context?.degradation ?? "none",
-    correlation: sanitizeAiCorrelation(input.context?.correlation),
+    degradation: completion.result.status === "error" && context.degradationOnFailure === "local"
+      ? "local"
+      : context.degradation ?? "none",
+    correlation: sanitizeAiCorrelation(context.correlation),
   }));
 }
 

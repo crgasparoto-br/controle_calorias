@@ -26,7 +26,7 @@ Confirmado por código:
 
 ```text
 - server/privacy.ts redige email, telefone, bearer token e campos sensíveis como token, secret, sourceText, transcript, notes, message, storageUrl, imageUrl e audioUrl.
-- server/db.ts aplica safeLogDetail em logInferenceEvent antes de gravar logs administrativos/inferência.
+- `logInferenceEvent` aplica `safeLogDetail` a mensagens operacionais livres. Eventos `ai.inference_call` usam sanitização estruturada dedicada, preservando JSON válido e limitado sem armazenar conteúdo do usuário.
 - server/modules/photoAnalysis/service.ts registra food_photo.visual_generation_warning com detalhe controlado e sem payload bruto.
 - server/modules/meals/service.ts registra audio.transcription_warning via logInferenceEvent quando transcrição falha.
 - A autenticação web foi migrada para sessão local com e-mail/senha e JWT assinado por JWT_SECRET; não há dependência funcional nova de OAuth externo nesta PR.

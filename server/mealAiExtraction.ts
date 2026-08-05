@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { AiProviderTextRequest } from "./_core/aiProvider";
-import { executeResolvedCapability, type ResolvedCapabilityAttemptContext } from "./_core/ai/capabilityExecutor";
+import {
+  executeResolvedCapability,
+  observeUnavailableResolvedCapability,
+  type ResolvedCapabilityAttemptContext,
+} from "./_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError, parseJsonOutput } from "./_core/ai/policyExecutor";
@@ -204,7 +208,14 @@ async function runMealExtractionWithPolicy(
   aiInput: AiProviderTextRequest["input"],
 ): Promise<MealExtraction | null> {
   const config = resolveCapabilityConfig(capability);
+  const observability = {
+    origin: "system" as const,
+    flow: capability === "MEAL_VISION"
+      ? "meal_vision_extraction" as const
+      : "meal_text_extraction" as const,
+  };
   if (config.state === "disabled" || config.state === "invalid" || !config.primary) {
+    await observeUnavailableResolvedCapability(config, observability);
     return null;
   }
 
@@ -212,6 +223,7 @@ async function runMealExtractionWithPolicy(
     const result = await executeResolvedCapability(
       config,
       context => callMealExtraction(context, instructions, aiInput),
+      { observability },
     );
     return result.value;
   } catch {

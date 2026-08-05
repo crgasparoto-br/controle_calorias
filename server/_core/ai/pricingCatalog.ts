@@ -194,7 +194,7 @@ export function estimateAiCallCostUsd(input: {
   tools?: readonly AiBillableTool[];
 }): number | null {
   const price = findAiModelPrice(input.provider, input.model);
-  if (!price) return null;
+  if (!price || !input.usage) return null;
 
   let cost = 0;
   let metered = false;
