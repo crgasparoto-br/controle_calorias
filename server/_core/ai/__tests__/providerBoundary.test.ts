@@ -55,6 +55,25 @@ describe("normalized provider boundary", () => {
     expect(JSON.stringify(result)).not.toContain('"raw"');
   });
 
+  it("drops usage entirely when only native raw metadata is available", async () => {
+    const provider = baseProvider({
+      createTextResponse: vi.fn().mockResolvedValue({
+        id: "response-raw-only",
+        outputText: "ok",
+        usage: { raw: { request: "must-not-cross" } },
+      }),
+    });
+
+    const result = await createNormalizedProviderBoundary(provider).createTextResponse({
+      model: "gpt-4.1-mini",
+      input: "hello",
+    });
+
+    expect(result).not.toHaveProperty("usage");
+    expect(JSON.stringify(result)).not.toContain("must-not-cross");
+    expect(JSON.stringify(result)).not.toContain('"raw"');
+  });
+
   it("normalizes Gemini cached and thought tokens", async () => {
     const provider = baseProvider({
       createTextResponse: vi.fn().mockResolvedValue({
