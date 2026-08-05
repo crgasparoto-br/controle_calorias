@@ -67,7 +67,7 @@ describe("AI observability", () => {
     expect(events.map(event => event.callRole)).toEqual(["primary", "retry", "fallback"]);
     expect(events.map(event => event.attemptIndex)).toEqual([1, 2, 3]);
     expect(events.every(event => event.totalAttempts === 3)).toBe(true);
-    expect(new Set(events.map(event => event.executionId))).toHaveSize(1);
+    expect(new Set(events.map(event => event.executionId)).size).toBe(1);
     expect(events.map(event => event.outcome)).toEqual(["invalid_json", "invalid_json", "success"]);
     expect(events.every(event => event.executionEstimatedCostUsd === 0.000224)).toBe(true);
     expect(events[2]).toMatchObject({
@@ -276,7 +276,6 @@ describe("AI observability", () => {
       },
     });
   });
-
 
   it("distinguishes quality escalation and local degradation from provider fallback", async () => {
     const events: AiInferenceEvent[] = [];
