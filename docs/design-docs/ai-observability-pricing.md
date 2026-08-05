@@ -35,7 +35,7 @@ O hook roda após validação comum e semântica. Falha do sink é best effort e
 
 ## Catálogo versionado
 
-`server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão inicial é `2026-08-05.1`, efetiva em `2026-08-05`.
+`server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão atual é `2026-08-05.2`, efetiva em `2026-08-05`.
 
 Regras:
 
@@ -44,9 +44,9 @@ Regras:
 3. preços não são obtidos por scraping em runtime;
 4. a estimativa usa oito casas decimais e não representa cobrança ou fatura;
 5. cache é subtraído do input comum e tarifado separadamente;
-6. áudio usa duração; imagem usa tokens ou unidade de saída, sem dupla contagem;
+6. áudio usa duração; imagem separa tokens de entrada de texto e imagem quando a tarifa diverge e usa tokens ou unidade de saída sem dupla contagem;
 7. ferramenta só é somada quando `executed=true` e há quantidade faturável;
-8. preço, modelo ou usage necessário ausente resulta em `null`.
+8. preço, modelo ou usage necessário ausente resulta em `null`; cache multimodal sem atribuição por modalidade também retorna `null`, em vez de presumir a tarifa mais barata.
 
 O custo total soma primário, retries e fallback efetivamente executados. Se qualquer tentativa não tiver dados suficientes, o total permanece `null`.
 
