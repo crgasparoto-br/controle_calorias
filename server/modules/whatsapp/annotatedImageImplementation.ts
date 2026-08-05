@@ -74,13 +74,13 @@ async function applyLocalOverlay(
   dependencies: LocalMealPhotoOverlayDependencies = {},
 ): Promise<ImageAnnotationResponse> {
   try {
-    const result = await createLocalMealPhotoOverlay(
-      {
-        image: sourceImage,
-        processed,
-      },
-      dependencies,
-    );
+    const input = {
+      image: sourceImage,
+      processed,
+    };
+    const result = Object.keys(dependencies).length > 0
+      ? await createLocalMealPhotoOverlay(input, dependencies)
+      : await createLocalMealPhotoOverlay(input);
     return { ...result, degradation };
   } catch {
     console.warn(
