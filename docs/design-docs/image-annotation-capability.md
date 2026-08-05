@@ -66,6 +66,7 @@ Somente o modo `external` chama `resolveCapabilityConfig("IMAGE_ANNOTATION")` e 
 
 - Provider, operações e compatibilidade do modelo são validados antes da criação do adapter; configuração incompatível não envia a foto.
 - Uma tentativa do executor realiza exatamente uma chamada `createImageGeneration`.
+- Base64, MIME e limite de tamanho do resultado são validados dentro da tentativa governada; saída inválida é `invalid_payload` e pode consumir somente os retries/fallback previstos pela política central.
 - O request externo inclui a foto original validada para edição, nunca somente uma URL sem bytes vinculados.
 - O executor controla timeout, retries e no máximo uma chamada de fallback.
 - Fallback externo permanece desabilitado por padrão.
@@ -126,6 +127,16 @@ O cartão-resumo legado não recebe `artifactKind=photo_annotation`.
 - degradação externa para local somente com opt-in;
 - falhas locais, externas, de upload e de envio sem impedir registro textual;
 - logs e respostas sem conteúdo sensível.
+
+## Smoke controlado com foto
+
+O smoke hermético da issue usa uma foto sintética, o entrypoint produtivo `generateAnnotatedMealImage` e storage em memória. Ele não usa segredo nem chama provider externo:
+
+```bash
+pnpm smoke:issue-925
+```
+
+O comando falha quando o modo padrão deixa de ser local, o original é alterado, o derivado não é separado, as dimensões mudam ou ocorre mais de uma escrita do artefato. A saída contém somente hashes e metadados da fixture sintética.
 
 ## Rollout e rollback
 

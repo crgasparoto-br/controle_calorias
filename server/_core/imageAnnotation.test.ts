@@ -144,6 +144,74 @@ describe("generateExternalImageAnnotation", () => {
     expect(result.skippedReason).toBe("provider_failed");
   });
 
+  it("retries through the common executor when the provider returns malformed image data", async () => {
+    const createImage = vi.fn()
+      .mockResolvedValueOnce({ b64Json: "%%%", mimeType: "image/png" })
+      .mockResolvedValueOnce(successImage);
+
+    const result = await generateExternalImageAnnotation(
+      { prompt: "Annotate", originalImages: [source] },
+      {
+        env: baseEnv({ AI_IMAGE_ANNOTATION_MAX_ATTEMPTS: "2" }),
+        providerFactories: factories(() => providerWithImage(createImage)),
+        storagePutFn: vi.fn(async (key: string) => ({
+          url: `https://cdn.test/${key}`,
+          key,
+        })),
+      },
+    );
+
+    expect(createImage).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      providerSource: "primary_retry",
+      attempts: 2,
+      artifactKind: "photo_annotation",
+    });
+  });
+
+  it("uses one configured fallback when the primary returns an invalid image payload", async () => {
+    const primaryCall = vi.fn(async () => ({
+      b64Json: Buffer.from("not-used").toString("base64"),
+      mimeType: "text/plain",
+      raw: {},
+    }));
+    const fallbackCall = vi.fn(async () => successImage);
+    const adapters = [
+      providerWithImage(primaryCall),
+      providerWithImage(fallbackCall),
+    ];
+    const openaiFactory = vi.fn(() => {
+      const adapter = adapters.shift();
+      if (!adapter) throw new Error("unexpected third adapter");
+      return adapter;
+    });
+
+    const result = await generateExternalImageAnnotation(
+      { prompt: "Annotate", originalImages: [source] },
+      {
+        env: baseEnv({
+          AI_IMAGE_ANNOTATION_FALLBACK_ENABLED: "true",
+          AI_IMAGE_ANNOTATION_FALLBACK_PROVIDER: "openai",
+          AI_IMAGE_ANNOTATION_FALLBACK_MODEL: "gpt-image-1-mini",
+        }),
+        providerFactories: factories(openaiFactory),
+        storagePutFn: vi.fn(async (key: string) => ({
+          url: `https://cdn.test/${key}`,
+          key,
+        })),
+      },
+    );
+
+    expect(primaryCall).toHaveBeenCalledTimes(1);
+    expect(fallbackCall).toHaveBeenCalledTimes(1);
+    expect(openaiFactory).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      providerSource: "fallback",
+      attempts: 2,
+      artifactKind: "photo_annotation",
+    });
+  });
+
   it("executes at most one configured same-provider fallback without a chain", async () => {
     const primaryCall = vi.fn(async () => {
       throw new AiOperationalError("temporary failure", undefined, "network");

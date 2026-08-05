@@ -1,10 +1,19 @@
 import {
   generateExternalImageAnnotation,
   resolveImageAnnotationRuntimeConfig,
+  type GenerateExternalImageAnnotationDependencies,
   type ImageAnnotationResponse,
 } from "../../_core/imageAnnotation";
 import type { MealProcessingResult } from "../../nutritionEngine";
-import { createLocalMealPhotoOverlay } from "./localMealPhotoOverlay";
+import {
+  createLocalMealPhotoOverlay,
+  type LocalMealPhotoOverlayDependencies,
+} from "./localMealPhotoOverlay";
+
+export type GenerateAnnotatedMealImageDependencies = {
+  external?: Omit<GenerateExternalImageAnnotationDependencies, "env">;
+  local?: LocalMealPhotoOverlayDependencies;
+};
 
 function formatMacro(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
@@ -62,12 +71,16 @@ async function applyLocalOverlay(
   processed: MealProcessingResult,
   sourceImage: NonNullable<ReturnType<typeof imageDataFromDataUrl>>,
   degradation: "none" | "external_to_local",
+  dependencies: LocalMealPhotoOverlayDependencies = {},
 ): Promise<ImageAnnotationResponse> {
   try {
-    const result = await createLocalMealPhotoOverlay({
-      image: sourceImage,
-      processed,
-    });
+    const result = await createLocalMealPhotoOverlay(
+      {
+        image: sourceImage,
+        processed,
+      },
+      dependencies,
+    );
     return { ...result, degradation };
   } catch {
     console.warn(
@@ -87,6 +100,7 @@ export async function generateAnnotatedMealImage(
   processed: MealProcessingResult,
   imageAnalysisUrl?: string,
   env: NodeJS.ProcessEnv = process.env,
+  dependencies: GenerateAnnotatedMealImageDependencies = {},
 ): Promise<ImageAnnotationResponse> {
   if (!processed.items.length) {
     return { skippedReason: "no_prompt" };
@@ -111,7 +125,7 @@ export async function generateAnnotatedMealImage(
   }
 
   if (runtime.mode === "local") {
-    return applyLocalOverlay(processed, sourceImage, "none");
+    return applyLocalOverlay(processed, sourceImage, "none", dependencies.local);
   }
 
   const external = await generateExternalImageAnnotation(
@@ -119,7 +133,7 @@ export async function generateAnnotatedMealImage(
       prompt: buildAnnotatedMealImagePrompt(processed),
       originalImages: [sourceImage],
     },
-    { env },
+    { ...dependencies.external, env },
   );
 
   const shouldDegradeLocally = runtime.externalFailureMode === "local"
@@ -127,5 +141,10 @@ export async function generateAnnotatedMealImage(
       || external.skippedReason === "not_configured");
   if (!shouldDegradeLocally) return external;
 
-  return applyLocalOverlay(processed, sourceImage, "external_to_local");
+  return applyLocalOverlay(
+    processed,
+    sourceImage,
+    "external_to_local",
+    dependencies.local,
+  );
 }

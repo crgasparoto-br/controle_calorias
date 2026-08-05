@@ -13,6 +13,7 @@
     "test": "NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory vitest run",
     "smoke:ai:live": "tsx scripts/issue-923-live-provider-smoke.ts",
     "smoke:issue-923:live": "pnpm smoke:ai:live",
+    "smoke:issue-925": "tsx scripts/issue-925-image-annotation-smoke.ts",
     "benchmark:transcription": "tsx scripts/issue-924-transcription-benchmark.ts",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",

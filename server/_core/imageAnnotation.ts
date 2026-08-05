@@ -200,12 +200,9 @@ async function createDomainExternalImageAnnotation(
   provider: AiProvider,
   request: AiProviderImageGenerationRequest,
   options?: AiProviderRequestOptions,
-): Promise<{ b64Json: string; mimeType: string }> {
+): Promise<{ buffer: Buffer; mimeType: string }> {
   const response = await provider.createImageGeneration(request, options);
-  return {
-    b64Json: response.b64Json,
-    mimeType: response.mimeType,
-  };
+  return normalizeGeneratedImage(response.b64Json, response.mimeType);
 }
 
 function extensionForMimeType(mimeType: string): string {
@@ -267,10 +264,7 @@ export async function generateExternalImageAnnotation(
       { providerFactories: dependencies.providerFactories },
     );
 
-    const generated = normalizeGeneratedImage(
-      execution.value.b64Json,
-      execution.value.mimeType,
-    );
+    const generated = execution.value;
     const digest = createHash("sha256").update(generated.buffer).digest("hex").slice(0, 24);
     const storageKey = `generated/meal-annotations/external-${digest}.${extensionForMimeType(generated.mimeType)}`;
     const storagePutFn = dependencies.storagePutFn ?? storagePut;

@@ -81,6 +81,27 @@ describe("generateAnnotatedMealImage", () => {
     expect(result).toMatchObject({ mode: "local", degradation: "none" });
   });
 
+  it("forwards hermetic local dependencies used by the controlled smoke", async () => {
+    const { generateAnnotatedMealImage } = await import("./annotatedImage");
+    const localDependencies = { storagePutFn: vi.fn() };
+
+    await generateAnnotatedMealImage(
+      processedMeal,
+      originalPhoto,
+      { AI_IMAGE_ANNOTATION_MODE: "local" },
+      { local: localDependencies },
+    );
+
+    expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        image: { mimeType: "image/jpeg", b64Json: "ZmFrZS1pbWFnZQ==" },
+        processed: processedMeal,
+      }),
+      localDependencies,
+    );
+    expect(generateExternalImageAnnotationMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing in off mode", async () => {
     const { generateAnnotatedMealImage } = await import("./annotatedImage");
     resolveImageAnnotationRuntimeConfigMock.mockReturnValue({
