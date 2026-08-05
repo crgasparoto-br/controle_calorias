@@ -29,12 +29,16 @@ describe("issue 925 canonical security and privacy documentation", () => {
   });
 
   it("documents the additive IMAGE_ANNOTATION security and LGPD contract", () => {
+    const environment = read(".env.example");
     const security = read("docs/SECURITY.md");
     const privacy = read("docs/PRIVACY_LGPD.md");
 
+    expect(environment).toContain("AI_OPENAI_COMPATIBLE_IMAGE_MODELS");
     expect(security).toContain("### Fronteira de anotação de imagem #925");
     expect(security).toContain("tamanho estimado antes da alocação do buffer decodificado");
+    expect(security).toContain("AI_OPENAI_COMPATIBLE_IMAGE_MODELS");
     expect(privacy).toContain("### Anotação derivada da foto (#925)");
     expect(privacy).toContain("Original e derivado usam buffers e chaves de storage distintos");
+    expect(privacy).toContain("AI_OPENAI_COMPATIBLE_IMAGE_MODELS");
   });
 });

@@ -42,7 +42,7 @@ AI_IMAGE_ANNOTATION_FALLBACK_MODEL=gpt-image-1
 AI_IMAGE_ANNOTATION_CROSS_PROVIDER_FALLBACK_ENABLED=false
 ```
 
-`OPENAI_IMAGE_MODEL` permanece somente como compatibilidade legada do modelo OpenAI. Nenhuma variável de visão seleciona provider ou modelo para anotação.
+`OPENAI_IMAGE_MODEL` permanece somente como compatibilidade legada do modelo OpenAI. Nenhuma variável de visão seleciona provider ou modelo para anotação. O provider OpenAI nativo aceita somente IDs explicitamente aprovados para geração e edição (`gpt-image-1`, `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-1.5-2025-12-16` e `gpt-image-2`); novos aliases ou snapshots precisam ser adicionados deliberadamente à matriz. Um endpoint `openai-compatible` exige, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`.
 
 ## Renderização local
 
@@ -64,6 +64,7 @@ O caminho local não reconstrói, completa, remove ou adiciona alimentos. Ele so
 
 Somente o modo `external` chama `resolveCapabilityConfig("IMAGE_ANNOTATION")` e `executeResolvedCapability`.
 
+- Provider, operações e compatibilidade do modelo são validados antes da criação do adapter; configuração incompatível não envia a foto.
 - Uma tentativa do executor realiza exatamente uma chamada `createImageGeneration`.
 - O request externo inclui a foto original validada para edição, nunca somente uma URL sem bytes vinculados.
 - O executor controla timeout, retries e no máximo uma chamada de fallback.
@@ -118,6 +119,7 @@ O cartão-resumo legado não recebe `artifactKind=photo_annotation`.
 - texto longo, markup escapado, imagem pequena e ausência de itens;
 - input malformado rejeitado antes de Sharp/storage/provider;
 - external com provider/modelo da capacidade;
+- modelo nativo incompatível e modelo `openai-compatible` sem allowlist exata rejeitados antes da criação do adapter;
 - uma tentativa igual a uma chamada outbound;
 - fallback same-provider único;
 - cross-provider sem flag não cria adapter de fallback;

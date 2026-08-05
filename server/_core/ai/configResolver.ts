@@ -1,8 +1,9 @@
-import type { AiCapabilityId } from "./capabilities";
+import { AI_CAPABILITY_REGISTRY, type AiCapabilityId } from "./capabilities";
 import {
   resolveCapabilityConfig as resolveCapabilityConfigCore,
   type ResolvedCapabilityConfig,
 } from "./configResolverCore";
+import { findOperationCompatibilityIssues } from "./supportMatrix";
 
 export * from "./configResolverCore";
 
@@ -38,7 +39,9 @@ export function resolveCapabilityConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedCapabilityConfig {
   const config = resolveCapabilityConfigCore(capability, env);
-  if (capability !== "WHATSAPP_INTENT") return config;
+  if (capability !== "WHATSAPP_INTENT") {
+    return applyResolvedModelCompatibility(config, capability, env);
+  }
 
   const diagnostics = [...config.diagnostics];
   let usedLegacyVariables = config.usedLegacyVariables;
@@ -93,12 +96,72 @@ export function resolveCapabilityConfig(
     );
   }
 
-  return {
+  return applyResolvedModelCompatibility({
     ...config,
     primary,
     timeoutMs,
     maxAttempts,
     diagnostics,
     usedLegacyVariables,
-  };
+  }, capability, env);
+}
+
+function pushCompatibilityDiagnostics(
+  diagnostics: string[],
+  capability: AiCapabilityId,
+  prefix: string,
+  issues: ReturnType<typeof findOperationCompatibilityIssues>,
+) {
+  for (const issue of issues) {
+    const message = `capability=${capability} ${prefix}${issue.message}`;
+    if (!diagnostics.includes(message)) diagnostics.push(message);
+  }
+}
+
+function applyResolvedModelCompatibility(
+  config: ResolvedCapabilityConfig,
+  capability: AiCapabilityId,
+  env: NodeJS.ProcessEnv,
+): ResolvedCapabilityConfig {
+  const requiredOperations = AI_CAPABILITY_REGISTRY[capability].requiredOperations;
+  const diagnostics = [...config.diagnostics];
+  let state = config.state;
+  let fallback = config.fallback;
+
+  if (config.primary) {
+    const primaryIssues = findOperationCompatibilityIssues(
+      config.primary.provider,
+      config.primary.model,
+      requiredOperations,
+      env,
+    );
+    if (primaryIssues.length > 0) {
+      pushCompatibilityDiagnostics(diagnostics, capability, "", primaryIssues);
+      state = "invalid";
+      if (fallback.effectivelyEnabled) {
+        fallback = { ...fallback, effectivelyEnabled: false };
+      }
+    }
+  }
+
+  if (
+    state !== "invalid"
+    && fallback.requested
+    && fallback.provider
+    && fallback.model
+  ) {
+    const fallbackIssues = findOperationCompatibilityIssues(
+      fallback.provider,
+      fallback.model,
+      requiredOperations,
+      env,
+    );
+    if (fallbackIssues.length > 0) {
+      pushCompatibilityDiagnostics(diagnostics, capability, "fallback ", fallbackIssues);
+      fallback = { ...fallback, effectivelyEnabled: false };
+      if (state === "ready") state = "degraded";
+    }
+  }
+
+  return { ...config, state, fallback, diagnostics };
 }
