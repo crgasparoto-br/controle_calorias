@@ -1,7 +1,11 @@
 import { Request, Response } from "express";
+import type { ImageAnnotationResponse } from "./_core/imageAnnotation";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import {
+  formatImageAnnotationTelemetry,
+} from "./modules/whatsapp/imageAnnotationTelemetry";
 import { getAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
@@ -50,14 +54,7 @@ import {
 
 type SavedMedia = ReturnType<typeof buildSavedMedia>;
 
-type AnnotatedImageResult = {
-  url?: string;
-  storageKey?: string;
-  mimeType?: string;
-  buffer?: Buffer;
-  skippedReason?: string;
-  detail?: string;
-};
+type AnnotatedImageResult = ImageAnnotationResponse;
 
 type PreparedImageMessage = {
   text?: string;
@@ -205,25 +202,6 @@ async function processImageMealInputWithFallback(input: {
 
 function hasUsableAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
   return Boolean(annotatedImage.url || annotatedImage.buffer);
-}
-
-function getAnnotatedImageSource(annotatedImage: AnnotatedImageResult) {
-  const detail = annotatedImage.detail ?? "";
-  if (annotatedImage.skippedReason || /overlay local|fallback local|fallback de classificação|provider de imagem/i.test(detail)) {
-    return "fallback_local";
-  }
-
-  return "ai_edit";
-}
-
-function formatAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
-  return [
-    `skippedReason=${annotatedImage.skippedReason || "none"}`,
-    `detail=${annotatedImage.detail || "none"}`,
-    `hasUrl=${Boolean(annotatedImage.url)}`,
-    `hasBuffer=${Boolean(annotatedImage.buffer)}`,
-    `hasStorageKey=${Boolean(annotatedImage.storageKey)}`,
-  ].join("; ");
 }
 
 function buildAnnotatedImageMedia(annotatedImage: AnnotatedImageResult) {
@@ -377,7 +355,6 @@ async function tryHandleAnnotatedImageMessage(
         detail,
       }),
     });
-
     const prepared = await prepareImageMessage(message, sourcePhone);
     if (prepared.storageWarning) {
       logInferenceEvent({
@@ -465,13 +442,13 @@ async function tryHandleAnnotatedImageMessage(
     const annotatedMedia = buildAnnotatedImageMedia(annotatedImage);
     if (annotatedMedia) {
       prepared.media.push(annotatedMedia);
-    } else if (annotatedImage.url) {
+    } else if (hasUsableAnnotatedImagePayload(annotatedImage)) {
       logInferenceEvent({
         userId,
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_not_persisted",
-        detail: "Imagem anotada gerada sem chave de storage; envio ao WhatsApp será tentado, mas a mídia não foi vinculada à refeição.",
+        detail: `Imagem anotada disponível para envio, mas não vinculada à refeição. ${formatImageAnnotationTelemetry(annotatedImage)}`,
       });
     }
 
@@ -538,7 +515,7 @@ async function tryHandleAnnotatedImageMessage(
       lifecycleHandle,
     });
 
-    const imageSource = getAnnotatedImageSource(annotatedImage);
+    const imageTelemetry = formatImageAnnotationTelemetry(annotatedImage);
     if (!delivery.result.primaryOk) {
       logInferenceEvent({
         userId,
@@ -553,7 +530,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_reply_failed",
-        detail: `Resposta nutricional enviada, mas a imagem auxiliar falhou. origem=${imageSource}.`,
+        detail: `Resposta nutricional enviada, mas a imagem auxiliar falhou. ${imageTelemetry}`,
       });
     } else if (auxiliaryImage) {
       logInferenceEvent({
@@ -561,16 +538,15 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.annotated_image_sent",
-        detail: `Imagem anotada enviada pelo WhatsApp. origem=${imageSource}${annotatedImage.skippedReason ? `; skippedReason=${annotatedImage.skippedReason}` : ""}.`,
+        detail: `Imagem anotada enviada pelo WhatsApp. ${imageTelemetry}`,
       });
     } else if (annotatedImagePreference.enabled) {
-      const skipDetail = annotatedImage.detail || annotatedImage.skippedReason || "imagem auxiliar indisponível";
       logInferenceEvent({
         userId,
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_skipped",
-        detail: `Imagem anotada não enviada; resposta nutricional preservada. origem=${imageSource}; motivo=${skipDetail}.`,
+        detail: `Imagem anotada não enviada; resposta nutricional preservada. ${imageTelemetry}`,
       });
     }
 

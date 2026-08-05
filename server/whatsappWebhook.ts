@@ -15,6 +15,10 @@ import {
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import {
+  formatImageAnnotationTelemetry,
+  hasUsableImageAnnotationPayload,
+} from "./modules/whatsapp/imageAnnotationTelemetry";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -160,7 +164,7 @@ async function buildCanonicalWeightReply(
   return formatCanonicalWeightReply({
     weightKg,
     variationKg,
-    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt, timeZone),
+    occurredAtLabel: formatWhatsAppOccurredAt(occcurredAt, timeZone),
   });
 }
 
@@ -180,7 +184,7 @@ function buildProcessingFailureReply(
       : buildWhatsAppAudioProcessingFailureReplyMessage();
   }
   // MealInferenceError carrega uma clarificação de domínio escrita para o
-  // usuário (ex.: quantidade inválida); não descartar essa orientação.
+  // usuário (ex: quantidade inválida); não descartar essa orientação.
   if (
     notRecognized &&
     error instanceof MealInferenceError &&
@@ -505,7 +509,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
       const userTimezone = timeZoneResolution.timeZone;
 
-      const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
+      const aiQuestionResult = await executeWhatsAppAiQuestionIntent(userId, {
         text: message.text?.body,
         receivedAt: resolveWhatsAppMessageOccurredAt(message),
         userTimezone,
@@ -797,7 +801,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           waterSplit.remainingItems
         );
         processed.totals = calculateMealTotals(processed.items);
-
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {
             const waterReply = await buildCanonicalWaterReply(
@@ -905,34 +908,40 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             processedForPersistence,
             prepared.imageAnalysisUrl
           );
-          if (annotatedImage?.url) {
+          if (annotatedImage?.url && annotatedImage.storageKey) {
             mediaForPersistence.push(
               buildSavedMedia({
                 mediaType: "image",
-                storageKey: annotatedImage.storageKey ?? annotatedImage.url,
+                storageKey: annotatedImage.storageKey,
                 storageUrl: annotatedImage.url,
                 mimeType: annotatedImage.mimeType ?? "image/png",
                 originalFileName: "whatsapp-annotated-meal.png",
               })
             );
+          } else if (hasUsableImageAnnotationPayload(annotatedImage)) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.annotated_image_not_persisted",
+              detail: `Imagem anotada disponível para envio, mas não vinculada à refeição. ${formatImageAnnotationTelemetry(annotatedImage)}`,
+            });
           } else {
             logInferenceEvent({
               userId,
               origin: "whatsapp",
               status: "warning",
               eventType: "whatsapp.annotated_image_skipped",
-              detail:
-                "Imagem anotada não vinculada à refeição; o registro nutricional foi preservado.",
+              detail: `Imagem anotada não vinculada à refeição; o registro nutricional foi preservado. ${formatImageAnnotationTelemetry(annotatedImage)}`,
             });
           }
-        } catch (annotationError) {
+        } catch {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.annotated_image_skipped",
-            detail:
-              "Falha ao gerar imagem anotada; o registro nutricional foi preservado.",
+            detail: `Falha ao gerar imagem anotada; o registro nutricional foi preservado. ${formatImageAnnotationTelemetry(null)}`,
           });
         }
       }
@@ -1020,6 +1029,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         auxiliaryImage,
         lifecycleHandle,
       });
+        const imageTelemetry = formatImageAnnotationTelemetry(annotatedImage);
       if (!delivery.result.ok) {
         logInferenceEvent({
           userId,
@@ -1029,7 +1039,17 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             auxiliaryImage && delivery.result.primaryOk
               ? "whatsapp.annotated_image_reply_failed"
               : "whatsapp.reply_failed",
-          detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
+          detail: auxiliaryImage
+            ? `Falha ao enviar imagem anotada; a resposta nutricional foi preservada. ${imageTelemetry}`
+            : "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
+        });
+      } else if (auxiliaryImage) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: "whatsapp.annotated_image_sent",
+          detail: `Imagem anotada enviada pelo WhatsApp. ${imageTelemetry}`,
         });
       }
       await markMessageProcessed(lifecycleHandle);
