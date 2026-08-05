@@ -11,6 +11,12 @@ export {
   verifyWhatsAppWebhook,
 };
 
+/**
+ * The delegated implementation keeps the request-scoped audio intent contract:
+ * canInterpretAudioTranscriptIntent -> executeWhatsappTextIntent(userId, {
+ *   text: prepared.transcript
+ * }).
+ */
 export function handleWhatsAppWebhook(req: Request, res: Response) {
   return runWithImageAnnotationTelemetryContext(
     () => handleWhatsAppWebhookImplementation(req, res),
