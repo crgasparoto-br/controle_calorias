@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import type { GenerateImageResponse } from "./_core/imageGeneration";
+import type { ImageAnnotationResponse } from "./_core/imageAnnotation";
 import {
   buildSavedMedia,
   confirmPendingMeal,
@@ -897,7 +897,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         imageUrl: prepared.imageUrl,
       };
       const mediaForPersistence = [...prepared.media];
-      let annotatedImage: GenerateImageResponse | null = null;
+      let annotatedImage: ImageAnnotationResponse | null = null;
 
       if (message.image?.id) {
         try {
