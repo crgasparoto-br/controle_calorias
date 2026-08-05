@@ -5,15 +5,17 @@ import {
 } from "./imageAnnotationTelemetry";
 
 describe("image annotation telemetry", () => {
-  it.each([
-    [{ mode: "local", buffer: Buffer.from("local") }, "local"],
-    [{ mode: "external", providerSource: "primary", buffer: Buffer.from("external") }, "external_primary"],
-    [{ mode: "external", providerSource: "primary_retry", buffer: Buffer.from("retry") }, "external_primary_retry"],
-    [{ mode: "external", providerSource: "fallback", buffer: Buffer.from("fallback") }, "external_fallback"],
-    [{ mode: "local", degradation: "external_to_local", buffer: Buffer.from("degraded") }, "external_to_local"],
-    [{ mode: "off", skippedReason: "disabled" }, "off"],
-    [{ mode: "local", skippedReason: "local_failed" }, "failed"],
-  ] as const)("classifies structured result %j as %s", (result, expected) => {
+  const cases = [
+    { name: "local", result: { mode: "local", buffer: Buffer.from("local") }, expected: "local" },
+    { name: "external primary", result: { mode: "external", providerSource: "primary", buffer: Buffer.from("external") }, expected: "external_primary" },
+    { name: "external retry", result: { mode: "external", providerSource: "primary_retry", buffer: Buffer.from("retry") }, expected: "external_primary_retry" },
+    { name: "external fallback", result: { mode: "external", providerSource: "fallback", buffer: Buffer.from("fallback") }, expected: "external_fallback" },
+    { name: "external to local", result: { mode: "local", degradation: "external_to_local", buffer: Buffer.from("degraded") }, expected: "external_to_local" },
+    { name: "off", result: { mode: "off", skippedReason: "disabled" }, expected: "off" },
+    { name: "failed", result: { mode: "local", skippedReason: "local_failed" }, expected: "failed" },
+  ] as const;
+
+  it.each(cases)("classifies $name", ({ result, expected }) => {
     expect(getImageAnnotationTelemetryState(result)).toBe(expected);
   });
 

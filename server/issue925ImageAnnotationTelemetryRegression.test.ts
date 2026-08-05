@@ -6,54 +6,53 @@ function source(path: string) {
 }
 
 describe("issue #925 image annotation telemetry regression", () => {
-  it("uses structured annotation telemetry in the canonical image router", () => {
-    const text = source("server/whatsappAnnotatedImageWebhook.ts");
-
-    expect(text).toContain("formatImageAnnotationTelemetry");
-    expect(text).not.toContain("fallback_local");
-    expect(text).not.toContain("ai_edit");
-    expect(text).not.toMatch(/overlay local\|fallback local\|fallback de classificação\|provider de imagem/iu);
-    expect(text).not.toContain("annotatedImage.detail");
+  it("wraps both image entrypoints in the structured telemetry context", () => {
+    for (const path of [
+      "server/whatsappWebhook.ts",
+      "server/whatsappAnnotatedImageWebhook.ts",
+    ]) {
+      const text = source(path);
+      expect(text).toContain("runWithImageAnnotationTelemetryContext");
+    }
   });
 
-  it("routes every image-bearing payload through the structured router", () => {
-    const facade = source("server/whatsappWebhook.ts");
-    const router = source("server/whatsappAnnotatedImageWebhook.ts");
+  it("records the complete annotation response before telemetry is emitted", () => {
+    const text = source("server/modules/whatsapp/annotatedImage.ts");
 
-    expect(facade).toContain("extractWhatsAppWebhookMessages");
-    expect(facade).toContain("message.image?.id");
-    expect(facade).toContain("handleWhatsAppWebhookWithAnnotatedImages");
-    expect(facade).toContain("handleLegacyWhatsAppWebhook");
-    expect(router).toContain("return Boolean(message.image?.id)");
-    expect(router).toContain("prepareMessageInput(message, sourcePhone)");
+    expect(text).toContain("recordImageAnnotationResult");
+    expect(text).toContain("generateAnnotatedMealImageImplementation");
   });
 
-  it("does not classify a usable buffer-only derivative as skipped", () => {
-    const text = source("server/whatsappAnnotatedImageWebhook.ts");
-    const usableBranch = text.indexOf(
-      "else if (hasUsableAnnotatedImagePayload(annotatedImage))",
-    );
-    const notPersistedEvent = text.indexOf(
-      'eventType: "whatsapp.annotated_image_not_persisted"',
-      usableBranch,
-    );
-    const skippedEvent = text.indexOf(
-      'eventType: "whatsapp.annotated_image_skipped"',
-      usableBranch,
-    );
+  it("normalizes annotation events before the canonical inference logger", () => {
+    const text = source("server/db.ts");
 
-    expect(usableBranch).toBeGreaterThan(-1);
-    expect(notPersistedEvent).toBeGreaterThan(usableBranch);
-    expect(skippedEvent).toBeGreaterThan(notPersistedEvent);
+    expect(text).toContain("normalizeImageAnnotationInferenceEvent");
+    expect(text).toContain("logInferenceEventImplementation");
   });
 
-  it("keeps local degradation distinct from provider fallback", () => {
+  it("keeps local degradation distinct from provider fallback without legacy labels", () => {
     const text = source(
       "server/modules/whatsapp/imageAnnotationTelemetry.ts",
+    );
+    const context = source(
+      "server/modules/whatsapp/imageAnnotationTelemetryContext.ts",
     );
 
     expect(text).toContain('result.degradation === "external_to_local"');
     expect(text).toContain('return "external_to_local"');
     expect(text).toContain('return "external_fallback"');
+    expect(context).not.toContain("fallback_local");
+    expect(context).not.toContain("ai_edit");
+    expect(context).not.toContain("result.detail");
+  });
+
+  it("reclassifies a usable buffer-only result as not persisted, never skipped", () => {
+    const context = source(
+      "server/modules/whatsapp/imageAnnotationTelemetryContext.ts",
+    );
+
+    expect(context).toContain('input.eventType === "whatsapp.annotated_image_skipped"');
+    expect(context).toContain("hasUsableImageAnnotationPayload(result)");
+    expect(context).toContain('eventType: "whatsapp.annotated_image_not_persisted"');
   });
 });
