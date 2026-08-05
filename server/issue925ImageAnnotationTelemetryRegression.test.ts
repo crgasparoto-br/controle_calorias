@@ -1,18 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const entrypoints = [
-  "server/whatsappWebhook.ts",
-  "server/whatsappAnnotatedImageWebhook.ts",
-] as const;
-
 function source(path: string) {
   return readFileSync(path, "utf8");
 }
 
 describe("issue #925 image annotation telemetry regression", () => {
-  it.each(entrypoints)("uses the structured annotation result in %s", path => {
-    const text = source(path);
+  it("uses structured annotation telemetry in the canonical image router", () => {
+    const text = source("server/whatsappAnnotatedImageWebhook.ts");
 
     expect(text).toContain("formatImageAnnotationTelemetry");
     expect(text).not.toContain("fallback_local");
@@ -21,10 +16,22 @@ describe("issue #925 image annotation telemetry regression", () => {
     expect(text).not.toContain("annotatedImage.detail");
   });
 
+  it("routes every image-bearing payload through the structured router", () => {
+    const facade = source("server/whatsappWebhook.ts");
+    const router = source("server/whatsappAnnotatedImageWebhook.ts");
+
+    expect(facade).toContain("extractWhatsAppWebhookMessages");
+    expect(facade).toContain("message.image?.id");
+    expect(facade).toContain("handleWhatsAppWebhookWithAnnotatedImages");
+    expect(facade).toContain("handleLegacyWhatsAppWebhook");
+    expect(router).toContain("return Boolean(message.image?.id)");
+    expect(router).toContain("prepareMessageInput(message, sourcePhone)");
+  });
+
   it("does not classify a usable buffer-only derivative as skipped", () => {
-    const text = source("server/whatsappWebhook.ts");
+    const text = source("server/whatsappAnnotatedImageWebhook.ts");
     const usableBranch = text.indexOf(
-      "else if (hasUsableImageAnnotationPayload(annotatedImage))",
+      "else if (hasUsableAnnotatedImagePayload(annotatedImage))",
     );
     const notPersistedEvent = text.indexOf(
       'eventType: "whatsapp.annotated_image_not_persisted"',

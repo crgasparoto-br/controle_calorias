@@ -29,6 +29,7 @@ import {
   type ProcessingAcknowledgementCoordinator,
 } from "./modules/whatsapp/processingAcknowledgement";
 import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
+import { prepareMessageInput } from "./modules/whatsapp/webhookMediaPipeline";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -58,8 +59,10 @@ type AnnotatedImageResult = ImageAnnotationResponse;
 
 type PreparedImageMessage = {
   text?: string;
+  transcript?: string;
   imageUrl?: string;
   imageAnalysisUrl: string;
+  audioUrl?: string;
   media: SavedMedia[];
   storageWarning?: string;
 };
@@ -74,7 +77,7 @@ function getTextBody(message: WhatsAppWebhookMessage) {
 }
 
 function canHandleAnnotatedImageMessage(message: WhatsAppWebhookMessage) {
-  return Boolean(message.image?.id && !message.audio?.id);
+  return Boolean(message.image?.id);
 }
 
 function wasAnnotatedImageMessageAlreadyHandled(messageId?: string) {
@@ -89,6 +92,21 @@ async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone:
   const imageId = message.image?.id;
   if (!imageId) {
     throw new Error("Mensagem sem imagem para processamento anotado.");
+  }
+
+  if (message.audio?.id) {
+    const prepared = await prepareMessageInput(message, sourcePhone);
+    if (!prepared.imageAnalysisUrl) {
+      throw new Error("Mensagem multimodal sem imagem disponível para análise.");
+    }
+    return {
+      text: prepared.text,
+      transcript: prepared.transcript,
+      imageUrl: prepared.imageUrl,
+      imageAnalysisUrl: prepared.imageAnalysisUrl,
+      audioUrl: prepared.audioUrl,
+      media: prepared.media,
+    };
   }
 
   const downloaded = await downloadWhatsAppMedia(imageId, message.image?.mime_type);
@@ -173,7 +191,9 @@ async function processImageMealInputWithFallback(input: {
   try {
     return await processMealInput({
       text: input.prepared.text,
+      transcript: input.prepared.transcript,
       imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
+      audioUrl: input.prepared.audioUrl,
       habits: await getHabitSnapshots(input.userId),
       occurredAt: input.occurredAt,
       timeZone: input.userTimezone,
@@ -367,13 +387,18 @@ async function tryHandleAnnotatedImageMessage(
     }
 
     const captionSafety = inspectWhatsAppUserContentSafety(prepared.text, "image_caption");
-    if (!captionSafety.safe) {
+    const transcriptSafety = inspectWhatsAppUserContentSafety(
+      prepared.transcript,
+      "audio_transcript",
+    );
+    const unsafeContent = !captionSafety.safe ? captionSafety : !transcriptSafety.safe ? transcriptSafety : null;
+    if (unsafeContent) {
       logInferenceEvent({
         userId,
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.security_guard_blocked",
-        detail: `Conteudo bloqueado por seguranca antes da inferencia de imagem: ${captionSafety.categories.join(", ") || "security_guard"}.`,
+        detail: `Conteudo bloqueado por seguranca antes da inferencia de imagem: ${unsafeContent.categories.join(", ") || "security_guard"}.`,
       });
       await sendAnnotatedImageFallbackText({
         userId,
@@ -458,7 +483,7 @@ async function tryHandleAnnotatedImageMessage(
       userId,
       mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
       occurredAt: occurredAt.toISOString(),
-      notes: prepared.text?.trim() || undefined,
+      notes: prepared.text?.trim() || prepared.transcript?.trim() || undefined,
       items: processedForPersistence.items,
     });
 
