@@ -1,7 +1,7 @@
 import type { AiNormalizedUsage } from "./providerBoundary";
 import type { AiProviderId } from "./supportMatrix";
 
-export const AI_PRICING_CATALOG_VERSION = "2026-08-05.1";
+export const AI_PRICING_CATALOG_VERSION = "2026-08-05.2";
 export const AI_PRICING_CATALOG_EFFECTIVE_DATE = "2026-08-05";
 
 export type AiBillableTool = {
@@ -13,6 +13,7 @@ export type AiBillableTool = {
 export type AiPriceUnit =
   | "million_input_tokens"
   | "million_cached_input_tokens"
+  | "million_image_input_tokens"
   | "million_output_tokens"
   | "million_embedding_input_tokens"
   | "audio_minute"
@@ -34,6 +35,7 @@ export type AiModelPrice = {
   rates: {
     input?: AiPriceRate;
     cachedInput?: AiPriceRate;
+    imageInput?: AiPriceRate;
     output?: AiPriceRate;
     embeddingInput?: AiPriceRate;
     audio?: AiPriceRate;
@@ -107,6 +109,11 @@ export const AI_PRICING_CATALOG: readonly AiModelPrice[] = [
       cachedInput: {
         unit: "million_cached_input_tokens",
         priceUsd: 1.25,
+        source: "https://developers.openai.com/api/docs/models/gpt-image-1",
+      },
+      imageInput: {
+        unit: "million_image_input_tokens",
+        priceUsd: 10,
         source: "https://developers.openai.com/api/docs/models/gpt-image-1",
       },
       output: {
@@ -195,11 +202,41 @@ export function estimateAiCallCostUsd(input: {
 
   if (usage) {
     const cached = usage.cachedInputTokens ?? 0;
-    if (validUnit(usage.inputTokens)) {
-      const uncached = Math.max(0, usage.inputTokens - cached);
-      const rate = price.rates.embeddingInput?.priceUsd ?? price.rates.input?.priceUsd;
+    const inputTokens = validUnit(usage.inputTokens) ? usage.inputTokens : undefined;
+    const imageInputTokens = validUnit(usage.inputImageTokens)
+      ? usage.inputImageTokens
+      : undefined;
+
+    if (inputTokens !== undefined) {
+      if (cached > inputTokens || (imageInputTokens !== undefined && imageInputTokens > inputTokens)) {
+        return null;
+      }
+      // The current normalized usage does not identify how many cached tokens
+      // belong to text versus image input. Returning null avoids assigning an
+      // image cache hit to the lower text cache rate (or vice versa).
+      if (cached > 0 && (imageInputTokens ?? 0) > 0) return null;
+
+      const uncached = inputTokens - cached;
+      const imageInput = imageInputTokens ?? 0;
+      const commonInput = uncached - imageInput;
+      if (commonInput < 0) return null;
+
+      if (commonInput > 0) {
+        const rate = price.rates.embeddingInput?.priceUsd ?? price.rates.input?.priceUsd;
+        if (rate === undefined) return null;
+        cost += commonInput / 1_000_000 * rate;
+        metered = true;
+      }
+      if (imageInput > 0) {
+        const rate = price.rates.imageInput?.priceUsd ?? price.rates.input?.priceUsd;
+        if (rate === undefined) return null;
+        cost += imageInput / 1_000_000 * rate;
+        metered = true;
+      }
+    } else if ((imageInputTokens ?? 0) > 0) {
+      const rate = price.rates.imageInput?.priceUsd ?? price.rates.input?.priceUsd;
       if (rate === undefined) return null;
-      cost += uncached / 1_000_000 * rate;
+      cost += (imageInputTokens ?? 0) / 1_000_000 * rate;
       metered = true;
     }
     if (cached > 0) {
@@ -210,6 +247,10 @@ export function estimateAiCallCostUsd(input: {
     if (validUnit(usage.outputTokens)) {
       if (price.rates.output === undefined) return null;
       cost += usage.outputTokens / 1_000_000 * price.rates.output.priceUsd;
+      metered = true;
+    } else if (validUnit(usage.outputImageTokens)) {
+      if (price.rates.output === undefined) return null;
+      cost += usage.outputImageTokens / 1_000_000 * price.rates.output.priceUsd;
       metered = true;
     }
     if (validUnit(usage.audioSeconds)) {
