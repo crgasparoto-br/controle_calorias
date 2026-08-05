@@ -53,6 +53,7 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 ### Fronteira de anotação de imagem #925
 
 `IMAGE_ANNOTATION` é independente de `MEAL_VISION`. O modo `local` é o default e compõe uma camada determinística sobre uma cópia auto-orientada da foto original, sem chamada externa. O modo `external` exige configuração executável específica da capacidade (`AI_IMAGE_ANNOTATION_*`) e representa um novo envio da foto ao provider de imagem.
+Para OpenAI nativa, somente modelos de imagem explicitamente aprovados pela matriz são aceitos. Em endpoint `openai-compatible`, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato do modelo deve constar em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`; configuração incompatível falha antes da criação do adapter e do envio da foto.
 
 A foto original e o derivado usam buffers e chaves de storage distintos. Falha local, externa, de upload ou de envio do derivado não remove o original, não altera a resposta textual e não bloqueia o registro da refeição. Um cartão-resumo sem a foto original é outro artefato e nunca pode ser apresentado como anotação.
 

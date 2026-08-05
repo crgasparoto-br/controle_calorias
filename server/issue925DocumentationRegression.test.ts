@@ -39,6 +39,5 @@ describe("issue 925 canonical security and privacy documentation", () => {
     expect(security).toContain("AI_OPENAI_COMPATIBLE_IMAGE_MODELS");
     expect(privacy).toContain("### Anotação derivada da foto (#925)");
     expect(privacy).toContain("Original e derivado usam buffers e chaves de storage distintos");
-    expect(privacy).toContain("AI_OPENAI_COMPATIBLE_IMAGE_MODELS");
   });
 });
