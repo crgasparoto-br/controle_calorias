@@ -7,8 +7,8 @@ import {
 
 function logOrigin(event: AiInferenceEvent): "web" | "whatsapp" | "admin" {
   if (event.origin === "whatsapp") return "whatsapp";
-  if (event.origin === "admin") return "admin";
-  return "web";
+  if (event.origin === "web") return "web";
+  return "admin";
 }
 
 function logStatus(event: AiInferenceEvent): "success" | "warning" | "error" {
@@ -24,8 +24,8 @@ function logStatus(event: AiInferenceEvent): "success" | "warning" | "error" {
  * schema-versioned JSON event containing only normalized metadata.
  */
 export function configureAiObservabilityLogging(): void {
-  setAiObservabilitySink(event => {
-    logInferenceEvent({
+  setAiObservabilitySink(async event => {
+    await logInferenceEvent({
       origin: logOrigin(event),
       status: logStatus(event),
       eventType: "ai.inference_call",
