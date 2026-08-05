@@ -454,6 +454,11 @@ describe("whatsappWebhook smoke", () => {
       mimeType: "audio/ogg",
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
+    }, {
+      observability: {
+        origin: "whatsapp",
+        flow: "whatsapp_voice_transcription",
+      },
     });
     expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
@@ -520,6 +525,11 @@ describe("whatsappWebhook smoke", () => {
       mimeType: "audio/ogg",
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
+    }, {
+      observability: {
+        origin: "whatsapp",
+        flow: "whatsapp_voice_transcription",
+      },
     });
     expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
