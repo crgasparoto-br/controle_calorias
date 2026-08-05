@@ -78,6 +78,7 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
           const bytes = typeof data === "string"
             ? Buffer.byteLength(data)
             : data.byteLength;
+          if (!mimeType) throw new Error("storage_mime_missing");
           stored.push({ key, mimeType, bytes });
           return { key, url: `memory://issue-925/${key}` };
         },
