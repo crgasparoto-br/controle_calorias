@@ -214,11 +214,26 @@ export type AiAttemptContext = {
 export type AiPolicyCall<T> = (context: AiAttemptContext) => Promise<T>;
 export type AiResultValidator<T> = (value: T) => void;
 
+export type AiAttemptCompletion<T> = {
+  context: Omit<AiAttemptContext, "signal">;
+  latencyMs: number;
+  result:
+    | { status: "success"; value: T }
+    | {
+        status: "error";
+        error: AiOperationalError | AiNonRetryableError;
+        /** Functional value is retained in memory only when validation failed after a billed response. */
+        value?: T;
+      };
+};
+
 export type AiPolicyExecutionOptions<T> = {
   /** Additional semantic validation. Throwing marks the result as invalid payload. */
   validateResult?: AiResultValidator<T>;
   /** Maximum time allowed for a callback to settle after AbortSignal is fired. */
   abortGraceMs?: number;
+  /** Sanitized attempt hook. Failures are isolated from the functional call. */
+  onAttemptComplete?: (completion: AiAttemptCompletion<T>) => void | Promise<void>;
 };
 
 /** Prepared for a future explicitly configured quality-escalation policy. */
@@ -381,9 +396,29 @@ async function executeAttempt<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const abortGraceMs = Math.max(0, options.abortGraceMs ?? DEFAULT_ABORT_GRACE_MS);
+  const startedAt = performance.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const operation = Promise.resolve().then(() => call({ ...context, signal: controller.signal }));
+  const notify = async (result: AiAttemptCompletion<T>["result"]): Promise<void> => {
+    if (!options.onAttemptComplete) return;
+    try {
+      await options.onAttemptComplete({
+        context,
+        latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        result,
+      });
+    } catch {
+      // Telemetry must never change provider behavior, retries or fallback.
+    }
+  };
+
+  let completedValue: T | undefined;
+  const operation = Promise.resolve()
+    .then(() => call({ ...context, signal: controller.signal }))
+    .then(value => {
+      completedValue = value;
+      return value;
+    });
   const settled = operation.then(
     () => true,
     () => true,
@@ -395,25 +430,36 @@ async function executeAttempt<T>(
   try {
     const value = await Promise.race([operation, timeout]);
     validateCommonResult(value, options.validateResult);
+    await notify({ status: "success", value });
     return value;
   } catch (error) {
     if (error instanceof AttemptTimeout) {
       controller.abort();
       const cancellationAcknowledged = await Promise.race([settled, delay(abortGraceMs)]);
       if (!cancellationAcknowledged) {
-        throw new AiNonRetryableError(
+        const classified = new AiNonRetryableError(
           `AI call timed out after ${context.timeoutMs}ms and did not acknowledge cancellation; retry/fallback suppressed`,
           error,
           "abort_not_acknowledged",
         );
+        await notify({ status: "error", error: classified });
+        throw classified;
       }
-      throw new AiOperationalError(
+      const classified = new AiOperationalError(
         `AI call timed out after ${context.timeoutMs}ms`,
         error,
         "timeout",
       );
+      await notify({ status: "error", error: classified });
+      throw classified;
     }
-    throw classifyAiError(error);
+    const classified = classifyAiError(error);
+    await notify({
+      status: "error",
+      error: classified,
+      ...(completedValue !== undefined ? { value: completedValue } : {}),
+    });
+    throw classified;
   } finally {
     if (timer) clearTimeout(timer);
   }

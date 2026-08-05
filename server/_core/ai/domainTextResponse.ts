@@ -2,11 +2,11 @@ import type {
   AiProvider,
   AiProviderRequestOptions,
   AiProviderTextRequest,
-  AiProviderUsage,
   AiWebSearchResult,
 } from "../aiProvider";
+import type { AiNormalizedUsage } from "./providerBoundary";
 
-export type AiDomainUsage = Omit<AiProviderUsage, "raw">;
+export type AiDomainUsage = AiNormalizedUsage;
 
 export type AiDomainTextResponse = {
   id: string;
@@ -16,12 +16,20 @@ export type AiDomainTextResponse = {
   webSearch?: AiWebSearchResult;
 };
 
-function sanitizeUsage(usage: AiProviderUsage | undefined): AiDomainUsage | undefined {
-  if (!usage) return undefined;
+function sanitizeUsage(usage: unknown): AiDomainUsage | undefined {
+  const normalized = usage as Partial<AiNormalizedUsage> | undefined;
+  if (!normalized) return undefined;
   return {
-    ...(typeof usage.inputTokens === "number" ? { inputTokens: usage.inputTokens } : {}),
-    ...(typeof usage.outputTokens === "number" ? { outputTokens: usage.outputTokens } : {}),
-    ...(typeof usage.totalTokens === "number" ? { totalTokens: usage.totalTokens } : {}),
+    ...(typeof normalized.inputTokens === "number" ? { inputTokens: normalized.inputTokens } : {}),
+    ...(typeof normalized.cachedInputTokens === "number" ? { cachedInputTokens: normalized.cachedInputTokens } : {}),
+    ...(typeof normalized.outputTokens === "number" ? { outputTokens: normalized.outputTokens } : {}),
+    ...(typeof normalized.reasoningTokens === "number" ? { reasoningTokens: normalized.reasoningTokens } : {}),
+    ...(typeof normalized.totalTokens === "number" ? { totalTokens: normalized.totalTokens } : {}),
+    ...(typeof normalized.inputAudioTokens === "number" ? { inputAudioTokens: normalized.inputAudioTokens } : {}),
+    ...(typeof normalized.outputAudioTokens === "number" ? { outputAudioTokens: normalized.outputAudioTokens } : {}),
+    ...(typeof normalized.inputImageTokens === "number" ? { inputImageTokens: normalized.inputImageTokens } : {}),
+    ...(typeof normalized.outputImageTokens === "number" ? { outputImageTokens: normalized.outputImageTokens } : {}),
+    ...(typeof normalized.generatedImages === "number" ? { generatedImages: normalized.generatedImages } : {}),
   };
 }
 
@@ -69,8 +77,8 @@ function expandCitationLinkedLines(
 }
 
 /**
- * Provider boundary used by domain services. SDK-native `raw` fields remain
- * inside `_core` and are never returned to meal or WhatsApp domain code.
+ * Provider boundary used by domain services. SDK-native responses are discarded
+ * by adapters and are never returned to meal or WhatsApp domain code.
  *
  * One invocation of this boundary performs exactly one provider call. Missing,
  * URL-only or nutritionally insufficient source evidence is preserved as-is so

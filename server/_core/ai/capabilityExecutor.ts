@@ -2,7 +2,9 @@ import type { AiProvider } from "../aiProvider";
 import type { ResolvedCapabilityConfig, ResolvedProviderModel } from "./configResolver";
 import {
   AiNonRetryableError,
+  classifyAiError,
   executeWithPolicy,
+  type AiAttemptCompletion,
   type AiAttemptContext,
   type AiPolicyExecutionOptions,
   type AiPolicyExecutionResult,
@@ -12,6 +14,17 @@ import {
   type AiProviderFactoryMap,
 } from "./providerResolver";
 import type { AiProviderId } from "./supportMatrix";
+import {
+  createNormalizedProviderBoundary,
+  type AiProviderCallObservation,
+} from "./providerBoundary";
+import {
+  buildAiInferenceEvents,
+  emitAiInferenceEvents,
+  type AiObservedAttemptCompletion,
+  type AiObservabilityContext,
+  type AiObservabilitySink,
+} from "./observability";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
   provider: AiProvider;
@@ -25,7 +38,32 @@ export type ResolvedCapabilityOperation<T> = (
 
 export type ExecuteResolvedCapabilityOptions<T> = AiPolicyExecutionOptions<T> & {
   providerFactories?: AiProviderFactoryMap;
+  observability?: AiObservabilityContext;
+  observabilitySink?: AiObservabilitySink | null;
 };
+
+export async function observeUnavailableResolvedCapability(
+  config: ResolvedCapabilityConfig,
+  observability?: AiObservabilityContext,
+  sink?: AiObservabilitySink | null,
+): Promise<void> {
+  const completion: AiAttemptCompletion<never> = {
+    context: { source: "primary", attempt: 0, timeoutMs: config.timeoutMs },
+    latencyMs: 0,
+    result: {
+      status: "error",
+      error: new AiNonRetryableError(
+        `AI capability configuration is not executable (state=${String(config.state)})`,
+        undefined,
+        "invalid_configuration",
+      ),
+    },
+  };
+  await emitAiInferenceEvents(
+    buildAiInferenceEvents({ config, attempts: [completion], context: observability, totalLatencyMs: 0 }),
+    sink === undefined ? undefined : sink,
+  );
+}
 
 function requireTarget(
   target: ResolvedProviderModel | null,
@@ -52,19 +90,68 @@ export async function executeResolvedCapability<T>(
   operation: ResolvedCapabilityOperation<T>,
   options: ExecuteResolvedCapabilityOptions<T> = {},
 ): Promise<AiPolicyExecutionResult<T>> {
-  const { providerFactories, ...policyOptions } = options;
+  const {
+    providerFactories,
+    observability,
+    observabilitySink,
+    onAttemptComplete,
+    ...policyOptions
+  } = options;
+  const attemptCompletions: AiObservedAttemptCompletion<T>[] = [];
+  const providerCalls = new Map<string, AiProviderCallObservation>();
+  const executionStartedAt = performance.now();
+  let executionSucceeded = false;
   let primaryAdapter: AiProvider | null = null;
   let fallbackAdapter: AiProvider | null = null;
+
+  const executeAttemptOperation = async (
+    context: AiAttemptContext,
+    adapter: AiProvider,
+    providerId: AiProviderId,
+    model: string,
+  ): Promise<T> => {
+    const key = `${context.source}:${context.attempt}`;
+    let observation: AiProviderCallObservation | undefined;
+    let callLimitExceeded = false;
+    const normalizedProvider = createNormalizedProviderBoundary(adapter, {
+      maxCalls: 1,
+      onCallLimitExceeded: () => {
+        callLimitExceeded = true;
+      },
+      onCallCompleted: current => {
+        observation ??= current;
+      },
+    });
+
+    try {
+      const value = await operation({
+        ...context,
+        provider: normalizedProvider,
+        providerId,
+        model,
+      });
+      if (callLimitExceeded) {
+        throw new AiNonRetryableError(
+          "AI capability attempt performed more than one provider call.",
+          undefined,
+          "incompatible_operation",
+        );
+      }
+      return value;
+    } finally {
+      if (observation) providerCalls.set(key, observation);
+    }
+  };
 
   const primaryCall = async (context: AiAttemptContext): Promise<T> => {
     const target = requireTarget(config.primary, "primary");
     primaryAdapter ??= getAiProviderById(target.provider, providerFactories);
-    return operation({
-      ...context,
-      provider: primaryAdapter,
-      providerId: target.provider,
-      model: target.model,
-    });
+    return executeAttemptOperation(
+      context,
+      primaryAdapter,
+      target.provider,
+      target.model,
+    );
   };
 
   const fallbackTarget = config.fallback.effectivelyEnabled
@@ -79,14 +166,47 @@ export async function executeResolvedCapability<T>(
   const fallbackCall = fallbackTarget
     ? async (context: AiAttemptContext): Promise<T> => {
         fallbackAdapter ??= getAiProviderById(fallbackTarget.provider, providerFactories);
-        return operation({
-          ...context,
-          provider: fallbackAdapter,
-          providerId: fallbackTarget.provider,
-          model: fallbackTarget.model,
-        });
+        return executeAttemptOperation(
+          context,
+          fallbackAdapter,
+          fallbackTarget.provider,
+          fallbackTarget.model,
+        );
       }
     : undefined;
 
-  return executeWithPolicy(config, primaryCall, fallbackCall, policyOptions);
+  try {
+    const result = await executeWithPolicy(config, primaryCall, fallbackCall, {
+      ...policyOptions,
+      onAttemptComplete: async completion => {
+        const key = `${completion.context.source}:${completion.context.attempt}`;
+        attemptCompletions.push({
+          ...completion,
+          ...(providerCalls.get(key) ? { providerCall: providerCalls.get(key) } : {}),
+        });
+        if (onAttemptComplete) await onAttemptComplete(completion);
+      },
+    });
+    executionSucceeded = true;
+    return result;
+  } catch (error) {
+    if (attemptCompletions.length === 0) {
+      attemptCompletions.push({
+        context: { source: "primary", attempt: 0, timeoutMs: config.timeoutMs },
+        latencyMs: Math.max(0, Math.round(performance.now() - executionStartedAt)),
+        result: { status: "error", error: classifyAiError(error) },
+      });
+    }
+    throw error;
+  } finally {
+    const events = buildAiInferenceEvents({
+      config,
+      attempts: attemptCompletions,
+      context: observability && executionSucceeded && observability.degradationOnFailure
+        ? { ...observability, degradationOnFailure: undefined }
+        : observability,
+      totalLatencyMs: performance.now() - executionStartedAt,
+    });
+    await emitAiInferenceEvents(events, observabilitySink === undefined ? undefined : observabilitySink);
+  }
 }

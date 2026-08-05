@@ -311,6 +311,7 @@ export type AiDomainAudioUsage = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  audioSeconds?: number;
 };
 
 export type AiDomainAudioTranscription = {
@@ -325,17 +326,19 @@ export type AiDomainAudioTranscription = {
 function sanitizeUsage(
   usage: OptionalSegmentTranscriptionResponse["usage"],
 ): AiDomainAudioUsage | undefined {
-  if (!usage) return undefined;
+  const normalized = usage as (OptionalSegmentTranscriptionResponse["usage"] & { audioSeconds?: number }) | undefined;
+  if (!normalized) return undefined;
   return {
-    ...(typeof usage.inputTokens === "number" ? { inputTokens: usage.inputTokens } : {}),
-    ...(typeof usage.outputTokens === "number" ? { outputTokens: usage.outputTokens } : {}),
-    ...(typeof usage.totalTokens === "number" ? { totalTokens: usage.totalTokens } : {}),
+    ...(typeof normalized.inputTokens === "number" ? { inputTokens: normalized.inputTokens } : {}),
+    ...(typeof normalized.outputTokens === "number" ? { outputTokens: normalized.outputTokens } : {}),
+    ...(typeof normalized.totalTokens === "number" ? { totalTokens: normalized.totalTokens } : {}),
+    ...(typeof normalized.audioSeconds === "number" ? { audioSeconds: normalized.audioSeconds } : {}),
   };
 }
 
 /**
  * One call to this boundary performs exactly one outbound provider operation.
- * SDK-native raw content remains inside _core and is never returned to meal or
+ * SDK-native response content is discarded by the adapter and never returned to meal or
  * WhatsApp domain services.
  */
 export async function createDomainAudioTranscription(

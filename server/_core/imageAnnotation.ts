@@ -6,8 +6,12 @@ import type {
   AiProviderImageGenerationRequest,
   AiProviderRequestOptions,
 } from "./aiProvider";
-import { executeResolvedCapability } from "./ai/capabilityExecutor";
+import {
+  executeResolvedCapability,
+  observeUnavailableResolvedCapability,
+} from "./ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "./ai/configResolver";
+import type { AiObservabilityContext } from "./ai/observability";
 import type { AiProviderFactoryMap } from "./ai/providerResolver";
 import {
   AiNonRetryableError,
@@ -64,6 +68,7 @@ export type GenerateExternalImageAnnotationDependencies = {
   env?: NodeJS.ProcessEnv;
   providerFactories?: AiProviderFactoryMap;
   storagePutFn?: typeof storagePut;
+  observability?: AiObservabilityContext;
 };
 
 const DEFAULT_MODE: ImageAnnotationMode = "local";
@@ -238,7 +243,12 @@ export async function generateExternalImageAnnotation(
 
   const env = dependencies.env ?? process.env;
   const config = resolveCapabilityConfig("IMAGE_ANNOTATION", env);
+  const observability = dependencies.observability ?? {
+    origin: "system" as const,
+    flow: "image_annotation" as const,
+  };
   if (config.state === "disabled" || config.state === "invalid") {
+    await observeUnavailableResolvedCapability(config, observability);
     return {
       skippedReason: "not_configured",
       mode: "external",
@@ -261,7 +271,10 @@ export async function generateExternalImageAnnotation(
         },
         { signal },
       ),
-      { providerFactories: dependencies.providerFactories },
+      {
+        providerFactories: dependencies.providerFactories,
+        observability,
+      },
     );
 
     const generated = execution.value;

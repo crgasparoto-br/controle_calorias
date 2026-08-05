@@ -4,7 +4,11 @@
  * TRANSCRIPTION capability resolver and common executor.
  */
 import type { AiProviderFactoryMap } from "./ai/providerResolver";
-import { executeResolvedCapability } from "./ai/capabilityExecutor";
+import type { AiObservabilityContext } from "./ai/observability";
+import {
+  executeResolvedCapability,
+  observeUnavailableResolvedCapability,
+} from "./ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "./ai/configResolver";
 import {
   createDomainAudioTranscription,
@@ -90,6 +94,7 @@ export type TranscriptionError = {
 export type TranscriptionRuntimeOptions = {
   env?: NodeJS.ProcessEnv;
   providerFactories?: AiProviderFactoryMap;
+  observability?: AiObservabilityContext;
 };
 
 type DownloadedAudio = {
@@ -284,7 +289,12 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResponse | TranscriptionError> {
   const env = runtime.env ?? process.env;
   const config = resolveCapabilityConfig("TRANSCRIPTION", env);
+  const observability = runtime.observability ?? {
+    origin: "system" as const,
+    flow: "voice_transcription" as const,
+  };
   if (config.state !== "ready" && config.state !== "degraded") {
+    await observeUnavailableResolvedCapability(config, observability);
     return configurationError(config.state);
   }
 
@@ -334,6 +344,7 @@ export async function transcribeAudio(
             );
           }
         },
+        observability,
       },
     );
 

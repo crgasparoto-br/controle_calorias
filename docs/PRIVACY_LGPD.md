@@ -146,3 +146,14 @@ Cada capacidade possui opt-in próprio de fallback. Habilitar fallback em `MEAL_
 ### Aplicação em pergunta, pesquisa nutricional e embedding (#923)
 
 O mesmo isolamento por capacidade se aplica a `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`: habilitar fallback em uma delas não habilita as demais. `QUESTION` e `NUTRITION_SEARCH` recebem respostas via `_core/ai/domainTextResponse.ts`, que remove `raw` do SDK antes de entregar dados ao domínio (assistente de perguntas do WhatsApp e busca nutricional do catálogo). `EMBEDDING` preserva `text-embedding-3-small` da OpenAI como default; como Gemini não anuncia a operação `embeddings`, cross-provider fallback para `EMBEDDING` fica indisponível hoje mesmo com opt-in explícito, sem exigir bloqueio manual adicional.
+
+### Telemetria de IA e custo estimado (#926)
+
+A finalidade de `ai.inference_call` é confiabilidade operacional: medir tentativas, latência, resultado, usage, ferramenta executada, política de fallback e custo estimado por capacidade. O evento não é uma nova cópia do conteúdo tratado pela IA.
+
+- Não persistir prompt, refeição, pergunta, transcrição, foto, áudio, base64, URL assinada, resposta, reasoning textual, headers, segredo, mensagem de SDK ou `raw`.
+- A correlação é técnica, limitada a oito escalares sanitizados e sem chaves relacionadas a conteúdo, mídia, erro, autenticação, token, cookie, header ou URL.
+- Provider/modelo e tipo de fallback podem ser registrados para demonstrar a política aplicada, sem registrar o conteúdo de eventual segundo envio.
+- A implementação reutiliza os logs de inferência existentes; portanto, audiência, retenção, exportação e exclusão seguem o contrato desses logs. A exclusão de conta já inclui logs de inferência vinculados ao usuário quando aplicável.
+- Não foi criada tabela, router ou retenção nova em #926. Qualquer persistência futura específica para telemetria exige finalidade, índice, volume, retenção, exportação e exclusão documentados antes do rollout.
+- `estimatedCostUsd` é estimativa operacional baseada em catálogo versionado e pode ser `null`; não representa cobrança real, fatura nem decisão automática de tratamento.

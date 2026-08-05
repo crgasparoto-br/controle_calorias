@@ -249,3 +249,15 @@ pnpm agent:check
 ## Aposentadoria do legado profissional
 
 A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.
+
+## Observabilidade de IA e catálogo de preços (#926)
+
+`executeResolvedCapability` é a fronteira canônica para telemetria técnica das capacidades externas de IA. Cada tentativa concluída produz um `AiInferenceEvent` schema 1 com capacidade, origem, provider/modelo configurados e efetivos, papel da chamada, índice, latência, resultado, usage normalizado, ferramentas efetivamente executadas, política de fallback e custo estimado.
+
+- `server/_core/ai/providerBoundary.ts` envolve o adapter resolvido, remove `raw` e `usage.raw`, normaliza unidades faturáveis e converte exceções do SDK para a taxonomia comum sem preservar mensagem ou causa nativa. O domínio não deve depender da identidade do objeto bruto do adapter; deve usar `providerId`, modelo e métodos do contrato interno.
+- `server/_core/ai/observability.ts` constrói eventos de baixa cardinalidade. Primário, retry, fallback e escalonamento são papéis distintos; same-provider, cross-provider e degradação local também permanecem separados.
+- `server/modules/aiObservability/logSink.ts` reutiliza `logInferenceEvent` com `eventType=ai.inference_call`. Não existe tabela, router ou fonte concorrente criada por #926. Falha do sink é best effort e não altera a inferência.
+- `server/_core/ai/pricingCatalog.ts` é a fonte versionada e datada para estimativa em USD. Preço ou usage insuficiente resulta em `null`; a estimativa não representa cobrança ou faturamento.
+- Prompt, texto, transcrição, foto, base64, URL assinada, resposta, reasoning textual, headers, segredos, erro bruto e objeto de SDK não podem atravessar a fronteira nem ser persistidos na telemetria.
+
+O contrato operacional detalhado e o processo de atualização do catálogo ficam em `docs/design-docs/ai-observability-pricing.md`.

@@ -4,6 +4,26 @@ const SENSITIVE_KEY_PATTERN =
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE_PATTERN = /\+?\d[\d\s().-]{8,}\d/g;
 const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const SAFE_STRUCTURED_STRING_KEYS = new Set([
+  "capability",
+  "callRole",
+  "configuredModel",
+  "configuredProvider",
+  "degradation",
+  "effectiveModel",
+  "effectiveProvider",
+  "eligibility",
+  "executionId",
+  "flow",
+  "kind",
+  "occurredAt",
+  "origin",
+  "outcome",
+  "pricingCatalogVersion",
+  "pricingEffectiveDate",
+  "reason",
+  "tool",
+]);
 
 export function redactSensitiveText(value: string) {
   return value
@@ -58,6 +78,18 @@ function extractDbCauseDetail(cause: unknown): string {
   return parts.length > 0 ? ` [${parts.join(" ")}]` : "";
 }
 
+function isAiInferenceEventDetail(value: string): boolean {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    return parsed?.schemaVersion === 1
+      && typeof parsed.capability === "string"
+      && typeof parsed.executionId === "string"
+      && typeof parsed.outcome === "string";
+  } catch {
+    return false;
+  }
+}
+
 export function safeLogDetail(value: unknown) {
   if (value instanceof Error) {
     const causeDetail = extractDbCauseDetail((value as { cause?: unknown }).cause);
@@ -65,7 +97,9 @@ export function safeLogDetail(value: unknown) {
   }
 
   if (typeof value === "string") {
-    return redactSensitiveText(value);
+    return isAiInferenceEventDetail(value)
+      ? safeStructuredLogDetail(value)
+      : redactSensitiveText(value);
   }
 
   try {
@@ -73,6 +107,54 @@ export function safeLogDetail(value: unknown) {
   } catch {
     return "Detalhe indisponível.";
   }
+}
+
+/**
+ * Preserves a bounded structured log as valid JSON. This is intentionally
+ * separate from `safeLogDetail`, whose 500-character cap remains appropriate
+ * for free-form operational messages but would corrupt schema-versioned
+ * telemetry when applied after serialization.
+ */
+export function safeStructuredLogDetail(value: unknown, maxLength = 4_096): string {
+  let parsed: unknown;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      throw new Error("Structured log detail must be valid JSON.");
+    }
+  } else {
+    parsed = value;
+  }
+
+  const sanitizeStructuredValue = (candidate: unknown, key?: string): unknown => {
+    if (typeof candidate === "string") {
+      if (key && SAFE_STRUCTURED_STRING_KEYS.has(key)) {
+        return candidate.slice(0, 160);
+      }
+      return redactSensitiveText(candidate);
+    }
+    if (Array.isArray(candidate)) {
+      return candidate.slice(0, 20).map(item => sanitizeStructuredValue(item));
+    }
+    if (candidate && typeof candidate === "object") {
+      return Object.fromEntries(
+        Object.entries(candidate as Record<string, unknown>).map(([entryKey, entryValue]) => [
+          entryKey,
+          SENSITIVE_KEY_PATTERN.test(entryKey)
+            ? "[redacted]"
+            : sanitizeStructuredValue(entryValue, entryKey),
+        ]),
+      );
+    }
+    return candidate;
+  };
+
+  const serialized = JSON.stringify(sanitizeStructuredValue(parsed)) ?? "null";
+  if (serialized.length > maxLength) {
+    throw new Error(`Structured log detail exceeds ${maxLength} characters.`);
+  }
+  return serialized;
 }
 
 export function summarizeLlmMessagesForAudit(messages: Array<{ role: string; content: unknown }>) {

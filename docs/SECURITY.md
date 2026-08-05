@@ -70,3 +70,13 @@ O harness `scripts/issue-923-live-provider-smoke.ts` e o benchmark `scripts/issu
 Para PRs, provar comportamento com testes herméticos, adapters determinísticos, fake server, replay sanitizado e controles de contagem de chamadas. Quando uma comparação real for necessária, executá-la localmente ou em infraestrutura protegida sobre código imutável e revisado, disponibilizando a chave somente no processo externo. O resultado deve ser sanitizado, vinculado ao SHA testado, hasheado e versionado antes de ser usado como evidência durável.
 
 Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b0ac37338eff4bd2005450e9` permanecem versionados apenas como histórico não canônico. O primeiro foi produzido por workflow de `pull_request` que disponibilizou `OPENAI_API_KEY` ao código mutável da PR; o segundo não possui atestação de execução confiável suficiente. Hash e sanitização comprovam integridade do arquivo, não a custódia do segredo nem a confiabilidade do executor. A execução canônica confiável está registrada no `evidence-manifest.json`, vinculada ao SHA testado, ao run, ao artifact e aos respectivos hashes; sua reutilização exige que runtime, harness e fixtures permaneçam inalterados.
+
+### Telemetria técnica de IA (#926)
+
+A fronteira `providerBoundary` deve remover `raw`, `usage.raw` e mensagens/causas nativas do SDK antes de entregar a resposta ao domínio ou à observabilidade. O evento persistido contém somente enums e números normalizados, identificadores de provider/modelo limitados e correlação técnica sanitizada.
+
+- É proibido serializar exceção completa, request, headers, token, prompt, texto, transcrição, foto, base64, URL assinada, resposta completa ou reasoning textual.
+- Chaves de correlação relacionadas a conteúdo, mídia, erro, segredo, autenticação, cookie, header, token ou URL são descartadas; objetos e arrays arbitrários não são aceitos.
+- Cross-provider pode ser identificado por metadados de política, sem registrar o conteúdo reenviado.
+- O sink usa `logInferenceEvent` e deve falhar isoladamente. Erro do sink não pode alterar retry, fallback ou retorno funcional.
+- Testes de PR permanecem herméticos e sem credenciais. Nenhum workflow ou aprovação manual foi adicionado por #926.

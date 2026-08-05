@@ -185,3 +185,17 @@ O gate discriminante inclui: default local sem rede mesmo quando a visão usa ou
 ## Metadados opcionais do contexto profissional
 
 A abertura do workspace profissional separa a consulta essencial de perfil, entitlement e autorização da leitura complementar do evento mais recente do histórico. A leitura complementar tem orçamento de 250 ms, cache curto e retry após TTL, mas uma query que excede o orçamento continua contabilizada até realmente terminar. O serviço limita globalmente essas operações pendentes a `min(4, connectionLimit - 1)`; quando o limite está ocupado, retorna **Temporariamente indisponível** sem iniciar outra query. Essa reserva impede que retries de metadados opcionais consumam todo o pool e preserva capacidade para revalidar acesso. **Não informado** permanece reservado para ausência confirmada de atividade.
+
+## Observabilidade operacional de IA (#926)
+
+Toda tentativa executada pelo mecanismo comum gera telemetria técnica depois da validação funcional da tentativa. O sink é best effort: falha de persistência do evento não muda sucesso, retry, fallback ou erro entregue ao consumidor.
+
+- Eventos usam `eventType=ai.inference_call` no pipeline existente de `logInferenceEvent`; não há segunda persistência concorrente.
+- O resultado normalizado distingue `success`, `timeout`, `rate_limit`, `external_error`, `safety_block`, `empty_output`, `invalid_json`, `invalid_payload` e `invalid_configuration`.
+- As métricas distinguem primário, retry, fallback, escalonamento, same-provider, cross-provider e degradação local. O executor continua sequencial e limita a execução a no máximo um fallback.
+- Ferramenta oferecida sem execução não recebe unidade faturável. Custo incompleto ou preço desconhecido permanece `null`.
+- A correlação aceita somente escalares limitados e chaves de baixa cardinalidade. Prompt, conteúdo, mídia, URL, erro arbitrário e objeto de SDK são descartados.
+
+Durante incidente, filtrar `ai.inference_call` por capacidade, resultado, provider/modelo efetivo, papel da chamada, tipo de fallback e versão do catálogo. Custo é estimativa operacional, não cobrança. O catálogo deve ser atualizado por nova versão/data, nunca por scraping em runtime.
+
+Testes de regressão devem provar que a operação recebe provider/modelo corretos através da fronteira normalizada, que `raw` não chega ao resultado funcional, que uma tentativa produz uma chamada outbound e que falha do sink não altera a inferência.
