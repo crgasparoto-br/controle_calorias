@@ -122,7 +122,15 @@ describe("normalized provider boundary", () => {
       createImageGeneration: vi.fn().mockResolvedValue({
         b64Json: "AAAA",
         mimeType: "image/png",
-        raw: { requestId: "image-private" },
+        raw: {
+          requestId: "image-private",
+          usage: {
+            input_tokens: 120,
+            output_tokens: 80,
+            total_tokens: 200,
+            input_tokens_details: { image_tokens: 100 },
+          },
+        },
       }),
     });
     const boundary = createNormalizedProviderBoundary(provider);
@@ -137,7 +145,20 @@ describe("normalized provider boundary", () => {
     });
 
     expect((audio as unknown as { usage?: { audioSeconds?: number } }).usage?.audioSeconds).toBe(90);
-    expect((image as unknown as { usage?: { generatedImages?: number } }).usage?.generatedImages).toBe(1);
+    expect((image as unknown as {
+      usage?: {
+        inputTokens?: number;
+        inputImageTokens?: number;
+        outputTokens?: number;
+        generatedImages?: number;
+      };
+    }).usage).toEqual({
+      inputTokens: 120,
+      outputTokens: 80,
+      totalTokens: 200,
+      inputImageTokens: 100,
+      generatedImages: 1,
+    });
     expect(JSON.stringify({ audio, image })).not.toContain("private");
   });
 });

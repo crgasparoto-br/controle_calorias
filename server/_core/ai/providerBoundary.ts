@@ -189,10 +189,23 @@ export function createNormalizedProviderBoundary(
       beginCall();
       try {
         const response = await provider.createImageGeneration(request, requestOptions);
-        const usage = normalizeProviderUsage(
-          (response as unknown as { usage?: AiProviderUsage }).usage,
-          { generatedImages: 1 },
-        );
+        const typedUsage = (response as unknown as { usage?: AiProviderUsage }).usage;
+        const nativeUsage = record(record(response.raw).usage);
+        const extractedUsage = typedUsage ?? (Object.keys(nativeUsage).length
+          ? {
+              ...(finite(nativeUsage.input_tokens) !== undefined
+                ? { inputTokens: finite(nativeUsage.input_tokens) }
+                : {}),
+              ...(finite(nativeUsage.output_tokens) !== undefined
+                ? { outputTokens: finite(nativeUsage.output_tokens) }
+                : {}),
+              ...(finite(nativeUsage.total_tokens) !== undefined
+                ? { totalTokens: finite(nativeUsage.total_tokens) }
+                : {}),
+              raw: nativeUsage,
+            }
+          : undefined);
+        const usage = normalizeProviderUsage(extractedUsage, { generatedImages: 1 });
         const normalized = {
           ...omitProviderMetadata(response as unknown as Record<string, unknown>),
           ...(usage ? { usage } : {}),

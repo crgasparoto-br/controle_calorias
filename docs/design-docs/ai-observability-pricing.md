@@ -36,7 +36,7 @@ O hook roda após validação comum e semântica. Falha do sink é best effort e
 
 ## Catálogo versionado
 
-`server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão atual é `2026-08-05.2`, efetiva em `2026-08-05`.
+`server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão atual é `2026-08-05.3`, efetiva em `2026-08-05`.
 
 Regras:
 
@@ -46,8 +46,10 @@ Regras:
 4. a estimativa usa oito casas decimais e não representa cobrança ou fatura;
 5. cache é subtraído do input comum e tarifado separadamente;
 6. áudio usa duração; imagem separa tokens de entrada de texto e imagem quando a tarifa diverge e usa tokens ou unidade de saída sem dupla contagem;
-7. ferramenta só é somada quando `executed=true` e há quantidade faturável;
-8. preço, modelo ou usage necessário ausente resulta em `null`, inclusive quando uma ferramenta foi executada; cache multimodal sem atribuição por modalidade também retorna `null`, em vez de presumir a tarifa mais barata.
+7. usage de geração e edição por GPT Image é extraído na fronteira normalizada antes de `raw` ser descartado, preservando `input_tokens`, `input_tokens_details.image_tokens`, `output_tokens` e total quando fornecidos;
+8. tokens de raciocínio seguem a semântica de cada provider: OpenAI já os inclui em `outputTokens`, enquanto Gemini os informa separadamente e o catálogo os soma à saída faturável;
+9. ferramenta só é somada quando `executed=true`; OpenAI exige a quantidade de chamadas concluídas, enquanto Gemini 2.5 deriva uma unidade `grounded_prompt` da execução confirmada, sem inferir custo pela quantidade de queries ou chunks;
+10. preço, modelo ou usage necessário ausente resulta em `null`, inclusive quando uma ferramenta foi executada; cache multimodal sem atribuição por modalidade também retorna `null`, em vez de presumir a tarifa mais barata.
 
 O custo total soma primário, retries e fallback efetivamente executados. Se qualquer tentativa não tiver dados suficientes, o total permanece `null`.
 

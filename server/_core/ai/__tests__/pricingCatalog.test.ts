@@ -22,7 +22,38 @@ describe("AI pricing catalog", () => {
       },
       tools: [{ tool: "web_search", executed: true, billableUnits: 2 }],
     })).toBe(0.505);
-    expect(AI_PRICING_CATALOG_VERSION).toBe("2026-08-05.2");
+    expect(AI_PRICING_CATALOG_VERSION).toBe("2026-08-05.3");
+  });
+
+  it("adds Gemini thinking tokens to billable output without double-counting OpenAI reasoning", () => {
+    expect(estimateAiCallCostUsd({
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        reasoningTokens: 80,
+      },
+    })).toBe(0.00028);
+
+    expect(estimateAiCallCostUsd({
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      usage: {
+        inputTokens: 100,
+        outputTokens: 100,
+        reasoningTokens: 80,
+      },
+    })).toBe(0.0002);
+  });
+
+  it("prices one Gemini 2.5 grounded prompt when grounding executed", () => {
+    expect(estimateAiCallCostUsd({
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      usage: { inputTokens: 0, outputTokens: 0 },
+      tools: [{ tool: "web_search", executed: true }],
+    })).toBe(0.035);
   });
 
   it("keeps explicit units and official sources for every catalog rate", () => {

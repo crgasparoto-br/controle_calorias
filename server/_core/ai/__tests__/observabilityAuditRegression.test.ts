@@ -51,7 +51,7 @@ describe("issue #926 audit regressions", () => {
         id: "response-1",
         outputText: '{"items":[]}',
         usage: { inputTokens: 1_000, outputTokens: 100 },
-        webSearch: { executed: true, searchCount: 1, sources: [] },
+        webSearch: { executed: true, sources: [] },
         raw: { private: "discarded" },
       })),
     } as unknown as AiProvider;
@@ -73,6 +73,111 @@ describe("issue #926 audit regressions", () => {
       usage: { inputTokens: 1_000, outputTokens: 100 },
       tools: [{ tool: "web_search", executed: true, billableUnits: 1 }],
       estimatedCostUsd: 0.01056,
+    });
+  });
+
+  it("adds Gemini thinking tokens to the estimated output cost", async () => {
+    const events: AiInferenceEvent[] = [];
+    const provider = {
+      ...emptyProvider(),
+      createTextResponse: vi.fn(async () => ({
+        id: "gemini-thinking",
+        outputText: "ok",
+        usage: {
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 200,
+          raw: { thoughtsTokenCount: 80 },
+        },
+        raw: { private: "discarded" },
+      })),
+    } as unknown as AiProvider;
+
+    await executeResolvedCapability(
+      config({ primary: { provider: "gemini", model: "gemini-2.5-flash" } }),
+      async ({ provider: normalizedProvider, model }) =>
+        normalizedProvider.createTextResponse({ model, input: "synthetic" }),
+      {
+        providerFactories: factories(provider),
+        observabilitySink: event => events.push(event),
+      },
+    );
+
+    expect(events[0]).toMatchObject({
+      usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 80 },
+      estimatedCostUsd: 0.00028,
+    });
+  });
+
+  it("prices a Gemini grounded prompt without inferring internal query counts", async () => {
+    const events: AiInferenceEvent[] = [];
+    const provider = {
+      ...emptyProvider(),
+      createTextResponse: vi.fn(async () => ({
+        id: "gemini-grounding",
+        outputText: "ok",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        webSearch: { executed: true, sources: [] },
+        raw: { private: "discarded" },
+      })),
+    } as unknown as AiProvider;
+
+    await executeResolvedCapability(
+      config({ primary: { provider: "gemini", model: "gemini-2.5-flash" } }),
+      async ({ provider: normalizedProvider, model }) =>
+        normalizedProvider.createTextResponse({ model, input: "synthetic" }),
+      {
+        providerFactories: factories(provider),
+        observabilitySink: event => events.push(event),
+      },
+    );
+
+    expect(events[0]).toMatchObject({
+      tools: [{ tool: "web_search", executed: true, billableUnits: 1 }],
+      estimatedCostUsd: 0.035,
+    });
+  });
+
+  it("keeps GPT Image usage through the boundary and prices text, image input and output", async () => {
+    const events: AiInferenceEvent[] = [];
+    const provider = {
+      ...emptyProvider(),
+      createImageGeneration: vi.fn(async () => ({
+        b64Json: "AAAA",
+        mimeType: "image/png",
+        raw: {
+          private: "discarded",
+          usage: {
+            input_tokens: 120,
+            output_tokens: 80,
+            total_tokens: 200,
+            input_tokens_details: { image_tokens: 100 },
+          },
+        },
+      })),
+    } as unknown as AiProvider;
+
+    await executeResolvedCapability(
+      config({
+        capability: "IMAGE_ANNOTATION",
+        primary: { provider: "openai", model: "gpt-image-1" },
+      }),
+      async ({ provider: normalizedProvider, model }) =>
+        normalizedProvider.createImageGeneration({ model, prompt: "synthetic" }),
+      {
+        providerFactories: factories(provider),
+        observabilitySink: event => events.push(event),
+      },
+    );
+
+    expect(events[0]).toMatchObject({
+      usage: {
+        inputTokens: 120,
+        inputImageTokens: 100,
+        outputTokens: 80,
+        generatedImages: 1,
+      },
+      estimatedCostUsd: 0.0043,
     });
   });
 

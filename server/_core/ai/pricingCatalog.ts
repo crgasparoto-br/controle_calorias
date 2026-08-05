@@ -1,7 +1,7 @@
 import type { AiNormalizedUsage } from "./providerBoundary";
 import type { AiProviderId } from "./supportMatrix";
 
-export const AI_PRICING_CATALOG_VERSION = "2026-08-05.2";
+export const AI_PRICING_CATALOG_VERSION = "2026-08-05.3";
 export const AI_PRICING_CATALOG_EFFECTIVE_DATE = "2026-08-05";
 
 export type AiBillableTool = {
@@ -18,7 +18,8 @@ export type AiPriceUnit =
   | "million_embedding_input_tokens"
   | "audio_minute"
   | "generated_image_low_1024_square"
-  | "web_search_call";
+  | "web_search_call"
+  | "grounded_prompt";
 
 export type AiPriceRate = {
   unit: AiPriceUnit;
@@ -32,6 +33,8 @@ export type AiModelPrice = {
   model: string;
   /** Runtime aliases resolved to this catalog snapshot. */
   aliases?: readonly string[];
+  /** Whether reasoning tokens are already included in outputTokens. */
+  reasoningTokenBilling?: "included_in_output" | "additional_output";
   rates: {
     input?: AiPriceRate;
     cachedInput?: AiPriceRate;
@@ -132,6 +135,7 @@ export const AI_PRICING_CATALOG: readonly AiModelPrice[] = [
     provider: "gemini",
     model: "gemini-2.5-flash",
     aliases: ["gemini-2.5-flash"],
+    reasoningTokenBilling: "additional_output",
     rates: {
       input: {
         unit: "million_input_tokens",
@@ -149,7 +153,7 @@ export const AI_PRICING_CATALOG: readonly AiModelPrice[] = [
         source: "https://ai.google.dev/gemini-api/docs/pricing",
       },
       webSearch: {
-        unit: "web_search_call",
+        unit: "grounded_prompt",
         priceUsd: 0.035,
         source: "https://ai.google.dev/gemini-api/docs/pricing",
       },
@@ -244,9 +248,19 @@ export function estimateAiCallCostUsd(input: {
       cost += cached / 1_000_000 * price.rates.cachedInput.priceUsd;
       metered = true;
     }
-    if (validUnit(usage.outputTokens)) {
+    const outputTokens = validUnit(usage.outputTokens) ? usage.outputTokens : undefined;
+    const reasoningTokens = validUnit(usage.reasoningTokens)
+      ? usage.reasoningTokens
+      : undefined;
+    const billableOutputTokens = price.reasoningTokenBilling === "additional_output"
+      ? outputTokens !== undefined || reasoningTokens !== undefined
+        ? (outputTokens ?? 0) + (reasoningTokens ?? 0)
+        : undefined
+      : outputTokens;
+
+    if (billableOutputTokens !== undefined) {
       if (price.rates.output === undefined) return null;
-      cost += usage.outputTokens / 1_000_000 * price.rates.output.priceUsd;
+      cost += billableOutputTokens / 1_000_000 * price.rates.output.priceUsd;
       metered = true;
     } else if (validUnit(usage.outputImageTokens)) {
       if (price.rates.output === undefined) return null;
@@ -267,8 +281,14 @@ export function estimateAiCallCostUsd(input: {
 
   for (const tool of input.tools ?? []) {
     if (!tool.executed) continue;
-    if (!validUnit(tool.billableUnits) || price.rates.webSearch === undefined) return null;
-    cost += tool.billableUnits * price.rates.webSearch.priceUsd;
+    if (price.rates.webSearch === undefined) return null;
+    const billableUnits = validUnit(tool.billableUnits)
+      ? tool.billableUnits
+      : price.rates.webSearch.unit === "grounded_prompt"
+        ? 1
+        : undefined;
+    if (billableUnits === undefined) return null;
+    cost += billableUnits * price.rates.webSearch.priceUsd;
     metered = true;
   }
 
