@@ -22,7 +22,7 @@ describe("AI pricing catalog", () => {
       },
       tools: [{ tool: "web_search", executed: true, billableUnits: 2 }],
     })).toBe(0.505);
-    expect(AI_PRICING_CATALOG_VERSION).toBe("2026-08-05.1");
+    expect(AI_PRICING_CATALOG_VERSION).toBe("2026-08-05.2");
   });
 
   it("keeps explicit units and official sources for every catalog rate", () => {
@@ -58,6 +58,35 @@ describe("AI pricing catalog", () => {
       provider: "gemini",
       model: "gemini-2.5-flash",
       tools: [{ tool: "web_search", executed: true }],
+    })).toBeNull();
+  });
+
+  it("prices image input tokens separately from text and image output tokens", () => {
+    expect(estimateAiCallCostUsd({
+      provider: "openai",
+      model: "gpt-image-1",
+      usage: {
+        inputTokens: 1_500_000,
+        inputImageTokens: 1_000_000,
+        outputTokens: 1_000,
+      },
+    })).toBe(12.54);
+    expect(estimateAiCallCostUsd({
+      provider: "openai",
+      model: "gpt-image-1",
+      usage: { inputImageTokens: 1_000_000, outputImageTokens: 1_000 },
+    })).toBe(10.04);
+  });
+
+  it("returns null when cached mixed-modality input cannot be attributed safely", () => {
+    expect(estimateAiCallCostUsd({
+      provider: "openai",
+      model: "gpt-image-1",
+      usage: {
+        inputTokens: 1_000_000,
+        cachedInputTokens: 100_000,
+        inputImageTokens: 500_000,
+      },
     })).toBeNull();
   });
 
