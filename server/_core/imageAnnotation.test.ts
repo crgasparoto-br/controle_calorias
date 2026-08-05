@@ -165,7 +165,7 @@ describe("generateExternalImageAnnotation", () => {
         env: baseEnv({
           AI_IMAGE_ANNOTATION_FALLBACK_ENABLED: "true",
           AI_IMAGE_ANNOTATION_FALLBACK_PROVIDER: "openai",
-          AI_IMAGE_ANNOTATION_FALLBACK_MODEL: "gpt-image-fallback",
+          AI_IMAGE_ANNOTATION_FALLBACK_MODEL: "gpt-image-1-mini",
         }),
         providerFactories: factories(openaiFactory),
         storagePutFn: vi.fn(async (key: string) => ({
