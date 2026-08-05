@@ -50,6 +50,17 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 Áudio, transcrição, prompt, base64 e URL de mídia não podem compor diagnóstico, telemetria ou resultado de benchmark. O callback duplicado do WhatsApp é descartado antes do download e da transcrição. Fallback de `TRANSCRIPTION` permanece desabilitado por padrão; cross-provider continua bloqueado em produção até benchmark, revisão LGPD e rollout da #927.
 
+### Fronteira de anotação de imagem #925
+
+`IMAGE_ANNOTATION` é independente de `MEAL_VISION`. O modo `local` é o default e compõe uma camada determinística sobre uma cópia auto-orientada da foto original, sem chamada externa. O modo `external` exige configuração executável específica da capacidade (`AI_IMAGE_ANNOTATION_*`) e representa um novo envio da foto ao provider de imagem.
+Para OpenAI nativa, somente modelos de imagem explicitamente aprovados pela matriz são aceitos. Em endpoint `openai-compatible`, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato do modelo deve constar em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`; configuração incompatível falha antes da criação do adapter e do envio da foto.
+
+A foto original e o derivado usam buffers e chaves de storage distintos. Falha local, externa, de upload ou de envio do derivado não remove o original, não altera a resposta textual e não bloqueia o registro da refeição. Um cartão-resumo sem a foto original é outro artefato e nunca pode ser apresentado como anotação.
+
+Fallback externo permanece desabilitado por padrão. Provider diferente exige opt-in explícito por capacidade e continua bloqueado em produção até benchmark, revisão de privacidade/LGPD e rollout da #927. A degradação `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; ela não é fallback de provider e não cria novo compartilhamento externo.
+
+Entradas base64 são validadas quanto a forma canônica e tamanho estimado antes da alocação do buffer decodificado. Logs e telemetria registram somente modo, degradação, origem normalizada, tentativas, tipo do artefato e código de falha sanitizado; foto, base64, URL assinada, prompt, conteúdo nutricional, resposta bruta, segredo e mensagem do SDK são proibidos.
+
 ### Smokes e benchmarks com providers externos
 
 O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos.

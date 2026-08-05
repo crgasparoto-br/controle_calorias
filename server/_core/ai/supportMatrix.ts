@@ -30,6 +30,13 @@ const GEMINI_OPERATIONS: readonly AiOperation[] = [
   "web_search",
 ];
 
+const OPENAI_IMAGE_MODELS = new Set([
+  "gpt-image-1",
+  "gpt-image-1-mini",
+  "gpt-image-1.5",
+  "gpt-image-1.5-2025-12-16",
+  "gpt-image-2",
+]);
 
 export type AiOperationCompatibilityIssue = {
   code: "unsupported_operation_combination";
@@ -52,6 +59,14 @@ function isOpenAiTranscriptionModel(model: string): boolean {
   return OPENAI_TRANSCRIPTION_MODELS.has(model.trim().toLowerCase());
 }
 
+function isOpenAiImageModel(model: string): boolean {
+  return OPENAI_IMAGE_MODELS.has(model.trim());
+}
+
+function requiresImageModelValidation(operations: readonly AiOperation[]): boolean {
+  return operations.includes("image_generation") || operations.includes("image_edit");
+}
+
 /**
  * Provider operations may be supported individually while their combination
  * is not supported by a specific model. Gemini documents Structured Outputs
@@ -63,6 +78,7 @@ export function findOperationCompatibilityIssues(
   provider: AiProviderId,
   model: string,
   operations: readonly AiOperation[],
+  env?: NodeJS.ProcessEnv,
 ): AiOperationCompatibilityIssue[] {
   if (
     provider === "openai"
@@ -88,6 +104,31 @@ export function findOperationCompatibilityIssues(
       message: `provider=gemini model=${model || "<empty>"} does not support the required structured_output+web_search combination; configure an explicitly approved Gemini 3 series model`,
     }];
   }
+
+  if (requiresImageModelValidation(operations)) {
+    if (provider === "openai" && !isOpenAiImageModel(model)) {
+      return [{
+        code: "unsupported_operation_combination",
+        operations: operations.filter(operation =>
+          operation === "image_generation" || operation === "image_edit"),
+        message: "provider=openai configured model is not an approved image generation/edit model",
+      }];
+    }
+
+    if (
+      provider === "openai-compatible"
+      && env !== undefined
+      && !readOpenAiCompatibleValidatedImageModels(env).includes(model.trim())
+    ) {
+      return [{
+        code: "unsupported_operation_combination",
+        operations: operations.filter(operation =>
+          operation === "image_generation" || operation === "image_edit"),
+        message: "provider=openai-compatible configured image model is not explicitly validated in AI_OPENAI_COMPATIBLE_IMAGE_MODELS",
+      }];
+    }
+  }
+
   return [];
 }
 
@@ -109,6 +150,22 @@ export function readOpenAiCompatibleValidatedOperations(
       .split(",")
       .map((value) => value.trim())
       .filter((value): value is AiOperation => known.has(value)),
+  )];
+}
+
+export function readOpenAiCompatibleValidatedImageModels(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  if (!hasOpenAiCompatibleEndpoint(env)) return [];
+
+  const raw = env.AI_OPENAI_COMPATIBLE_IMAGE_MODELS?.trim();
+  if (!raw) return [];
+
+  return [...new Set(
+    raw
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean),
   )];
 }
 

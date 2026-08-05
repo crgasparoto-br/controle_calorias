@@ -54,6 +54,7 @@ pnpm db:check-integrity
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
 - Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
+- Para `IMAGE_ANNOTATION`, testes devem distinguir `local`, `external` e `off`, provar ausência de rede no default local, preservar os bytes originais, limitar uma chamada por tentativa e manter falhas locais/externas não bloqueantes.
 
 ## Pendências multietapas do WhatsApp
 
@@ -85,6 +86,10 @@ pnpm db:check-integrity
 - Callback duplicado do WhatsApp baixando ou transcrevendo o mesmo áudio novamente.
 - Modelo de transcrição sem segmentos sendo rejeitado apesar de retornar texto útil.
 - Data URL malformada sendo confundida com arquivo vazio.
+- Mudança de `MEAL_VISION` redirecionando silenciosamente um segundo envio da foto para anotação.
+- Resumo visual genérico sendo apresentado como anotação da foto original.
+- Falha de upload do derivado sobrescrevendo ou removendo o original.
+- Fallback externo criando cadeia de providers ou mais de uma operação outbound por tentativa.
 
 ## Metas profissionais oficiais
 
@@ -164,6 +169,18 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 A regressão do WhatsApp é comportamental: duas entregas do mesmo callback resultam em um único download, uma transcrição e uma mutação. O benchmark usa seis fixtures sintéticos, uma tentativa, sem fallback, execução sequencial e saída sanitizada. O manifesto vazio ou inválido falha antes da rede; taxas sem denominador são `0` e médias sem amostra são `null`, nunca `NaN`/`Infinity`.
 
 Antes de promover modelo em produção, executar `pnpm agent:check`, `pnpm build`, o smoke controlado e o benchmark real descrito em `docs/benchmarks/transcription/results/README.md`. A comparação não altera o default automaticamente.
+
+## Consumidor migrado em #925
+
+`IMAGE_ANNOTATION` possui três modos especializados e independentes de `MEAL_VISION`:
+
+- `local` é o default. Valida MIME/base64/tamanho, auto-orienta uma cópia, compõe SVG por Sharp e cria um PNG derivado com chave distinta, sem criar adapter ou chamada externa.
+- `external` valida a foto antes da rede, resolve a capacidade específica e usa o executor comum. Cada tentativa contém exatamente uma operação de imagem; depois das tentativas primárias existe no máximo uma chamada de fallback, se explicitamente habilitada e elegível.
+- `off` encerra sem derivado.
+
+Falha externa só degrada para local com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; essa transição é degradação funcional e não fallback de provider. Falhas de configuração, provider, renderização local, upload ou envio do derivado não bloqueiam resposta textual, confirmação nem persistência da refeição. O original nunca é sobrescrito ou removido, e cartão-resumo separado não pode ser usado para mascarar ausência de anotação.
+
+O gate discriminante inclui: default local sem rede mesmo quando a visão usa outro provider; derivado separado com dimensões preservadas; input inválido rejeitado antes de Sharp/storage/provider; same-provider fallback único; cross-provider sem flag não cria adapter; logs e respostas sem foto, base64, URL, prompt, segredo ou erro bruto. Rollout e rollback ficam documentados em `docs/design-docs/image-annotation-capability.md`.
 
 ## Metadados opcionais do contexto profissional
 

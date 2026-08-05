@@ -4,6 +4,7 @@ import {
   findUnsupportedOperations,
   getSupportedOperations,
   isKnownProvider,
+  readOpenAiCompatibleValidatedImageModels,
   supportsOperation,
 } from "../supportMatrix";
 
@@ -50,6 +51,68 @@ describe("adapter support matrix", () => {
       "gemini",
       "gemini-2.5-flash",
       ["text", "web_search"],
+    )).toEqual([]);
+  });
+
+  it("rejects non-image OpenAI models for image generation/edit before outbound", () => {
+    const issues = findOperationCompatibilityIssues(
+      "openai",
+      "definitely-not-an-image-model",
+      ["image_generation", "image_edit"],
+    );
+
+    expect(issues).toEqual([expect.objectContaining({
+      code: "unsupported_operation_combination",
+      operations: ["image_generation", "image_edit"],
+    })]);
+    expect(JSON.stringify(issues)).not.toContain("definitely-not-an-image-model");
+  });
+
+  it.each([
+    "gpt-image-1",
+    "gpt-image-1-mini",
+    "gpt-image-1.5",
+    "gpt-image-1.5-2025-12-16",
+    "gpt-image-2",
+  ])("accepts approved OpenAI image model families: %s", model => {
+    expect(findOperationCompatibilityIssues(
+      "openai",
+      model,
+      ["image_generation", "image_edit"],
+    )).toEqual([]);
+  });
+
+  it.each([
+    "GPT-IMAGE-1",
+    "gpt-image-2-2099-99-99",
+    "gpt-image-next",
+  ])("rejects image-like identifiers that were not explicitly approved: %s", model => {
+    expect(findOperationCompatibilityIssues(
+      "openai",
+      model,
+      ["image_generation", "image_edit"],
+    )).toHaveLength(1);
+  });
+
+  it("requires an exact compatible image-model allowlist in addition to operations", () => {
+    const env = {
+      OPENAI_BASE_URL: "https://compatible.example/v1",
+      AI_OPENAI_COMPATIBLE_OPERATIONS: "image_generation,image_edit",
+      AI_OPENAI_COMPATIBLE_IMAGE_MODELS: "vendor/image-v2, vendor/image-v2",
+    } as NodeJS.ProcessEnv;
+
+    expect(readOpenAiCompatibleValidatedImageModels(env)).toEqual(["vendor/image-v2"]);
+    expect(findOperationCompatibilityIssues(
+      "openai-compatible",
+      "vendor/image-v1",
+      ["image_generation", "image_edit"],
+      env,
+    )).toHaveLength(1);
+    expect(findOperationCompatibilityIssues(
+      "openai-compatible",
+      "vendor/image-v2",
+      ["image_generation", "image_edit"],
+      env,
     )).toEqual([]);
   });
 

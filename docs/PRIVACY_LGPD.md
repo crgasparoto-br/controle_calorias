@@ -98,6 +98,16 @@ A finalidade do envio de áudio é produzir texto para o fluxo solicitado pelo p
 
 A retenção funcional de mídia/conversa já prevista pelo produto é diferente da telemetria de IA: não se deve usar o benchmark ou diagnóstico operacional como nova base de retenção de áudio/transcrição.
 
+### Anotação derivada da foto (#925)
+
+A finalidade do modo local é produzir um auxílio visual determinístico sobre uma cópia da foto enviada pelo próprio usuário. Esse modo é o padrão, não usa IA generativa e não envia foto, prompt ou dados nutricionais a provider de imagem. A seleção de `MEAL_VISION`, texto ou outro provider não autoriza nem redireciona a anotação.
+
+O modo `external` é tratamento adicional e exige configuração explícita e executável de `AI_IMAGE_ANNOTATION_*`. Ele constitui novo compartilhamento da foto com o provider específico da capacidade. Fallback externo é desabilitado por padrão; cross-provider permanece bloqueado em produção até análise de transferência internacional, benchmark, revisão LGPD e rollout da #927. A degradação local configurada após falha externa não é fallback de provider e não cria outro envio.
+
+A foto original permanece inalterada. Original e derivado usam buffers e chaves de storage distintos, devem ser exportados e excluídos de forma independente e seguem a política de retenção aplicável às mídias da refeição. Falha de geração, armazenamento ou envio do derivado não remove o original, não altera a resposta textual e não impede a persistência da refeição. Cartão-resumo sem foto original é artefato separado e não pode ser descrito como anotação.
+
+Diagnósticos, logs e telemetria não podem conter foto, base64, URL assinada, prompt, texto nutricional, resposta bruta do provider, segredo ou mensagem de SDK. Entradas base64 são rejeitadas por tamanho antes da alocação do buffer decodificado, reduzindo exposição a pressão de memória sem ampliar retenção.
+
 ### Segundo envio a provider (fallback) e diagnósticos sanitizados (#921)
 
 A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
