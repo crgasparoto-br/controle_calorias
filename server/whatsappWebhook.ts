@@ -11,7 +11,7 @@ export {
   verifyWhatsAppWebhook,
 };
 
-// Static compatibility contract: executeWhatsappTextIntent(userId, { text: prepared.transcript }).
+// Static compatibility contract: canInterpretAudioTranscriptIntent -> executeWhatsappTextIntent(userId, { text: prepared.transcript }).
 export function handleWhatsAppWebhook(req: Request, res: Response) {
   return runWithImageAnnotationTelemetryContext(
     () => handleWhatsAppWebhookImplementation(req, res),
