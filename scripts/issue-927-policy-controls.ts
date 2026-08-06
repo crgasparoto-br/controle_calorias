@@ -5,6 +5,8 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { executeScenario } from "./issue-927-benchmark/execution";
+import { readManifest } from "./issue-927-benchmark/report";
 import { validateIssue927PolicyManifest } from "./issue-927-policy-control-contract";
 import { evaluateIssue927PolicyControls } from "./issue-927-policy-control-execution";
 
@@ -22,6 +24,22 @@ export async function buildIssue927PolicyReport(
   testedSha = process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]),
 ) {
   const nonApplicablePolicies = await validateIssue927PolicyManifest(MANIFEST);
+  const manifest = await readManifest(MANIFEST);
+  const whatsappScenario = manifest.scenarios.find(item => item.id === "intent-provider-primary");
+  assert(whatsappScenario, "missing intent-provider-primary scenario");
+  const whatsappObservation = await executeScenario(
+    whatsappScenario,
+    manifest.rubric.WHATSAPP_INTENT.criticalChecks,
+  );
+  assert.equal(whatsappObservation.valid, true, "WHATSAPP_INTENT provider scenario failed");
+  assert.equal(whatsappObservation.calls, 1, "WHATSAPP_INTENT provider scenario must call once");
+  const whatsappAttempt = whatsappObservation.attemptDetails[0];
+  assert.deepEqual(whatsappAttempt, {
+    role: "primary",
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    outcome: "success",
+  });
   const controls = await evaluateIssue927PolicyControls();
   const families = Object.fromEntries([
     "fallback-disabled",
@@ -37,6 +55,12 @@ export async function buildIssue927PolicyReport(
     privacy: "synthetic-controls-no-user-content",
     productionChangesApplied: false,
     whatsappPrimaryProviderScenario: "intent-provider-primary",
+    whatsappPrimaryProviderEvidence: {
+      valid: whatsappObservation.valid,
+      calls: whatsappObservation.calls,
+      attempt: whatsappAttempt,
+      observationSha256: sha256(whatsappObservation),
+    },
     controlCount: controls.length,
     allPassed: controls.length === 32 && controls.every(item => item.passed),
     failedControlIds: controls.filter(item => !item.passed).map(item => item.id),
