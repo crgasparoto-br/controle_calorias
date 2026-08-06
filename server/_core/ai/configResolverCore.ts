@@ -396,7 +396,7 @@ export function resolveCapabilityConfig(
         if (state === "ready") state = "degraded";
       } else if (productionCrossProviderBlocked) {
         diagnostics.push(
-          `capability=${capability} cross-provider fallback remains disabled in production until benchmark, privacy review and rollout approval from issue #927`,
+          `capability=${capability} cross-provider fallback remains disabled in production; comparison, privacy review and authorized rollout are tracked per capability in issue #962`,
         );
         fallback = {
           requested: true,

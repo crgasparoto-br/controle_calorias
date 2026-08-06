@@ -20,6 +20,7 @@ export type Capability = (typeof CAPABILITIES)[number];
 export type Runner =
   | "meal"
   | "intent"
+  | "conversation"
   | "question"
   | "nutrition-search"
   | "embedding"
@@ -28,6 +29,22 @@ export type Runner =
 export type ProviderId = "openai" | "openai-compatible" | "gemini";
 export type ProviderOperation = "text" | "embedding" | "audio" | "image";
 export type FallbackKind = "none" | "same-provider" | "cross-provider";
+
+export const POLICY_FAMILIES = [
+  "primary",
+  "retry",
+  "same-provider-fallback",
+  "cross-provider-blocked",
+  "cross-provider-allowed",
+  "local-degradation",
+] as const;
+export type PolicyFamily = (typeof POLICY_FAMILIES)[number];
+
+export type PolicyCoverage = {
+  applicable: boolean;
+  scenarioIds: string[];
+  reason?: string;
+};
 
 export type UsageFixture = {
   inputTokens?: number;
@@ -96,7 +113,7 @@ export type Scenario = {
 };
 
 export type Manifest = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   generatedAt: string;
   privacy: "synthetic-only";
   license: string;
@@ -104,6 +121,7 @@ export type Manifest = {
   requiredCapabilities: Capability[];
   requiredTags: string[];
   rubric: Record<Capability, { validOperation: string; criticalChecks: string[] }>;
+  policyMatrix: Record<Capability, Record<PolicyFamily, PolicyCoverage>>;
   scenarios: Scenario[];
 };
 
@@ -224,7 +242,7 @@ export function scanReportSafety(value: unknown, at = "report"): void {
 
 export function validateManifest(manifest: Manifest): void {
   scanFixtureSafety(manifest);
-  if (manifest.schemaVersion !== 2 || manifest.rubricVersion !== "2026-08-06.3") {
+  if (manifest.schemaVersion !== 3 || manifest.rubricVersion !== "2026-08-06.4") {
     throw new Error("unsupported benchmark contract");
   }
   if (manifest.privacy !== "synthetic-only" || !manifest.license.trim()) {
@@ -274,5 +292,45 @@ export function validateManifest(manifest: Manifest): void {
   }
   for (const tag of manifest.requiredTags) {
     if (!tags.has(tag)) throw new Error(`missing coverage tag ${tag}`);
+  }
+
+  const scenariosById = new Map(manifest.scenarios.map(scenario => [scenario.id, scenario]));
+  for (const capability of CAPABILITIES) {
+    const policy = manifest.policyMatrix[capability];
+    if (!policy) throw new Error(`missing policy matrix for ${capability}`);
+    const policyKeys = Object.keys(policy).sort();
+    const expectedKeys = [...POLICY_FAMILIES].sort();
+    if (JSON.stringify(policyKeys) !== JSON.stringify(expectedKeys)) {
+      throw new Error(`policy matrix for ${capability} must declare every policy family exactly once`);
+    }
+    for (const family of POLICY_FAMILIES) {
+      const coverage = policy[family];
+      if (coverage.applicable && coverage.scenarioIds.length === 0) {
+        throw new Error(`${capability}/${family} is applicable without a scenario`);
+      }
+      if (!coverage.applicable && (!coverage.reason?.trim() || coverage.scenarioIds.length > 0)) {
+        throw new Error(`${capability}/${family} must declare a reason and no scenarios when not applicable`);
+      }
+      for (const scenarioId of coverage.scenarioIds) {
+        const scenario = scenariosById.get(scenarioId);
+        if (!scenario) throw new Error(`${capability}/${family} references unknown scenario ${scenarioId}`);
+        if (scenario.capability !== capability) {
+          throw new Error(`${capability}/${family} references scenario from ${scenario.capability}`);
+        }
+        if (!scenario.tags.includes(family)) {
+          throw new Error(`${capability}/${family} references scenario without matching policy tag ${scenarioId}`);
+        }
+      }
+    }
+  }
+
+  for (const scenario of manifest.scenarios) {
+    for (const family of POLICY_FAMILIES) {
+      if (!scenario.tags.includes(family)) continue;
+      const coverage = manifest.policyMatrix[scenario.capability][family];
+      if (!coverage.applicable || !coverage.scenarioIds.includes(scenario.id)) {
+        throw new Error(`${scenario.id} is not governed by ${scenario.capability}/${family}`);
+      }
+    }
   }
 }

@@ -17,10 +17,10 @@ As fixtures são sintéticas e licenciadas. O relatório guarda somente identifi
 
 ## Cobertura executável
 
-O manifesto `fixtures/manifest.json` contém entradas sintéticas, respostas determinísticas de provider e expectativas funcionais. Ele não contém métricas prontas. O runner mede o que ocorreu durante a execução e cobre:
+O manifesto `fixtures/manifest.json` contém entradas sintéticas, respostas determinísticas de provider, expectativas funcionais e uma matriz versionada `capacidade × política`. Cada família (`primary`, `retry`, fallback same-provider, cross-provider bloqueado/permitido e degradação local) precisa apontar para cenários da própria capacidade ou declarar explicitamente por que não é aplicável. Tags globais isoladas não satisfazem cobertura. O runner mede o que ocorreu durante a execução e cobre:
 
 - refeição por texto e visão, inclusive resultado válido sem alimento e NOVA embutida;
-- WhatsApp simples, ambíguo e adversarial, comando determinístico, contexto pendente, correção, substituição e exclusão;
+- WhatsApp simples, ambíguo e adversarial, comando determinístico, contexto pendente, correção, substituição e exclusão. Os cenários de continuidade usam o repositório persistente em memória e verificam estado antes/depois, cancelamento ou consumo, efeito de domínio, duplicidade e isolamento entre usuários;
 - perguntas `/` com ferramenta disponível/executada;
 - pesquisa nutricional com fonte vinculada e rejeição de ambiguidade;
 - embeddings e degradação segura semântica → canônica;
@@ -49,14 +49,15 @@ O relatório deriva da execução:
 pnpm benchmark:ai:multi-provider
 ```
 
-Gerar relatório:
+Gerar relatório gzip e metadata vinculada:
 
 ```bash
 pnpm benchmark:ai:multi-provider -- \
-  --output docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json
+  --output docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz \
+  --metadata-output docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.metadata.json
 ```
 
-O artefato versionado é a forma gzip desse JSON (`.json.gz`). O verificador oficial lê gzip diretamente, valida a sanitização e recusa rubrica, cobertura, SHA ou árvore executável divergentes.
+O verificador oficial lê gzip diretamente, regenera deterministicamente todas as observações e decisões e exige igualdade estrutural integral. A metadata também vincula os bytes JSON/gzip, SHA testado, árvore executável, contagem de observações e estado operacional. Alterar uma métrica ou decisão sem regenerar o harness faz o gate falhar.
 
 Smoke funcional completo, sem credenciais:
 
@@ -82,7 +83,9 @@ O relatório registra:
 - ambiente e classe de endpoint;
 - limitações e decisão operacional.
 
-A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evitar autorreferência: adicionar o próprio relatório muda o commit, mas não muda a árvore executável. O relatório guarda o SHA do candidato efetivamente executado. No head final, o gate `benchmark:ai:multi-provider:verify` exige que esse SHA seja ancestral, que o delta posterior contenha somente arquivos da pasta de resultados e que o SHA-256 da árvore executável permaneça idêntico. Qualquer mudança posterior em runtime, harness, fixtures, documentação operacional ou testes invalida a evidência.
+Latências herméticas usam o relógio virtual do adapter, não o relógio da máquina. Assim, duas execuções com os mesmos fixtures, código e catálogo produzem o mesmo relatório.
+
+A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evitar autorreferência: adicionar o próprio relatório muda o commit, mas não muda a árvore executável. O relatório guarda o SHA do candidato efetivamente executado. No head final, o gate `benchmark:ai:multi-provider:verify` exige que esse SHA seja ancestral, que o delta posterior contenha somente arquivos da pasta de resultados, que o SHA-256 da árvore executável permaneça idêntico e que a regeneração integral seja igual ao artefato commitado. Qualquer mudança posterior em runtime, harness, fixtures, documentação operacional ou testes invalida a evidência.
 
 ## Promoção e rollout
 

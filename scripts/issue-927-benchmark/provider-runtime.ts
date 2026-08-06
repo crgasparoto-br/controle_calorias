@@ -56,6 +56,7 @@ class ScenarioProvider implements AiProvider {
     private readonly queues: Record<ProviderOperation, ProviderStep[]>,
     private readonly calls: ProviderCall[],
     private readonly concurrency: { current: number; max: number },
+    private readonly clock: { now: number },
   ) {}
 
   private async consume<T>(
@@ -67,25 +68,25 @@ class ScenarioProvider implements AiProvider {
     if (options?.signal?.aborted) throw new AiOperationalError("Synthetic request aborted", undefined, "timeout");
     const step = this.queues[operation].shift();
     if (!step) throw new Error(`No synthetic ${operation} response remains for provider ${this.providerId}`);
-    const startedAt = Date.now();
+    const startedAt = this.clock.now;
     this.concurrency.current += 1;
     this.concurrency.max = Math.max(this.concurrency.max, this.concurrency.current);
     let failed = false;
     try {
-      if (step.delayMs) await new Promise(resolve => setTimeout(resolve, step.delayMs));
       if (step.error) {
         failed = true;
         throw operationalError(step);
       }
       return map(step);
     } finally {
+      this.clock.now += step.delayMs ?? 1;
       this.concurrency.current -= 1;
       this.calls.push({
         provider: this.providerId,
         operation,
         model,
         startedAt,
-        endedAt: Date.now(),
+        endedAt: this.clock.now,
         failed,
       });
     }
@@ -143,6 +144,7 @@ class ScenarioProvider implements AiProvider {
 export function createProviderRuntime(scenario: Scenario) {
   const calls: ProviderCall[] = [];
   const concurrency = { current: 0, max: 0 };
+  const clock = { now: 0 };
   const queues = (provider: ProviderId): Record<ProviderOperation, ProviderStep[]> => ({
     text: (scenario.providerPlan?.[provider] ?? []).filter(step => step.operation === "text").map(step => structuredClone(step)),
     embedding: (scenario.providerPlan?.[provider] ?? []).filter(step => step.operation === "embedding").map(step => structuredClone(step)),
@@ -150,16 +152,16 @@ export function createProviderRuntime(scenario: Scenario) {
     image: (scenario.providerPlan?.[provider] ?? []).filter(step => step.operation === "image").map(step => structuredClone(step)),
   });
   const providers: Record<ProviderId, ScenarioProvider> = {
-    openai: new ScenarioProvider("openai", queues("openai"), calls, concurrency),
-    "openai-compatible": new ScenarioProvider("openai-compatible", queues("openai-compatible"), calls, concurrency),
-    gemini: new ScenarioProvider("gemini", queues("gemini"), calls, concurrency),
+    openai: new ScenarioProvider("openai", queues("openai"), calls, concurrency, clock),
+    "openai-compatible": new ScenarioProvider("openai-compatible", queues("openai-compatible"), calls, concurrency, clock),
+    gemini: new ScenarioProvider("gemini", queues("gemini"), calls, concurrency, clock),
   };
   const factories: AiProviderFactoryMap = {
     openai: () => providers.openai,
     "openai-compatible": () => providers["openai-compatible"],
     gemini: () => providers.gemini,
   };
-  return { calls, concurrency, factories };
+  return { calls, concurrency, factories, clock };
 }
 
 export function baseEnvironment(scenario: Scenario): NodeJS.ProcessEnv {

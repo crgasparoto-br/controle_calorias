@@ -3,6 +3,13 @@ import { setAiObservabilitySink } from "../../server/_core/ai/observability";
 import { DEFAULT_AI_PROVIDER_FACTORIES, type AiProviderFactoryMap } from "../../server/_core/ai/providerResolver";
 import { transcribeAudio } from "../../server/_core/voiceTranscription";
 import {
+  createUserManualMeal,
+  getDb,
+  listUserMeals,
+  logPersistenceWarning,
+  removeUserMeal,
+} from "../../server/db";
+import {
   findCatalogFoodSemantic,
   findPackagedSnackByWebSearch,
   resetEmbeddingCache,
@@ -11,7 +18,11 @@ import {
 import { extractWithAi } from "../../server/mealAiExtraction";
 import { executeWhatsappAiQuestionIntent } from "../../server/modules/whatsapp/aiQuestionAssistant";
 import { generateAnnotatedMealImage } from "../../server/modules/whatsapp/annotatedImage";
+import { executeWhatsappDeleteIntent } from "../../server/modules/whatsapp/deleteIntent";
 import { interpretWhatsappMessageWithDiagnostics } from "../../server/modules/whatsapp/intentInterpreter";
+import { executeWhatsappLlmIntent } from "../../server/modules/whatsapp/llmIntentActions";
+import { resolveWhatsAppPrecedenceGate } from "../../server/modules/whatsapp/messageRouter";
+import { createDrizzleWhatsAppPendingOperationRepository } from "../../server/repositories/whatsappPendingOperationRepository";
 import {
   scanReportSafety,
   type CheckResult,
@@ -40,6 +51,194 @@ function addCheck(
 
 function includesInsensitive(value: unknown, expected: unknown): boolean {
   return String(value ?? "").toLocaleLowerCase("pt-BR").includes(String(expected ?? "").toLocaleLowerCase("pt-BR"));
+}
+
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+
+function scenarioUserId(scenario: Scenario, offset = 0): number {
+  const hash = [...scenario.id].reduce((sum, character) => sum + character.codePointAt(0)!, 0);
+  return 927_000 + hash * 10 + offset;
+}
+
+async function removeAllMeals(userId: number): Promise<void> {
+  for (const meal of await listUserMeals(userId)) {
+    await removeUserMeal(userId, meal.id);
+  }
+}
+
+async function seedSyntheticMeal(userId: number): Promise<void> {
+  await removeAllMeals(userId);
+  await createUserManualMeal({
+    userId,
+    mealLabel: "Almoço",
+    occurredAt: "2026-08-06T12:00:00.000Z",
+    notes: "Fixture sintética de continuidade.",
+    items: processedMeal().items,
+  });
+}
+
+async function cancelActivePendingOperation(userId: number): Promise<void> {
+  const latest = await pendingOperationRepository.getLatestPendingOperation(userId);
+  if (latest?.state === "active") await pendingOperationRepository.cancelPendingOperation(latest.id);
+}
+
+function normalizedMealState(meals: Awaited<ReturnType<typeof listUserMeals>>) {
+  return meals.map(meal => ({
+    id: meal.id,
+    label: meal.mealLabel,
+    foods: meal.items.map(item => item.foodName.toLocaleLowerCase("pt-BR")).sort(),
+  }));
+}
+
+async function runConversationScenario(scenario: Scenario, checks: CheckResult[]): Promise<unknown> {
+  const userId = scenarioUserId(scenario);
+  const siblingUserId = scenarioUserId(scenario, 1);
+  const receivedAt = new Date("2026-08-06T12:00:00.000Z");
+  await cancelActivePendingOperation(userId);
+  await cancelActivePendingOperation(siblingUserId);
+  await seedSyntheticMeal(userId);
+  await seedSyntheticMeal(siblingUserId);
+  const siblingBefore = normalizedMealState(await listUserMeals(siblingUserId));
+
+  try {
+    if (scenario.tags.includes("pending-operation")) {
+      const requested = await executeWhatsappDeleteIntent(userId, {
+        text: "Remover o arroz do almoço",
+        timeZone: "America/Sao_Paulo",
+        receivedAt,
+        entrypoint: "issue-927-benchmark",
+      });
+      const pending = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+      addCheck(checks, "pending persisted before reply", Boolean(requested && pending));
+
+      const invalid = await resolveWhatsAppPrecedenceGate({
+        userId,
+        text: "talvez",
+        receivedAt: new Date(receivedAt.getTime() + 1_000),
+        userTimezone: "America/Sao_Paulo",
+        messageId: `${scenario.id}-invalid`,
+        pendingOnly: true,
+      });
+      const afterInvalid = await pendingOperationRepository.getActivePendingOperation(
+        userId,
+        new Date(receivedAt.getTime() + 1_000),
+      );
+      addCheck(checks, "invalid reply preserves pending", invalid.step === "pending_interaction" && afterInvalid?.id === pending?.id);
+
+      const beforeCancel = normalizedMealState(await listUserMeals(userId));
+      await resolveWhatsAppPrecedenceGate({
+        userId,
+        text: "CANCELAR",
+        receivedAt: new Date(receivedAt.getTime() + 2_000),
+        userTimezone: "America/Sao_Paulo",
+        messageId: `${scenario.id}-cancel`,
+        pendingOnly: true,
+      });
+      const latest = await pendingOperationRepository.getLatestPendingOperation(userId);
+      const afterCancel = normalizedMealState(await listUserMeals(userId));
+      addCheck(checks, "cancellation persisted", latest?.state === "cancelled");
+      addCheck(checks, "cancel preserves domain state", JSON.stringify(afterCancel) === JSON.stringify(beforeCancel));
+
+      await resolveWhatsAppPrecedenceGate({
+        userId,
+        text: "CANCELAR",
+        receivedAt: new Date(receivedAt.getTime() + 3_000),
+        userTimezone: "America/Sao_Paulo",
+        messageId: `${scenario.id}-cancel`,
+        pendingOnly: true,
+      });
+      addCheck(
+        checks,
+        "duplicate reply is idempotent",
+        JSON.stringify(normalizedMealState(await listUserMeals(userId))) === JSON.stringify(afterCancel),
+      );
+      addCheck(
+        checks,
+        "tenant isolation",
+        JSON.stringify(normalizedMealState(await listUserMeals(siblingUserId))) === JSON.stringify(siblingBefore),
+      );
+      return invalid;
+    }
+
+    if (scenario.tags.includes("deletion")) {
+      await executeWhatsappDeleteIntent(userId, {
+        text: String(scenario.input.text ?? "Remover o arroz do almoço"),
+        timeZone: "America/Sao_Paulo",
+        receivedAt,
+        entrypoint: "issue-927-benchmark",
+      });
+      const pending = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+      addCheck(checks, "pending persisted before reply", Boolean(pending));
+      const confirmation = await resolveWhatsAppPrecedenceGate({
+        userId,
+        text: "SIM",
+        receivedAt: new Date(receivedAt.getTime() + 1_000),
+        userTimezone: "America/Sao_Paulo",
+        messageId: `${scenario.id}-confirm`,
+        pendingOnly: true,
+      });
+      const latest = await pendingOperationRepository.getLatestPendingOperation(userId);
+      const mealsAfter = await listUserMeals(userId);
+      addCheck(checks, "pending consumed after confirmation", latest?.state === "consumed");
+      addCheck(checks, "deletion effect persisted", mealsAfter.every(meal => !meal.items.some(item => includesInsensitive(item.foodName, "arroz"))));
+      await resolveWhatsAppPrecedenceGate({
+        userId,
+        text: "SIM",
+        receivedAt: new Date(receivedAt.getTime() + 2_000),
+        userTimezone: "America/Sao_Paulo",
+        messageId: `${scenario.id}-confirm`,
+        pendingOnly: true,
+      });
+      addCheck(
+        checks,
+        "duplicate reply is idempotent",
+        JSON.stringify(normalizedMealState(await listUserMeals(userId))) === JSON.stringify(normalizedMealState(mealsAfter)),
+      );
+      addCheck(
+        checks,
+        "tenant isolation",
+        JSON.stringify(normalizedMealState(await listUserMeals(siblingUserId))) === JSON.stringify(siblingBefore),
+      );
+      return confirmation;
+    }
+
+    const messageId = `${scenario.id}-message`;
+    const first = await executeWhatsappLlmIntent(userId, {
+      text: String(scenario.input.text ?? ""),
+      receivedAt,
+      messageId,
+      userTimezone: "America/Sao_Paulo",
+    });
+    const firstState = normalizedMealState(await listUserMeals(userId));
+    const targetFood = String(scenario.input.targetFoodName ?? "batata");
+    addCheck(checks, "intent", first?.handled === true && first.action === "llm_intent_replace_food_in_meal");
+    addCheck(checks, "replacement effect persisted", firstState.some(meal => meal.foods.some(food => includesInsensitive(food, targetFood))));
+    await executeWhatsappLlmIntent(userId, {
+      text: String(scenario.input.text ?? ""),
+      receivedAt,
+      messageId,
+      userTimezone: "America/Sao_Paulo",
+    });
+    addCheck(
+      checks,
+      "duplicate message is idempotent",
+      JSON.stringify(normalizedMealState(await listUserMeals(userId))) === JSON.stringify(firstState),
+    );
+    addCheck(
+      checks,
+      "tenant isolation",
+      JSON.stringify(normalizedMealState(await listUserMeals(siblingUserId))) === JSON.stringify(siblingBefore),
+    );
+    return first;
+  } finally {
+    await cancelActivePendingOperation(userId);
+    await cancelActivePendingOperation(siblingUserId);
+    await removeAllMeals(userId);
+    await removeAllMeals(siblingUserId);
+  }
 }
 
 async function runBoundary(
@@ -87,6 +286,8 @@ async function runBoundary(
     if (scenario.tags.includes("whatsapp-adversarial")) {
       addCheck(checks, "security guard", result.fallbackReason === "security_guard", "safety");
     }
+  } else if (scenario.runner === "conversation") {
+    output = await runConversationScenario(scenario, checks);
   } else if (scenario.runner === "question") {
     output = await executeWhatsappAiQuestionIntent(927, {
       text: `/${String(scenario.input.question ?? "")}`,
@@ -209,7 +410,6 @@ export async function executeScenario(
   Object.assign(process.env, env);
   Object.assign(DEFAULT_AI_PROVIDER_FACTORIES, runtime.factories);
   setAiObservabilitySink(event => events.push(event));
-  const startedAt = Date.now();
   try {
     const boundary = await runBoundary(scenario, env, runtime.factories);
     const calls = runtime.calls.length;
@@ -258,7 +458,7 @@ export async function executeScenario(
       criticalTotal: criticalChecks.length,
       falsePositive: scenario.expected.outcome === "no-match" && boundary.output !== null,
       source: boundary.source,
-      latencyMs: Math.max(0, Date.now() - startedAt),
+      latencyMs: runtime.calls.reduce((sum, call) => sum + Math.max(0, call.endedAt - call.startedAt), 0),
       timedOut: events.some(event => event.outcome === "timeout"),
       unavailable: scenario.expected.outcome === "unavailable"
         || (scenario.capability === "EMBEDDING" && scenario.expected.outcome === "no-match"),

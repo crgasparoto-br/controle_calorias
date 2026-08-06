@@ -1,11 +1,14 @@
-import { access, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { gunzipSync, gzipSync } from "node:zlib";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   CAPABILITIES,
   buildReport,
+  buildReportMetadata,
   derivePrivacyRegression,
   deriveSafetyRegression,
   executeScenario,
@@ -64,6 +67,23 @@ describe("issue 927 executable multi-provider benchmark", () => {
     expect(manifest.scenarios.every(scenario => scenario.runner && scenario.expected)).toBe(true);
     expect(manifest.scenarios.every(scenario => !("latencyMs" in scenario))).toBe(true);
     expect(manifest.scenarios.every(scenario => !("valid" in scenario))).toBe(true);
+    expect(CAPABILITIES.every(capability => Object.values(manifest.policyMatrix[capability]).every(
+      definition => definition.applicable ? definition.scenarioIds.length > 0 : Boolean(definition.reason),
+    ))).toBe(true);
+  });
+
+  it("rejects global-only policy coverage and cross-capability scenario references", async () => {
+    const manifest = clone(await readManifest(manifestPath));
+    manifest.policyMatrix.MEAL_VISION.primary.scenarioIds = ["meal-text-simple"];
+    expect(() => validateManifest(manifest)).toThrow(/references scenario from MEAL_TEXT/);
+
+    const missing = clone(await readManifest(manifestPath));
+    missing.policyMatrix.MEAL_TEXT.retry = {
+      applicable: false,
+      scenarioIds: [],
+      reason: "Incorrectly marked not applicable.",
+    };
+    expect(() => validateManifest(missing)).toThrow(/meal-policy-retry is not governed/);
   });
 
   it("rejects content-sensitive fixtures even when the key name is not on a raw-field denylist", async () => {
@@ -102,6 +122,18 @@ describe("issue 927 executable multi-provider benchmark", () => {
     expect(results.find(result => result.id === "meal-policy-cross-provider-allowed")?.fallback).toBe("cross-provider");
     expect(results.find(result => result.id === "intent-deterministic-command")?.calls).toBe(0);
     expect(results.every(result => result.maxConcurrency <= 1)).toBe(true);
+  });
+
+  it("executes pending, correction, replacement and deletion through persisted WhatsApp state", async () => {
+    const manifest = await readManifest(manifestPath);
+    const ids = ["intent-pending-operation", "intent-correction", "intent-replacement", "intent-deletion"];
+    for (const id of ids) {
+      const scenario = manifest.scenarios.find(item => item.id === id)!;
+      const result = await executeScenario(scenario, manifest.rubric.WHATSAPP_INTENT.criticalChecks);
+      expect(result.valid).toBe(true);
+      expect(result.calls).toBe(0);
+      expect(result.checks).toContainEqual({ name: "tenant isolation", passed: true, category: "functional" });
+    }
   });
 
   it("does not invent perfect critical accuracy when no critical evidence exists", () => {
@@ -145,7 +177,68 @@ describe("issue 927 executable multi-provider benchmark", () => {
     expect(report.observations.every(item => item.maxConcurrency <= 1)).toBe(true);
     expect(report.promotionDecisions.every(item => !item.fallbackEnabled)).toBe(true);
     expect(report.promotionDecisions.every(item => !item.crossProviderFallbackEnabled)).toBe(true);
+    expect(report.capabilityGates.every(item => item.passed)).toBe(true);
     expect(JSON.stringify(report)).not.toMatch(/sk-proj-|inputText|outputText|base64|signedUrl|apiKey/i);
+  });
+
+  it("blocks promotion when a capability gate fails", async () => {
+    const manifest = clone(await readManifest(manifestPath));
+    const scenario = manifest.scenarios.find(item => item.id === "meal-text-simple")!;
+    scenario.expected.brand = "Marca impossível";
+    const report = await buildReport({
+      manifest,
+      testedSha: "test-sha",
+      sourceTreeSha256: "test-tree",
+      generatedAt: "2026-08-06T00:00:00.000Z",
+    });
+    expect(report.capabilityGates.find(item => item.capability === "MEAL_TEXT")?.passed).toBe(false);
+    expect(report.promotionDecisions.find(item => item.capability === "MEAL_TEXT")?.decision)
+      .toBe("blocked-by-capability-gates");
+  });
+
+  it("rejects a report whose decisions or metrics differ from deterministic regeneration", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-report-"));
+    try {
+      const manifest = await readManifest(manifestPath);
+      const testedSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const report = await buildReport({ manifest, testedSha, generatedAt: "2026-08-06T00:00:00.000Z" });
+      const tampered = clone(report);
+      tampered.summaries[0]!.validOperationRate = 0;
+      tampered.promotionDecisions[0]!.decision = "controlled-rollout-candidate";
+      const temporaryReport = path.join(directory, "tampered.json.gz");
+      const temporaryMetadata = path.join(directory, "tampered.metadata.json");
+      const reportBytes = gzipSync(Buffer.from(`${JSON.stringify(tampered, null, 2)}\n`, "utf8"));
+      await writeFile(temporaryReport, reportBytes);
+      await writeFile(
+        temporaryMetadata,
+        `${JSON.stringify(buildReportMetadata({ reportPath: temporaryReport, reportBytes, report: tampered }), null, 2)}\n`,
+        "utf8",
+      );
+      await expect(verifyCommittedReport(temporaryReport, manifestPath, temporaryMetadata))
+        .rejects.toThrow(/differs from deterministic regeneration/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects metadata that is not bound to the exact report bytes", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-metadata-"));
+    try {
+      const manifest = await readManifest(manifestPath);
+      const testedSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const report = await buildReport({ manifest, testedSha, generatedAt: "2026-08-06T00:00:00.000Z" });
+      const temporaryReport = path.join(directory, "report.json.gz");
+      const temporaryMetadata = path.join(directory, "report.metadata.json");
+      const reportBytes = gzipSync(Buffer.from(`${JSON.stringify(report, null, 2)}\n`, "utf8"));
+      const metadata = buildReportMetadata({ reportPath: temporaryReport, reportBytes, report });
+      metadata.reportSha256 = "0".repeat(64);
+      await writeFile(temporaryReport, reportBytes);
+      await writeFile(temporaryMetadata, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+      await expect(verifyCommittedReport(temporaryReport, manifestPath, temporaryMetadata))
+        .rejects.toThrow(/metadata does not bind/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("runs the full smoke and emits an exact-head report for publication", async () => {

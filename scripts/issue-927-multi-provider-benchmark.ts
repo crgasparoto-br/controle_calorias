@@ -2,13 +2,19 @@ import { writeFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 
-import { buildReport, readManifest, runSelfTest, verifyCommittedReport } from "./issue-927-benchmark/report";
+import {
+  buildReport,
+  buildReportMetadata,
+  readManifest,
+  runSelfTest,
+  verifyCommittedReport,
+} from "./issue-927-benchmark/report";
 
 export { CAPABILITIES, validateManifest } from "./issue-927-benchmark/contracts";
 export type { Capability, Manifest, Scenario, ScenarioObservation } from "./issue-927-benchmark/contracts";
 export { derivePrivacyRegression, deriveSafetyRegression, executeScenario } from "./issue-927-benchmark/execution";
 export {
-  buildReport, readManifest, readTranscriptionEvidence, runSelfTest, summarize, verifyCommittedReport,
+  buildReport, buildReportMetadata, readManifest, readTranscriptionEvidence, runSelfTest, summarize, verifyCommittedReport,
 } from "./issue-927-benchmark/report";
 
 function arg(name: string): string | undefined {
@@ -32,16 +38,25 @@ async function main() {
     return;
   }
   if (process.argv.includes("--verify-committed-report")) {
-    await verifyCommittedReport(arg("--report"), arg("--manifest"));
+    await verifyCommittedReport(arg("--report"), arg("--manifest"), arg("--metadata"));
     process.stdout.write("issue-927 committed report matches executable source tree\n");
     return;
   }
   const manifest = await readManifest(arg("--manifest"));
   const report = await buildReport({ manifest });
-  const output = `${JSON.stringify(report, null, 2)}\n`;
+  const output = Buffer.from(`${JSON.stringify(report, null, 2)}\n`, "utf8");
   const outputPath = arg("--output");
-  if (outputPath) await writeFile(outputPath, output, "utf8");
-  else process.stdout.write(output);
+  const reportBytes = outputPath?.endsWith(".gz") ? gzipSync(output) : output;
+  if (outputPath) {
+    await writeFile(outputPath, reportBytes);
+    const metadataOutput = arg("--metadata-output");
+    if (metadataOutput) {
+      const metadata = buildReportMetadata({ reportPath: outputPath, reportBytes, report });
+      await writeFile(metadataOutput, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+    }
+  } else {
+    process.stdout.write(output);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

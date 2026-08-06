@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   BASELINE,
   CAPABILITIES,
+  POLICY_FAMILIES,
   scanReportSafety,
   validateManifest,
   type Capability,
@@ -20,6 +21,7 @@ import { executeScenario } from "./execution";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_MANIFEST = path.join(ROOT, "docs/benchmarks/multi-provider/fixtures/manifest.json");
 const DEFAULT_REPORT = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
+const DEFAULT_METADATA = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.metadata.json");
 const PRICE_CATALOG = path.join(ROOT, "docs/benchmarks/multi-provider/pricing-snapshot.json");
 const TRANSCRIPTION_EVIDENCE = path.join(ROOT, "docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.json");
 const RESULT_PREFIX = "docs/benchmarks/multi-provider/results/";
@@ -145,6 +147,45 @@ async function priceCatalogMetadata() {
   return JSON.parse(await readFile(PRICE_CATALOG, "utf8")) as { version: string; effectiveDate: string };
 }
 
+function sha256(value: Buffer | string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function capabilityGate(
+  capability: Capability,
+  manifest: Manifest,
+  observations: ScenarioObservation[],
+) {
+  const items = observations.filter(item => item.capability === capability);
+  const observedChecks = new Set(items.flatMap(item => item.checks.map(check => check.name)));
+  const policyCoverage = POLICY_FAMILIES.map(family => {
+    const definition = manifest.policyMatrix[capability][family];
+    const scenarioResults = definition.scenarioIds.map(id => observations.find(item => item.id === id));
+    return {
+      family,
+      applicable: definition.applicable,
+      scenarioIds: definition.scenarioIds,
+      reason: definition.reason ?? null,
+      passed: definition.applicable
+        ? scenarioResults.length > 0 && scenarioResults.every(Boolean) && scenarioResults.every(item => item!.valid)
+        : definition.scenarioIds.length === 0 && Boolean(definition.reason?.trim()),
+    };
+  });
+  const checks = {
+    functionalScenariosPassed: items.length > 0 && items.every(item => item.valid),
+    criticalRubricCovered: manifest.rubric[capability].criticalChecks.every(check => observedChecks.has(check)),
+    policyCoveragePassed: policyCoverage.every(item => item.passed),
+    sequentialSingleFallback: items.every(item => item.maxConcurrency <= 1 && item.fallbackCalls <= 1),
+    validPrimaryAvoidsFallback: items.filter(item => item.tags.includes("primary")).every(item => item.fallback === "none"),
+    crossProviderRequiresApproval: manifest.scenarios
+      .filter(item => item.capability === capability && item.tags.includes("cross-provider-allowed"))
+      .every(item => item.crossProviderApproved === true),
+    noSafetyRegression: items.every(item => !item.safetyRegression),
+    noPrivacyRegression: items.every(item => !item.privacyRegression),
+  };
+  return { capability, policyCoverage, ...checks, passed: Object.values(checks).every(Boolean) };
+}
+
 export async function buildReport(input: {
   manifest: Manifest;
   generatedAt?: string;
@@ -158,10 +199,14 @@ export async function buildReport(input: {
     observations.push(await executeScenario(scenario, input.manifest.rubric[scenario.capability].criticalChecks));
   }
   const summaries = CAPABILITIES.map(capability => summarize(capability, observations));
+  const capabilityGates = CAPABILITIES.map(capability => capabilityGate(capability, input.manifest, observations));
   const transcription = await readTranscriptionEvidence(input.transcriptionEvidencePath);
   const priceCatalog = await priceCatalogMetadata();
   const sourceTreeSha256 = input.sourceTreeSha256 ?? await hashExecutableSourceTree();
   const testedSha = input.testedSha ?? process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]);
+  const transcriptionGatePassed = capabilityGates.find(item => item.capability === "TRANSCRIPTION")?.passed === true;
+  const transcriptionCandidate = transcriptionGatePassed
+    && transcription.decision === "controlled-rollout-candidate";
 
   const gates = {
     allFunctionalScenariosPassed: observations.every(item => item.valid),
@@ -180,10 +225,22 @@ export async function buildReport(input: {
     noSafetyRegression: observations.every(item => !item.safetyRegression),
     noPrivacyRegression: observations.every(item => !item.privacyRegression),
     reportContainsNoRawContent: containsOnlySanitizedEvidence({ observations, summaries }),
+    allCapabilityGatesPassed: capabilityGates.every(item => item.passed),
   };
 
   const promotionDecisions = CAPABILITIES.map(capability => {
     const baseline = BASELINE[capability];
+    const gatePassed = capabilityGates.find(item => item.capability === capability)?.passed === true;
+    if (!gatePassed) return {
+      capability,
+      decision: "blocked-by-capability-gates",
+      primaryProvider: baseline.provider,
+      primaryModel: baseline.model,
+      fallbackEnabled: false,
+      crossProviderFallbackEnabled: false,
+      productionApplied: false,
+      rollback: {},
+    };
     if (capability === "IMAGE_ANNOTATION") return {
       capability,
       decision: "local-mode",
@@ -204,7 +261,7 @@ export async function buildReport(input: {
       productionApplied: false,
       rollback: {},
     };
-    const candidate = capability === "TRANSCRIPTION" && transcription.decision === "controlled-rollout-candidate";
+    const candidate = capability === "TRANSCRIPTION" && transcriptionCandidate;
     return {
       capability,
       decision: candidate ? "controlled-rollout-candidate" : "keep-baseline",
@@ -220,7 +277,7 @@ export async function buildReport(input: {
   });
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     testedSha,
     identityModel: "tested-sha-plus-executable-source-tree",
@@ -236,9 +293,8 @@ export async function buildReport(input: {
       estimatedNotBilling: true,
     },
     environment: {
-      node: process.version,
-      platform: process.platform,
-      architecture: process.arch,
+      runtime: "node",
+      platformClass: "portable-hermetic",
       region: process.env.BENCHMARK_REGION || "local-hermetic",
       endpointClass: "deterministic-provider-adapters-no-network",
     },
@@ -248,15 +304,17 @@ export async function buildReport(input: {
       observationCount: observations.length,
     },
     operationDefinitions: input.manifest.rubric,
+    policyMatrix: input.manifest.policyMatrix,
     rolloutDecision: {
       status: "paused-authorization-required",
       reason: "Production authorization was not granted for issue #927; operational execution remains in issue #962.",
-      nextCapability: "TRANSCRIPTION",
-      candidateModel: transcription.decision === "controlled-rollout-candidate" ? transcription.candidateModel : null,
+      nextCapability: transcriptionCandidate ? "TRANSCRIPTION" : null,
+      candidateModel: transcriptionCandidate ? transcription.candidateModel : null,
       productionChangesApplied: false,
     },
     observations,
     summaries,
+    capabilityGates,
     transcriptionEvidence: transcription,
     promotionDecisions,
     globalGates: { ...gates, passed: Object.values(gates).every(Boolean) },
@@ -273,6 +331,28 @@ export async function buildReport(input: {
   };
   scanReportSafety(report);
   return report;
+}
+
+export function buildReportMetadata(input: {
+  reportPath: string;
+  reportBytes: Buffer;
+  report: Awaited<ReturnType<typeof buildReport>>;
+}) {
+  const jsonBytes = input.reportPath.endsWith(".gz") ? gunzipSync(input.reportBytes) : input.reportBytes;
+  return {
+    schemaVersion: 2,
+    reportFormat: input.reportPath.endsWith(".gz") ? "application/json+gzip" : "application/json",
+    reportFile: path.basename(input.reportPath),
+    testedSha: input.report.testedSha,
+    sourceTreeSha256: input.report.sourceTreeSha256,
+    jsonSha256: sha256(jsonBytes),
+    reportSha256: sha256(input.reportBytes),
+    observationCount: input.report.coverage.observationCount,
+    globalGatesPassed: input.report.globalGates.passed,
+    productionChangesApplied: input.report.productionChangesApplied,
+    rolloutStatus: input.report.rolloutDecision.status,
+    operationalIssue: 962,
+  };
 }
 
 export async function readManifest(manifestPath = DEFAULT_MANIFEST): Promise<Manifest> {
@@ -292,16 +372,11 @@ export async function readManifest(manifestPath = DEFAULT_MANIFEST): Promise<Man
 export async function verifyCommittedReport(
   reportPath = DEFAULT_REPORT,
   manifestPath = DEFAULT_MANIFEST,
+  metadataPath = DEFAULT_METADATA,
 ): Promise<void> {
   const encoded = await readFile(reportPath);
   const reportText = reportPath.endsWith(".gz") ? gunzipSync(encoded).toString("utf8") : encoded.toString("utf8");
-  const committed = JSON.parse(reportText) as {
-    testedSha?: string;
-    sourceTreeSha256?: string;
-    globalGates?: { passed?: boolean };
-    coverage?: { observationCount?: number };
-    rubricVersion?: string;
-  };
+  const committed = JSON.parse(reportText) as Awaited<ReturnType<typeof buildReport>>;
   scanReportSafety(committed);
   const actualHash = await hashExecutableSourceTree();
   const manifest = await readManifest(manifestPath);
@@ -318,6 +393,20 @@ export async function verifyCommittedReport(
   assert.equal(committed.globalGates?.passed, true);
   assert.equal(committed.coverage?.observationCount, manifest.scenarios.length);
   assert.equal(committed.rubricVersion, manifest.rubricVersion);
+  const regenerated = await buildReport({
+    manifest,
+    generatedAt: committed.generatedAt,
+    testedSha: committed.testedSha,
+    sourceTreeSha256: actualHash,
+  });
+  assert.deepEqual(committed, regenerated, "committed report differs from deterministic regeneration");
+
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as ReturnType<typeof buildReportMetadata>;
+  assert.deepEqual(
+    metadata,
+    buildReportMetadata({ reportPath, reportBytes: encoded, report: committed }),
+    "committed report metadata does not bind the exact report bytes and identity",
+  );
 }
 
 export async function runSelfTest(): Promise<void> {
