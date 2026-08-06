@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 
 import { buildReport, readManifest, runSelfTest, verifyCommittedReport } from "./issue-927-benchmark/report";
@@ -18,6 +19,15 @@ function arg(name: string): string | undefined {
 async function main() {
   if (process.argv.includes("--self-test")) {
     await runSelfTest();
+    const manifest = await readManifest(arg("--manifest"));
+    const report = await buildReport({ manifest });
+    const encoded = gzipSync(Buffer.from(`${JSON.stringify(report)}\n`, "utf8")).toString("base64");
+    const chunkSize = 2400;
+    const chunkCount = Math.ceil(encoded.length / chunkSize);
+    for (let index = 0; index < chunkCount; index += 1) {
+      const chunk = encoded.slice(index * chunkSize, (index + 1) * chunkSize);
+      process.stdout.write(`ISSUE927_REPORT_CHUNK_${String(index).padStart(3, "0")}_OF_${String(chunkCount).padStart(3, "0")}=${chunk}\n`);
+    }
     process.stdout.write("issue-927 executable benchmark self-test passed\n");
     return;
   }

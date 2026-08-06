@@ -53,7 +53,7 @@ Serviços de domínio devem depender da interface interna do provider, não do S
 
 - Fase 1 concluída: inventário e testes de caracterização adicionados.
 - Fase 2 concluída: SDK oficial, cliente backend e interface interna de provider foram isolados no backend.
-- Fase 3 concluída: `server/_core/voiceTranscription.ts` usa o provider interno da OpenAI com validação de formato e tamanhn.
+- Fase 3 concluída: `server/_core/voiceTranscription.ts` usa o provider interno da OpenAI com validação de formato e tamanho.
 - Fase 4 concluída: texto e imagem no núcleo nutricional usam a Responses API com JSON estruturado validado por Zod e totais recalculados no backend.
 - Fase 5 concluída: a geração visual auxiliar foi migrada para helper OpenAI opcional e não bloqueante.
 - Fase 6 concluída: transcrição e inferência nutricional ficaram livres do provider legado; o único uso legado remanescente ficou documentado no assistente educativo.
@@ -114,11 +114,11 @@ Objetivos do rollout:
 
 Status: implementação corretiva preparada; aguarda auditoria independente do SHA final. Migração de consumidores é escopo das subissues seguintes de #917.
 
-- `capabilities.ts` registra todas as capabilidades. `QUESTION` exige `text` e `web_search` conforme o consumidor real; `NUTRITION_SEARCH` exige `text`, `structured_output` e `web_search`; `EMBEDDING` exige somente `embeddings` e, naquele estágio, ainda possuía consumidor legado direto (migrado na fase 10/#923); `FOOD_CLASSIFICATION` permanece reservada.
-- `supportMatrix.ts` representa métodos e tradções existentes nos adapters. OpenAI possui métodos explícitos para texto/multimodal, embeddings, transcrição e imagem. Gemini declara texto, visão e Structured Output nesta fase; pesquisa web e embeddings não são anunciados antes de tradução/método dedicado e teste.
+- `capabilities.ts` registra todas as capacidades. `QUESTION` exige `text` e `web_search` conforme o consumidor real; `NUTRITION_SEARCH` exige `text`, `structured_output` e `web_search`; `EMBEDDING` exige somente `embeddings` e, naquele estágio, ainda possuía consumidor legado direto (migrado na fase 10/#923); `FOOD_CLASSIFICATION` permanece reservada.
+- `supportMatrix.ts` representa métodos e traduções existentes nos adapters. OpenAI possui métodos explícitos para texto/multimodal, embeddings, transcrição e imagem. Gemini declara texto, visão e Structured Output nesta fase; pesquisa web e embeddings não são anunciados antes de tradução/método dedicado e teste.
 - `configResolver.ts` resolve adapter antes do modelo, aplica variável nova > variável legada compatível > default, preserva `OPENAI_MODEL`/`GEMINI_MODEL`, rejeita modelo vazio e valores inválidos, e seleciona modelo próprio para fallback.
 - `OPENAI_BASE_URL` não vazio é tratado automaticamente como `openai-compatible`. Nenhuma operação é assumida até constar em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
-- `policyExecutor.ts` bloqueia estados `invalid`/`disabled`, limites inválidos e fallback habilitado sem callback antes de qualquer outbound. Depois disso, centraliza classificação de erros HTTP/SDK/rede, saída vazia, JSON inválido e payload inválido. Erro desconhecido é não recuperável e �^ão aciona fallback.
+- `policyExecutor.ts` bloqueia estados `invalid`/`disabled`, limites inválidos e fallback habilitado sem callback antes de qualquer outbound. Depois disso, centraliza classificação de erros HTTP/SDK/rede, saída vazia, JSON inválido e payload inválido. Erro desconhecido é não recuperável e não aciona fallback.
 - Cada tentativa recebe `AbortSignal`; `AiProvider`, `OpenAiProvider` e `GeminiProvider` propagam o sinal até a chamada do SDK. Retry ou fallback somente inicia após a tentativa anterior encerrar localmente; cancelamento não reconhecido termina fail-closed sem nova chamada.
 - Requests comuns são fail-closed. O Gemini rejeita `tools` antes da rede enquanto a tradução para Google Search não existir; nenhum campo operacional é descartado silenciosamente.
 - O fallback permanece desabilitado por padrão, isolado por capacidade, com no máximo uma chamada após as tentativas do primário e sem cadeia.
