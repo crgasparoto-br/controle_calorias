@@ -82,3 +82,9 @@ Uma capacidade só pode mudar de baseline quando existir evidência reproduzíve
 A evidência atual sustenta somente `gpt-4o-mini-transcribe` como candidato de rollout controlado para `TRANSCRIPTION`. `whisper-1` permanece o rollback. Para as demais capacidades, o benchmark preserva os baselines por falta de comparação live integrada suficiente.
 
 O procedimento operacional está em `docs/runbooks/multi-provider-rollout.md`.
+
+## Rubrica e estado do rollout
+
+A definição de operação válida e os checks críticos de cada capacidade são versionados no campo `rubric` do manifesto. Alterar uma definição exige nova versão de rubrica e novo relatório; métricas antigas não podem ser reinterpretadas retroativamente.
+
+A decisão operacional atual está registrada em `results/2026-08-05-rollout-decision.json`: **pausado, aguardando autorização explícita para produção**. Nenhuma variável, secret, provider, modelo ou flag do Render foi alterada. A retomada começa por `TRANSCRIPTION`, somente após gates verdes, smoke anterior à mudança, responsável e janela registrados.

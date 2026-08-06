@@ -38,8 +38,9 @@ describe("issue 927 multi-provider benchmark", () => {
     expect(() => validateManifest(parallel)).toThrow(/provider calls ran in parallel/);
 
     const afterValid = clone(await readManifest());
-    afterValid.scenarios[0]!.fallback = "same-provider";
-    afterValid.scenarios[0]!.calls = 2;
+    const validPrimary = afterValid.scenarios.find(item => item.id === "meal-simple")!;
+    validPrimary.fallback = "same-provider";
+    validPrimary.calls = 2;
     expect(() => validateManifest(afterValid)).toThrow(/fell back after a valid primary result/);
 
     const cross = clone(await readManifest());
@@ -55,6 +56,7 @@ describe("issue 927 multi-provider benchmark", () => {
     });
     expect(report.globalGates.passed).toBe(true);
     expect(report.productionChangesApplied).toBe(false);
+    expect(report.rolloutDecision.status).toBe("paused-authorization-required");
     expect(report.promotionDecisions.every(item => !item.fallbackEnabled)).toBe(true);
     expect(report.promotionDecisions.every(item => !item.crossProviderFallbackEnabled)).toBe(true);
     expect(report.promotionDecisions.every(item => !item.productionApplied)).toBe(true);

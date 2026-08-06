@@ -51,6 +51,7 @@ export type Manifest = {
   rubricVersion: string;
   requiredCapabilities: Capability[];
   requiredTags: string[];
+  rubric: Record<Capability, { validOperation: string; criticalChecks: string[] }>;
   scenarios: Scenario[];
 };
 
@@ -87,6 +88,12 @@ export function validateManifest(manifest: Manifest): void {
   }
   if (manifest.privacy !== "synthetic-only" || !manifest.license.trim()) {
     throw new Error("benchmark fixtures must be synthetic and licensed");
+  }
+  for (const capability of manifest.requiredCapabilities) {
+    const definition = manifest.rubric?.[capability];
+    if (!definition?.validOperation.trim() || !definition.criticalChecks.length) {
+      throw new Error(`missing versioned rubric for ${capability}`);
+    }
   }
   const ids = new Set<string>();
   const capabilities = new Set<Capability>();
@@ -214,7 +221,8 @@ export async function buildReport(input: {
     deterministicNoExternalCalls: input.manifest.scenarios.filter(item => item.deterministic)
       .every(item => (item.calls ?? 1) === 0),
     sequentialSingleFallback: input.manifest.scenarios.every(item =>
-      (item.concurrency ?? 1) <= 1 && (item.fallback ?? "none") !== "none" ? (item.calls ?? 1) <= (item.attempts ?? 1) + 1 : true),
+      (item.concurrency ?? 1) <= 1 &&
+      ((item.fallback ?? "none") === "none" || (item.calls ?? 1) <= (item.attempts ?? 1) + 1)),
     validPrimaryAvoidsFallback: input.manifest.scenarios.filter(item => item.primaryValid ?? true)
       .every(item => (item.fallback ?? "none") === "none"),
     crossProviderRequiresApproval: input.manifest.scenarios.filter(item => item.fallback === "cross-provider")
@@ -263,6 +271,16 @@ export async function buildReport(input: {
       endpointClass: process.env.BENCHMARK_ENDPOINT_CLASS || "no-live-endpoint" },
     coverage: { capabilities: input.manifest.requiredCapabilities, tags: input.manifest.requiredTags,
       observationCount: input.manifest.scenarios.length },
+    operationDefinitions: input.manifest.rubric,
+    rolloutDecision: {
+      status: "paused-authorization-required",
+      reason: "Production authorization was not granted for issue #927.",
+      nextCapability: "TRANSCRIPTION",
+      candidateModel: transcription.decision === "controlled-rollout-candidate"
+        ? transcription.candidateModel
+        : null,
+      productionChangesApplied: false,
+    },
     summaries,
     transcriptionEvidence: transcription,
     promotionDecisions,
