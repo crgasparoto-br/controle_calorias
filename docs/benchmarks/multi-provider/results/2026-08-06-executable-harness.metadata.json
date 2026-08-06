@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "reportFormat": "application/json+gzip",
   "reportFile": "2026-08-06-executable-harness.json.gz",
-  "testedSha": "013cbfdf6fef782084294f4987be565b8715a556",
-  "sourceTreeSha256": "a6b1e6fea8c958c4fda1786a573eed330dae5e84207fa3463c427a342498dc57",
-  "jsonSha256": "a269e10abdf7c4932a1ae402d4a3cde83ee7082eff0b378378165931d98335f1",
-  "gzipSha256": "08ac24315cabca08f63a97d26b86dab02f4162f4f482b5d689b8674251f3c069",
+  "testedSha": "8020004f24e465b0dd8b3fa7292eb4b9c980e1ea",
+  "sourceTreeSha256": "c600fe79a96ea33ea47db461510340547b7a73f21427cb17618d0c912a36e867",
+  "jsonSha256": "c9eb0c1b0b8a4a93928a7f92de84f93c2410415814a100e4179bbc2f1d5213dd",
+  "gzipSha256": "0ed3dfe7cfbcddfdd93e7704fa37ea590c097e78bbabb8737b3c0014a6d3ed87",
   "observationCount": 28,
   "globalGatesPassed": true,
   "productionChangesApplied": false,
@@ -13,8 +13,8 @@
   "operationalIssue": 962,
   "ci": {
     "workflow": "Agent-first gate",
-    "runId": 31103036245,
-    "jobId": 92621115574,
-    "conclusion": "success"
+    "runId": null,
+    "jobId": null,
+    "conclusion": "pending-final-head"
   }
 }
