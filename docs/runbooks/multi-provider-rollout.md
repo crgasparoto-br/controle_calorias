@@ -20,8 +20,8 @@ A decisão vigente está versionada em `docs/benchmarks/multi-provider/results/2
 ## Pré-condições
 
 - PR da mudança mergeada e SHA identificado;
-- gates de código, testes, arquitetura, documentação e build verdes;
-- relatório do benchmark associado ao SHA;
+- gates de código, testes, arquitetura, documentação e build verdes, incluindo `pnpm smoke:issue-927`;
+- relatório do benchmark associado ao SHA e hash da árvore executável validado por `pnpm benchmark:ai:multi-provider:verify`;
 - configuração atual e rollback registrados;
 - credenciais já gerenciadas pelo ambiente, sem copiar secrets para issue, PR, log ou benchmark;
 - janela, responsável e critérios de pausa definidos;
@@ -67,7 +67,7 @@ O modo local evita segundo envio da foto e é a opção de rollback. O modo `off
 
 ## Demais capacidades
 
-`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` preservam o baseline vigente. O harness hermético prova contratos e políticas, mas não substitui comparação live entre modelos.
+`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` preservam o baseline vigente. O harness executável percorre as fronteiras reais com adapters determinísticos e prova contratos, contagem de chamadas e políticas sem rede; ele não substitui comparação live entre modelos.
 
 `FOOD_CLASSIFICATION` permanece embutida em `MEAL_TEXT`/`MEAL_VISION` e não possui configuração operacional independente nesta fase.
 

@@ -35,7 +35,8 @@
     "foods:backfill-classification": "tsx scripts/backfill-food-classification.ts",
     "foods:review-classification": "tsx scripts/review-food-classification.ts",
     "db:retire-professional-legacy": "tsx scripts/retire-professional-legacy-preferences.ts",
-    "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply"
+    "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply",
+    "benchmark:ai:multi-provider:verify": "tsx scripts/issue-927-multi-provider-benchmark.ts --verify-committed-report"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

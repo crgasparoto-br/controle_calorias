@@ -66,7 +66,7 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 | Documento         | Uso                                                                                                                                           |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
-| `SECURITy.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
+| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
 | `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
 | `runbooks/`       | Runbooks operacionais. O rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. |
 

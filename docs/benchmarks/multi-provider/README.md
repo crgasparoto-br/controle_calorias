@@ -2,89 +2,88 @@
 
 ## Objetivo
 
-Este diretório contém o benchmark reproduzível da issue #927. Ele compara o comportamento esperado das capacidades de IA sem alterar provider, modelo, fallback, secrets ou configuração de produção.
+Este diretório contém o benchmark reproduzível da issue #927. O harness executa as fronteiras reais das capacidades migradas sem acessar rede, segredos, produção ou dados de usuário. Providers determinísticos são injetados somente no limite dos adapters; resolvedor, executor comum, validações de domínio, retry, fallback, ferramentas e degradações permanecem os mesmos usados pela aplicação.
 
-O benchmark é um gate hermético e versionado. Os cenários são sintéticos, sem conteúdo de usuário, prompt, transcrição, mídia, base64, resposta bruta, reasoning ou URL assinada. A única evidência live reutilizada é a comparação sanitizada e versionada de `TRANSCRIPTION` produzida pela issue #924.
+As fixtures são sintéticas e licenciadas. O relatório guarda somente identificadores de cenário, checks, métricas agregáveis e metadados sanitizados. Ele não guarda texto de entrada/saída, prompt, transcrição, foto, base64, resposta bruta, reasoning, segredo ou URL assinada.
 
 ## Decisões seguras por padrão
 
-- fallback continua desabilitado por capacidade;
-- cross-provider continua desabilitado em produção;
+- fallback continua desabilitado por capacidade na configuração recomendada;
+- cross-provider continua bloqueado em produção;
 - `IMAGE_ANNOTATION` permanece em modo `local`;
-- `FOOD_CLASSIFICATION` permanece embutida no Structured Output de `MEAL_TEXT` e `MEAL_VISION`, sem chamada separada;
-- nenhuma variável do Render, secret, provider ou modelo de produção é alterada por este benchmark;
-- ausência de evidência live suficiente preserva o baseline vigente.
+- `FOOD_CLASSIFICATION` permanece embutida em `MEAL_TEXT` e `MEAL_VISION`, sem chamada separada;
+- nenhuma variável do Render, segredo, provider ou modelo de produção é alterada pelo harness;
+- ausência de comparação live suficiente preserva o baseline.
 
-## Cobertura
+## Cobertura executável
 
-O manifesto em `fixtures/manifest.json` cobre:
+O manifesto `fixtures/manifest.json` contém entradas sintéticas, respostas determinísticas de provider e expectativas funcionais. Ele não contém métricas prontas. O runner mede o que ocorreu durante a execução e cobre:
 
-- `MEAL_TEXT`, `MEAL_VISION` e classificação NOVA embutida;
-- intenção do WhatsApp, comandos determinísticos e operação pendente sem chamada externa;
-- correção, substituição e exclusão;
-- perguntas `/`, pesquisa nutricional e fontes verificáveis;
-- embeddings e degradação para busca canônica;
-- transcrição PT-BR;
-- anotação local, externa e desativada;
-- primário, retry, fallback same-provider, cross-provider bloqueado/explicitamente permitido e degradação local.
-
-Cada observação registra somente metadados sintéticos: resultado funcional, verificações críticas, latência, timeout, indisponibilidade, quantidade de tentativas, chamadas externas, ferramenta executada e custo estimado.
+- refeição por texto e visão, inclusive resultado válido sem alimento e NOVA embutida;
+- WhatsApp simples, ambíguo e adversarial, comando determinístico, contexto pendente, correção, substituição e exclusão;
+- perguntas `/` com ferramenta disponível/executada;
+- pesquisa nutricional com fonte vinculada e rejeição de ambiguidade;
+- embeddings e degradação segura semântica → canônica;
+- áudio PT-BR com retry limitado;
+- anotação local, externa, desabilitada e externa → local;
+- primário, retry, fallback same-provider, cross-provider bloqueado e cross-provider explicitamente permitido em teste;
+- contagem de outbound e prova de execução sequencial.
 
 ## Métricas
 
-O relatório agrega por capacidade:
+O relatório deriva da execução:
 
-- taxa de operação válida;
-- acurácia dos checks críticos;
-- falsos positivos;
-- taxa de fonte verificável quando exigida;
-- p50 e p95 de latência;
-- timeout, retry, fallback e indisponibilidade;
-- prova de ausência de chamada externa nos fluxos determinísticos;
+- operação válida e checks críticos;
+- falsos positivos e fonte verificável;
+- p50/p95, timeout, indisponibilidade e tentativas;
+- primário, retry, fallback same-provider/cross-provider e degradação local;
+- ferramenta executada e unidades faturáveis;
 - custo total estimado e custo por operação válida;
 - regressões de segurança e privacidade.
 
-Custo é estimativa operacional do catálogo versionado, nunca cobrança real.
+`criticalAccuracy` é `null` quando não existe evidência crítica; nunca é preenchida implicitamente como 100%. Custo é estimativa do catálogo versionado, não cobrança real.
 
 ## Execução
 
 ```bash
-./scripts/issue-927-run-benchmark.sh
+pnpm benchmark:ai:multi-provider
 ```
 
-Para gerar um relatório associado a um candidato:
+Gerar relatório:
 
 ```bash
-./scripts/issue-927-run-benchmark.sh \
-  --tested-sha <sha> \
-  --source-tree-sha256 <sha256> \
-  --price-catalog-version 2026-08-05.4 \
-  --price-catalog-effective-date 2026-08-05 \
-  --output docs/benchmarks/multi-provider/results/<data>-<sha-curto>.json
+pnpm benchmark:ai:multi-provider -- \
+  --output docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json
 ```
 
-O smoke hermético, sem credenciais, é:
+Smoke funcional completo, sem credenciais:
 
 ```bash
-./scripts/issue-927-run-benchmark.sh --self-test
+pnpm smoke:issue-927
 ```
 
-## Critério de promoção
+Verificar que o relatório versionado continua compatível com a árvore executável atual:
 
-Uma capacidade só pode mudar de baseline quando existir evidência reproduzível que prove, ao mesmo tempo:
+```bash
+pnpm benchmark:ai:multi-provider:verify
+```
 
-1. ausência de regressão funcional, nutricional, conversacional, de segurança e privacidade;
-2. melhoria material de qualidade, latência, disponibilidade ou custo;
-3. compatibilidade do provider/modelo com o contrato real;
-4. rollback explícito e testado;
-5. autorização operacional para a mudança de produção.
+O wrapper `scripts/issue-927-run-benchmark.sh` delega ao script canônico do `package.json`.
 
-A evidência atual sustenta somente `gpt-4o-mini-transcribe` como candidato de rollout controlado para `TRANSCRIPTION`. `whisper-1` permanece o rollback. Para as demais capacidades, o benchmark preserva os baselines por falta de comparação live integrada suficiente.
+## Identidade reproduzível
 
-O procedimento operacional está em `docs/runbooks/multi-provider-rollout.md`.
+O relatório registra:
 
-## Rubrica e estado do rollout
+- SHA em que o harness foi executado;
+- SHA-256 da árvore executável versionada;
+- versão da rubrica e catálogo de preços;
+- ambiente e classe de endpoint;
+- limitações e decisão operacional.
 
-A definição de operação válida e os checks críticos de cada capacidade são versionados no campo `rubric` do manifesto. Alterar uma definição exige nova versão de rubrica e novo relatório; métricas antigas não podem ser reinterpretadas retroativamente.
+A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evitar autorreferência: adicionar o próprio relatório muda o commit, mas não muda a árvore executável. O relatório guarda o SHA do candidato efetivamente executado. No head final, o gate `benchmark:ai:multi-provider:verify` exige que esse SHA seja ancestral, que o delta posterior contenha somente arquivos da pasta de resultados e que o SHA-256 da árvore executável permaneça idêntico. Qualquer mudança posterior em runtime, harness, fixtures, documentação operacional ou testes invalida a evidência.
 
-A decisão operacional atual está registrada em `results/2026-08-05-rollout-decision.json`: **pausado, aguardando autorização explícita para produção**. Nenhuma variável, secret, provider, modelo ou flag do Render foi alterada. A retomada começa por `TRANSCRIPTION`, somente após gates verdes, smoke anterior à mudança, responsável e janela registrados.
+## Promoção e rollout
+
+Somente `gpt-4o-mini-transcribe` possui comparação live versionada suficiente para permanecer como candidato de rollout controlado; `whisper-1` é o rollback. As demais capacidades mantêm o baseline. Fallback e cross-provider não foram promovidos.
+
+O rollout/rollback real no Render não foi executado pela PR e exige autorização, responsável, janela, smoke anterior/posterior e observação sanitizada na issue #962. O procedimento canônico está em `docs/runbooks/multi-provider-rollout.md`.

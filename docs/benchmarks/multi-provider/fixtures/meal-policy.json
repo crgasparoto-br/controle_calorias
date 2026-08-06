@@ -1,0 +1,55 @@
+[
+  {
+    "id": "meal-policy-retry",
+    "capability": "MEAL_TEXT",
+    "runner": "meal",
+    "tags": ["meal-text", "retry"],
+    "env": {"AI_MEAL_TEXT_MAX_ATTEMPTS": "2"},
+    "input": {"text": "100 g de arroz"},
+    "providerPlan": {"openai": [
+      {"operation": "text", "error": {"code": "invalid_json"}},
+      {"operation": "text", "result": {"json": {"mealLabel": "Almoço", "confidence": 0.94, "reasoning": "Fixture sintética validada.", "items": [{"foodName": "arroz", "brand": null, "quantity": 100, "unit": "g", "portionText": "100 g", "servings": 1, "estimatedGrams": 100, "estimatedCalories": 130, "estimatedMacros": {"protein": 2.7, "carbs": 28, "fat": 0.3}, "confidence": 0.95, "foodClassification": {"processingLevel": "natural_or_minimally_processed", "isFruit": false, "isVegetable": false, "fiberGrams": 0.4}}]}, "usage": {"inputTokens": 120, "outputTokens": 80}}}
+    ]},
+    "expected": {"outcome": "success", "attempts": 2, "fallback": "none", "calls": 2}
+  },
+  {
+    "id": "meal-policy-same-provider-fallback",
+    "capability": "MEAL_TEXT",
+    "runner": "meal",
+    "tags": ["meal-text", "same-provider-fallback"],
+    "env": {"AI_MEAL_TEXT_MAX_ATTEMPTS": "1", "AI_MEAL_TEXT_FALLBACK_ENABLED": "true", "AI_MEAL_TEXT_FALLBACK_PROVIDER": "openai", "AI_MEAL_TEXT_FALLBACK_MODEL": "gpt-4.1-mini"},
+    "input": {"text": "100 g de arroz"},
+    "providerPlan": {"openai": [
+      {"operation": "text", "error": {"code": "network"}},
+      {"operation": "text", "result": {"json": {"mealLabel": "Almoço", "confidence": 0.94, "reasoning": "Fixture sintética validada.", "items": [{"foodName": "arroz", "brand": null, "quantity": 100, "unit": "g", "portionText": "100 g", "servings": 1, "estimatedGrams": 100, "estimatedCalories": 130, "estimatedMacros": {"protein": 2.7, "carbs": 28, "fat": 0.3}, "confidence": 0.95, "foodClassification": {"processingLevel": "natural_or_minimally_processed", "isFruit": false, "isVegetable": false, "fiberGrams": 0.4}}]}, "usage": {"inputTokens": 120, "outputTokens": 80}}}
+    ]},
+    "expected": {"outcome": "success", "attempts": 2, "fallback": "same-provider", "calls": 2}
+  },
+  {
+    "id": "meal-policy-cross-provider-blocked",
+    "capability": "MEAL_TEXT",
+    "runner": "meal",
+    "tags": ["meal-text", "cross-provider-blocked"],
+    "env": {"AI_MEAL_TEXT_MAX_ATTEMPTS": "1", "AI_MEAL_TEXT_FALLBACK_ENABLED": "true", "AI_MEAL_TEXT_FALLBACK_PROVIDER": "gemini", "AI_MEAL_TEXT_FALLBACK_MODEL": "gemini-2.5-flash", "AI_MEAL_TEXT_CROSS_PROVIDER_FALLBACK_ENABLED": "false"},
+    "input": {"text": "100 g de arroz"},
+    "providerPlan": {
+      "openai": [{"operation": "text", "error": {"code": "network"}}],
+      "gemini": [{"operation": "text", "result": {"json": {"mealLabel": "Almoço", "confidence": 0.94, "reasoning": "Fixture sintética validada.", "items": [{"foodName": "arroz", "brand": null, "quantity": 100, "unit": "g", "portionText": "100 g", "servings": 1, "estimatedGrams": 100, "estimatedCalories": 130, "estimatedMacros": {"protein": 2.7, "carbs": 28, "fat": 0.3}, "confidence": 0.95, "foodClassification": {"processingLevel": "natural_or_minimally_processed", "isFruit": false, "isVegetable": false, "fiberGrams": 0.4}}]}}}]
+    },
+    "expected": {"outcome": "unavailable", "attempts": 1, "fallback": "none", "geminiCalls": 0, "calls": 1}
+  },
+  {
+    "id": "meal-policy-cross-provider-allowed",
+    "capability": "MEAL_TEXT",
+    "runner": "meal",
+    "tags": ["meal-text", "cross-provider-allowed"],
+    "crossProviderApproved": true,
+    "env": {"AI_MEAL_TEXT_MAX_ATTEMPTS": "1", "AI_MEAL_TEXT_FALLBACK_ENABLED": "true", "AI_MEAL_TEXT_FALLBACK_PROVIDER": "gemini", "AI_MEAL_TEXT_FALLBACK_MODEL": "gemini-2.5-flash", "AI_MEAL_TEXT_CROSS_PROVIDER_FALLBACK_ENABLED": "true"},
+    "input": {"text": "100 g de arroz"},
+    "providerPlan": {
+      "openai": [{"operation": "text", "error": {"code": "network"}}],
+      "gemini": [{"operation": "text", "result": {"json": {"mealLabel": "Almoço", "confidence": 0.94, "reasoning": "Fixture sintética validada.", "items": [{"foodName": "arroz", "brand": null, "quantity": 100, "unit": "g", "portionText": "100 g", "servings": 1, "estimatedGrams": 100, "estimatedCalories": 130, "estimatedMacros": {"protein": 2.7, "carbs": 28, "fat": 0.3}, "confidence": 0.95, "foodClassification": {"processingLevel": "natural_or_minimally_processed", "isFruit": false, "isVegetable": false, "fiberGrams": 0.4}}]}, "usage": {"inputTokens": 100, "outputTokens": 70}}}]
+    },
+    "expected": {"outcome": "success", "attempts": 2, "fallback": "cross-provider", "geminiCalls": 1, "calls": 2}
+  }
+]
