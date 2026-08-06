@@ -1,21 +1,13 @@
 {
-  "version": "2026-08-05.4",
+  "schemaVersion": 2,
+  "version": "2026-08-05.3",
   "effectiveDate": "2026-08-05",
   "estimatedNotBilling": true,
-  "models": [
-    {
-      "provider": "openai",
-      "model": "gpt-4o-mini-transcribe-2025-12-15",
-      "aliases": ["gpt-4o-mini-transcribe"],
-      "rates": {
-        "inputPerMillionTokensUsd": 1.25,
-        "outputPerMillionTokensUsd": 5
-      },
-      "source": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe"
-    }
-  ],
+  "runtimeCatalogPath": "server/_core/ai/pricingCatalog.ts",
+  "runtimeCatalogSha256": "1252c6d8278302289517672cb1ff4bb8514c6105803922afa5e90286914234be",
   "notes": [
-    "This snapshot is used only by the issue #927 benchmark report.",
+    "This snapshot binds the issue #927 benchmark report to the exact runtime catalog used by AI observability cost estimation.",
+    "The provenance gate rejects version, effective-date or byte-level drift before benchmark evidence is accepted.",
     "It does not change runtime provider selection or production billing."
   ]
 }
