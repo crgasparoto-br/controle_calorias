@@ -81,7 +81,7 @@ export async function validateIssue927PolicyManifest(
   )))).flat();
   const primary = scenarios.find(item => item.id === "intent-provider-primary" && item.capability === "WHATSAPP_INTENT");
   assert(primary, "WHATSAPP_INTENT requires intent-provider-primary");
-  assert(primary.tags.includes("primary"), "intent-provider-primary must be primary");
+  assert(primary.tags.includes("provider-primary"), "intent-provider-primary must be primary");
   assert.equal(primary.expected?.calls, 1, "WHATSAPP_INTENT primary must execute exactly one provider call");
 
   const normalized: NormalizedPolicyException[] = [];

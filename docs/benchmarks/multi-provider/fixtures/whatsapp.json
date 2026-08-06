@@ -5,7 +5,7 @@
     "runner": "intent",
     "tags": [
       "whatsapp-simple",
-      "primary"
+      "provider-primary"
     ],
     "input": {
       "text": "me mostra meus detalhes de alimentação por favor"
@@ -52,7 +52,8 @@
     "runner": "intent",
     "tags": [
       "deterministic-command",
-      "whatsapp-simple"
+      "whatsapp-simple",
+      "primary"
     ],
     "input": {
       "text": "resumo de hoje"
