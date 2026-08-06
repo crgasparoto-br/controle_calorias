@@ -10,7 +10,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 4. Leia a especificacao de produto afetada em `docs/product-specs/`.
 5. Leia o design tecnico afetado em `docs/design-docs/` quando a mudanca tocar backend, banco, IA, WhatsApp, privacidade ou persistencia.
 6. Implemente a menor mudanca coerente com a arquitetura atual.
-7. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
+7. Atualize docs gerados/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
 8. Siga o gate minimo por tipo de mudanca definido em `CONTRIBUTING.md`.
 9. Rode `pnpm agent:check` antes de propor merge quando a alteracao tocar area sensivel, documentacao operacional ou instrucoes usadas por agentes.
 10. Quando a mudanca depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessario e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponivel.
@@ -22,7 +22,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 | Posicionamento, areas do produto ou classificacao de issues          | `docs/product-specs/product-experience-model.md`                                                                                     |
 | Registro de refeicao, rascunho ou confirmacao                        | `docs/product-specs/meal-registration.md`, `docs/design-docs/nutrition-engine.md`                                                    |
 | WhatsApp, webhook ou resposta conversacional                         | `docs/product-specs/whatsapp-flow.md`, `docs/design-docs/whatsapp-ingestion.md`                                                      |
-| Migracao da IA para OpenAI e fundação multi-provider por capacidade (#917) | `docs/exec-plans/active/migrate-ai-to-openai.md`, `ARCHITECTURE.md` (seção "Fundação multi-provider de IA"), `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md` |
+| IA multi-provider, benchmark, rollout e fallback por capacidade (#917/#927) | `docs/benchmarks/multi-provider/README.md`, `docs/runbooks/multi-provider-rollout.md`, `ARCHITECTURE.md` (seção "Fundação multi-provider de IA"), `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md` |
 | Metas, dashboard ou relatorios do paciente                           | `docs/product-specs/goals-and-reports.md`, `docs/product-specs/product-experience-model.md`                                          |
 | Area Profissional, pacientes, prontuario ou comunicacao profissional | `docs/product-specs/product-experience-model.md`, `docs/product-specs/professionals.md`                                              |
 | Billing, planos, assinatura ou elegibilidade                         | `docs/product-specs/product-experience-model.md`, issue/epica de billing vigente                                                     |

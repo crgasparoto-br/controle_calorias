@@ -6,6 +6,8 @@ Este é o runbook canônico para promover ou reverter provider/modelo de uma cap
 
 Nenhuma variável do Render, secret, provider, modelo ou flag de fallback deve ser alterada sem autorização explícita do responsável operacional.
 
+A decisão vigente está versionada em `docs/benchmarks/multi-provider/results/2026-08-05-rollout-decision.json` como `paused-authorization-required`; isso é uma pausa operacional explícita, não uma promoção concluída.
+
 ## Princípios
 
 1. promover uma única capacidade por janela;

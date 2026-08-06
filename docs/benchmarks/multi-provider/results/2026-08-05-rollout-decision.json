@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-05T23:58:00.000Z",
+  "issue": 927,
+  "status": "paused-authorization-required",
+  "reason": "No explicit authorization was granted to change Render or production configuration.",
+  "productionChangesApplied": false,
+  "nextCapability": "TRANSCRIPTION",
+  "candidate": {
+    "provider": "openai",
+    "model": "gpt-4o-mini-transcribe"
+  },
+  "currentRollback": {
+    "provider": "openai",
+    "model": "whisper-1"
+  },
+  "fallbackEnabled": false,
+  "crossProviderFallbackEnabled": false,
+  "resumeConditions": [
+    "explicit production authorization",
+    "green candidate gates",
+    "pre-change smoke",
+    "recorded owner and window"
+  ]
+}
