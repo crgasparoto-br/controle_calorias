@@ -58,7 +58,7 @@ O relatório deriva da execução:
 - ferramenta executada e unidades faturáveis;
 - custo total estimado e custo por operação válida;
 - regressões de segurança e privacidade;
-- resultado individual dos 32 controles de política no artefato complementar `results/2026-08-06-policy-controls.json`.
+- resultado individual dos 32 controles de política no artefato complementar obrigatório `results/2026-08-06-policy-controls.json`.
 
 `criticalAccuracy` é `null` quando não existe evidência crítica; nunca é preenchida implicitamente como 100%. Custo é estimativa do catálogo versionado, não cobrança real.
 
@@ -88,12 +88,14 @@ Verificar o relatório versionado, sua metadata e a regeneração determinístic
 pnpm benchmark:ai:multi-provider:verify
 ```
 
-Executar os 32 controles complementares e verificar o artefato versionado quando presente:
+Executar os 32 controles complementares e verificar obrigatoriamente o artefato versionado:
 
 ```bash
 pnpm issue-927:policy-controls
 pnpm issue-927:policy-controls:verify
 ```
+
+O segundo comando falha quando o artefato não existe, está desatualizado ou diverge da regeneração determinística.
 
 O wrapper `scripts/issue-927-run-benchmark.sh` delega ao script canônico do `package.json`.
 
