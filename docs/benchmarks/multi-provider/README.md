@@ -28,7 +28,7 @@ Cada capacidade externa possui quatro controles obrigatórios, executados pelo r
 
 São 32 controles (`8 capacidades externas × 4 famílias`). Cada tentativa corresponde a uma única chamada no último limite externo. Uma capacidade não pode reutilizar controle de outra capacidade.
 
-Política não aplicável exige justificativa técnica concreta. O gate complementar rejeita justificativas circulares como “não há evidência de promoção” ou “o baseline foi mantido”, porque ausência de intenção de promover não prova inaplicabilidade técnica.
+Política não aplicável continua exigindo justificativa não vazia no manifesto. Para a decisão automática, o gate complementar não confia no texto livre: deriva um `reasonCode` fechado a partir da capacidade e da família e liga exceções de transporte ao controle executável correspondente. Frases circulares no manifesto não contam como evidência nem determinam a cobertura.
 
 O runner também cobre:
 
