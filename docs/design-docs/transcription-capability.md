@@ -2,7 +2,7 @@
 
 ## Contrato de produção
 
-Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. O default compatível permanece `openai` + `whisper-1` até uma decisão explícita na #927.
+Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. A #927 manteve `openai` + `whisper-1` como default de produção e registrou `gpt-4o-mini-transcribe` somente como candidato para o rollout autorizado da #962.
 
 A resposta de domínio contém texto útil após `trim`, provider e modelo efetivamente usados e metadados normalizados de execução. Texto composto apenas por pontuação ou integralmente por marcadores e mensagens auxiliares de silêncio/áudio inaudível é classificado como `empty_output`, mesmo quando a frase varia a ordem de negação, sujeito e verbo (`não há fala`, `o áudio não contém fala`, `no voice was found`, `could not hear anything`). A classificação combina padrões literais com uma gramática semântica restrita a ausência de fala; não considera uma palavra isolada como prova suficiente. Conteúdo misto que ainda carregue fala acionável permanece válido. `language`, `duration`, `segments` e `usage` são opcionais. O campo SDK `raw` não atravessa a fronteira de domínio. Metadados ausentes não são preenchidos com valores artificiais.
 
@@ -30,7 +30,7 @@ Erros públicos e diagnósticos são sanitizados. Áudio, transcrição, prompt,
 - quando habilitado, ocorre somente após esgotar falhas operacionais do primário;
 - falhas de autenticação, modelo, incompatibilidade ou configuração não acionam fallback;
 - existe no máximo uma chamada de fallback, sem paralelismo ou cadeia;
-- fallback cross-provider exige opt-in explícito e continua bloqueado em produção até a issue #927.
+- fallback cross-provider exige opt-in explícito e continua bloqueado em produção; a #927 não aprovou essa promoção.
 
 ## WhatsApp e idempotência
 
@@ -60,4 +60,4 @@ Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b
 
 A configuração continua documentada em `.env.example`; a arquitetura e as regras transversais permanecem em `README.md`, `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Este documento é a especificação detalhada da capacidade e da ingestão de áudio para consumidores web/WhatsApp.
 
-A comparação nesta issue apenas produz evidência. Alterar o modelo padrão, habilitar fallback em produção ou enviar áudio a um segundo provider pertence ao rollout controlado da #927.
+A comparação nesta issue apenas produz evidência. A #927 selecionou um candidato sem alterar produção; mudar o modelo padrão, habilitar fallback ou enviar áudio a um segundo provider exige o rollout controlado e autorizado da #962.

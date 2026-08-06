@@ -29,8 +29,13 @@ import {
   syntheticPhotoDataUrl,
 } from "./provider-runtime";
 
-function addCheck(checks: CheckResult[], name: string, passed: boolean): void {
-  checks.push({ name, passed });
+function addCheck(
+  checks: CheckResult[],
+  name: string,
+  passed: boolean,
+  category: CheckResult["category"] = "functional",
+): void {
+  checks.push({ name, passed, category });
 }
 
 function includesInsensitive(value: unknown, expected: unknown): boolean {
@@ -60,6 +65,7 @@ async function runBoundary(
     if (meal) {
       if (expected.itemCount !== undefined) addCheck(checks, "item count", meal.items.length === expected.itemCount);
       if (expected.foodName) addCheck(checks, "food identity", includesInsensitive(meal.items[0]?.foodName, expected.foodName));
+      if (Object.hasOwn(expected, "brand")) addCheck(checks, "brand", meal.items[0]?.brand === expected.brand);
       if (expected.quantity !== undefined) addCheck(checks, "quantity", meal.items[0]?.quantity === expected.quantity);
       if (expected.unit) addCheck(checks, "unit", meal.items[0]?.unit === expected.unit);
       if (expected.classification) {
@@ -79,7 +85,7 @@ async function runBoundary(
       addCheck(checks, "pending context preserved", intentContext(scenario).pendingClarification?.kind === "replace_food");
     }
     if (scenario.tags.includes("whatsapp-adversarial")) {
-      addCheck(checks, "security guard", result.fallbackReason === "security_guard");
+      addCheck(checks, "security guard", result.fallbackReason === "security_guard", "safety");
     }
   } else if (scenario.runner === "question") {
     output = await executeWhatsappAiQuestionIntent(927, {
@@ -104,6 +110,12 @@ async function runBoundary(
     } else {
       addCheck(checks, "product found", result !== null);
       if (expected.foodNameContains) addCheck(checks, "product identity", includesInsensitive(result?.name, expected.foodNameContains));
+      if (expected.brand) addCheck(checks, "product brand", includesInsensitive(result?.brandName, expected.brand));
+      if (expected.gramsPerServing !== undefined) addCheck(checks, "serving grams", result?.gramsPerServing === expected.gramsPerServing);
+      if (expected.calories !== undefined) addCheck(checks, "calories", result?.calories === expected.calories);
+      if (expected.protein !== undefined) addCheck(checks, "protein", result?.protein === expected.protein);
+      if (expected.carbs !== undefined) addCheck(checks, "carbs", result?.carbs === expected.carbs);
+      if (expected.fat !== undefined) addCheck(checks, "fat", result?.fat === expected.fat);
       const verified = Boolean(result?.aliases.some(alias => alias.startsWith("fonte: https://")));
       addCheck(checks, "verified source", verified === expected.verifiedSource);
       source = verified ? "verified" : "unverified";
@@ -171,7 +183,23 @@ function estimatedExecutionCost(events: AiInferenceEvent[]): number | null {
   return typeof final === "number" ? final : null;
 }
 
-export async function executeScenario(scenario: Scenario): Promise<ScenarioObservation> {
+export function deriveSafetyRegression(checks: CheckResult[]): boolean {
+  return checks.some(check => check.category === "safety" && !check.passed);
+}
+
+export function derivePrivacyRegression(value: unknown): boolean {
+  try {
+    scanReportSafety(value);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+export async function executeScenario(
+  scenario: Scenario,
+  rubricCriticalChecks: readonly string[] = [],
+): Promise<ScenarioObservation> {
   const env = baseEnvironment(scenario);
   const runtime = createProviderRuntime(scenario);
   const events: AiInferenceEvent[] = [];
@@ -204,6 +232,14 @@ export async function executeScenario(scenario: Scenario): Promise<ScenarioObser
     if (scenario.capability === "FOOD_CLASSIFICATION") {
       addCheck(boundary.checks, "no separate classification call", calls === 1);
     }
+    if (scenario.capability === "EMBEDDING") {
+      const configuredProvider = env.AI_EMBEDDING_PROVIDER ?? "openai";
+      addCheck(
+        boundary.checks,
+        "provider/model isolation",
+        runtime.calls.length === 0 || runtime.calls.every(call => call.provider === configuredProvider),
+      );
+    }
 
     const toolEvents = events.flatMap(event => event.tools);
     const providerCalls: Record<ProviderId, number> = {
@@ -211,14 +247,15 @@ export async function executeScenario(scenario: Scenario): Promise<ScenarioObser
       "openai-compatible": runtime.calls.filter(call => call.provider === "openai-compatible").length,
       gemini: runtime.calls.filter(call => call.provider === "gemini").length,
     };
-    const observation: ScenarioObservation = {
+    const criticalChecks = boundary.checks.filter(check => rubricCriticalChecks.includes(check.name));
+    const observationWithoutPrivacy = {
       id: scenario.id,
       capability: scenario.capability,
       tags: scenario.tags,
       valid: boundary.checks.every(check => check.passed),
       checks: boundary.checks,
-      criticalPassed: boundary.checks.filter(check => check.passed).length,
-      criticalTotal: boundary.checks.length,
+      criticalPassed: criticalChecks.filter(check => check.passed).length,
+      criticalTotal: criticalChecks.length,
       falsePositive: scenario.expected.outcome === "no-match" && boundary.output !== null,
       source: boundary.source,
       latencyMs: Math.max(0, Date.now() - startedAt),
@@ -242,9 +279,10 @@ export async function executeScenario(scenario: Scenario): Promise<ScenarioObser
       toolExecuted: toolEvents.some(tool => tool.executed),
       toolUnits: toolEvents.reduce((sum, tool) => sum + (tool.billableUnits ?? 0), 0),
       estimatedCostUsd: estimatedExecutionCost(events),
-      safetyRegression: false,
-      privacyRegression: false,
+      safetyRegression: deriveSafetyRegression(boundary.checks),
     };
+    const privacyRegression = derivePrivacyRegression(observationWithoutPrivacy);
+    const observation: ScenarioObservation = { ...observationWithoutPrivacy, privacyRegression };
     scanReportSafety(observation);
     return observation;
   } finally {

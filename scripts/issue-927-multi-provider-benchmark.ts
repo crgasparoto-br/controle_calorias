@@ -6,7 +6,7 @@ import { buildReport, readManifest, runSelfTest, verifyCommittedReport } from ".
 
 export { CAPABILITIES, validateManifest } from "./issue-927-benchmark/contracts";
 export type { Capability, Manifest, Scenario, ScenarioObservation } from "./issue-927-benchmark/contracts";
-export { executeScenario } from "./issue-927-benchmark/execution";
+export { derivePrivacyRegression, deriveSafetyRegression, executeScenario } from "./issue-927-benchmark/execution";
 export {
   buildReport, readManifest, readTranscriptionEvidence, runSelfTest, summarize, verifyCommittedReport,
 } from "./issue-927-benchmark/report";

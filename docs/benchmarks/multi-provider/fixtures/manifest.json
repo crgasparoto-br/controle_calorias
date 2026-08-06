@@ -3,7 +3,7 @@
   "generatedAt": "2026-08-06",
   "privacy": "synthetic-only",
   "license": "CC0-1.0 synthetic fixtures; no production or user content",
-  "rubricVersion": "2026-08-06.2",
+  "rubricVersion": "2026-08-06.3",
   "requiredCapabilities": [
     "MEAL_TEXT",
     "MEAL_VISION",
@@ -49,78 +49,79 @@
         "food identity",
         "brand",
         "quantity",
-        "unit",
-        "embedded NOVA"
+        "unit"
       ]
     },
     "MEAL_VISION": {
       "validOperation": "The real vision extraction boundary returns a schema-valid meal or an explicit no-food result without fabricated items.",
       "criticalChecks": [
-        "image routed to vision capability",
-        "food/no-food discrimination",
-        "item identity",
-        "schema validity"
+        "expected outcome",
+        "item count",
+        "food identity",
+        "quantity",
+        "unit"
       ]
     },
     "WHATSAPP_INTENT": {
       "validOperation": "The real intent boundary selects deterministic or LLM routing without unnecessary provider calls and preserves pending context.",
       "criticalChecks": [
         "intent",
-        "deterministic precedence",
-        "pending context",
+        "deterministic no-call",
+        "pending context preserved",
         "security guard"
       ]
     },
     "QUESTION": {
       "validOperation": "The real slash-question capability returns a bounded answer and truthfully reports whether web search executed.",
       "criticalChecks": [
-        "answer usefulness",
-        "tool execution truthfulness",
-        "source support"
+        "useful answer",
+        "tool execution truthfulness"
       ]
     },
     "NUTRITION_SEARCH": {
       "validOperation": "The real nutrition search boundary accepts only a compatible product with verifiable provider-linked evidence and rejects ambiguity.",
       "criticalChecks": [
-        "brand",
-        "variant/measure",
-        "nutrition values",
+        "product brand",
+        "serving grams",
+        "calories",
+        "protein",
+        "carbs",
+        "fat",
         "verified source",
-        "ambiguity rejection"
+        "ambiguity rejected"
       ]
     },
     "EMBEDDING": {
       "validOperation": "The real embedding boundary returns a compatible catalog match or degrades safely to no semantic result.",
       "criticalChecks": [
         "provider/model isolation",
-        "vector-space consistency",
-        "safe degradation"
+        "catalog match",
+        "catalog identity",
+        "safe semantic degradation"
       ]
     },
     "TRANSCRIPTION": {
       "validOperation": "The real transcription boundary returns useful PT-BR text and applies bounded retry/fallback policy.",
       "criticalChecks": [
-        "useful text",
-        "food terms",
-        "quantity/unit",
+        "transcription succeeded",
+        "critical speech terms",
         "bounded attempts"
       ]
     },
     "IMAGE_ANNOTATION": {
       "validOperation": "The real annotation boundary applies local, external or off mode while preserving the original and safe degradation.",
       "criticalChecks": [
-        "mode isolation",
-        "original preservation",
-        "derived artifact",
-        "safe degradation"
+        "annotation disabled",
+        "annotation artifact",
+        "annotation mode",
+        "original preserved"
       ]
     },
     "FOOD_CLASSIFICATION": {
       "validOperation": "NOVA classification is returned inside the real meal structured output with exactly one provider call.",
       "criticalChecks": [
-        "classification fields",
-        "embedded execution",
-        "zero extra calls"
+        "embedded NOVA classification",
+        "no separate classification call"
       ]
     }
   },

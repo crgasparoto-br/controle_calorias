@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,13 +19,22 @@ import { executeScenario } from "./execution";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_MANIFEST = path.join(ROOT, "docs/benchmarks/multi-provider/fixtures/manifest.json");
-const DEFAULT_REPORT = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json");
+const DEFAULT_REPORT = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
 const PRICE_CATALOG = path.join(ROOT, "docs/benchmarks/multi-provider/pricing-snapshot.json");
 const TRANSCRIPTION_EVIDENCE = path.join(ROOT, "docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.json");
 const RESULT_PREFIX = "docs/benchmarks/multi-provider/results/";
 
 const round = (value: number, digits = 6) => Math.round(value * 10 ** digits) / 10 ** digits;
 const rate = (yes: number, total: number) => total ? round(yes / total) : 0;
+
+function containsOnlySanitizedEvidence(value: unknown): boolean {
+  try {
+    scanReportSafety(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function percentile(values: number[], quantile: number): number | null {
   if (!values.length) return null;
@@ -144,7 +154,9 @@ export async function buildReport(input: {
 }) {
   validateManifest(input.manifest);
   const observations: ScenarioObservation[] = [];
-  for (const scenario of input.manifest.scenarios) observations.push(await executeScenario(scenario));
+  for (const scenario of input.manifest.scenarios) {
+    observations.push(await executeScenario(scenario, input.manifest.rubric[scenario.capability].criticalChecks));
+  }
   const summaries = CAPABILITIES.map(capability => summarize(capability, observations));
   const transcription = await readTranscriptionEvidence(input.transcriptionEvidencePath);
   const priceCatalog = await priceCatalogMetadata();
@@ -153,6 +165,12 @@ export async function buildReport(input: {
 
   const gates = {
     allFunctionalScenariosPassed: observations.every(item => item.valid),
+    criticalRubricCovered: CAPABILITIES.every(capability => {
+      const observedChecks = new Set(
+        observations.filter(item => item.capability === capability).flatMap(item => item.checks.map(check => check.name)),
+      );
+      return input.manifest.rubric[capability].criticalChecks.every(check => observedChecks.has(check));
+    }),
     deterministicNoExternalCalls: observations.filter(item => item.deterministic).every(item => item.calls === 0),
     sequentialSingleFallback: observations.every(item => item.maxConcurrency <= 1 && item.fallbackCalls <= 1),
     validPrimaryAvoidsFallback: observations.filter(item => item.tags.includes("primary")).every(item => item.fallback === "none"),
@@ -161,7 +179,7 @@ export async function buildReport(input: {
       .every(item => item.crossProviderApproved === true),
     noSafetyRegression: observations.every(item => !item.safetyRegression),
     noPrivacyRegression: observations.every(item => !item.privacyRegression),
-    reportContainsNoRawContent: true,
+    reportContainsNoRawContent: containsOnlySanitizedEvidence({ observations, summaries }),
   };
 
   const promotionDecisions = CAPABILITIES.map(capability => {
@@ -275,12 +293,16 @@ export async function verifyCommittedReport(
   reportPath = DEFAULT_REPORT,
   manifestPath = DEFAULT_MANIFEST,
 ): Promise<void> {
-  const committed = JSON.parse(await readFile(reportPath, "utf8")) as {
+  const encoded = await readFile(reportPath);
+  const reportText = reportPath.endsWith(".gz") ? gunzipSync(encoded).toString("utf8") : encoded.toString("utf8");
+  const committed = JSON.parse(reportText) as {
     testedSha?: string;
     sourceTreeSha256?: string;
     globalGates?: { passed?: boolean };
     coverage?: { observationCount?: number };
+    rubricVersion?: string;
   };
+  scanReportSafety(committed);
   const actualHash = await hashExecutableSourceTree();
   const manifest = await readManifest(manifestPath);
   const verifiedHead = process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]);
@@ -295,6 +317,7 @@ export async function verifyCommittedReport(
   assert.equal(committed.sourceTreeSha256, actualHash, "committed report is stale for the executable source tree");
   assert.equal(committed.globalGates?.passed, true);
   assert.equal(committed.coverage?.observationCount, manifest.scenarios.length);
+  assert.equal(committed.rubricVersion, manifest.rubricVersion);
 }
 
 export async function runSelfTest(): Promise<void> {

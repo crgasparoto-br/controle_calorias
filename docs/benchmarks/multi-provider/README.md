@@ -56,13 +56,15 @@ pnpm benchmark:ai:multi-provider -- \
   --output docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json
 ```
 
+O artefato versionado é a forma gzip desse JSON (`.json.gz`). O verificador oficial lê gzip diretamente, valida a sanitização e recusa rubrica, cobertura, SHA ou árvore executável divergentes.
+
 Smoke funcional completo, sem credenciais:
 
 ```bash
 pnpm smoke:issue-927
 ```
 
-Verificar que o relatório versionado continua compatível com a árvore executável atual:
+Verificar que o relatório versionado continua compatível com a árvore executável atual (este comando também faz parte de `pnpm agent:check`):
 
 ```bash
 pnpm benchmark:ai:multi-provider:verify

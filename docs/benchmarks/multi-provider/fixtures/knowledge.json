@@ -138,6 +138,12 @@
     "expected": {
       "outcome": "success",
       "foodNameContains": "KitKat",
+      "brand": "Nestlé",
+      "gramsPerServing": 41.5,
+      "calories": 218,
+      "protein": 2.7,
+      "carbs": 26.3,
+      "fat": 11.2,
       "verifiedSource": true,
       "calls": 1
     }

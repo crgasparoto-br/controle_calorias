@@ -6,7 +6,7 @@
     "tags": ["meal-vision", "primary"],
     "input": {"text": "foto da refeição", "syntheticImage": true},
     "providerPlan": {"openai": [{"operation": "text", "result": {"json": {"mealLabel": "Almoço", "confidence": 0.94, "reasoning": "Fixture sintética validada.", "items": [{"foodName": "arroz", "brand": null, "quantity": 100, "unit": "g", "portionText": "100 g", "servings": 1, "estimatedGrams": 100, "estimatedCalories": 130, "estimatedMacros": {"protein": 2.7, "carbs": 28, "fat": 0.3}, "confidence": 0.95, "foodClassification": {"processingLevel": "natural_or_minimally_processed", "isFruit": false, "isVegetable": false, "fiberGrams": 0.4}}]}, "usage": {"inputTokens": 200, "outputTokens": 80}}}]},
-    "expected": {"outcome": "success", "itemCount": 1, "foodName": "arroz", "calls": 1}
+    "expected": {"outcome": "success", "itemCount": 1, "foodName": "arroz", "quantity": 100, "unit": "g", "calls": 1}
   },
   {
     "id": "meal-vision-no-food",

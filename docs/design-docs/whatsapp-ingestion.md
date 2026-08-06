@@ -177,7 +177,7 @@ A especificação detalhada e o contrato consumível pela #858 estão em [whatsa
 
 ## Capacidades de IA da ingestão (#922)
 
-A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingestion-ai-capabilities.md) faz parte deste contrato canônico. `WHATSAPP_INTENT` só é executada depois dos comandos determinísticos, callbacks e operações pendentes. Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`, até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927. Fallback same-provider continua independente e limitado pela política da capacidade.
+A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingestion-ai-capabilities.md) faz parte deste contrato canônico. `WHATSAPP_INTENT` só é executada depois dos comandos determinísticos, callbacks e operações pendentes. Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`; a #927 não aprovou cross-provider, e uma liberação futura exige nova evidência, revisão de privacidade/LGPD e autorização operacional por capacidade. Fallback same-provider continua independente e limitado pela política da capacidade.
 
 ## Testes obrigatórios
 

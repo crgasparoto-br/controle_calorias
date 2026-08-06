@@ -12,7 +12,7 @@ A migração não altera estados persistidos, interação pendente, correlação
 
 Falhas operacionais recuperáveis seguem exclusivamente a política da capacidade. Autenticação, configuração inválida, modelo inexistente conhecido, incompatibilidade e bloqueio de segurança não acionam retry nem fallback. A indisponibilidade da IA mantém a resposta funcional segura já documentada e nunca cria refeição genérica ou vazia silenciosamente.
 
-Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`, até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927. O resolvedor retorna a capacidade como `degraded`, preserva o primário válido e torna o fallback inelegível; o executor não recebe autorização para realizar a segunda chamada.
+Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`. A #927 não aprovou cross-provider; uma liberação futura exige nova evidência, revisão de privacidade/LGPD e autorização operacional por capacidade. O resolvedor retorna a capacidade como `degraded`, preserva o primário válido e torna o fallback inelegível; o executor não recebe autorização para realizar a segunda chamada.
 
 ## Perguntas `/` por capacidade (#923)
 

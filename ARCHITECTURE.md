@@ -142,11 +142,11 @@ web / WhatsApp
   -> consumidor usa text; metadados são opcionais
 ```
 
-- O baseline continua `openai` + `whisper-1`; a issue não promove novo modelo.
+- O baseline de produção continua `openai` + `whisper-1`. A #927 registrou `gpt-4o-mini-transcribe` como candidato, mas a aplicação operacional da mudança depende da janela autorizada da #962.
 - `whisper-1` usa `verbose_json`; modelos GPT-4o de transcrição usam `json`.
 - O contrato raiz e o contrato de domínio exigem `task` e `text`; `language`, `duration`, `segments` e `usage` são opcionais. Adapters não fabricam `segments: []`, `duration: 0` ou idioma vazio quando o provider omite esses campos.
 - Data URL sem `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes da criação do adapter.
-- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; cross-provider é bloqueado em produção até a #927.
+- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; a #927 não aprovou cross-provider, que continua bloqueado em produção até nova evidência, revisão LGPD e autorização específicas por capacidade.
 - O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
 - Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
 
@@ -167,7 +167,7 @@ WhatsApp com preferência ativa
 - `local` é o default e não cria adapter externo, mesmo que `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` apontem para outro provider.
 - `external` exige configuração explícita da capacidade e representa novo envio da foto ao provider de imagem.
 - Uma tentativa do executor corresponde a exatamente uma operação de imagem; existe no máximo uma chamada posterior de fallback.
-- Fallback externo permanece desabilitado por padrão; provider diferente exige opt-in específico e continua bloqueado em produção até a #927.
+- Fallback externo permanece desabilitado por padrão; provider diferente exige opt-in específico e continua bloqueado em produção. A #927 preservou `IMAGE_ANNOTATION` em modo local e não recomendou promoção externa.
 - A transição `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; é degradação funcional do consumidor, não fallback de provider.
 - O original e o derivado têm buffers e chaves de storage distintos. Falha de renderização, provider, upload ou envio não remove o original nem bloqueia o registro textual.
 - Um cartão-resumo sem a foto original é outro tipo de artefato e não pode ser apresentado como anotação.

@@ -1,11 +1,13 @@
 import { access, readFile } from "node:fs/promises";
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   CAPABILITIES,
   buildReport,
+  derivePrivacyRegression,
+  deriveSafetyRegression,
   executeScenario,
   readManifest,
   runSelfTest,
@@ -17,7 +19,7 @@ import {
 } from "./issue-927-multi-provider-benchmark";
 
 const manifestPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/fixtures/manifest.json");
-const reportPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json");
+const reportPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
 const clone = <T>(value: T): T => structuredClone(value);
 
 function blankObservation(overrides: Partial<ScenarioObservation> = {}): ScenarioObservation {
@@ -107,6 +109,26 @@ describe("issue 927 executable multi-provider benchmark", () => {
     expect(summary.criticalAccuracy).toBeNull();
   });
 
+  it("derives safety and privacy regressions from executable evidence", () => {
+    expect(deriveSafetyRegression([{ name: "security guard", passed: false, category: "safety" }])).toBe(true);
+    expect(deriveSafetyRegression([{ name: "security guard", passed: true, category: "safety" }])).toBe(false);
+    expect(derivePrivacyRegression({ prompt: "raw content must not enter evidence" })).toBe(true);
+    expect(derivePrivacyRegression({ scenarioId: "sanitized-id" })).toBe(false);
+  });
+
+  it("fails a critical brand check when the provider returns a different brand", async () => {
+    const manifest = await readManifest(manifestPath);
+    const scenario = clone(manifest.scenarios.find(item => item.id === "meal-text-simple")!);
+    const providerResult = scenario.providerPlan?.openai?.[0]?.result?.json as {
+      items: Array<{ brand: string | null }>;
+    };
+    providerResult.items[0]!.brand = "Camil";
+    const observation = await executeScenario(scenario, manifest.rubric.MEAL_TEXT.criticalChecks);
+    expect(observation.valid).toBe(false);
+    expect(observation.checks).toContainEqual({ name: "brand", passed: false, category: "functional" });
+    expect(observation.criticalPassed).toBeLessThan(observation.criticalTotal);
+  });
+
   it("builds a sanitized report from measured observations and keeps production changes disabled", async () => {
     const manifest = await readManifest(manifestPath);
     const report = await buildReport({
@@ -136,7 +158,7 @@ describe("issue 927 executable multi-provider benchmark", () => {
     try {
       await access(reportPath);
       await expect(verifyCommittedReport(reportPath, manifestPath)).resolves.toBeUndefined();
-      const committed = JSON.parse(await readFile(reportPath, "utf8"));
+      const committed = JSON.parse(gunzipSync(await readFile(reportPath)).toString("utf8"));
       expect(committed.globalGates.passed).toBe(true);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

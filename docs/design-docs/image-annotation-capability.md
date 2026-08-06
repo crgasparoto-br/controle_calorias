@@ -70,7 +70,7 @@ Somente o modo `external` chama `resolveCapabilityConfig("IMAGE_ANNOTATION")` e 
 - O request externo inclui a foto original validada para edição, nunca somente uma URL sem bytes vinculados.
 - O executor controla timeout, retries e no máximo uma chamada de fallback.
 - Fallback externo permanece desabilitado por padrão.
-- Provider diferente exige a flag cross-provider específica e continua bloqueado em produção até a promoção da issue #927.
+- Provider diferente exige a flag cross-provider específica e continua bloqueado em produção; a #927 preservou o modo local e não recomendou promoção externa.
 - O callback não executa probe, enriquecimento, recuperação ou segunda chamada oculta.
 - O resultado do SDK é reduzido a base64 e MIME antes de sair da fronteira do adapter; `raw` não chega ao domínio.
 
@@ -95,7 +95,7 @@ Em todos esses casos, o fluxo preserva a foto original, o resultado textual e o 
 - `local` não envia foto, prompt ou dados nutricionais a provider de imagem.
 - `external` representa novo envio da foto ao provider específico de `IMAGE_ANNOTATION`.
 - A mudança de `MEAL_VISION` não autoriza nem redireciona esse segundo envio.
-- Cross-provider exige opt-in específico, validação de privacidade/LGPD, benchmark e rollout da #927.
+- Cross-provider exige opt-in específico, nova evidência, validação de privacidade/LGPD e autorização operacional por capacidade.
 - Logs registram apenas códigos normalizados e estado funcional. Não registram foto, base64, URL assinada, prompt, refeição, resposta completa, segredo ou mensagem bruta do SDK.
 - O derivado segue a mesma política de retenção, exportação e exclusão aplicada às mídias vinculadas à refeição; o original continua sendo um artefato independente.
 
@@ -140,7 +140,7 @@ O comando falha quando o modo padrão deixa de ser local, o original é alterado
 
 ## Rollout e rollback
 
-O rollout de #925 mantém `local` como default. `external` não deve ser ativado em produção nem ter provider/modelo promovidos antes da avaliação de #927. Rollback operacional é feito por configuração:
+O rollout de #925 mantém `local` como default. A avaliação da #927 preservou essa decisão: `external` não deve ser ativado em produção nem ter provider/modelo promovidos sem nova evidência, revisão LGPD e autorização operacional. Rollback é feito por configuração:
 
 ```env
 AI_IMAGE_ANNOTATION_MODE=local

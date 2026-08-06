@@ -9,7 +9,7 @@
       "primary"
     ],
     "input": {
-      "text": "100 g de arroz"
+      "text": "100 g de arroz Tio João"
     },
     "providerPlan": {
       "openai": [
@@ -23,7 +23,7 @@
               "items": [
                 {
                   "foodName": "arroz",
-                  "brand": null,
+                  "brand": "Tio João",
                   "quantity": 100,
                   "unit": "g",
                   "portionText": "100 g",
@@ -57,6 +57,7 @@
       "outcome": "success",
       "itemCount": 1,
       "foodName": "arroz",
+      "brand": "Tio João",
       "quantity": 100,
       "unit": "g",
       "calls": 1

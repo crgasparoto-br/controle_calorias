@@ -60,8 +60,14 @@ export type Expected = {
   itemCount?: number;
   foodName?: string;
   foodNameContains?: string;
+  brand?: string | null;
   quantity?: number;
   unit?: string;
+  gramsPerServing?: number;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   classification?: string;
   intent?: string;
   source?: string;
@@ -110,7 +116,11 @@ export type ProviderCall = {
   failed: boolean;
 };
 
-export type CheckResult = { name: string; passed: boolean };
+export type CheckResult = {
+  name: string;
+  passed: boolean;
+  category: "functional" | "safety";
+};
 
 export type ScenarioObservation = {
   id: string;
@@ -214,7 +224,7 @@ export function scanReportSafety(value: unknown, at = "report"): void {
 
 export function validateManifest(manifest: Manifest): void {
   scanFixtureSafety(manifest);
-  if (manifest.schemaVersion !== 2 || manifest.rubricVersion !== "2026-08-06.2") {
+  if (manifest.schemaVersion !== 2 || manifest.rubricVersion !== "2026-08-06.3") {
     throw new Error("unsupported benchmark contract");
   }
   if (manifest.privacy !== "synthetic-only" || !manifest.license.trim()) {
