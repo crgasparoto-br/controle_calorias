@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -75,12 +75,6 @@ export async function buildIssue927PolicyReport(
 }
 
 export async function verifyIssue927PolicyReport(artifactPath = DEFAULT_ARTIFACT): Promise<void> {
-  try {
-    await access(artifactPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
   const committed = JSON.parse(await readFile(artifactPath, "utf8")) as Awaited<ReturnType<typeof buildIssue927PolicyReport>>;
   assert.match(committed.testedSha, /^[0-9a-f]{40}$/u);
   const head = process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]);
@@ -98,7 +92,7 @@ async function main(): Promise<void> {
   const artifact = process.argv.includes("--artifact")
     ? process.argv[process.argv.indexOf("--artifact") + 1]
     : DEFAULT_ARTIFACT;
-  if (process.argv.includes("--verify-if-present")) {
+  if (process.argv.includes("--verify") || process.argv.includes("--verify-if-present")) {
     await verifyIssue927PolicyReport(artifact);
     process.stdout.write("issue-927 policy controls verified\n");
     return;
