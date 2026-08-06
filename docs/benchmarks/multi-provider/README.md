@@ -44,6 +44,8 @@ O runner também cobre:
 - cross-provider explicitamente permitido somente no cenário sintético discriminante de `MEAL_TEXT`;
 - contagem de outbound e prova de execução sequencial.
 
+O cenário `intent-provider-primary` usa a tag técnica `provider-primary`: ele não substitui o comando determinístico que governa a família `primary`, mas é obrigatório no gate complementar e comprova uma chamada real com provider/modelo efetivos.
+
 ## Métricas
 
 O relatório deriva da execução:
