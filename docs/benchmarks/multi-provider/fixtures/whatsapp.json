@@ -1,12 +1,58 @@
 [
   {
+    "id": "intent-provider-primary",
+    "capability": "WHATSAPP_INTENT",
+    "runner": "intent",
+    "tags": [
+      "whatsapp-simple",
+      "primary"
+    ],
+    "input": {
+      "text": "me mostra meus detalhes de alimentação por favor"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "text",
+          "result": {
+            "json": {
+              "intent": "list_meal_records",
+              "confidence": 0.91,
+              "date": null,
+              "meal": null,
+              "items": [],
+              "sourceFood": null,
+              "targetFood": null,
+              "quantity": null,
+              "requiresConfirmation": false,
+              "clarificationQuestion": null,
+              "possibleIntents": [],
+              "reason": "Consulta sintética de registros."
+            },
+            "usage": {
+              "inputTokens": 100,
+              "outputTokens": 45
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "intent": "list_meal_records",
+      "source": "llm",
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "calls": 1
+    }
+  },
+  {
     "id": "intent-deterministic-command",
     "capability": "WHATSAPP_INTENT",
     "runner": "intent",
     "tags": [
       "deterministic-command",
-      "whatsapp-simple",
-      "primary"
+      "whatsapp-simple"
     ],
     "input": {
       "text": "resumo de hoje"
