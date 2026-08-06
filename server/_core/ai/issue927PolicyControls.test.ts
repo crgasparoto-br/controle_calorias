@@ -35,12 +35,19 @@ describe("issue 927 audit-gap controls", () => {
     ]);
   });
 
-  it("rejects circular non-applicability reasons in the benchmark matrix", async () => {
+  it("derives closed technical non-applicability reasons without trusting free-form text", async () => {
     const normalized = await validateIssue927PolicyManifest();
     expect(normalized.length).toBeGreaterThan(0);
     expect(normalized.every(item => item.manifestReasonIgnored)).toBe(true);
     expect(normalized.filter(item => item.reasonCode === "transport-covered-by-executable-control")
       .every(item => item.controlId?.includes(":"))).toBe(true);
+    expect(normalized.every(item => [
+      "transport-covered-by-executable-control",
+      "no-approved-cross-provider-candidate",
+      "no-safe-local-degradation",
+      "embedded-no-independent-policy",
+      "canonical-review-not-provider-degradation",
+    ].includes(item.reasonCode))).toBe(true);
   });
 
   it("fails closed when the versioned policy artifact is missing", async () => {
