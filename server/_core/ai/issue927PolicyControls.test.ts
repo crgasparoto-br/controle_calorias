@@ -1,8 +1,13 @@
+import { randomUUID } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildIssue927PolicyReport,
   evaluateIssue927PolicyControls,
   validateIssue927PolicyManifest,
+  verifyIssue927PolicyReport,
 } from "../../../scripts/issue-927-policy-controls";
 import {
   executeScenario,
@@ -36,5 +41,17 @@ describe("issue 927 audit-gap controls", () => {
     expect(normalized.every(item => item.manifestReasonIgnored)).toBe(true);
     expect(normalized.filter(item => item.reasonCode === "transport-covered-by-executable-control")
       .every(item => item.controlId?.includes(":"))).toBe(true);
+  });
+
+  it("fails closed when the versioned policy artifact is missing", async () => {
+    const missing = path.join(os.tmpdir(), `issue-927-missing-${randomUUID()}.json`);
+    await expect(verifyIssue927PolicyReport(missing)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("emits the exact-head policy report for publication", async () => {
+    const report = await buildIssue927PolicyReport();
+    expect(report.allPassed).toBe(true);
+    expect(report.controlCount).toBe(32);
+    console.log(`ISSUE927_POLICY_REPORT=${JSON.stringify(report)}`);
   });
 });
