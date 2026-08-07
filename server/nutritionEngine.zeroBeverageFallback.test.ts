@@ -254,6 +254,13 @@ describe("nutritionEngine zero beverage fallback", () => {
     "60 g Picolé de guaraná zero açúcar",
     "30 g Guaraná zero em pó",
     "20 ml Xarope sabor guaraná zero açúcar",
+    "60 g Picolé de refrigerante zero açúcar",
+    "170 g Iogurte sabor refrigerante zero açúcar",
+    "5 g Chiclete sabor refrigerante zero açúcar",
+    "100 g Gelatina sabor tônica zero açúcar",
+    "30 g Bala de refri zero açúcar",
+    "60 g Schweppes Picolé Zero",
+    "60 g Sprite Picolé Zero",
   ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
@@ -286,6 +293,34 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       quantity: 350,
       unit: "ml",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      source: "heuristic",
+    }));
+    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
+
+
+  it.each([
+    "Sprite Zero",
+    "Schweppes Tônica Zero",
+    "Schweppes Citrus Zero",
+    "ZERO AÇÚCAR ÁGUA TÔNICA",
+    "Refrigerante Diet",
+  ])("reconhece núcleo positivo de bebida zero mesmo sem quantidade explícita: %s", async text => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
       calories: 0,
       protein: 0,
       carbs: 0,

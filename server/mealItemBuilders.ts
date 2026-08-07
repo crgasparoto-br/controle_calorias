@@ -140,11 +140,10 @@ function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
     || /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalizedFoodName);
 }
 
-const SOLID_FOOD_CONTEXT_PATTERN = /\b(chocolate|biscoito|bolacha|bala|doce|sobremesa|bolo|torta|sorvete|gelato|pudim|gelatina|barra|bombom|cookie|wafer|cereal|granola)\b/;
-const EXPLICIT_BEVERAGE_FAMILY_PATTERN = /\b(agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
-const AMBIGUOUS_BEVERAGE_FAMILY_PATTERN = /\b(soda|cola|guarana)\b/;
-const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica)\b/;
-const NON_BEVERAGE_REFERENCE_PATTERN = /\b(?:de|sabor|tipo)\s+(?:soda|cola|guarana|coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica)\b/;
+const EXPLICIT_BEVERAGE_CORE_PATTERN = /^(?:agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
+const AMBIGUOUS_BEVERAGE_CORE_PATTERN = /^(?:soda|cola|guarana)\b/;
+const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat)\b/;
+const CARBONATED_BEVERAGE_VARIANT_PATTERN = /^(?:citrus|limao|laranja|uva|original|tradicional|ginger ale)$/;
 
 function isVolumeUnit(unit?: string | null) {
   const normalizedUnit = normalizeUnit(unit ?? "");
@@ -160,27 +159,54 @@ function removeExplicitZeroSugarMarkers(normalizedFoodName: string) {
     .trim();
 }
 
+function isAmbiguousBeverageCore(description: string, unit?: string | null) {
+  if (!AMBIGUOUS_BEVERAGE_CORE_PATTERN.test(description)) {
+    return false;
+  }
+
+  const standaloneCore = /^(?:soda|cola|guarana)(?:\s+antarctica)?$/.test(description);
+  return standaloneCore || isVolumeUnit(unit);
+}
+
+function removeLeadingCarbonatedBeverageBrand(description: string) {
+  const brandMatch = description.match(CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN);
+  if (!brandMatch) {
+    return null;
+  }
+
+  return description.slice(brandMatch[0].length).trim();
+}
+
+function hasPositiveZeroBeverageEvidence(description: string, unit?: string | null) {
+  if (EXPLICIT_BEVERAGE_CORE_PATTERN.test(description)) {
+    return true;
+  }
+  if (isAmbiguousBeverageCore(description, unit)) {
+    return true;
+  }
+
+  const afterBrand = removeLeadingCarbonatedBeverageBrand(description);
+  if (afterBrand === null) {
+    return false;
+  }
+  if (!afterBrand) {
+    return true;
+  }
+  if (EXPLICIT_BEVERAGE_CORE_PATTERN.test(afterBrand) || isAmbiguousBeverageCore(afterBrand, unit)) {
+    return true;
+  }
+
+  return isVolumeUnit(unit) || CARBONATED_BEVERAGE_VARIANT_PATTERN.test(afterBrand);
+}
+
 function isExplicitZeroBeverage(foodName: string, unit?: string | null) {
   const normalized = normalizeFoodDescription(foodName);
-  if (!hasExplicitZeroSugarMarker(normalized) || SOLID_FOOD_CONTEXT_PATTERN.test(normalized)) {
-    return false;
-  }
-  if (EXPLICIT_BEVERAGE_FAMILY_PATTERN.test(normalized)) {
-    return true;
-  }
-  if (NON_BEVERAGE_REFERENCE_PATTERN.test(normalized)) {
+  if (!hasExplicitZeroSugarMarker(normalized)) {
     return false;
   }
 
-  const hasAmbiguousFamily = AMBIGUOUS_BEVERAGE_FAMILY_PATTERN.test(normalized);
-  const ambiguousFamilyIsMainDescription = /^(?:soda|cola|guarana)\b/.test(normalized);
   const descriptionWithoutZeroMarker = removeExplicitZeroSugarMarkers(normalized);
-  const ambiguousFamilyIsStandalone = /^(?:soda|cola|guarana)(?:\s+antarctica)?$/.test(descriptionWithoutZeroMarker);
-  if (hasAmbiguousFamily && ambiguousFamilyIsMainDescription && (ambiguousFamilyIsStandalone || isVolumeUnit(unit))) {
-    return true;
-  }
-
-  return CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN.test(normalized);
+  return hasPositiveZeroBeverageEvidence(descriptionWithoutZeroMarker, unit);
 }
 
 function isLikelyBakeryBreadProduct(foodName: string) {
