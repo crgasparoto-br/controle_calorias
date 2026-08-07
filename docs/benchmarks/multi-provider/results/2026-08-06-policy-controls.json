@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "generatedAt": "2026-08-06",
   "issue": 927,
-  "testedSha": "3e4572263921fbaed2711d40643f4955b50cbb4a",
+  "testedSha": "70f679d9183e50e3b866647c877d574b780e950f",
   "privacy": "synthetic-controls-no-user-content",
   "productionChangesApplied": false,
   "whatsappPrimaryProviderScenario": "intent-provider-primary",

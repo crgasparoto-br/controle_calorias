@@ -2,14 +2,11 @@
   "schemaVersion": 1,
   "recordedAt": "2026-08-05T23:58:00.000Z",
   "issue": 927,
-  "status": "paused-authorization-required",
-  "reason": "No explicit authorization was granted to change Render or production configuration.",
+  "status": "paused-insufficient-evidence",
+  "reason": "No model has reproducible promotion evidence: the live transcription comparison uses a mutable alias and the runtime price catalog lacks an exact immutable snapshot price.",
   "productionChangesApplied": false,
-  "nextCapability": "TRANSCRIPTION",
-  "candidate": {
-    "provider": "openai",
-    "model": "gpt-4o-mini-transcribe"
-  },
+  "nextCapability": null,
+  "candidate": null,
   "currentRollback": {
     "provider": "openai",
     "model": "whisper-1"
@@ -17,9 +14,10 @@
   "fallbackEnabled": false,
   "crossProviderFallbackEnabled": false,
   "resumeConditions": [
-    "explicit production authorization",
+    "new live comparison records an immutable model snapshot",
+    "the exact snapshot is present in the versioned runtime price catalog",
     "green candidate gates",
-    "pre-change smoke",
-    "recorded owner and window"
+    "explicit production authorization before any Render change",
+    "pre-change smoke plus recorded owner and window"
   ]
 }
