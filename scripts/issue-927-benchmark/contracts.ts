@@ -283,7 +283,7 @@ export const ROLLBACK_READINESS = {
     env: {
       AI_IMAGE_ANNOTATION_MODE: "local",
       AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE: "off",
-      AI_IMAGE_ANOTATION_FALLBACK_ENABLED: "false",
+      AI_IMAGE_ANNOTATION_FALLBACK_ENABLED: "false",
       AI_IMAGE_ANNOTATION_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
     },
     trigger: "original/derived separation, unauthorized second send, meal-blocking or privacy regression",
@@ -309,8 +309,8 @@ const FORBIDDEN_FIXTURE_KEYS = new Set([
   "signedurl", "phonenumber", "userid",
 ]);
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu;
-const PHONE_PATTERN = /(?<![A-Za-z0-9])(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?98\d{4}[-\s]?\d{4}(?![A-Za-z0-9])/u;
-const SECRET_PATTERN = /\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z8_-]{20,}|Bearer\s+[A-Za-z0-9._~-]{12,}|gh[opsu]_[A-Za-z0-9]{20,})\b/u;
+const PHONE_PATTERN = /(?<![A-Za-z0-9])(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}(?![A-Za-z0-9])/u;
+const SECRET_PATTERN = /\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+[A-Za-z0-9._~-]{12,}|gh[opsu]_[A-Za-z0-9]{20,})\b/u;
 const DATA_URL_PATTERN = /data:(?:image|audio|video)\/[^;,]+;base64,/iu;
 
 function scanFixtureSafety(value: unknown, at = "manifest"): void {
@@ -364,7 +364,8 @@ export function validateManifest(manifest: Manifest): void {
   if (new Set(manifest.requiredCapabilities).size !== CAPABILITIES.length) {
     throw new Error("required capability list is incomplete or duplicated");
   }
-  for (const capability of manifest.rubric[capability];
+  for (const capability of CAPABILITIES) {
+    const definition = manifest.rubric[capability];
     if (!definition?.validOperation.trim() || definition.criticalChecks.length === 0) {
       throw new Error(`missing versioned rubric for ${capability}`);
     }
