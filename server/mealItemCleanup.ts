@@ -1,7 +1,7 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
+import { normalizeForMatching, normalizeText, normalizedTokenIncludes, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 const NON_FOOD_TERMS = [
@@ -82,15 +82,12 @@ export function sumTotals(items: MealDraftItem[]) {
 }
 
 function isLikelyNonFoodNoise(item: MealDraftItem) {
-  const normalizedName = normalizeText(`${item.foodName} ${item.canonicalName}`);
+  const normalizedName = normalizeForMatching(`${item.foodName} ${item.canonicalName}`);
   if (isConversationalOnlyText(item.foodName) || isConversationalOnlyText(item.canonicalName)) {
     return true;
   }
 
-  return NON_FOOD_TERMS.some(term => {
-    const normalizedTerm = normalizeText(term);
-    return normalizedName === normalizedTerm || normalizedName.includes(normalizedTerm);
-  });
+  return NON_FOOD_TERMS.some(term => normalizedTokenIncludes(normalizedName, term));
 }
 
 export function cleanMealItems(items: MealDraftItem[]) {
