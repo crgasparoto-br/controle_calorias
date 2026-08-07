@@ -261,6 +261,10 @@ describe("nutritionEngine zero beverage fallback", () => {
     "30 g Bala de refri zero açúcar",
     "60 g Schweppes Picolé Zero",
     "60 g Sprite Picolé Zero",
+    "30 g Refrigerante em pó zero açúcar",
+    "30 g Tônica em pó zero açúcar",
+    "Refrigerante em pó zero açúcar",
+    "Tônica em pó zero açúcar",
   ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 

@@ -140,14 +140,21 @@ function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
     || /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalizedFoodName);
 }
 
+const EXPLICIT_BEVERAGE_FAMILY_PATTERN = /\b(?:agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
 const EXPLICIT_BEVERAGE_CORE_PATTERN = /^(?:agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
 const AMBIGUOUS_BEVERAGE_CORE_PATTERN = /^(?:soda|cola|guarana)\b/;
 const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat)\b/;
 const CARBONATED_BEVERAGE_VARIANT_PATTERN = /^(?:citrus|limao|laranja|uva|original|tradicional|ginger ale)$/;
+const BEVERAGE_TRAILING_DESCRIPTOR_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica|guarana(?: antarctica)?|citrus|limao|laranja|uva|original|tradicional|ginger ale|sabor (?:citrus|limao|laranja|uva|guarana|cola|ginger ale))$/;
 
 function isVolumeUnit(unit?: string | null) {
   const normalizedUnit = normalizeUnit(unit ?? "");
   return normalizedUnit === "ml" || normalizedUnit === "l";
+}
+
+function isMassUnit(unit?: string | null) {
+  const normalizedUnit = normalizeUnit(unit ?? "");
+  return normalizedUnit === "mg" || normalizedUnit === "g" || normalizedUnit === "kg";
 }
 
 function removeExplicitZeroSugarMarkers(normalizedFoodName: string) {
@@ -157,6 +164,16 @@ function removeExplicitZeroSugarMarkers(normalizedFoodName: string) {
     .replace(/\bsem\s+(?:adicao\s+de\s+)?acucar\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function isExplicitBeverageCore(description: string, unit?: string | null) {
+  const coreMatch = description.match(EXPLICIT_BEVERAGE_CORE_PATTERN);
+  if (!coreMatch) {
+    return false;
+  }
+
+  const remainder = description.slice(coreMatch[0].length).trim();
+  return !remainder || isVolumeUnit(unit) || BEVERAGE_TRAILING_DESCRIPTOR_PATTERN.test(remainder);
 }
 
 function isAmbiguousBeverageCore(description: string, unit?: string | null) {
@@ -178,10 +195,13 @@ function removeLeadingCarbonatedBeverageBrand(description: string) {
 }
 
 function hasPositiveZeroBeverageEvidence(description: string, unit?: string | null) {
-  if (EXPLICIT_BEVERAGE_CORE_PATTERN.test(description)) {
+  if (isMassUnit(unit)) {
+    return false;
+  }
+  if (isVolumeUnit(unit) && EXPLICIT_BEVERAGE_FAMILY_PATTERN.test(description)) {
     return true;
   }
-  if (isAmbiguousBeverageCore(description, unit)) {
+  if (isExplicitBeverageCore(description, unit) || isAmbiguousBeverageCore(description, unit)) {
     return true;
   }
 
@@ -192,7 +212,7 @@ function hasPositiveZeroBeverageEvidence(description: string, unit?: string | nu
   if (!afterBrand) {
     return true;
   }
-  if (EXPLICIT_BEVERAGE_CORE_PATTERN.test(afterBrand) || isAmbiguousBeverageCore(afterBrand, unit)) {
+  if (isExplicitBeverageCore(afterBrand, unit) || isAmbiguousBeverageCore(afterBrand, unit)) {
     return true;
   }
 
