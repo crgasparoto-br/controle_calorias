@@ -13,6 +13,7 @@ import {
   deriveSafetyRegression,
   executeScenario,
   readManifest,
+  readTranscriptionEvidence,
   runSelfTest,
   summarize,
   validateManifest,
@@ -23,6 +24,7 @@ import {
 
 const manifestPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/fixtures/manifest.json");
 const reportPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
+const rolloutDecisionPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/results/2026-08-05-rollout-decision.json");
 const clone = <T>(value: T): T => structuredClone(value);
 
 function verificationHeadSha() {
@@ -184,7 +186,59 @@ describe("issue 927 executable multi-provider benchmark", () => {
     expect(report.promotionDecisions.every(item => !item.fallbackEnabled)).toBe(true);
     expect(report.promotionDecisions.every(item => !item.crossProviderFallbackEnabled)).toBe(true);
     expect(report.capabilityGates.every(item => item.passed)).toBe(true);
+    const transcription = report.promotionDecisions.find(item => item.capability === "TRANSCRIPTION");
+    expect(transcription?.decision).toBe("keep-baseline");
+    expect(transcription?.primaryModel).toBe("whisper-1");
+    expect(report.rolloutDecision.status).toBe("paused-insufficient-evidence");
+    expect(report.rolloutDecision.nextCapability).toBeNull();
+    expect(report.transcriptionEvidence.promotionEligibility.reproducible).toBe(false);
+    expect(report.transcriptionEvidence.promotionEligibility.failures).toEqual(expect.arrayContaining([
+      "mutable-candidate-alias",
+      "candidate-price-not-in-runtime-catalog",
+      "comparison-price-catalog-version-mismatch",
+    ]));
+    const versionedRolloutDecision = JSON.parse(await readFile(rolloutDecisionPath, "utf8"));
+    expect(versionedRolloutDecision.status).toBe(report.rolloutDecision.status);
+    expect(versionedRolloutDecision.nextCapability).toBeNull();
+    expect(versionedRolloutDecision.candidate).toBeNull();
     expect(JSON.stringify(report)).not.toMatch(/sk-proj-|inputText|outputText|base64|signedUrl|apiKey/i);
+  });
+
+  it("keeps the transcription baseline when live evidence only identifies a mutable alias", async () => {
+    const evidence = await readTranscriptionEvidence();
+    expect(evidence.status).toBe("available");
+    expect(evidence.candidateModel).toBe("gpt-4o-mini-transcribe");
+    expect(evidence.decision).toBe("keep-baseline");
+    expect(evidence.promotionEligibility.reproducible).toBe(false);
+    expect(evidence.promotionEligibility.failures).toEqual(expect.arrayContaining([
+      "mutable-candidate-alias",
+      "candidate-price-not-in-runtime-catalog",
+      "comparison-price-catalog-version-mismatch",
+    ]));
+  });
+
+  it("rejects an immutable transcription snapshot when the runtime catalog has no exact price", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-transcription-evidence-"));
+    try {
+      const canonical = JSON.parse(await readFile(
+        path.resolve(import.meta.dirname, "../docs/benchmarks/transcription/results/2026-08-04-af087f9b0c64.json"),
+        "utf8",
+      ));
+      canonical.summary = canonical.summary.map((item: { model: string }) => item.model === "gpt-4o-mini-transcribe"
+        ? { ...item, model: "gpt-4o-mini-transcribe-2025-12-15" }
+        : item);
+      canonical.priceCatalog.version = "2026-08-05.3";
+      const evidencePath = path.join(directory, "snapshot.json");
+      await writeFile(evidencePath, `${JSON.stringify(canonical, null, 2)}\n`, "utf8");
+      const evidence = await readTranscriptionEvidence(evidencePath);
+      expect(evidence.status).toBe("available");
+      expect(evidence.candidateModel).toBe("gpt-4o-mini-transcribe-2025-12-15");
+      expect(evidence.decision).toBe("keep-baseline");
+      expect(evidence.promotionEligibility.reproducible).toBe(false);
+      expect(evidence.promotionEligibility.failures).toEqual(["candidate-price-not-in-runtime-catalog"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("blocks promotion when a capability gate fails", async () => {

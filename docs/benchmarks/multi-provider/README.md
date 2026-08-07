@@ -116,6 +116,6 @@ A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evit
 
 ## Promoção e rollout
 
-Somente `gpt-4o-mini-transcribe` possui comparação live versionada suficiente para permanecer como candidato de rollout controlado; `whisper-1` é o rollback. As demais capacidades mantêm o baseline. Fallback e cross-provider não foram promovidos.
+Nenhuma capacidade possui evidência suficiente para promover um novo modelo. Em `TRANSCRIPTION`, a comparação live histórica favorece `gpt-4o-mini-transcribe`, porém esse identificador é um alias mutável e o catálogo runtime versionado não contém um snapshot imutável equivalente com preço validado. Portanto `whisper-1` permanece baseline e a decisão é `keep-baseline`. Fallback e cross-provider não foram promovidos.
 
 O rollout/rollback real no Render não foi executado pela PR e exige autorização, responsável, janela, smoke anterior/posterior e observação sanitizada na issue #962. O procedimento canônico está em `docs/runbooks/multi-provider-rollout.md`.

@@ -6,7 +6,7 @@ Este é o runbook canônico para promover ou reverter provider/modelo de uma cap
 
 Nenhuma variável do Render, secret, provider, modelo ou flag de fallback deve ser alterada sem autorização explícita do responsável operacional.
 
-A decisão vigente está versionada em `docs/benchmarks/multi-provider/results/2026-08-05-rollout-decision.json` como `paused-authorization-required`; isso é uma pausa operacional explícita, não uma promoção concluída.
+A decisão vigente está versionada em `docs/benchmarks/multi-provider/results/2026-08-05-rollout-decision.json` como `paused-insufficient-evidence`: não há modelo alternativo promovível até existir snapshot imutável observado e preço runtime versionado. Mesmo depois disso, qualquer alteração de produção continuará exigindo autorização explícita na #962.
 
 ## Princípios
 
@@ -27,21 +27,11 @@ A decisão vigente está versionada em `docs/benchmarks/multi-provider/results/2
 - janela, responsável e critérios de pausa definidos;
 - autorização explícita para alterar produção.
 
-## Candidato atual: `TRANSCRIPTION`
+## Estado atual de `TRANSCRIPTION`
 
-A evidência live versionada da issue #924 indica `gpt-4o-mini-transcribe` como candidato de rollout controlado. A issue #927 não aplica essa configuração.
+Não existe candidato promovível no relatório atual. A comparação live da #924 favorece o alias `gpt-4o-mini-transcribe`, mas a #927 exige snapshot imutável observado e preço versionado para o mesmo modelo; como essa evidência ainda não existe, a política é `keep-baseline` e a #962 deve permanecer pausada para troca de modelo.
 
-Configuração proposta somente após autorização:
-
-```text
-AI_TRANSCRIPTION_PROVIDER=openai
-AI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
-AI_TRANSCRIPTION_MAX_ATTEMPTS=1
-AI_TRANSCRIPTION_FALLBACK_ENABLED=false
-AI_TRANSCRIPTION_CROSS_PROVIDER_FALLBACK_ENABLED=false
-```
-
-Rollback:
+Configuração mantida até nova evidência reproduzível:
 
 ```text
 AI_TRANSCRIPTION_PROVIDER=openai
@@ -51,7 +41,17 @@ AI_TRANSCRIPTION_FALLBACK_ENABLED=false
 AI_TRANSCRIPTION_CROSS_PROVIDER_FALLBACK_ENABLED=false
 ```
 
-Validar áudio PT-BR com termos alimentares, marcas, pesos, unidades, ruído e fala ambígua. Confirmar texto útil, erros controlados, ausência de mutação duplicada e ausência de conteúdo sensível na telemetria.
+Rollback/baseline conhecido:
+
+```text
+AI_TRANSCRIPTION_PROVIDER=openai
+AI_TRANSCRIPTION_MODEL=whisper-1
+AI_TRANSCRIPTION_MAX_ATTEMPTS=1
+AI_TRANSCRIPTION_FALLBACK_ENABLED=false
+AI_TRANSCRIPTION_CROSS_PROVIDER_FALLBACK_ENABLED=false
+```
+
+Antes de qualquer promoção futura, repetir a comparação live com um snapshot imutável explicitamente registrado, incluir esse modelo no catálogo runtime com preço oficial versionado e então validar áudio PT-BR com termos alimentares, marcas, pesos, unidades, ruído e fala ambígua. Confirmar texto útil, erros controlados, ausência de mutação duplicada e ausência de conteúdo sensível na telemetria.
 
 ## `IMAGE_ANNOTATION`
 

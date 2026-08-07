@@ -142,7 +142,7 @@ web / WhatsApp
   -> consumidor usa text; metadados são opcionais
 ```
 
-- O baseline de produção continua `openai` + `whisper-1`. A #927 registrou `gpt-4o-mini-transcribe` como candidato, mas a aplicação operacional da mudança depende da janela autorizada da #962.
+- O baseline de produção continua `openai` + `whisper-1`. A #927 não promove modelo alternativo: a comparação disponível identifica o alias mutável `gpt-4o-mini-transcribe` e não há preço runtime versionado para um snapshot imutável equivalente; qualquer promoção futura exige nova evidência antes da janela autorizada da #962.
 - `whisper-1` usa `verbose_json`; modelos GPT-4o de transcrição usam `json`.
 - O contrato raiz e o contrato de domínio exigem `task` e `text`; `language`, `duration`, `segments` e `usage` são opcionais. Adapters não fabricam `segments: []`, `duration: 0` ou idioma vazio quando o provider omite esses campos.
 - Data URL sem `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes da criação do adapter.

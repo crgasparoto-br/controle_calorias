@@ -2,7 +2,7 @@
 
 ## Contrato de produção
 
-Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. A #927 manteve `openai` + `whisper-1` como default de produção e registrou `gpt-4o-mini-transcribe` somente como candidato para o rollout autorizado da #962.
+Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. A #927 mantém `openai` + `whisper-1` como default de produção e não promove `gpt-4o-mini-transcribe`: a evidência disponível usa alias mutável e não está ligada a preço runtime de um snapshot imutável.
 
 A resposta de domínio contém texto útil após `trim`, provider e modelo efetivamente usados e metadados normalizados de execução. Texto composto apenas por pontuação ou integralmente por marcadores e mensagens auxiliares de silêncio/áudio inaudível é classificado como `empty_output`, mesmo quando a frase varia a ordem de negação, sujeito e verbo (`não há fala`, `o áudio não contém fala`, `no voice was found`, `could not hear anything`). A classificação combina padrões literais com uma gramática semântica restrita a ausência de fala; não considera uma palavra isolada como prova suficiente. Conteúdo misto que ainda carregue fala acionável permanece válido. `language`, `duration`, `segments` e `usage` são opcionais. O campo SDK `raw` não atravessa a fronteira de domínio. Metadados ausentes não são preenchidos com valores artificiais.
 
@@ -48,7 +48,7 @@ OPENAI_API_KEY="..." \
   docs/benchmarks/transcription/results/<data>-<sha>.json
 ```
 
-O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
+O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com o modelo configurado para a família `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. Para a #927 promover um candidato, o resultado precisa registrar um snapshot imutável observado e esse modelo exato precisa existir no catálogo runtime versionado com preço aplicável; alias mutável ou preço ausente força `keep-baseline`. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
 
 O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`.
 
@@ -60,4 +60,4 @@ Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b
 
 A configuração continua documentada em `.env.example`; a arquitetura e as regras transversais permanecem em `README.md`, `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Este documento é a especificação detalhada da capacidade e da ingestão de áudio para consumidores web/WhatsApp.
 
-A comparação nesta issue apenas produz evidência. A #927 selecionou um candidato sem alterar produção; mudar o modelo padrão, habilitar fallback ou enviar áudio a um segundo provider exige o rollout controlado e autorizado da #962.
+A comparação nesta issue apenas produz evidência. A #927 não seleciona candidato enquanto snapshot e preço reproduzíveis estiverem ausentes; mudar o modelo padrão, habilitar fallback ou enviar áudio a um segundo provider exige nova evidência elegível e depois o rollout controlado e autorizado da #962.

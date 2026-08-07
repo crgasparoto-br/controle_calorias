@@ -56,13 +56,13 @@ Senhas nunca devem ser persistidas em texto puro, retornadas para o frontend ou 
 
 A confirmação de refeição não depende de chamada externa. Falhas de transcrição, inferência ou imagem auxiliar são tratadas de forma controlada para não corromper dados nem bloquear a confirmação local.
 
-## Estado da migração OpenAI
+## Estado da arquitetura de IA
 
-A migração segue o plano em `docs/exec-plans/active/migrate-ai-to-openai.md`.
+O plano histórico em `docs/exec-plans/active/migrate-ai-to-openai.md` permanece apenas como redirecionamento; as fontes canônicas atuais são a arquitetura multi-provider, o benchmark e o runbook.
 
 Situação atual:
 
-- Transcrição de áudio resolve `TRANSCRIPTION` pelo executor comum. A #927 manteve `openai` + `whisper-1` como baseline de produção e registrou `gpt-4o-mini-transcribe` apenas como candidato para o rollout operacional autorizado da #962.
+- Transcrição de áudio resolve `TRANSCRIPTION` pelo executor comum. A #927 mantém `openai` + `whisper-1` como baseline: a comparação live disponível usa o alias mutável `gpt-4o-mini-transcribe` e não possui um snapshot imutável com preço correspondente no catálogo runtime, portanto não existe candidato promovível para a #962.
 - Inferência nutricional de texto e imagem resolve `MEAL_TEXT` e `MEAL_VISION` independentemente pelo executor comum, com saída estruturada e validação Zod.
 - Anotação de foto resolve seu próprio modo e, quando externa, a capacidade `IMAGE_ANNOTATION`. O default `local` cria um PNG derivado por composição determinística sobre uma cópia da foto original, sem novo envio a provider; `external` exige configuração explícita e `off` não produz derivado.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise e o registro da refeição continuam normalmente.

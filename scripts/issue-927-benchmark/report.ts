@@ -17,6 +17,10 @@ import {
   type ScenarioObservation,
 } from "./contracts";
 import { executeScenario } from "./execution";
+import {
+  AI_PRICING_CATALOG,
+  AI_PRICING_CATALOG_VERSION,
+} from "../../server/_core/ai/pricingCatalog";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_MANIFEST = path.join(ROOT, "docs/benchmarks/multi-provider/fixtures/manifest.json");
@@ -79,27 +83,79 @@ export function summarize(capability: Capability, observations: ScenarioObservat
   };
 }
 
+const MUTABLE_TRANSCRIPTION_CANDIDATE_ALIAS = "gpt-4o-mini-transcribe";
+const IMMUTABLE_TRANSCRIPTION_SNAPSHOT = /^gpt-4o-mini-transcribe-\d{4}-\d{2}-\d{2}$/u;
+
+function exactRuntimeTranscriptionPrice(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return AI_PRICING_CATALOG.find(entry => {
+    const exactModel = entry.provider === "openai"
+      && entry.model.trim().toLowerCase() === normalized;
+    const hasTranscriptionRate = entry.rates.audio?.unit === "audio_minute"
+      || (entry.rates.input?.unit === "million_input_tokens"
+        && entry.rates.output?.unit === "million_output_tokens");
+    return exactModel && hasTranscriptionRate;
+  }) ?? null;
+}
+
+function findTranscriptionCandidate(summary: Array<Record<string, number | string | null>> | undefined) {
+  return summary?.find(item =>
+    typeof item.model === "string"
+    && (item.model === MUTABLE_TRANSCRIPTION_CANDIDATE_ALIAS
+      || item.model.startsWith(`${MUTABLE_TRANSCRIPTION_CANDIDATE_ALIAS}-`))
+  );
+}
+
 export async function readTranscriptionEvidence(evidencePath = TRANSCRIPTION_EVIDENCE) {
   try {
     const data = JSON.parse(await readFile(evidencePath, "utf8")) as {
       testedSha?: string;
+      priceCatalog?: Record<string, unknown> | null;
       summary?: Array<Record<string, number | string | null>>;
     };
     const baseline = data.summary?.find(item => item.model === "whisper-1");
-    const candidate = data.summary?.find(item => item.model === "gpt-4o-mini-transcribe");
-    if (!baseline || !candidate || !data.testedSha) throw new Error("incomplete evidence");
+    const candidate = findTranscriptionCandidate(data.summary);
+    if (!baseline || !candidate || !data.testedSha || typeof candidate.model !== "string") {
+      throw new Error("incomplete evidence");
+    }
+    const candidateModel = candidate.model;
+    const exactPrice = exactRuntimeTranscriptionPrice(candidateModel);
+    const reproducibilityFailures: string[] = [];
+    if (candidateModel === MUTABLE_TRANSCRIPTION_CANDIDATE_ALIAS) {
+      reproducibilityFailures.push("mutable-candidate-alias");
+    } else if (!IMMUTABLE_TRANSCRIPTION_SNAPSHOT.test(candidateModel)) {
+      reproducibilityFailures.push("candidate-model-not-immutable-snapshot");
+    }
+    if (!exactPrice) {
+      reproducibilityFailures.push("candidate-price-not-in-runtime-catalog");
+    }
+    const comparisonCatalogVersion = data.priceCatalog?.version;
+    if (typeof comparisonCatalogVersion !== "string") {
+      reproducibilityFailures.push("comparison-price-catalog-not-versioned");
+    } else if (comparisonCatalogVersion !== AI_PRICING_CATALOG_VERSION) {
+      reproducibilityFailures.push("comparison-price-catalog-version-mismatch");
+    }
+
     const wins = candidate.successRate === 1
       && candidate.usefulTextRate === 1
       && Number(candidate.averageCriticalTermRecall) >= Number(baseline.averageCriticalTermRecall)
       && Number(candidate.averageWordErrorRate) <= Number(baseline.averageWordErrorRate)
       && Number(candidate.averageLatencyMs) <= Number(baseline.averageLatencyMs)
       && Number(candidate.estimatedTotalCostUsd) <= Number(baseline.estimatedTotalCostUsd);
+    const reproducible = reproducibilityFailures.length === 0;
     return {
       status: "available" as const,
       testedSha: data.testedSha,
       baselineModel: "whisper-1",
-      candidateModel: "gpt-4o-mini-transcribe",
-      decision: wins ? "controlled-rollout-candidate" as const : "keep-baseline" as const,
+      candidateModel,
+      decision: wins && reproducible ? "controlled-rollout-candidate" as const : "keep-baseline" as const,
+      promotionEligibility: {
+        reproducible,
+        failures: reproducibilityFailures,
+        exactRuntimePricedModel: exactPrice?.model ?? null,
+        comparisonPriceCatalog: data.priceCatalog ?? null,
+        runtimePriceCatalogVersion: AI_PRICING_CATALOG_VERSION,
+      },
       baseline,
       candidate,
     };
@@ -108,8 +164,15 @@ export async function readTranscriptionEvidence(evidencePath = TRANSCRIPTION_EVI
       status: "unavailable" as const,
       testedSha: null,
       baselineModel: "whisper-1",
-      candidateModel: "gpt-4o-mini-transcribe",
+      candidateModel: MUTABLE_TRANSCRIPTION_CANDIDATE_ALIAS,
       decision: "keep-baseline" as const,
+      promotionEligibility: {
+        reproducible: false,
+        failures: ["transcription-evidence-unavailable"],
+        exactRuntimePricedModel: null,
+        comparisonPriceCatalog: null,
+        runtimePriceCatalogVersion: AI_PRICING_CATALOG_VERSION,
+      },
       baseline: null,
       candidate: null,
     };
@@ -306,8 +369,10 @@ export async function buildReport(input: {
     operationDefinitions: input.manifest.rubric,
     policyMatrix: input.manifest.policyMatrix,
     rolloutDecision: {
-      status: "paused-authorization-required",
-      reason: "Production authorization was not granted for issue #927; operational execution remains in issue #962.",
+      status: transcriptionCandidate ? "paused-authorization-required" : "paused-insufficient-evidence",
+      reason: transcriptionCandidate
+        ? "Production authorization was not granted for issue #927; operational execution remains in issue #962."
+        : "No model has reproducible promotion evidence; baseline configuration remains active and issue #962 stays paused for model changes.",
       nextCapability: transcriptionCandidate ? "TRANSCRIPTION" : null,
       candidateModel: transcriptionCandidate ? transcription.candidateModel : null,
       productionChangesApplied: false,
@@ -320,7 +385,7 @@ export async function buildReport(input: {
     globalGates: { ...gates, passed: Object.values(gates).every(Boolean) },
     limitations: [
       "Provider adapters are deterministic and make no network request; they exercise the real resolver, executor and domain boundaries.",
-      "Only TRANSCRIPTION reuses a sanitized versioned live model comparison; other model promotions remain blocked without live comparative evidence.",
+      "The available TRANSCRIPTION live comparison uses a mutable alias without an exact runtime-priced immutable snapshot, so it is historical evidence only and does not authorize promotion.",
       "Cost is an estimate from the runtime catalog, not billing.",
       "Rollout and rollback in Render require explicit operational authorization and are tracked in issue #962.",
     ],
