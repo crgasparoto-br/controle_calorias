@@ -29,7 +29,7 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 
 - Todo candidato final deve passar pelo mesmo guard semântico, independentemente de vir do catálogo estático ou persistido, alias pessoal, TACO, busca semântica, busca web ou fluxo do WhatsApp.
 - O nome canônico tem precedência sobre aliases. Um alias genérico não pode neutralizar qualificadores críticos do nome canônico.
-- Variantes contraditórias não são equivalentes: `com açúcar`, `adoçado`, `sem açúcar`, `puro`, `com leite`, `com mel`, `com creme` e `com leite condensado` devem permanecer semanticamente distintas.
+- Variantes contraditórias não são equivalentes: `com açúcar`, `adoçado`, `sem açúcar`, `zero`, `diet`, `puro`, `com leite`, `com mel`, `com creme` e `com leite condensado` devem permanecer semanticamente distintas. Para bebidas, o qualificador explícito do segmento original também governa a validação de candidatos TACO quando a IA simplificar o nome inferido.
 - Referências qualificadas como `Café sem açúcar` não podem ser usadas para `café`, `café com açúcar` ou qualquer preparação com complemento calórico.
 - Fuzzy matching e aliases aprendidos não podem remover, inverter ou inventar qualificadores nutricionais.
 - Quantidades e unidades de porção, como `1 xícara`, participam do cálculo, mas não impedem a identificação lexical do alimento.

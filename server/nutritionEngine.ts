@@ -175,11 +175,15 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
+    const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
     const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
     } else if (!hasUsableNutrition(normalizedItem)) {
-      results.push(buildEstimatedNutritionFallbackItem(normalizedItem, catalog));
+      const fallbackItem = sourceFoodName
+        ? { ...normalizedItem, foodName: sourceFoodName }
+        : normalizedItem;
+      results.push(buildEstimatedNutritionFallbackItem(fallbackItem, catalog));
     } else {
       results.push(buildHybridItem(normalizedItem));
     }

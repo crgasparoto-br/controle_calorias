@@ -38,7 +38,7 @@ function buildProfile(value: string): FoodSemanticProfile {
     : /\bcha\b/.test(normalized)
       ? "tea"
       : null;
-  const sugarFree = /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
+  const sugarFree = /\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero(?:\s+acucar)?|diet)\b/.test(normalized);
   const sugarAdded = new RegExp(
     `\\b(?:${ADDED_SUGAR_CONNECTOR}\\s+acucar|${ADDED_SUGAR_CONNECTOR}\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
   ).test(normalized);
