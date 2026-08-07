@@ -186,6 +186,119 @@ export const BASELINE: Record<Capability, { provider: string | null; model: stri
   FOOD_CLASSIFICATION: { provider: null, model: "embedded-in-meal-structured-output" },
 };
 
+export const ROLLBACK_READINESS = {
+  MEAL_TEXT: {
+    env: {
+      AI_MEAL_TEXT_PROVIDER: "openai",
+      AI_MEAL_TEXT_MODEL: "gpt-4.1-mini",
+      AI_MEAL_TEXT_TIMEOUT_MS: "30000",
+      AI_MEAL_TEXT_MAX_ATTEMPTS: "1",
+      AI_MEAL_TEXT_FALLBACK_ENABLED: "false",
+      AI_MEAL_TEXT_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "critical meal extraction, valid-result, security/privacy or approved cost/latency gate regression",
+    postRollbackSmoke: "synthetic simple plus ambiguous/adversarial meal text; valid items:[] must not cause another call",
+    degradedOrDisabled: "no external fallback; controlled unavailability when disabled",
+  },
+  MEAL_VISION: {
+    env: {
+      AI_MEAL_VISION_PROVIDER: "openai",
+      AI_MEAL_VISION_MODEL: "gpt-4.1-mini",
+      AI_MEAL_VISION_TIMEOUT_MS: "30000",
+      AI_MEAL_VISION_MAX_ATTEMPTS: "1",
+      AI_MEAL_VISION_FALLBACK_ENABLED: "false",
+      AI_MEAL_VISION_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "critical vision/NOVA, valid-no-food, second-send or privacy regression",
+    postRollbackSmoke: "synthetic photo with food plus no-food functional result without fallback",
+    degradedOrDisabled: "preserve baseline/controlled vision failure without second provider",
+  },
+  WHATSAPP_INTENT: {
+    env: {
+      AI_WHATSAPP_INTENT_PROVIDER: "openai",
+      AI_WHATSAPP_INTENT_MODEL: "gpt-4.1-mini",
+      AI_WHATSAPP_INTENT_TIMEOUT_MS: "8000",
+      AI_WHATSAPP_INTENT_MAX_ATTEMPTS: "2",
+      AI_WHATSAPP_INTENT_FALLBACK_ENABLED: "false",
+      AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "deterministic/pending flow calls LLM, idempotency/isolation/correlation or critical intent regression",
+    postRollbackSmoke: "deterministic zero-outbound plus pending/correction/replacement/deletion",
+    degradedOrDisabled: "no fallback workaround; do not consume pending state or duplicate mutation",
+  },
+  QUESTION: {
+    env: {
+      AI_QUESTION_PROVIDER: "openai",
+      AI_QUESTION_MODEL: "gpt-4.1-mini",
+      AI_QUESTION_TIMEOUT_MS: "30000",
+      AI_QUESTION_MAX_ATTEMPTS: "1",
+      AI_QUESTION_FALLBACK_ENABLED: "false",
+      AI_QUESTION_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+      AI_QUESTION_WEB_SEARCH_MODE: "auto",
+    },
+    trigger: "read-only/tool/cost/fallback/privacy regression",
+    postRollbackSmoke: "slash question without search plus question with optional auto web search",
+    degradedOrDisabled: "controlled read-only unavailability; no second provider",
+  },
+  NUTRITION_SEARCH: {
+    env: {
+      AI_NUTRITION_SEARCH_PROVIDER: "openai",
+      AI_NUTRITION_SEARCH_MODEL: "gpt-4.1-mini",
+      AI_NUTRITION_SEARCH_TIMEOUT_MS: "30000",
+      AI_NUTRITION_SEARCH_MAX_ATTEMPTS: "1",
+      AI_NUTRITION_SEARCH_FALLBACK_ENABLED: "false",
+      AI_NUTRITION_SEARCH_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "unverifiable source, ambiguous product promotion, fabricated evidence or external fallback for safe-no-match",
+    postRollbackSmoke: "verified-source result plus ambiguous/no-evidence safe-no-match",
+    degradedOrDisabled: "canonical nutrition fallback only; never label estimate as researched data",
+  },
+  EMBEDDING: {
+    env: {
+      AI_EMBEDDING_PROVIDER: "openai",
+      AI_EMBEDDING_MODEL: "text-embedding-3-small",
+      AI_EMBEDDING_TIMEOUT_MS: "30000",
+      AI_EMBEDDING_MAX_ATTEMPTS: "1",
+      AI_EMBEDDING_FALLBACK_ENABLED: "false",
+      AI_EMBEDDING_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "embedding contract/vector-space or canonical degradation regression",
+    postRollbackSmoke: "synthetic embedding plus forced-unavailable non-semantic search degradation",
+    degradedOrDisabled: "canonical textual/non-semantic search; no provider fallback",
+  },
+  TRANSCRIPTION: {
+    env: {
+      AI_TRANSCRIPTION_PROVIDER: "openai",
+      AI_TRANSCRIPTION_MODEL: "whisper-1",
+      AI_TRANSCRIPTION_TIMEOUT_MS: "30000",
+      AI_TRANSCRIPTION_MAX_ATTEMPTS: "1",
+      AI_TRANSCRIPTION_FALLBACK_ENABLED: "false",
+      AI_TRANSCRIPTION_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "useful-text/PT-BR/idempotency/security/privacy or approved cost/latency gate regression",
+    postRollbackSmoke: "synthetic PT-BR food audio plus duplicate callback without duplicate mutation",
+    degradedOrDisabled: "keep whisper-1 when degraded; controlled failure without empty record/pending consumption when disabled",
+  },
+  IMAGE_ANNOTATION: {
+    env: {
+      AI_IMAGE_ANNOTATION_MODE: "local",
+      AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE: "off",
+      AI_IMAGE_ANOTATION_FALLBACK_ENABLED: "false",
+      AI_IMAGE_ANNOTATION_CROSS_PROVIDER_FALLBACK_ENABLED: "false",
+    },
+    trigger: "original/derived separation, unauthorized second send, meal-blocking or privacy regression",
+    postRollbackSmoke: "synthetic local annotation preserving original plus off mode without external call",
+    degradedOrDisabled: "prefer local degradation; off/disabled completes without annotation and never blocks the meal",
+  },
+  FOOD_CLASSIFICATION: {
+    env: {},
+    embeddedIn: ["MEAL_TEXT", "MEAL_VISION"],
+    trigger: "independent external classification call appears or embedded NOVA contract regresses",
+    postRollbackSmoke: "covered by MEAL_TEXT and MEAL_VISION smokes",
+    degradedOrDisabled: "inherits the producing capability state",
+  },
+} satisfies Record<Capability, Record<string, unknown>>;
+
 const FORBIDDEN_REPORT_KEYS = new Set([
   "prompt", "inputtext", "outputtext", "transcript", "audio", "image", "media",
   "base64", "raw", "response", "reasoning", "authorization", "apikey", "secret",
@@ -196,8 +309,8 @@ const FORBIDDEN_FIXTURE_KEYS = new Set([
   "signedurl", "phonenumber", "userid",
 ]);
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu;
-const PHONE_PATTERN = /(?<![A-Za-z0-9])(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}(?![A-Za-z0-9])/u;
-const SECRET_PATTERN = /\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+[A-Za-z0-9._~-]{12,}|gh[opsu]_[A-Za-z0-9]{20,})\b/u;
+const PHONE_PATTERN = /(?<![A-Za-z0-9])(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?98\d{4}[-\s]?\d{4}(?![A-Za-z0-9])/u;
+const SECRET_PATTERN = /\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z8_-]{20,}|Bearer\s+[A-Za-z0-9._~-]{12,}|gh[opsu]_[A-Za-z0-9]{20,})\b/u;
 const DATA_URL_PATTERN = /data:(?:image|audio|video)\/[^;,]+;base64,/iu;
 
 function scanFixtureSafety(value: unknown, at = "manifest"): void {
@@ -251,8 +364,7 @@ export function validateManifest(manifest: Manifest): void {
   if (new Set(manifest.requiredCapabilities).size !== CAPABILITIES.length) {
     throw new Error("required capability list is incomplete or duplicated");
   }
-  for (const capability of CAPABILITIES) {
-    const definition = manifest.rubric[capability];
+  for (const capability of manifest.rubric[capability];
     if (!definition?.validOperation.trim() || definition.criticalChecks.length === 0) {
       throw new Error(`missing versioned rubric for ${capability}`);
     }
