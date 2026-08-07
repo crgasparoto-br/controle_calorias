@@ -219,6 +219,49 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 
+  it("preserva quantidade pós-nome separada por vírgula quando a IA fica indisponível", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "Água Tônica Zero Açúcar, 350 ml",
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Água Tônica Zero Açúcar",
+      quantity: 350,
+      unit: "ml",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      source: "heuristic",
+    }));
+    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
+
+  it.each([
+    "30 g Biscoito tipo soda zero açúcar",
+    "30 g Bala de cola zero açúcar",
+    "100 g Sobremesa de guaraná zero açúcar",
+  ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].calories).toBeGreaterThan(0);
+    expect(result.totals.calories).toBeGreaterThan(0);
+  });
+
   it("propaga os valores corrigidos para item e total na resposta do WhatsApp", async () => {
     mockZeroNutritionExtraction("Schweppes Tônica Zero", "Schweppes");
 

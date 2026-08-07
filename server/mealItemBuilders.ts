@@ -140,8 +140,13 @@ function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
     || /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalizedFoodName);
 }
 
+const SOLID_FOOD_CONTEXT_PATTERN = /\b(chocolate|biscoito|bolacha|bala|doce|sobremesa|bolo|torta|sorvete|gelato|pudim|gelatina|barra|bombom|cookie|wafer|cereal|granola)\b/;
+
 function isExplicitZeroBeverage(foodName: string) {
   const normalized = normalizeFoodDescription(foodName);
+  if (SOLID_FOOD_CONTEXT_PATTERN.test(normalized)) {
+    return false;
+  }
   const isBeverageFamily = /\b(agua tonica|tonica|refrigerante|refri|soda|cola|guarana|bebida gaseificada|bebida carbonatada)\b/.test(normalized);
   return isBeverageFamily && hasExplicitZeroSugarMarker(normalized);
 }

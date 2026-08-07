@@ -1,7 +1,7 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeText, splitFoodTextSegments } from "./mealTextParsing";
+import { normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 const NON_FOOD_TERMS = [
@@ -51,8 +51,23 @@ export function isConversationalOnlyText(value: string) {
   return !normalized || CONVERSATIONAL_ONLY_TERMS.has(normalized);
 }
 
+function coalesceTrailingQuantityParts(parts: string[]) {
+  const standaloneQuantity = new RegExp(`^\\d+(?:[,.]\\d+)?\\s*(?:${QUANTITY_UNIT_PATTERN})$`, "i");
+  const coalesced: string[] = [];
+
+  for (const part of parts) {
+    if (standaloneQuantity.test(part.trim()) && coalesced.length > 0) {
+      coalesced[coalesced.length - 1] = `${coalesced[coalesced.length - 1]} ${part.trim()}`;
+      continue;
+    }
+    coalesced.push(part);
+  }
+
+  return coalesced;
+}
+
 export function fallbackFromText(sourceText: string): MealDraftItem[] {
-  const parts = splitFoodTextSegments(sourceText)
+  const parts = coalesceTrailingQuantityParts(splitFoodTextSegments(sourceText))
     .filter(value => value && !isConversationalOnlyText(value));
 
   if (parts.length === 0) {
