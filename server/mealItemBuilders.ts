@@ -141,14 +141,46 @@ function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
 }
 
 const SOLID_FOOD_CONTEXT_PATTERN = /\b(chocolate|biscoito|bolacha|bala|doce|sobremesa|bolo|torta|sorvete|gelato|pudim|gelatina|barra|bombom|cookie|wafer|cereal|granola)\b/;
+const EXPLICIT_BEVERAGE_FAMILY_PATTERN = /\b(agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
+const AMBIGUOUS_BEVERAGE_FAMILY_PATTERN = /\b(soda|cola|guarana)\b/;
+const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica)\b/;
+const NON_BEVERAGE_REFERENCE_PATTERN = /\b(?:de|sabor|tipo)\s+(?:soda|cola|guarana|coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica)\b/;
 
-function isExplicitZeroBeverage(foodName: string) {
+function isVolumeUnit(unit?: string | null) {
+  const normalizedUnit = normalizeUnit(unit ?? "");
+  return normalizedUnit === "ml" || normalizedUnit === "l";
+}
+
+function removeExplicitZeroSugarMarkers(normalizedFoodName: string) {
+  return normalizedFoodName
+    .replace(/\bzero(?:\s+acucar)?\b/g, " ")
+    .replace(/\bdiet\b/g, " ")
+    .replace(/\bsem\s+(?:adicao\s+de\s+)?acucar\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isExplicitZeroBeverage(foodName: string, unit?: string | null) {
   const normalized = normalizeFoodDescription(foodName);
-  if (SOLID_FOOD_CONTEXT_PATTERN.test(normalized)) {
+  if (!hasExplicitZeroSugarMarker(normalized) || SOLID_FOOD_CONTEXT_PATTERN.test(normalized)) {
     return false;
   }
-  const isBeverageFamily = /\b(agua tonica|tonica|refrigerante|refri|soda|cola|guarana|bebida gaseificada|bebida carbonatada)\b/.test(normalized);
-  return isBeverageFamily && hasExplicitZeroSugarMarker(normalized);
+  if (EXPLICIT_BEVERAGE_FAMILY_PATTERN.test(normalized)) {
+    return true;
+  }
+  if (NON_BEVERAGE_REFERENCE_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  const hasAmbiguousFamily = AMBIGUOUS_BEVERAGE_FAMILY_PATTERN.test(normalized);
+  const ambiguousFamilyIsMainDescription = /^(?:soda|cola|guarana)\b/.test(normalized);
+  const descriptionWithoutZeroMarker = removeExplicitZeroSugarMarkers(normalized);
+  const ambiguousFamilyIsStandalone = /^(?:soda|cola|guarana)(?:\s+antarctica)?$/.test(descriptionWithoutZeroMarker);
+  if (hasAmbiguousFamily && ambiguousFamilyIsMainDescription && (ambiguousFamilyIsStandalone || isVolumeUnit(unit))) {
+    return true;
+  }
+
+  return CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN.test(normalized);
 }
 
 function isLikelyBakeryBreadProduct(foodName: string) {
@@ -160,15 +192,15 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
-function isKnownZeroBeverage(foodName: string) {
+function isKnownZeroBeverage(foodName: string, unit?: string | null) {
   const normalized = normalizeFoodDescription(foodName);
-  return isExplicitZeroBeverage(foodName)
+  return isExplicitZeroBeverage(foodName, unit)
     || /\bagua com gas\b/.test(normalized)
     || /\b(cafe|cha)\b/.test(normalized) && /\bsem\b.*\bacucar\b/.test(normalized);
 }
 
-function isLikelyCompositePreparation(foodName: string) {
-  if (isKnownZeroBeverage(foodName)) {
+function isLikelyCompositePreparation(foodName: string, unit?: string | null) {
+  if (isKnownZeroBeverage(foodName, unit)) {
     return false;
   }
 
@@ -187,7 +219,7 @@ function resolveEstimatedNutritionReference(
   if (similarFood) {
     return { reference: similarFood, confidenceCap: 0.65 };
   }
-  if (isExplicitZeroBeverage(item.foodName)) {
+  if (isExplicitZeroBeverage(item.foodName, item.unit)) {
     return {
       reference: { ...ZERO_BEVERAGE_ESTIMATED_REFERENCE, name: item.foodName },
       confidenceCap: 0.5,
@@ -282,8 +314,8 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName);
-  const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName);
+  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
+  const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);
   const directCatalog = allowCatalogFallback ? findCatalogFood(parsed.foodName) : null;
   const tacoCatalog = allowCatalogFallback && !directCatalog ? findTacoFood(parsed.foodName) : null;
   const catalog = directCatalog ?? (
