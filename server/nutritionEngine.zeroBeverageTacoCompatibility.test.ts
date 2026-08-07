@@ -93,9 +93,41 @@ describe("nutritionEngine zero beverage compatibility with real TACO fallback", 
     }));
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
+
+  it.each([
+    ["Água Tônica Zero Açúcar", "Água Tônica", "Água Tônica Zero Açúcar"],
+    ["Refrigerante Diet", "Refrigerante", "Refrigerante Diet"],
+    ["Schweppes Tônica Zero", "Tônica", "Schweppes Tônica Zero"],
+  ])("preserva qualificador zero quando a IA simplifica nome sem quantidade explícita: %s", async (text, aiFoodName, expectedFoodName) => {
+    const { findTacoFood } = await import("./tacoLookup");
+    const regularTacoCandidate = findTacoFood(aiFoodName);
+    expect(regularTacoCandidate?.calories).toBeGreaterThan(0);
+
+    mockSimplifiedZeroNutritionExtraction(aiFoodName);
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: expectedFoodName,
+      quantity: 350,
+      unit: "ml",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      source: "heuristic",
+    }));
+    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
 });
 
-// Controle negativo discriminante: a proteção não pode zerar a bebida regular.
+// Controles negativos discriminantes: a proteção não pode zerar bebida regular.
 describe("nutritionEngine regular beverage compatibility with real TACO fallback", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
@@ -103,12 +135,15 @@ describe("nutritionEngine regular beverage compatibility with real TACO fallback
     findCatalogFoodSemanticMock.mockResolvedValue(undefined);
   });
 
-  it("mantém referência TACO calórica para água tônica sem marcador zero", async () => {
+  it.each([
+    "350 ml Água Tônica",
+    "Água Tônica",
+  ])("mantém referência TACO calórica para água tônica sem marcador zero: %s", async text => {
     mockSimplifiedZeroNutritionExtraction("Água Tônica");
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      text: "350 ml Água Tônica",
+      text,
       occurredAt: "2026-08-02T16:00:00-03:00",
       timeZone: "America/Sao_Paulo",
     });
