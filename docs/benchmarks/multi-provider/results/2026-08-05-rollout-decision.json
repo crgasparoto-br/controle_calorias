@@ -19,5 +19,115 @@
     "green candidate gates",
     "explicit production authorization before any Render change",
     "pre-change smoke plus recorded owner and window"
-  ]
+  ],
+  "rollbackReadiness": {
+    "source": "repository-baseline-plus-pre-change-render-snapshot",
+    "liveExecutionIssue": 962,
+    "rules": [
+      "capture the exact Render configuration for the capability before any change and use it as the operational rollback snapshot",
+      "restore only the affected capability variables",
+      "keep fallback and cross-provider fallback disabled unless separately approved with evidence",
+      "run a sanitized capability smoke after restoration",
+      "pause instead of promoting when the resolved state is invalid or when the observed production baseline conflicts with the versioned baseline"
+    ],
+    "capabilities": {
+      "MEAL_TEXT": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "critical meal extraction, valid-result, security/privacy or approved cost/latency gate regression",
+        "postRollbackSmoke": "synthetic simple plus ambiguous/adversarial meal text; valid items:[] must not cause another call",
+        "degradedOrDisabled": "no external fallback; controlled unavailability when disabled"
+      },
+      "MEAL_VISION": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "critical vision/NOVA, valid-no-food, second-send or privacy regression",
+        "postRollbackSmoke": "synthetic photo with food plus no-food functional result without fallback",
+        "degradedOrDisabled": "preserve baseline/controlled vision failure without second provider"
+      },
+      "WHATSAPP_INTENT": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "timeoutMs": 8000,
+        "maxAttempts": 2,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "deterministic/pending flow calls LLM, idempotency/isolation/correlation or critical intent regression",
+        "postRollbackSmoke": "deterministic zero-outbound plus pending/correction/replacement/deletion",
+        "degradedOrDisabled": "no fallback workaround; do not consume pending state or duplicate mutation"
+      },
+      "QUESTION": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "webSearchMode": "auto",
+        "rollbackTrigger": "read-only/tool/cost/fallback/privacy regression",
+        "postRollbackSmoke": "slash question without search plus question with optional auto web search",
+        "degradedOrDisabled": "controlled read-only unavailability; no second provider"
+      },
+      "NUTRITION_SEARCH": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "unverifiable source, ambiguous product promotion, fabricated evidence or external fallback for safe-no-match",
+        "postRollbackSmoke": "verified-source result plus ambiguous/no-evidence safe-no-match",
+        "degradedOrDisabled": "canonical nutrition fallback only; never label estimate as researched data"
+      },
+      "EMBEDDING": {
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "embedding contract/vector-space or canonical degradation regression",
+        "postRollbackSmoke": "synthetic embedding plus forced-unavailable non-semantic search degradation",
+        "degradedOrDisabled": "canonical textual/non-semantic search; no provider fallback"
+      },
+      "TRANSCRIPTION": {
+        "provider": "openai",
+        "model": "whisper-1",
+        "timeoutMs": 30000,
+        "maxAttempts": 1,
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "useful-text/PT-BR/idempotency/security/privacy or approved cost/latency gate regression",
+        "postRollbackSmoke": "synthetic PT-BR food audio plus duplicate callback without duplicate mutation",
+        "degradedOrDisabled": "keep whisper-1 when degraded; controlled failure without empty record/pending consumption when disabled"
+      },
+      "IMAGE_ANNOTATION": {
+        "mode": "local",
+        "externalFailureMode": "off",
+        "fallbackEnabled": false,
+        "crossProviderFallbackEnabled": false,
+        "rollbackTrigger": "original/derived separation, unauthorized second send, meal-blocking or privacy regression",
+        "postRollbackSmoke": "synthetic local annotation preserving original plus off mode without external call",
+        "degradedOrDisabled": "prefer local degradation; off/disabled completes without annotation and never blocks the meal"
+      },
+      "FOOD_CLASSIFICATION": {
+        "embeddedIn": [
+          "MEAL_TEXT",
+          "MEAL_VISION"
+        ],
+        "independentOperationalConfig": false,
+        "rollbackTrigger": "independent external classification call appears or embedded NOVA contract regresses",
+        "postRollbackSmoke": "covered by MEAL_TEXT and MEAL_VISION smokes",
+        "degradedOrDisabled": "inherits the producing capability state"
+      }
+    }
+  }
 }
