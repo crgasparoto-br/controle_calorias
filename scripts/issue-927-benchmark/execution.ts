@@ -129,7 +129,7 @@ async function runConversationScenario(scenario: Scenario, checks: CheckResult[]
       addCheck(checks, "invalid reply preserves pending", invalid.step === "pending_interaction" && afterInvalid?.id === pending?.id);
 
       const beforeCancel = normalizedMealState(await listUserMeals(userId));
-      await resolveWhatsAppPrecedenceGate({
+      const cancellation = await resolveWhatsAppPrecedenceGate({
         userId,
         text: "CANCELAR",
         receivedAt: new Date(receivedAt.getTime() + 2_000),
@@ -138,8 +138,20 @@ async function runConversationScenario(scenario: Scenario, checks: CheckResult[]
         pendingOnly: true,
       });
       const latest = await pendingOperationRepository.getLatestPendingOperation(userId);
+      const activeAfterCancel = await pendingOperationRepository.getActivePendingOperation(
+        userId,
+        new Date(receivedAt.getTime() + 2_000),
+      );
       const afterCancel = normalizedMealState(await listUserMeals(userId));
-      addCheck(checks, "cancellation persisted", latest?.state === "cancelled");
+      addCheck(
+        checks,
+        "cancellation persisted",
+        cancellation.step === "pending_interaction"
+          && cancellation.result.action === "delete_cancelled"
+          && latest?.id === pending?.id
+          && latest.state !== "active"
+          && activeAfterCancel === null,
+      );
       addCheck(checks, "cancel preserves domain state", JSON.stringify(afterCancel) === JSON.stringify(beforeCancel));
 
       await resolveWhatsAppPrecedenceGate({
