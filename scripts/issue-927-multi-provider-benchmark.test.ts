@@ -25,6 +25,11 @@ const manifestPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi
 const reportPath = path.resolve(import.meta.dirname, "../docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
 const clone = <T>(value: T): T => structuredClone(value);
 
+function verificationHeadSha() {
+  return process.env.VERIFICATION_HEAD_SHA
+    ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+}
+
 function blankObservation(overrides: Partial<ScenarioObservation> = {}): ScenarioObservation {
   return {
     id: "synthetic-empty-critical",
@@ -130,7 +135,8 @@ describe("issue 927 executable multi-provider benchmark", () => {
     for (const id of ids) {
       const scenario = manifest.scenarios.find(item => item.id === id)!;
       const result = await executeScenario(scenario, manifest.rubric.WHATSAPP_INTENT.criticalChecks);
-      expect(result.valid).toBe(true);
+      const failedChecks = result.checks.filter(check => !check.passed);
+      expect(result.valid, `${id}: ${JSON.stringify(failedChecks)}`).toBe(true);
       expect(result.calls).toBe(0);
       expect(result.checks).toContainEqual({ name: "tenant isolation", passed: true, category: "functional" });
     }
@@ -200,7 +206,7 @@ describe("issue 927 executable multi-provider benchmark", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-report-"));
     try {
       const manifest = await readManifest(manifestPath);
-      const testedSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const testedSha = verificationHeadSha();
       const report = await buildReport({ manifest, testedSha, generatedAt: "2026-08-06T00:00:00.000Z" });
       const tampered = clone(report);
       tampered.summaries[0]!.validOperationRate = 0;
@@ -225,7 +231,7 @@ describe("issue 927 executable multi-provider benchmark", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-metadata-"));
     try {
       const manifest = await readManifest(manifestPath);
-      const testedSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const testedSha = verificationHeadSha();
       const report = await buildReport({ manifest, testedSha, generatedAt: "2026-08-06T00:00:00.000Z" });
       const temporaryReport = path.join(directory, "report.json.gz");
       const temporaryMetadata = path.join(directory, "report.metadata.json");
