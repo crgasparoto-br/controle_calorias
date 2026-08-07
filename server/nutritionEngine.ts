@@ -110,16 +110,18 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   if (!source) return null;
 
   const explicitSegments = extractExplicitQuantityFoodSegments(source);
-  if (!explicitSegments.length) return null;
+  if (explicitSegments.length) {
+    const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
+    if (matches.length === 1) return matches[0].foodName;
 
-  const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
-  if (matches.length === 1) return matches[0].foodName;
-
-  if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
-    return explicitSegments[0].foodName;
+    if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
+      return explicitSegments[0].foodName;
+    }
   }
 
-  return null;
+  const unquantifiedMatches = splitSourceFoodSegments(source)
+    .filter(segment => sourceSegmentMatchesInferenceItem(segment, item));
+  return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
