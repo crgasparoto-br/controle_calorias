@@ -26,6 +26,18 @@ const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   fat: 5,
 };
 
+const ZERO_BEVERAGE_ESTIMATED_REFERENCE: CatalogFood = {
+  slug: "zero-beverage-estimate",
+  name: "Bebida zero estimada",
+  aliases: [],
+  servingLabel: "100 ml",
+  gramsPerServing: 100,
+  calories: 0,
+  protein: 0,
+  carbs: 0,
+  fat: 0,
+};
+
 const BAKERY_BREAD_REFERENCE: CatalogFood = {
   slug: "bakery-bread-estimate",
   name: "Pão de padaria",
@@ -118,8 +130,24 @@ export function hasUsableNutrition(item: LlmItem) {
     || item.estimatedMacros.fat > 0;
 }
 
+function normalizeFoodDescription(foodName: string) {
+  return normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+}
+
+function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
+  return /\bzero(?:\s+acucar)?\b/.test(normalizedFoodName)
+    || /\bdiet\b/.test(normalizedFoodName)
+    || /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalizedFoodName);
+}
+
+function isExplicitZeroBeverage(foodName: string) {
+  const normalized = normalizeFoodDescription(foodName);
+  const isBeverageFamily = /\b(agua tonica|tonica|refrigerante|refri|soda|cola|guarana|bebida gaseificada|bebida carbonatada)\b/.test(normalized);
+  return isBeverageFamily && hasExplicitZeroSugarMarker(normalized);
+}
+
 function isLikelyBakeryBreadProduct(foodName: string) {
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  const normalized = normalizeFoodDescription(foodName);
   if (!/\bpao\b/.test(normalized)) {
     return false;
   }
@@ -128,8 +156,9 @@ function isLikelyBakeryBreadProduct(foodName: string) {
 }
 
 function isKnownZeroBeverage(foodName: string) {
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
-  return /\bagua com gas\b/.test(normalized)
+  const normalized = normalizeFoodDescription(foodName);
+  return isExplicitZeroBeverage(foodName)
+    || /\bagua com gas\b/.test(normalized)
     || /\b(cafe|cha)\b/.test(normalized) && /\bsem\b.*\bacucar\b/.test(normalized);
 }
 
@@ -138,7 +167,7 @@ function isLikelyCompositePreparation(foodName: string) {
     return false;
   }
 
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  const normalized = normalizeFoodDescription(foodName);
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   return wordCount >= 3 && /\b(com|rechead[ao]s?|recheio|cobertura|molho|calda)\b/.test(normalized);
 }
@@ -152,6 +181,12 @@ function resolveEstimatedNutritionReference(
   }
   if (similarFood) {
     return { reference: similarFood, confidenceCap: 0.65 };
+  }
+  if (isExplicitZeroBeverage(item.foodName)) {
+    return {
+      reference: { ...ZERO_BEVERAGE_ESTIMATED_REFERENCE, name: item.foodName },
+      confidenceCap: 0.5,
+    };
   }
   return { reference: { ...GENERIC_ESTIMATED_FOOD_REFERENCE, name: item.foodName }, confidenceCap: 0.55 };
 }
@@ -243,9 +278,14 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
   const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName);
-  const catalog = allowCatalogFallback
-    ? findCatalogFood(parsed.foodName) ?? findTacoFood(parsed.foodName)
-    : null;
+  const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName);
+  const directCatalog = allowCatalogFallback ? findCatalogFood(parsed.foodName) : null;
+  const tacoCatalog = allowCatalogFallback && !directCatalog ? findTacoFood(parsed.foodName) : null;
+  const catalog = directCatalog ?? (
+    tacoCatalog && (!explicitZeroBeverage || isExplicitZeroBeverage(tacoCatalog.name))
+      ? tacoCatalog
+      : null
+  );
   const quantity = parsed.quantity ?? 1;
   const unit = parsed.unit ?? "porção";
   const estimatedGrams = parsed.estimatedGrams ?? 100;
@@ -266,6 +306,24 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
         fat: catalog.fat,
       },
       confidence: parsed.estimatedGrams ? 0.55 : 0.45,
+    });
+  }
+
+  if (explicitZeroBeverage) {
+    return buildEstimatedNutritionFallbackItem({
+      foodName: formattedFoodName,
+      quantity,
+      unit,
+      portionText: parsed.portionText ?? buildPortionText(quantity, unit),
+      servings: parsed.estimatedGrams ? Math.max(parsed.estimatedGrams / 100, 0.25) : 1,
+      estimatedGrams,
+      estimatedCalories: 0,
+      estimatedMacros: {
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+      },
+      confidence: parsed.estimatedGrams ? 0.45 : 0.35,
     });
   }
 
