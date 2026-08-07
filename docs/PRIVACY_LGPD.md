@@ -91,7 +91,7 @@ A finalidade do envio de áudio é produzir texto para o fluxo solicitado pelo p
 - O adapter pode manter o objeto nativo apenas dentro de `_core`; `raw` é removido antes do domínio.
 - `language`, `duration`, `segments` e `usage` são opcionais. Ausência não deve gerar informação artificial nem ampliar retenção.
 - Callback duplicado do WhatsApp é descartado antes de baixar ou reenviar mídia.
-- Fallback é desabilitado por padrão. Envio de áudio a provider diferente continua bloqueado em produção até adapter compatível, benchmark, validação de privacidade e rollout da #927.
+- Fallback é desabilitado por padrão. A #927 não aprovou envio de áudio a provider diferente; ele continua bloqueado em produção até adapter compatível, nova evidência, validação de privacidade e autorização operacional específicas.
 - Os fixtures versionados são sintéticos e marcados `synthetic-only`. O harness recusa manifesto vazio ou fora dessa política.
 - O JSON de resultado contém apenas métricas, modelos, ambiente, política, custos estimados, limitações e códigos sanitizados. Não contém áudio, referência externa, prompt nem texto retornado.
 - A chave de API usada para executar o benchmark fica somente no ambiente autorizado e não pode ser versionada ou copiada para comentário, artefato ou log.
@@ -102,7 +102,7 @@ A retenção funcional de mídia/conversa já prevista pelo produto é diferente
 
 A finalidade do modo local é produzir um auxílio visual determinístico sobre uma cópia da foto enviada pelo próprio usuário. Esse modo é o padrão, não usa IA generativa e não envia foto, prompt ou dados nutricionais a provider de imagem. A seleção de `MEAL_VISION`, texto ou outro provider não autoriza nem redireciona a anotação.
 
-O modo `external` é tratamento adicional e exige configuração explícita e executável de `AI_IMAGE_ANNOTATION_*`. Ele constitui novo compartilhamento da foto com o provider específico da capacidade. Fallback externo é desabilitado por padrão; cross-provider permanece bloqueado em produção até análise de transferência internacional, benchmark, revisão LGPD e rollout da #927. A degradação local configurada após falha externa não é fallback de provider e não cria outro envio.
+O modo `external` é tratamento adicional e exige configuração explícita e executável de `AI_IMAGE_ANNOTATION_*`. Ele constitui novo compartilhamento da foto com o provider específico da capacidade. Fallback externo é desabilitado por padrão; a #927 preservou o modo local, e cross-provider permanece bloqueado em produção até análise de transferência internacional, nova evidência, revisão LGPD e autorização operacional específicas. A degradação local configurada após falha externa não é fallback de provider e não cria outro envio.
 
 A foto original permanece inalterada. Original e derivado usam buffers e chaves de storage distintos, devem ser exportados e excluídos de forma independente e seguem a política de retenção aplicável às mídias da refeição. Falha de geração, armazenamento ou envio do derivado não remove o original, não altera a resposta textual e não impede a persistência da refeição. Cartão-resumo sem foto original é artefato separado e não pode ser descrito como anotação.
 
@@ -113,7 +113,7 @@ Diagnósticos, logs e telemetria não podem conter foto, base64, URL assinada, p
 A fundação multi-provider por capacidade (`server/_core/ai/`) permite no máximo um segundo envio por fallback e aplica estes limites:
 
 - Fallback é desabilitado por padrão e nunca encadeia um terceiro provider.
-- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade fora de produção. Em `NODE_ENV=production`, nenhum payload, prompt ou mídia é enviado ao segundo provider até benchmark, revisão de privacidade/LGPD e rollout aprovados na #927, mesmo quando a flag estiver `true`.
+- Enviar dados a provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` para aquela capacidade fora de produção. Em `NODE_ENV=production`, nenhum payload, prompt ou mídia é enviado ao segundo provider: a #927 não aprovou cross-provider, e uma liberação futura exige nova evidência, revisão de privacidade/LGPD e autorização operacional por capacidade, mesmo quando a flag estiver `true`.
 - Cada callback recebe `AbortSignal`. Após timeout, a execução aguarda a chamada anterior encerrar antes de iniciar retry ou fallback; se o provider não reconhecer o cancelamento dentro da janela de segurança, a execução termina em modo fail-closed, sem segundo envio.
 - `OPENAI_BASE_URL` não vazio é considerado endpoint compatível. Somente operações listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam elegíveis, evitando assumir suporte a dados sensíveis como imagem, áudio, pesquisa ou embeddings.
 - Diagnósticos contêm apenas identificadores e razões sanitizadas, nunca prompt, payload, imagem, áudio ou segredo.

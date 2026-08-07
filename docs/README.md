@@ -16,7 +16,7 @@ Este diretório reúne a documentação canônica do Controle de Calorias. Use e
 Use `docs/product-specs/` para regras funcionais, critérios de aceite e comportamento esperado por domínio.
 
 | Área                                         | Documento                                   |
-| -------------------------------------------- | ------------------------------------------- |
+| ----------------------------------------------- | ------------------------------------------- |
 | Modelo do produto e separação dos fluxos     | `product-specs/product-experience-model.md` |
 | Registro de refeições                        | `product-specs/meal-registration.md`        |
 | Metas, Hoje, Registros e Relatórios          | `product-specs/goals-and-reports.md`        |
@@ -68,7 +68,14 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 | `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
 | `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
 | `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
-| `runbooks/`       | Checklists e evidências operacionais de rollout. A aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. |
+| `runbooks/`       | Runbooks operacionais. O rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. |
+
+### IA multi-provider e benchmark
+
+- `benchmarks/multi-provider/README.md` — contrato, fixtures, métricas e critérios de promoção da #927.
+- `benchmarks/multi-provider/fixtures/manifest.json` — cenários sintéticos e sem PII.
+- `runbooks/multi-provider-rollout.md` — promoção e rollback por capacidade, sem autorização implícita de produção.
+- `design-docs/ai-observability-pricing.md` — usage normalizado e catálogo de preços versionado.
 
 ## Documentação gerada
 

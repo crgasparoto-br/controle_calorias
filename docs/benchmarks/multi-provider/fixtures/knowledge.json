@@ -1,0 +1,266 @@
+[
+  {
+    "id": "question-local-knowledge",
+    "capability": "QUESTION",
+    "runner": "question",
+    "tags": [
+      "slash-question",
+      "primary"
+    ],
+    "input": {
+      "question": "/Quanto consumi hoje?",
+      "knowledgeBase": {
+        "todayCalories": 1450,
+        "goalCalories": 2000
+      }
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "text",
+          "result": {
+            "text": "Você consumiu 1450 kcal de uma meta de 2000 kcal.",
+            "webSearch": {
+              "executed": false,
+              "sources": []
+            },
+            "usage": {
+              "inputTokens": 110,
+              "outputTokens": 30
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "webSearchExecuted": false,
+      "sourceCount": 0,
+      "calls": 1
+    }
+  },
+  {
+    "id": "question-web-search",
+    "capability": "QUESTION",
+    "runner": "question",
+    "tags": [
+      "slash-question",
+      "primary"
+    ],
+    "input": {
+      "question": "/Qual é a recomendação pública de fibras?",
+      "knowledgeBase": {
+        "fiberToday": 18
+      }
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "text",
+          "result": {
+            "text": "A recomendação varia por perfil; consulte a fonte citada.",
+            "webSearch": {
+              "executed": true,
+              "searchCount": 1,
+              "sources": [
+                {
+                  "url": "https://www.gov.br/saude/pt-br",
+                  "title": "Ministério da Saúde"
+                }
+              ]
+            },
+            "usage": {
+              "inputTokens": 120,
+              "outputTokens": 35
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "webSearchExecuted": true,
+      "sourceCount": 1,
+      "calls": 1
+    }
+  },
+  {
+    "id": "nutrition-search-verified",
+    "capability": "NUTRITION_SEARCH",
+    "runner": "nutrition-search",
+    "tags": [
+      "nutrition-search",
+      "primary"
+    ],
+    "input": {
+      "foodName": "kit kat 41,5g",
+      "category": "chocolate"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "text",
+          "result": {
+            "json": {
+              "found": true,
+              "matchedProductName": "Chocolate KitKat 41,5g",
+              "brandName": "Nestlé",
+              "servingLabel": "1 unidade (41,5g)",
+              "gramsPerServing": 41.5,
+              "calories": 218,
+              "protein": 2.7,
+              "carbs": 26.3,
+              "fat": 11.2,
+              "confidence": 0.9,
+              "sourceUrl": "https://www.nestle.com.br/marcas/kitkat",
+              "evidence": "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."
+            },
+            "webSearch": {
+              "executed": true,
+              "searchCount": 1,
+              "sources": [
+                {
+                  "url": "https://www.nestle.com.br/marcas/kitkat",
+                  "supportingText": [
+                    "Porção de 41,5 g: 218 kcal, proteínas 2,7 g, carboidratos 26,3 g e gorduras totais 11,2 g."
+                  ]
+                }
+              ]
+            },
+            "usage": {
+              "inputTokens": 180,
+              "outputTokens": 90
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "foodNameContains": "KitKat",
+      "brand": "Nestlé",
+      "gramsPerServing": 41.5,
+      "calories": 218,
+      "protein": 2.7,
+      "carbs": 26.3,
+      "fat": 11.2,
+      "verifiedSource": true,
+      "calls": 1
+    }
+  },
+  {
+    "id": "nutrition-search-ambiguous",
+    "capability": "NUTRITION_SEARCH",
+    "runner": "nutrition-search",
+    "tags": [
+      "nutrition-search",
+      "whatsapp-ambiguous",
+      "primary"
+    ],
+    "input": {
+      "foodName": "chocolate misterioso xyz",
+      "category": "chocolate"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "text",
+          "result": {
+            "json": {
+              "found": false,
+              "matchedProductName": "",
+              "brandName": "",
+              "servingLabel": "",
+              "gramsPerServing": 0,
+              "calories": 0,
+              "protein": 0,
+              "carbs": 0,
+              "fat": 0,
+              "confidence": 0,
+              "sourceUrl": "",
+              "evidence": ""
+            },
+            "webSearch": {
+              "executed": true,
+              "searchCount": 1,
+              "sources": []
+            },
+            "usage": {
+              "inputTokens": 140,
+              "outputTokens": 40
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "no-match",
+      "calls": 1,
+      "verifiedSource": false
+    }
+  },
+  {
+    "id": "embedding-valid",
+    "capability": "EMBEDDING",
+    "runner": "embedding",
+    "tags": [
+      "primary"
+    ],
+    "input": {
+      "foodName": "banana"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "embedding",
+          "result": {
+            "mode": "catalog-banana",
+            "usage": {
+              "inputTokens": 500
+            }
+          }
+        },
+        {
+          "operation": "embedding",
+          "result": {
+            "vectors": [
+              [
+                1,
+                0,
+                0
+              ]
+            ],
+            "usage": {
+              "inputTokens": 2
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "foodNameContains": "Banana",
+      "calls": 2
+    }
+  },
+  {
+    "id": "embedding-degraded",
+    "capability": "EMBEDDING",
+    "runner": "embedding",
+    "tags": [
+      "embedding-degraded",
+      "local-degradation"
+    ],
+    "env": {
+      "AI_EMBEDDING_PROVIDER": "gemini"
+    },
+    "input": {
+      "foodName": "banana"
+    },
+    "expected": {
+      "outcome": "no-match",
+      "calls": 0,
+      "localDegradation": true
+    }
+  }
+]

@@ -15,6 +15,13 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["server/testSetupAiDefaults.ts"],
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts", "client/**/*.test.ts", "client/**/*.test.tsx"],
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "client/**/*.test.ts",
+      "client/**/*.test.tsx",
+      "scripts/issue-927-multi-provider-benchmark.test.ts",
+      "scripts/issue-927-rollback-readiness.test.ts",
+    ],
   },
 });

@@ -1,0 +1,183 @@
+[
+  {
+    "id": "transcription-ptbr",
+    "capability": "TRANSCRIPTION",
+    "runner": "transcription",
+    "tags": [
+      "pt-br-audio",
+      "primary"
+    ],
+    "input": {
+      "language": "pt"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "audio",
+          "result": {
+            "text": "arroz 100 g e feijão",
+            "language": "pt",
+            "duration": 2.1,
+            "usage": {
+              "inputTokens": 0,
+              "outputTokens": 0
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "textContains": "arroz 100 g",
+      "attempts": 1,
+      "calls": 1
+    }
+  },
+  {
+    "id": "transcription-retry",
+    "capability": "TRANSCRIPTION",
+    "runner": "transcription",
+    "tags": [
+      "pt-br-audio",
+      "retry"
+    ],
+    "env": {
+      "AI_TRANSCRIPTION_MAX_ATTEMPTS": "2"
+    },
+    "input": {
+      "language": "pt"
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "audio",
+          "error": {
+            "code": "network"
+          }
+        },
+        {
+          "operation": "audio",
+          "result": {
+            "text": "banana 1 unidade",
+            "language": "pt",
+            "duration": 1.8
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "textContains": "banana",
+      "attempts": 2,
+      "calls": 2
+    }
+  },
+  {
+    "id": "annotation-local",
+    "capability": "IMAGE_ANNOTATION",
+    "runner": "annotation",
+    "tags": [
+      "annotation-local",
+      "local-degradation"
+    ],
+    "env": {
+      "AI_IMAGE_ANNOTATION_MODE": "local"
+    },
+    "input": {
+      "syntheticImage": true
+    },
+    "expected": {
+      "outcome": "success",
+      "mode": "local",
+      "calls": 0,
+      "localDegradation": true
+    }
+  },
+  {
+    "id": "annotation-off",
+    "capability": "IMAGE_ANNOTATION",
+    "runner": "annotation",
+    "tags": [
+      "annotation-off",
+      "deterministic-command"
+    ],
+    "env": {
+      "AI_IMAGE_ANNOTATION_MODE": "off"
+    },
+    "input": {
+      "syntheticImage": true
+    },
+    "expected": {
+      "outcome": "disabled",
+      "mode": "off",
+      "calls": 0
+    }
+  },
+  {
+    "id": "annotation-external",
+    "capability": "IMAGE_ANNOTATION",
+    "runner": "annotation",
+    "tags": [
+      "annotation-external",
+      "primary"
+    ],
+    "env": {
+      "AI_IMAGE_ANNOTATION_MODE": "external",
+      "AI_IMAGE_ANNOTATION_PROVIDER": "openai",
+      "AI_IMAGE_ANNOTATION_MODEL": "gpt-image-1"
+    },
+    "input": {
+      "syntheticImage": true
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "image",
+          "result": {
+            "syntheticImage": true
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "mode": "external",
+      "calls": 1
+    }
+  },
+  {
+    "id": "annotation-external-local",
+    "capability": "IMAGE_ANNOTATION",
+    "runner": "annotation",
+    "tags": [
+      "annotation-external",
+      "local-degradation"
+    ],
+    "env": {
+      "AI_IMAGE_ANNOTATION_MODE": "external",
+      "AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE": "local",
+      "AI_IMAGE_ANNOTATION_PROVIDER": "openai",
+      "AI_IMAGE_ANNOTATION_MODEL": "gpt-image-1",
+      "AI_IMAGE_ANNOTATION_MAX_ATTEMPTS": "1"
+    },
+    "input": {
+      "syntheticImage": true
+    },
+    "providerPlan": {
+      "openai": [
+        {
+          "operation": "image",
+          "error": {
+            "code": "network"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "outcome": "success",
+      "mode": "local",
+      "calls": 1,
+      "localDegradation": true
+    }
+  }
+]

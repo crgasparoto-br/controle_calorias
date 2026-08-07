@@ -58,7 +58,7 @@ Os dois modelos processaram seis fixtures cada, sem erro, retry ou fallback:
 | Custo estimado total | US$ 0,00220234 | US$ 0,00107125 |
 | Segmentos disponíveis | 100% | 0% |
 
-Nesta amostra sintética, `gpt-4o-mini-transcribe` apresentou menor latência, menor WER, maior recall e menor custo estimado, mas não retornou segmentos. A issue #924 mantém `whisper-1` como default; qualquer promoção ou rollout pertence à #927.
+Nesta amostra sintética, `gpt-4o-mini-transcribe` apresentou menor latência, menor WER, maior recall e menor custo estimado, mas não retornou segmentos. A coleta registra o alias mutável, não um snapshot imutável, e seu catálogo de preço não corresponde a uma entrada exata versionada no catálogo runtime atual. Por isso a #927 trata a evidência como comparação histórica, mantém `whisper-1` como baseline e não produz candidato para a #962.
 
 ## Histórico não canônico
 

@@ -15,11 +15,13 @@
     "smoke:issue-923:live": "pnpm smoke:ai:live",
     "smoke:issue-925": "tsx scripts/issue-925-image-annotation-smoke.ts",
     "benchmark:transcription": "tsx scripts/issue-924-transcription-benchmark.ts",
+    "benchmark:ai:multi-provider": "tsx scripts/issue-927-multi-provider-benchmark.ts",
+    "smoke:issue-927": "tsx scripts/issue-927-multi-provider-benchmark.ts --self-test",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
     "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/generate-trpc-routes-doc.ts --check && tsx scripts/check-docs-freshness.ts",
-    "agent:check": "pnpm check && if [ \"${CI_SHARDED_TESTS_COMPLETE:-0}\" != \"1\" ]; then pnpm test; fi && pnpm architecture:check && pnpm professional-retirement:check && pnpm docs:check",
+    "agent:check": "pnpm check && if [ \"${CI_SHARDED_TESTS_COMPLETE:-0}\" != \"1\" ]; then pnpm test; fi && pnpm architecture:check && pnpm professional-retirement:check && pnpm docs:check && pnpm smoke:issue-927 && pnpm benchmark:ai:multi-provider:verify && pnpm issue-927:policy-controls && pnpm issue-927:policy-controls:verify && pnpm issue-927:pricing-provenance",
     "professional-retirement:check": "tsx scripts/check-professional-legacy-retirement.ts",
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
@@ -33,7 +35,11 @@
     "foods:backfill-classification": "tsx scripts/backfill-food-classification.ts",
     "foods:review-classification": "tsx scripts/review-food-classification.ts",
     "db:retire-professional-legacy": "tsx scripts/retire-professional-legacy-preferences.ts",
-    "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply"
+    "db:retire-professional-legacy:apply": "tsx scripts/retire-professional-legacy-preferences.ts --apply",
+    "benchmark:ai:multi-provider:verify": "tsx scripts/issue-927-multi-provider-benchmark.ts --verify-committed-report",
+    "issue-927:policy-controls": "tsx scripts/issue-927-policy-controls.ts",
+    "issue-927:policy-controls:verify": "tsx scripts/issue-927-policy-controls.ts --verify-if-present",
+    "issue-927:pricing-provenance": "node scripts/issue-927-pricing-provenance.mjs --self-test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
