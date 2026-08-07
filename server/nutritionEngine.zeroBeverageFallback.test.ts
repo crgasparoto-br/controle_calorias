@@ -3,6 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createTextResponseMock = vi.fn();
 const findCatalogFoodSemanticMock = vi.fn();
 
+type ZeroBeverageCase = [text: string, foodName: string, brand?: string];
+
+const ZERO_BEVERAGE_CASES: ZeroBeverageCase[] = [
+  ["350 ml Água Tônica Zero Açúcar", "Água Tônica Zero Açúcar"],
+  ["350 ml Schweppes Tônica Zero", "Schweppes Tônica Zero", "Schweppes"],
+  ["350 ml Schweppes Água Tônica Sem Açúcar", "Schweppes Água Tônica Sem Açúcar", "Schweppes"],
+  ["350 ml Refrigerante Diet", "Refrigerante Diet"],
+  ["350 ml REFRIGERANTE ZERO", "REFRIGERANTE ZERO"],
+  ["350 ml ZERO AÇÚCAR ÁGUA TÔNICA", "ZERO AÇÚCAR ÁGUA TÔNICA"],
+];
+
 vi.mock("./_core/aiProvider", () => ({
   getAiProvider: () => ({
     createTextResponse: createTextResponseMock,
@@ -70,14 +81,7 @@ describe("nutritionEngine zero beverage fallback", () => {
     findCatalogFoodSemanticMock.mockResolvedValue(undefined);
   });
 
-  it.each([
-    ["350 ml Água Tônica Zero Açúcar", "Água Tônica Zero Açúcar", undefined],
-    ["350 ml Schweppes Tônica Zero", "Schweppes Tônica Zero", "Schweppes"],
-    ["350 ml Schweppes Água Tônica Sem Açúcar", "Schweppes Água Tônica Sem Açúcar", "Schweppes"],
-    ["350 ml Refrigerante Diet", "Refrigerante Diet", undefined],
-    ["350 ml REFRIGERANTE ZERO", "REFRIGERANTE ZERO", undefined],
-    ["350 ml ZERO AÇÚCAR ÁGUA TÔNICA", "ZERO AÇÚCAR ÁGUA TÔNICA", undefined],
-  ])("zera o fallback de bebida explicitamente zero: %s", async (text, foodName, brand) => {
+  it.each(ZERO_BEVERAGE_CASES)("zera o fallback de bebida explicitamente zero: %s", async (text, foodName, brand) => {
     mockZeroNutritionExtraction(foodName, brand);
 
     const { processMealInput } = await import("./nutritionEngine");
@@ -97,8 +101,10 @@ describe("nutritionEngine zero beverage fallback", () => {
       fat: 0,
       source: "heuristic",
     }));
-    expect(result.items[0].foodName).toContain(foodName.toLowerCase().includes("schweppes") ? "Schweppes" : "");
-    if (brand) expect(result.items[0].brand).toBe(brand);
+    if (brand) {
+      expect(result.items[0].foodName).toContain(brand);
+      expect(result.items[0].brand).toBe(brand);
+    }
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 
@@ -190,18 +196,18 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.items[0].source).toBe("heuristic");
   });
 
-  it("mantém a bebida zero zerada quando a IA fica indisponível", async () => {
+  it("mantém a bebida zero zerada quando a IA fica indisponível e preserva a descrição comercial", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      text: "350 ml Água Tônica Zero Açúcar",
+      text: "350 ml Schweppes Água Tônica Zero Açúcar",
       occurredAt: "2026-08-02T16:00:00-03:00",
       timeZone: "America/Sao_Paulo",
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Água Tônica Zero Açúcar",
+      foodName: "Schweppes Água Tônica Zero Açúcar",
       quantity: 350,
       unit: "ml",
       calories: 0,
