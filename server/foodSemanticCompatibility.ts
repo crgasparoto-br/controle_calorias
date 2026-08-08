@@ -31,6 +31,17 @@ function normalizeSemanticText(value: string) {
     .trim();
 }
 
+function hasExplicitSugarFreeMarker(normalized: string) {
+  if (/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar|diet)\b/.test(normalized)) {
+    return true;
+  }
+
+  const beverageQualifier = "agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada|soda|cola|guarana|coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat";
+  const beverageBeforeBareZero = new RegExp(`\\b(?:${beverageQualifier})\\b.*\\bzero\\s*$`);
+  const beverageAfterBareZero = new RegExp(`\\bzero\\s+(?:${beverageQualifier})\\b`);
+  return beverageBeforeBareZero.test(normalized) || beverageAfterBareZero.test(normalized);
+}
+
 function buildProfile(value: string): FoodSemanticProfile {
   const normalized = normalizeSemanticText(value);
   const family = /\bcafe\b/.test(normalized)
@@ -38,7 +49,7 @@ function buildProfile(value: string): FoodSemanticProfile {
     : /\bcha\b/.test(normalized)
       ? "tea"
       : null;
-  const sugarFree = /\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero(?:\s+acucar)?|diet)\b/.test(normalized);
+  const sugarFree = hasExplicitSugarFreeMarker(normalized);
   const sugarAdded = new RegExp(
     `\\b(?:${ADDED_SUGAR_CONNECTOR}\\s+acucar|${ADDED_SUGAR_CONNECTOR}\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
   ).test(normalized);
@@ -67,6 +78,7 @@ function hasSameComplements(query: FoodSemanticProfile, candidate: FoodSemanticP
 
 function profilesAreCompatible(query: FoodSemanticProfile, candidate: FoodSemanticProfile) {
   if (query.family && candidate.family && query.family !== candidate.family) return false;
+  if (!query.sugarState && !query.plain && candidate.sugarState) return false;
 
   if (query.sugarState === "added") {
     if (candidate.sugarState !== "added") return false;
@@ -117,6 +129,13 @@ export function isFoodCandidateSemanticallyCompatible(
 
   if (!candidates.length) return false;
   const canonical = candidates[0];
+  if (
+    canonical.sugarState
+    && canonical.sugarState !== query.sugarState
+    && !(query.plain && canonical.sugarState === "free")
+  ) {
+    return false;
+  }
   if (
     query.family
     && canonical.family === query.family
