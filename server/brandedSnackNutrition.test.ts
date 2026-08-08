@@ -147,7 +147,17 @@ describe("nutritionEngine branded snack photo nutrition", () => {
   });
 
   it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
-    embeddingsCreateMock.mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} }).mockResolvedValueOnce({ embeddings: [[1, 0]], raw: {} });
+    const { getCatalogCache } = await import("./catalogRuntime");
+    const catalog = getCatalogCache();
+    const targetIndex = catalog.findIndex(food => food.slug === "kitkat-ao-leite-nestle");
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+
+    embeddingsCreateMock.mockImplementation(async (request: { input: string[] }) => ({
+      embeddings: request.input.length > 1
+        ? catalog.map((_, index) => (index === targetIndex ? [1, 0] : [0, 1]))
+        : [[1, 0]],
+      raw: {},
+    }));
     createTextResponseMock
       .mockResolvedValueOnce({ id: "resp_unknown_packaged_chocolate", outputText: JSON.stringify({ mealLabel: "Lanche", confidence: 0.8, reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.", items: [{ foodName: "Alpino", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }] }), raw: { mocked: true } })
       .mockResolvedValueOnce({ id: "resp_web_nutrition_lookup_empty", outputText: JSON.stringify({ found: false, matchedProductName: "", brandName: "", servingLabel: "", gramsPerServing: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 0.2, sourceUrl: "", evidence: "Nenhuma fonte específica confiável encontrada." }), raw: { mocked: true } });
@@ -156,7 +166,12 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by1hbHBpbm8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Alpino", canonicalName: expect.any(String), source: "catalog" }));
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Alpino",
+      canonicalName: "Kit Kat ao leite Nestlé",
+      calories: 220,
+      source: "catalog",
+    }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
