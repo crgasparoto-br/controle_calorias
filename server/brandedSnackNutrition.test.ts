@@ -168,7 +168,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Alpino",
-      canonicalName: "Kit Kat ao leite Nestlé",
+      canonicalName: "Kit Kat ao Leite Nestlé",
       calories: 220,
       source: "catalog",
     }));
