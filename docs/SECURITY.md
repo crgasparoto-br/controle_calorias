@@ -8,14 +8,15 @@
 - Storage de mídia.
 - IA, transcrição e geração de imagem.
 - Administração de tokens e segredos.
+- Billing, webhooks de pagamento e exceções administrativas.
 
 ## Regras
 
 - Segredos devem vir do ambiente ou de armazenamento criptografado; nunca commitar tokens.
 - Mensagens de erro públicas não devem expor stack, SQL, token, URL assinada ou payload bruto.
-- Webhooks devem validar token e tratar payload inválido com segurança.
+- Webhooks devem validar token e tratar payload inválido com segurança. Webhooks de billing autenticam o corpo bruto, mas persistem somente evento e metadata normalizados; cartão, CVV, token e segredo do provider são proibidos.
 - Histórico persistido do WhatsApp é entrada não confiável: consumidores LLM devem reinspecionar turnos inbound, excluir conteúdo bloqueado e delimitar conteúdo permitido; respostas outbound anteriores também devem ser delimitadas e ter marcadores forjados neutralizados, pois podem refletir conteúdo do usuário ou de fontes externas. Essa proteção é transitiva: o LLM resumidor recebe inbound e outbound delimitados, e todo resumo persistido é novamente delimitado antes de entrar nas instruções de outro consumidor.
-- Rotas administrativas devem usar `adminProcedure`.
+- Rotas administrativas devem usar `adminProcedure`. Concessões e revogações comerciais derivam autoria da sessão e preservam histórico.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.
 - Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.
 - Retry de notificação de meta só pode ser executado pelo profissional autor e nunca retorna ou registra a justificativa privada.
@@ -26,12 +27,20 @@
 - Erros concretos de SDK/HTTP são classificados pela fronteira comum. Erros desconhecidos são não recuperáveis por padrão e não acionam fallback.
 - Resolução de capacidade por variável legada (`AI_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`, etc.) inclui aviso `[deprecated]` sanitizado em `diagnostics`, sem expor o valor configurado.
 - Código mutável de uma PR não pode receber secrets permanentes do repositório para executar smoke ou benchmark de provider. Validação em PR usa testes herméticos, fake server, contract tests, replay sanitizado ou doubles. Uma coleta real deve ocorrer em contexto confiável que execute código já revisado.
+- A conclusão pública do onboarding pelo WhatsApp não confirma se e-mail, telefone ou conta existem. Conflitos de conta usam resposta genérica e preservam o token somente enquanto ele continuar válido.
+- Registro público nunca adiciona senha local nem adota identidade preexistente somente pelo conhecimento do e-mail. Conta existente exige login ou recuperação antes de receber novos vínculos.
+- Vincular um lead do WhatsApp a uma conta existente exige sessão autenticada e o token opaco recebido no próprio canal. Claim do lead, verificação de conflito, associação da conta e vínculo do telefone devem ocorrer transacionalmente e não podem trocar um usuário já convertido.
+- Somente um vínculo ativo pode possuir cada telefone normalizado. A migration preserva históricos desativados, mantém o registro ativo mais recente em duplicidades legadas e instala índice único sobre a chave virtual dos vínculos ativos.
+- `completion_error_code` usa vocabulário fechado. Mensagens de exceção, e-mail, telefone, senha, token e detalhes de banco não podem ser persistidos nesse campo.
+- Retornos após login aceitam somente caminhos internos da aplicação; URLs absolutas, protocol-relative ou normalizadas para outro origin devem ser rejeitadas.
 
 ## Checklist para mudanças
 
 - [ ] A procedure correta foi usada (`protectedProcedure` ou `adminProcedure`)?
 - [ ] Há validação Zod para input externo?
 - [ ] Erros conhecidos são traduzidos para mensagens seguras?
+- [ ] Fronteiras públicas evitam enumeração de conta, telefone ou tenant?
+- [ ] Retornos de autenticação foram validados contra redirecionamento externo?
 - [ ] Não há segredo em código, teste ou documentação?
 - [ ] Tokens e telefones não aparecem completos em logs?
 - [ ] Nenhum workflow de PR entrega credencial real a código alterável pelo próprio head?

@@ -1,0 +1,136 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  activateWhatsappOnboardingUser: vi.fn(),
+  getUserEntitlements: vi.fn(),
+  getUserSubscriptionStatus: vi.fn(),
+  searchAdminUsers: vi.fn(),
+  listAdminOverrides: vi.fn(),
+  grantAdminOverride: vi.fn(),
+  revokeAdminOverride: vi.fn(),
+  getAdminAnalytics: vi.fn(),
+}));
+
+vi.mock("./service", () => ({ billingService: mocks }));
+vi.mock("../onboarding/whatsappLeadService", () => ({
+  activateWhatsappOnboardingUser: mocks.activateWhatsappOnboardingUser,
+}));
+
+import { billingRouter } from "./router";
+
+function context(role: "user" | "admin", id = 71) {
+  return {
+    user: {
+      id,
+      email: `${role}@example.com`,
+      name: role,
+      role,
+    },
+  } as any;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getAdminAnalytics.mockResolvedValue({ plans: [] });
+  mocks.listAdminOverrides.mockResolvedValue([]);
+  mocks.grantAdminOverride.mockResolvedValue({ id: "override" });
+  mocks.revokeAdminOverride.mockResolvedValue({ id: "override" });
+  mocks.activateWhatsappOnboardingUser.mockResolvedValue({
+    status: "no_onboarding_lead",
+  });
+});
+
+describe("billing router administration", () => {
+  it("blocks every administrative procedure for a regular user", async () => {
+    const caller = billingRouter.createCaller(context("user"));
+
+    await expect(caller.adminAnalytics()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller.adminSearchUsers({ query: "", limit: 25 })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.adminListOverrides({ userId: 99, limit: 25 })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.adminGrantOverride({ userId: 99, reason: "Acesso de suporte" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.adminRevokeOverride({
+        overrideId: "11111111-1111-4111-8111-111111111111",
+        reason: "Solicitação encerrada",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(mocks.getAdminAnalytics).not.toHaveBeenCalled();
+    expect(mocks.listAdminOverrides).not.toHaveBeenCalled();
+    expect(mocks.grantAdminOverride).not.toHaveBeenCalled();
+    expect(mocks.activateWhatsappOnboardingUser).not.toHaveBeenCalled();
+  });
+
+  it("takes grant and revoke authorship from the authenticated admin", async () => {
+    const caller = billingRouter.createCaller(context("admin", 314));
+
+    await caller.adminGrantOverride({
+      userId: 99,
+      reason: "Acesso temporário aprovado",
+    });
+    await caller.adminRevokeOverride({
+      overrideId: "11111111-1111-4111-8111-111111111111",
+      reason: "Período de suporte finalizado",
+    });
+
+    expect(mocks.grantAdminOverride).toHaveBeenCalledWith({
+      userId: 99,
+      reason: "Acesso temporário aprovado",
+      grantedByUserId: 314,
+    });
+    expect(mocks.activateWhatsappOnboardingUser).toHaveBeenCalledWith(
+      99,
+      "admin_override"
+    );
+    expect(mocks.revokeAdminOverride).toHaveBeenCalledWith({
+      overrideId: "11111111-1111-4111-8111-111111111111",
+      reason: "Período de suporte finalizado",
+      revokedByUserId: 314,
+    });
+  });
+
+  it("can recover an override id after reload and revoke it", async () => {
+    const overrideId = "11111111-1111-4111-8111-111111111111";
+    mocks.grantAdminOverride.mockResolvedValueOnce({ id: overrideId });
+    mocks.listAdminOverrides.mockResolvedValueOnce([
+      { id: overrideId, userId: 99, state: "active" },
+    ]);
+    const caller = billingRouter.createCaller(context("admin", 314));
+
+    await caller.adminGrantOverride({
+      userId: 99,
+      reason: "Acesso temporário aprovado",
+    });
+    const [activeOverride] = await caller.adminListOverrides({
+      userId: 99,
+      limit: 25,
+    });
+    await caller.adminRevokeOverride({
+      overrideId: activeOverride.id,
+      reason: "Período de suporte finalizado",
+    });
+
+    expect(mocks.listAdminOverrides).toHaveBeenCalledWith(99, 25);
+    expect(mocks.revokeAdminOverride).toHaveBeenCalledWith({
+      overrideId,
+      reason: "Período de suporte finalizado",
+      revokedByUserId: 314,
+    });
+  });
+
+  it("lets a pending user re-evaluate onboarding activation from billing", async () => {
+    const caller = billingRouter.createCaller(context("user", 502));
+
+    await caller.refreshOnboardingActivation();
+
+    expect(mocks.activateWhatsappOnboardingUser).toHaveBeenCalledWith(502);
+  });
+});

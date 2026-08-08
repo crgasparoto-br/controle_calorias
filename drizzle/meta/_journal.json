@@ -253,6 +253,27 @@
       "when": 1785248104000,
       "tag": "0037_professional_message_idempotency_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1786196425215,
+      "tag": "0038_billing_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1786196431569,
+      "tag": "0039_whatsapp_onboarding_activation",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1786196432999,
+      "tag": "0040_whatsapp_active_phone_uniqueness",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 - WhatsApp inbound e outbound.
 - Exportação e exclusão de dados.
 - Migrações e integridade referencial.
+- Elegibilidade, capacidade profissional e eventos idempotentes de billing.
 - Migração da camada de IA para OpenAI, conforme `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
 ## Gates recomendados
@@ -199,3 +200,12 @@ Toda tentativa executada pelo mecanismo comum gera telemetria técnica depois da
 Durante incidente, filtrar `ai.inference_call` por capacidade, resultado, provider/modelo efetivo, papel da chamada, tipo de fallback e versão do catálogo. Custo é estimativa operacional, não cobrança. O catálogo deve ser atualizado por nova versão/data, nunca por scraping em runtime.
 
 Testes de regressão devem provar que a operação recebe provider/modelo corretos através da fronteira normalizada, que `raw` não chega ao resultado funcional, que uma tentativa produz uma chamada outbound e que falha do sink não altera a inferência.
+
+## Guardrails de billing
+
+- `BILLING_ACCESS_MODE` permanece `open_access` até aprovação explícita da migração comercial; em `enforced`, indisponibilidade da fonte falha fechada.
+- Evento do provider é idempotente por `(provider, providerEventId)` e nunca depende do retorno do navegador para ativar acesso.
+- Reserva de capacidade bloqueia a assinatura dentro da transação; concorrência pela última vaga deve produzir um vencedor e uma rejeição clara.
+- Reserva, liberação e revogação são repetíveis sem duplicar vaga, entitlement ou auditoria.
+- Falha após reserva comercial deve ser compensada; revogação iniciada pelo paciente não pode ser bloqueada por indisponibilidade comercial.
+- O workflow `Billing persistence TiDB gate` valida migration, drift Drizzle, concorrência, idempotência, sanitização e integridade antes do merge.
