@@ -10,12 +10,31 @@ vi.mock("./db", () => ({
   logInferenceEvent: vi.fn(),
 }));
 
+vi.mock("./modules/billing/service", () => ({
+  billingService: {
+    getUserEntitlements: vi.fn(async () => ({
+      allowed: true,
+      reason: "free_access",
+      entitlements: ["system_access"],
+      sourceAvailable: true,
+      evaluatedAt: new Date(),
+    })),
+  },
+}));
+
 vi.mock("./modules/whatsapp/goalProgressContext", () => ({
-  runWithWhatsAppGoalProgressContext: async (_context: unknown, operation: () => Promise<unknown>) => operation(),
+  buildWhatsAppExerciseCaloriesByDateKey: vi.fn(() => ({})),
+  runWithWhatsAppGoalProgressContext: async (
+    _context: unknown,
+    operation: () => Promise<unknown>
+  ) => operation(),
 }));
 
 vi.mock("./modules/whatsapp/conversationContextRollout", () => ({
-  withWhatsappContextFlow: async (_flow: string, operation: () => Promise<unknown>) => operation(),
+  withWhatsappContextFlow: async (
+    _flow: string,
+    operation: () => Promise<unknown>
+  ) => operation(),
 }));
 
 vi.mock("./modules/whatsapp/timeZoneContext", () => ({
@@ -27,10 +46,17 @@ vi.mock("./modules/whatsapp/timeZoneContext", () => ({
 }));
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
-  beginInboundMessage: vi.fn(async () => ({ conversationId: 1, messageId: 10, wasNewInsert: true })),
+  beginInboundMessage: vi.fn(async () => ({
+    conversationId: 1,
+    messageId: 10,
+    wasNewInsert: true,
+  })),
   claimMessageForProcessing: vi.fn(async () => true),
   markMessageProcessed: markMessageProcessedMock,
-  runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
+  recordDomainLink: vi.fn(async () => undefined),
+  runWithMessageLifecycleRequestScope: async (
+    operation: () => Promise<unknown>
+  ) => operation(),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   enrichInboundMessage: vi.fn(async () => true),
 }));
@@ -47,19 +73,25 @@ const {
 function request() {
   return {
     body: {
-      entry: [{
-        changes: [{
-          value: {
-            messages: [{
-              id: "wamid-retryable-failure",
-              from: "5511999999999",
-              timestamp: "1780502400",
-              type: "text",
-              text: { body: "100g arroz" },
-            }],
-          },
-        }],
-      }],
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                messages: [
+                  {
+                    id: "wamid-retryable-failure",
+                    from: "5511999999999",
+                    timestamp: "1780502400",
+                    type: "text",
+                    text: { body: "100g arroz" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -71,10 +103,15 @@ describe("WhatsApp gateway failure lifecycle", () => {
   });
 
   it("não marca a mensagem como processada quando a cadeia downstream lança exceção", async () => {
-    downstreamWebhookMock.mockRejectedValueOnce(new Error("downstream unavailable"));
+    downstreamWebhookMock.mockRejectedValueOnce(
+      new Error("downstream unavailable")
+    );
 
     await expect(
-      handleWhatsAppWebhookWithImageIdempotency(request() as never, {} as never),
+      handleWhatsAppWebhookWithImageIdempotency(
+        request() as never,
+        {} as never
+      )
     ).rejects.toThrow("downstream unavailable");
 
     expect(markMessageProcessedMock).not.toHaveBeenCalled();
