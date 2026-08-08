@@ -1,6 +1,8 @@
-# Checklist de rollout OpenAI
+# Checklist de rollout OpenAI (DEPRECADO)
 
-Este checklist prepara a ativação em produção após as Fases 5 e 6 da migração.
+> **Deprecado desde a issue #927.** Este checklist é histórico e centrado exclusivamente no provider OpenAI. Ele não reflete a arquitetura multi-provider por capacidade adotada pelo projeto. Use `runbooks/multi-provider-rollout.md` como fonte vigente para qualquer rollout, promoção ou rollback de provider de IA em produção.
+
+Este checklist preparou a ativação em produção após as Fases 5 e 6 da migração OpenAI (contexto histórico, não vigente).
 
 ## Escopo
 
