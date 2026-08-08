@@ -95,11 +95,7 @@ export const professionalPatientTrackings = mysqlTable(
   "professionalPatientTrackings",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    authorizationId: varchar("authorizationId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientAuthorizations.id, {
-        onDelete: "cascade",
-      }),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
     professionalUserId: int("professionalUserId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -124,6 +120,11 @@ export const professionalPatientTrackings = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalPatientTrackings_authorization_fk",
+    }).onDelete("cascade"),
     authorizationUniqueIdx: uniqueIndex(
       "professionalTrackings_authorization_unique_idx"
     ).on(table.authorizationId),
@@ -149,16 +150,8 @@ export const professionalPatientTrackingEvents = mysqlTable(
   "professionalPatientTrackingEvents",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    trackingId: varchar("trackingId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientTrackings.id, {
-        onDelete: "cascade",
-      }),
-    authorizationId: varchar("authorizationId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientAuthorizations.id, {
-        onDelete: "cascade",
-      }),
+    trackingId: varchar("trackingId", { length: 64 }).notNull(),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
     actorUserId: int("actorUserId").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -169,6 +162,16 @@ export const professionalPatientTrackingEvents = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
+    trackingFk: foreignKey({
+      columns: [table.trackingId],
+      foreignColumns: [professionalPatientTrackings.id],
+      name: "professionalPatientTrackingEvents_tracking_fk",
+    }).onDelete("cascade"),
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalPatientTrackingEvents_authorization_fk",
+    }).onDelete("cascade"),
     trackingOccurredIdx: index(
       "professionalTrackingEvents_tracking_occurred_idx"
     ).on(table.trackingId, table.occurredAt),
