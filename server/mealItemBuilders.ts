@@ -151,7 +151,8 @@ const EXPLICIT_BEVERAGE_CORE_PATTERN = /^(?:agua tonica|tonica|refrigerante|refr
 const AMBIGUOUS_BEVERAGE_CORE_PATTERN = /^(?:soda|cola|guarana)\b/;
 const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat)\b/;
 const CARBONATED_BEVERAGE_VARIANT_PATTERN = /^(?:citrus|limao|laranja|uva|original|tradicional|ginger ale)$/;
-const BEVERAGE_TRAILING_DESCRIPTOR_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica|guarana(?: antarctica)?|citrus|limao|laranja|uva|original|tradicional|ginger ale|sabor (?:citrus|limao|laranja|uva|guarana|cola|ginger ale))$/;
+const BEVERAGE_TRAILING_DESCRIPTOR_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica|guarana(?: antarctica)?|citrus|limao|laranja|uva|original|tradicional|ginger ale|italiana|sabor (?:citrus|limao|laranja|uva|guarana|cola|ginger ale))$/;
+const NON_LIQUID_BEVERAGE_FORM_PATTERN = /^(?:em\s+po|po(?:\s|$)|em\s+capsulas?\b|em\s+tabletes?\b)/;
 
 function isMassUnit(unit?: string | null) {
   const normalizedUnit = normalizeUnit(unit ?? "");
@@ -174,7 +175,7 @@ function isExplicitBeverageCore(description: string) {
   }
 
   const remainder = description.slice(coreMatch[0].length).trim();
-  return !remainder || BEVERAGE_TRAILING_DESCRIPTOR_PATTERN.test(remainder);
+  return !remainder || !NON_LIQUID_BEVERAGE_FORM_PATTERN.test(remainder);
 }
 
 function isAmbiguousBeverageCore(description: string) {
@@ -186,6 +187,7 @@ function isAmbiguousBeverageCore(description: string) {
   const remainder = description.slice(coreMatch[0].length).trim();
   return !remainder
     || remainder === "antarctica"
+    || coreMatch[0] === "soda" && /^de\s+\S/.test(remainder)
     || BEVERAGE_TRAILING_DESCRIPTOR_PATTERN.test(remainder);
 }
 

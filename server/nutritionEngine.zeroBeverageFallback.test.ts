@@ -269,6 +269,7 @@ describe("nutritionEngine zero beverage fallback", () => {
     "Tônica em pó zero açúcar",
     "60 ml Picolé de refrigerante zero açúcar",
     "30 ml Refrigerante em pó zero açúcar",
+    "30 ml Cola de sapateiro zero açúcar",
   ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
@@ -300,6 +301,35 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].calories).toBeGreaterThan(0);
     expect(result.totals.calories).toBeGreaterThan(0);
+  });
+
+  it.each([
+    "350 ml Refrigerante de guaraná zero",
+    "350 ml Refrigerante de cola zero",
+    "350 ml Soda de limão zero",
+    "350 ml Soda italiana zero açúcar",
+    "350 ml Refrigerante Guaraná Jesus Zero",
+  ])("zera variação natural de bebida explicitamente zero sem depender de whitelist de sabor ou marca: %s", async text => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      quantity: 350,
+      unit: "ml",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      source: "heuristic",
+    }));
+    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 
   it.each([
@@ -335,6 +365,10 @@ describe("nutritionEngine zero beverage fallback", () => {
     "Schweppes Citrus Zero",
     "ZERO AÇÚCAR ÁGUA TÔNICA",
     "Refrigerante Diet",
+    "Refrigerante Guaraná Jesus Zero",
+    "Refrigerante de guaraná zero",
+    "Soda de limão zero",
+    "Soda italiana zero açúcar",
   ])("reconhece núcleo positivo de bebida zero mesmo sem quantidade explícita: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
