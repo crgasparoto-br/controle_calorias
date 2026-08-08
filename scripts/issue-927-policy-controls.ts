@@ -9,6 +9,11 @@ import { executeScenario } from "./issue-927-benchmark/execution";
 import { readManifest } from "./issue-927-benchmark/report";
 import { validateIssue927PolicyManifest } from "./issue-927-policy-control-contract";
 import { evaluateIssue927PolicyControls } from "./issue-927-policy-control-execution";
+import {
+  isTrackedResultArtifact,
+  verificationHeadSha,
+  verifyPublishedResultArtifactLineage,
+} from "./issue-927-benchmark/artifact-lineage";
 
 export { validateIssue927PolicyManifest } from "./issue-927-policy-control-contract";
 export { evaluateIssue927PolicyControls } from "./issue-927-policy-control-execution";
@@ -16,7 +21,6 @@ export { evaluateIssue927PolicyControls } from "./issue-927-policy-control-execu
 const ROOT = path.resolve(import.meta.dirname, "..");
 const MANIFEST = path.join(ROOT, "docs/benchmarks/multi-provider/fixtures/manifest.json");
 const DEFAULT_ARTIFACT = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-policy-controls.json");
-const RESULT_PREFIX = "docs/benchmarks/multi-provider/results/";
 const git = (args: string[]) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 const sha256 = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -77,13 +81,25 @@ export async function buildIssue927PolicyReport(
 export async function verifyIssue927PolicyReport(artifactPath = DEFAULT_ARTIFACT): Promise<void> {
   const committed = JSON.parse(await readFile(artifactPath, "utf8")) as Awaited<ReturnType<typeof buildIssue927PolicyReport>>;
   assert.match(committed.testedSha, /^[0-9a-f]{40}$/u);
-  const head = process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]);
-  execFileSync("git", ["merge-base", "--is-ancestor", committed.testedSha, head], { cwd: ROOT });
-  const delta = git(["diff", "--name-only", `${committed.testedSha}..${head}`]).split("\n").filter(Boolean);
+  const head = verificationHeadSha();
+
+  if (isTrackedResultArtifact(artifactPath)) {
+    await verifyPublishedResultArtifactLineage({
+      artifactPaths: [artifactPath],
+      testedSha: committed.testedSha,
+      verifiedHead: head,
+    });
+    assert.equal(committed.controlCount, 32, "historical policy artifact has incomplete control coverage");
+    assert.equal(committed.allPassed, true, "historical policy artifact recorded failed controls");
+    assert.deepEqual(committed.failedControlIds, [], "historical policy artifact recorded failed control ids");
+    assert.equal(committed.maxConcurrencyObserved <= 1, true, "historical policy artifact recorded parallel fallback");
+    return;
+  }
+
   assert.equal(
-    delta.every(file => file.startsWith(RESULT_PREFIX)),
-    true,
-    `policy artifact tested a different source tree: ${delta.join(", ")}`,
+    committed.testedSha,
+    head,
+    "non-versioned policy artifact must target the current verification head",
   );
   assert.deepEqual(committed, await buildIssue927PolicyReport(committed.testedSha));
 }

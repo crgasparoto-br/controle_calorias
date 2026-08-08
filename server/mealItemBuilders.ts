@@ -26,6 +26,18 @@ const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   fat: 5,
 };
 
+const ZERO_BEVERAGE_ESTIMATED_REFERENCE: CatalogFood = {
+  slug: "zero-beverage-estimate",
+  name: "Bebida zero estimada",
+  aliases: [],
+  servingLabel: "100 ml",
+  gramsPerServing: 100,
+  calories: 0,
+  protein: 0,
+  carbs: 0,
+  fat: 0,
+};
+
 const BAKERY_BREAD_REFERENCE: CatalogFood = {
   slug: "bakery-bread-estimate",
   name: "Pão de padaria",
@@ -118,8 +130,110 @@ export function hasUsableNutrition(item: LlmItem) {
     || item.estimatedMacros.fat > 0;
 }
 
+function normalizeFoodDescription(foodName: string) {
+  return normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+}
+
+function hasExplicitZeroSugarMarker(normalizedFoodName: string) {
+  if (/\bzero\s+acucar\b/.test(normalizedFoodName)
+    || /\bdiet\b/.test(normalizedFoodName)
+    || /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalizedFoodName)) {
+    return true;
+  }
+
+  const beverageQualifier = "agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada|soda|cola|guarana|coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|citrus|limao|laranja|uva|original|tradicional|ginger ale";
+  return /\bzero\s*$/.test(normalizedFoodName)
+    || new RegExp(`\\bzero\\s+(?:${beverageQualifier})\\s*$`).test(normalizedFoodName)
+    || new RegExp(`^zero\\s+(?:${beverageQualifier})\\b`).test(normalizedFoodName);
+}
+
+const EXPLICIT_BEVERAGE_CORE_PATTERN = /^(?:agua tonica|tonica|refrigerante|refri|bebida gaseificada|bebida carbonatada)\b/;
+const AMBIGUOUS_BEVERAGE_CORE_PATTERN = /^(?:soda|cola|guarana)\b/;
+const CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat)\b/;
+const CARBONATED_BEVERAGE_VARIANT_PATTERN = /^(?:citrus|limao|laranja|uva|original|tradicional|ginger ale)$/;
+const BEVERAGE_TRAILING_DESCRIPTOR_PATTERN = /^(?:coca(?: cola)?|pepsi|sprite|fanta|schweppes|kuat|antarctica|guarana(?: antarctica)?|citrus|limao|laranja|uva|original|tradicional|ginger ale|italiana|sabor (?:citrus|limao|laranja|uva|guarana|cola|ginger ale))$/;
+const NON_LIQUID_BEVERAGE_FORM_PATTERN = /^(?:em\s+po|po(?:\s|$)|em\s+capsulas?\b|em\s+tabletes?\b)/;
+
+function isMassUnit(unit?: string | null) {
+  const normalizedUnit = normalizeUnit(unit ?? "");
+  return normalizedUnit === "mg" || normalizedUnit === "g" || normalizedUnit === "kg";
+}
+
+function removeExplicitZeroSugarMarkers(normalizedFoodName: string) {
+  return normalizedFoodName
+    .replace(/\bzero(?:\s+acucar)?\b/g, " ")
+    .replace(/\bdiet\b/g, " ")
+    .replace(/\bsem\s+(?:adicao\s+de\s+)?acucar\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isExplicitBeverageCore(description: string) {
+  const coreMatch = description.match(EXPLICIT_BEVERAGE_CORE_PATTERN);
+  if (!coreMatch) {
+    return false;
+  }
+
+  const remainder = description.slice(coreMatch[0].length).trim();
+  return !remainder || !NON_LIQUID_BEVERAGE_FORM_PATTERN.test(remainder);
+}
+
+function isAmbiguousBeverageCore(description: string) {
+  const coreMatch = description.match(AMBIGUOUS_BEVERAGE_CORE_PATTERN);
+  if (!coreMatch) {
+    return false;
+  }
+
+  const remainder = description.slice(coreMatch[0].length).trim();
+  return !remainder
+    || remainder === "antarctica"
+    || coreMatch[0] === "soda" && /^de\s+\S/.test(remainder)
+    || BEVERAGE_TRAILING_DESCRIPTOR_PATTERN.test(remainder);
+}
+
+function removeLeadingCarbonatedBeverageBrand(description: string) {
+  const brandMatch = description.match(CARBONATED_BEVERAGE_BRAND_AT_START_PATTERN);
+  if (!brandMatch) {
+    return null;
+  }
+
+  return description.slice(brandMatch[0].length).trim();
+}
+
+function hasPositiveZeroBeverageEvidence(description: string, unit?: string | null) {
+  if (isMassUnit(unit)) {
+    return false;
+  }
+  if (isExplicitBeverageCore(description) || isAmbiguousBeverageCore(description)) {
+    return true;
+  }
+
+  const afterBrand = removeLeadingCarbonatedBeverageBrand(description);
+  if (afterBrand === null) {
+    return false;
+  }
+  if (!afterBrand) {
+    return true;
+  }
+  if (isExplicitBeverageCore(afterBrand) || isAmbiguousBeverageCore(afterBrand)) {
+    return true;
+  }
+
+  return CARBONATED_BEVERAGE_VARIANT_PATTERN.test(afterBrand);
+}
+
+function isExplicitZeroBeverage(foodName: string, unit?: string | null) {
+  const normalized = normalizeFoodDescription(foodName);
+  if (!hasExplicitZeroSugarMarker(normalized)) {
+    return false;
+  }
+
+  const descriptionWithoutZeroMarker = removeExplicitZeroSugarMarkers(normalized);
+  return hasPositiveZeroBeverageEvidence(descriptionWithoutZeroMarker, unit);
+}
+
 function isLikelyBakeryBreadProduct(foodName: string) {
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  const normalized = normalizeFoodDescription(foodName);
   if (!/\bpao\b/.test(normalized)) {
     return false;
   }
@@ -127,18 +241,19 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
-function isKnownZeroBeverage(foodName: string) {
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
-  return /\bagua com gas\b/.test(normalized)
+function isKnownZeroBeverage(foodName: string, unit?: string | null) {
+  const normalized = normalizeFoodDescription(foodName);
+  return isExplicitZeroBeverage(foodName, unit)
+    || /\bagua com gas\b/.test(normalized)
     || /\b(cafe|cha)\b/.test(normalized) && /\bsem\b.*\bacucar\b/.test(normalized);
 }
 
-function isLikelyCompositePreparation(foodName: string) {
-  if (isKnownZeroBeverage(foodName)) {
+function isLikelyCompositePreparation(foodName: string, unit?: string | null) {
+  if (isKnownZeroBeverage(foodName, unit)) {
     return false;
   }
 
-  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  const normalized = normalizeFoodDescription(foodName);
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   return wordCount >= 3 && /\b(com|rechead[ao]s?|recheio|cobertura|molho|calda)\b/.test(normalized);
 }
@@ -152,6 +267,12 @@ function resolveEstimatedNutritionReference(
   }
   if (similarFood) {
     return { reference: similarFood, confidenceCap: 0.65 };
+  }
+  if (isExplicitZeroBeverage(item.foodName, item.unit)) {
+    return {
+      reference: { ...ZERO_BEVERAGE_ESTIMATED_REFERENCE, name: item.foodName },
+      confidenceCap: 0.5,
+    };
   }
   return { reference: { ...GENERIC_ESTIMATED_FOOD_REFERENCE, name: item.foodName }, confidenceCap: 0.55 };
 }
@@ -242,10 +363,15 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName);
-  const catalog = allowCatalogFallback
-    ? findCatalogFood(parsed.foodName) ?? findTacoFood(parsed.foodName)
-    : null;
+  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
+  const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);
+  const directCatalog = allowCatalogFallback ? findCatalogFood(parsed.foodName) : null;
+  const tacoCatalog = allowCatalogFallback && !directCatalog ? findTacoFood(parsed.foodName) : null;
+  const catalog = directCatalog ?? (
+    tacoCatalog && (!explicitZeroBeverage || isExplicitZeroBeverage(tacoCatalog.name))
+      ? tacoCatalog
+      : null
+  );
   const quantity = parsed.quantity ?? 1;
   const unit = parsed.unit ?? "porção";
   const estimatedGrams = parsed.estimatedGrams ?? 100;
@@ -266,6 +392,24 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
         fat: catalog.fat,
       },
       confidence: parsed.estimatedGrams ? 0.55 : 0.45,
+    });
+  }
+
+  if (explicitZeroBeverage) {
+    return buildEstimatedNutritionFallbackItem({
+      foodName: formattedFoodName,
+      quantity,
+      unit,
+      portionText: parsed.portionText ?? buildPortionText(quantity, unit),
+      servings: parsed.estimatedGrams ? Math.max(parsed.estimatedGrams / 100, 0.25) : 1,
+      estimatedGrams,
+      estimatedCalories: 0,
+      estimatedMacros: {
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+      },
+      confidence: parsed.estimatedGrams ? 0.45 : 0.35,
     });
   }
 

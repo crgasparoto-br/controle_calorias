@@ -82,7 +82,7 @@ Smoke funcional completo, sem credenciais:
 pnpm smoke:issue-927
 ```
 
-Verificar o relatório versionado, sua metadata e a regeneração determinística (este comando também faz parte de `pnpm agent:check`):
+Verificar a integridade, a metadata e a linhagem Git do relatório versionado (este comando também faz parte de `pnpm agent:check`):
 
 ```bash
 pnpm benchmark:ai:multi-provider:verify
@@ -95,7 +95,7 @@ pnpm issue-927:policy-controls
 pnpm issue-927:policy-controls:verify
 ```
 
-O segundo comando falha quando o artefato não existe, está desatualizado ou diverge da regeneração determinística.
+O primeiro comando reexecuta os 32 controles no candidato atual. O segundo valida que o artefato histórico permaneceu imutável e foi publicado a partir do `testedSha` sem mudanças executáveis intermediárias.
 
 O wrapper `scripts/issue-927-run-benchmark.sh` delega ao script canônico do `package.json`.
 
@@ -112,7 +112,9 @@ O relatório integrado e o artefato complementar de políticas registram:
 
 Latências herméticas usam o relógio virtual do adapter, não o relógio da máquina. Assim, duas execuções com os mesmos fixtures, código e catálogo produzem o mesmo relatório.
 
-A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evitar autorreferência. No head final, o gate `benchmark:ai:multi-provider:verify` exige que o SHA testado seja ancestral, que o delta posterior contenha somente arquivos da pasta de resultados, que o SHA-256 da árvore executável seja idêntico e que a regeneração integral seja estruturalmente igual ao artefato commitado. Qualquer mudança posterior em runtime, harness, fixtures, documentação operacional ou testes invalida a evidência.
+A pasta `docs/benchmarks/multi-provider/results/` é excluída do hash para evitar autorreferência. O relatório versionado é um snapshot histórico: `benchmark:ai:multi-provider:verify` recompõe a árvore executável exatamente no `testedSha`, confere o SHA-256 registrado, exige que o commit que publicou relatório e metadata tenha alterado somente arquivos de `results/`, confirma que esse commit continua ancestral do candidato atual e verifica que os bytes publicados não foram modificados depois da publicação. Assim, uma mudança futura de runtime, harness, fixtures, documentação ou testes não reescreve nem invalida a evidência histórica já publicada.
+
+O candidato atual continua sendo validado separadamente: `smoke:issue-927` executa novamente o harness e exige gates verdes no `VERIFICATION_HEAD_SHA`, enquanto `issue-927:policy-controls` reexecuta os 32 controles. Um novo snapshot em `results/` só é necessário quando houver decisão explícita de publicar nova evidência de benchmark; não é requisito para cada PR que apenas altera o produto.
 
 ## Promoção e rollout
 

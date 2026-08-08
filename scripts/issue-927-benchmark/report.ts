@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,42 +7,19 @@ import { fileURLToPath } from "node:url";
 import {
   ROLLBACK_READINESS,
   scanReportSafety,
-  type Manifest,
 } from "./contracts";
+import {
+  hashExecutableSourceTree,
+  isTrackedResultArtifact,
+  verificationHeadSha,
+  verifyPublishedResultArtifactLineage,
+} from "./artifact-lineage";
 import * as core from "./report-core";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_MANIFEST = path.join(ROOT, "docs/benchmarks/multi-provider/fixtures/manifest.json");
 const DEFAULT_REPORT = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.json.gz");
 const DEFAULT_METADATA = path.join(ROOT, "docs/benchmarks/multi-provider/results/2026-08-06-executable-harness.metadata.json");
-const RESULT_PREFIX = "docs/benchmarks/multi-provider/results/";
-
-function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
-}
-
-async function hashExecutableSourceTree(): Promise<string> {
-  const tracked = git(["ls-files", "-z"]).split("\0").filter(Boolean).filter(file => (
-    !file.startsWith(RESULT_PREFIX)
-    && !file.startsWith(".audit/")
-    && file !== "docs/benchmarks/multi-provider/fixtures/manifest.json"
-  ));
-  tracked.push("docs/benchmarks/multi-provider/fixtures/manifest.json");
-  const hash = createHash("sha256");
-  for (const relative of [...new Set(tracked)].sort()) {
-    const absolute = path.join(ROOT, relative);
-    try {
-      if (!(await stat(absolute)).isFile()) continue;
-      hash.update(relative);
-      hash.update("\0");
-      hash.update(await readFile(absolute));
-      hash.update("\0");
-    } catch {
-      hash.update(`${relative}\0<deleted>\0`);
-    }
-  }
-  return hash.digest("hex");
-}
 
 export const readManifest = core.readManifest;
 export const readTranscriptionEvidence = core.readTranscriptionEvidence;
@@ -82,17 +57,39 @@ export async function verifyCommittedReport(
   const reportText = reportPath.endsWith(".gz") ? gunzipSync(encoded).toString("utf8") : encoded.toString("utf8");
   const committed = JSON.parse(reportText) as Awaited<ReturnType<typeof buildReport>>;
   scanReportSafety(committed);
+  const verifiedHead = verificationHeadSha();
+  assert.match(committed.testedSha ?? "", /^[0-9a-f]{40}$/u, "committed report lacks a tested commit SHA");
+
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as ReturnType<typeof buildReportMetadata>;
+  assert.deepEqual(
+    metadata,
+    buildReportMetadata({ reportPath, reportBytes: encoded, report: committed }),
+    "committed report metadata does not bind the exact report bytes and identity",
+  );
+
+  if (isTrackedResultArtifact(reportPath) && isTrackedResultArtifact(metadataPath)) {
+    await verifyPublishedResultArtifactLineage({
+      artifactPaths: [reportPath, metadataPath],
+      testedSha: committed.testedSha!,
+      verifiedHead,
+    });
+    const historicalHash = await hashExecutableSourceTree({ ref: committed.testedSha! });
+    assert.equal(
+      committed.sourceTreeSha256,
+      historicalHash,
+      "committed report is not bound to its tested executable source tree",
+    );
+    assert.equal(committed.globalGates?.passed, true);
+    return;
+  }
+
+  assert.equal(
+    committed.testedSha,
+    verifiedHead,
+    "non-versioned report must target the current verification head",
+  );
   const actualHash = await hashExecutableSourceTree();
   const manifest = await readManifest(manifestPath);
-  const verifiedHead = process.env.VERIFICATION_HEAD_SHA ?? git(["rev-parse", "HEAD"]);
-  assert.match(committed.testedSha ?? "", /^[0-9a-f]{40}$/u, "committed report lacks a tested commit SHA");
-  execFileSync("git", ["merge-base", "--is-ancestor", committed.testedSha!, verifiedHead], { cwd: ROOT });
-  const delta = git(["diff", "--name-only", `${committed.testedSha}..${verifiedHead}`]).split("\n").filter(Boolean);
-  assert.equal(
-    delta.every(file => file.startsWith(RESULT_PREFIX)),
-    true,
-    `committed report tested a different executable tree: ${delta.join(", ")}`,
-  );
   assert.equal(committed.sourceTreeSha256, actualHash, "committed report is stale for the executable source tree");
   assert.equal(committed.globalGates?.passed, true);
   assert.equal(committed.coverage?.observationCount, manifest.scenarios.length);
@@ -104,13 +101,6 @@ export async function verifyCommittedReport(
     sourceTreeSha256: actualHash,
   });
   assert.deepEqual(committed, regenerated, "committed report differs from deterministic regeneration");
-
-  const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as ReturnType<typeof buildReportMetadata>;
-  assert.deepEqual(
-    metadata,
-    buildReportMetadata({ reportPath, reportBytes: encoded, report: committed }),
-    "committed report metadata does not bind the exact report bytes and identity",
-  );
 }
 
 export async function runSelfTest(): Promise<void> {
