@@ -14,6 +14,8 @@ const ZERO_BEVERAGE_CASES: ZeroBeverageCase[] = [
   ["350 ml ZERO AÇÚCAR ÁGUA TÔNICA", "ZERO AÇÚCAR ÁGUA TÔNICA"],
   ["350 ml Sprite Zero", "Sprite Zero"],
   ["350 ml Schweppes Citrus Zero", "Schweppes Citrus Zero", "Schweppes"],
+  ["350 ml Soda Limão Zero", "Soda Limão Zero"],
+  ["350 ml Schweppes Zero Tônica", "Schweppes Zero Tônica", "Schweppes"],
 ];
 
 vi.mock("./_core/aiProvider", () => ({
@@ -265,12 +267,32 @@ describe("nutritionEngine zero beverage fallback", () => {
     "30 g Tônica em pó zero açúcar",
     "Refrigerante em pó zero açúcar",
     "Tônica em pó zero açúcar",
+    "60 ml Picolé de refrigerante zero açúcar",
+    "30 ml Refrigerante em pó zero açúcar",
   ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
       text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].calories).toBeGreaterThan(0);
+    expect(result.totals.calories).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["IA indisponível", () => createTextResponseMock.mockRejectedValue(new Error("provider indisponível"))],
+    ["IA sem nutrição utilizável", () => mockZeroNutritionExtraction("Refrigerante Zero Cafeína")],
+  ])("não interpreta zero cafeína como marcador de bebida sem calorias quando %s", async (_scenario, arrange) => {
+    arrange();
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "350 ml Refrigerante Zero Cafeína",
       occurredAt: "2026-08-02T16:00:00-03:00",
       timeZone: "America/Sao_Paulo",
     });
