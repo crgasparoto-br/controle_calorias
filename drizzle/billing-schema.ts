@@ -1,6 +1,7 @@
 import {
   type AnyMySqlColumn,
   boolean,
+  foreignKey,
   index,
   int,
   json,
@@ -201,8 +202,6 @@ export const billingEntitlements = mysqlTable(
     ),
     professionalAuthorizationId: varchar("professionalAuthorizationId", {
       length: 64,
-    }).references(() => professionalPatientAuthorizations.id, {
-      onDelete: "set null",
     }),
     state: mysqlEnum("state", ["active", "ended", "revoked", "ineligible"])
       .default("active")
@@ -217,6 +216,11 @@ export const billingEntitlements = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    professionalAuthorizationFk: foreignKey({
+      columns: [table.professionalAuthorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "billingEntitlements_professionalAuthorizationId_fk",
+    }).onDelete("set null"),
     activeGrantUniqueIdx: uniqueIndex("billingEntitlements_active_grant_uq").on(
       table.activeGrantKey
     ),
@@ -239,19 +243,14 @@ export const billingCapacityAllocations = mysqlTable(
   "billingCapacityAllocations",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    subscriptionId: varchar("subscriptionId", { length: 64 })
-      .notNull()
-      .references(() => billingSubscriptions.id, { onDelete: "cascade" }),
+    subscriptionId: varchar("subscriptionId", { length: 64 }).notNull(),
     professionalUserId: int("professionalUserId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     patientUserId: int("patientUserId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    authorizationId: varchar("authorizationId", { length: 64 }).references(
-      () => professionalPatientAuthorizations.id,
-      { onDelete: "set null" }
-    ),
+    authorizationId: varchar("authorizationId", { length: 64 }),
     coverageKey: varchar("coverageKey", { length: 191 }).notNull(),
     state: mysqlEnum("state", ["reserved", "active", "released"])
       .default("active")
@@ -264,6 +263,16 @@ export const billingCapacityAllocations = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingCapacityAllocations_subscriptionId_fk",
+    }).onDelete("cascade"),
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "billingCapacityAllocations_authorizationId_fk",
+    }).onDelete("set null"),
     coverageKeyUniqueIdx: uniqueIndex(
       "billingCapacityAllocations_coverage_key_uq"
     ).on(table.coverageKey),
