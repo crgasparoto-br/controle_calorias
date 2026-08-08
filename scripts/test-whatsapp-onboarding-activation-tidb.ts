@@ -22,7 +22,11 @@ function connectionOptions() {
 }
 
 async function loadMigration(fileName: string) {
-  return readFile(path.join(process.cwd(), "drizzle", fileName), "utf8");
+  const sql = await readFile(
+    path.join(process.cwd(), "drizzle", fileName),
+    "utf8"
+  );
+  return sql.replaceAll("--> statement-breakpoint", "");
 }
 
 function isDuplicateEntryError(error: unknown) {
