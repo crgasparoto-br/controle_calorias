@@ -31,7 +31,7 @@ Cobertura profissional não cria assinatura em nome do paciente. Exceção admin
 - `billingAccessAuditEvents`: trilha append-only das mudanças de acesso e capacidade.
 - `whatsappConnections.activePhoneKey`: coluna gerada apenas para vínculos ativos e protegida por índice único, impedindo que o mesmo telefone ativo pertença a duas contas sem bloquear a preservação de registros desativados.
 
-As migrations canônicas desta fundação são `drizzle/0036_billing_foundation.sql`, `drizzle/0037_whatsapp_onboarding_activation.sql`, `drizzle/0038_billing_access_origins.sql` e `drizzle/0039_whatsapp_active_phone_uniqueness.sql`. A última migration desativa duplicidades ativas históricas mantendo o vínculo ativo atualizado mais recentemente e, depois, instala a restrição única. Os workflows TiDB aplicam o schema, verificam drift do metadata Drizzle, exercitam concorrência/idempotência e rodam integridade referencial.
+As migrations canônicas desta fundação são `drizzle/0038_billing_foundation.sql`, `drizzle/0039_whatsapp_onboarding_activation.sql` e `drizzle/0040_whatsapp_active_phone_uniqueness.sql`. A última migration desativa duplicidades ativas históricas mantendo o vínculo ativo atualizado mais recentemente e, depois, instala a restrição única. Os workflows TiDB aplicam o schema, verificam drift do metadata Drizzle, exercitam concorrência/idempotência e rodam integridade referencial.
 
 ## Eventos do provider e minimização
 

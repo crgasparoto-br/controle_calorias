@@ -35,7 +35,7 @@ O estado persistido acompanha a situação real:
 - `active`: elegibilidade confirmada e onboarding ativado;
 - `expired` ou `canceled`: fluxo encerrado sem conversão válida.
 
-A migration `0037_whatsapp_onboarding_activation.sql` adiciona os estados de conversão/ativação, a origem da ativação, a data de ativação e um código sanitizado para recuperação operacional.
+A migration `0039_whatsapp_onboarding_activation.sql` adiciona os estados de conversão/ativação, a origem da ativação, a data de ativação e um código sanitizado para recuperação operacional.
 
 ## Conta existente e retomada autenticada
 

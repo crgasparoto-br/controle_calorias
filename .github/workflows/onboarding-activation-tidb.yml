@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - "drizzle/0016_whatsapp_onboarding_leads.sql"
-      - "drizzle/0037_whatsapp_onboarding_activation.sql"
-      - "drizzle/0039_whatsapp_active_phone_uniqueness.sql"
+      - "drizzle/0039_whatsapp_onboarding_activation.sql"
+      - "drizzle/0040_whatsapp_active_phone_uniqueness.sql"
       - "drizzle/schema.ts"
       - "server/modules/onboarding/**"
       - "server/modules/billing/router.ts"

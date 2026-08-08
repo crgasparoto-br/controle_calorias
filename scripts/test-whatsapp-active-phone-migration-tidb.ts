@@ -87,7 +87,7 @@ try {
     path.join(
       process.cwd(),
       "drizzle",
-      "0041_whatsapp_active_phone_uniqueness.sql"
+      "0040_whatsapp_active_phone_uniqueness.sql"
     ),
     "utf8"
   );
