@@ -2,6 +2,12 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
+import {
+  BILLING_PERSONAL_ENTITLEMENTS,
+  BILLING_PROFESSIONAL_ENTITLEMENTS,
+  INITIAL_BILLING_CATALOG,
+} from "../server/modules/billing/catalogPolicy";
+import { createBillingCatalogRepository } from "../server/repositories/billingCatalogRepository";
 import { createDrizzleBillingRepository } from "../server/repositories/billingRepository";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -14,6 +20,9 @@ const ids = {
   patientA: 9182,
   patientB: 9183,
   admin: 9184,
+  couponUserA: 9185,
+  couponUserB: 9186,
+  product: "billing-test-professional-product",
   plan: "billing-test-professional-plan",
   subscription: "billing-test-subscription",
   futureSubscription: "billing-test-future-subscription",
@@ -21,6 +30,9 @@ const ids = {
   authorizationA: "billing-test-authorization-a",
   authorizationB: "billing-test-authorization-b",
   providerEvent: "billing-test-provider-event",
+  couponCode: "BILLINGTESTLIMIT1",
+  authDeniedProductCode: "billing-test-admin-auth-denied",
+  authLockedProductCode: "billing-test-admin-auth-locked",
 };
 
 function coverageKey(authorizationId: string) {
@@ -28,18 +40,33 @@ function coverageKey(authorizationId: string) {
 }
 
 async function main() {
-  const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 8 });
+  const pool = mysql.createPool({
+    uri: databaseUrl,
+    connectionLimit: 8,
+    ...(process.env.TIDB_ENABLE_SSL === "true"
+      ? { ssl: { minVersion: "TLSv1.2" as const } }
+      : {}),
+  });
   const db = drizzle(pool);
   const warnings: Array<{ scope: string; error: string }> = [];
-  const repository = createDrizzleBillingRepository({
+  const repositoryDeps = {
     getDb: async () => db,
-    onWarning: (scope, error) =>
+    onWarning: (scope: string, error: unknown) =>
       warnings.push({
         scope,
         error: error instanceof Error ? error.message : "unknown",
       }),
-  });
-  const userIds = [ids.professional, ids.patientA, ids.patientB, ids.admin];
+  };
+  const repository = createDrizzleBillingRepository(repositoryDeps);
+  const catalogRepository = createBillingCatalogRepository(repositoryDeps);
+  const userIds = [
+    ids.professional,
+    ids.patientA,
+    ids.patientB,
+    ids.admin,
+    ids.couponUserA,
+    ids.couponUserB,
+  ];
 
   async function cleanup() {
     await pool.query(
@@ -54,6 +81,15 @@ async function main() {
       "integration-test",
     ]);
     await pool.query(
+      "DELETE FROM billingCouponRedemptions WHERE userId IN (?, ?)",
+      [ids.couponUserA, ids.couponUserB]
+    );
+    await pool.query("DELETE FROM billingCoupons WHERE code = ?", [ids.couponCode]);
+    await pool.query(
+      "DELETE FROM billingCommercialAuditEvents WHERE actorUserId = ? OR entityId IN (?, ?)",
+      [ids.admin, ids.product, ids.plan]
+    );
+    await pool.query(
       "DELETE FROM billingEntitlements WHERE sourceId IN (?, ?)",
       [coverageKey(ids.authorizationA), coverageKey(ids.authorizationB)]
     );
@@ -65,7 +101,12 @@ async function main() {
       ids.subscription,
       ids.futureSubscription,
     ]);
-    await pool.query("DELETE FROM billingPlans WHERE id = ?", [ids.plan]);
+    await pool.query("DELETE FROM billingPlans WHERE productId = ?", [ids.product]);
+    await pool.query("DELETE FROM billingProducts WHERE id = ?", [ids.product]);
+    await pool.query(
+      "DELETE FROM billingProducts WHERE code IN (?, ?)",
+      [ids.authDeniedProductCode, ids.authLockedProductCode]
+    );
     await pool.query(
       "DELETE FROM professionalPatientAuthorizations WHERE id IN (?, ?)",
       [ids.authorizationA, ids.authorizationB]
@@ -90,6 +131,216 @@ async function main() {
         ]
       );
     }
+
+    const firstSeed = await catalogRepository.seedInitialCatalog(
+      INITIAL_BILLING_CATALOG
+    );
+    const secondSeed = await catalogRepository.seedInitialCatalog(
+      INITIAL_BILLING_CATALOG
+    );
+    assert.deepEqual(
+      secondSeed,
+      { products: 0, versions: 0 },
+      "billing catalog seed must be idempotent"
+    );
+    assert.equal(
+      (await catalogRepository.listEffectiveVersions(new Date())).filter(
+        version => INITIAL_BILLING_CATALOG.some(
+          expected => expected.versionCode === version.versionCode
+        )
+      ).length,
+      6,
+      "all initial commercial versions must be served by the backend"
+    );
+    assert.equal(
+      firstSeed.products >= 0 && firstSeed.versions >= 0,
+      true,
+      "first seed may insert missing rows or validate migration-seeded rows"
+    );
+
+    await pool.query("UPDATE users SET role = 'user' WHERE id = ?", [ids.admin]);
+    await assert.rejects(
+      catalogRepository.createProduct({
+        code: ids.authDeniedProductCode,
+        audience: "individual",
+        name: "Admin authorization denied",
+        description: null,
+        actorUserId: ids.admin,
+        reason: "TOCTOU pre-lock negative control",
+      }),
+      /Administrator authorization changed before catalog mutation/,
+      "catalog writes must revalidate admin authority inside the transaction"
+    );
+    const [deniedProductRows] = await pool.query<mysql.RowDataPacket[]>(
+      "SELECT COUNT(*) AS total FROM billingProducts WHERE code = ?",
+      [ids.authDeniedProductCode]
+    );
+    assert.equal(Number(deniedProductRows[0]?.total), 0);
+    await pool.query("UPDATE users SET role = 'admin' WHERE id = ?", [ids.admin]);
+
+    let observeAdminLock!: () => void;
+    let releaseAdminLock!: () => void;
+    const adminLockObserved = new Promise<void>(resolve => {
+      observeAdminLock = resolve;
+    });
+    const adminLockRelease = new Promise<void>(resolve => {
+      releaseAdminLock = resolve;
+    });
+    const guardedCatalogRepository = createBillingCatalogRepository({
+      ...repositoryDeps,
+      onAdminAuthorizationLocked: async actorUserId => {
+        assert.equal(actorUserId, ids.admin);
+        observeAdminLock();
+        await adminLockRelease;
+      },
+    });
+    const lockedCreate = guardedCatalogRepository.createProduct({
+      code: ids.authLockedProductCode,
+      audience: "individual",
+      name: "Admin authorization locked",
+      description: null,
+      actorUserId: ids.admin,
+      reason: "TOCTOU row-lock control",
+    });
+    await adminLockObserved;
+    let downgradeFinished = false;
+    const concurrentDowngrade = pool
+      .query("UPDATE users SET role = 'user' WHERE id = ?", [ids.admin])
+      .then(() => {
+        downgradeFinished = true;
+      });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(
+      downgradeFinished,
+      false,
+      "admin role mutation must wait while the catalog transaction owns the authority row lock"
+    );
+    releaseAdminLock();
+    const lockedProduct = await lockedCreate;
+    await concurrentDowngrade;
+    assert.equal(lockedProduct.code, ids.authLockedProductCode);
+    const [downgradedAdminRows] = await pool.query<mysql.RowDataPacket[]>(
+      "SELECT role FROM users WHERE id = ?",
+      [ids.admin]
+    );
+    assert.equal(downgradedAdminRows[0]?.role, "user");
+    await pool.query("UPDATE users SET role = 'admin' WHERE id = ?", [ids.admin]);
+
+    const createdCoupon = await catalogRepository.createCouponRevision({
+      policy: {
+        code: ids.couponCode,
+        discountType: "percentage",
+        discountValue: 10,
+        currency: null,
+        eligibleProductCodes: ["individual"],
+        eligibleVersionCodes: ["individual-monthly-v1"],
+        eligibleCycles: ["monthly"],
+        validFrom: new Date("2026-08-08T00:00:00.000Z"),
+        validUntil: null,
+        maxTotalUses: 1,
+        maxUsesPerUser: 1,
+        firstContractOnly: false,
+        durationCharges: 1,
+        active: true,
+      },
+      actorUserId: ids.admin,
+      reason: "Billing integration concurrency",
+    });
+    assert.equal(createdCoupon.code, ids.couponCode);
+    const couponCompetition = await Promise.all([
+      catalogRepository.reserveCoupon({
+        userId: ids.couponUserA,
+        couponCode: ids.couponCode,
+        versionCode: "individual-monthly-v1",
+        contractKey: "billing-test-coupon-contract-a",
+        now: new Date(),
+      }),
+      catalogRepository.reserveCoupon({
+        userId: ids.couponUserB,
+        couponCode: ids.couponCode,
+        versionCode: "individual-monthly-v1",
+        contractKey: "billing-test-coupon-contract-b",
+        now: new Date(),
+      }),
+    ]);
+    assert.equal(
+      couponCompetition.filter(result => result.reserved).length,
+      1,
+      "coupon maxTotalUses must remain transactional under concurrency"
+    );
+    const couponWinner = couponCompetition.find(result => result.reserved);
+    const couponLoser = couponCompetition.find(result => !result.reserved);
+    assert.ok(couponWinner && couponWinner.reserved);
+    assert.deepEqual(couponLoser, {
+      reserved: false,
+      eligibility: { eligible: false, reason: "total_limit_reached" },
+    });
+    if (!couponWinner || !couponWinner.reserved) throw new Error("unreachable");
+    const couponRetry = await catalogRepository.reserveCoupon({
+      userId: couponWinner.reservation.userId,
+      couponCode: ids.couponCode,
+      versionCode: "individual-monthly-v1",
+      contractKey: couponWinner.reservation.contractKey,
+      now: new Date(),
+    });
+    assert.equal(couponRetry.reserved, true);
+    if (!couponRetry.reserved) throw new Error("unreachable");
+    assert.equal(couponRetry.reservation.id, couponWinner.reservation.id);
+    assert.equal(couponRetry.reservation.created, false);
+
+    const revisedCoupon = await catalogRepository.createCouponRevision({
+      policy: {
+        code: ids.couponCode,
+        discountType: "percentage",
+        discountValue: 15,
+        currency: null,
+        eligibleProductCodes: ["individual"],
+        eligibleVersionCodes: ["individual-monthly-v1"],
+        eligibleCycles: ["monthly"],
+        validFrom: new Date("2026-08-08T00:00:00.000Z"),
+        validUntil: null,
+        maxTotalUses: 2,
+        maxUsesPerUser: 1,
+        firstContractOnly: false,
+        durationCharges: 1,
+        active: true,
+      },
+      actorUserId: ids.admin,
+      reason: "Billing integration coupon revision",
+    });
+    assert.equal(revisedCoupon.revision, 2);
+    const retryAfterRevision = await catalogRepository.reserveCoupon({
+      userId: couponWinner.reservation.userId,
+      couponCode: ids.couponCode,
+      versionCode: "individual-monthly-v1",
+      contractKey: couponWinner.reservation.contractKey,
+      now: new Date(),
+    });
+    assert.equal(retryAfterRevision.reserved, true);
+    if (!retryAfterRevision.reserved) throw new Error("unreachable");
+    assert.equal(retryAfterRevision.reservation.id, couponWinner.reservation.id);
+    assert.equal(retryAfterRevision.reservation.couponId, createdCoupon.id);
+    assert.equal(retryAfterRevision.reservation.created, false);
+
+    await catalogRepository.deactivateVersion({
+      versionCode: "individual-monthly-v1",
+      effectiveUntil: new Date("2026-08-09T00:00:00.000Z"),
+      actorUserId: ids.admin,
+      reason: "Seed must preserve legitimate operational state",
+    });
+    assert.deepEqual(
+      await catalogRepository.seedInitialCatalog(INITIAL_BILLING_CATALOG),
+      { products: 0, versions: 0 },
+      "re-running the seed after a legitimate deactivation must not restore or reject operational state"
+    );
+    const deactivatedCanonicalVersion = await catalogRepository.getVersionByCode(
+      "individual-monthly-v1"
+    );
+    assert.equal(
+      deactivatedCanonicalVersion?.status,
+      "inactive",
+      "seed re-execution must not reactivate a commercial version"
+    );
 
     const baselineWithoutAccess = (
       await repository.getAdminAnalytics(new Date())
@@ -122,15 +373,33 @@ async function main() {
     }
 
     await pool.query(
-      `INSERT INTO billingPlans (
-        id, code, audience, name, currency, unitAmount, billingCycle,
-        capacityLimit, entitlementsJson, active, createdAt, updatedAt
-      ) VALUES (?, ?, 'professional', ?, 'BRL', 19900, 'monthly', 1, ?, true, NOW(), NOW())`,
+      `INSERT INTO billingProducts (
+        id, code, audience, name, state, createdAt, updatedAt
+      ) VALUES (?, ?, 'professional', ?, 'active', NOW(), NOW())`,
       [
-        ids.plan,
+        ids.product,
         "billing-integration-professional",
         "Billing integration professional",
+      ]
+    );
+    await pool.query(
+      `INSERT INTO billingPlans (
+        id, productId, code, versionCode, version, audience, name, currency,
+        unitAmount, billingCycle, capacityLimit, entitlementsJson,
+        coveredBeneficiaryEntitlementsJson, commercialPaymentMethodsJson,
+        status, active, effectiveFrom, sortOrder,
+        createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, 1, 'professional', ?, 'BRL', 19900, 'monthly', 1, ?, ?, ?,
+        'active', true, DATE_SUB(NOW(), INTERVAL 1 DAY), 900, NOW(), NOW())`,
+      [
+        ids.plan,
+        ids.product,
+        "billing-integration-professional",
+        "billing-integration-professional-monthly-v1",
+        "Billing integration professional",
         JSON.stringify(["professional_portfolio", "system_access"]),
+        JSON.stringify(INITIAL_BILLING_CATALOG[0].entitlements),
+        JSON.stringify(["credit_card", "pix_automatic"]),
       ]
     );
     await pool.query(
@@ -148,6 +417,78 @@ async function main() {
         `${ids.professional}:${ids.plan}`,
       ]
     );
+    const versionV2 = await catalogRepository.createVersion({
+      productCode: "billing-integration-professional",
+      name: "Billing integration professional",
+      billingCycle: "monthly",
+      currency: "BRL",
+      unitAmount: 20900,
+      capacityLimit: 2,
+      entitlements: BILLING_PROFESSIONAL_ENTITLEMENTS,
+      coveredBeneficiaryEntitlements: INITIAL_BILLING_CATALOG[0].entitlements,
+      commercialPaymentMethods: ["credit_card", "pix_automatic"],
+      effectiveFrom: new Date(),
+      effectiveUntil: null,
+      sortOrder: 901,
+      actorUserId: ids.admin,
+      reason: "Versioning integration",
+    });
+    assert.equal(versionV2.version, 2);
+    await catalogRepository.publishVersion({
+      versionCode: versionV2.versionCode,
+      effectiveFrom: new Date(),
+      actorUserId: ids.admin,
+      reason: "Publish integration v2",
+    });
+    const [versioningRows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT s.planId, oldPlan.status AS oldStatus,
+         oldPlan.effectiveUntil AS oldEffectiveUntil,
+         newPlan.status AS newStatus
+       FROM billingSubscriptions s
+       INNER JOIN billingPlans oldPlan ON oldPlan.id = s.planId
+       INNER JOIN billingPlans newPlan ON newPlan.id = ?
+       WHERE s.id = ?`,
+      [versionV2.id, ids.subscription]
+    );
+    assert.equal(versioningRows[0]?.planId, ids.plan);
+    assert.equal(
+      versioningRows[0]?.oldStatus,
+      "active",
+      "a published historical version remains immutable while its sales window closes"
+    );
+    assert.ok(
+      versioningRows[0]?.oldEffectiveUntil,
+      "publishing a new version must close the prior version sales window"
+    );
+    assert.equal(versioningRows[0]?.newStatus, "active");
+
+    const versionV3 = await catalogRepository.createVersion({
+      productCode: "billing-integration-professional",
+      name: "Billing integration professional",
+      billingCycle: "monthly",
+      currency: "BRL",
+      unitAmount: 21900,
+      capacityLimit: 3,
+      entitlements: BILLING_PROFESSIONAL_ENTITLEMENTS,
+      coveredBeneficiaryEntitlements: INITIAL_BILLING_CATALOG[0].entitlements,
+      commercialPaymentMethods: ["credit_card", "pix_automatic"],
+      effectiveFrom: new Date(),
+      effectiveUntil: null,
+      sortOrder: 902,
+      actorUserId: ids.admin,
+      reason: "Version ordering integration",
+    });
+    await assert.rejects(
+      catalogRepository.publishVersion({
+        versionCode: versionV3.versionCode,
+        effectiveFrom: new Date("2026-08-08T00:00:00.000Z"),
+        actorUserId: ids.admin,
+        reason: "Out-of-order publication negative control",
+      }),
+      /Catalog publication must advance the commercial effective date/,
+      "publishing out of chronological order must not create overlapping or inverted sales windows"
+    );
+
     assert.equal(
       (await repository.getAdminAnalytics(new Date()))
         .usersWithoutCommercialAccess,
@@ -217,6 +558,19 @@ async function main() {
       ),
       true,
       "approved coverage must grant a sponsored entitlement"
+    );
+    const sponsoredCandidate = candidates.find(
+      candidate => candidate.reason === "sponsored_by_professional"
+    );
+    assert.deepEqual(
+      [...(sponsoredCandidate?.entitlements ?? [])].sort(),
+      [...BILLING_PERSONAL_ENTITLEMENTS].sort(),
+      "covered patients must receive the versioned personal matrix, not the professional payer matrix"
+    );
+    assert.equal(
+      sponsoredCandidate?.entitlements.includes("professional_portfolio"),
+      false,
+      "covered patients must never inherit professional workspace entitlements"
     );
 
     await repository.releaseProfessionalCapacity({

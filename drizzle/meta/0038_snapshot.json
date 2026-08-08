@@ -8313,8 +8313,8 @@
         }
       },
       "foreignKeys": {
-        "billingCapacityAllocations_subscriptionId_billingSubscriptions_id_fk": {
-          "name": "billingCapacityAllocations_subscriptionId_billingSubscriptions_id_fk",
+        "billingCapacityAllocations_subscriptionId_fk": {
+          "name": "billingCapacityAllocations_subscriptionId_fk",
           "tableFrom": "billingCapacityAllocations",
           "tableTo": "billingSubscriptions",
           "columnsFrom": [
@@ -8352,8 +8352,8 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "billingCapacityAllocations_authorizationId_professionalPatientAuthorizations_id_fk": {
-          "name": "billingCapacityAllocations_authorizationId_professionalPatientAuthorizations_id_fk",
+        "billingCapacityAllocations_authorizationId_fk": {
+          "name": "billingCapacityAllocations_authorizationId_fk",
           "tableFrom": "billingCapacityAllocations",
           "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
@@ -8571,8 +8571,8 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "billingEntitlements_professionalAuthorizationId_professionalPatientAuthorizations_id_fk": {
-          "name": "billingEntitlements_professionalAuthorizationId_professionalPatientAuthorizations_id_fk",
+        "billingEntitlements_professionalAuthorizationId_fk": {
+          "name": "billingEntitlements_professionalAuthorizationId_fk",
           "tableFrom": "billingEntitlements",
           "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [

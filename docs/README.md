@@ -32,7 +32,7 @@ Use `docs/product-specs/` para regras funcionais, critérios de aceite e comport
 - preservação da experiência individual já desenvolvida;
 - classificação de issues entre experiência atual, plataforma compartilhada, programa profissional e billing.
 
-`billing-commercial-decisions.md` registra as decisões que precisam ser aprovadas antes de provider real, preços, cobrança ou ativação de `BILLING_ACCESS_MODE=enforced`. Itens marcados como **Em aberto** não podem ser convertidos em regra comercial definitiva.
+`billing-commercial-decisions.md` registra as decisões vinculantes consolidadas pela #145. Preços, capacidades, ciclos, meios de pagamento e matriz inicial são implementados pelo catálogo versionado da #891; provider real, cobrança e ativação de `BILLING_ACCESS_MODE=enforced` continuam condicionados às subissues e gates correspondentes.
 
 ## Design técnico
 

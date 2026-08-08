@@ -119,6 +119,22 @@ const checks = [
     sql: "SELECT COUNT(*) AS count FROM inferenceLogs l LEFT JOIN users u ON u.id = l.userId WHERE l.userId IS NOT NULL AND u.id IS NULL",
   },
   {
+    name: "billingPlans sem produto ou criador válido",
+    sql: "SELECT COUNT(*) AS count FROM billingPlans p LEFT JOIN billingProducts product ON product.id = p.productId LEFT JOIN users creator ON creator.id = p.createdByUserId WHERE product.id IS NULL OR (p.createdByUserId IS NOT NULL AND creator.id IS NULL)",
+  },
+  {
+    name: "billingCoupons com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingCoupons c LEFT JOIN billingCoupons previous ON previous.id = c.supersedesCouponId LEFT JOIN users creator ON creator.id = c.createdByUserId LEFT JOIN users deactivator ON deactivator.id = c.deactivatedByUserId WHERE (c.supersedesCouponId IS NOT NULL AND previous.id IS NULL) OR (c.createdByUserId IS NOT NULL AND creator.id IS NULL) OR (c.deactivatedByUserId IS NOT NULL AND deactivator.id IS NULL)",
+  },
+  {
+    name: "billingCouponRedemptions com referências inválidas",
+    sql: "SELECT COUNT(*) AS count FROM billingCouponRedemptions r LEFT JOIN billingCoupons c ON c.id = r.couponId LEFT JOIN billingPlans p ON p.id = r.planId LEFT JOIN users u ON u.id = r.userId WHERE c.id IS NULL OR p.id IS NULL OR u.id IS NULL",
+  },
+  {
+    name: "billingCommercialAuditEvents com ator inválido",
+    sql: "SELECT COUNT(*) AS count FROM billingCommercialAuditEvents e LEFT JOIN users actor ON actor.id = e.actorUserId WHERE e.actorUserId IS NOT NULL AND actor.id IS NULL",
+  },
+  {
     name: "billingSubscriptions sem pagador ou plano",
     sql: "SELECT COUNT(*) AS count FROM billingSubscriptions s LEFT JOIN users u ON u.id = s.payerUserId LEFT JOIN billingPlans p ON p.id = s.planId WHERE u.id IS NULL OR p.id IS NULL",
   },

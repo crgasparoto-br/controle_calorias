@@ -22,16 +22,20 @@ Cobertura profissional não cria assinatura em nome do paciente. Exceção admin
 
 ## Persistência
 
-- `billingPlans`: catálogo provider-neutral; valores monetários em unidade inteira da moeda; plano inativo deixa de aceitar novas vendas sem invalidar assinaturas vigentes.
+- `billingProducts`: identidade estável da família comercial, independente de provider, preço, ciclo e revisão.
+- `billingPlans`: versões comerciais imutáveis vinculadas ao produto; preservam ciclo, preço em unidade inteira, capacidade, matriz do pagador, matriz do paciente coberto quando aplicável, meios autorizados, vigência, estado e ordem. Assinaturas continuam referenciando a versão contratada por `planId`.
 - `billingSubscriptions`: titular, plano, provider, identificadores externos, período e estado normalizado (`pending`, `active`, `past_due`, `canceled`, `expired`).
 - `billingProviderEvents`: envelope normalizado e idempotente por `(provider, providerEventId)`.
 - `billingEntitlements`: concessões próprias, patrocinadas, trial, transição, acesso somente para leitura, acesso gratuito configurado ou origem administrativa relacionada.
 - `billingCapacityAllocations`: ocupação e liberação auditável de vagas profissionais por `coverageKey`.
 - `billingAdminOverrides`: concessões manuais com motivo, vigência, autoria, revogação e histórico preservado.
 - `billingAccessAuditEvents`: trilha append-only das mudanças de acesso e capacidade.
+- `billingCoupons`: revisões imutáveis de cupom com política, vigência, limites, autoria e chave única para a revisão ativa do código.
+- `billingCouponRedemptions`: reservas/confirmações vinculadas à revisão do cupom e à versão comercial, preservando o desconto histórico e coordenando concorrência.
+- `billingCommercialAuditEvents`: trilha administrativa append-only para produto, versão e cupom.
 - `whatsappConnections.activePhoneKey`: coluna gerada apenas para vínculos ativos e protegida por índice único, impedindo que o mesmo telefone ativo pertença a duas contas sem bloquear a preservação de registros desativados.
 
-As migrations canônicas desta fundação são `drizzle/0038_billing_foundation.sql`, `drizzle/0039_whatsapp_onboarding_activation.sql` e `drizzle/0040_whatsapp_active_phone_uniqueness.sql`. A última migration desativa duplicidades ativas históricas mantendo o vínculo ativo atualizado mais recentemente e, depois, instala a restrição única. Os workflows TiDB aplicam o schema, verificam drift do metadata Drizzle, exercitam concorrência/idempotência e rodam integridade referencial.
+As migrations canônicas da fundação são `drizzle/0038_billing_foundation.sql`, `drizzle/0039_whatsapp_onboarding_activation.sql` e `drizzle/0040_whatsapp_active_phone_uniqueness.sql`. A evolução de catálogo da #891 usa `drizzle/0041_billing_catalog_versioning.sql`, preservando os IDs já referenciados por assinaturas e introduzindo identidade de produto, versão comercial e cupons. A última migration desativa duplicidades ativas históricas mantendo o vínculo ativo atualizado mais recentemente e, depois, instala a restrição única. Os workflows TiDB aplicam o schema, verificam drift do metadata Drizzle, exercitam concorrência/idempotência e rodam integridade referencial.
 
 ## Eventos do provider e minimização
 
@@ -58,7 +62,7 @@ Cobertura profissional exige simultaneamente assinatura ativa do patrocinador, v
 
 ## Matriz profissional combinada
 
-Profissional e Profissional Plus concedem ao próprio pagador, em uma única assinatura, a matriz pessoal do Individual e a matriz profissional. O catálogo versionado deve entregar essa matriz combinada em `billingPlans.entitlementsJson`.
+Profissional e Profissional Plus concedem ao próprio pagador, em uma única assinatura, a matriz pessoal do Individual e a matriz profissional. O catálogo versionado persiste essa matriz combinada em `billingPlans.entitlementsJson` e persiste separadamente a matriz pessoal concedida ao paciente coberto em `billingPlans.coveredBeneficiaryEntitlementsJson`. Assim, uma evolução futura do Individual não altera silenciosamente benefícios de uma assinatura profissional já contratada.
 
 Não é criada assinatura individual adicional, cobertura do profissional sobre si próprio ou cobrança duplicada. O uso pessoal do pagador profissional não chama reserva de capacidade e não ocupa vaga de paciente. Profissional e Plus diferem inicialmente somente pelo limite de capacidade.
 
@@ -125,3 +129,15 @@ As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing
 - `pnpm agent:check`;
 - `pnpm build`;
 - `pnpm db:test:billing` e `pnpm db:check-integrity` quando houver banco.
+
+## Catálogo comercial versionado (#891)
+
+O catálogo comercial é servido exclusivamente pelo backend. `billingProducts.code` é a identidade estável da família; cada linha de `billingPlans` é uma versão contratável imutável, com `versionCode`, número de versão, ciclo, preço, capacidade, recursos, meios de pagamento comercialmente autorizados, vigência e estado. Publicar uma versão nova encerra somente a janela de novas contratações da versão anterior; assinaturas existentes continuam referenciando seu `planId` original.
+
+O seed inicial contém seis versões: Individual mensal/anual, Profissional mensal/anual e Profissional Plus mensal/anual. Os valores e capacidades seguem a #145. Profissional e Plus usam a mesma matriz de recursos combinada — recursos pessoais do Individual mais recursos profissionais — e diferem inicialmente apenas pela capacidade de 30 ou 100 pacientes. Cada versão profissional também congela a matriz pessoal dos pacientes cobertos. O uso pessoal do pagador profissional não cria cobertura sobre si mesmo nem reserva capacidade.
+
+`commercialPaymentMethodsJson` registra apenas a política comercial (`credit_card` e `pix_automatic` no lançamento). `billing.catalog` devolve essa política separadamente de `effectivePaymentMethods`, que é calculado no backend pela interseção com as capacidades do adapter financeiro registrado. Sem adapter da #892, a lista efetiva permanece vazia; o frontend nunca amplia a política por conta própria.
+
+Cupons são revisionados. Alterar uma política cria nova linha em `billingCoupons`, desativa a revisão anterior e mantém `billingCouponRedemptions` apontando para a revisão efetivamente aplicada. Percentual público é limitado a 30%; mensal aceita no máximo três cobranças; anual somente a primeira; desconto equivalente a 100% é rejeitado como cupom e pertence ao fluxo de isenção administrativa. A reserva de uso bloqueia a revisão ativa em transação, contabiliza reservas e confirmações e usa `contractKey` único para impedir estouro concorrente ou duplicação por retry.
+
+Operações de catálogo e cupom usam `adminProcedure`; autoria vem de `ctx.user.id` e cada alteração exige motivo. Alertas `catalog_range_review_required` não possuem caminho de publicação automática: criar produto, criar versão, publicar, desativar e revisar cupom são ações administrativas explícitas.

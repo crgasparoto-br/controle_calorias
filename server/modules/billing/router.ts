@@ -2,6 +2,17 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadService";
 import {
+  billingAdminCatalogListSchema,
+  billingAdminCreateCouponRevisionSchema,
+  billingAdminCreateProductSchema,
+  billingAdminCreateVersionSchema,
+  billingAdminDeactivateCouponSchema,
+  billingAdminDeactivateVersionSchema,
+  billingAdminPublishVersionSchema,
+  billingCouponEligibilitySchema,
+} from "./catalogSchemas";
+import { billingCatalogService } from "./catalogRuntime";
+import {
   billingAdminGrantOverrideSchema,
   billingAdminListOverridesSchema,
   billingAdminRevokeOverrideSchema,
@@ -9,17 +20,71 @@ import {
 } from "./schemas";
 import { billingService } from "./service";
 
+const SAFE_ADMIN_ERROR_PREFIXES = [
+  "A vigência final",
+  "Liberação administrativa não encontrada",
+  "Product and version codes",
+  "Catalog version",
+  "Catalog validity",
+  "Catalog price",
+  "The initial billing catalog",
+  "Individual products",
+  "Professional products",
+  "Active catalog versions",
+  "Professional catalog versions",
+  "Individual catalog versions",
+  "Unknown billing entitlement",
+  "Unknown billing payment method",
+  "Catalog publication",
+  "Billing product not found",
+  "Billing catalog version not found",
+  "Billing catalog seed drift",
+  "Coupon code",
+  "Coupon policy",
+  "Unknown billing coupon cycle",
+  "Coupon discount",
+  "Public percentage coupons",
+  "Fixed-amount coupons",
+  "Percentage coupons",
+  "Coupon validity",
+  "Coupon usage limits",
+  "Coupon duration",
+  "Monthly coupons",
+  "Yearly coupons",
+  "Billing coupon not found",
+  "Coupon contract key",
+  "Billing coupon references unknown",
+] as const;
+
 function safeAdminMutationError(error: unknown): TRPCError {
-  if (
-    error instanceof Error &&
-    (error.message.includes("vigência") ||
-      error.message.includes("não encontrada"))
-  ) {
-    return new TRPCError({ code: "BAD_REQUEST", message: error.message });
+  if (error instanceof Error) {
+    if (
+      error.message.startsWith(
+        "Administrator authorization changed before catalog mutation."
+      )
+    ) {
+      return new TRPCError({
+        code: "FORBIDDEN",
+        message: "Sua autorização administrativa mudou. Recarregue a sessão antes de tentar novamente.",
+      });
+    }
+    const safe = SAFE_ADMIN_ERROR_PREFIXES.some(prefix =>
+      error.message.startsWith(prefix)
+    );
+    if (safe) {
+      return new TRPCError({ code: "BAD_REQUEST", message: error.message });
+    }
   }
   return new TRPCError({
     code: "INTERNAL_SERVER_ERROR",
-    message: "Não foi possível atualizar a liberação administrativa.",
+    message: "Não foi possível atualizar a configuração comercial.",
+  });
+}
+
+function safeCatalogQueryError(): TRPCError {
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível consultar a configuração comercial.",
   });
 }
 
@@ -30,6 +95,25 @@ export const billingRouter = router({
   subscriptionStatus: protectedProcedure.query(({ ctx }) =>
     billingService.getUserSubscriptionStatus(ctx.user.id)
   ),
+  catalog: protectedProcedure.query(async () => {
+    try {
+      return await billingCatalogService.listCatalog();
+    } catch {
+      throw safeCatalogQueryError();
+    }
+  }),
+  couponEligibility: protectedProcedure
+    .input(billingCouponEligibilitySchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.previewCouponEligibility(
+          ctx.user.id,
+          input
+        );
+      } catch {
+        throw safeCatalogQueryError();
+      }
+    }),
   refreshOnboardingActivation: protectedProcedure.mutation(({ ctx }) =>
     activateWhatsappOnboardingUser(ctx.user.id)
   ),
@@ -65,6 +149,98 @@ export const billingRouter = router({
         return await billingService.revokeAdminOverride({
           ...input,
           revokedByUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminCatalogVersions: adminProcedure
+    .input(billingAdminCatalogListSchema)
+    .query(async ({ input }) => {
+      try {
+        return await billingCatalogService.listAdminVersions(input.limit);
+      } catch {
+        throw safeCatalogQueryError();
+      }
+    }),
+  adminCoupons: adminProcedure
+    .input(billingAdminCatalogListSchema)
+    .query(async ({ input }) => {
+      try {
+        return await billingCatalogService.listAdminCoupons(input.limit);
+      } catch {
+        throw safeCatalogQueryError();
+      }
+    }),
+  adminCreateCatalogProduct: adminProcedure
+    .input(billingAdminCreateProductSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.createProduct({
+          ...input,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminCreateCatalogVersion: adminProcedure
+    .input(billingAdminCreateVersionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.createVersion({
+          ...input,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminPublishCatalogVersion: adminProcedure
+    .input(billingAdminPublishVersionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.publishVersion({
+          ...input,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminDeactivateCatalogVersion: adminProcedure
+    .input(billingAdminDeactivateVersionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.deactivateVersion({
+          ...input,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminCreateCouponRevision: adminProcedure
+    .input(billingAdminCreateCouponRevisionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const { reason, ...policy } = input;
+        return await billingCatalogService.createCouponRevision({
+          policy,
+          reason,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        throw safeAdminMutationError(error);
+      }
+    }),
+  adminDeactivateCoupon: adminProcedure
+    .input(billingAdminDeactivateCouponSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await billingCatalogService.deactivateCoupon({
+          ...input,
+          actorUserId: ctx.user.id,
         });
       } catch (error) {
         throw safeAdminMutationError(error);

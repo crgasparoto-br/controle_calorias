@@ -112,9 +112,9 @@ A decisão comercial aprovada é:
 - definição de metas e orientações: responsabilidade do profissional durante o acompanhamento;
 - comunicação: web e WhatsApp.
 
-Preços, limites de pacientes, definição de paciente ativo, trial, tolerância e matriz de entitlements continuam como decisões específicas de billing.
+Preços, limites de pacientes, matriz inicial de entitlements, ciclos e meios de pagamento foram definidos pela épica #145 e são materializados pelo catálogo versionado da #891. Trial, tolerância e demais estados do ciclo comercial permanecem nas subissues específicas de billing.
 
-A fundação provider-neutral da primeira entrega está documentada em `docs/design-docs/billing-foundation.md`. Ela mantém acesso aberto por padrão, diferencia pagador, beneficiário e patrocinador e não antecipa as decisões comerciais pendentes.
+A fundação provider-neutral e sua evolução de catálogo estão documentadas em `docs/design-docs/billing-foundation.md`. O acesso permanece aberto por padrão; pagador, beneficiário e patrocinador continuam distintos; o catálogo da #891 materializa somente as decisões comerciais já aprovadas e não ativa cobrança real.
 
 ## Regras para issues existentes
 
@@ -152,15 +152,14 @@ Cada etapa deve preservar o uso independente do paciente e os contratos comparti
 - substituir ou remover a Área do Paciente;
 - exigir vínculo profissional para usar o sistema;
 - permitir decisão clínica automatizada por IA;
-- definir agora preços, quantidade de pacientes ou regras de clínica com múltiplos profissionais;
+- reabrir preços, capacidades ou matriz comercial já aprovados na #145 dentro desta especificação de experiência;
+- definir regras de clínica com múltiplos profissionais;
 - misturar a reconstrução da Área Profissional com correções já abertas do produto atual.
 
 ## Decisões ainda abertas
 
-- limites e preços dos planos profissionais;
-- definição comercial de paciente ativo;
-- recursos incluídos para o paciente convidado;
-- política para plano individual e eventual conversão para acompanhamento profissional;
+As decisões comerciais de preço, capacidade, ciclos, meios de pagamento e matriz inicial de recursos foram encerradas pela #145 e pertencem ao catálogo versionado da #891. Permanecem abertas apenas evoluções de experiência ou organização que não foram fechadas pela épica de billing:
+
 - nível de configuração da experiência do paciente pelo nutricionista;
 - permissões futuras para assistentes, equipes e clínicas;
 - política de cobrança por mensagens de WhatsApp e uso intensivo de IA.

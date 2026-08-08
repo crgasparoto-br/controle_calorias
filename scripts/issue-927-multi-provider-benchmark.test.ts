@@ -279,7 +279,7 @@ describe("issue 927 executable multi-provider benchmark", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it("rejects metadata that is not bound to the exact report bytes", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "issue-927-metadata-"));

@@ -14,9 +14,15 @@ export function createBillingAdminAnalyticsRepository(
     const db = await requireDb(deps.getDb);
     const planRows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
-        SELECT id, code, name, audience, billingCycle, currency, unitAmount, active
+        SELECT id, code, name, audience, billingCycle, currency, unitAmount,
+          CASE
+            WHEN status = 'active'
+              AND effectiveFrom <= ${now}
+              AND (effectiveUntil IS NULL OR effectiveUntil > ${now})
+            THEN true ELSE false
+          END AS active
         FROM billingPlans
-        ORDER BY code
+        ORDER BY code, version DESC
       `)
     );
     const subscriptionRows = resultRows<Record<string, unknown>>(

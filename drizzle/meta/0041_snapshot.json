@@ -1,8 +1,8 @@
 {
-  "id": "6280792e-0e63-4942-842f-5016a98e7837",
-  "prevId": "dfde6806-038d-42a3-80e5-7c269d8de8e8",
   "version": "5",
   "dialect": "mysql",
+  "id": "3d6237fb-4774-4d00-94bb-1d1800877219",
+  "prevId": "6280792e-0e63-4942-842f-5016a98e7837",
   "tables": {
     "appSecrets": {
       "name": "appSecrets",
@@ -49,8 +49,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -66,15 +66,15 @@
         "appSecrets_updatedByUserId_users_id_fk": {
           "name": "appSecrets_updatedByUserId_users_id_fk",
           "tableFrom": "appSecrets",
+          "tableTo": "users",
           "columnsFrom": [
             "updatedByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -165,8 +165,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -183,15 +183,15 @@
         "dailySummaries_userId_users_id_fk": {
           "name": "dailySummaries_userId_users_id_fk",
           "tableFrom": "dailySummaries",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -286,8 +286,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -321,15 +321,15 @@
         "exercises_userId_users_id_fk": {
           "name": "exercises_userId_users_id_fk",
           "tableFrom": "exercises",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -418,28 +418,28 @@
         "food_aliases_food_id_foods_id_fk": {
           "name": "food_aliases_food_id_foods_id_fk",
           "tableFrom": "food_aliases",
+          "tableTo": "foods",
           "columnsFrom": [
             "food_id"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "food_aliases_source_id_food_sources_id_fk": {
           "name": "food_aliases_source_id_food_sources_id_fk",
           "tableFrom": "food_aliases",
+          "tableTo": "food_sources",
           "columnsFrom": [
             "source_id"
           ],
-          "tableTo": "food_sources",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -505,8 +505,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -744,8 +744,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -789,28 +789,28 @@
         "foodCatalog_brandId_foodBrands_id_fk": {
           "name": "foodCatalog_brandId_foodBrands_id_fk",
           "tableFrom": "foodCatalog",
+          "tableTo": "foodBrands",
           "columnsFrom": [
             "brandId"
           ],
-          "tableTo": "foodBrands",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "foodCatalog_createdByUserId_users_id_fk": {
           "name": "foodCatalog_createdByUserId_users_id_fk",
           "tableFrom": "foodCatalog",
+          "tableTo": "users",
           "columnsFrom": [
             "createdByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -885,28 +885,28 @@
         "foodFavorites_userId_users_id_fk": {
           "name": "foodFavorites_userId_users_id_fk",
           "tableFrom": "foodFavorites",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "foodFavorites_foodCatalogId_foodCatalog_id_fk": {
           "name": "foodFavorites_foodCatalogId_foodCatalog_id_fk",
           "tableFrom": "foodFavorites",
+          "tableTo": "foodCatalog",
           "columnsFrom": [
             "foodCatalogId"
           ],
-          "tableTo": "foodCatalog",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1010,8 +1010,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -1043,28 +1043,28 @@
         "food_portions_food_id_foods_id_fk": {
           "name": "food_portions_food_id_foods_id_fk",
           "tableFrom": "food_portions",
+          "tableTo": "foods",
           "columnsFrom": [
             "food_id"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "food_portions_source_id_food_sources_id_fk": {
           "name": "food_portions_source_id_food_sources_id_fk",
           "tableFrom": "food_portions",
+          "tableTo": "food_sources",
           "columnsFrom": [
             "source_id"
           ],
-          "tableTo": "food_sources",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1144,8 +1144,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -1328,8 +1328,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -1382,41 +1382,41 @@
         "foods_owner_user_id_users_id_fk": {
           "name": "foods_owner_user_id_users_id_fk",
           "tableFrom": "foods",
+          "tableTo": "users",
           "columnsFrom": [
             "owner_user_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "foods_source_id_food_sources_id_fk": {
           "name": "foods_source_id_food_sources_id_fk",
           "tableFrom": "foods",
+          "tableTo": "food_sources",
           "columnsFrom": [
             "source_id"
           ],
-          "tableTo": "food_sources",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "foods_merged_into_food_id_foods_id_fk": {
           "name": "foods_merged_into_food_id_foods_id_fk",
           "tableFrom": "foods",
+          "tableTo": "foods",
           "columnsFrom": [
             "merged_into_food_id"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1506,8 +1506,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -1532,15 +1532,15 @@
         "habitMemories_userId_users_id_fk": {
           "name": "habitMemories_userId_users_id_fk",
           "tableFrom": "habitMemories",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1648,8 +1648,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -1692,15 +1692,15 @@
         "healthSyncedRecords_userId_users_id_fk": {
           "name": "healthSyncedRecords_userId_users_id_fk",
           "tableFrom": "healthSyncedRecords",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1791,15 +1791,15 @@
         "inferenceLogs_userId_users_id_fk": {
           "name": "inferenceLogs_userId_users_id_fk",
           "tableFrom": "inferenceLogs",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1888,15 +1888,15 @@
         "mealFavorites_userId_users_id_fk": {
           "name": "mealFavorites_userId_users_id_fk",
           "tableFrom": "mealFavorites",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2035,28 +2035,28 @@
         "mealInferences_mealId_meals_id_fk": {
           "name": "mealInferences_mealId_meals_id_fk",
           "tableFrom": "mealInferences",
+          "tableTo": "meals",
           "columnsFrom": [
             "mealId"
           ],
-          "tableTo": "meals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "mealInferences_userId_users_id_fk": {
           "name": "mealInferences_userId_users_id_fk",
           "tableFrom": "mealInferences",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2325,67 +2325,67 @@
         "mealItems_mealId_meals_id_fk": {
           "name": "mealItems_mealId_meals_id_fk",
           "tableFrom": "mealItems",
+          "tableTo": "meals",
           "columnsFrom": [
             "mealId"
           ],
-          "tableTo": "meals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "mealItems_foodId_foods_id_fk": {
           "name": "mealItems_foodId_foods_id_fk",
           "tableFrom": "mealItems",
+          "tableTo": "foods",
           "columnsFrom": [
             "foodId"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "mealItems_foodCatalogId_foodCatalog_id_fk": {
           "name": "mealItems_foodCatalogId_foodCatalog_id_fk",
           "tableFrom": "mealItems",
+          "tableTo": "foodCatalog",
           "columnsFrom": [
             "foodCatalogId"
           ],
-          "tableTo": "foodCatalog",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "mealItems_recipeId_recipes_id_fk": {
           "name": "mealItems_recipeId_recipes_id_fk",
           "tableFrom": "mealItems",
+          "tableTo": "recipes",
           "columnsFrom": [
             "recipeId"
           ],
-          "tableTo": "recipes",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "mealItems_portionId_portions_id_fk": {
           "name": "mealItems_portionId_portions_id_fk",
           "tableFrom": "mealItems",
+          "tableTo": "portions",
           "columnsFrom": [
             "portionId"
           ],
-          "tableTo": "portions",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2473,15 +2473,15 @@
         "mealMedia_mealId_meals_id_fk": {
           "name": "mealMedia_mealId_meals_id_fk",
           "tableFrom": "mealMedia",
+          "tableTo": "meals",
           "columnsFrom": [
             "mealId"
           ],
-          "tableTo": "meals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2586,8 +2586,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -2613,15 +2613,15 @@
         "meals_userId_users_id_fk": {
           "name": "meals_userId_users_id_fk",
           "tableFrom": "meals",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2741,8 +2741,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -2768,15 +2768,15 @@
         "nutritionGoals_userId_users_id_fk": {
           "name": "nutritionGoals_userId_users_id_fk",
           "tableFrom": "nutritionGoals",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2859,8 +2859,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -2884,15 +2884,15 @@
         "portions_foodCatalogId_foodCatalog_id_fk": {
           "name": "portions_foodCatalogId_foodCatalog_id_fk",
           "tableFrom": "portions",
+          "tableTo": "foodCatalog",
           "columnsFrom": [
             "foodCatalogId"
           ],
-          "tableTo": "foodCatalog",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2972,8 +2972,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -2997,28 +2997,28 @@
         "quickEditTokens_userId_users_id_fk": {
           "name": "quickEditTokens_userId_users_id_fk",
           "tableFrom": "quickEditTokens",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "quickEditTokens_mealId_meals_id_fk": {
           "name": "quickEditTokens_mealId_meals_id_fk",
           "tableFrom": "quickEditTokens",
+          "tableTo": "meals",
           "columnsFrom": [
             "mealId"
           ],
-          "tableTo": "meals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3169,41 +3169,41 @@
         "recipeItems_recipeId_recipes_id_fk": {
           "name": "recipeItems_recipeId_recipes_id_fk",
           "tableFrom": "recipeItems",
+          "tableTo": "recipes",
           "columnsFrom": [
             "recipeId"
           ],
-          "tableTo": "recipes",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "recipeItems_foodCatalogId_foodCatalog_id_fk": {
           "name": "recipeItems_foodCatalogId_foodCatalog_id_fk",
           "tableFrom": "recipeItems",
+          "tableTo": "foodCatalog",
           "columnsFrom": [
             "foodCatalogId"
           ],
-          "tableTo": "foodCatalog",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "recipeItems_portionId_portions_id_fk": {
           "name": "recipeItems_portionId_portions_id_fk",
           "tableFrom": "recipeItems",
+          "tableTo": "portions",
           "columnsFrom": [
             "portionId"
           ],
-          "tableTo": "portions",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3318,8 +3318,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -3343,15 +3343,15 @@
         "recipes_userId_users_id_fk": {
           "name": "recipes_userId_users_id_fk",
           "tableFrom": "recipes",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3434,15 +3434,15 @@
         "userBadges_userId_users_id_fk": {
           "name": "userBadges_userId_users_id_fk",
           "tableFrom": "userBadges",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3495,8 +3495,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -3512,15 +3512,15 @@
         "userGamificationSettings_userId_users_id_fk": {
           "name": "userGamificationSettings_userId_users_id_fk",
           "tableFrom": "userGamificationSettings",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3586,8 +3586,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -3604,15 +3604,15 @@
         "userPreferences_userId_users_id_fk": {
           "name": "userPreferences_userId_users_id_fk",
           "tableFrom": "userPreferences",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3758,8 +3758,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -3775,15 +3775,15 @@
         "userProfiles_userId_users_id_fk": {
           "name": "userProfiles_userId_users_id_fk",
           "tableFrom": "userProfiles",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3865,8 +3865,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -3891,15 +3891,15 @@
         "userRestrictions_userId_users_id_fk": {
           "name": "userRestrictions_userId_users_id_fk",
           "tableFrom": "userRestrictions",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -3980,8 +3980,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         },
         "lastSignedIn": {
           "name": "lastSignedIn",
@@ -4059,8 +4059,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {},
@@ -4068,15 +4068,15 @@
         "waterGoals_userId_users_id_fk": {
           "name": "waterGoals_userId_users_id_fk",
           "tableFrom": "waterGoals",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4143,8 +4143,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -4161,15 +4161,15 @@
         "waterLogs_userId_users_id_fk": {
           "name": "waterLogs_userId_users_id_fk",
           "tableFrom": "waterLogs",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4236,8 +4236,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -4254,15 +4254,15 @@
         "weightEntries_userId_users_id_fk": {
           "name": "weightEntries_userId_users_id_fk",
           "tableFrom": "weightEntries",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4329,8 +4329,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -4353,15 +4353,15 @@
         "whatsappConnections_userId_users_id_fk": {
           "name": "whatsappConnections_userId_users_id_fk",
           "tableFrom": "whatsappConnections",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4541,8 +4541,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -4583,41 +4583,41 @@
         "whatsappConversationMessages_userId_users_id_fk": {
           "name": "whatsappConversationMessages_userId_users_id_fk",
           "tableFrom": "whatsappConversationMessages",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "whatsappConversationMessages_conversationId_fk": {
           "name": "whatsappConversationMessages_conversationId_fk",
           "tableFrom": "whatsappConversationMessages",
+          "tableTo": "whatsappConversations",
           "columnsFrom": [
             "conversationId"
           ],
-          "tableTo": "whatsappConversations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "whatsappConversationMessages_respondsToMessageId_fk": {
           "name": "whatsappConversationMessages_respondsToMessageId_fk",
           "tableFrom": "whatsappConversationMessages",
+          "tableTo": "whatsappConversationMessages",
           "columnsFrom": [
             "respondsToMessageId"
           ],
-          "tableTo": "whatsappConversationMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4721,54 +4721,54 @@
         "whatsappConversationSummaries_userId_users_id_fk": {
           "name": "whatsappConversationSummaries_userId_users_id_fk",
           "tableFrom": "whatsappConversationSummaries",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "whatsappConversationSummaries_conversationId_fk": {
           "name": "whatsappConversationSummaries_conversationId_fk",
           "tableFrom": "whatsappConversationSummaries",
+          "tableTo": "whatsappConversations",
           "columnsFrom": [
             "conversationId"
           ],
-          "tableTo": "whatsappConversations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "whatsappConversationSummaries_fromMessageId_fk": {
           "name": "whatsappConversationSummaries_fromMessageId_fk",
           "tableFrom": "whatsappConversationSummaries",
+          "tableTo": "whatsappConversationMessages",
           "columnsFrom": [
             "fromMessageId"
           ],
-          "tableTo": "whatsappConversationMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappConversationSummaries_toMessageId_fk": {
           "name": "whatsappConversationSummaries_toMessageId_fk",
           "tableFrom": "whatsappConversationSummaries",
+          "tableTo": "whatsappConversationMessages",
           "columnsFrom": [
             "toMessageId"
           ],
-          "tableTo": "whatsappConversationMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -4866,8 +4866,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -4892,28 +4892,28 @@
         "whatsappConversations_userId_users_id_fk": {
           "name": "whatsappConversations_userId_users_id_fk",
           "tableFrom": "whatsappConversations",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "whatsappConversations_whatsappConnectionId_fk": {
           "name": "whatsappConversations_whatsappConnectionId_fk",
           "tableFrom": "whatsappConversations",
+          "tableTo": "whatsappConnections",
           "columnsFrom": [
             "whatsappConnectionId"
           ],
-          "tableTo": "whatsappConnections",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5029,80 +5029,80 @@
         "whatsappMessageDomainLinks_mealId_meals_id_fk": {
           "name": "whatsappMessageDomainLinks_mealId_meals_id_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "meals",
           "columnsFrom": [
             "mealId"
           ],
-          "tableTo": "meals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappMessageDomainLinks_mealItemId_mealItems_id_fk": {
           "name": "whatsappMessageDomainLinks_mealItemId_mealItems_id_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "mealItems",
           "columnsFrom": [
             "mealItemId"
           ],
-          "tableTo": "mealItems",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappMessageDomainLinks_waterLogId_waterLogs_id_fk": {
           "name": "whatsappMessageDomainLinks_waterLogId_waterLogs_id_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "waterLogs",
           "columnsFrom": [
             "waterLogId"
           ],
-          "tableTo": "waterLogs",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappMessageDomainLinks_weightEntryId_weightEntries_id_fk": {
           "name": "whatsappMessageDomainLinks_weightEntryId_weightEntries_id_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "weightEntries",
           "columnsFrom": [
             "weightEntryId"
           ],
-          "tableTo": "weightEntries",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappMessageDomainLinks_exerciseId_exercises_id_fk": {
           "name": "whatsappMessageDomainLinks_exerciseId_exercises_id_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "exercises",
           "columnsFrom": [
             "exerciseId"
           ],
-          "tableTo": "exercises",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "whatsappMessageDomainLinks_messageId_fk": {
           "name": "whatsappMessageDomainLinks_messageId_fk",
           "tableFrom": "whatsappMessageDomainLinks",
+          "tableTo": "whatsappConversationMessages",
           "columnsFrom": [
             "messageId"
           ],
-          "tableTo": "whatsappConversationMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5191,8 +5191,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         },
         "consumedAt": {
           "name": "consumedAt",
@@ -5216,15 +5216,15 @@
         "wa_pending_op_user_fk": {
           "name": "wa_pending_op_user_fk",
           "tableFrom": "whatsappPendingOperations",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5299,28 +5299,28 @@
         "user_food_favorites_user_id_users_id_fk": {
           "name": "user_food_favorites_user_id_users_id_fk",
           "tableFrom": "user_food_favorites",
+          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "user_food_favorites_food_id_foods_id_fk": {
           "name": "user_food_favorites_food_id_foods_id_fk",
           "tableFrom": "user_food_favorites",
+          "tableTo": "foods",
           "columnsFrom": [
             "food_id"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5388,8 +5388,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -5421,28 +5421,28 @@
         "user_food_usage_stats_user_id_users_id_fk": {
           "name": "user_food_usage_stats_user_id_users_id_fk",
           "tableFrom": "user_food_usage_stats",
+          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "user_food_usage_stats_food_id_foods_id_fk": {
           "name": "user_food_usage_stats_food_id_foods_id_fk",
           "tableFrom": "user_food_usage_stats",
+          "tableTo": "foods",
           "columnsFrom": [
             "food_id"
           ],
-          "tableTo": "foods",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5521,28 +5521,28 @@
         "professionalComments_professionalUserId_users_id_fk": {
           "name": "professionalComments_professionalUserId_users_id_fk",
           "tableFrom": "professionalComments",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalComments_patientUserId_users_id_fk": {
           "name": "professionalComments_patientUserId_users_id_fk",
           "tableFrom": "professionalComments",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5608,8 +5608,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -5641,41 +5641,41 @@
         "professionalConversations_authorization_fk": {
           "name": "professionalConversations_authorization_fk",
           "tableFrom": "professionalConversations",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         },
         "professionalConversations_professional_fk": {
           "name": "professionalConversations_professional_fk",
           "tableFrom": "professionalConversations",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         },
         "professionalConversations_patient_fk": {
           "name": "professionalConversations_patient_fk",
           "tableFrom": "professionalConversations",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5786,8 +5786,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -5811,28 +5811,28 @@
         "professionalGoalNotifications_goal_fk": {
           "name": "professionalGoalNotifications_goal_fk",
           "tableFrom": "professionalGoalNotifications",
+          "tableTo": "professionalOfficialGoals",
           "columnsFrom": [
             "goalId"
           ],
-          "tableTo": "professionalOfficialGoals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalGoalNotifications_patient_fk": {
           "name": "professionalGoalNotifications_patient_fk",
           "tableFrom": "professionalGoalNotifications",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -5927,8 +5927,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -5962,54 +5962,54 @@
         "professionalGoalReviewRequests_goal_fk": {
           "name": "professionalGoalReviewRequests_goal_fk",
           "tableFrom": "professionalGoalReviewRequests",
+          "tableTo": "professionalOfficialGoals",
           "columnsFrom": [
             "goalId"
           ],
-          "tableTo": "professionalOfficialGoals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalGoalReviewRequests_professional_fk": {
           "name": "professionalGoalReviewRequests_professional_fk",
           "tableFrom": "professionalGoalReviewRequests",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalGoalReviewRequests_patient_fk": {
           "name": "professionalGoalReviewRequests_patient_fk",
           "tableFrom": "professionalGoalReviewRequests",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalGoalReviewRequests_resolver_fk": {
           "name": "professionalGoalReviewRequests_resolver_fk",
           "tableFrom": "professionalGoalReviewRequests",
+          "tableTo": "users",
           "columnsFrom": [
             "resolvedByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -6117,8 +6117,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -6147,28 +6147,28 @@
         "professionalGoalSuggestions_professionalUserId_users_id_fk": {
           "name": "professionalGoalSuggestions_professionalUserId_users_id_fk",
           "tableFrom": "professionalGoalSuggestions",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalGoalSuggestions_patientUserId_users_id_fk": {
           "name": "professionalGoalSuggestions_patientUserId_users_id_fk",
           "tableFrom": "professionalGoalSuggestions",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -6282,41 +6282,41 @@
         "professionalHistoryEvents_actorUserId_users_id_fk": {
           "name": "professionalHistoryEvents_actorUserId_users_id_fk",
           "tableFrom": "professionalHistoryEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "actorUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "professionalHistoryEvents_professionalUserId_users_id_fk": {
           "name": "professionalHistoryEvents_professionalUserId_users_id_fk",
           "tableFrom": "professionalHistoryEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalHistoryEvents_patientUserId_users_id_fk": {
           "name": "professionalHistoryEvents_patientUserId_users_id_fk",
           "tableFrom": "professionalHistoryEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -6431,8 +6431,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -6461,28 +6461,28 @@
         "professionalMealSuggestions_professionalUserId_users_id_fk": {
           "name": "professionalMealSuggestions_professionalUserId_users_id_fk",
           "tableFrom": "professionalMealSuggestions",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalMealSuggestions_patientUserId_users_id_fk": {
           "name": "professionalMealSuggestions_patientUserId_users_id_fk",
           "tableFrom": "professionalMealSuggestions",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -6607,15 +6607,15 @@
         "professionalMessageAttempts_message_fk": {
           "name": "professionalMessageAttempts_message_fk",
           "tableFrom": "professionalMessageDeliveryAttempts",
+          "tableTo": "professionalMessages",
           "columnsFrom": [
             "messageId"
           ],
-          "tableTo": "professionalMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -6807,8 +6807,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -6849,67 +6849,67 @@
         "professionalMessages_conversation_fk": {
           "name": "professionalMessages_conversation_fk",
           "tableFrom": "professionalMessages",
+          "tableTo": "professionalConversations",
           "columnsFrom": [
             "conversationId"
           ],
-          "tableTo": "professionalConversations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         },
         "professionalMessages_authorization_fk": {
           "name": "professionalMessages_authorization_fk",
           "tableFrom": "professionalMessages",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         },
         "professionalMessages_author_fk": {
           "name": "professionalMessages_author_fk",
           "tableFrom": "professionalMessages",
+          "tableTo": "users",
           "columnsFrom": [
             "authorUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "professionalMessages_reply_fk": {
           "name": "professionalMessages_reply_fk",
           "tableFrom": "professionalMessages",
+          "tableTo": "professionalMessages",
           "columnsFrom": [
             "inReplyToMessageId"
           ],
-          "tableTo": "professionalMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "professionalMessages_supersedes_fk": {
           "name": "professionalMessages_supersedes_fk",
           "tableFrom": "professionalMessages",
+          "tableTo": "professionalMessages",
           "columnsFrom": [
             "supersedesMessageId"
           ],
-          "tableTo": "professionalMessages",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7082,8 +7082,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -7116,67 +7116,67 @@
         "professionalOfficialGoals_authorization_fk": {
           "name": "professionalOfficialGoals_authorization_fk",
           "tableFrom": "professionalOfficialGoals",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalOfficialGoals_tracking_fk": {
           "name": "professionalOfficialGoals_tracking_fk",
           "tableFrom": "professionalOfficialGoals",
+          "tableTo": "professionalPatientTrackings",
           "columnsFrom": [
             "trackingId"
           ],
-          "tableTo": "professionalPatientTrackings",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalOfficialGoals_professional_fk": {
           "name": "professionalOfficialGoals_professional_fk",
           "tableFrom": "professionalOfficialGoals",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalOfficialGoals_patient_fk": {
           "name": "professionalOfficialGoals_patient_fk",
           "tableFrom": "professionalOfficialGoals",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalOfficialGoals_supersedes_fk": {
           "name": "professionalOfficialGoals_supersedes_fk",
           "tableFrom": "professionalOfficialGoals",
+          "tableTo": "professionalOfficialGoals",
           "columnsFrom": [
             "supersedesGoalId"
           ],
-          "tableTo": "professionalOfficialGoals",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7326,8 +7326,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -7367,28 +7367,28 @@
         "professionalPatientAuthorizations_professionalUserId_users_id_fk": {
           "name": "professionalPatientAuthorizations_professionalUserId_users_id_fk",
           "tableFrom": "professionalPatientAuthorizations",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientAuthorizations_patientUserId_users_id_fk": {
           "name": "professionalPatientAuthorizations_patientUserId_users_id_fk",
           "tableFrom": "professionalPatientAuthorizations",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7500,41 +7500,41 @@
         "professionalPatientTrackingEvents_trackingId_professionalPatientTrackings_id_fk": {
           "name": "professionalPatientTrackingEvents_trackingId_professionalPatientTrackings_id_fk",
           "tableFrom": "professionalPatientTrackingEvents",
+          "tableTo": "professionalPatientTrackings",
           "columnsFrom": [
             "trackingId"
           ],
-          "tableTo": "professionalPatientTrackings",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientTrackingEvents_authorizationId_professionalPatientAuthorizations_id_fk": {
           "name": "professionalPatientTrackingEvents_authorizationId_professionalPatientAuthorizations_id_fk",
           "tableFrom": "professionalPatientTrackingEvents",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientTrackingEvents_actorUserId_users_id_fk": {
           "name": "professionalPatientTrackingEvents_actorUserId_users_id_fk",
           "tableFrom": "professionalPatientTrackingEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "actorUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7657,8 +7657,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -7706,54 +7706,54 @@
         "professionalPatientTrackings_authorizationId_professionalPatientAuthorizations_id_fk": {
           "name": "professionalPatientTrackings_authorizationId_professionalPatientAuthorizations_id_fk",
           "tableFrom": "professionalPatientTrackings",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientTrackings_professionalUserId_users_id_fk": {
           "name": "professionalPatientTrackings_professionalUserId_users_id_fk",
           "tableFrom": "professionalPatientTrackings",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientTrackings_patientUserId_users_id_fk": {
           "name": "professionalPatientTrackings_patientUserId_users_id_fk",
           "tableFrom": "professionalPatientTrackings",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "professionalPatientTrackings_lastTransitionByUserId_users_id_fk": {
           "name": "professionalPatientTrackings_lastTransitionByUserId_users_id_fk",
           "tableFrom": "professionalPatientTrackings",
+          "tableTo": "users",
           "columnsFrom": [
             "lastTransitionByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7820,8 +7820,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -7837,15 +7837,15 @@
         "professionalProfiles_userId_users_id_fk": {
           "name": "professionalProfiles_userId_users_id_fk",
           "tableFrom": "professionalProfiles",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -7966,28 +7966,28 @@
         "billingAccessAuditEvents_subjectUserId_users_id_fk": {
           "name": "billingAccessAuditEvents_subjectUserId_users_id_fk",
           "tableFrom": "billingAccessAuditEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "subjectUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingAccessAuditEvents_actorUserId_users_id_fk": {
           "name": "billingAccessAuditEvents_actorUserId_users_id_fk",
           "tableFrom": "billingAccessAuditEvents",
+          "tableTo": "users",
           "columnsFrom": [
             "actorUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8098,8 +8098,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -8131,41 +8131,41 @@
         "billingAdminOverrides_userId_users_id_fk": {
           "name": "billingAdminOverrides_userId_users_id_fk",
           "tableFrom": "billingAdminOverrides",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingAdminOverrides_grantedByUserId_users_id_fk": {
           "name": "billingAdminOverrides_grantedByUserId_users_id_fk",
           "tableFrom": "billingAdminOverrides",
+          "tableTo": "users",
           "columnsFrom": [
             "grantedByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "billingAdminOverrides_revokedByUserId_users_id_fk": {
           "name": "billingAdminOverrides_revokedByUserId_users_id_fk",
           "tableFrom": "billingAdminOverrides",
+          "tableTo": "users",
           "columnsFrom": [
             "revokedByUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8275,8 +8275,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -8316,59 +8316,590 @@
         "billingCapacityAllocations_subscriptionId_fk": {
           "name": "billingCapacityAllocations_subscriptionId_fk",
           "tableFrom": "billingCapacityAllocations",
+          "tableTo": "billingSubscriptions",
           "columnsFrom": [
             "subscriptionId"
           ],
-          "tableTo": "billingSubscriptions",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingCapacityAllocations_professionalUserId_users_id_fk": {
           "name": "billingCapacityAllocations_professionalUserId_users_id_fk",
           "tableFrom": "billingCapacityAllocations",
+          "tableTo": "users",
           "columnsFrom": [
             "professionalUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingCapacityAllocations_patientUserId_users_id_fk": {
           "name": "billingCapacityAllocations_patientUserId_users_id_fk",
           "tableFrom": "billingCapacityAllocations",
+          "tableTo": "users",
           "columnsFrom": [
             "patientUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingCapacityAllocations_authorizationId_fk": {
           "name": "billingCapacityAllocations_authorizationId_fk",
           "tableFrom": "billingCapacityAllocations",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "authorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "billingCapacityAllocations_id": {
           "name": "billingCapacityAllocations_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "billingCommercialAuditEvents": {
+      "name": "billingCommercialAuditEvents",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actorUserId": {
+          "name": "actorUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "entityType": {
+          "name": "entityType",
+          "type": "enum('product','version','coupon')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entityId": {
+          "name": "entityId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadataJson": {
+          "name": "metadataJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "billingCommercialAuditEvents_entity_created_idx": {
+          "name": "billingCommercialAuditEvents_entity_created_idx",
+          "columns": [
+            "entityType",
+            "entityId",
+            "createdAt"
+          ],
+          "isUnique": false
+        },
+        "billingCommercialAuditEvents_actor_created_idx": {
+          "name": "billingCommercialAuditEvents_actor_created_idx",
+          "columns": [
+            "actorUserId",
+            "createdAt"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "billingCommercialAuditEvents_actorUserId_users_id_fk": {
+          "name": "billingCommercialAuditEvents_actorUserId_users_id_fk",
+          "tableFrom": "billingCommercialAuditEvents",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actorUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "billingCommercialAuditEvents_id": {
+          "name": "billingCommercialAuditEvents_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "billingCouponRedemptions": {
+      "name": "billingCouponRedemptions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "couponId": {
+          "name": "couponId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "planId": {
+          "name": "planId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contractKey": {
+          "name": "contractKey",
+          "type": "varchar(191)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "enum('reserved','confirmed','canceled')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'reserved'"
+        },
+        "discountAmount": {
+          "name": "discountAmount",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "finalAmount": {
+          "name": "finalAmount",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reservedAt": {
+          "name": "reservedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "confirmedAt": {
+          "name": "confirmedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "canceledAt": {
+          "name": "canceledAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "billingCouponRedemptions_contract_key_uq": {
+          "name": "billingCouponRedemptions_contract_key_uq",
+          "columns": [
+            "contractKey"
+          ],
+          "isUnique": true
+        },
+        "billingCouponRedemptions_coupon_state_idx": {
+          "name": "billingCouponRedemptions_coupon_state_idx",
+          "columns": [
+            "couponId",
+            "state"
+          ],
+          "isUnique": false
+        },
+        "billingCouponRedemptions_user_coupon_state_idx": {
+          "name": "billingCouponRedemptions_user_coupon_state_idx",
+          "columns": [
+            "userId",
+            "couponId",
+            "state"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "billingCouponRedemptions_couponId_billingCoupons_id_fk": {
+          "name": "billingCouponRedemptions_couponId_billingCoupons_id_fk",
+          "tableFrom": "billingCouponRedemptions",
+          "tableTo": "billingCoupons",
+          "columnsFrom": [
+            "couponId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "billingCouponRedemptions_planId_billingPlans_id_fk": {
+          "name": "billingCouponRedemptions_planId_billingPlans_id_fk",
+          "tableFrom": "billingCouponRedemptions",
+          "tableTo": "billingPlans",
+          "columnsFrom": [
+            "planId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "billingCouponRedemptions_userId_users_id_fk": {
+          "name": "billingCouponRedemptions_userId_users_id_fk",
+          "tableFrom": "billingCouponRedemptions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "billingCouponRedemptions_id": {
+          "name": "billingCouponRedemptions_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "billingCoupons": {
+      "name": "billingCoupons",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "activeCodeKey": {
+          "name": "activeCodeKey",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "discountType": {
+          "name": "discountType",
+          "type": "enum('percentage','fixed_amount')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "discountValue": {
+          "name": "discountValue",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "eligibleProductCodesJson": {
+          "name": "eligibleProductCodesJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eligibleVersionCodesJson": {
+          "name": "eligibleVersionCodesJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eligibleCyclesJson": {
+          "name": "eligibleCyclesJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "validFrom": {
+          "name": "validFrom",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "validUntil": {
+          "name": "validUntil",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "maxTotalUses": {
+          "name": "maxTotalUses",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "maxUsesPerUser": {
+          "name": "maxUsesPerUser",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "firstContractOnly": {
+          "name": "firstContractOnly",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "durationCharges": {
+          "name": "durationCharges",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "enum('active','inactive')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'active'"
+        },
+        "supersedesCouponId": {
+          "name": "supersedesCouponId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdByUserId": {
+          "name": "createdByUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deactivatedByUserId": {
+          "name": "deactivatedByUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deactivatedAt": {
+          "name": "deactivatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "billingCoupons_active_code_uq": {
+          "name": "billingCoupons_active_code_uq",
+          "columns": [
+            "activeCodeKey"
+          ],
+          "isUnique": true
+        },
+        "billingCoupons_code_revision_uq": {
+          "name": "billingCoupons_code_revision_uq",
+          "columns": [
+            "code",
+            "revision"
+          ],
+          "isUnique": true
+        },
+        "billingCoupons_code_state_idx": {
+          "name": "billingCoupons_code_state_idx",
+          "columns": [
+            "code",
+            "state"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "billingCoupons_supersedesCouponId_billingCoupons_id_fk": {
+          "name": "billingCoupons_supersedesCouponId_billingCoupons_id_fk",
+          "tableFrom": "billingCoupons",
+          "tableTo": "billingCoupons",
+          "columnsFrom": [
+            "supersedesCouponId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "billingCoupons_createdByUserId_users_id_fk": {
+          "name": "billingCoupons_createdByUserId_users_id_fk",
+          "tableFrom": "billingCoupons",
+          "tableTo": "users",
+          "columnsFrom": [
+            "createdByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "billingCoupons_deactivatedByUserId_users_id_fk": {
+          "name": "billingCoupons_deactivatedByUserId_users_id_fk",
+          "tableFrom": "billingCoupons",
+          "tableTo": "users",
+          "columnsFrom": [
+            "deactivatedByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "billingCoupons_id": {
+          "name": "billingCoupons_id",
           "columns": [
             "id"
           ]
@@ -8494,8 +9025,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -8535,54 +9066,54 @@
         "billingEntitlements_beneficiaryUserId_users_id_fk": {
           "name": "billingEntitlements_beneficiaryUserId_users_id_fk",
           "tableFrom": "billingEntitlements",
+          "tableTo": "users",
           "columnsFrom": [
             "beneficiaryUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingEntitlements_sponsorUserId_users_id_fk": {
           "name": "billingEntitlements_sponsorUserId_users_id_fk",
           "tableFrom": "billingEntitlements",
+          "tableTo": "users",
           "columnsFrom": [
             "sponsorUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "billingEntitlements_planId_billingPlans_id_fk": {
           "name": "billingEntitlements_planId_billingPlans_id_fk",
           "tableFrom": "billingEntitlements",
+          "tableTo": "billingPlans",
           "columnsFrom": [
             "planId"
           ],
-          "tableTo": "billingPlans",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "billingEntitlements_professionalAuthorizationId_fk": {
           "name": "billingEntitlements_professionalAuthorizationId_fk",
           "tableFrom": "billingEntitlements",
+          "tableTo": "professionalPatientAuthorizations",
           "columnsFrom": [
             "professionalAuthorizationId"
           ],
-          "tableTo": "professionalPatientAuthorizations",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8606,9 +9137,30 @@
           "notNull": true,
           "autoincrement": false
         },
+        "productId": {
+          "name": "productId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "code": {
           "name": "code",
           "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "versionCode": {
+          "name": "versionCode",
+          "type": "varchar(191)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -8669,6 +9221,28 @@
           "notNull": true,
           "autoincrement": false
         },
+        "coveredBeneficiaryEntitlementsJson": {
+          "name": "coveredBeneficiaryEntitlementsJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commercialPaymentMethodsJson": {
+          "name": "commercialPaymentMethodsJson",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('draft','active','inactive')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -8676,6 +9250,35 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "effectiveFrom": {
+          "name": "effectiveFrom",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effectiveUntil": {
+          "name": "effectiveUntil",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sortOrder": {
+          "name": "sortOrder",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "createdByUserId": {
+          "name": "createdByUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
@@ -8691,15 +9294,24 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
-        "billingPlans_code_uq": {
-          "name": "billingPlans_code_uq",
+        "billingPlans_version_code_uq": {
+          "name": "billingPlans_version_code_uq",
           "columns": [
-            "code"
+            "versionCode"
+          ],
+          "isUnique": true
+        },
+        "billingPlans_product_cycle_version_uq": {
+          "name": "billingPlans_product_cycle_version_uq",
+          "columns": [
+            "productId",
+            "billingCycle",
+            "version"
           ],
           "isUnique": true
         },
@@ -8710,12 +9322,141 @@
             "active"
           ],
           "isUnique": false
+        },
+        "billingPlans_product_status_effective_idx": {
+          "name": "billingPlans_product_status_effective_idx",
+          "columns": [
+            "productId",
+            "status",
+            "effectiveFrom"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "billingPlans_productId_billingProducts_id_fk": {
+          "name": "billingPlans_productId_billingProducts_id_fk",
+          "tableFrom": "billingPlans",
+          "tableTo": "billingProducts",
+          "columnsFrom": [
+            "productId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "billingPlans_createdByUserId_users_id_fk": {
+          "name": "billingPlans_createdByUserId_users_id_fk",
+          "tableFrom": "billingPlans",
+          "tableTo": "users",
+          "columnsFrom": [
+            "createdByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "billingPlans_id": {
+          "name": "billingPlans_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "billingProducts": {
+      "name": "billingProducts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "audience": {
+          "name": "audience",
+          "type": "enum('individual','professional')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "enum('active','inactive')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'active'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "billingProducts_code_uq": {
+          "name": "billingProducts_code_uq",
+          "columns": [
+            "code"
+          ],
+          "isUnique": true
+        },
+        "billingProducts_audience_state_idx": {
+          "name": "billingProducts_audience_state_idx",
+          "columns": [
+            "audience",
+            "state"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "billingPlans_id": {
-          "name": "billingPlans_id",
+        "billingProducts_id": {
+          "name": "billingProducts_id",
           "columns": [
             "id"
           ]
@@ -8812,8 +9553,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -8846,15 +9587,15 @@
         "billingProviderEvents_subscriptionId_billingSubscriptions_id_fk": {
           "name": "billingProviderEvents_subscriptionId_billingSubscriptions_id_fk",
           "tableFrom": "billingProviderEvents",
+          "tableTo": "billingSubscriptions",
           "columnsFrom": [
             "subscriptionId"
           ],
-          "tableTo": "billingSubscriptions",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8985,8 +9726,8 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())",
-          "onUpdate": true
+          "onUpdate": true,
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -9026,28 +9767,28 @@
         "billingSubscriptions_payerUserId_users_id_fk": {
           "name": "billingSubscriptions_payerUserId_users_id_fk",
           "tableFrom": "billingSubscriptions",
+          "tableTo": "users",
           "columnsFrom": [
             "payerUserId"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "billingSubscriptions_planId_billingPlans_id_fk": {
           "name": "billingSubscriptions_planId_billingPlans_id_fk",
           "tableFrom": "billingSubscriptions",
+          "tableTo": "billingPlans",
           "columnsFrom": [
             "planId"
           ],
-          "tableTo": "billingPlans",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -9064,9 +9805,9 @@
   },
   "views": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
   },
   "internal": {
     "tables": {},

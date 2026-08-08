@@ -39,6 +39,11 @@
 | `professionalConversations`           | Conversa canônica por autorização profissional                             |
 | `professionalMessages`                | Mensagens lógicas, autoria, origem, resposta e estado                      |
 | `professionalMessageDeliveryAttempts` | Tentativas físicas e claims idempotentes de entrega                        |
+| `billingProducts`                      | Identidade estável das famílias comerciais                                |
+| `billingPlans`                         | Versões comerciais contratáveis e históricas                               |
+| `billingCoupons`                       | Revisões de política de cupom                                               |
+| `billingCouponRedemptions`             | Reserva/uso idempotente de cupom por contratação                            |
+| `billingCommercialAuditEvents`         | Auditoria administrativa de produto, versão e cupom                         |
 
 ## Regras
 
@@ -132,6 +137,22 @@ A migration `0032_professional_official_goals.sql` cria o modelo versionado da i
 - `professionalGoalNotifications_idempotency_uq`, `status`, `claimToken` e `claimedAt` coordenam retry entre instâncias. Falha externa nunca desfaz a meta já persistida;
 - pausa não altera a janela da meta. Encerramento e revogação limpam a chave ativa e encerram a vigência na mesma transação da mudança de acompanhamento/autorização;
 - sugestões existentes em `professionalGoalSuggestions` continuam independentes e não alimentam esse modelo por migration ou backfill.
+
+## Catálogo comercial versionado
+
+A migration `0041_billing_catalog_versioning.sql` evolui a fundação de billing sem trocar os IDs já referenciados por `billingSubscriptions.planId`:
+
+- `billingProducts` introduz o código estável da família comercial;
+- `billingPlans` permanece como alvo das FKs existentes, mas cada linha passa a representar uma versão imutável com `versionCode`, número, vigência, estado, recursos do pagador, recursos do paciente coberto e meios de pagamento; registros legados da fundação recebem `version = 0`, ficam inativos para novas vendas e preservam seus IDs para assinaturas existentes;
+- publicar versão nova não altera `planId` de assinatura existente;
+- `billingCoupons` mantém revisões históricas e somente uma revisão ativa por código;
+- `billingCouponRedemptions.contractKey` impede acumular dois cupons na mesma contratação e torna retry idempotente; os limites de uso são contabilizados pelo código lógico em todas as revisões, sem zerar ao revisar a política;
+- reservas de cupom bloqueiam a linha do usuário antes da resolução do `contractKey`, serializando tentativas concorrentes da mesma contratação/usuário;
+- mutações administrativas revalidam e bloqueiam a linha `users` do ator como `admin` dentro da transação antes de qualquer alteração comercial;
+- limite total e por usuário considera reservas e confirmações dentro da mesma transação que bloqueia a revisão ativa;
+- `billingCommercialAuditEvents` preserva ator, motivo, entidade e ação sem payload financeiro bruto.
+
+O seed canônico pode ser reexecutado. Definição já existente precisa coincidir integralmente com preço, ciclo, capacidade, recursos e meios autorizados; drift falha em vez de sobrescrever histórico.
 
 ## Validação
 

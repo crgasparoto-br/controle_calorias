@@ -1,4 +1,5 @@
 import {
+  type AnyMySqlColumn,
   boolean,
   index,
   int,
@@ -13,11 +14,37 @@ import {
 import { professionalPatientAuthorizations } from "./professional-schema";
 import { users } from "./schema";
 
+export const billingProducts = mysqlTable(
+  "billingProducts",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    code: varchar("code", { length: 120 }).notNull(),
+    audience: mysqlEnum("audience", ["individual", "professional"]).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    state: mysqlEnum("state", ["active", "inactive"]).default("active").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    codeUniqueIdx: uniqueIndex("billingProducts_code_uq").on(table.code),
+    audienceStateIdx: index("billingProducts_audience_state_idx").on(
+      table.audience,
+      table.state
+    ),
+  })
+);
+
 export const billingPlans = mysqlTable(
   "billingPlans",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
+    productId: varchar("productId", { length: 64 })
+      .notNull()
+      .references(() => billingProducts.id, { onDelete: "restrict" }),
     code: varchar("code", { length: 120 }).notNull(),
+    versionCode: varchar("versionCode", { length: 191 }).notNull(),
+    version: int("version").notNull(),
     audience: mysqlEnum("audience", ["individual", "professional"]).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     description: text("description"),
@@ -30,19 +57,39 @@ export const billingPlans = mysqlTable(
     ]).notNull(),
     capacityLimit: int("capacityLimit"),
     entitlementsJson: json("entitlementsJson").notNull(),
+    coveredBeneficiaryEntitlementsJson: json(
+      "coveredBeneficiaryEntitlementsJson"
+    ).notNull(),
+    commercialPaymentMethodsJson: json("commercialPaymentMethodsJson").notNull(),
+    status: mysqlEnum("status", ["draft", "active", "inactive"])
+      .default("draft")
+      .notNull(),
     active: boolean("active").default(false).notNull(),
+    effectiveFrom: timestamp("effectiveFrom").notNull(),
+    effectiveUntil: timestamp("effectiveUntil"),
+    sortOrder: int("sortOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
-    codeUniqueIdx: uniqueIndex("billingPlans_code_uq").on(table.code),
+    versionCodeUniqueIdx: uniqueIndex("billingPlans_version_code_uq").on(
+      table.versionCode
+    ),
+    productCycleVersionUniqueIdx: uniqueIndex(
+      "billingPlans_product_cycle_version_uq"
+    ).on(table.productId, table.billingCycle, table.version),
     audienceActiveIdx: index("billingPlans_audience_active_idx").on(
       table.audience,
       table.active
     ),
+    productStatusEffectiveIdx: index(
+      "billingPlans_product_status_effective_idx"
+    ).on(table.productId, table.status, table.effectiveFrom),
   })
 );
-
 export const billingSubscriptions = mysqlTable(
   "billingSubscriptions",
   {
@@ -318,15 +365,127 @@ export const billingAccessAuditEvents = mysqlTable(
   })
 );
 
+
+export const billingCoupons = mysqlTable(
+  "billingCoupons",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    code: varchar("code", { length: 80 }).notNull(),
+    revision: int("revision").notNull(),
+    activeCodeKey: varchar("activeCodeKey", { length: 80 }),
+    discountType: mysqlEnum("discountType", ["percentage", "fixed_amount"]).notNull(),
+    discountValue: int("discountValue").notNull(),
+    currency: varchar("currency", { length: 3 }),
+    eligibleProductCodesJson: json("eligibleProductCodesJson").notNull(),
+    eligibleVersionCodesJson: json("eligibleVersionCodesJson").notNull(),
+    eligibleCyclesJson: json("eligibleCyclesJson").notNull(),
+    validFrom: timestamp("validFrom").notNull(),
+    validUntil: timestamp("validUntil"),
+    maxTotalUses: int("maxTotalUses"),
+    maxUsesPerUser: int("maxUsesPerUser"),
+    firstContractOnly: boolean("firstContractOnly").default(false).notNull(),
+    durationCharges: int("durationCharges").notNull(),
+    state: mysqlEnum("state", ["active", "inactive"]).default("active").notNull(),
+    supersedesCouponId: varchar("supersedesCouponId", { length: 64 }).references(
+      (): AnyMySqlColumn => billingCoupons.id,
+      { onDelete: "set null" }
+    ),
+    createdByUserId: int("createdByUserId").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    deactivatedByUserId: int("deactivatedByUserId").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    deactivatedAt: timestamp("deactivatedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    activeCodeUniqueIdx: uniqueIndex("billingCoupons_active_code_uq").on(
+      table.activeCodeKey
+    ),
+    codeRevisionUniqueIdx: uniqueIndex("billingCoupons_code_revision_uq").on(
+      table.code,
+      table.revision
+    ),
+    codeStateIdx: index("billingCoupons_code_state_idx").on(table.code, table.state),
+  })
+);
+
+export const billingCouponRedemptions = mysqlTable(
+  "billingCouponRedemptions",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    couponId: varchar("couponId", { length: 64 })
+      .notNull()
+      .references(() => billingCoupons.id, { onDelete: "restrict" }),
+    planId: varchar("planId", { length: 64 })
+      .notNull()
+      .references(() => billingPlans.id, { onDelete: "restrict" }),
+    userId: int("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    contractKey: varchar("contractKey", { length: 191 }).notNull(),
+    state: mysqlEnum("state", ["reserved", "confirmed", "canceled"])
+      .default("reserved")
+      .notNull(),
+    discountAmount: int("discountAmount").notNull(),
+    finalAmount: int("finalAmount").notNull(),
+    reservedAt: timestamp("reservedAt").defaultNow().notNull(),
+    confirmedAt: timestamp("confirmedAt"),
+    canceledAt: timestamp("canceledAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    contractKeyUniqueIdx: uniqueIndex(
+      "billingCouponRedemptions_contract_key_uq"
+    ).on(table.contractKey),
+    couponStateIdx: index("billingCouponRedemptions_coupon_state_idx").on(
+      table.couponId,
+      table.state
+    ),
+    userCouponStateIdx: index(
+      "billingCouponRedemptions_user_coupon_state_idx"
+    ).on(table.userId, table.couponId, table.state),
+  })
+);
+
+export const billingCommercialAuditEvents = mysqlTable(
+  "billingCommercialAuditEvents",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    actorUserId: int("actorUserId").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    entityType: mysqlEnum("entityType", ["product", "version", "coupon"]).notNull(),
+    entityId: varchar("entityId", { length: 64 }).notNull(),
+    action: varchar("action", { length: 120 }).notNull(),
+    reason: text("reason").notNull(),
+    metadataJson: json("metadataJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    entityCreatedIdx: index("billingCommercialAuditEvents_entity_created_idx").on(
+      table.entityType,
+      table.entityId,
+      table.createdAt
+    ),
+    actorCreatedIdx: index("billingCommercialAuditEvents_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+  })
+);
+
+export type BillingProductRecord = typeof billingProducts.$inferSelect;
 export type BillingPlanRecord = typeof billingPlans.$inferSelect;
-export type BillingSubscriptionRecord =
-  typeof billingSubscriptions.$inferSelect;
-export type BillingProviderEventRecord =
-  typeof billingProviderEvents.$inferSelect;
+export type BillingSubscriptionRecord = typeof billingSubscriptions.$inferSelect;
+export type BillingProviderEventRecord = typeof billingProviderEvents.$inferSelect;
 export type BillingEntitlementRecord = typeof billingEntitlements.$inferSelect;
-export type BillingCapacityAllocationRecord =
-  typeof billingCapacityAllocations.$inferSelect;
-export type BillingAdminOverrideRecord =
-  typeof billingAdminOverrides.$inferSelect;
-export type BillingAccessAuditEventRecord =
-  typeof billingAccessAuditEvents.$inferSelect;
+export type BillingCapacityAllocationRecord = typeof billingCapacityAllocations.$inferSelect;
+export type BillingAdminOverrideRecord = typeof billingAdminOverrides.$inferSelect;
+export type BillingAccessAuditEventRecord = typeof billingAccessAuditEvents.$inferSelect;
+export type BillingCouponRecord = typeof billingCoupons.$inferSelect;
+export type BillingCouponRedemptionRecord = typeof billingCouponRedemptions.$inferSelect;
+export type BillingCommercialAuditEventRecord = typeof billingCommercialAuditEvents.$inferSelect;
