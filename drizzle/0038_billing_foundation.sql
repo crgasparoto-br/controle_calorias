@@ -51,7 +51,7 @@ CREATE TABLE `billingCapacityAllocations` (
 CREATE TABLE `billingEntitlements` (
 	`id` varchar(64) NOT NULL,
 	`beneficiaryUserId` int NOT NULL,
-	`sourceType` enum('subscription','professional_coverage','trial','free_access','admin_override') NOT NULL,
+	`sourceType` enum('subscription','professional_coverage','trial','transition','read_only','free_access','admin_override') NOT NULL,
 	`sourceId` varchar(191) NOT NULL,
 	`sponsorUserId` int,
 	`planId` varchar(64),
