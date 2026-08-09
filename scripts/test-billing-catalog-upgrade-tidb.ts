@@ -1,7 +1,10 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import mysql, { type Connection } from "mysql2/promise";
+import mysql, { type Connection, type Pool } from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
+import { BILLING_PERSONAL_ENTITLEMENTS } from "../server/modules/billing/catalogPolicy";
+import { createBillingCapacityRepository } from "../server/repositories/billingCapacityRepository";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -36,6 +39,7 @@ async function main() {
 
   const admin = await mysql.createConnection({ uri: adminUrl.toString() });
   let connection: Connection | null = null;
+  let upgradePool: Pool | null = null;
   try {
     await admin.query(`DROP DATABASE IF EXISTS \`${upgradeDatabase}\``);
     await admin.query(`CREATE DATABASE \`${upgradeDatabase}\``);
@@ -55,7 +59,9 @@ async function main() {
     `);
     await applySqlFile(connection, "drizzle/0038_billing_foundation.sql");
 
-    await connection.query("INSERT INTO users (id) VALUES (9901), (9902)");
+    await connection.query(
+      "INSERT INTO users (id) VALUES (9901), (9902), (9903)"
+    );
     const legacyEntitlements = JSON.stringify([
       "system_access",
       "professional_portfolio",
@@ -126,14 +132,21 @@ async function main() {
     assert.equal(Boolean(legacyPlan.active), false);
     assert.deepEqual(
       jsonValue(legacyPlan.coveredBeneficiaryEntitlementsJson),
-      JSON.parse(legacyEntitlements),
-      "legacy professional coverage must preserve the entitlement matrix used before #891"
+      [...BILLING_PERSONAL_ENTITLEMENTS],
+      "legacy professional coverage must be backfilled with the canonical personal matrix"
+    );
+    assert.equal(
+      jsonValue(legacyPlan.coveredBeneficiaryEntitlementsJson).includes(
+        "professional_portfolio"
+      ),
+      false,
+      "legacy covered-patient entitlements must never include professional resources"
     );
     assert.deepEqual(
       jsonValue(legacyPlan.commercialPaymentMethodsJson),
       [],
       "legacy versions must not become newly purchasable through inferred payment methods"
-    );
+   );
     assert.ok(legacyPlan.effectiveFrom, "legacy version must receive an effective start");
 
     const [subscriptionRows] = await connection.query<mysql.RowDataPacket[]>(
@@ -152,7 +165,67 @@ async function main() {
     assert.equal(
       entitlementRows[0]?.planId,
       "legacy-plan-preserve",
-      "existing entitlement must keep the original planId after #891 upgrade"
+      "existing entitlement must keep the original planId after #91 upgrade"
+   );
+
+    const legacyAuthorizationId = "legacy-covered-patient-authorization";
+    const legacyCoverageKey = `professional-authorization:${legacyAuthorizationId}`;
+    await connection.query(
+      "INSERT INTO professionalPatientAuthorizations (id) VALUES (?)",
+      [legacyAuthorizationId]
+    );
+    upgradePool = mysql.createPool({
+      uri: upgradeUrl.toString(),
+      connectionLimit: 2,
+    });
+    const upgradeDb = drizzle(upgradePool);
+    const capacityRepository = createBillingCapacityRepository({
+      getDb: async () => upgradeDb,
+      onWarning: (scope, error) => {
+        throw new Error(
+          `unexpected ${scope} warning during legacy coverage test: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      },
+    });
+    const reservation = await capacityRepository.reserveProfessionalCapacity({
+      professionalUserId: 9901,
+      patientUserId: 9903,
+      coverageKey: legacyCoverageKey,
+    });
+    assert.equal(
+      reservation.reserved,
+      true,
+      "an active legacy professional subscription must still reserve patient capacity after upgrade"
+    );
+
+    const [coveredRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT planId, entitlementsJson
+       FROM billingEntitlements
+       WHERE beneficiaryUserId = 9903
+         AND sourceType = 'professional_coverage'
+         AND sourceId = ?
+         AND state = 'active'`,
+      [legacyCoverageKey]
+    );
+    assert.equal(coveredRows.length, 1);
+    assert.equal(
+      coveredRows[0]?.planId,
+      "legacy-plan-preserve",
+      "new covered-patient entitlements must remain linked to the contracted legacy version"
+    );
+    assert.deepEqual(
+      jsonValue(coveredRows[0]?.entitlementsJson),
+      [...BILLING_PERSONAL_ENTITLEMENTS],
+      "a patient added after migration must receive only the canonical personal matrix"
+    );
+    assert.equal(
+      jsonValue(coveredRows[0]?.entitlementsJson).includes(
+        "professional_portfolio"
+      ),
+      false,
+      "a migrated legacy subscription must not leak professional entitlements to a covered patient"
     );
 
     const [columns] = await connection.query<mysql.RowDataPacket[]>(
@@ -184,6 +257,7 @@ async function main() {
       })
     );
   } finally {
+    await upgradePool?.end();
     await connection?.end();
     await admin.query(`DROP DATABASE IF EXISTS \`${upgradeDatabase}\``);
     await admin.end();

@@ -98,7 +98,21 @@ SET
 	`versionCode` = CONCAT('legacy-', LEFT(SHA2(`id`, 256), 57)),
 	`version` = 0,
 	`coveredBeneficiaryEntitlementsJson` = CASE
-		WHEN `audience` = 'professional' THEN `entitlementsJson`
+		WHEN `audience` = 'professional' THEN JSON_ARRAY(
+			'system_access',
+			'web_access',
+			'whatsapp_access',
+			'meal_text',
+			'meal_image',
+			'meal_audio',
+			'ai_assistance',
+			'nutrition_goals',
+			'reports',
+			'weight_tracking',
+			'water_tracking',
+			'exercise_tracking',
+			'health_integrations'
+		)
 		ELSE JSON_ARRAY()
 	END,
 	`commercialPaymentMethodsJson` = JSON_ARRAY(),
