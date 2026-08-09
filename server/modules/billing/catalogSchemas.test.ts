@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { billingAdminCreateCouponRevisionSchema } from "./catalogSchemas";
+import {
+  billingAdminCreateCouponRevisionSchema,
+  billingAdminCreateProductSchema,
+  billingAdminPublishVersionSchema,
+} from "./catalogSchemas";
 
 const baseCoupon = {
   code: "FIXED10",
@@ -27,6 +31,56 @@ describe("billing catalog schemas", () => {
     ).toThrow();
     expect(() =>
       billingAdminCreateCouponRevisionSchema.parse({ ...baseCoupon, currency: " BRL " })
+    ).toThrow();
+  });
+
+  it("defaults catalog mutations to manual admin provenance", () => {
+    expect(
+      billingAdminCreateProductSchema.parse({
+        code: "clinic",
+        audience: "professional",
+        name: "Clínica",
+        reason: "Nova família comercial",
+      }).provenance
+    ).toEqual({ origin: "admin_manual" });
+  });
+
+  it("requires structured alert and analysis references for range-review mutations", () => {
+    const parsed = billingAdminPublishVersionSchema.parse({
+      versionCode: "professional-monthly-v2",
+      effectiveFrom: new Date("2026-08-09T00:00:00Z"),
+      reason: "Nova faixa aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: [" alert-100-plus "],
+        analysisRef: " analysis-2026-08-09 ",
+      },
+    });
+    expect(parsed.provenance).toEqual({
+      origin: "catalog_range_review",
+      alertIds: ["alert-100-plus"],
+      analysisRef: "analysis-2026-08-09",
+    });
+
+    expect(() =>
+      billingAdminPublishVersionSchema.parse({
+        versionCode: "professional-monthly-v2",
+        effectiveFrom: new Date("2026-08-09T00:00:00Z"),
+        reason: "Nova faixa aprovada",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: [],
+          analysisRef: "analysis-2026-08-09",
+        },
+      })
+    ).toThrow();
+    expect(() =>
+      billingAdminPublishVersionSchema.parse({
+        versionCode: "professional-monthly-v2",
+        effectiveFrom: new Date("2026-08-09T00:00:00Z"),
+        reason: "Automação indevida",
+        provenance: { origin: "catalog_range_review_required" },
+      })
     ).toThrow();
   });
 });

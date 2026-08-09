@@ -101,6 +101,6 @@ A #891 materializa COM-02, COM-03, COM-04, COM-05 e o contrato de cupons de COM-
 - política comercial `credit_card` + `pix_automatic`, separada das capacidades efetivas do provider;
 - versões antigas preservadas para assinaturas existentes e novas contratações limitadas à versão ativa/vigente;
 - cupons revisionados, não cumulativos, com limite de 30%, até três cobranças mensais, primeira cobrança anual e rejeição de 100%;
-- criação/publicação/desativação exclusivamente administrativa, com motivo, autoria e auditoria; alertas de capacidade nunca criam ou publicam plano automaticamente.
+- criação/publicação/desativação exclusivamente administrativa, com motivo, autoria e auditoria; alertas de capacidade nunca criam ou publicam plano automaticamente. Quando a decisão administrativa decorrer de `catalog_range_review_required`, criação de família/versão e publicação carregam proveniência estruturada com os identificadores dos alertas e uma referência à análise de demanda, preservada na trilha comercial.
 
 O seed é idempotente e deve falhar diante de drift das definições canônicas em vez de reescrever silenciosamente uma versão já existente. A validação de migration, concorrência de cupom e integridade permanece no gate TiDB de billing.

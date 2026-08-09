@@ -126,6 +126,11 @@ describe("billing router administration", () => {
         audience: "professional",
         name: "Clínica",
         reason: "Nova faixa aprovada",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: ["alert-100-plus"],
+          analysisRef: "analysis-2026-08-09",
+        },
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
@@ -169,6 +174,7 @@ describe("billing router administration", () => {
         audience: "professional",
         name: "Clínica",
         reason: "Nova faixa aprovada",
+        provenance: { origin: "admin_manual" },
       })
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -256,11 +262,21 @@ describe("billing router administration", () => {
       audience: "professional",
       name: "Clínica",
       reason: "Nova faixa aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["alert-100-plus"],
+        analysisRef: "analysis-2026-08-09",
+      },
     });
     await caller.adminPublishCatalogVersion({
       versionCode: "professional-monthly-v2",
       effectiveFrom,
       reason: "Revisão comercial aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["alert-100-plus"],
+        analysisRef: "analysis-2026-08-09",
+      },
     });
     await caller.adminCreateCouponRevision({
       code: "boasvindas",
@@ -285,12 +301,22 @@ describe("billing router administration", () => {
       audience: "professional",
       name: "Clínica",
       reason: "Nova faixa aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["alert-100-plus"],
+        analysisRef: "analysis-2026-08-09",
+      },
       actorUserId: 314,
     });
     expect(mocks.publishVersion).toHaveBeenCalledWith({
       versionCode: "professional-monthly-v2",
       effectiveFrom,
       reason: "Revisão comercial aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["alert-100-plus"],
+        analysisRef: "analysis-2026-08-09",
+      },
       actorUserId: 314,
     });
     expect(mocks.createCouponRevision).toHaveBeenCalledWith({

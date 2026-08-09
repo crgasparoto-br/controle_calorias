@@ -27,6 +27,15 @@ export type BillingCycle = (typeof BILLING_CYCLES)[number];
 export type BillingAudience = (typeof BILLING_AUDIENCES)[number];
 export type BillingCatalogVersionStatus = "draft" | "active" | "inactive";
 export type BillingCouponDiscountType = "percentage" | "fixed_amount";
+export type BillingCatalogMutationProvenance =
+  | {
+      origin: "admin_manual";
+    }
+  | {
+      origin: "catalog_range_review";
+      alertIds: readonly string[];
+      analysisRef: string;
+    };
 
 const CANONICAL_ENTITLEMENTS = new Set<string>([
   ...BILLING_PERSONAL_ENTITLEMENTS,
@@ -232,13 +241,37 @@ export function isCatalogVersionEffective(
   );
 }
 
+export function normalizeCatalogMutationProvenance(
+  provenance: BillingCatalogMutationProvenance
+): BillingCatalogMutationProvenance {
+  if (provenance.origin === "admin_manual") {
+    return { origin: "admin_manual" };
+  }
+
+  const alertIds = uniqueStrings(
+    provenance.alertIds.map(value => value.trim()).filter(Boolean)
+  );
+  const analysisRef = provenance.analysisRef.trim();
+  if (!alertIds.length || !analysisRef) {
+    throw new Error(
+      "Catalog range review requires alert references and a demand analysis reference."
+    );
+  }
+  return {
+    origin: "catalog_range_review",
+    alertIds,
+    analysisRef,
+  };
+}
+
 export function assertAdministrativeCatalogMutation(input: {
   actorRole: string;
-  source: "admin" | "catalog_range_review_required" | "system";
+  provenance: BillingCatalogMutationProvenance;
 }) {
-  if (input.actorRole !== "admin" || input.source !== "admin") {
+  if (input.actorRole !== "admin") {
     throw new Error("Catalog publication requires an explicit administrator action.");
   }
+  return normalizeCatalogMutationProvenance(input.provenance);
 }
 
 export function validateCouponPolicy(policy: BillingCouponPolicy) {

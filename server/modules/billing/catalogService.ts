@@ -98,8 +98,11 @@ export function createBillingCatalogService(deps: {
       actorUserId: number;
     }
   ) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
-    return deps.repository.createProduct(input);
+    const provenance = assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: input.provenance,
+    });
+    return deps.repository.createProduct({ ...input, provenance });
   }
 
   async function createVersion(
@@ -107,17 +110,26 @@ export function createBillingCatalogService(deps: {
       actorUserId: number;
     }
   ) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
-    return deps.repository.createVersion(input);
+    const provenance = assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: input.provenance,
+    });
+    return deps.repository.createVersion({ ...input, provenance });
   }
 
   async function publishVersion(input: PublishBillingCatalogVersionInput) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
-    return deps.repository.publishVersion(input);
+    const provenance = assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: input.provenance,
+    });
+    return deps.repository.publishVersion({ ...input, provenance });
   }
 
   async function deactivateVersion(input: DeactivateBillingCatalogVersionInput) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
+    assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: { origin: "admin_manual" },
+    });
     return deps.repository.deactivateVersion(input);
   }
 
@@ -126,13 +138,19 @@ export function createBillingCatalogService(deps: {
     actorUserId: number;
     reason: string;
   }) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
+    assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: { origin: "admin_manual" },
+    });
     const payload: CreateBillingCouponRevisionInput = input;
     return deps.repository.createCouponRevision(payload);
   }
 
   async function deactivateCoupon(input: DeactivateBillingCouponInput) {
-    assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" });
+    assertAdministrativeCatalogMutation({
+      actorRole: "admin",
+      provenance: { origin: "admin_manual" },
+    });
     return deps.repository.deactivateCoupon(input);
   }
 

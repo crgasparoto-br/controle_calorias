@@ -4,6 +4,7 @@ import type {
   BillingCouponEligibilityResult,
   BillingCouponPolicy,
   BillingCycle,
+  BillingCatalogMutationProvenance,
   BillingPaymentMethod,
 } from "./catalogPolicy";
 
@@ -86,6 +87,7 @@ export type CreateBillingCatalogProductInput = {
   description?: string | null;
   actorUserId: number;
   reason: string;
+  provenance: BillingCatalogMutationProvenance;
 };
 
 export type CreateBillingCatalogVersionInput = {
@@ -104,6 +106,7 @@ export type CreateBillingCatalogVersionInput = {
   sortOrder: number;
   actorUserId: number;
   reason: string;
+  provenance: BillingCatalogMutationProvenance;
 };
 
 export type PublishBillingCatalogVersionInput = {
@@ -111,6 +114,7 @@ export type PublishBillingCatalogVersionInput = {
   effectiveFrom: Date;
   actorUserId: number;
   reason: string;
+  provenance: BillingCatalogMutationProvenance;
 };
 
 export type DeactivateBillingCatalogVersionInput = {

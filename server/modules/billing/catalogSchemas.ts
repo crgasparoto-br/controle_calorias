@@ -18,7 +18,20 @@ const versionCode = z
   .max(191)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const reason = z.string().trim().min(3).max(2_000);
-
+const catalogRangeReviewAlertId = z.string().trim().min(1).max(191);
+const catalogMutationProvenance = z.discriminatedUnion("origin", [
+  z.object({ origin: z.literal("admin_manual") }).strict(),
+  z
+    .object({
+      origin: z.literal("catalog_range_review"),
+      alertIds: z.array(catalogRangeReviewAlertId).min(1).max(50),
+      analysisRef: z.string().trim().min(1).max(500),
+    })
+    .strict(),
+]);
+const defaultCatalogMutationProvenance = {
+  origin: "admin_manual" as const,
+};
 
 export const billingCouponEligibilitySchema = z.object({
   code: z.string().trim().min(1).max(80),
@@ -35,6 +48,7 @@ export const billingAdminCreateProductSchema = z.object({
   name: z.string().trim().min(2).max(255),
   description: z.string().trim().max(2_000).nullable().optional(),
   reason,
+  provenance: catalogMutationProvenance.default(defaultCatalogMutationProvenance),
 });
 
 export const billingAdminCreateVersionSchema = z.object({
@@ -57,12 +71,14 @@ export const billingAdminCreateVersionSchema = z.object({
   effectiveUntil: z.date().nullable().optional(),
   sortOrder: z.number().int().min(0).max(100_000),
   reason,
+  provenance: catalogMutationProvenance.default(defaultCatalogMutationProvenance),
 });
 
 export const billingAdminPublishVersionSchema = z.object({
   versionCode,
   effectiveFrom: z.date(),
   reason,
+  provenance: catalogMutationProvenance.default(defaultCatalogMutationProvenance),
 });
 
 export const billingAdminDeactivateVersionSchema = z.object({

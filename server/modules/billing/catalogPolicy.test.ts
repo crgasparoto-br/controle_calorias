@@ -130,16 +130,44 @@ describe("billing catalog policy", () => {
   it("does not let range alerts or system automation publish a commercial version", () => {
     expect(() =>
       assertAdministrativeCatalogMutation({
-        actorRole: "admin",
-        source: "catalog_range_review_required",
+        actorRole: "system",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: ["alert-100-plus"],
+          analysisRef: "analysis-2026-08-09",
+        },
       })
     ).toThrow();
     expect(() =>
-      assertAdministrativeCatalogMutation({ actorRole: "system", source: "system" })
-    ).toThrow();
-    expect(() =>
-      assertAdministrativeCatalogMutation({ actorRole: "admin", source: "admin" })
-    ).not.toThrow();
+      assertAdministrativeCatalogMutation({
+        actorRole: "admin",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: [],
+          analysisRef: "analysis-2026-08-09",
+        },
+      })
+    ).toThrow("requires alert references");
+    expect(
+      assertAdministrativeCatalogMutation({
+        actorRole: "admin",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: [" alert-100-plus ", "alert-100-plus"],
+          analysisRef: " analysis-2026-08-09 ",
+        },
+      })
+    ).toEqual({
+      origin: "catalog_range_review",
+      alertIds: ["alert-100-plus"],
+      analysisRef: "analysis-2026-08-09",
+    });
+    expect(
+      assertAdministrativeCatalogMutation({
+        actorRole: "admin",
+        provenance: { origin: "admin_manual" },
+      })
+    ).toEqual({ origin: "admin_manual" });
   });
 });
 

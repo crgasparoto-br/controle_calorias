@@ -6,6 +6,7 @@ import {
   evaluateCouponEligibility,
   isCatalogVersionEffective,
   normalizeCatalogEntitlements,
+  normalizeCatalogMutationProvenance,
   normalizeCommercialPaymentMethods,
   validateCouponPolicy,
   type BillingCatalogVersionDefinition,
@@ -147,6 +148,26 @@ async function insertCommercialAuditEvent(
       ${input.metadata ? JSON.stringify(input.metadata) : null}, NOW()
     )
   `);
+}
+
+function catalogMutationAuditMetadata(
+  provenance: CreateBillingCatalogProductInput["provenance"],
+  metadata: Record<string, unknown>
+) {
+  const normalized = normalizeCatalogMutationProvenance(provenance);
+  return normalized.origin === "catalog_range_review"
+    ? {
+        ...metadata,
+        provenance: {
+          origin: normalized.origin,
+          alertIds: normalized.alertIds,
+          analysisRef: normalized.analysisRef,
+        },
+      }
+    : {
+        ...metadata,
+        provenance: { origin: normalized.origin },
+      };
 }
 
 async function loadCouponUsageStats(
@@ -348,6 +369,7 @@ export function createBillingCatalogRepository(
   async function createProduct(input: CreateBillingCatalogProductInput) {
     const db = await requireDb(deps.getDb);
     return db.transaction(async tx => {
+      const provenance = normalizeCatalogMutationProvenance(input.provenance);
       await assertAdminActor(
         tx,
         input.actorUserId,
@@ -369,7 +391,10 @@ export function createBillingCatalogRepository(
         entityId: id,
         action: "product_created",
         reason: input.reason,
-        metadata: { code, audience: input.audience },
+        metadata: catalogMutationAuditMetadata(provenance, {
+          code,
+          audience: input.audience,
+        }),
       });
       const [row] = resultRows<Record<string, unknown>>(
         await tx.execute(sql`SELECT * FROM billingProducts WHERE id = ${id} LIMIT 1`)
@@ -382,6 +407,7 @@ export function createBillingCatalogRepository(
   async function createVersion(input: CreateBillingCatalogVersionInput) {
     const db = await requireDb(deps.getDb);
     return db.transaction(async tx => {
+      const provenance = normalizeCatalogMutationProvenance(input.provenance);
       await assertAdminActor(
         tx,
         input.actorUserId,
@@ -455,7 +481,11 @@ export function createBillingCatalogRepository(
         entityId: id,
         action: "version_created",
         reason: input.reason,
-        metadata: { productCode, versionCode, billingCycle: input.billingCycle },
+        metadata: catalogMutationAuditMetadata(provenance, {
+          productCode,
+          versionCode,
+          billingCycle: input.billingCycle,
+        }),
       });
       const created = await selectVersionByCode(tx, versionCode);
       if (!created) throw new Error("Billing catalog version was not persisted.");
@@ -466,6 +496,7 @@ export function createBillingCatalogRepository(
   async function publishVersion(input: PublishBillingCatalogVersionInput) {
     const db = await requireDb(deps.getDb);
     return db.transaction(async tx => {
+      const provenance = normalizeCatalogMutationProvenance(input.provenance);
       await assertAdminActor(
         tx,
         input.actorUserId,
@@ -525,7 +556,9 @@ export function createBillingCatalogRepository(
         entityId: target.id,
         action: "version_published",
         reason: input.reason,
-        metadata: { versionCode: target.versionCode },
+        metadata: catalogMutationAuditMetadata(provenance, {
+          versionCode: target.versionCode,
+        }),
       });
       const published = await selectVersionByCode(tx, target.versionCode);
       if (!published) throw new Error("Billing catalog version not found after publication.");

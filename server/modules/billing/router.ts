@@ -36,6 +36,7 @@ const SAFE_ADMIN_ERROR_PREFIXES = [
   "Unknown billing entitlement",
   "Unknown billing payment method",
   "Catalog publication",
+  "Catalog range review",
   "Billing product not found",
   "Billing catalog version not found",
   "Billing catalog seed drift",

@@ -175,4 +175,65 @@ describe("billing catalog service", () => {
     });
     expect(repo.seedInitialCatalog).toHaveBeenCalledWith(INITIAL_BILLING_CATALOG);
   });
+
+  it("normalizes and forwards range-review provenance on administrative mutations", async () => {
+    const repo = repository({
+      createProduct: vi.fn(async input => ({
+        id: "product-range",
+        code: input.code,
+        audience: input.audience,
+        name: input.name,
+        description: input.description ?? null,
+        state: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      })),
+    });
+    const service = createBillingCatalogService({ repository: repo, now: () => NOW });
+
+    await service.createProduct({
+      code: "clinic",
+      audience: "professional",
+      name: "Clínica",
+      actorUserId: 314,
+      reason: "Nova faixa aprovada",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: [" alert-100-plus ", "alert-100-plus"],
+        analysisRef: " analysis-2026-08-09 ",
+      },
+    });
+
+    expect(repo.createProduct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 314,
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: ["alert-100-plus"],
+          analysisRef: "analysis-2026-08-09",
+        },
+      })
+    );
+  });
+
+  it("rejects incomplete range-review provenance before persistence", async () => {
+    const repo = repository();
+    const service = createBillingCatalogService({ repository: repo, now: () => NOW });
+
+    await expect(
+      service.createProduct({
+        code: "clinic",
+        audience: "professional",
+        name: "Clínica",
+        actorUserId: 314,
+        reason: "Nova faixa aprovada",
+        provenance: {
+          origin: "catalog_range_review",
+          alertIds: [],
+          analysisRef: "analysis-2026-08-09",
+        },
+      })
+    ).rejects.toThrow("requires alert references");
+    expect(repo.createProduct).not.toHaveBeenCalled();
+  });
 });

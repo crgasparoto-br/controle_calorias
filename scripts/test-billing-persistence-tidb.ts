@@ -167,6 +167,7 @@ async function main() {
         description: null,
         actorUserId: ids.admin,
         reason: "TOCTOU pre-lock negative control",
+        provenance: { origin: "admin_manual" },
       }),
       /Administrator authorization changed before catalog mutation/,
       "catalog writes must revalidate admin authority inside the transaction"
@@ -201,6 +202,7 @@ async function main() {
       description: null,
       actorUserId: ids.admin,
       reason: "TOCTOU row-lock control",
+      provenance: { origin: "admin_manual" },
     });
     await adminLockObserved;
     let downgradeFinished = false;
@@ -432,6 +434,11 @@ async function main() {
       sortOrder: 901,
       actorUserId: ids.admin,
       reason: "Versioning integration",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["billing-test-range-alert-1"],
+        analysisRef: "billing-test-demand-analysis-1",
+      },
     });
     assert.equal(versionV2.version, 2);
     await catalogRepository.publishVersion({
@@ -439,7 +446,34 @@ async function main() {
       effectiveFrom: new Date(),
       actorUserId: ids.admin,
       reason: "Publish integration v2",
+      provenance: {
+        origin: "catalog_range_review",
+        alertIds: ["billing-test-range-alert-1"],
+        analysisRef: "billing-test-demand-analysis-1",
+      },
     });
+    const [rangeReviewAuditRows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT action, metadataJson
+       FROM billingCommercialAuditEvents
+       WHERE entityId = ? AND action IN ('version_created', 'version_published')
+       ORDER BY createdAt ASC`,
+      [versionV2.id]
+    );
+    assert.equal(rangeReviewAuditRows.length, 2);
+    for (const auditRow of rangeReviewAuditRows) {
+      const metadata = jsonValue(auditRow.metadataJson) as {
+        provenance?: {
+          origin?: string;
+          alertIds?: string[];
+          analysisRef?: string;
+        };
+      };
+      assert.deepEqual(metadata.provenance, {
+        origin: "catalog_range_review",
+        alertIds: ["billing-test-range-alert-1"],
+        analysisRef: "billing-test-demand-analysis-1",
+      });
+    }
     const [versioningRows] = await pool.query<mysql.RowDataPacket[]>(
       `SELECT s.planId, oldPlan.status AS oldStatus,
          oldPlan.effectiveUntil AS oldEffectiveUntil,
@@ -477,6 +511,7 @@ async function main() {
       sortOrder: 902,
       actorUserId: ids.admin,
       reason: "Version ordering integration",
+      provenance: { origin: "admin_manual" },
     });
     await assert.rejects(
       catalogRepository.publishVersion({
@@ -484,6 +519,7 @@ async function main() {
         effectiveFrom: new Date("2026-08-08T00:00:00.000Z"),
         actorUserId: ids.admin,
         reason: "Out-of-order publication negative control",
+        provenance: { origin: "admin_manual" },
       }),
       /Catalog publication must advance the commercial effective date/,
       "publishing out of chronological order must not create overlapping or inverted sales windows"
