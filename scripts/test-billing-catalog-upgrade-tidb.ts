@@ -146,7 +146,7 @@ async function main() {
       jsonValue(legacyPlan.commercialPaymentMethodsJson),
       [],
       "legacy versions must not become newly purchasable through inferred payment methods"
-   );
+    );
     assert.ok(legacyPlan.effectiveFrom, "legacy version must receive an effective start");
 
     const [subscriptionRows] = await connection.query<mysql.RowDataPacket[]>(
@@ -165,8 +165,8 @@ async function main() {
     assert.equal(
       entitlementRows[0]?.planId,
       "legacy-plan-preserve",
-      "existing entitlement must keep the original planId after #91 upgrade"
-   );
+      "existing entitlement must keep the original planId after #891 upgrade"
+    );
 
     const legacyAuthorizationId = "legacy-covered-patient-authorization";
     const legacyCoverageKey = `professional-authorization:${legacyAuthorizationId}`;
