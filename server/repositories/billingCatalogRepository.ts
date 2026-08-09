@@ -46,6 +46,16 @@ function normalizedCouponCode(value: string) {
   return value.trim().toUpperCase();
 }
 
+export function buildBillingCatalogSeedId(
+  kind: "product" | "version",
+  code: string
+) {
+  return crypto
+    .createHash("sha256")
+    .update(`billing-catalog-${kind}:${code}`)
+    .digest("hex");
+}
+
 function mapProduct(row: Record<string, unknown>): BillingCatalogProductRecord {
   return {
     id: String(row.id),
@@ -882,7 +892,7 @@ export function createBillingCatalogRepository(
       }
 
       for (const product of grouped.values()) {
-        const id = `billing-product-${product.productCode}`;
+        const id = buildBillingCatalogSeedId("product", product.productCode);
         const [existing] = resultRows<Record<string, unknown>>(
           await tx.execute(sql`
             SELECT * FROM billingProducts WHERE code = ${product.productCode} LIMIT 1
@@ -918,7 +928,7 @@ export function createBillingCatalogRepository(
           `)
         );
         if (!product) throw new Error("Billing product seed was not persisted.");
-        const id = `billing-version-${definition.versionCode}`;
+        const id = buildBillingCatalogSeedId("version", definition.versionCode);
         await tx.execute(sql`
           INSERT INTO billingPlans (
             id, productId, code, versionCode, version, audience, name,

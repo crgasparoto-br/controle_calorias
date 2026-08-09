@@ -301,4 +301,34 @@ describe("billing coupon policy", () => {
       )
     ).toEqual({ eligible: false, reason: "invalid_discount" });
   });
+
+  it("normalizes fixed-amount coupon currency before evaluating eligibility", () => {
+    const fixedAmountCoupon = validateCouponPolicy({
+      ...baseCoupon,
+      discountType: "fixed_amount",
+      discountValue: 1000,
+      currency: " brl ",
+      firstContractOnly: false,
+    });
+
+    expect(fixedAmountCoupon.currency).toBe("BRL");
+    expect(
+      evaluateCouponEligibility(fixedAmountCoupon, {
+        now: new Date("2026-08-08T12:00:00Z"),
+        productCode: "individual",
+        versionCode: "individual-monthly-v1",
+        billingCycle: "monthly",
+        unitAmount: 3990,
+        currency: "BRL",
+        totalConfirmedUses: 0,
+        userConfirmedUses: 0,
+        userHasPriorPaidContract: false,
+      })
+    ).toEqual({
+      eligible: true,
+      discountAmount: 1000,
+      finalAmount: 2990,
+      durationCharges: 3,
+    });
+  });
 });

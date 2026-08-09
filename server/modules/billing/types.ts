@@ -98,7 +98,9 @@ export type BillingAdminUserAccess = BillingAdminUserRow & {
 };
 
 export type BillingPlanAnalytics = {
+  planId: string;
   planCode: string;
+  versionCode: string;
   planName: string;
   audience: "individual" | "professional";
   billingCycle: "monthly" | "yearly" | "custom";

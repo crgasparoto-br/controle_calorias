@@ -119,6 +119,36 @@ describe("billing catalog service", () => {
     expect(repo.getCouponUsageStats).toHaveBeenCalledWith("coupon-1", 77);
   });
 
+  it("uses one request timestamp across version and coupon eligibility checks", async () => {
+    const firstNow = new Date("2026-08-08T11:59:59.999Z");
+    const boundary = new Date("2026-08-08T12:00:00.000Z");
+    const now = vi
+      .fn<() => Date>()
+      .mockReturnValueOnce(firstNow)
+      .mockReturnValue(boundary);
+    const repo = repository({
+      getActiveCouponByCode: vi.fn(async () => ({
+        ...coupon,
+        validUntil: boundary,
+        firstContractOnly: false,
+      })),
+    });
+    const service = createBillingCatalogService({ repository: repo, now });
+
+    await expect(
+      service.previewCouponEligibility(77, {
+        code: "boasvindas",
+        versionCode: "individual-monthly-v1",
+      })
+    ).resolves.toEqual({
+      eligible: true,
+      discountAmount: 1197,
+      finalAmount: 2793,
+      durationCharges: 3,
+    });
+    expect(now).toHaveBeenCalledTimes(1);
+  });
+
   it("does not expose inactive, future, or product-disabled versions as coupon eligible", async () => {
     const service = createBillingCatalogService({
       repository: repository({

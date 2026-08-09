@@ -331,6 +331,10 @@ export function validateCouponPolicy(policy: BillingCouponPolicy) {
   if (!Number.isInteger(policy.durationCharges) || policy.durationCharges <= 0) {
     throw new Error("Coupon duration must be a positive number of charges.");
   }
+  const currency =
+    policy.discountType === "fixed_amount"
+      ? policy.currency!.trim().toUpperCase()
+      : null;
   if (
     policy.eligibleCycles.includes("monthly") &&
     policy.durationCharges > 3
@@ -346,6 +350,7 @@ export function validateCouponPolicy(policy: BillingCouponPolicy) {
   return {
     ...policy,
     code: normalizedCode,
+    currency,
     eligibleProductCodes,
     eligibleVersionCodes,
     eligibleCycles,

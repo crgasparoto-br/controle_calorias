@@ -59,6 +59,7 @@ export function createBillingCatalogService(deps: {
     userId: number,
     input: { code: string; versionCode: string }
   ) {
+    const now = nowProvider();
     const [coupon, version] = await Promise.all([
       deps.repository.getActiveCouponByCode(input.code),
       deps.repository.getVersionByCode(input.versionCode),
@@ -67,13 +68,13 @@ export function createBillingCatalogService(deps: {
     if (
       !version ||
       version.productState !== "active" ||
-      !isCatalogVersionEffective(version, nowProvider())
+      !isCatalogVersionEffective(version, now)
     ) {
       return { eligible: false as const, reason: "version_not_eligible" as const };
     }
     const stats = await deps.repository.getCouponUsageStats(coupon.id, userId);
     return evaluateCouponEligibility(coupon, {
-      now: nowProvider(),
+      now,
       productCode: version.productCode,
       versionCode: version.versionCode,
       billingCycle: version.billingCycle,
