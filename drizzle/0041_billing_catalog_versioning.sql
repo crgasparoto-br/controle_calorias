@@ -71,16 +71,48 @@ CREATE TABLE `billingProducts` (
 );
 --> statement-breakpoint
 ALTER TABLE `billingPlans` DROP INDEX `billingPlans_code_uq`;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `productId` varchar(64) NOT NULL;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `versionCode` varchar(191) NOT NULL;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `version` int NOT NULL;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `coveredBeneficiaryEntitlementsJson` json NOT NULL;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `commercialPaymentMethodsJson` json NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `productId` varchar(64);--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `versionCode` varchar(191);--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `version` int;--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `coveredBeneficiaryEntitlementsJson` json;--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `commercialPaymentMethodsJson` json;--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD `status` enum('draft','active','inactive') DEFAULT 'draft' NOT NULL;--> statement-breakpoint
-ALTER TABLE `billingPlans` ADD `effectiveFrom` timestamp NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` ADD `effectiveFrom` timestamp NULL;--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD `effectiveUntil` timestamp;--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD `sortOrder` int DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD `createdByUserId` int;--> statement-breakpoint
+INSERT INTO `billingProducts` (`id`, `code`, `audience`, `name`, `description`, `state`, `createdAt`, `updatedAt`)
+SELECT
+	CONCAT('legacy-', LEFT(SHA2(`code`, 256), 57)),
+	`code`,
+	`audience`,
+	`name`,
+	`description`,
+	'active',
+	`createdAt`,
+	`updatedAt`
+FROM `billingPlans`;--> statement-breakpoint
+UPDATE `billingPlans`
+SET
+	`productId` = CONCAT('legacy-', LEFT(SHA2(`code`, 256), 57)),
+	`versionCode` = CONCAT('legacy-', LEFT(SHA2(`id`, 256), 57)),
+	`version` = 0,
+	`coveredBeneficiaryEntitlementsJson` = CASE
+		WHEN `audience` = 'professional' THEN `entitlementsJson`
+		ELSE JSON_ARRAY()
+	END,
+	`commercialPaymentMethodsJson` = JSON_ARRAY(),
+	`status` = 'inactive',
+	`active` = false,
+	`effectiveFrom` = `createdAt`,
+	`effectiveUntil` = NULL,
+	`sortOrder` = 0;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `productId` varchar(64) NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `versionCode` varchar(191) NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `version` int NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `coveredBeneficiaryEntitlementsJson` json NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `commercialPaymentMethodsJson` json NOT NULL;--> statement-breakpoint
+ALTER TABLE `billingPlans` MODIFY `effectiveFrom` timestamp NOT NULL;--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD CONSTRAINT `billingPlans_version_code_uq` UNIQUE(`versionCode`);--> statement-breakpoint
 ALTER TABLE `billingPlans` ADD CONSTRAINT `billingPlans_product_cycle_version_uq` UNIQUE(`productId`,`billingCycle`,`version`);--> statement-breakpoint
 ALTER TABLE `billingCommercialAuditEvents` ADD CONSTRAINT `billingCommercialAuditEvents_actorUserId_users_id_fk` FOREIGN KEY (`actorUserId`) REFERENCES `users`(`id`) ON DELETE set null ON UPDATE no action;--> statement-breakpoint

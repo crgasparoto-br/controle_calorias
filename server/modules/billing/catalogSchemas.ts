@@ -80,7 +80,7 @@ export const billingAdminCreateCouponRevisionSchema = z.object({
     .regex(/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/),
   discountType: z.enum(["percentage", "fixed_amount"]),
   discountValue: z.number().int().positive(),
-  currency: z.string().trim().length(3).nullable(),
+  currency: z.literal("BRL").nullable(),
   eligibleProductCodes: z.array(catalogCode).max(100).default([]),
   eligibleVersionCodes: z.array(versionCode).max(100).default([]),
   eligibleCycles: z.array(z.enum(BILLING_CYCLES)).min(1).max(2),
