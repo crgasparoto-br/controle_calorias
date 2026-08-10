@@ -4,6 +4,8 @@
 
 Este documento registra o contrato técnico da issue #893. Ele complementa `billing-foundation.md` e o catálogo versionado da #891 sem implementar checkout, adapter financeiro real, telas ou a política detalhada de cobertura da #894.
 
+Para a semântica de ciclo de vida e de acesso derivado dos estados de assinatura, este documento substitui as descrições pré-#893 de `billing-foundation.md`. Os demais fundamentos daquele documento continuam válidos.
+
 A máquina canônica persiste os estados `pending`, `active`, `past_due`, `suspended` e `expired` em `billingSubscriptionLifecycle`. A intenção de cancelamento não é um sexto estado: ela permanece em `billingSubscriptions.cancelAtPeriodEnd` até o encerramento efetivo.
 
 `billingSubscriptions.status` continua existindo como campo de compatibilidade da fundação anterior. Enquanto consumidores legados ainda dependerem dele, `suspended` é representado ali como `past_due`; decisões novas de ciclo de vida devem consultar o estado canônico.
@@ -19,6 +21,8 @@ A máquina canônica persiste os estados `pending`, `active`, `past_due`, `suspe
 - pagamento antecipado somente ativa antes de `firstChargeAt` quando o fato autoritativo estiver marcado como conversão antecipada; caso contrário o domínio exige reconciliação.
 
 A prevenção de trial repetido usa claims persistentes e imutáveis por audiência sobre usuário interno, telefone normalizado e CPF/CNPJ aplicável. O domínio armazena somente HMAC-SHA256 do identificador, calculado com `BILLING_TRIAL_IDENTITY_SECRET`; e-mail, cookie, browser e valores crus de CPF/CNPJ/telefone não são usados como chave de elegibilidade.
+
+`TrialIdentityInput` é um contrato interno do backend. O adapter que iniciar uma contratação deve resolver usuário, telefone e CPF/CNPJ a partir de fontes persistidas/verificadas no servidor; valores de identidade enviados livremente pelo cliente não podem ser usados como prova de elegibilidade para trial.
 
 Claims sobrevivem ao encerramento ou exclusão da assinatura. Colisão ou falta de identidade suficiente gera decisão auditável e não concede trial silenciosamente.
 
@@ -55,11 +59,11 @@ Ao terminar a carência, a assinatura entra em `suspended`:
 - pacientes cobertos deixam de receber acesso patrocinado enquanto o patrocinador está suspenso;
 - um fato `coverage_pause_requested` é publicado para integração posterior com a #894.
 
-A janela de recuperação dura 30 dias. Pagamento confirmado dentro dela volta a mesma assinatura para `active`, preservando versão, preço e ciclo, sem novo trial. Para plano Profissional, o domínio publica `coverage_restore_requested`. Depois da janela, o estado vira `expired`; uma cobrança tardia requer reconciliação e uma nova contratação deve usar termos comerciais atuais.
+A janela de recuperação dura 30 dias. Pagamento confirmado dentro dela volta a mesma assinatura para `active`, preservando versão, preço e ciclo, sem novo trial. Para plano Profissional, o domínio publica `coverage_restore_requested`. A transição também publica `subscription_recovered` mesmo quando o pagamento de recuperação for a primeira competência paga da assinatura. Depois da janela, o estado vira `expired`; uma cobrança tardia requer reconciliação e uma nova contratação deve usar termos comerciais atuais.
 
 ## Cancelamento e encerramento administrativo
 
-Cancelamento normal desliga renovação automática e mantém o acesso até o fim do trial ou período corrente. Antes desse limite, o assinante pode reativar a renovação.
+Cancelamento normal desliga renovação automática e mantém o acesso até o fim do trial ou período corrente. Se a assinatura já estiver em `past_due`, a solicitação de cancelamento não encurta a carência vigente; se houver recuperação posterior, a intenção de não renovar permanece registrada. Antes do limite aplicável, o assinante pode reativar a renovação.
 
 Uma tentativa `pending` sem trial e sem período confirmado pode ser abandonada imediatamente, encerrando a tentativa e liberando a reserva de cupom.
 
