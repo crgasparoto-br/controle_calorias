@@ -281,6 +281,13 @@
       "when": 1786217386819,
       "tag": "0041_billing_catalog_versioning",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1786331570096,
+      "tag": "0042_billing_subscription_lifecycle",
+      "breakpoints": true
     }
   ]
 }

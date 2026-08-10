@@ -1,5 +1,6 @@
 import {
   boolean,
+  foreignKey,
   index,
   int,
   json,
@@ -18,15 +19,9 @@ export const billingContractIntents = mysqlTable(
   {
     id: varchar("id", { length: 64 }).primaryKey(),
     contractKey: varchar("contractKey", { length: 191 }).notNull(),
-    subscriptionId: varchar("subscriptionId", { length: 64 })
-      .notNull()
-      .references(() => billingSubscriptions.id, { onDelete: "cascade" }),
-    payerUserId: int("payerUserId")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    planId: varchar("planId", { length: 64 })
-      .notNull()
-      .references(() => billingPlans.id, { onDelete: "restrict" }),
+    subscriptionId: varchar("subscriptionId", { length: 64 }).notNull(),
+    payerUserId: int("payerUserId").notNull(),
+    planId: varchar("planId", { length: 64 }).notNull(),
     provider: varchar("provider", { length: 64 }).notNull(),
     paymentMethod: mysqlEnum("paymentMethod", ["credit_card", "pix_automatic"]).notNull(),
     trialChoice: mysqlEnum("trialChoice", ["request", "waive"]).notNull(),
@@ -39,6 +34,21 @@ export const billingContractIntents = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingContractIntents_subscriptionId_fk",
+    }).onDelete("cascade"),
+    payerFk: foreignKey({
+      columns: [table.payerUserId],
+      foreignColumns: [users.id],
+      name: "billingContractIntents_payerUserId_fk",
+    }).onDelete("cascade"),
+    planFk: foreignKey({
+      columns: [table.planId],
+      foreignColumns: [billingPlans.id],
+      name: "billingContractIntents_planId_fk",
+    }).onDelete("restrict"),
     contractKeyUniqueIdx: uniqueIndex("billingContractIntents_contract_key_uq").on(
       table.contractKey
     ),
@@ -55,9 +65,7 @@ export const billingContractIntents = mysqlTable(
 export const billingSubscriptionLifecycle = mysqlTable(
   "billingSubscriptionLifecycle",
   {
-    subscriptionId: varchar("subscriptionId", { length: 64 })
-      .primaryKey()
-      .references(() => billingSubscriptions.id, { onDelete: "cascade" }),
+    subscriptionId: varchar("subscriptionId", { length: 64 }).primaryKey(),
     audience: mysqlEnum("audience", ["individual", "professional"]).notNull(),
     state: mysqlEnum("state", ["pending", "active", "past_due", "suspended", "expired"])
       .default("pending")
@@ -79,6 +87,11 @@ export const billingSubscriptionLifecycle = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingSubscriptionLifecycle_subscriptionId_fk",
+    }).onDelete("cascade"),
     stateGraceIdx: index("billingSubscriptionLifecycle_state_grace_idx").on(
       table.state,
       table.graceEndsAt
@@ -98,16 +111,18 @@ export const billingTrialIdentityClaims = mysqlTable(
   "billingTrialIdentityClaims",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    subscriptionId: varchar("subscriptionId", { length: 64 }).references(
-      () => billingSubscriptions.id,
-      { onDelete: "set null" }
-    ),
+    subscriptionId: varchar("subscriptionId", { length: 64 }),
     audience: mysqlEnum("audience", ["individual", "professional"]).notNull(),
     identityType: mysqlEnum("identityType", ["user", "cpf", "cnpj", "phone"]).notNull(),
     identityHash: varchar("identityHash", { length: 64 }).notNull(),
     claimedAt: timestamp("claimedAt").defaultNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingTrialIdentityClaims_subscriptionId_fk",
+    }).onDelete("set null"),
     identityUniqueIdx: uniqueIndex("billingTrialIdentityClaims_identity_uq").on(
       table.audience,
       table.identityType,
@@ -123,7 +138,7 @@ export const billingTrialEligibilityAuditEvents = mysqlTable(
   "billingTrialEligibilityAuditEvents",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    payerUserId: int("payerUserId").references(() => users.id, { onDelete: "set null" }),
+    payerUserId: int("payerUserId"),
     audience: mysqlEnum("audience", ["individual", "professional"]).notNull(),
     versionCode: varchar("versionCode", { length: 191 }).notNull(),
     decision: mysqlEnum("decision", ["allowed", "denied", "review_required"]).notNull(),
@@ -133,6 +148,11 @@ export const billingTrialEligibilityAuditEvents = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
+    payerFk: foreignKey({
+      columns: [table.payerUserId],
+      foreignColumns: [users.id],
+      name: "billingTrialEligibilityAuditEvents_payerUserId_fk",
+    }).onDelete("set null"),
     payerCreatedIdx: index("billingTrialEligibilityAuditEvents_payer_created_idx").on(
       table.payerUserId,
       table.createdAt
@@ -148,12 +168,8 @@ export const billingSubscriptionFacts = mysqlTable(
   "billingSubscriptionFacts",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    subscriptionId: varchar("subscriptionId", { length: 64 })
-      .notNull()
-      .references(() => billingSubscriptions.id, { onDelete: "cascade" }),
-    payerUserId: int("payerUserId")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    subscriptionId: varchar("subscriptionId", { length: 64 }).notNull(),
+    payerUserId: int("payerUserId").notNull(),
     factType: varchar("factType", { length: 120 }).notNull(),
     factVersion: int("factVersion").default(1).notNull(),
     idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
@@ -172,6 +188,16 @@ export const billingSubscriptionFacts = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingSubscriptionFacts_subscriptionId_fk",
+    }).onDelete("cascade"),
+    payerFk: foreignKey({
+      columns: [table.payerUserId],
+      foreignColumns: [users.id],
+      name: "billingSubscriptionFacts_payerUserId_fk",
+    }).onDelete("cascade"),
     idempotencyUniqueIdx: uniqueIndex("billingSubscriptionFacts_idempotency_uq").on(
       table.idempotencyKey
     ),
@@ -190,10 +216,8 @@ export const billingSubscriptionLifecycleAuditEvents = mysqlTable(
   "billingSubscriptionLifecycleAuditEvents",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    subscriptionId: varchar("subscriptionId", { length: 64 })
-      .notNull()
-      .references(() => billingSubscriptions.id, { onDelete: "cascade" }),
-    actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+    subscriptionId: varchar("subscriptionId", { length: 64 }).notNull(),
+    actorUserId: int("actorUserId"),
     action: varchar("action", { length: 120 }).notNull(),
     reason: text("reason").notNull(),
     metadataJson: json("metadataJson"),
@@ -201,6 +225,16 @@ export const billingSubscriptionLifecycleAuditEvents = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
+    subscriptionFk: foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [billingSubscriptions.id],
+      name: "billingSubscriptionLifecycleAuditEvents_subscriptionId_fk",
+    }).onDelete("cascade"),
+    actorFk: foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+      name: "billingSubscriptionLifecycleAuditEvents_actorUserId_fk",
+    }).onDelete("set null"),
     subscriptionOccurredIdx: index("billingSubscriptionLifecycleAuditEvents_sub_occurred_idx").on(
       table.subscriptionId,
       table.occurredAt
