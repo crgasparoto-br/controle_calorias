@@ -91,12 +91,12 @@ export default function BillingAdminStatusOverview() {
           {plans.length ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {plans.map(plan => (
-                <article key={plan.planCode} className="rounded-xl border p-4">
+                <article key={plan.planId} className="rounded-xl border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="font-medium">{plan.planName}</h3>
                       <p className="mt-1 break-words text-sm text-muted-foreground">
-                        {plan.planCode} · {plan.billingCycle} · {plan.currency}
+                        {plan.versionCode} · {plan.billingCycle} · {plan.currency}
                       </p>
                     </div>
                     <Badge variant={plan.active ? "default" : "secondary"}>

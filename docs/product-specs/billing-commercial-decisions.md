@@ -53,7 +53,7 @@ A precedência define origem efetiva, atribuição de consumo e comunicação. O
 - Não existe assinatura individual adicional, cobertura sobre o próprio profissional ou cobrança duplicada.
 - O uso pessoal do pagador profissional não reserva nem consome vaga de paciente.
 - Profissional e Plus diferem inicialmente somente pela capacidade.
-- Pacientes cobertos recebem a matriz pessoal definida no catálogo versionado.
+- Pacientes cobertos recebem a matriz pessoal congelada na versão profissional contratada; ela é persistida separadamente da matriz combinada do pagador para impedir alteração retroativa de benefícios.
 
 ## Catálogo técnico e fonte de verdade
 
@@ -89,3 +89,18 @@ A precedência define origem efetiva, atribuição de consumo e comunicação. O
 A #869 entrega somente a fundação provider-neutral: persistência, elegibilidade central, capacidade profissional, overrides administrativos, onboarding recuperável e superfícies de consulta/administração.
 
 Provider real, checkout, catálogo final, preços, cobrança, ciclo comercial, interfaces finais, medição e rollout permanecem nas subissues da épica. `BILLING_ACCESS_MODE=open_access` continua sendo o padrão obrigatório até a aprovação do rollout.
+
+## Implementação do catálogo versionado — #891
+
+A #891 materializa COM-02, COM-03, COM-04, COM-05 e o contrato de cupons de COM-09 sem ativar provider financeiro nem `enforced`:
+
+- três produtos estáveis (`individual`, `professional`, `professional-plus`) e seis versões comerciais iniciais mensal/anual;
+- preços em centavos de BRL: 3.990/35.900, 8.990/89.900 e 13.990/139.900;
+- capacidade profissional de 30 e 100 pacientes; uso pessoal do pagador não consome vaga;
+- matriz profissional composta pela matriz pessoal mais recursos profissionais;
+- política comercial `credit_card` + `pix_automatic`, separada das capacidades efetivas do provider;
+- versões antigas preservadas para assinaturas existentes e novas contratações limitadas à versão ativa/vigente;
+- cupons revisionados, não cumulativos, com limite de 30%, até três cobranças mensais, primeira cobrança anual e rejeição de 100%;
+- criação/publicação/desativação exclusivamente administrativa, com motivo, autoria e auditoria; alertas de capacidade nunca criam ou publicam plano automaticamente. Quando a decisão administrativa decorrer de `catalog_range_review_required`, criação de família/versão e publicação carregam proveniência estruturada com os identificadores dos alertas e uma referência à análise de demanda, preservada na trilha comercial.
+
+O seed é idempotente e deve falhar diante de drift das definições canônicas em vez de reescrever silenciosamente uma versão já existente. A validação de migration, concorrência de cupom e integridade permanece no gate TiDB de billing.

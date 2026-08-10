@@ -69,7 +69,7 @@ export function createBillingCapacityRepository(deps: BillingRepositoryDeps) {
         const [subscription] = resultRows<Record<string, unknown>>(
           await tx.execute(sql`
             SELECT s.id AS subscriptionId, s.currentPeriodEnd, p.id AS planId,
-              p.capacityLimit, p.entitlementsJson
+              p.capacityLimit, p.coveredBeneficiaryEntitlementsJson
             FROM billingSubscriptions s
             INNER JOIN billingPlans p ON p.id = s.planId
             WHERE s.id = ${subscriptionId}
@@ -108,7 +108,9 @@ export function createBillingCapacityRepository(deps: BillingRepositoryDeps) {
           input.coverageKey
         );
         const validUntil = dateOrNull(subscription.currentPeriodEnd);
-        const entitlements = stringArray(subscription.entitlementsJson);
+        const entitlements = stringArray(
+          subscription.coveredBeneficiaryEntitlementsJson
+        );
 
         await tx.execute(sql`
           INSERT INTO billingCapacityAllocations (

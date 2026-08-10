@@ -208,4 +208,8 @@ Testes de regressão devem provar que a operação recebe provider/modelo corret
 - Reserva de capacidade bloqueia a assinatura dentro da transação; concorrência pela última vaga deve produzir um vencedor e uma rejeição clara.
 - Reserva, liberação e revogação são repetíveis sem duplicar vaga, entitlement ou auditoria.
 - Falha após reserva comercial deve ser compensada; revogação iniciada pelo paciente não pode ser bloqueada por indisponibilidade comercial.
+- Versões comerciais são imutáveis para contratos existentes: publicar uma nova versão encerra somente novas contratações na anterior; `billingSubscriptions.planId` não é migrado implicitamente.
+- Seed de catálogo é idempotente e fail-closed diante de drift: reexecução equivalente é no-op, enquanto divergência em preço, capacidade, recursos, ciclo ou meios de pagamento interrompe a operação.
+- Reserva de cupom bloqueia o usuário e a revisão ativa dentro da transação, conta `reserved` + `confirmed` em todas as revisões do mesmo código e usa `contractKey` único; concorrência pelo último uso produz um vencedor, e retry recupera a reserva histórica original mesmo depois de revisão ou desativação do cupom.
+- Mutações administrativas do catálogo revalidam `users.role = admin` com `FOR UPDATE` dentro da transação. Perda de autorização antes do lock impede qualquer mutação/auditoria; depois do lock, mudança concorrente de papel aguarda o commit.
 - O workflow `Billing persistence TiDB gate` valida migration, drift Drizzle, concorrência, idempotência, sanitização e integridade antes do merge.

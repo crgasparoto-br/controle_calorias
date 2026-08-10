@@ -467,11 +467,11 @@ export default function BillingAdminPanel() {
             </div>
           ))}
           {analytics.data?.plans.map(plan => (
-            <div key={plan.planCode} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[minmax(0,1fr),auto]">
-              <div>
+            <div key={plan.planId} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[minmax(0,1fr),auto]">
+              <div className="min-w-0">
                 <p className="font-medium">{plan.planName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {plan.planCode} · {plan.audience === "professional" ? "Profissional" : "Individual"}
+                <p className="break-words text-sm text-muted-foreground">
+                  {plan.versionCode} · {plan.audience === "professional" ? "Profissional" : "Individual"}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">

@@ -69,7 +69,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 
 ## Billing e acesso comercial
 
-Billing persiste somente dados comerciais necessários: plano, estado normalizado, período, identificadores externos do provider, origem do entitlement, capacidade e trilha administrativa. O titular da cobrança e o beneficiário do acesso são entidades distintas. Cobertura profissional não cria assinatura em nome do paciente e não substitui consentimento para acesso aos dados de saúde.
+Billing persiste somente dados comerciais necessários: produto/versão contratada, estado normalizado, período, identificadores externos do provider, origem do entitlement, capacidade, revisão de cupom aplicada e trilha administrativa. O titular da cobrança e o beneficiário do acesso são entidades distintas. Cobertura profissional não cria assinatura em nome do paciente e não substitui consentimento para acesso aos dados de saúde. Reservas de cupom guardam apenas usuário interno, versão comercial, chave idempotente da contratação e valores do desconto; não copiam dados nutricionais, mensagem, telefone ou payload de pagamento.
 
 Payload bruto de pagamento não é persistido. O provider futuro deve normalizar o webhook e enviar apenas metadata allowlisted; cartão, CVV, token, segredo, endereço, e-mail, telefone ou objetos aninhados são descartados. Encerrar assinatura, cobertura ou override não apaga histórico nutricional ou clínico; exportação e exclusão seguem os contratos do titular e as obrigações legais aplicáveis à trilha comercial.
 

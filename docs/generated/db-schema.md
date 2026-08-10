@@ -60,13 +60,17 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 | `professionalConversations` | `professionalConversations` | 7 | Requer atenção |
 | `professionalMessages` | `professionalMessages` | 25 | Requer atenção |
 | `professionalMessageDeliveryAttempts` | `professionalMessageDeliveryAttempts` | 12 | Requer atenção |
-| `billingPlans` | `billingPlans` | 13 | Requer atenção |
+| `billingProducts` | `billingProducts` | 8 | Requer atenção |
+| `billingPlans` | `billingPlans` | 22 | Requer atenção |
 | `billingSubscriptions` | `billingSubscriptions` | 16 | Requer atenção |
 | `billingProviderEvents` | `billingProviderEvents` | 12 | Requer atenção |
 | `billingEntitlements` | `billingEntitlements` | 16 | Requer atenção |
 | `billingCapacityAllocations` | `billingCapacityAllocations` | 13 | Requer atenção |
 | `billingAdminOverrides` | `billingAdminOverrides` | 13 | Requer atenção |
 | `billingAccessAuditEvents` | `billingAccessAuditEvents` | 10 | Requer atenção |
+| `billingCoupons` | `billingCoupons` | 23 | Requer atenção |
+| `billingCouponRedemptions` | `billingCouponRedemptions` | 13 | Requer atenção |
+| `billingCommercialAuditEvents` | `billingCommercialAuditEvents` | 8 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -112,6 +116,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 - `professionalConversations` via export `professionalConversations`.
 - `professionalMessages` via export `professionalMessages`.
 - `professionalMessageDeliveryAttempts` via export `professionalMessageDeliveryAttempts`.
+- `billingProducts` via export `billingProducts`.
 - `billingPlans` via export `billingPlans`.
 - `billingSubscriptions` via export `billingSubscriptions`.
 - `billingProviderEvents` via export `billingProviderEvents`.
@@ -119,6 +124,9 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 - `billingCapacityAllocations` via export `billingCapacityAllocations`.
 - `billingAdminOverrides` via export `billingAdminOverrides`.
 - `billingAccessAuditEvents` via export `billingAccessAuditEvents`.
+- `billingCoupons` via export `billingCoupons`.
+- `billingCouponRedemptions` via export `billingCouponRedemptions`.
+- `billingCommercialAuditEvents` via export `billingCommercialAuditEvents`.
 
 ## Campos sensíveis conhecidos
 
@@ -167,12 +175,15 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 | `professionalConversations` | `authorizationId`, `professionalUserId`, `patientUserId`, `lastMessageAt` |
 | `professionalMessages` | `authorizationId`, `professionalUserId`, `patientUserId`, `messageType`, `inReplyToMessageId`, `supersedesMessageId`, `providerMessageId` |
 | `professionalMessageDeliveryAttempts` | `messageId`, `providerMessageId`, `errorDetail` |
-| `billingPlans` | `name`, `entitlementsJson` |
+| `billingProducts` | `name` |
+| `billingPlans` | `name`, `entitlementsJson`, `commercialPaymentMethodsJson` |
 | `billingProviderEvents` | `occurredAt`, `payloadJson` |
 | `billingEntitlements` | `professionalAuthorizationId`, `entitlementsJson` |
 | `billingCapacityAllocations` | `professionalUserId`, `patientUserId`, `authorizationId`, `coverageKey`, `releaseReason` |
 | `billingAdminOverrides` | `reason` |
 | `billingAccessAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
+| `billingCoupons` | `eligibleProductCodesJson`, `eligibleVersionCodesJson`, `eligibleCyclesJson` |
+| `billingCommercialAuditEvents` | `actorUserId`, `reason`, `metadataJson` |
 
 ## Relações críticas
 

@@ -219,6 +219,19 @@ Regras para cada PR de extração:
 - evitar misturar refatoração com correção funcional, mudança visual ou alteração de contrato de API;
 - manter `pnpm test`, `pnpm architecture:check` e `pnpm docs:check` verdes.
 
+## Catálogo comercial versionado de billing (#891)
+
+O catálogo comercial é um domínio backend provider-neutral, separado de checkout e do adapter financeiro. `billingProducts` guarda a identidade estável do produto e `billingPlans` permanece como a tabela referenciada por assinaturas/entitlements, mas passa a representar uma versão comercial imutável com ciclo, preço, capacidade, vigência, meios de pagamento e matrizes de recursos.
+
+- novas contratações usam somente versões ativas e vigentes; uma publicação posterior encerra a janela comercial anterior sem migrar assinaturas existentes;
+- a versão profissional persiste duas matrizes: `entitlementsJson` para o pagador (pessoal + profissional) e `coveredBeneficiaryEntitlementsJson` para pacientes cobertos. Assim, uma evolução futura da matriz Individual não altera contratos profissionais já vigentes;
+- meios de pagamento exibíveis são a interseção entre `commercialPaymentMethodsJson` da versão e as capacidades declaradas pelo adapter financeiro; o frontend não amplia essa lista;
+- cupons são políticas revisionadas e auditáveis. Reservas usam `contractKey` idempotente, contabilizam estados reservados/confirmados através de todas as revisões do mesmo código e são serializadas no banco para respeitar limites concorrentes;
+- mutações administrativas usam `adminProcedure` e também revalidam `users.role = admin` dentro da transação, mantendo a autoridade bloqueada até o commit;
+- alertas `catalog_range_review_required`, jobs e configuração operacional não criam nem publicam versões comerciais automaticamente.
+
+O seed inicial é idempotente e deve falhar diante de drift de uma versão já existente. A migration, o metadata Drizzle e os cenários de concorrência/TOCTOU pertencem ao gate TiDB de billing antes da integração.
+
 ## Privacidade e dados sensíveis
 
 Dados de saúde e alimentação são sensíveis. Campos como `sourceText`, `transcript`, `mediaJson`, restrições alimentares, objetivos, peso, telefone, logs de inferência e tokens exigem cuidado extra.

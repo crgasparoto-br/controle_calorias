@@ -31,7 +31,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 8 | 5 | 3 | admin | Elegibilidade própria e administração comercial de billing |
+| `billing` | 18 | 9 | 9 | admin | Elegibilidade própria e administração comercial de billing |
 
 ## Procedures por grupo
 
@@ -286,11 +286,21 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 |---|---|---|
 | `me` | query | protected |
 | `subscriptionStatus` | query | protected |
+| `catalog` | query | protected |
+| `couponEligibility` | query | protected |
 | `refreshOnboardingActivation` | mutation | protected |
 | `adminSearchUsers` | query | admin |
 | `adminListOverrides` | query | admin |
 | `adminGrantOverride` | mutation | admin |
 | `adminRevokeOverride` | mutation | admin |
+| `adminCatalogVersions` | query | admin |
+| `adminCoupons` | query | admin |
+| `adminCreateCatalogProduct` | mutation | admin |
+| `adminCreateCatalogVersion` | mutation | admin |
+| `adminPublishCatalogVersion` | mutation | admin |
+| `adminDeactivateCatalogVersion` | mutation | admin |
+| `adminCreateCouponRevision` | mutation | admin |
+| `adminDeactivateCoupon` | mutation | admin |
 | `adminAnalytics` | query | admin |
 
 ## Regras para novas procedures
