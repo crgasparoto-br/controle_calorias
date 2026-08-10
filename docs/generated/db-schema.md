@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing-schema.ts`.
+Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts` e `drizzle/billing-subscription-lifecycle-schema.ts`.
 
 ## Tabelas
 
@@ -71,6 +71,12 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 | `billingCoupons` | `billingCoupons` | 23 | Requer atenção |
 | `billingCouponRedemptions` | `billingCouponRedemptions` | 13 | Requer atenção |
 | `billingCommercialAuditEvents` | `billingCommercialAuditEvents` | 8 | Requer atenção |
+| `billingContractIntents` | `billingContractIntents` | 13 | Requer atenção |
+| `billingSubscriptionLifecycle` | `billingSubscriptionLifecycle` | 18 | Requer atenção |
+| `billingTrialIdentityClaims` | `billingTrialIdentityClaims` | 6 | Requer atenção |
+| `billingTrialEligibilityAuditEvents` | `billingTrialEligibilityAuditEvents` | 9 | Requer atenção |
+| `billingSubscriptionFacts` | `billingSubscriptionFacts` | 19 | Requer atenção |
+| `billingSubscriptionLifecycleAuditEvents` | `billingSubscriptionLifecycleAuditEvents` | 8 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -127,6 +133,12 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 - `billingCoupons` via export `billingCoupons`.
 - `billingCouponRedemptions` via export `billingCouponRedemptions`.
 - `billingCommercialAuditEvents` via export `billingCommercialAuditEvents`.
+- `billingContractIntents` via export `billingContractIntents`.
+- `billingSubscriptionLifecycle` via export `billingSubscriptionLifecycle`.
+- `billingTrialIdentityClaims` via export `billingTrialIdentityClaims`.
+- `billingTrialEligibilityAuditEvents` via export `billingTrialEligibilityAuditEvents`.
+- `billingSubscriptionFacts` via export `billingSubscriptionFacts`.
+- `billingSubscriptionLifecycleAuditEvents` via export `billingSubscriptionLifecycleAuditEvents`.
 
 ## Campos sensíveis conhecidos
 
@@ -184,6 +196,10 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing
 | `billingAccessAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
 | `billingCoupons` | `eligibleProductCodesJson`, `eligibleVersionCodesJson`, `eligibleCyclesJson` |
 | `billingCommercialAuditEvents` | `actorUserId`, `reason`, `metadataJson` |
+| `billingSubscriptionLifecycle` | `lastAuthoritativeOccurredAt`, `reconciliationReason` |
+| `billingTrialEligibilityAuditEvents` | `reason`, `identityTypesJson` |
+| `billingSubscriptionFacts` | `payloadJson` |
+| `billingSubscriptionLifecycleAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
 
 ## Relações críticas
 
