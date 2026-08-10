@@ -16,7 +16,34 @@ import { DEFAULT_APP_TIME_ZONE, USER_TIME_ZONE_OPTIONS } from "@shared/timeZone"
 import { Activity, ArrowRight, Clock3, MessageCircle, Plus, Save, Stethoscope, Target, Trash2, UserRound } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
+
+const SETTINGS_TAB_VALUES = ["perfil", "objetivos", "refeicoes", "profissional"] as const;
+type SettingsTab = (typeof SETTINGS_TAB_VALUES)[number];
+
+function settingsPathname(location: string) {
+  return location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+}
+
+function settingsTabFromSearch(search: string): SettingsTab {
+  const requested = new URLSearchParams(search).get("tab");
+  return SETTINGS_TAB_VALUES.includes(requested as SettingsTab)
+    ? (requested as SettingsTab)
+    : "perfil";
+}
+
+function settingsLocationForTab(
+  location: string,
+  search: string,
+  tab: SettingsTab
+) {
+  const pathname = settingsPathname(location);
+  const params = new URLSearchParams(search);
+  if (tab === "perfil") params.delete("tab");
+  else params.set("tab", tab);
+  const nextQuery = params.toString();
+  return nextQuery ? `${pathname}?${nextQuery}` : pathname;
+}
 
 const OBJECTIVE_OPTIONS = [
   { value: "emagrecer", label: "Emagrecer" },
@@ -291,8 +318,13 @@ function formatPhoneNumber(value: string) {
 export default function OnboardingPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const [location] = useLocation();
-  const isSettingsPage = location === "/settings";
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const isSettingsPage = settingsPathname(location) === "/settings";
+  const [onboardingTab, setOnboardingTab] = useState<SettingsTab>("perfil");
+  const selectedTab = isSettingsPage
+    ? settingsTabFromSearch(search)
+    : onboardingTab;
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [schedulesApplied, setSchedulesApplied] = useState(false);
@@ -618,7 +650,18 @@ export default function OnboardingPage() {
           </div>
         ) : null}
 
-        <Tabs defaultValue="perfil" className="gap-4">
+        <Tabs
+          value={selectedTab}
+          onValueChange={value => {
+            const nextTab = value as SettingsTab;
+            if (isSettingsPage) {
+              setLocation(settingsLocationForTab(location, search, nextTab));
+              return;
+            }
+            setOnboardingTab(nextTab);
+          }}
+          className="gap-4"
+        >
           <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-4">
             <TabsTrigger className="min-h-11 rounded-xl" value="perfil">
               <UserRound className="h-4 w-4" />

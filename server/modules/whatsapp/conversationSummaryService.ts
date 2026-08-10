@@ -20,7 +20,12 @@ import {
 } from "../../repositories/whatsappConversationRepository";
 import { getDb, logPersistenceWarning } from "../../db";
 import { getEffectiveMessageText } from "./conversationContextBudget";
-import { buildUntrustedWhatsAppUserContent, inspectWhatsAppUserContentSafety } from "./promptInjectionGuard";
+import {
+  buildUntrustedWhatsAppAssistantHistoryContent,
+  buildUntrustedWhatsAppConversationSummaryContent,
+  buildUntrustedWhatsAppUserContent,
+  inspectWhatsAppUserContentSafety,
+} from "./promptInjectionGuard";
 
 const repository: WhatsAppConversationRepository = createDrizzleWhatsAppConversationRepository({
   getDb,
@@ -49,7 +54,7 @@ function buildTranscriptLine(message: WhatsAppConversationMessageRecord): string
   if (!text) return null;
 
   if (message.direction === "outbound") {
-    return `Assistente: ${text}`;
+    return `Assistente: ${buildUntrustedWhatsAppAssistantHistoryContent(text)}`;
   }
 
   const safety = inspectWhatsAppUserContentSafety(text, message.contentType === "audio" ? "audio_transcript" : "text");
@@ -106,6 +111,8 @@ export async function getOrRefreshConversationSummary(input: {
       return null;
     }
 
+    const safeSummaryText = buildUntrustedWhatsAppConversationSummaryContent(summaryTextString);
+
     await repository.insertConversationSummary({
       userId: input.userId,
       conversationId: input.conversationId,
@@ -125,7 +132,7 @@ export async function getOrRefreshConversationSummary(input: {
       detail: JSON.stringify({ conversationId: input.conversationId, fromMessageId, toMessageId }),
     });
 
-    return { summaryText: summaryTextString, fromMessageId, toMessageId };
+    return { summaryText: safeSummaryText, fromMessageId, toMessageId };
   } catch (error) {
     logInferenceEvent({
       userId: input.userId,
@@ -139,5 +146,11 @@ export async function getOrRefreshConversationSummary(input: {
 }
 
 export async function findLatestConversationSummary(conversationId: number) {
-  return repository.findLatestConversationSummary(conversationId);
+  const summary = await repository.findLatestConversationSummary(conversationId);
+  return summary
+    ? {
+        ...summary,
+        summaryText: buildUntrustedWhatsAppConversationSummaryContent(summary.summaryText),
+      }
+    : null;
 }

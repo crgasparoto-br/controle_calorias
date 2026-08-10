@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "reportFormat": "application/json+gzip",
+  "reportFile": "2026-08-06-executable-harness.json.gz",
+  "testedSha": "a5063028a3d3325b47b6d66e007efbe780b74e60",
+  "sourceTreeSha256": "5ae4b2777ba110eef150681155701ff6101edcbe68552b8a4f9ab4c1ad5d63a1",
+  "jsonSha256": "75158bc60426409cb3d4e1d9936d280d487b7020493c9ce1b49754de34c947c9",
+  "reportSha256": "9388c00804c5e0e6d12882e8fee9e10bc70a3db1a8197ec6bfb5946401f5b30d",
+  "observationCount": 29,
+  "globalGatesPassed": true,
+  "productionChangesApplied": false,
+  "rolloutStatus": "paused-insufficient-evidence",
+  "operationalIssue": 962
+}

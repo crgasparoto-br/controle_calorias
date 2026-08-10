@@ -1,6 +1,13 @@
 import { z } from "zod";
-import { getAiProvider, type AiProviderTextRequest } from "./_core/aiProvider";
-import { ENV } from "./_core/env";
+import type { AiProviderTextRequest } from "./_core/aiProvider";
+import {
+  executeResolvedCapability,
+  observeUnavailableResolvedCapability,
+  type ResolvedCapabilityAttemptContext,
+} from "./_core/ai/capabilityExecutor";
+import { resolveCapabilityConfig } from "./_core/ai/configResolver";
+import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
+import { AiOperationalError, parseJsonOutput } from "./_core/ai/policyExecutor";
 import { inferMealLabelByTime } from "./mealLabelResolver";
 import type { HabitSnapshot, MealProcessingInput } from "./nutritionEngineTypes";
 
@@ -122,14 +129,6 @@ const mealExtractionJsonSchema = {
   required: ["mealLabel", "confidence", "reasoning", "items"],
 } as const;
 
-function safeJsonParse<T>(value: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
-  }
-}
-
 function intentHintToPrompt(hint: import("./nutritionEngineTypes").IntentHint | null | undefined): string | null {
   if (!hint) return null;
 
@@ -166,6 +165,73 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
     .slice(0, 8)
     .map(habit => `${habit.foodName} | frequência: ${habit.occurrenceCount} | horário típico: ${habit.typicalTimeLabel ?? "não informado"} | observações: ${habit.notes ?? "-"}`)
     .join("\n");
+}
+
+type MealExtraction = z.infer<typeof mealExtractionSchema>;
+
+async function callMealExtraction(
+  context: ResolvedCapabilityAttemptContext,
+  instructions: string,
+  aiInput: AiProviderTextRequest["input"],
+): Promise<MealExtraction> {
+  const response = await createDomainTextResponse(
+    context.provider,
+    {
+      model: context.model,
+      instructions,
+      input: aiInput,
+      format: {
+        type: "json_schema",
+        name: "meal_extraction",
+        schema: mealExtractionJsonSchema,
+        strict: true,
+      },
+    },
+    { signal: context.signal },
+  );
+
+  const parsed = parseJsonOutput(response);
+  const validation = mealExtractionSchema.safeParse(parsed);
+  if (!validation.success) {
+    throw new AiOperationalError(
+      "Meal extraction returned JSON with an invalid payload",
+      validation.error,
+      "invalid_payload",
+    );
+  }
+  return validation.data;
+}
+
+async function runMealExtractionWithPolicy(
+  capability: "MEAL_TEXT" | "MEAL_VISION",
+  instructions: string,
+  aiInput: AiProviderTextRequest["input"],
+): Promise<MealExtraction | null> {
+  const config = resolveCapabilityConfig(capability);
+  const observability = {
+    origin: "system" as const,
+    flow: capability === "MEAL_VISION"
+      ? "meal_vision_extraction" as const
+      : "meal_text_extraction" as const,
+  };
+  if (config.state === "disabled" || config.state === "invalid" || !config.primary) {
+    await observeUnavailableResolvedCapability(config, observability);
+    return null;
+  }
+
+  try {
+    const result = await executeResolvedCapability(
+      config,
+      context => callMealExtraction(context, instructions, aiInput),
+      { observability },
+    );
+    return result.value;
+  } catch {
+    // Preserve the existing domain contract: an unavailable or exhausted AI
+    // path returns null and lets the canonical nutrition engine decide the
+    // documented clarification/degradation behavior.
+    return null;
+  }
 }
 
 export async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
@@ -232,57 +298,10 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
     },
   ];
 
-  const response = await getAiProvider().createTextResponse({
-    model: ENV.visionModel,
-    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado. Separe marcas explícitas em brand e use null quando a marca não estiver clara.",
-    input: aiInput,
-    format: {
-      type: "json_schema",
-      name: "meal_extraction",
-      schema: mealExtractionJsonSchema,
-      strict: true,
-    },
-  });
-
-  const parsed = safeJsonParse<unknown>(response.outputText);
-  if (!parsed) {
-    return null;
-  }
-
-  const validation = mealExtractionSchema.safeParse(parsed);
-  if (!validation.success) {
-    return null;
-  }
-
-  return validation.data;
+  const capability = input.imageUrl ? "MEAL_VISION" : "MEAL_TEXT";
+  const instructions = "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado. Separe marcas explícitas em brand e use null quando a marca não estiver clara.";
+  return runMealExtractionWithPolicy(capability, instructions, aiInput);
 }
-
-const foodClassificationOnlySchema = z.object({
-  processingLevel: foodProcessingLevelEnum,
-  isFruit: z.boolean(),
-  isVegetable: z.boolean(),
-  fiberGrams: z.number().min(0).max(100),
-});
-
-const foodClassificationOnlyJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    processingLevel: {
-      type: "string",
-      enum: [
-        "natural_or_minimally_processed",
-        "processed_culinary_ingredient",
-        "processed",
-        "ultra_processed",
-      ],
-    },
-    isFruit: { type: "boolean" },
-    isVegetable: { type: "boolean" },
-    fiberGrams: { type: "number", minimum: 0, maximum: 100 },
-  },
-  required: ["processingLevel", "isFruit", "isVegetable", "fiberGrams"],
-} as const;
 
 const FOOD_CLASSIFICATION_NOVA_GUIDE = [
   "Classifique o alimento usando a classificação NOVA de processamento:",
@@ -293,50 +312,3 @@ const FOOD_CLASSIFICATION_NOVA_GUIDE = [
   "Marque isFruit e isVegetable apenas quando o item for de fato uma fruta ou um legume/verdura consumido como tal (não marque sucos industrializados ou preparações compostas como fruta/vegetal puro).",
   "Estime fiberGrams como a quantidade de fibra alimentar (em gramas) presente na porção informada, usando 0 quando não houver fibra relevante (ex.: bebidas, carnes, laticínios).",
 ].join("\n");
-
-/**
- * Classificação text-only (sem imagem, sem recalcular nutrição) usada para reprocessar
- * retroativamente itens de refeição confirmados antes do pipeline de classificação automática.
- */
-export async function classifyFoodNameWithAi(
-  foodName: string,
-  portionText?: string,
-): Promise<z.infer<typeof foodClassificationOnlySchema> | null> {
-  const response = await getAiProvider().createTextResponse({
-    model: ENV.visionModel,
-    instructions: "Você é um nutricionista assistente especializado em classificação de alimentos pela escala NOVA. Devolva apenas JSON estruturado, sem texto fora do JSON.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: [
-              `Alimento: ${foodName}`,
-              portionText ? `Porção: ${portionText}` : null,
-              FOOD_CLASSIFICATION_NOVA_GUIDE,
-            ].filter(Boolean).join("\n"),
-          },
-        ],
-      },
-    ],
-    format: {
-      type: "json_schema",
-      name: "food_classification",
-      schema: foodClassificationOnlyJsonSchema,
-      strict: true,
-    },
-  });
-
-  const parsed = safeJsonParse<unknown>(response.outputText);
-  if (!parsed) {
-    return null;
-  }
-
-  const validation = foodClassificationOnlySchema.safeParse(parsed);
-  if (!validation.success) {
-    return null;
-  }
-
-  return validation.data;
-}

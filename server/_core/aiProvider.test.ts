@@ -22,12 +22,21 @@ describe("openai provider foundation", () => {
         outputText: "{\"ok\":true}",
         raw: { mocked: true },
       }),
+      createEmbeddings: vi.fn().mockResolvedValue({
+        embeddings: [[0.1, 0.2]],
+        raw: { mocked: true },
+      }),
       createAudioTranscription: vi.fn().mockResolvedValue({
         task: "transcribe",
         language: "pt",
         duration: 1.2,
         text: "arroz e feijao",
         segments: [],
+        raw: { mocked: true },
+      }),
+      createImageGeneration: vi.fn().mockResolvedValue({
+        b64Json: "AAAA",
+        mimeType: "image/png",
         raw: { mocked: true },
       }),
     };
@@ -109,6 +118,9 @@ describe("openai provider foundation", () => {
         name: "meal_extraction",
         schema: {
           type: "object",
+          additionalProperties: false,
+          required: [],
+          properties: {},
         },
       },
     });
@@ -133,12 +145,15 @@ describe("openai provider foundation", () => {
           name: "meal_extraction",
           schema: {
             type: "object",
+            additionalProperties: false,
+            required: [],
+            properties: {},
           },
           strict: true,
         },
       },
       stream: false,
-    });
+    }, undefined);
     expect(result).toEqual({
       id: "resp_123",
       outputText: "{\"mealLabel\":\"Almoco\"}",
@@ -179,7 +194,7 @@ describe("openai provider foundation", () => {
       response_format: "verbose_json",
       language: "pt",
       prompt: "Transcreva em portugues.",
-    });
+    }, undefined);
     expect(result).toEqual({
       task: "transcribe",
       language: "pt",

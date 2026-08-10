@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "issue": 922,
+  "cycle": 10,
+  "mode": "implementation",
+  "base_ref": "develop",
+  "subject_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+  "categories": [
+    "architecture",
+    "environment",
+    "reliability",
+    "security",
+    "privacy",
+    "meal-registration",
+    "whatsapp",
+    "ci-governance"
+  ],
+  "canonical_sources": [
+    "README.md",
+    "ARCHITECTURE.md",
+    ".env.example",
+    "docs/exec-plans/active/migrate-ai-to-openai.md",
+    "docs/design-docs/nutrition-engine.md",
+    "docs/design-docs/whatsapp-ingestion.md",
+    "docs/design-docs/whatsapp-ingestion-ai-capabilities.md",
+    "docs/product-specs/meal-registration.md",
+    "docs/product-specs/whatsapp-flow.md",
+    "docs/RELIABILITY.md",
+    "docs/SECURITY.md",
+    "docs/PRIVACY_LGPD.md",
+    "docs/design-docs/whatsapp-llm-intents.md"
+  ],
+  "last_scanned_head": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+  "status": "governance_records_remediated_pending_exact_head_regates",
+  "cycle_delta": [
+    "Recorded successful exact-head Agent-first, WhatsApp context TiDB and professional persistence gates.",
+    "Recorded successful protected live-provider smoke on the audited head using a dedicated step-scoped OpenAI credential.",
+    "Updated REQ-010 from blocked_external to implemented with observed text, image and WhatsApp intent results.",
+    "Removed stale claims that the protected environment, dedicated provider credential and approved SHA were absent on the audited head.",
+    "Kept the next exact-head approval and re-run explicit because this governance-only remediation creates a new commit SHA.",
+    "Updated the PR narrative to distinguish resolved parent-head evidence from the new exact-head gate."
+  ],
+  "external_actions_required": [
+    "Set repository variable ISSUE_922_SMOKE_APPROVED_SHA to the resulting exact PR head.",
+    "Re-run the exact-head gates, including Issue 922 live provider smoke."
+  ],
+  "evidence": {
+    "audited_subject_sha": "13852d2dfbfad7203299e1cfc7855bab28e22748",
+    "base_sha": "0cb25e81ec82477844fd5a21254f5bd87cca9621",
+    "merge_preview_sha": "244b444ea112f6ce048f6d20c578845025887b05",
+    "agent_first_run": 30597090076,
+    "whatsapp_context_tidb_run": 30597090096,
+    "professional_persistence_tidb_run": 30597090081,
+    "live_provider_smoke_run": 30597090079,
+    "live_provider_smoke_result": {
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "meal_text_items": 1,
+      "meal_text_foods": [
+        "banana"
+      ],
+      "meal_text_processing_level": "natural_or_minimally_processed",
+      "meal_vision_items": 1,
+      "meal_vision_foods": [
+        "banana"
+      ],
+      "intent_source": "llm",
+      "intent_validation": "valid",
+      "intent_name": "list_meal_records"
+    },
+    "record_updated_at": "2026-07-31T16:28:02Z"
+  }
+}

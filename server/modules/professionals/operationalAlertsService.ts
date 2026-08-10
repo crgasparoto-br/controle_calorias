@@ -8,6 +8,7 @@ import { getEffectiveUserTimeZone } from "../timeZone/service";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   buildOperationalAlertDedupeKey,
+  formatDateKeyPtBr,
   getNoFoodRecordsWindow,
   shouldCloseWeighInRequest,
 } from "./operationalAlertRules";
@@ -288,7 +289,7 @@ export async function evaluateProfessionalOperationalAlerts(
           originType: "meals",
           periodStart: period.start,
           periodEnd: period.end,
-          reason: `Nenhum registro alimentar confirmado entre ${period.startDateKey} e ${period.endDateKey} no timezone ${timeZone}.`,
+          reason: `Nenhum registro alimentar confirmado entre ${formatDateKeyPtBr(period.startDateKey)} e ${formatDateKeyPtBr(period.endDateKey)} no timezone ${timeZone}.`,
           suggestedAction:
             "Revisar o acompanhamento e, se necessário, entrar em contato com o paciente.",
         });
@@ -440,7 +441,7 @@ export async function listProfessionalOperationalAlerts(
         ORDER BY alerts.updatedAt DESC`)
     : patientUserId
       ? await db.execute(sql`${baseQuery} AND alerts.patientUserId = ${patientUserId} ORDER BY alerts.updatedAt DESC`)
-    : await db.execute(sql`${baseQuery} ORDER BY alerts.severity DESC, alerts.updatedAt DESC LIMIT 500`);
+      : await db.execute(sql`${baseQuery} ORDER BY alerts.severity DESC, alerts.updatedAt DESC LIMIT 500`);
 
   return rows(result).map(mapAlert);
 }

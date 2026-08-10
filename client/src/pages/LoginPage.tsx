@@ -1,11 +1,26 @@
-import { trpc } from "@/lib/trpc";
-import { useState } from "react";
-import { Link } from "wouter";
 import AuthShell from "@/components/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { trpc } from "@/lib/trpc";
 import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Link } from "wouter";
+
+const INTERNAL_RETURN_ORIGIN = "https://controle-calorias.local";
+
+export function resolveSafeLoginReturnTo(search: string) {
+  const returnTo = new URLSearchParams(search).get("returnTo")?.trim();
+  if (!returnTo) return "/";
+
+  try {
+    const destination = new URL(returnTo, INTERNAL_RETURN_ORIGIN);
+    if (destination.origin !== INTERNAL_RETURN_ORIGIN) return "/";
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/";
+  }
+}
 
 export default function LoginPage() {
   const utils = trpc.useUtils();
@@ -14,12 +29,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPasswordHelp, setShowForgotPasswordHelp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const returnTo = resolveSafeLoginReturnTo(window.location.search);
 
   const login = trpc.auth.login.useMutation({
     onSuccess: async () => {
       setError(null);
       await utils.auth.me.invalidate();
-      window.location.href = "/";
+      window.location.href = returnTo;
     },
     onError: error => {
       setError(error.message || "E-mail ou senha inválidos.");
@@ -35,7 +51,14 @@ export default function LoginPage() {
       formDescription="Acesse sua conta com e-mail e senha."
       metrics={[]}
       hideHero
-      footer={<>Ainda não tem conta? <Link className="font-medium text-primary" href="/register">Cadastre-se</Link></>}
+      footer={
+        <>
+          Ainda não tem conta?{" "}
+          <Link className="font-medium text-primary" href="/register">
+            Cadastre-se
+          </Link>
+        </>
+      }
     >
       <form
         className="space-y-5"
@@ -86,17 +109,30 @@ export default function LoginPage() {
               className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setShowPassword(current => !current)}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           {showForgotPasswordHelp ? (
-            <p id="forgot-password-help" className="text-sm leading-6 text-muted-foreground">
-              A recuperação automática de senha ainda não está disponível. Se precisar recuperar o acesso, peça a redefinição para quem administra o app.
+            <p
+              id="forgot-password-help"
+              className="text-sm leading-6 text-muted-foreground"
+            >
+              A recuperação automática de senha ainda não está disponível. Se
+              precisar recuperar o acesso, peça a redefinição para quem administra
+              o app.
             </p>
           ) : null}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button className="h-11 w-full" disabled={login.isPending} type="submit">
+        <Button
+          className="h-11 w-full"
+          disabled={login.isPending}
+          type="submit"
+        >
           {login.isPending ? "Entrando..." : "Entrar"}
         </Button>
       </form>

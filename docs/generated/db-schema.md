@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
+Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing-schema.ts`.
 
 ## Tabelas
 
@@ -48,7 +48,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
 | `professionalProfiles` | `professionalProfiles` | 7 | Requer atenção |
 | `professionalPatientAuthorizations` | `professionalPatientAuthorizations` | 19 | Requer atenção |
-| `professionalPatientTrackings` | `professionalPatientTrackings` | 13 | Requer atenção |
+| `professionalPatientTrackings` | `professionalPatientTrackings` | 15 | Requer atenção |
 | `professionalPatientTrackingEvents` | `professionalPatientTrackingEvents` | 9 | Requer atenção |
 | `professionalComments` | `professionalComments` | 5 | Requer atenção |
 | `professionalGoalSuggestions` | `professionalGoalSuggestions` | 13 | Requer atenção |
@@ -58,8 +58,19 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalGoalReviewRequests` | `professionalGoalReviewRequests` | 11 | Requer atenção |
 | `professionalGoalNotifications` | `professionalGoalNotifications` | 13 | Requer atenção |
 | `professionalConversations` | `professionalConversations` | 7 | Requer atenção |
-| `professionalMessages` | `professionalMessages` | 24 | Requer atenção |
+| `professionalMessages` | `professionalMessages` | 25 | Requer atenção |
 | `professionalMessageDeliveryAttempts` | `professionalMessageDeliveryAttempts` | 12 | Requer atenção |
+| `billingProducts` | `billingProducts` | 8 | Requer atenção |
+| `billingPlans` | `billingPlans` | 22 | Requer atenção |
+| `billingSubscriptions` | `billingSubscriptions` | 16 | Requer atenção |
+| `billingProviderEvents` | `billingProviderEvents` | 12 | Requer atenção |
+| `billingEntitlements` | `billingEntitlements` | 16 | Requer atenção |
+| `billingCapacityAllocations` | `billingCapacityAllocations` | 13 | Requer atenção |
+| `billingAdminOverrides` | `billingAdminOverrides` | 13 | Requer atenção |
+| `billingAccessAuditEvents` | `billingAccessAuditEvents` | 10 | Requer atenção |
+| `billingCoupons` | `billingCoupons` | 23 | Requer atenção |
+| `billingCouponRedemptions` | `billingCouponRedemptions` | 13 | Requer atenção |
+| `billingCommercialAuditEvents` | `billingCommercialAuditEvents` | 8 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -105,6 +116,17 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 - `professionalConversations` via export `professionalConversations`.
 - `professionalMessages` via export `professionalMessages`.
 - `professionalMessageDeliveryAttempts` via export `professionalMessageDeliveryAttempts`.
+- `billingProducts` via export `billingProducts`.
+- `billingPlans` via export `billingPlans`.
+- `billingSubscriptions` via export `billingSubscriptions`.
+- `billingProviderEvents` via export `billingProviderEvents`.
+- `billingEntitlements` via export `billingEntitlements`.
+- `billingCapacityAllocations` via export `billingCapacityAllocations`.
+- `billingAdminOverrides` via export `billingAdminOverrides`.
+- `billingAccessAuditEvents` via export `billingAccessAuditEvents`.
+- `billingCoupons` via export `billingCoupons`.
+- `billingCouponRedemptions` via export `billingCouponRedemptions`.
+- `billingCommercialAuditEvents` via export `billingCommercialAuditEvents`.
 
 ## Campos sensíveis conhecidos
 
@@ -153,6 +175,15 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalConversations` | `authorizationId`, `professionalUserId`, `patientUserId`, `lastMessageAt` |
 | `professionalMessages` | `authorizationId`, `professionalUserId`, `patientUserId`, `messageType`, `inReplyToMessageId`, `supersedesMessageId`, `providerMessageId` |
 | `professionalMessageDeliveryAttempts` | `messageId`, `providerMessageId`, `errorDetail` |
+| `billingProducts` | `name` |
+| `billingPlans` | `name`, `entitlementsJson`, `commercialPaymentMethodsJson` |
+| `billingProviderEvents` | `occurredAt`, `payloadJson` |
+| `billingEntitlements` | `professionalAuthorizationId`, `entitlementsJson` |
+| `billingCapacityAllocations` | `professionalUserId`, `patientUserId`, `authorizationId`, `coverageKey`, `releaseReason` |
+| `billingAdminOverrides` | `reason` |
+| `billingAccessAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
+| `billingCoupons` | `eligibleProductCodesJson`, `eligibleVersionCodesJson`, `eligibleCyclesJson` |
+| `billingCommercialAuditEvents` | `actorUserId`, `reason`, `metadataJson` |
 
 ## Relações críticas
 
@@ -160,3 +191,4 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
 - `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.
+- Billing separa titular/pagador, beneficiário, patrocinador e origem do entitlement; coberturas profissionais não criam assinatura para o paciente.

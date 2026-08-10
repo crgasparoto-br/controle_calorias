@@ -26,10 +26,14 @@ server/modules/*               -> regra de negócio por domínio
 server/modules/timeZone/service.ts -> resolução central do timezone efetivo por dono dos dados
 server/repositories/*          -> acesso a dados reutilizável por domínio
 server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
-server/_core/geminiProvider.ts -> implementação do provider Gemini (Google Generative AI)
-server/_core/aiProvider.ts     -> interface interna e factory que seleciona o provider ativo
-server/_core/voiceTranscription.ts -> helper de transcrição baseado no provider interno
-server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
+server/_core/geminiProvider.ts -> implementação do provider Gemini, sobre o SDK @google/genai
+server/_core/aiProvider.ts     -> interface interna e factory global legada que seleciona o provider ativo (AI_VISION_PROVIDER)
+server/_core/ai/               -> fundação multi-provider (#921): registro, matriz, resolvedor e execução vinculada por capacidade
+server/_core/voiceTranscription.ts -> fronteira da capacidade TRANSCRIPTION para web e WhatsApp
+server/_core/imageAnnotation.ts -> fronteira externa da capacidade IMAGE_ANNOTATION, isolada de MEAL_VISION
+server/modules/whatsapp/localMealPhotoOverlay.ts -> compositor local determinístico da anotação sobre uma cópia da foto
+server/modules/whatsapp/annotatedImage.ts -> consumidor que seleciona local, external ou off e aplica degradação explícita
+server/_core/imageGeneration.ts -> helper legado de resumo visual separado; não representa anotação da foto
 server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
 drizzle/schema.ts              -> fonte de verdade do modelo relacional
 shared/*                       -> tipos, cálculos e mensagens sem dependência de ambiente
@@ -54,7 +58,7 @@ A decisão de produto canônica está em `docs/product-specs/product-experience-
 - Deve validar no backend o perfil profissional, o vínculo vigente, o consentimento e o paciente alvo.
 - Não deve importar páginas pessoais para simular a sessão do paciente nem usar impersonação.
 - Toda mutação profissional deve carregar ator profissional e paciente afetado de forma separada.
-- A tela única com abas existente deve ser preservada durante a transição, mas a direção arquitetural é evoluir para páginas próprias de dashboard, carteira, prontuário, acompanhamento, mensagens, relatórios e configurações.
+- A transição foi concluída: dashboard, carteira, workspace contextual do paciente, mensagens, relatórios e configurações usam rotas próprias. As antigas telas concentradas permanecem apenas como redirecionamentos seguros e não devem ser reintroduzidas.
 
 ### Serviços compartilhados
 
@@ -95,12 +99,84 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 - `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
 - `webhookMediaPipeline.ts` -> download/persistência de mídia recebida (imagem/áudio) e preparo de texto/transcrição para inferência.
+- `annotatedImage.ts` -> seleção dos modos de anotação `local`, `external` e `off`; exige a foto original e nunca substitui silenciosamente a anotação por cartão genérico.
+- `localMealPhotoOverlay.ts` -> criação do PNG derivado por composição determinística, sem sobrescrever os bytes originais e sem provider externo.
 - `replyFormatting.ts` -> formatação compartilhada de número e horário nas respostas do WhatsApp.
 - `mealConsolidationService.ts` / `mealConsolidation.ts` -> consolidação de refeições do mesmo dia/tipo (ver #663).
 
 A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsAppWebhook`, `verifyWhatsAppWebhook`, `__resetWhatsAppWebhookDeduplicationForTests`) deve ser preservada ao mover código para esses módulos.
 
+A deduplicação por `message.id` ocorre no orquestrador antes de `beginInboundMessage` e antes de `prepareMessageInput`. Portanto, callback duplicado não baixa mídia, não transcreve e não cria nova mutação. Essa ordem é um contrato comportamental coberto por teste no limite HTTP do webhook, não por inspeção textual de código.
+
 Fluxos de comunicação profissional devem reutilizar o contrato central de mensagens e o transporte oficial. Não criar cliente, formatter ou fila paralela somente para a Área Profissional.
+
+## Fundação multi-provider de IA (#921)
+
+`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION` para `resolveCapabilityConfig` + `executeResolvedCapability`, mantendo o modo local como default seguro.
+
+- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio; `IMAGE_ANNOTATION` externa exige geração e edição de imagem. `FOOD_CLASSIFICATION` permanece reservada.
+- `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`. Gemini declara texto, visão, Structured Output e pesquisa web, mas não anuncia embeddings nem transcrição.
+- `openai-compatible` é fail-closed. Qualquer `OPENAI_BASE_URL` não vazio faz o resolvedor aplicar automaticamente essa identidade, e somente operações explicitamente listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam disponíveis.
+- `policyDefaults.ts` concentra timeout, tentativas e janela de confirmação do cancelamento.
+- `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica `AI_<CAPABILITY>_*` novo > variável legada compatível > default equivalente ao baseline; rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
+- `providerResolver.ts` transforma somente um `AiProviderId` já resolvido no adapter correspondente; não consulta nome de modelo nem a seleção global legada.
+- `capabilityExecutor.ts` recebe o `ResolvedCapabilityConfig` completo e vincula provider, modelo e adapter em cada tentativa. Primário e retries permanecem no alvo primário resolvido; o fallback usa somente o provider/modelo resolvido para fallback.
+- `domainTextResponse.ts`, `domainAudioTranscription.ts` e a fronteira externa de `imageAnnotation.ts` removem `raw` do SDK antes de entregar resposta a consumidores.
+- `policyExecutor.ts` aplica timeout, retry, fallback e classificação de erro depois que a identidade da capacidade foi vinculada. Estados `disabled` e `invalid`, limites não inteiros/positivos e fallback habilitado sem alvo executável são rejeitados antes de outbound.
+- O executor classifica erros concretos de SDK/HTTP/rede e valida saída vazia, JSON inválido e payload inválido. Cada tentativa recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar. `MAX_ATTEMPTS` conta todas as chamadas do primário e existe no máximo uma chamada posterior de fallback.
+- `AiOperationalError` representa timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido. `AiNonRetryableError` cobre autenticação, modelo ausente, incompatibilidade, bloqueio de segurança, configuração inválida, cancelamento não reconhecido e erro desconhecido.
+- Requests comuns são fail-closed: todo campo recebido pelo adapter deve ser traduzido integralmente ou a requisição é rejeitada antes da rede.
+- Structured Output no OpenAI e Gemini passa por preflight local específico ao provider.
+- Escalonamento de qualidade é política separada e permanece desativada. Degradação funcional local não é fallback externo.
+
+### Contrato de `TRANSCRIPTION` (#924)
+
+```text
+web / WhatsApp
+  -> voiceTranscription.transcribeAudio
+     -> validação de URL/base64, MIME, vazio e 16 MiB
+     -> resolveCapabilityConfig("TRANSCRIPTION")
+     -> executeResolvedCapability
+        -> transcriptionProvider / AiProvider.createAudioTranscription
+        -> domainAudioTranscription remove raw e normaliza texto
+  -> consumidor usa text; metadados são opcionais
+```
+
+- O baseline de produção continua `openai` + `whisper-1`. A #927 não promove modelo alternativo: a comparação disponível identifica o alias mutável `gpt-4o-mini-transcribe` e não há preço runtime versionado para um snapshot imutável equivalente; qualquer promoção futura exige nova evidência antes da janela autorizada da #962.
+- `whisper-1` usa `verbose_json`; modelos GPT-4o de transcrição usam `json`.
+- O contrato raiz e o contrato de domínio exigem `task` e `text`; `language`, `duration`, `segments` e `usage` são opcionais. Adapters não fabricam `segments: []`, `duration: 0` ou idioma vazio quando o provider omite esses campos.
+- Data URL sem `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes da criação do adapter.
+- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; a #927 não aprovou cross-provider, que continua bloqueado em produção até nova evidência, revisão LGPD e autorização específicas por capacidade.
+- O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
+- Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
+
+### Contrato de `IMAGE_ANNOTATION` (#925)
+
+```text
+WhatsApp com preferência ativa
+  -> annotatedImage.generateAnnotatedMealImage
+     -> resolveImageAnnotationRuntimeConfig
+        -> local: valida foto, auto-orienta cópia e compõe SVG via Sharp
+        -> external: valida foto e resolveCapabilityConfig("IMAGE_ANNOTATION")
+             -> executeResolvedCapability
+                -> AiProvider.createImageGeneration com originalImages
+        -> off: não produz derivado
+  -> resposta textual e refeição continuam independentes do artefato auxiliar
+```
+
+- `local` é o default e não cria adapter externo, mesmo que `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` apontem para outro provider.
+- `external` exige configuração explícita da capacidade e representa novo envio da foto ao provider de imagem.
+- Uma tentativa do executor corresponde a exatamente uma operação de imagem; existe no máximo uma chamada posterior de fallback.
+- Fallback externo permanece desabilitado por padrão; provider diferente exige opt-in específico e continua bloqueado em produção. A #927 preservou `IMAGE_ANNOTATION` em modo local e não recomendou promoção externa.
+- A transição `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; é degradação funcional do consumidor, não fallback de provider.
+- O original e o derivado têm buffers e chaves de storage distintos. Falha de renderização, provider, upload ou envio não remove o original nem bloqueia o registro textual.
+- Um cartão-resumo sem a foto original é outro tipo de artefato e não pode ser apresentado como anotação.
+- O resultado normalizado distingue `mode`, `artifactKind`, `degradation`, `providerSource`, `attempts` e `skippedReason` sem expor foto, prompt, payload ou resposta bruta.
+- Detalhes de segurança, privacidade, rollout e rollback ficam em `docs/design-docs/image-annotation-capability.md`.
+
+**Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` e a superfície `models.generateContent`. Structured Output usa `responseJsonSchema`, preservando `additionalProperties: false`, tipos anuláveis, limites numéricos e demais recursos presentes nos schemas reais do projeto. O fluxo legado de refeição é testado pelo entrypoint `mealAiExtraction` em variantes textual e visual, usando o data URL inline realmente produzido pelo pipeline do WhatsApp. Metadados de usage são normalizados em `AiProviderTextResponse.usage` quando o provider os retorna.
+
+**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada. `TRANSCRIPTION` usa `AI_TRANSCRIPTION_*`; `IMAGE_ANNOTATION` usa seu modo e `AI_IMAGE_ANNOTATION_*`; nenhuma das duas depende de `AI_VISION_PROVIDER`.
 
 ## Regras de dependência
 
@@ -110,8 +186,9 @@ Fluxos de comunicação profissional devem reutilizar o contrato central de mens
 - Serviços não devem depender de componentes React.
 - Schemas devem ser reutilizados pelo router e, quando útil, pelo frontend via tipos inferidos.
 - O SDK oficial da OpenAI deve ficar restrito à camada `_core` do backend.
-- `voiceTranscription`, inferência nutricional e visual auxiliar não devem chamar o provider legado.
+- `voiceTranscription`, inferência nutricional e anotação externa devem usar suas capacidades específicas; o compositor local não acessa provider.
 - Falha de imagem auxiliar nunca deve bloquear criação ou confirmação de refeição.
+- A foto original nunca deve ser sobrescrita pelo derivado; resumo visual separado não pode mascarar ausência de anotação.
 - Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.
 - Dependências legadas remanescentes devem ficar documentadas e fora do fluxo principal de refeição.
 - Páginas profissionais podem reutilizar componentes visuais genéricos, mas não devem importar páginas da Área do Paciente.
@@ -142,18 +219,33 @@ Regras para cada PR de extração:
 - evitar misturar refatoração com correção funcional, mudança visual ou alteração de contrato de API;
 - manter `pnpm test`, `pnpm architecture:check` e `pnpm docs:check` verdes.
 
+## Catálogo comercial versionado de billing (#891)
+
+O catálogo comercial é um domínio backend provider-neutral, separado de checkout e do adapter financeiro. `billingProducts` guarda a identidade estável do produto e `billingPlans` permanece como a tabela referenciada por assinaturas/entitlements, mas passa a representar uma versão comercial imutável com ciclo, preço, capacidade, vigência, meios de pagamento e matrizes de recursos.
+
+- novas contratações usam somente versões ativas e vigentes; uma publicação posterior encerra a janela comercial anterior sem migrar assinaturas existentes;
+- a versão profissional persiste duas matrizes: `entitlementsJson` para o pagador (pessoal + profissional) e `coveredBeneficiaryEntitlementsJson` para pacientes cobertos. Assim, uma evolução futura da matriz Individual não altera contratos profissionais já vigentes;
+- meios de pagamento exibíveis são a interseção entre `commercialPaymentMethodsJson` da versão e as capacidades declaradas pelo adapter financeiro; o frontend não amplia essa lista;
+- cupons são políticas revisionadas e auditáveis. Reservas usam `contractKey` idempotente, contabilizam estados reservados/confirmados através de todas as revisões do mesmo código e são serializadas no banco para respeitar limites concorrentes;
+- mutações administrativas usam `adminProcedure` e também revalidam `users.role = admin` dentro da transação, mantendo a autoridade bloqueada até o commit;
+- alertas `catalog_range_review_required`, jobs e configuração operacional não criam nem publicam versões comerciais automaticamente.
+
+O seed inicial é idempotente e deve falhar diante de drift de uma versão já existente. A migration, o metadata Drizzle e os cenários de concorrência/TOCTOU pertencem ao gate TiDB de billing antes da integração.
+
 ## Privacidade e dados sensíveis
 
 Dados de saúde e alimentação são sensíveis. Campos como `sourceText`, `transcript`, `mediaJson`, restrições alimentares, objetivos, peso, telefone, logs de inferência e tokens exigem cuidado extra.
 
 Proibições:
 
-- não logar texto cru de refeição, transcrição, tokens, URLs assinadas ou telefone completo;
+- não logar texto cru de refeição, transcrição, fotos, base64, prompts de anotação, URLs assinadas, tokens ou telefone completo;
 - não enviar dados sensíveis para analytics;
 - não retornar detalhes internos de erro para o usuário final;
 - não persistir novo dado sensível sem documentar finalidade, retenção e exclusão;
 - não expor dados de um paciente a profissional sem vínculo vigente e escopo autorizado;
 - não misturar dados pessoais do nutricionista com dados do paciente selecionado.
+
+A anotação externa representa tratamento adicional da foto e só pode ocorrer no modo explicitamente configurado. O modo local não envia foto nem dados nutricionais a provider de imagem. Original e derivado seguem retenção, exportação e exclusão como artefatos independentes vinculados à refeição.
 
 ## Comandos de qualidade
 
@@ -170,3 +262,15 @@ pnpm agent:check
 ## Aposentadoria do legado profissional
 
 A experiência profissional atual é a única interface funcional. O endereço `/professional/legacy` existe apenas como redirecionamento de bookmark para `/professional` e não carrega componentes, estado ou APIs antigos. Perfil, autorizações e acompanhamento usam exclusivamente as tabelas canônicas em runtime; leitura, migração e remoção das três chaves JSON antigas são permitidas somente pelos comandos operacionais documentados em `docs/runbooks/professional-legacy-retirement.md`.
+
+## Observabilidade de IA e catálogo de preços (#926)
+
+`executeResolvedCapability` é a fronteira canônica para telemetria técnica das capacidades externas de IA. Cada tentativa concluída produz um `AiInferenceEvent` schema 1 com capacidade, origem, provider/modelo configurados e efetivos, papel da chamada, índice, latência, resultado, usage normalizado, ferramentas efetivamente executadas, política de fallback e custo estimado.
+
+- `server/_core/ai/providerBoundary.ts` envolve o adapter resolvido, remove `raw` e `usage.raw`, normaliza unidades faturáveis e converte exceções do SDK para a taxonomia comum sem preservar mensagem ou causa nativa. O domínio não deve depender da identidade do objeto bruto do adapter; deve usar `providerId`, modelo e métodos do contrato interno.
+- `server/_core/ai/observability.ts` constrói eventos de baixa cardinalidade. Primário, retry, fallback e escalonamento são papéis distintos; same-provider, cross-provider e degradação local também permanecem separados.
+- `server/modules/aiObservability/logSink.ts` reutiliza `logInferenceEvent` com `eventType=ai.inference_call`. Não existe tabela, router ou fonte concorrente criada por #926. Falha do sink é best effort e não altera a inferência.
+- `server/_core/ai/pricingCatalog.ts` é a fonte versionada e datada para estimativa em USD. Preço ou usage insuficiente resulta em `null`; a estimativa não representa cobrança ou faturamento.
+- Prompt, texto, transcrição, foto, base64, URL assinada, resposta, reasoning textual, headers, segredos, erro bruto e objeto de SDK não podem atravessar a fronteira nem ser persistidos na telemetria.
+
+O contrato operacional detalhado e o processo de atualização do catálogo ficam em `docs/design-docs/ai-observability-pricing.md`.

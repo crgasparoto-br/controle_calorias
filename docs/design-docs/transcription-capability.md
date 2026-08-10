@@ -1,0 +1,63 @@
+# Capacidade `TRANSCRIPTION`
+
+## Contrato de produção
+
+Toda transcrição de áudio do web app e do WhatsApp entra por `transcribeAudio` e é executada como a capacidade `TRANSCRIPTION`. O resolvedor escolhe provider, modelo, timeout, número máximo de tentativas e fallback antes da criação do adapter. A #927 mantém `openai` + `whisper-1` como default de produção e não promove `gpt-4o-mini-transcribe`: a evidência disponível usa alias mutável e não está ligada a preço runtime de um snapshot imutável.
+
+A resposta de domínio contém texto útil após `trim`, provider e modelo efetivamente usados e metadados normalizados de execução. Texto composto apenas por pontuação ou integralmente por marcadores e mensagens auxiliares de silêncio/áudio inaudível é classificado como `empty_output`, mesmo quando a frase varia a ordem de negação, sujeito e verbo (`não há fala`, `o áudio não contém fala`, `no voice was found`, `could not hear anything`). A classificação combina padrões literais com uma gramática semântica restrita a ausência de fala; não considera uma palavra isolada como prova suficiente. Conteúdo misto que ainda carregue fala acionável permanece válido. `language`, `duration`, `segments` e `usage` são opcionais. O campo SDK `raw` não atravessa a fronteira de domínio. Metadados ausentes não são preenchidos com valores artificiais.
+
+`whisper-1` usa `verbose_json`, preservando segmentos quando fornecidos. `gpt-4o-mini-transcribe` e `gpt-4o-transcribe` usam `json`, conforme o contrato da Audio API, e o sistema não fabrica segmentos vazios. O provider OpenAI oficial aceita somente essas famílias e o snapshot explícito `gpt-4o-mini-transcribe-2025-12-15`; outro modelo é incompatível antes do adapter. Um endpoint `openai-compatible` pode usar identificador próprio somente quando a operação `transcription` estiver explicitamente na allow-list. Consumidores devem depender somente de `text` para continuar o fluxo.
+
+## Validação antes do provider
+
+Antes de qualquer chamada ao provider, a fronteira valida:
+
+- data URL bem formada com marcador `;base64`, quando esse formato é usado;
+- base64 canônico ou download concluído;
+- MIME permitido;
+- payload não vazio;
+- limite máximo de 16 MiB;
+- provider/modelo/operação suportados e configuração executável.
+
+Data URL malformada retorna `INVALID_FORMAT`; somente uma data URL base64 válida com payload vazio retorna `EMPTY_FILE`. Em ambos os casos, nenhum adapter é criado e nenhuma chamada externa ocorre.
+
+Erros públicos e diagnósticos são sanitizados. Áudio, transcrição, prompt, base64, URL de mídia, chave e payload do SDK não podem aparecer em logs, métricas ou mensagens de erro.
+
+## Retry e fallback
+
+- `AI_TRANSCRIPTION_MAX_ATTEMPTS` controla tentativas primárias sequenciais;
+- fallback permanece desabilitado por padrão;
+- quando habilitado, ocorre somente após esgotar falhas operacionais do primário;
+- falhas de autenticação, modelo, incompatibilidade ou configuração não acionam fallback;
+- existe no máximo uma chamada de fallback, sem paralelismo ou cadeia;
+- fallback cross-provider exige opt-in explícito e continua bloqueado em produção; a #927 não aprovou essa promoção.
+
+## WhatsApp e idempotência
+
+A mudança não altera a correlação ou o ciclo de vida da mensagem recebida. A deduplicação do webhook acontece antes da preparação de mídia. O teste de regressão executa duas vezes o mesmo callback e comprova que a segunda entrega não baixa mídia, não persiste arquivo, não transcreve, não cria rascunho e não confirma refeição novamente.
+
+Falha de storage ainda permite processamento inline, preservando a identidade da mensagem original. Falha ou texto vazio de transcrição bloqueia uma mensagem exclusivamente de áudio e não cria registro vazio. Quando existe texto ou imagem aproveitável, a falha de áudio pode degradar de forma controlada sem duplicar mutações.
+
+## Benchmark reproduzível
+
+Os fixtures em `docs/benchmarks/transcription/fixtures` são vozes sintéticas PT-BR, sem dados pessoais. Execute somente em um contexto confiável:
+
+```bash
+OPENAI_API_KEY="..." \
+  pnpm benchmark:transcription -- \
+  docs/benchmarks/transcription/results/<data>-<sha>.json
+```
+
+O harness usa o caminho produtivo, uma tentativa, sem fallback, e compara `whisper-1` com o modelo configurado para a família `gpt-4o-mini-transcribe` por latência, WER, recall de termos críticos, presença de segmentos e custo estimado. Para a #927 promover um candidato, o resultado precisa registrar um snapshot imutável observado e esse modelo exato precisa existir no catálogo runtime versionado com preço aplicável; alias mutável ou preço ausente força `keep-baseline`. O manifesto é recusado quando está vazio, não é `synthetic-only`, possui IDs repetidos, referência/arquivo ausente, termos críticos vazios ou duração inválida.
+
+O JSON não persiste áudio, prompt nem texto retornado. Ele registra somente métricas, códigos sanitizados, ambiente, política, catálogo de preços, modelos efetivos, limitações, metadados do manifesto e o `testedSha` exato. O procedimento de registro está em `docs/benchmarks/transcription/results/README.md`.
+
+O benchmark real não pode ser executado por workflow de `pull_request` que entregue secrets permanentes do repositório ao código mutável do head. PRs validam o contrato com testes herméticos, doubles, regressões e controles de contagem. Uma coleta real pode ser feita localmente ou em contexto protegido que execute código já revisado; sua reutilização exige identidade do SHA e ausência de mudanças posteriores em runtime, harness e fixtures.
+
+Os resultados de `751c3c7096748c16a1546b2ab8161e512ecf133a` e `7758bbdafc0b80f6b0ac37338eff4bd2005450e9` permanecem versionados somente como histórico sanitizado. A execução canônica confiável está registrada em `evidence-manifest.json`, com SHA testado, proveniência, run, artifact e hashes verificados. Como os commits posteriores apenas versionam a evidência, removem o workflow temporário e reforçam o teste de segurança, a coleta continua reutilizável enquanto runtime, harness e fixtures listados no manifesto não mudarem.
+
+## Documentação canônica e decisão
+
+A configuração continua documentada em `.env.example`; a arquitetura e as regras transversais permanecem em `README.md`, `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Este documento é a especificação detalhada da capacidade e da ingestão de áudio para consumidores web/WhatsApp.
+
+A comparação nesta issue apenas produz evidência. A #927 não seleciona candidato enquanto snapshot e preço reproduzíveis estiverem ausentes; mudar o modelo padrão, habilitar fallback ou enviar áudio a um segundo provider exige nova evidência elegível e depois o rollout controlado e autorizado da #962.

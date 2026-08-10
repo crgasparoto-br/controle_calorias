@@ -1,0 +1,171 @@
+name: AI provider live smoke
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - ".github/workflows/ai-provider-live-smoke.yml"
+      - "package.json"
+      - "scripts/issue-923-live-provider-smoke.ts"
+      - "server/_core/ai/**"
+      - "server/_core/aiProvider.ts"
+      - "server/_core/geminiProvider.ts"
+      - "server/catalogSemanticSearch.ts"
+      - "server/issue923SmokeWorkflowSecurity.test.ts"
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to validate
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - openai
+          - gemini
+      nutrition_query:
+        description: Packaged product used by NUTRITION_SEARCH
+        required: true
+        default: Trento Speciale Branco 26g
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-provider-live-smoke-${{ github.event.pull_request.number || github.ref }}-${{ inputs.provider || 'both' }}
+  cancel-in-progress: true
+
+jobs:
+  live-smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner ||
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      startsWith(github.event.pull_request.head.ref, 'feat/923-ai-capabilities-question-nutrition-embedding')
+    name: ${{ matrix.provider }} live smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ fromJSON((inputs.provider || 'both') == 'both' && '["openai","gemini"]' || format('["{0}"]', inputs.provider)) }}
+    env:
+      SMOKE_PROVIDER: ${{ matrix.provider }}
+      SMOKE_NUTRITION_QUERY: ${{ inputs.nutrition_query || 'Trento Speciale Branco 26g' }}
+
+    steps:
+      - name: Checkout exact selected SHA without credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify trusted identity and exact selected SHA
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          ACTUAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          EXPECTED_OWNER: ${{ github.repository_owner }}
+          ACTUAL_OWNER: ${{ github.event.pull_request.user.login || github.actor }}
+          ACTUAL_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+          test "${ACTUAL_REPOSITORY}" = "${EXPECTED_REPOSITORY}"
+          test "${ACTUAL_OWNER}" = "${EXPECTED_OWNER}"
+          case "${ACTUAL_BRANCH}" in
+            feat/923-ai-capabilities-question-nutrition-embedding*) ;;
+            *) echo "Unexpected pull request head branch." >&2; exit 1 ;;
+          esac
+
+      - name: Resolve smoke configuration
+        shell: bash
+        env:
+          OPENAI_MODEL: ${{ vars.AI_SMOKE_OPENAI_MODEL }}
+          GEMINI_MODEL: ${{ vars.AI_SMOKE_GEMINI_MODEL }}
+          EMBEDDING_MODEL: ${{ vars.AI_SMOKE_EMBEDDING_MODEL }}
+        run: |
+          set -euo pipefail
+
+          case "${SMOKE_PROVIDER}" in
+            openai)
+              model="${OPENAI_MODEL:-gpt-4.1-mini}"
+              ;;
+            gemini)
+              model="${GEMINI_MODEL:-gemini-3.5-flash}"
+              if [[ ! "${model}" =~ ^gemini-3([.-]|$) ]]; then
+                echo "::warning::AI_SMOKE_GEMINI_MODEL=${model} is incompatible with structured output plus web search; using gemini-3.5-flash."
+                model="gemini-3.5-flash"
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported provider: ${SMOKE_PROVIDER}"
+              exit 1
+              ;;
+          esac
+
+          embedding_model="${EMBEDDING_MODEL:-text-embedding-3-small}"
+          {
+            echo "SMOKE_MODEL=${model}"
+            echo "SMOKE_EMBEDDING_MODEL=${embedding_model}"
+          } >> "${GITHUB_ENV}"
+
+          {
+            echo "### ${SMOKE_PROVIDER} live smoke"
+            echo ""
+            echo "- SHA: \`$(git rev-parse HEAD)\`"
+            echo "- Provider model: \`${model}\`"
+            echo "- Embedding provider: \`openai\`"
+            echo "- Embedding model: \`${embedding_model}\`"
+            echo "- Nutrition query: \`${SMOKE_NUTRITION_QUERY}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies without provider credentials
+        run: pnpm install --frozen-lockfile
+
+      - name: Run live provider smoke
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "::error::GitHub secret OPENAI_API_KEY is unavailable."
+            exit 1
+          fi
+
+          if [[ "${SMOKE_PROVIDER}" == "gemini" && -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "::error::GitHub secret GEMINI_API_KEY is unavailable."
+            exit 1
+          fi
+
+          pnpm smoke:ai:live 2>&1 | tee "/tmp/ai-provider-live-smoke-${SMOKE_PROVIDER}.log"
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-provider-live-smoke-${{ matrix.provider }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/ai-provider-live-smoke-${{ matrix.provider }}.log
+          if-no-files-found: ignore
+          retention-days: 30

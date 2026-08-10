@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
+Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts` e `server/modules/billing/router.ts`.
 
 ## Grupos
 
@@ -26,11 +26,12 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
-| `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
-| `professionalRecord.messages` | 4 | 2 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
+| `professionalRecord` | 14 | 6 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord.messages` | 6 | 4 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
+| `billing` | 18 | 9 | 9 | admin | Elegibilidade própria e administração comercial de billing |
 
 ## Procedures por grupo
 
@@ -223,6 +224,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `context` | query | protected |
+| `portfolioReport` | query | professional-entitled |
 | `get` | query | professional-entitled |
 | `saveAssessment` | mutation | professional-entitled |
 | `createNote` | mutation | professional-entitled |
@@ -240,6 +243,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `templates` | query | professional-entitled |
+| `recipients` | query | professional-entitled |
 | `list` | query | professional-entitled |
 | `create` | mutation | professional-entitled |
 | `retry` | mutation | professional-entitled |
@@ -272,8 +277,31 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `entitlements` | query | protected |
 | `updateIdentity` | mutation | professional-entitled |
 | `updatePreferences` | mutation | professional-entitled |
-| `setActive` | mutation | professional-entitled |
+| `setActive` | mutation | protected |
 | `patientVisible` | query | protected |
+
+### billing
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `me` | query | protected |
+| `subscriptionStatus` | query | protected |
+| `catalog` | query | protected |
+| `couponEligibility` | query | protected |
+| `refreshOnboardingActivation` | mutation | protected |
+| `adminSearchUsers` | query | admin |
+| `adminListOverrides` | query | admin |
+| `adminGrantOverride` | mutation | admin |
+| `adminRevokeOverride` | mutation | admin |
+| `adminCatalogVersions` | query | admin |
+| `adminCoupons` | query | admin |
+| `adminCreateCatalogProduct` | mutation | admin |
+| `adminCreateCatalogVersion` | mutation | admin |
+| `adminPublishCatalogVersion` | mutation | admin |
+| `adminDeactivateCatalogVersion` | mutation | admin |
+| `adminCreateCouponRevision` | mutation | admin |
+| `adminDeactivateCoupon` | mutation | admin |
+| `adminAnalytics` | query | admin |
 
 ## Regras para novas procedures
 

@@ -10,7 +10,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 4. Leia a especificacao de produto afetada em `docs/product-specs/`.
 5. Leia o design tecnico afetado em `docs/design-docs/` quando a mudanca tocar backend, banco, IA, WhatsApp, privacidade ou persistencia.
 6. Implemente a menor mudanca coerente com a arquitetura atual.
-7. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
+7. Atualize docs gerados/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
 8. Siga o gate minimo por tipo de mudanca definido em `CONTRIBUTING.md`.
 9. Rode `pnpm agent:check` antes de propor merge quando a alteracao tocar area sensivel, documentacao operacional ou instrucoes usadas por agentes.
 10. Quando a mudanca depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessario e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponivel.
@@ -22,7 +22,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 | Posicionamento, areas do produto ou classificacao de issues          | `docs/product-specs/product-experience-model.md`                                                                                     |
 | Registro de refeicao, rascunho ou confirmacao                        | `docs/product-specs/meal-registration.md`, `docs/design-docs/nutrition-engine.md`                                                    |
 | WhatsApp, webhook ou resposta conversacional                         | `docs/product-specs/whatsapp-flow.md`, `docs/design-docs/whatsapp-ingestion.md`                                                      |
-| Migracao da IA para OpenAI                                           | `docs/exec-plans/active/migrate-ai-to-openai.md`, `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
+| IA multi-provider, benchmark, rollout e fallback por capacidade (#917/#927) | `docs/benchmarks/multi-provider/README.md`, `docs/runbooks/multi-provider-rollout.md`, `ARCHITECTURE.md` (seção "Fundação multi-provider de IA"), `docs/design-docs/nutrition-engine.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md` |
 | Metas, dashboard ou relatorios do paciente                           | `docs/product-specs/goals-and-reports.md`, `docs/product-specs/product-experience-model.md`                                          |
 | Area Profissional, pacientes, prontuario ou comunicacao profissional | `docs/product-specs/product-experience-model.md`, `docs/product-specs/professionals.md`                                              |
 | Billing, planos, assinatura ou elegibilidade                         | `docs/product-specs/product-experience-model.md`, issue/epica de billing vigente                                                     |
@@ -65,6 +65,8 @@ Regras:
 - O router tRPC deve apenas compor autenticacao, schema, chamada de servico e eventos analiticos seguros.
 - Dados de saude, textos crus, transcricoes, midia e prompts sao sensiveis. Nao registrar valores crus em logs, analytics ou mensagens de erro.
 - Toda alteracao em IA, WhatsApp, storage, privacidade, banco ou autenticacao deve atualizar documentacao e avaliar riscos em `docs/RELIABILITY.md`, `docs/SECURITY.md` ou `docs/PRIVACY_LGPD.md`.
+- Em testes e workflows do GitHub Actions que executem chamadas reais a provedores de IA, reutilize exclusivamente os secrets padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`; nao crie aliases como `AI_SMOKE_*`. Injete essas variaveis somente no passo que realiza a chamada externa, nunca no nivel do job, checkout, setup ou instalacao.
+- A selecao de IA esta em transicao de global (`AI_VISION_PROVIDER`) para configuracao por capacidade em `server/_core/ai/` (registro de capacidades, matriz de suporte, resolvedor, executor comum — ver #921/#917). Novas capacidades ou adapters devem ser declarados la, nunca inferidos do nome do provider ou do modelo. Migrar um consumidor existente para o novo resolvedor exige subissue propria da epica #917; nao migre silenciosamente.
 - Nao crie documentos paralelos de planejamento quando a informacao puder ser incorporada a uma especificacao canonica, design doc, runbook ou plano ativo existente. Planos temporarios devem ser removidos ou arquivados quando forem implementados.
 - Novas telas profissionais devem consumir servicos e contratos compartilhados sem duplicar calculos de metas, relatorios, timezone ou autorizacao.
 - Alteracoes profissionais relevantes devem preservar autoria e historico auditavel.

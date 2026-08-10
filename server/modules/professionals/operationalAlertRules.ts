@@ -21,6 +21,14 @@ export function getDateKeyInZone(date: Date, timeZone: string) {
   return getDateKeyInTimeZone(date, timeZone);
 }
 
+export function formatDateKeyPtBr(dateKey: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return dateKey;
+
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+}
+
 export function startOfCalendarDayInZone(date: Date, timeZone: string) {
   const dateKey = getDateKeyInTimeZone(date, timeZone);
   return getUtcRangeForLocalDate(dateKey, timeZone).startAt;

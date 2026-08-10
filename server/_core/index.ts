@@ -30,6 +30,8 @@ import {
   ensureProfessionalRuntimeSchemaCompatibility,
 } from "../modules/professionals/runtimeSchemaCompatibility";
 import { startConversationRetentionScheduler } from "../modules/whatsapp/conversationRetentionScheduler";
+import { handleProfessionalAccessRevocationStream } from "../modules/professionals/accessRevocationStream";
+import { configureAiObservabilityLogging } from "../modules/aiObservability/logSink";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -75,6 +77,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   validateRuntimeEnv();
+  configureAiObservabilityLogging();
 
   const app = express();
   const server = createServer(app);
@@ -137,6 +140,9 @@ async function startServer() {
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultUrlencodedParser));
 
+  app.get("/api/professional/access-events", (req, res) => {
+    void handleProfessionalAccessRevocationStream(req, res);
+  });
   app.get("/api/media", (req, res) => {
     void handleMediaRequest(req, res);
   });

@@ -355,7 +355,7 @@ describe("professional AI adversarial regressions", () => {
       "professional_ai_question_focus"
     );
     expect(result.fallbackUsed).toBe(false);
-    expect(result.providerModel).toBe("focus-model");
+    expect(result).not.toHaveProperty("providerModel");
     expect(result.title).toBe("Evolução de peso");
     expect(result.summarySourceKeys).toEqual(["current_weight"]);
     expect(result.interpretationSourceKeys).toEqual([["current_weight"]]);

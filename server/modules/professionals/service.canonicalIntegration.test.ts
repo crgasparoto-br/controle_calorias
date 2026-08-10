@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { professionalRepository } from "./persistenceService";
+import { subscribeProfessionalAccessRevocations } from "./accessRevocationEvents";
 import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
   approvePatientAccess,
   processProfessionalAccessWhatsappResponse,
   requestPatientAccess,
@@ -8,6 +10,8 @@ import {
   transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 describe("service.ts writes through to the canonical professional persistence", () => {
   it("upserts the professional profile in the canonical repository", async () => {
@@ -93,7 +97,20 @@ describe("service.ts writes through to the canonical professional persistence", 
     });
     expect(resumed.status).toBe("active");
 
+    const revocations: Array<{ patientUserId: number; authorizationId: string }> = [];
+    const unsubscribe = subscribeProfessionalAccessRevocations(
+      professionalUserId,
+      patientUserId,
+      event => revocations.push(event)
+    );
     await revokePatientAccess(patientUserId, access.id);
+    unsubscribe();
+    expect(revocations).toEqual([
+      expect.objectContaining({
+        patientUserId,
+        authorizationId: access.id,
+      }),
+    ]);
 
     await expect(
       transitionPatientTracking(professionalUserId, {

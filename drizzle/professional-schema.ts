@@ -95,11 +95,7 @@ export const professionalPatientTrackings = mysqlTable(
   "professionalPatientTrackings",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    authorizationId: varchar("authorizationId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientAuthorizations.id, {
-        onDelete: "cascade",
-      }),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
     professionalUserId: int("professionalUserId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -118,10 +114,17 @@ export const professionalPatientTrackings = mysqlTable(
       { onDelete: "set null" }
     ),
     lastTransitionReason: text("lastTransitionReason"),
+    nextReviewAt: timestamp("nextReviewAt"),
+    nextWeighingAt: timestamp("nextWeighingAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalPatientTrackings_authorization_fk",
+    }).onDelete("cascade"),
     authorizationUniqueIdx: uniqueIndex(
       "professionalTrackings_authorization_unique_idx"
     ).on(table.authorizationId),
@@ -132,6 +135,14 @@ export const professionalPatientTrackings = mysqlTable(
       table.patientUserId,
       table.status
     ),
+    reviewIdx: index("professionalTrackings_review_idx").on(
+      table.professionalUserId,
+      table.nextReviewAt
+    ),
+    weighingIdx: index("professionalTrackings_weighing_idx").on(
+      table.professionalUserId,
+      table.nextWeighingAt
+    ),
   })
 );
 
@@ -139,16 +150,8 @@ export const professionalPatientTrackingEvents = mysqlTable(
   "professionalPatientTrackingEvents",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    trackingId: varchar("trackingId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientTrackings.id, {
-        onDelete: "cascade",
-      }),
-    authorizationId: varchar("authorizationId", { length: 64 })
-      .notNull()
-      .references(() => professionalPatientAuthorizations.id, {
-        onDelete: "cascade",
-      }),
+    trackingId: varchar("trackingId", { length: 64 }).notNull(),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
     actorUserId: int("actorUserId").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -159,6 +162,16 @@ export const professionalPatientTrackingEvents = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
+    trackingFk: foreignKey({
+      columns: [table.trackingId],
+      foreignColumns: [professionalPatientTrackings.id],
+      name: "professionalPatientTrackingEvents_tracking_fk",
+    }).onDelete("cascade"),
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalPatientTrackingEvents_authorization_fk",
+    }).onDelete("cascade"),
     trackingOccurredIdx: index(
       "professionalTrackingEvents_tracking_occurred_idx"
     ).on(table.trackingId, table.occurredAt),
@@ -560,6 +573,11 @@ export const professionalMessages = mysqlTable(
       "failed",
       "received",
     ]).notNull(),
+    requestedAction: mysqlEnum("requestedAction", [
+      "save_draft",
+      "send_web",
+      "send_whatsapp",
+    ]),
     idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
     responseCode: varchar("responseCode", { length: 32 }),
     inReplyToMessageId: varchar("inReplyToMessageId", { length: 64 }),

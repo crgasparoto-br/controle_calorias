@@ -204,7 +204,12 @@ describe("meals service characterization", () => {
       mimeType: "audio/ogg",
       language: "pt",
       prompt: expect.stringContaining("Transcreva"),
-    }));
+    }), {
+      observability: {
+        origin: "whatsapp",
+        flow: "voice_transcription",
+      },
+    });
 
     const multimodalInput = processMealInputMock.mock.calls[0]?.[0];
     expect(multimodalInput).toEqual(expect.objectContaining({
@@ -317,7 +322,12 @@ describe("meals service characterization", () => {
     expect(transcribeAudioMock).toHaveBeenCalledWith(expect.objectContaining({
       audioBase64: "data:audio/ogg;base64,YXVkaW8tZGUtdGVzdGU=",
       mimeType: "audio/ogg",
-    }));
+    }), {
+      observability: {
+        origin: "web",
+        flow: "voice_transcription",
+      },
+    });
 
     const multimodalInput = processMealInputMock.mock.calls[0]?.[0];
     expect(multimodalInput?.audioUrl).toBeUndefined();

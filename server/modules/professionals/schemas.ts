@@ -65,6 +65,104 @@ export const professionalRecordSchema = z.object({
   pageSize: z.number().int().min(10).max(50).optional().default(20),
 });
 
+const professionalRecordTimestampSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .nullable();
+const professionalRecordPatientSchema = z
+  .object({
+    id: z.number().int().positive(),
+    authorizationId: z.string().min(1).optional(),
+    name: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    authorizationStatus: z.literal("approved"),
+    trackingStatus: z.enum(["not_started", "active", "paused", "ended"]),
+  })
+  .strict();
+const professionalAssessmentSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    version: z.number().int().positive(),
+    objective: z.string(),
+    assessedAt: professionalRecordTimestampSchema,
+    nextReviewAt: professionalRecordTimestampSchema,
+    createdAt: professionalRecordTimestampSchema,
+    authorName: z.string(),
+  })
+  .strict();
+
+export const professionalRecordOutputSchema = z
+  .object({
+    patient: professionalRecordPatientSchema,
+    latestAssessment: professionalAssessmentSummarySchema
+      .extend({
+        weightKg: z.number().nullable(),
+        heightCm: z.number().nullable(),
+        routineAndSchedule: z.string().nullable(),
+        physicalActivity: z.string().nullable(),
+        foodPreferences: z.string().nullable(),
+        restrictionsAndAllergies: z.string().nullable(),
+        reportedDifficulties: z.string().nullable(),
+        relevantHabits: z.string().nullable(),
+        professionalObservations: z.string().nullable(),
+      })
+      .nullable(),
+    assessmentHistory: z.array(professionalAssessmentSummarySchema),
+    notes: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          content: z.string(),
+          createdAt: professionalRecordTimestampSchema,
+          updatedAt: professionalRecordTimestampSchema,
+          authorName: z.string(),
+        })
+        .strict()
+    ),
+    guidances: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          version: z.number().int().positive(),
+          title: z.string(),
+          content: z.string(),
+          visibility: z.string(),
+          deliveryStatus: z.string(),
+          authorName: z.string(),
+          supersedesGuidanceId: z.string().nullable(),
+          createdAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    timeline: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          eventType: z.string().min(1),
+          label: z.string().min(1),
+          occurredAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    pagination: z
+      .object({
+        page: z.number().int().positive(),
+        pageSize: z.number().int().positive(),
+        totals: z
+          .object({
+            assessments: z.number().int().nonnegative(),
+            notes: z.number().int().nonnegative(),
+            guidances: z.number().int().nonnegative(),
+            timeline: z.number().int().nonnegative(),
+          })
+          .strict(),
+        hasMore: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const professionalAssessmentSchema = z.object({
   patientId: z.number().int().positive(),
   objective: z.string().trim().min(3).max(4000),
@@ -109,8 +207,17 @@ export const professionalMessageOriginSchema = z.enum([
   "ai_suggested",
   "professional",
 ]);
+export const professionalMessageStateSchema = z.enum([
+  "draft",
+  "pending",
+  "sent",
+  "failed",
+  "received",
+]);
 export const professionalMessageListSchema = z.object({
   patientId: z.number().int().positive().optional(),
+  search: z.string().trim().max(160).optional(),
+  state: professionalMessageStateSchema.optional(),
   cursor: z
     .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
     .optional(),
@@ -177,7 +284,15 @@ export const professionalPortfolioSchema = z
       .enum(["all", "recent", "inactive", "unavailable"])
       .optional()
       .default("all"),
+    reportRecords: z
+      .enum(["all", "with_records", "without_records"])
+      .optional()
+      .default("all"),
     nextReview: z
+      .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+      .optional()
+      .default("all"),
+    nextWeighing: z
       .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
       .optional()
       .default("all"),
@@ -191,6 +306,15 @@ export const professionalPortfolioSchema = z
     input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate),
     {
       message: "Informe o início e o fim do período da carteira.",
+    }
+  )
+  .refine(
+    input =>
+      input.reportRecords === "all" ||
+      Boolean(input.reportStartDate && input.reportEndDate),
+    {
+      message: "Informe o período usado para filtrar os registros.",
+      path: ["reportRecords"],
     }
   )
   .refine(
@@ -211,6 +335,38 @@ export const professionalPortfolioSchema = z
     },
     { message: "Escolha um período de até 90 dias." }
   );
+
+export const professionalPortfolioReportSchema = z
+  .object({
+    block: z.enum(["activity", "schedule", "tracking"]),
+    reportStartDate: dateKeySchema.optional(),
+    reportEndDate: dateKeySchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.block !== "activity") return;
+    if (!input.reportStartDate || !input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informe o início e o fim do período da carteira.",
+      });
+      return;
+    }
+    if (input.reportStartDate > input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O fim do período deve ser igual ou posterior ao início.",
+      });
+      return;
+    }
+    const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+    const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+    if ((end.getTime() - start.getTime()) / 86_400_000 + 1 > 90) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Escolha um período de até 90 dias.",
+      });
+    }
+  });
 
 export const patientPeriodBundleSchema =
   boundedReportDateRangeSchema.safeExtend({
@@ -291,6 +447,9 @@ export type PatientAdoptProfessionalGoalInput = z.infer<
 >;
 export type ProfessionalPortfolioInput = z.infer<
   typeof professionalPortfolioSchema
+>;
+export type ProfessionalPortfolioReportInput = z.infer<
+  typeof professionalPortfolioReportSchema
 >;
 export type PatientPeriodBundleInput = z.infer<
   typeof patientPeriodBundleSchema

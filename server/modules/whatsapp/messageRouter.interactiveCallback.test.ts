@@ -15,6 +15,7 @@ const { executeWhatsappDeleteIntent } = await import("./deleteIntent");
 const { buildWhatsAppCallbackId } = await import("./interactiveCallback");
 const { upsertUserWhatsappConnection } = await import("../../db");
 const professionalsService = await import("../professionals/service");
+professionalsService._forTestOnly_setProfessionalSyntheticUserLookup(true);
 
 type ButtonsMessage = { type: "buttons"; buttons: Array<{ id: string; title: string }> };
 type ListMessage = { type: "list"; sections: Array<{ rows: Array<{ id: string; title: string }> }> };

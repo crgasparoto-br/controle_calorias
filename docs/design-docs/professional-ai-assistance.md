@@ -60,6 +60,8 @@ Um rascunho permanece apenas na tela até o nutricionista escolher **Salvar em M
 
 O envio pela web ou WhatsApp continua exigindo uma segunda ação explícita na página de Mensagens.
 
+A navegação após salvar usa o `patientId` confirmado nas variáveis da mutação concluída; uma troca de paciente enquanto a requisição está em andamento não pode redirecionar o rascunho para outra conversa.
+
 ## Perguntas livres com foco estruturado
 
 Perguntas são classificadas antes da geração:
@@ -113,6 +115,7 @@ Se qualquer camada falhar, a resposta do provedor é descartada integralmente. T
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
 - O catálogo exibido na interface corresponde aos sinais enviados ao provedor completo, permitindo conferência do período atual e do anterior.
 - A telemetria registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
+- O modelo e demais metadados do provedor permanecem restritos à telemetria sanitizada. O payload público de `professionalRecord.ai.generate` não serializa `providerModel`, uso de tokens, motivo interno do fallback nem identificadores do provedor.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 
@@ -128,6 +131,7 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
 - Mudança de paciente, período, modo, tipo de rascunho ou pergunta: resultado anterior é ocultado imediatamente e resposta atrasada é ignorada.
+- Alertas e assistência permanecem indisponíveis enquanto autorização, entitlement, timezone efetivo ou bundle canônico do novo período estiverem pendentes. O relatório pode manter o seletor montado, mas nenhum resultado contextual anterior é reutilizado durante a transição.
 - Falha ao salvar rascunho: o texto permanece editável na tela e não aparece como enviado.
 - Falha da telemetria: não impede a resposta segura nem substitui um erro de autorização.
 
@@ -160,4 +164,8 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - redirecionamento da rota legada para a experiência atual;
 - telemetria sem pergunta, prompt, resposta ou conteúdo do paciente;
 - confirmação explícita antes de persistir um rascunho;
-- descarte de resposta atrasada após troca de paciente, período ou modo.
+- descarte de resposta atrasada após troca de paciente, período ou modo;
+- bloqueio de alertas e geração enquanto timezone ou bundle do período estiverem pendentes;
+- renderização do catálogo completo, fontes por interpretação, dados ausentes, cautelas, aviso educacional e estado de fallback;
+- preservação do rascunho editável e mensagem de produto após falha de salvamento.
+- salvamento concluído após troca de contexto navegando para a conversa do paciente efetivamente persistido.

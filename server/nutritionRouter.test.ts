@@ -54,6 +54,9 @@ vi.mock("./nutritionEngine", async () => {
   };
 });
 
+const { _forTestOnly_setProfessionalSyntheticUserLookup } =
+  await import("./modules/professionals/service");
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
 const { appRouter } = await import("./routers");
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;

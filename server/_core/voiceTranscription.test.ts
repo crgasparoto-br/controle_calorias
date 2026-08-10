@@ -1,200 +1,276 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-type MockFetchResponse = {
-  ok: boolean;
-  status?: number;
-  statusText?: string;
-  arrayBuffer?: () => Promise<ArrayBuffer>;
-  headers?: { get: (name: string) => string | null };
-};
+import type { AiProvider } from "./aiProvider";
+import type { AiProviderFactoryMap } from "./ai/providerResolver";
+import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
+import { MAX_AUDIO_FILE_SIZE_BYTES, transcribeAudio } from "./voiceTranscription";
 
 const originalFetch = global.fetch;
 
-function createAudioFetchResponse(params: {
-  mimeType: string;
-  bytes: Uint8Array;
-}): MockFetchResponse {
+function provider(call: ReturnType<typeof vi.fn>): AiProvider {
   return {
-    ok: true,
-    arrayBuffer: async () => params.bytes.buffer,
-    headers: {
-      get: (name: string) =>
-        name.toLowerCase() === "content-type" ? params.mimeType : null,
-    },
+    createAudioTranscription: call,
+    createTextResponse: vi.fn(),
+    createEmbeddings: vi.fn(),
+    createImageGeneration: vi.fn(),
+  } as unknown as AiProvider;
+}
+
+function factories(openai: () => AiProvider, gemini = openai): AiProviderFactoryMap {
+  return { openai, "openai-compatible": openai, gemini };
+}
+
+function env(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+  return {
+    OPENAI_API_KEY: "sk-test",
+    AI_TRANSCRIPTION_PROVIDER: "openai",
+    ...overrides,
   };
 }
 
-async function loadModule(provider: { createAudioTranscription: ReturnType<typeof vi.fn> }) {
-  vi.resetModules();
-  vi.doMock("./aiProvider", () => ({
-    OpenAiProvider: class {
-      constructor(_client: unknown) {}
-
-      createAudioTranscription = provider.createAudioTranscription;
-    },
-  }));
-  vi.doMock("./openaiClient", () => ({
-    createOpenAiClient: () => ({ mocked: true }),
-  }));
-
-  return import("./voiceTranscription");
+function audio(bytes = Buffer.from("synthetic-audio")) {
+  return { audioBase64: bytes.toString("base64"), mimeType: "audio/ogg", language: "pt" } as const;
 }
 
-describe("voiceTranscription", () => {
+function ok(overrides: Record<string, unknown> = {}) {
+  return {
+    task: "transcribe",
+    text: " arroz e feijão ",
+    language: "pt",
+    duration: 2.4,
+    segments: [],
+    raw: { private: true },
+    ...overrides,
+  };
+}
+
+describe("TRANSCRIPTION capability", () => {
   afterEach(() => {
     global.fetch = originalFetch;
-    vi.unstubAllEnvs();
-    vi.resetModules();
-    vi.doUnmock("./aiProvider");
-    vi.doUnmock("./openaiClient");
+    vi.restoreAllMocks();
   });
 
-  it("uses the configured transcription model and returns the existing whisper-compatible shape", async () => {
-    vi.stubEnv("OPENAI_TRANSCRIPTION_MODEL", "whisper-test");
-    vi.stubEnv("AI_VISION_PROVIDER", "gemini");
-
-    const createAudioTranscription = vi.fn().mockResolvedValue({
-      task: "transcribe",
-      language: "pt",
-      duration: 2.4,
-      text: "arroz e feijao",
-      segments: [],
-      raw: { mocked: true },
+  it("preserves whisper-1 and removes raw from the domain result", async () => {
+    const call = vi.fn().mockResolvedValue(ok());
+    const result = await transcribeAudio(audio(), {
+      env: env(),
+      providerFactories: factories(() => provider(call)),
     });
 
-    global.fetch = vi.fn(async () =>
-      createAudioFetchResponse({
-        mimeType: "audio/ogg",
-        bytes: new Uint8Array([1, 2, 3]),
-      }),
-    ) as typeof fetch;
-
-    const { transcribeAudio } = await loadModule({ createAudioTranscription });
-    const result = await transcribeAudio({
-      audioUrl: "https://storage.test/audio.ogg",
-      language: "pt",
-    });
-
-    expect(createAudioTranscription).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: "whisper-test",
-        language: "pt",
-        prompt: expect.stringContaining("Portuguese"),
-      }),
+    expect(call).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "whisper-1", language: "pt" }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    expect(result).toMatchObject({
+      text: "arroz e feijão",
+      provider: "openai",
+      model: "whisper-1",
+      execution: { source: "primary", attempts: 1, usedFallback: false },
+    });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
 
-    expect(result).toEqual({
-      task: "transcribe",
-      language: "pt",
-      duration: 2.4,
-      text: "arroz e feijao",
-      segments: [],
+  it("accepts useful text without optional transcription metadata", async () => {
+    const call = vi.fn().mockResolvedValue(ok({
+      text: " banana e aveia ",
+      language: undefined,
+      duration: undefined,
+      segments: undefined,
+    }));
+    const result = await transcribeAudio(audio(), {
+      env: env({ AI_TRANSCRIPTION_MODEL: "gpt-4o-mini-transcribe" }),
+      providerFactories: factories(() => provider(call)),
+    });
+
+    expect(result).toMatchObject({ text: "banana e aveia", model: "gpt-4o-mini-transcribe" });
+    expect(result).not.toHaveProperty("segments");
+    expect(result).not.toHaveProperty("language");
+    expect(result).not.toHaveProperty("duration");
+  });
+
+  it("rejects empty provider output", async () => {
+    const call = vi.fn().mockResolvedValue(ok({ text: "   ", segments: undefined }));
+    const result = await transcribeAudio(audio(), {
+      env: env(),
+      providerFactories: factories(() => provider(call)),
+    });
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+  });
+
+  it.each([
+    "...",
+    "[inaudível]",
+    "(silence)",
+    "Não foi possível transcrever o áudio.",
+    "Áudio inaudível. Tente novamente.",
+    "[inaudível] [inaudível]",
+    "The audio is inaudible.",
+    "Sem fala detectada no áudio.",
+  ])(
+    "rejects non-empty but unusable provider output: %s",
+    async text => {
+      const call = vi.fn().mockResolvedValue(ok({ text, segments: undefined }));
+      const result = await transcribeAudio(audio(), {
+        env: env(),
+        providerFactories: factories(() => provider(call)),
+      });
+
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        code: "TRANSCRIPTION_FAILED",
+        details: expect.stringContaining("empty_output"),
+      });
+    },
+  );
+
+  it("keeps actionable speech when a non-speech marker is mixed with content", async () => {
+    const call = vi.fn().mockResolvedValue(ok({
+      text: "[inaudível] arroz 100 g",
+      segments: undefined,
+    }));
+    const result = await transcribeAudio(audio(), {
+      env: env(),
+      providerFactories: factories(() => provider(call)),
+    });
+
+    expect(result).toMatchObject({ text: "[inaudível] arroz 100 g" });
+  });
+
+  it("uses fallback after an unusable transcription result", async () => {
+    const primary = vi.fn().mockResolvedValue(ok({
+      text: "Áudio inaudível. Tente novamente.",
+      segments: undefined,
+    }));
+    const fallback = vi.fn().mockResolvedValue(ok({
+      text: "arroz 100 g",
+      segments: undefined,
+    }));
+    const factory = vi.fn()
+      .mockReturnValueOnce(provider(primary))
+      .mockReturnValueOnce(provider(fallback));
+
+    const result = await transcribeAudio(audio(), {
+      env: env({
+        AI_TRANSCRIPTION_FALLBACK_ENABLED: "true",
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "openai",
+        AI_TRANSCRIPTION_FALLBACK_MODEL: "gpt-4o-mini-transcribe",
+      }),
+      providerFactories: factories(factory),
+    });
+
+    expect(primary).toHaveBeenCalledTimes(1);
+    expect(fallback).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      text: "arroz 100 g",
+      execution: { source: "fallback", attempts: 2, usedFallback: true },
     });
   });
 
-  it("normalizes MIME parameters before validating and creating the audio file", async () => {
-    const createAudioTranscription = vi.fn().mockResolvedValue({
-      task: "transcribe",
-      language: "pt",
-      duration: 1,
-      text: "banana",
-      segments: [],
-      raw: { mocked: true },
-    });
-
-    const { transcribeAudio } = await loadModule({ createAudioTranscription });
-    const result = await transcribeAudio({
-      audioBase64: Buffer.from("inline-audio").toString("base64"),
-      mimeType: "audio/ogg; codecs=opus",
-      language: "pt",
-    });
-
-    expect(createAudioTranscription).toHaveBeenCalledWith(
-      expect.objectContaining({
-        file: expect.objectContaining({
-          name: "audio.ogg",
-          type: "audio/ogg",
-        }),
+  it("keeps fallback disabled by default", async () => {
+    const primary = vi.fn().mockRejectedValue(new AiOperationalError("temporary", undefined, "network"));
+    const factory = vi.fn(() => provider(primary));
+    const result = await transcribeAudio(audio(), {
+      env: env({
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "openai",
+        AI_TRANSCRIPTION_FALLBACK_MODEL: "gpt-4o-mini-transcribe",
       }),
+      providerFactories: factories(factory),
+    });
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(primary).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+  });
+
+  it("uses sequential retries and one same-provider fallback", async () => {
+    const primary = vi.fn().mockRejectedValue(new AiOperationalError("temporary", undefined, "network"));
+    const fallback = vi.fn().mockResolvedValue(ok({ text: "fallback útil", segments: undefined }));
+    const factory = vi.fn()
+      .mockReturnValueOnce(provider(primary))
+      .mockReturnValueOnce(provider(fallback));
+    const result = await transcribeAudio(audio(), {
+      env: env({
+        AI_TRANSCRIPTION_MAX_ATTEMPTS: "2",
+        AI_TRANSCRIPTION_FALLBACK_ENABLED: "true",
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "openai",
+        AI_TRANSCRIPTION_FALLBACK_MODEL: "gpt-4o-mini-transcribe",
+      }),
+      providerFactories: factories(factory),
+    });
+    expect(primary).toHaveBeenCalledTimes(2);
+    expect(fallback).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      text: "fallback útil",
+      execution: { source: "fallback", attempts: 3, usedFallback: true },
+    });
+  });
+
+  it("does not fallback on authentication failure", async () => {
+    const primary = vi.fn().mockRejectedValue(new AiNonRetryableError("bad key", undefined, "authentication"));
+    const fallback = vi.fn().mockResolvedValue(ok());
+    const factory = vi.fn()
+      .mockReturnValueOnce(provider(primary))
+      .mockReturnValueOnce(provider(fallback));
+    await transcribeAudio(audio(), {
+      env: env({
+        AI_TRANSCRIPTION_FALLBACK_ENABLED: "true",
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "openai",
+        AI_TRANSCRIPTION_FALLBACK_MODEL: "gpt-4o-mini-transcribe",
+      }),
+      providerFactories: factories(factory),
+    });
+    expect(primary).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("refuses cross-provider fallback without explicit opt-in", async () => {
+    const primary = vi.fn().mockRejectedValue(new AiOperationalError("temporary", undefined, "network"));
+    const secondary = vi.fn().mockResolvedValue(ok());
+    const result = await transcribeAudio(audio(), {
+      env: env({
+        GEMINI_API_KEY: "gemini-test",
+        AI_TRANSCRIPTION_FALLBACK_ENABLED: "true",
+        AI_TRANSCRIPTION_FALLBACK_PROVIDER: "gemini",
+      }),
+      providerFactories: factories(() => provider(primary), () => provider(secondary)),
+    });
+    expect(secondary).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+  });
+
+  it.each([
+    [{ ...audio(), mimeType: "application/pdf" }, "INVALID_FORMAT"],
+    [audio(Buffer.alloc(0)), "EMPTY_FILE"],
+    [{ audioBase64: "%%%", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
+    [{ audioBase64: "data:audio/ogg,not-base64", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
+    [{ audioBase64: "data:audio/ogg;charset=utf-8,not-base64", mimeType: "audio/ogg" }, "INVALID_FORMAT"],
+    [audio(Buffer.alloc(MAX_AUDIO_FILE_SIZE_BYTES + 1, 1)), "FILE_TOO_LARGE"],
+  ])("rejects invalid input before provider creation", async (input, code) => {
+    const factory = vi.fn(() => provider(vi.fn()));
+    const result = await transcribeAudio(input as Parameters<typeof transcribeAudio>[0], {
+      env: env(),
+      providerFactories: factories(factory),
+    });
+    expect(factory).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code });
+  });
+
+  it("distinguishes a valid empty base64 data URL from a malformed data URL", async () => {
+    const factory = vi.fn(() => provider(vi.fn()));
+    const result = await transcribeAudio(
+      { audioBase64: "data:audio/ogg;base64,", mimeType: "audio/ogg" },
+      { env: env(), providerFactories: factories(factory) },
     );
-    expect(result).toEqual({
-      task: "transcribe",
-      language: "pt",
-      duration: 1,
-      text: "banana",
-      segments: [],
-    });
+    expect(factory).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code: "EMPTY_FILE" });
   });
 
-  it("rejects unsupported audio formats before calling the provider", async () => {
-    const createAudioTranscription = vi.fn();
-
-    global.fetch = vi.fn(async () =>
-      createAudioFetchResponse({
-        mimeType: "application/pdf",
-        bytes: new Uint8Array([1, 2, 3]),
-      }),
-    ) as typeof fetch;
-
-    const { transcribeAudio } = await loadModule({ createAudioTranscription });
-    const result = await transcribeAudio({
-      audioUrl: "https://storage.test/not-audio.pdf",
+  it("fails invalid configuration before provider creation", async () => {
+    const factory = vi.fn(() => provider(vi.fn()));
+    const result = await transcribeAudio(audio(), {
+      env: env({ AI_TRANSCRIPTION_TIMEOUT_MS: "invalid" }),
+      providerFactories: factories(factory),
     });
-
-    expect(createAudioTranscription).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      error: "Audio file format is not supported",
-      code: "INVALID_FORMAT",
-      details: "Unsupported audio MIME type: application/pdf",
-    });
-  });
-
-  it("rejects oversized audio files before calling the provider", async () => {
-    const createAudioTranscription = vi.fn();
-
-    global.fetch = vi.fn(async () =>
-      createAudioFetchResponse({
-        mimeType: "audio/ogg",
-        bytes: new Uint8Array(16 * 1024 * 1024 + 1),
-      }),
-    ) as typeof fetch;
-
-    const { transcribeAudio } = await loadModule({ createAudioTranscription });
-    const result = await transcribeAudio({
-      audioUrl: "https://storage.test/large.ogg",
-    });
-
-    expect(createAudioTranscription).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      error: "Audio file exceeds maximum size limit",
-      code: "FILE_TOO_LARGE",
-      details: "File size is 16.00MB, maximum allowed is 16MB",
-    });
-  });
-
-  it("returns a sanitized provider failure without leaking upstream details", async () => {
-    const createAudioTranscription = vi
-      .fn()
-      .mockRejectedValue(Object.assign(new Error("OPENAI_API_KEY secret leaked"), { status: 503 }));
-
-    global.fetch = vi.fn(async () =>
-      createAudioFetchResponse({
-        mimeType: "audio/ogg",
-        bytes: new Uint8Array([1, 2, 3]),
-      }),
-    ) as typeof fetch;
-
-    const { transcribeAudio } = await loadModule({ createAudioTranscription });
-    const result = await transcribeAudio({
-      audioUrl: "https://storage.test/failing.ogg",
-    });
-
-    expect(result).toEqual({
-      error: "Voice transcription failed",
-      code: "TRANSCRIPTION_FAILED",
-      details: "OpenAI transcription provider returned status 503.",
-    });
-    expect(JSON.stringify(result)).not.toContain("OPENAI_API_KEY");
-    expect(JSON.stringify(result)).not.toContain("secret leaked");
+    expect(factory).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code: "INVALID_CONFIGURATION" });
   });
 });

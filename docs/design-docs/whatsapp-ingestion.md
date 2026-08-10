@@ -60,8 +60,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
 - Quando um pedido de resumo vier sem período, o sistema deve manter contexto temporário para que a próxima mensagem textual curta, como `hoje`, `ontem` ou `semana`, complete o pedido em vez de cair no fluxo de registro de refeição.
-- Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
-- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
+- Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a `Meta` do período quando ela estiver disponível.
+- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`; quando o progresso canônico do dia estiver disponível, a mesma resposta inclui `Meta`, `Exercícios`, `Consumo` e exatamente um saldo entre `Superávit`, `Déficit` ou `Equilíbrio`. `Exercícios` permanece informativo e a mensagem não infere se ele alterou a meta efetiva.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Contagens alimentares só podem virar unidade quando o candidato resolvido possui porção canônica exata e estável; uma referência nutricional genérica de `100 g` nunca é uma porção implícita.
 - Clarificações alimentares devem persistir texto original e candidato normalizado separadamente, expor classificação, tipo, ações/opções e instrução textual, e solicitar somente o dado ausente. Quando uma imagem contiver múltiplos alimentos sem porção, a pendência preserva o conjunto completo e solicita as quantidades sequencialmente antes de persistir a refeição.
@@ -119,7 +119,7 @@ Builders de domínio (`replyMessages.ts`, `replyTemplates.ts`) continuam existin
 ### Compatibilidade incremental
 
 - Um fluxo não pode enviar simultaneamente pelo adapter antigo (`sendWhatsAppTextMessage`/`sendAndLogTextReply` chamados diretamente pelo handler) e pelo novo transporte para a mesma ação; a migração de cada domínio substitui o caminho por completo na subissue correspondente.
-- Formatters de meta que forem adaptados ao contrato central devem receber o valor final calculado pelo domínio e não podem chamar `calculateAdjustedGoalCalories` nem recalcular a regra da #756; o formatter legado `buildWhatsAppGoalProgressLines` ainda faz esse cálculo e será corrigido na migração de resumos/metas (#784), não nesta issue.
+- Formatters de meta recebem o valor final calculado pelo domínio e não chamam `calculateAdjustedGoalCalories` nem recalculam a regra da #756; `buildWhatsAppGoalProgressLines` apenas apresenta `effectiveGoalCalories` (ou o alias legado já contendo a meta efetiva), exercícios informativos e o saldo canônico.
 - Adapters legados (`logicalReplyFromLegacyText`, exports antigos de `replyMessages.ts`/`replyTemplates.ts`, funções de envio direto em `webhookUtils.ts`) só são removidos na #788, depois que todos os domínios migrarem.
 
 ### Botões, listas e callbacks idempotentes (issue #782)
@@ -174,6 +174,10 @@ Contagem vira unidade somente para candidato exato com porção canônica estáv
 Confirmação/seleção usam claim compare-and-set; quantidade exige número e unidade compatíveis. Falha após claim recria a pendência com o texto original. Sucesso usa `processMealInput`, serviços canônicos de refeição, consolidação, recarga do estado e formatter central. O schema estruturado também rejeita `foodName` igual a comando operacional isolado.
 
 A especificação detalhada e o contrato consumível pela #858 estão em [whatsapp-food-registration-clarification.md](./whatsapp-food-registration-clarification.md); cenários executáveis foram adicionados à [matriz de regressão](../testing/whatsapp-response-contract-regression.md).
+
+## Capacidades de IA da ingestão (#922)
+
+A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingestion-ai-capabilities.md) faz parte deste contrato canônico. `WHATSAPP_INTENT` só é executada depois dos comandos determinísticos, callbacks e operações pendentes. Em `NODE_ENV=production`, fallback para provider diferente permanece bloqueado fail-closed, mesmo com `AI_WHATSAPP_INTENT_CROSS_PROVIDER_FALLBACK_ENABLED=true`; a #927 não aprovou cross-provider, e uma liberação futura exige nova evidência, revisão de privacidade/LGPD e autorização operacional por capacidade. Fallback same-provider continua independente e limitado pela política da capacidade.
 
 ## Testes obrigatórios
 

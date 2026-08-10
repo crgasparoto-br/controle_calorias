@@ -151,6 +151,7 @@ jobs:
             server/whatsappImageIdempotencyWebhook.failure.test.ts \
             server/whatsappIntentWebhook.selection.test.ts \
             server/modules/whatsapp/deleteIntent.selection.test.ts \
+            server/modules/whatsapp/aiQuestionAssistant.persistedHistorySecurity.test.ts \
             server/modules/whatsapp/conversationContextRollout.test.ts \
             server/modules/whatsapp/intentContext.rollout.test.ts \
             server/modules/whatsapp/intentContext.currentMessage.test.ts \

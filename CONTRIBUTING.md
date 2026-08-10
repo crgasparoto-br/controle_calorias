@@ -57,13 +57,19 @@ Vercel preview/deploy é evidência complementar. Ele não substitui `pnpm check
 
 Não documente nem exija comando novo como obrigatório sem adicioná-lo ao `package.json` ou explicar qual comando existente é equivalente.
 
+### Credenciais para testes reais de IA no GitHub Actions
+
+Todo teste ou smoke versionado que faça chamadas reais a OpenAI ou Gemini deve usar os secrets de repositório já padronizados `OPENAI_API_KEY` e `GEMINI_API_KEY`. Não crie aliases específicos por issue ou workflow, como `AI_SMOKE_OPENAI_API_KEY` ou `AI_SMOKE_GEMINI_API_KEY`.
+
+As credenciais devem ser referenciadas somente no `env` do passo que executa a chamada externa. Checkout, setup, instalação de dependências, variáveis no nível do job e artefatos não podem receber esses secrets. O workflow deve falhar de forma explícita quando a chave necessária estiver ausente. Em execução local, use os mesmos nomes de ambiente.
+
 ## Validação local, manual e CI
 
 A validação local deve ser registrada na PR com os comandos executados e o resultado. Quando uma validação depender de serviço externo, credencial, banco ou webhook indisponível, registre a limitação e descreva o impacto. Falha por dependência externa não deve ser tratada como sucesso silencioso.
 
 Além dos comandos automatizados, use smoke tests manuais quando a mudança tocar fluxos de usuário ou integrações externas. Exemplos: login/logout para autenticação, envio e recebimento de webhook para WhatsApp, OAuth/callback para Strava, inferência de refeição para OpenAI ou cálculo de metas/refeições para o fluxo nutricional.
 
-O CI atual executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Ele valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
+O CI atual executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Ele valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. Em PRs, o mesmo job publica um bundle Git do `head_sha` e da base observada, permitindo reconstruir localmente exatamente a identidade validada sem incluir credenciais do checkout. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
 
 Se algum gate crítico deixar de existir no CI ou não cobrir um comando obrigatório, registre a lacuna na PR e abra uma issue separada para automatizar o check antes de tratar a automação como garantida.
 

@@ -7,12 +7,20 @@ import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { registerBillingAccessPolicy } from "./modules/billing/accessPolicy";
+import { configureBillingProfessionalEntitlementProvider } from "./modules/billing/professionalProvider";
+import { billingRouter } from "./modules/billing/router";
 import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
 import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
   completeWhatsappOnboarding,
   getWhatsappOnboardingLeadByToken,
+  linkWhatsappOnboardingToAuthenticatedUser,
 } from "./modules/onboarding/whatsappLeadService";
+import {
+  getPublicWhatsappAuthenticatedLinkError,
+  getPublicWhatsappOnboardingCompletionError,
+} from "./modules/onboarding/whatsappOnboardingErrors";
 import {
   whatsappOnboardingCompleteSchema,
   whatsappOnboardingTokenSchema,
@@ -20,10 +28,14 @@ import {
 import { registerLegacyProfessionalEntitlementPolicy } from "./modules/professionals/legacyEntitlementPolicy";
 import { getCanonicalProfessionalProfile } from "./modules/professionals/persistenceService";
 import { professionalRecordRouter } from "./modules/professionals/recordRouter";
+import { registerProfessionalRequestAccessPublicBoundary } from "./modules/professionals/requestAccessPublicBoundary";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
 
+configureBillingProfessionalEntitlementProvider();
+registerBillingAccessPolicy();
 registerLegacyProfessionalEntitlementPolicy();
+registerProfessionalRequestAccessPublicBoundary();
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -33,12 +45,18 @@ const registerSchema = z.object({
 
 const loginSchema = registerSchema.pick({ email: true, password: true });
 
-function sanitizeUser<T extends Record<string, unknown>>(user: T): Omit<T, "passwordHash"> {
-  const { passwordHash: _passwordHash, ...safeUser } = user as T & { passwordHash?: unknown };
+function sanitizeUser<T extends Record<string, unknown>>(
+  user: T
+): Omit<T, "passwordHash"> {
+  const { passwordHash: _passwordHash, ...safeUser } = user as T & {
+    passwordHash?: unknown;
+  };
   return safeUser as Omit<T, "passwordHash">;
 }
 
-async function sessionUser<T extends Record<string, unknown> & { id: number }>(user: T) {
+async function sessionUser<
+  T extends Record<string, unknown> & { id: number },
+>(user: T) {
   const professionalProfile = await getCanonicalProfessionalProfile(user.id);
   return {
     ...sanitizeUser(user),
@@ -48,12 +66,20 @@ async function sessionUser<T extends Record<string, unknown> & { id: number }>(u
 
 async function setSessionCookie(
   ctx: TrpcContext,
-  user: { id: number; email: string | null; name: string | null; role: "user" | "admin" }
+  user: {
+    id: number;
+    email: string | null;
+    name: string | null;
+    role: "user" | "admin";
+  }
 ) {
   const email = user.email ?? "";
   const name = user.name ?? email;
   if (!email || !name) {
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível iniciar a sessão." });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Não foi possível iniciar a sessão.",
+    });
   }
 
   const sessionToken = await sdk.signSession(
@@ -66,84 +92,142 @@ async function setSessionCookie(
     { expiresInMs: ONE_YEAR_MS }
   );
   const cookieOptions = getSessionCookieOptions(ctx.req);
-  ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+  ctx.res.cookie(COOKIE_NAME, sessionToken, {
+    ...cookieOptions,
+    maxAge: ONE_YEAR_MS,
+  });
 }
 
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(async opts => opts.ctx.user ? sessionUser(opts.ctx.user) : null),
-    register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
-      try {
-        const user = await registerLocalUser(input);
-        await setSessionCookie(ctx, user);
-        return await sessionUser(user);
-      } catch (error) {
-        if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
-          throw new TRPCError({ code: "CONFLICT", message: "Não foi possível criar a conta com estes dados." });
+    me: publicProcedure.query(async opts =>
+      opts.ctx.user ? sessionUser(opts.ctx.user) : null
+    ),
+    register: publicProcedure
+      .input(registerSchema)
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const user = await registerLocalUser(input);
+          await setSessionCookie(ctx, user);
+          return await sessionUser(user);
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message === "EMAIL_ALREADY_REGISTERED"
+          ) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Não foi possível criar a conta com estes dados.",
+            });
+          }
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível criar a conta.",
+          });
         }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar a conta." });
-      }
-    }),
-    login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
-      try {
-        const user = await authenticateLocalUser(input);
-        await setSessionCookie(ctx, user);
-        return await sessionUser(user);
-      } catch (error) {
-        if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+      }),
+    login: publicProcedure
+      .input(loginSchema)
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const user = await authenticateLocalUser(input);
+          await setSessionCookie(ctx, user);
+          return await sessionUser(user);
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message === "INVALID_CREDENTIALS"
+          ) {
+            throw new TRPCError({
+              code: "UNAUTHORIZED",
+              message: "E-mail ou senha inválidos.",
+            });
+          }
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível iniciar a sessão.",
+          });
         }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível iniciar a sessão." });
-      }
-    }),
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
-    sendWhatsappGreeting: protectedProcedure.input(webWhatsappGreetingSchema).mutation(async ({ input, ctx }) => {
-      try {
-        return await sendWebOnboardingWhatsappGreeting(ctx.user.id, {
-          acceptedOperationalWhatsapp: input.acceptedOperationalWhatsapp,
-          userName: ctx.user.name,
-        });
-      } catch (error) {
-        if (error instanceof Error && error.message === "WHATSAPP_GREETING_CONSENT_REQUIRED") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Autorize o contato operacional pelo WhatsApp para receber a saudação." });
-        }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível enviar a saudação pelo WhatsApp." });
-      }
-    }),
-    whatsappOnboarding: router({
-      validate: publicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
-        const lead = await getWhatsappOnboardingLeadByToken(input.token);
-        if (!lead) {
+    sendWhatsappGreeting: protectedProcedure
+      .input(webWhatsappGreetingSchema)
+      .mutation(async ({ input, ctx }) => {
+        try {
+          return await sendWebOnboardingWhatsappGreeting(ctx.user.id, {
+            acceptedOperationalWhatsapp: input.acceptedOperationalWhatsapp,
+            userName: ctx.user.name,
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message === "WHATSAPP_GREETING_CONSENT_REQUIRED"
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Autorize o contato operacional pelo WhatsApp para receber a saudação.",
+            });
+          }
           throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível enviar a saudação pelo WhatsApp.",
           });
         }
-        return lead;
       }),
-      complete: publicProcedure.input(whatsappOnboardingCompleteSchema).mutation(async ({ input, ctx }) => {
-        try {
-          const user = await completeWhatsappOnboarding(input);
-          await setSessionCookie(ctx, user);
-          return await sessionUser(user);
-        } catch (error) {
-          if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
-            throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conta com este e-mail. Entre na sua conta para vincular o WhatsApp." });
+    whatsappOnboarding: router({
+      validate: publicProcedure
+        .input(whatsappOnboardingTokenSchema)
+        .query(async ({ input }) => {
+          const lead = await getWhatsappOnboardingLeadByToken(input.token);
+          if (!lead) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message:
+                "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
+            });
           }
-          if (error instanceof Error && error.message === "INVALID_OR_EXPIRED_ONBOARDING_TOKEN") {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp." });
+          return lead;
+        }),
+      complete: publicProcedure
+        .input(whatsappOnboardingCompleteSchema)
+        .mutation(async ({ input, ctx }) => {
+          try {
+            const result = await completeWhatsappOnboarding(input);
+            await setSessionCookie(ctx, result.user);
+            return {
+              user: await sessionUser(result.user),
+              eligibility: result.eligibility,
+              nextAction: result.nextAction,
+              resumed: result.resumed,
+            };
+          } catch (error) {
+            throw new TRPCError(
+              getPublicWhatsappOnboardingCompletionError(error)
+            );
           }
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível concluir o cadastro iniciado pelo WhatsApp." });
-        }
-      }),
+        }),
+      linkExistingAccount: protectedProcedure
+        .input(whatsappOnboardingTokenSchema)
+        .mutation(async ({ input, ctx }) => {
+          try {
+            return await linkWhatsappOnboardingToAuthenticatedUser(
+              ctx.user.id,
+              input.token
+            );
+          } catch (error) {
+            throw new TRPCError(getPublicWhatsappAuthenticatedLinkError(error));
+          }
+        }),
     }),
   }),
   nutrition: nutritionRouter,
+  billing: billingRouter,
   professionalRecord: professionalRecordRouter,
   quickEdit: quickEditRouter,
 });

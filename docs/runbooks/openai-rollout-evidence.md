@@ -1,6 +1,8 @@
-# Evidências do rollout OpenAI
+# Evidências do rollout OpenAI (DEPRECADO)
 
-Este runbook registra evidências operacionais da migração OpenAI. A PR #22 também altera autenticação; por isso, qualquer menção histórica a Manus/OAuth foi substituída por linguagem neutra e o bloqueio foi atualizado para refletir o estado real da branch.
+> **Deprecado desde a issue #927.** Este registro é histórico, referente à PR #22 e ao provider OpenAI isolado. Ele não reflete a arquitetura multi-provider por capacidade nem as evidências de rollout mais recentes. Use `runbooks/multi-provider-rollout.md` como fonte vigente para decisões e evidências de rollout de IA.
+
+Este runbook registrou evidências operacionais da migração OpenAI (contexto histórico, não vigente). A PR #22 também alterou autenticação; por isso, qualquer menção histórica a Manus/OAuth foi substituída por linguagem neutra e o bloqueio foi atualizado para refletir o estado real da branch na época.
 
 ## Logs públicos e sanitização
 
@@ -26,7 +28,7 @@ Confirmado por código:
 
 ```text
 - server/privacy.ts redige email, telefone, bearer token e campos sensíveis como token, secret, sourceText, transcript, notes, message, storageUrl, imageUrl e audioUrl.
-- server/db.ts aplica safeLogDetail em logInferenceEvent antes de gravar logs administrativos/inferência.
+- `logInferenceEvent` aplica `safeLogDetail` a mensagens operacionais livres. Eventos `ai.inference_call` usam sanitização estruturada dedicada, preservando JSON válido e limitado sem armazenar conteúdo do usuário.
 - server/modules/photoAnalysis/service.ts registra food_photo.visual_generation_warning com detalhe controlado e sem payload bruto.
 - server/modules/meals/service.ts registra audio.transcription_warning via logInferenceEvent quando transcrição falha.
 - A autenticação web foi migrada para sessão local com e-mail/senha e JWT assinado por JWT_SECRET; não há dependência funcional nova de OAuth externo nesta PR.

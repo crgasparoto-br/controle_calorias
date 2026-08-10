@@ -110,16 +110,18 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   if (!source) return null;
 
   const explicitSegments = extractExplicitQuantityFoodSegments(source);
-  if (!explicitSegments.length) return null;
+  if (explicitSegments.length) {
+    const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
+    if (matches.length === 1) return matches[0].foodName;
 
-  const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
-  if (matches.length === 1) return matches[0].foodName;
-
-  if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
-    return explicitSegments[0].foodName;
+    if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
+      return explicitSegments[0].foodName;
+    }
   }
 
-  return null;
+  const unquantifiedMatches = splitSourceFoodSegments(source)
+    .filter(segment => sourceSegmentMatchesInferenceItem(segment, item));
+  return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
@@ -127,6 +129,13 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
 
   addCatalogCandidate(candidates, sourceFoodName);
+  if (
+    Number.isFinite(item.estimatedGrams)
+    && item.estimatedGrams > 0
+    && !/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/iu.test(item.foodName)
+  ) {
+    addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
+  }
   if (item.brand) {
     addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
     addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
@@ -168,11 +177,15 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
+    const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
     const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
     } else if (!hasUsableNutrition(normalizedItem)) {
-      results.push(buildEstimatedNutritionFallbackItem(normalizedItem, catalog));
+      const fallbackItem = sourceFoodName
+        ? { ...normalizedItem, foodName: sourceFoodName }
+        : normalizedItem;
+      results.push(buildEstimatedNutritionFallbackItem(fallbackItem, catalog));
     } else {
       results.push(buildHybridItem(normalizedItem));
     }

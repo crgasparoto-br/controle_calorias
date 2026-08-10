@@ -25,6 +25,8 @@ Falha técnica ao consultar o banco lança `UserTimeZoneResolutionError`; ela n�
 
 Cada operação resolve o timezone uma vez e o propaga aos serviços. Não é permitido consultar o perfil por item, registro ou dia de relatório, nem alterar `process.env.TZ`.
 
+Nas agregações profissionais por carteira, a janela UTC ampla continua indexável por `occurredAt`, e a classificação civil aplica o timezone persistido somente quando a conversão é válida. Perfil ausente, valor vazio ou identificador inválido fazem a própria expressão de classificação recair em `DEFAULT_APP_TIME_ZONE`; `NULL` e zero permanecem semanticamente distintos no resultado agregado. O gate TiDB deve executar pelo menos um caso de fronteira de data com timezone válido e casos de fallback vazio, inválido e sem perfil.
+
 ## Instante absoluto e data lógica
 
 - timestamps persistidos representam instantes absolutos;

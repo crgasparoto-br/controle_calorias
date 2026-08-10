@@ -1,6 +1,8 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NutritionGoalPreviewValidityBridge from "./components/NutritionGoalPreviewValidityBridge";
@@ -9,17 +11,17 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
-import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
-import ProfessionalEntitlementGate, {
-  type ProfessionalRouteEntitlement,
-} from "./components/ProfessionalEntitlementGate";
-import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
-import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
+import ProfessionalEntitlementGate from "./components/ProfessionalEntitlementGate";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
+import { professionalResourceForPath } from "./lib/professionalRoutes";
 
+export { professionalResourceForPath } from "./lib/professionalRoutes";
+
+const AdminBillingPage = lazy(() => import("@/pages/AdminBillingPage"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
 const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"));
 const FoodsPage = lazy(() => import("@/pages/FoodsPage"));
 const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
@@ -31,11 +33,12 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const SettingsPageRouter = lazy(() => import("@/pages/SettingsPageRouter"));
 const ProfessionalSettingsPage = lazy(
   () => import("@/pages/ProfessionalSettingsPage")
 );
-const ProfessionalWorkspacePage = lazy(
-  () => import("@/pages/ProfessionalWorkspacePage")
+const ProfessionalAreaPage = lazy(
+  () => import("@/pages/ProfessionalAreaPage")
 );
 const QuickEditExercisePage = lazy(
   () => import("@/pages/QuickEditExercisePage")
@@ -44,7 +47,9 @@ const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
-const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
+const SyncedHealthDataPage = lazy(
+  () => import("@/pages/SyncedHealthDataPage")
+);
 const WhatsappOnboardingPage = lazy(
   () => import("@/pages/WhatsappOnboardingPage")
 );
@@ -61,31 +66,57 @@ function PageLoadingFallback() {
   );
 }
 
-function RetiredProfessionalBookmarkRedirect() {
+function ProfessionalRedirect({ destination }: { destination: string }) {
   const [, setLocation] = useLocation();
-  useEffect(() => setLocation("/professional"), [setLocation]);
+  useEffect(() => setLocation(destination), [destination, setLocation]);
   return <PageLoadingFallback />;
 }
 
-export function professionalResourceForPath(
-  location: string
-): ProfessionalRouteEntitlement {
-  if (location.startsWith("/professional/patients")) {
-    return "professional_portfolio";
-  }
-  if (location.startsWith("/professional/follow-up")) {
-    return "professional_record";
-  }
-  if (location.startsWith("/professional/messages")) {
-    return "professional_messages";
-  }
-  if (location.startsWith("/professional/reports")) {
-    return "professional_reports";
-  }
-  if (location.startsWith("/professional/settings")) {
-    return "professional_settings";
-  }
-  return "professional_dashboard";
+function RetiredProfessionalBookmarkRedirect() {
+  return <ProfessionalRedirect destination="/professional" />;
+}
+
+function RetiredProfessionalFollowUpRedirect() {
+  return <ProfessionalRedirect destination="/professional/patients" />;
+}
+
+function AdminAccessBoundary({ children }: { children: ReactNode }) {
+  const { loading, user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (loading) return <PageLoadingFallback />;
+  if (user?.role === "admin") return <>{children}</>;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-lg rounded-2xl border bg-card p-8 text-center shadow-sm">
+        <h1 className="text-xl font-semibold">Área administrativa restrita</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Sua conta não possui permissão administrativa. Nenhum dado comercial
+          ou operacional foi exibido.
+        </p>
+        <Button className="mt-6" onClick={() => setLocation("/today")}>
+          Voltar ao início
+        </Button>
+      </div>
+    </main>
+  );
+}
+
+function AdminRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminPage />
+    </AdminAccessBoundary>
+  );
+}
+
+function AdminBillingRoute() {
+  return (
+    <AdminAccessBoundary>
+      <AdminBillingPage />
+    </AdminAccessBoundary>
+  );
 }
 
 function ProfessionalWorkspaceRoute() {
@@ -94,7 +125,7 @@ function ProfessionalWorkspaceRoute() {
     <ProfessionalEntitlementGate
       resource={professionalResourceForPath(location)}
     >
-      <ProfessionalWorkspacePage />
+      <ProfessionalAreaPage />
     </ProfessionalEntitlementGate>
   );
 }
@@ -129,10 +160,10 @@ function Router() {
           path="/onboarding/whatsapp/:token"
           component={WhatsappOnboardingPage}
         />
-        <Route path="/" component={Home} />
+        <Route path="/billing" component={BillingPage} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/settings" component={OnboardingPage} />
+        <Route path="/settings" component={SettingsPageRouter} />
         <Route path="/log-meal" component={LogMealPage} />
         <Route path="/record" component={LogMealPage} />
         <Route path="/registrar" component={LogMealPage} />
@@ -148,11 +179,43 @@ function Router() {
           component={RetiredProfessionalBookmarkRedirect}
         />
         <Route
-          path="/professional/patients"
+          path="/professional/follow-up"
+          component={RetiredProfessionalFollowUpRedirect}
+        />
+        <Route
+          path="/professional/patients/:patientId/assessment"
           component={ProfessionalWorkspaceRoute}
         />
         <Route
-          path="/professional/follow-up"
+          path="/professional/patients/:patientId/goals"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/guidance"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/notes"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/history"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/reports"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId/messages"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients/:patientId"
+          component={ProfessionalWorkspaceRoute}
+        />
+        <Route
+          path="/professional/patients"
           component={ProfessionalWorkspaceRoute}
         />
         <Route
@@ -168,8 +231,10 @@ function Router() {
           component={ProfessionalSettingsRoute}
         />
         <Route path="/professional" component={ProfessionalWorkspaceRoute} />
-        <Route path="/admin" component={AdminPage} />
+        <Route path="/admin/billing" component={AdminBillingRoute} />
+        <Route path="/admin" component={AdminRoute} />
         <Route path="/404" component={NotFound} />
+        <Route path="/" component={Home} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
@@ -185,9 +250,6 @@ function App() {
           <ProfileWhatsappGreetingVisibility />
           <NutritionGoalPreviewValidityBridge />
           <NutritionGoalReportInvalidator />
-          <ProfessionalAnalyzeTabBridge />
-          <ProfessionalGoalExceptionSuggestionsEmbed />
-          <ProfessionalOperationalAlertsBridge />
           <PatientGoalSuggestionsEmbed />
           <PatientProfessionalProfilesEmbed />
           <PatientProfessionalGuidancesEmbed />

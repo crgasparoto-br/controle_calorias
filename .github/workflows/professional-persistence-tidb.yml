@@ -8,10 +8,17 @@ on:
       - "server/repositories/professionalRepository.ts"
       - "server/repositories/professionalContentRepository.ts"
       - "server/repositories/professionalGoalPrivacyRepository.ts"
+      - "server/repositories/professionalPortfolioRepository.ts"
+      - "server/repositories/professionalPortfolioRepository.test.ts"
       - "server/modules/goals/**"
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
+      - "scripts/test-professional-message-idempotency-tidb.ts"
+      - "scripts/test-professional-operational-alerts-tidb.ts"
+      - "scripts/test-professional-portfolio-report-timezone-tidb.ts"
+      - "scripts/test-professional-access-receipts-tidb.ts"
+      - "scripts/test-professional-access-public-boundary-tidb.ts"
       - "package.json"
       - ".github/workflows/professional-persistence-tidb.yml"
   workflow_dispatch:
@@ -36,6 +43,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: mkdir -p artifacts
 
       - name: Start TiDB
         run: |
@@ -74,46 +82,117 @@ jobs:
 
       - name: Validate professional migration and repository
         run: |
-          log_file=/tmp/professional-persistence.log
-          setsid pnpm db:test:professionals >"$log_file" 2>&1 &
-          test_pid=$!
-          success_marker='"event":"professional.persistence.integration.passed"'
+          set -euo pipefail
 
-          for attempt in $(seq 1 150); do
-            if grep -q "$success_marker" "$log_file"; then
-              cat "$log_file"
-              kill -TERM -- "-$test_pid" 2>/dev/null || true
-              sleep 2
-              kill -KILL -- "-$test_pid" 2>/dev/null || true
-              wait "$test_pid" 2>/dev/null || true
-              echo "Professional persistence integration completed successfully."
-              exit 0
-            fi
+          run_integration() {
+            script_path="$1"
+            success_marker="$2"
+            log_slug="$3"
+            log_file="artifacts/${log_slug}.log"
+            : >"$log_file"
 
-            if ! kill -0 "$test_pid" 2>/dev/null; then
-              set +e
-              wait "$test_pid"
-              test_status=$?
-              set -e
-              cat "$log_file"
-              if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
-                echo "Professional persistence integration completed successfully."
-                exit 0
+            setsid pnpm exec tsx "$script_path" >"$log_file" 2>&1 &
+            test_pid=$!
+
+            for attempt in $(seq 1 150); do
+              if grep -q "$success_marker" "$log_file"; then
+                cat "$log_file"
+                kill -TERM -- "-$test_pid" 2>/dev/null || true
+                sleep 1
+                kill -KILL -- "-$test_pid" 2>/dev/null || true
+                wait "$test_pid" 2>/dev/null || true
+                echo "${log_slug} completed successfully."
+                return 0
               fi
-              echo "Professional persistence integration exited before its success marker."
-              exit "${test_status:-1}"
-            fi
 
-            sleep 2
-          done
+              if ! kill -0 "$test_pid" 2>/dev/null; then
+                set +e
+                wait "$test_pid"
+                test_status=$?
+                set -e
+                cat "$log_file"
+                if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
+                  echo "${log_slug} completed successfully."
+                  return 0
+                fi
+                echo "${log_slug} exited before its success marker."
+                if [ "$test_status" -eq 0 ]; then return 1; fi
+                return "$test_status"
+              fi
 
+              sleep 2
+            done
+
+            cat "$log_file"
+            kill -TERM -- "-$test_pid" 2>/dev/null || true
+            sleep 1
+            kill -KILL -- "-$test_pid" 2>/dev/null || true
+            wait "$test_pid" 2>/dev/null || true
+            echo "${log_slug} timed out before its success marker."
+            return 1
+          }
+
+          run_integration \
+            scripts/test-professional-persistence-tidb.ts \
+            '"event":"professional.persistence.integration.passed"' \
+            professional-persistence
+          run_integration \
+            scripts/test-professional-message-idempotency-tidb.ts \
+            '"event":"professional.message_idempotency.integration.passed"' \
+            professional-message-idempotency
+          run_integration \
+            scripts/test-professional-operational-alerts-tidb.ts \
+            '"event":"professional.operational-alerts.integration.passed"' \
+            professional-operational-alerts
+          run_integration \
+            scripts/test-professional-portfolio-report-timezone-tidb.ts \
+            '"event":"professional.portfolio_report_timezone.integration.passed"' \
+            professional-portfolio-report-timezone
+
+      - name: Validate privacy-safe access receipts
+        run: |
+          log_file=artifacts/professional-access-receipts.log
+          set +e
+          timeout --signal=TERM --kill-after=5s 120s \
+            pnpm exec tsx scripts/test-professional-access-receipts-tidb.ts \
+            >"$log_file" 2>&1
+          test_status=$?
+          set -e
           cat "$log_file"
-          kill -TERM -- "-$test_pid" 2>/dev/null || true
-          sleep 2
-          kill -KILL -- "-$test_pid" 2>/dev/null || true
-          wait "$test_pid" 2>/dev/null || true
-          echo "Professional persistence integration timed out before its success marker."
-          exit 1
+          if grep -q '"event":"professional.access_receipts.integration.passed"' "$log_file"; then
+            echo "Professional access receipt integration completed successfully."
+            exit 0
+          fi
+          echo "Professional access receipt integration failed before its success marker."
+          if [ "$test_status" -eq 0 ]; then exit 1; fi
+          exit "$test_status"
+
+      - name: Validate public access boundary by email and phone
+        run: |
+          log_file=artifacts/professional-access-public-boundary.log
+          set +e
+          timeout --signal=TERM --kill-after=5s 150s \
+            pnpm exec tsx scripts/test-professional-access-public-boundary-tidb.ts \
+            >"$log_file" 2>&1
+          test_status=$?
+          set -e
+          cat "$log_file"
+          if grep -q '"event":"professional.access_public_boundary.integration.passed"' "$log_file"; then
+            echo "Professional public access boundary integration completed successfully."
+            exit 0
+          fi
+          echo "Professional public access boundary integration failed before its success marker."
+          if [ "$test_status" -eq 0 ]; then exit 1; fi
+          exit "$test_status"
+
+      - name: Preserve access boundary diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: professional-access-boundary-${{ github.sha }}
+          path: artifacts/*.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Validate backfill command idempotency
         run: |

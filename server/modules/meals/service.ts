@@ -373,6 +373,11 @@ export async function processMealDraft(
       mimeType: resolvedAudio.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
+    }, {
+      observability: {
+        origin: input.source,
+        flow: "voice_transcription",
+      },
     });
     if ("error" in transcription) {
       logInferenceEvent({

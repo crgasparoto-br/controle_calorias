@@ -1,19 +1,11 @@
 import { logPersistenceWarning } from "../../db";
+import {
+  PROFESSIONAL_ENTITLEMENT_RESOURCES,
+  type ProfessionalEntitlementResource,
+} from "@shared/professionalEntitlements";
 
-export const PROFESSIONAL_ENTITLEMENT_RESOURCES = [
-  "professional_dashboard",
-  "professional_portfolio",
-  "professional_record",
-  "professional_goals",
-  "professional_operational_alerts",
-  "professional_messages",
-  "professional_reports",
-  "professional_ai_assistance",
-  "professional_settings",
-] as const;
-
-export type ProfessionalEntitlementResource =
-  (typeof PROFESSIONAL_ENTITLEMENT_RESOURCES)[number];
+export { PROFESSIONAL_ENTITLEMENT_RESOURCES };
+export type { ProfessionalEntitlementResource };
 
 export type ProfessionalEntitlementReason =
   | "active_subscription"
@@ -107,9 +99,7 @@ export function configureProfessionalEntitlementProvider(
     | null
 ) {
   entitlementProvider =
-    typeof provider === "function"
-      ? { getEntitlements: provider }
-      : provider;
+    typeof provider === "function" ? { getEntitlements: provider } : provider;
 }
 
 function accessMode(): "open_access" | "enforced" {
@@ -201,9 +191,8 @@ export async function getProfessionalEntitlements(
   }
 
   try {
-    const result = await entitlementProvider.getEntitlements(
-      professionalUserId
-    );
+    const result =
+      await entitlementProvider.getEntitlements(professionalUserId);
 
     if (mode === "open_access") {
       return openAccessSnapshot({

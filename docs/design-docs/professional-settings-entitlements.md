@@ -19,25 +19,32 @@ A API `professionalRecord.settings` oferece operações independentes para reduz
 - `get`: perfil, identificação pública, preferências suportadas, critérios centrais e entitlements;
 - `updateIdentity`: identificação profissional e dados públicos opcionais;
 - `updatePreferences`: intervalo padrão de revisão e modelos de mensagem;
-- `setActive`: ativa ou desativa a Área Profissional sem remover histórico;
+- `setActive`: desativa a Área Profissional sem remover histórico; uma tentativa de `active=true` permanece protegida e a reativação ocorre nas Configurações pessoais;
 - `entitlements`: reavalia o snapshot comercial sem cache indefinido;
 - `patientVisible`: retorna somente dados públicos de profissionais ativos com autorização aprovada.
 
-`get`, `updateIdentity`, `updatePreferences` e `setActive` exigem perfil ativo e o recurso exato `professional_settings`. A consulta isolada `entitlements` permanece autenticada e disponível mesmo quando esse recurso é negado, pois é a fonte necessária para explicar o bloqueio sem liberar leitura ou alteração das configurações internas. `patientVisible` pertence ao fluxo do paciente e não depende da elegibilidade comercial do profissional solicitante.
+`get`, `updateIdentity` e `updatePreferences` exigem perfil ativo e o recurso exato `professional_settings`. `setActive({ active: false })` é uma operação de disponibilidade pertencente ao titular da conta e permanece autenticada mesmo quando o entitlement de configurações é negado, evitando que um perfil ativo fique sem mecanismo de saída. `setActive({ active: true })` não reativa perfil inativo: a reativação continua no fluxo pessoal e, para um perfil já ativo, mantém a verificação do recurso `professional_settings`. A consulta isolada `entitlements` também permanece autenticada e disponível quando esse recurso é negado, pois é a fonte necessária para explicar o bloqueio sem liberar leitura ou alteração das configurações internas. `patientVisible` pertence ao fluxo do paciente e não depende da elegibilidade comercial do profissional solicitante.
 
 Alterações são serializadas por profissional. Se a gravação do evento de auditoria falhar, a alteração afetada é compensada antes de o erro retornar. Falha da própria compensação é registrada e retorna um erro explícito de consistência; ela não é ignorada. Eventos de configuração usam identificador próprio e não registram conteúdo de modelos ou outros dados sensíveis.
 
+O endpoint pessoal `nutrition.professionals.upsertProfile`, usado na ativação inicial, aplica a mesma garantia: se o perfil canônico for gravado e o evento `profile_upserted` falhar, o perfil anterior é restaurado ou o perfil recém-criado é removido antes de propagar o erro. Se a compensação falhar, a API retorna erro explícito de consistência. No cliente, a primeira leitura bem-sucedida do perfil corrige o cache de autenticação com o estado canônico, removendo navegação profissional obsoleta quando o perfil está inativo. A resposta bem-sucedida da mutação também atualiza imediatamente os caches canônicos de perfil e autenticação antes da reconciliação remota; assim, CTA e navegação refletem o estado confirmado mesmo quando invalidação ou refetch falham. Sucesso e erro ainda refazem sessão, perfil e entitlements em melhor esforço, e o caminho de erro aplica o perfil confirmado por refetch antes de informar a falha.
+
 Quando a primeira gravação de identidade cria dados que não existiam e uma etapa posterior falha, a compensação remove o perfil canônico, o espelho legado e a preferência recém-criada `professional_settings_v1`, restaurando integralmente a ausência anterior. A primeira gravação exclusiva de preferências segue a mesma regra e remove a preferência caso o evento final falhe. Perfil canônico e espelho legado são removidos em uma única transação. Em ambientes sem banco fora de produção, tombstones e stores em processo impedem que os fallbacks voltem a expor o estado removido. Em produção, indisponibilidade do banco faz a compensação falhar de forma explícita em vez de simular sucesso volátil.
 
-O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional.
+O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional. A tela de mensagens lê somente a projeção dos modelos por `professionalRecord.messages.templates`, protegida por `professional_messages`; ela não adquire `professional_settings` como requisito indireto.
 
 Lembretes continuam sendo criados no contexto de cada paciente pela central de acompanhamento. Frequência de resumo automático não é exposta enquanto não existir um consumidor operacional. O contrato de entrada é estrito e contém somente controles efetivamente suportados. Dados antigos com chaves de automação obsoletas continuam legíveis e convergem para o contrato atual na próxima gravação, sem migration destrutiva.
 
 ## Estado ativo e proteção por recurso
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
+O fluxo pessoal apresenta status e os CTAs **Abrir Área Profissional** e, quando disponível, **Abrir configurações profissionais**. A desativação normal é iniciada em `/professional/settings`, exige confirmação explícita, aplica imediatamente `active=false` aos caches locais de perfil, configurações e autenticação, tenta cancelar/remover dados profissionais e reconciliar a sessão, e redireciona para `/settings?tab=profissional` mesmo quando alguma etapa secundária falha. Quando `professional_settings` está negado ou sua verificação falha, a aba pessoal oferece uma saída segura de desativação, com a mesma explicação de preservação de vínculos, prontuários, mensagens e histórico. O endpoint de desativação não libera leitura nem edição das configurações profissionais.
 
-As APIs de prontuário, metas oficiais, alertas, mensagens, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico, como carteira, relatório, prontuário, metas ou IA.
+A rota `/settings` usa uma única superfície de abas controlada pela URL. Selecionar **Profissional** grava `tab=profissional`; acesso direto, recarga e navegação do histórico restauram o mesmo conteúdo e o mesmo conjunto de abas, sem uma tela paralela para o deep link.
+
+As APIs de prontuário, alertas, mensagens, relatórios, assistência por IA e configurações usam procedures especializadas. As APIs legadas em `nutrition.professionals` passam por uma política central registrada no middleware de procedures protegidas. Essa política distingue operações do profissional de decisões executadas pelo paciente e exige o recurso específico da superfície.
+
+O contexto individual é resolvido por `professionalRecord.context`, que recebe o recurso exato da rota e valida perfil ativo, entitlement e autorização aprovada. Prontuário, avaliação, metas oficiais, orientações, anotações e histórico usam `professional_record`; relatórios usam `professional_reports`; mensagens usam `professional_messages`. Nenhuma dessas rotas pode exigir carteira, prontuário, configurações ou outro entitlement apenas para descobrir o paciente da URL.
 
 No frontend, cada rota profissional declara seu próprio recurso. Um snapshot com `allowed: true` não libera uma rota quando o recurso correspondente não está presente em `enabledResources`. A rota `/professional/settings` exige `professional_settings`; quando negada, oferece retorno às configurações pessoais em vez de criar um redirecionamento circular para a própria rota bloqueada.
 
@@ -47,7 +54,7 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 
 ## Contrato de entitlements
 
-`entitlementService.ts` é o ponto único de integração com o futuro billing da issue #145. O snapshot normaliza:
+`entitlementService.ts` é o ponto único de integração com o billing da issue #145. O snapshot normaliza:
 
 - acesso permitido ou negado;
 - razão da elegibilidade;
@@ -57,7 +64,9 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 - capacidade, uso e disponibilidade fornecidos pelo provider;
 - disponibilidade do provider e uso de fallback.
 
-O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
+Os identificadores aceitos são definidos no contrato compartilhado `shared/professionalEntitlements.ts`, consumido pelo serviço e pelo frontend. O mapa de nomes de produto da interface deve satisfazer integralmente esse catálogo em tempo de compilação e em teste de regressão. Recursos desconhecidos nunca são convertidos por remoção de prefixo ou substituição de `_`; a interface usa fallback neutro e não expõe o identificador técnico.
+
+A fundação de billing registra o provider canônico por `configureBillingProfessionalEntitlementProvider`, que delega a `configureProfessionalEntitlementProvider` e à persistência descrita em `billing-foundation.md`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
 
 `BILLING_ACCESS_MODE=open_access` é uma política de rollout, não apenas um fallback de indisponibilidade. Enquanto estiver ativo, todos os recursos profissionais permanecem liberados mesmo que o provider esteja disponível e responda que não há assinatura. Dados comerciais retornados ainda podem ser exibidos, mas não bloqueiam operações nem capacidade. Em `enforced`, ausência, falha, expiração ou negação do provider resultam em bloqueio seguro. O serviço não mantém cache de autorização.
 
@@ -79,4 +88,4 @@ Redução de plano abaixo da carteira atual não remove pacientes nem histórico
 
 ## Evolução com a issue #145
 
-A implementação comercial deve registrar um provider no contrato central e manter a mesma forma normalizada. O provider será responsável pela persistência auditável da capacidade, definição comercial de paciente ativo, idempotência da reserva, correlação pela `coverageKey`, retry e liberação de vagas. Checkout, cobrança, webhooks, preços e limites concretos permanecem fora da issue #814.
+A fundação comercial já registra um provider interno provider-neutral e mantém a forma normalizada. A persistência auditável de capacidade, idempotência por `coverageKey`, retry e liberação de vagas são centrais. Checkout, cobrança, provider financeiro real, preços, limites concretos e definição comercial de paciente ativo permanecem em entregas posteriores da épica #145.

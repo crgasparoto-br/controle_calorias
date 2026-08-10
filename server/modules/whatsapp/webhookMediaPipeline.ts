@@ -195,6 +195,11 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
       mimeType: storedAudio.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
+    }, {
+      observability: {
+        origin: "whatsapp",
+        flow: "whatsapp_voice_transcription",
+      },
     });
 
     const blockedMealProcessing = !prepared.text?.trim() && !prepared.imageAnalysisUrl;

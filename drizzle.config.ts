@@ -34,6 +34,7 @@ export default defineConfig({
     "./drizzle/schema.ts",
     "./drizzle/food-signals-schema.ts",
     "./drizzle/professional-schema.ts",
+    "./drizzle/billing-schema.ts",
   ],
   out: "./drizzle",
   dialect: "mysql",
