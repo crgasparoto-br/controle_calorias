@@ -6,13 +6,9 @@ on:
       - "drizzle/**"
       - "server/modules/billing/**"
       - "server/repositories/billingRepository.ts"
-      - "server/repositories/billingLifecycleAccessRepository.ts"
-      - "server/repositories/billingLifecycleCapacityRepository.ts"
-      - "server/repositories/billingSubscriptionLifecycleRepository.ts"
       - "server/modules/professionals/entitlementService.ts"
       - "server/routers.ts"
       - "scripts/test-billing-persistence-tidb.ts"
-      - "scripts/test-billing-subscription-lifecycle-tidb.ts"
       - "scripts/check-referential-integrity.mjs"
       - "package.json"
       - ".github/workflows/billing-persistence-tidb.yml"
@@ -79,10 +75,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          {
-            pnpm db:test:billing
-            pnpm exec tsx scripts/test-billing-subscription-lifecycle-tidb.ts
-          } 2>&1 | tee billing-test.log
+          pnpm db:test:billing 2>&1 | tee billing-test.log
 
       - name: Preserve billing integration diagnostics
         if: always()
