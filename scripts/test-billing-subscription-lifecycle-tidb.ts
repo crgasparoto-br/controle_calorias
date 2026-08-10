@@ -117,18 +117,26 @@ async function main() {
     assert(individual, "individual monthly plan must exist");
     assert(professional, "professional monthly plan must exist");
 
-    const [persistedIndividual, persistedProfessional] = await Promise.all([
-      catalog.getVersionByCode(individual.versionCode),
-      catalog.getVersionByCode(professional.versionCode),
-    ]);
-    assert(persistedIndividual, "persisted individual monthly plan must exist");
-    assert(persistedProfessional, "persisted professional monthly plan must exist");
-    const base = new Date(
-      Math.max(
-        persistedIndividual.effectiveFrom.getTime(),
-        persistedProfessional.effectiveFrom.getTime()
-      ) + 60_000
+    // Other billing integration tests intentionally exercise catalog activation
+    // and may leave the shared ephemeral TiDB fixture inactive. This test owns
+    // the lifecycle state machine, so normalize only the two catalog rows it
+    // consumes instead of coupling lifecycle behavior to previous test order.
+    const base = new Date("2030-01-01T12:00:00.000Z");
+    const fixtureEffectiveFrom = new Date(base.getTime() - 60_000);
+    await pool.query(
+      `UPDATE billingPlans
+       SET status = 'active', active = true, effectiveFrom = ?, effectiveUntil = NULL
+       WHERE versionCode IN (?, ?)`,
+      [fixtureEffectiveFrom, individual.versionCode, professional.versionCode]
     );
+    await pool.query(
+      `UPDATE billingProducts p
+       INNER JOIN billingPlans v ON v.productId = p.id
+       SET p.state = 'active'
+       WHERE v.versionCode IN (?, ?)`,
+      [individual.versionCode, professional.versionCode]
+    );
+
     const plusDays = (days: number) => new Date(base.getTime() + days * day);
     const service = createBillingSubscriptionLifecycleService({
       repository: lifecycleRepository,
