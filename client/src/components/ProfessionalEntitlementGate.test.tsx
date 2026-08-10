@@ -47,7 +47,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("ProfessionalEntitlementGate patient route revocation", () => {
+describe("ProfessionalEntitlementGate permissions", () => {
   it("redirects a patient route to the portfolio when its exact entitlement is revoked", async () => {
     const { default: ProfessionalEntitlementGate } = await import(
       "./ProfessionalEntitlementGate"
@@ -112,5 +112,43 @@ describe("ProfessionalEntitlementGate patient route revocation", () => {
       screen.getByRole("heading", { name: "Recurso profissional indisponível" })
     ).toBeTruthy();
     expect(setLocation).not.toHaveBeenCalled();
+  });
+
+  it("keeps professional settings reachable during billing suspension", async () => {
+    location = "/professional/settings";
+    commercialState = "suspended";
+    enabledResources = [];
+    const { default: ProfessionalEntitlementGate } = await import(
+      "./ProfessionalEntitlementGate"
+    );
+    render(
+      <ProfessionalEntitlementGate resource="professional_settings">
+        <div>Configurações básicas disponíveis</div>
+      </ProfessionalEntitlementGate>
+    );
+
+    expect(screen.getByText("Configurações básicas disponíveis")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeNull();
+  });
+
+  it("does not reopen paid professional routes during billing suspension", async () => {
+    location = "/professional/reports";
+    commercialState = "suspended";
+    enabledResources = [];
+    const { default: ProfessionalEntitlementGate } = await import(
+      "./ProfessionalEntitlementGate"
+    );
+    render(
+      <ProfessionalEntitlementGate resource="professional_reports">
+        <div>Relatório autorizado</div>
+      </ProfessionalEntitlementGate>
+    );
+
+    expect(screen.queryByText("Relatório autorizado")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Recurso profissional indisponível" })
+    ).toBeTruthy();
   });
 });

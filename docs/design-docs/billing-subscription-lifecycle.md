@@ -58,7 +58,7 @@ Ao terminar a carência, a assinatura entra em `suspended`:
 
 - o usuário Individual recebe apenas o entitlement técnico de leitura (`system_access`, `web_access`, `reports`); queries protegidas de consulta permanecem disponíveis, assim como billing e exclusão de conta, mas mutations de domínio ficam bloqueadas antes do handler;
 - o pipeline do WhatsApp trata `read_only_access` como inelegível para escrita: texto, imagem, áudio e confirmações não chegam ao processamento nutricional e conteúdo bruto não é persistido;
-- o Profissional deixa de obter capacidade contratável para novos pacientes e novas ações protegidas de domínio ficam bloqueadas pelo mesmo gate de escrita;
+- o Profissional deixa de obter capacidade contratável para novos pacientes e novas ações protegidas de domínio ficam bloqueadas pelo mesmo gate de escrita; as configurações básicas de identidade e preferências profissionais permanecem editáveis por rotas allowlisted explicitamente, e o usuário ainda pode desativar a própria Área Profissional; reativação e recursos pagos continuam bloqueados;
 - alocações de capacidade já existentes não são liberadas automaticamente;
 - pacientes cobertos deixam de receber acesso patrocinado enquanto o patrocinador está suspenso;
 - um fato `coverage_pause_requested` é publicado para integração posterior com a #894.

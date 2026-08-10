@@ -72,6 +72,7 @@ export function ProfessionalEntitlementSummaryCard({
 }: {
   entitlements: EntitlementSnapshot;
 }) {
+  const suspended = entitlements.commercialState === "suspended";
   const capacityLabel =
     entitlements.capacity.limit === null
       ? "Capacidade disponível não informada"
@@ -110,13 +111,23 @@ export function ProfessionalEntitlementSummaryCard({
           <div className="min-w-0 rounded-xl border p-4">
             <p className="text-xs text-muted-foreground">Disponibilidade</p>
             <div className="mt-1 flex items-center gap-2 font-semibold">
-              {entitlements.allowed ? (
-                <BadgeCheck className="h-4 w-4" aria-hidden="true" />
-              ) : (
+              {suspended || !entitlements.allowed ? (
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <BadgeCheck className="h-4 w-4" aria-hidden="true" />
               )}
-              {entitlements.allowed ? "Recursos disponíveis" : "Acesso indisponível"}
+              {suspended
+                ? "Assinatura suspensa"
+                : entitlements.allowed
+                  ? "Recursos disponíveis"
+                  : "Acesso indisponível"}
             </div>
+            {suspended ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Identidade e preferências continuam editáveis; novas ações
+                profissionais permanecem bloqueadas.
+              </p>
+            ) : null}
           </div>
         </div>
         <div>

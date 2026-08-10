@@ -98,7 +98,6 @@ describe("billing professional entitlement provider", () => {
   it.each([
     "sponsored_by_professional",
     "transition_access",
-    "read_only_access",
   ])("does not convert %s into professional access", async reason => {
     const deps = dependencies({
       access: { reason },
@@ -109,6 +108,23 @@ describe("billing professional entitlement provider", () => {
     await expect(provider.getEntitlements(10)).resolves.toMatchObject({
       allowed: false,
       reason: "no_access",
+    });
+  });
+
+  it("preserves suspension as read-only professional state without paid resources", async () => {
+    const deps = dependencies({
+      access: {
+        reason: "read_only_access",
+        entitlements: ["system_access", "web_access", "reports"],
+      },
+      subscription: null,
+    });
+    const provider = createBillingProfessionalEntitlementProvider(deps as any);
+
+    await expect(provider.getEntitlements(10)).resolves.toMatchObject({
+      allowed: true,
+      reason: "read_only_access",
+      entitlements: ["system_access", "web_access", "reports"],
     });
   });
 

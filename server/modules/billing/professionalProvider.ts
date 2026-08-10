@@ -12,6 +12,7 @@ function professionalReason(reason: BillingAccessReason): ProfessionalEntitlemen
     reason === "active_subscription" ||
     reason === "active_trial" ||
     reason === "admin_override" ||
+    reason === "read_only_access" ||
     reason === "free_access"
   ) {
     return reason;

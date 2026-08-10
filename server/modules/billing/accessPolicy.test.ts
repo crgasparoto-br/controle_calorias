@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import {
   createBillingAccessPolicy,
   isBillingAccessExemptPath,
+  isBillingReadOnlyWriteAllowedPath,
 } from "./accessPolicy";
 import type { UserEntitlementsResult } from "./types";
 
@@ -108,6 +109,61 @@ describe("billing protected procedure policy", () => {
     ).rejects.toMatchObject<Partial<TRPCError>>({ code: "FORBIDDEN" });
   });
 
+  it("allows only basic professional settings writes while suspended", async () => {
+    const getUserEntitlements = vi.fn(async () =>
+      access({
+        reason: "read_only_access",
+        entitlements: ["system_access", "web_access", "reports"],
+      })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
+
+    await expect(
+      policy({
+        path: "professionalRecord.settings.updateIdentity",
+        type: "mutation",
+        ctx,
+      })
+    ).resolves.toBeUndefined();
+    await expect(
+      policy({
+        path: "professionalRecord.settings.updatePreferences",
+        type: "mutation",
+        ctx,
+      })
+    ).resolves.toBeUndefined();
+    await expect(
+      policy({
+        path: "professionalRecord.settings.setActive",
+        type: "mutation",
+        ctx,
+      })
+    ).resolves.toBeUndefined();
+    await expect(
+      policy({
+        path: "professionalRecord.saveAssessment",
+        type: "mutation",
+        ctx,
+      })
+    ).rejects.toMatchObject<Partial<TRPCError>>({ code: "FORBIDDEN" });
+  });
+
+  it("does not turn the basic-settings exception into access for denied users", async () => {
+    const policy = createBillingAccessPolicy({
+      getUserEntitlements: vi.fn(async () =>
+        access({ allowed: false, reason: "no_access", entitlements: [] })
+      ),
+    });
+
+    await expect(
+      policy({
+        path: "professionalRecord.settings.updateIdentity",
+        type: "mutation",
+        ctx,
+      })
+    ).rejects.toMatchObject<Partial<TRPCError>>({ code: "FORBIDDEN" });
+  });
+
   it("keeps billing management mutations available while suspended", async () => {
     const getUserEntitlements = vi.fn(async () =>
       access({ reason: "read_only_access" })
@@ -126,6 +182,16 @@ describe("billing protected procedure policy", () => {
     expect(
       isBillingAccessExemptPath(
         "auth.whatsappOnboarding.linkExistingAccount.preview"
+      )
+    ).toBe(false);
+    expect(
+      isBillingReadOnlyWriteAllowedPath(
+        "professionalRecord.settings.updateIdentity"
+      )
+    ).toBe(true);
+    expect(
+      isBillingReadOnlyWriteAllowedPath(
+        "professionalRecord.settings.updateIdentity.preview"
       )
     ).toBe(false);
   });

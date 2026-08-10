@@ -12,10 +12,22 @@ const BILLING_ACCESS_EXEMPT_PATHS = [
   "nutrition.privacy.requestAccountDeletion",
 ] as const;
 
+const BILLING_READ_ONLY_WRITE_ALLOWED_PATHS = [
+  "professionalRecord.settings.updateIdentity",
+  "professionalRecord.settings.updatePreferences",
+  "professionalRecord.settings.setActive",
+] as const;
+
 export function isBillingAccessExemptPath(path: string) {
   return (
     BILLING_ACCESS_EXEMPT_PATHS.some(exemptPath => path === exemptPath) ||
     BILLING_ACCESS_EXEMPT_PREFIXES.some(prefix => path.startsWith(prefix))
+  );
+}
+
+export function isBillingReadOnlyWriteAllowedPath(path: string) {
+  return BILLING_READ_ONLY_WRITE_ALLOWED_PATHS.some(
+    allowedPath => path === allowedPath
   );
 }
 
@@ -34,7 +46,11 @@ export function createBillingAccessPolicy(deps: {
       });
     }
 
-    if (type !== "query" && !canUseBillingWriteAccess(access)) {
+    if (
+      type !== "query" &&
+      !canUseBillingWriteAccess(access) &&
+      !isBillingReadOnlyWriteAllowedPath(path)
+    ) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message:
