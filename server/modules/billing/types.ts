@@ -39,7 +39,7 @@ export type BillingSubscriptionSummary = {
   provider: string;
   planCode: string;
   planName: string;
-  status: "pending" | "active" | "past_due" | "canceled" | "expired";
+  status: "pending" | "active" | "past_due" | "suspended" | "canceled" | "expired";
   billingCycle: "monthly" | "yearly" | "custom";
   currency: string;
   unitAmount: number;
