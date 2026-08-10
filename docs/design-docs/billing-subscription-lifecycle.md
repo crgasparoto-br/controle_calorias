@@ -79,7 +79,7 @@ Encerramento imediato é restrito aos motivos `fraud`, `chargeback`, `security_r
 
 Cada fato possui versão, `idempotencyKey`, `correlationId`, pagador, audiência, produto, versão comercial, ciclo, estado anterior/novo, instante efetivo e ação permitida. O payload é allowlisted pelo produtor e não inclui valor da cobrança, método de pagamento, cartão, token, CPF/CNPJ, telefone ou payload bruto do provider.
 
-Os fatos mínimos cobrem trial iniciado/terminando, contratação pendente/confirmada/recusada/expirada, renovação, entrada e avisos de inadimplência, suspensão, recuperação, expiração e cancelamento solicitado/reativado/efetivo. Fatos obsoletos de inadimplência podem ser marcados como invalidados antes do envio quando um pagamento resolve a condição.
+Os fatos mínimos cobrem trial iniciado/terminando, contratação pendente/confirmada/recusada/expirada, renovação, entrada e avisos de inadimplência, suspensão, recuperação, expiração e cancelamento solicitado/reativado/efetivo. Fatos de comunicação que se tornem obsoletos são invalidados antes do envio: pagamentos que resolvem inadimplência invalidam avisos pendentes, e o encerramento definitivo do trial por ativação, cobrança inicial, cancelamento efetivo ou encerramento administrativo invalida `trial_ending` ainda não enviado.
 
 Falha futura no transporte de comunicação não altera estado financeiro: estado e outbox são persistidos primeiro e consumidores externos executam depois.
 

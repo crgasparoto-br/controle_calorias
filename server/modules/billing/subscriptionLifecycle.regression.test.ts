@@ -75,6 +75,72 @@ describe("subscription lifecycle regressions", () => {
     );
   });
 
+  it("invalidates a queued trial-ending communication when authoritative activation ends the trial", () => {
+    const pendingTrial = snapshot({
+      state: "pending",
+      planId: "plan-professional",
+      productCode: "professional",
+      versionCode: "professional-monthly-v1",
+      audience: "professional",
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      trialStartedAt: base,
+      trialEndsAt: plusDays(7),
+      firstChargeAt: plusDays(8),
+      trialCapacityLimit: 5,
+      emittedFactKeys: [
+        "sub-regression:trial_ending:2026-08-16T12:00:00.000Z:v1",
+      ],
+    });
+
+    const mutation = reduceFinancialFact(
+      pendingTrial,
+      {
+        providerCode: "fake-provider",
+        providerEventId: "trial-converted",
+        subscriptionId: pendingTrial.subscriptionId,
+        kind: "payment_confirmed",
+        chargePurpose: "early_conversion",
+        occurredAt: plusDays(6),
+        competenceKey: "first-paid",
+        currentPeriodStart: plusDays(6),
+        currentPeriodEnd: plusDays(36),
+        commercialConfirmationKey: "confirm-trial-conversion",
+        correlationId: "trial-converted",
+      },
+      {
+        delinquency: null,
+        earlyConversionConfirmation: {
+          confirmationKey: "confirm-trial-conversion",
+          confirmedAt: plusDays(5),
+          productCode: "professional",
+          versionCode: "professional-monthly-v1",
+          billingCycle: "monthly",
+          currency: "BRL",
+          unitAmount: 8990,
+          capacityLimit: 30,
+          firstChargeAt: plusDays(6),
+        },
+        plan: {
+          id: "plan-professional",
+          productCode: "professional",
+          versionCode: "professional-monthly-v1",
+          audience: "professional",
+          billingCycle: "monthly",
+          currency: "BRL",
+          unitAmount: 8990,
+          capacityLimit: 30,
+          entitlements: ["system_access", "professional_workspace"],
+          commercialPaymentMethods: ["credit_card", "pix_automatic"],
+        },
+      }
+    );
+
+    expect(mutation.nextState).toBe("active");
+    expect(mutation.endTrialEntitlement).toBe(true);
+    expect(mutation.invalidateFactTypes).toContain("trial_ending");
+  });
+
   it("does not let a scheduled cancellation truncate an active past-due grace window", () => {
     const pastDue = snapshot({
       state: "past_due",

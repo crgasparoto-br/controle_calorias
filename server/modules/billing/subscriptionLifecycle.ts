@@ -81,13 +81,30 @@ function emptyFinancialContext(): BillingFinancialRemediationContext {
   };
 }
 
+function invalidateObsoleteTrialEnding(
+  snapshot: BillingLifecycleSnapshot,
+  mutation: BillingLifecycleMutation
+): BillingLifecycleMutation {
+  if (
+    !snapshot.trialStartedAt ||
+    !mutation.endTrialEntitlement ||
+    mutation.invalidateFactTypes.includes("trial_ending")
+  ) {
+    return mutation;
+  }
+  return {
+    ...mutation,
+    invalidateFactTypes: [...mutation.invalidateFactTypes, "trial_ending"],
+  };
+}
+
 export function reduceFinancialFact(
   snapshot: BillingLifecycleSnapshot,
   input: BillingProviderNeutralFinancialFact,
   context: BillingFinancialRemediationContext = emptyFinancialContext()
 ): BillingLifecycleMutation {
   const guarded = guardFinancialFact(snapshot, input, context);
-  if (guarded) return guarded;
+  if (guarded) return invalidateObsoleteTrialEnding(snapshot, guarded);
 
   const mutation = enrichPastDueFact(base.reduceFinancialFact(snapshot, input), input);
   if (
@@ -98,7 +115,7 @@ export function reduceFinancialFact(
   ) {
     mutation.facts = [...mutation.facts, recoveryFact(snapshot, input)];
   }
-  return mutation;
+  return invalidateObsoleteTrialEnding(snapshot, mutation);
 }
 
 export function reduceLifecycleTick(
@@ -109,7 +126,10 @@ export function reduceLifecycleTick(
     snapshot.state === "past_due" || snapshot.state === "suspended"
       ? { ...snapshot, cancelAtPeriodEnd: false }
       : snapshot;
-  return base.reduceLifecycleTick(effectiveSnapshot, now);
+  return invalidateObsoleteTrialEnding(
+    snapshot,
+    base.reduceLifecycleTick(effectiveSnapshot, now)
+  );
 }
 
 function assertVerifiedTrialCard(
@@ -147,7 +167,16 @@ function sameConfirmation(
 }
 
 export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
-  const baseline = base.createBillingSubscriptionLifecycleService(deps);
+  const repository = {
+    ...deps.repository,
+    commitMutation(input: Parameters<ServiceDeps["repository"]["commitMutation"]>[0]) {
+      return deps.repository.commitMutation({
+        ...input,
+        mutation: invalidateObsoleteTrialEnding(input.snapshot, input.mutation),
+      });
+    },
+  };
+  const baseline = base.createBillingSubscriptionLifecycleService({ ...deps, repository });
   const readModel = deps.remediationReadModel;
   const nowProvider = deps.now ?? (() => new Date());
 
@@ -330,7 +359,7 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
           },
         },
       };
-      const result = await deps.repository.commitMutation({ snapshot, mutation });
+      const result = await repository.commitMutation({ snapshot, mutation });
       if (result === "conflict") continue;
       return result;
     }
@@ -356,7 +385,7 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
             : null,
       };
       const mutation = reduceFinancialFact(snapshot, input, context);
-      const result = await deps.repository.commitMutation({
+      const result = await repository.commitMutation({
         snapshot,
         mutation,
         financialFact: input,
@@ -378,7 +407,7 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
       if (!mutation.facts.length && mutation.nextState === snapshot.state) {
         return "noop" as const;
       }
-      const result = await deps.repository.commitMutation({ snapshot, mutation });
+      const result = await repository.commitMutation({ snapshot, mutation });
       if (result === "conflict") continue;
       return result;
     }
