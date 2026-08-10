@@ -51,6 +51,9 @@ describe("subscription lifecycle regressions", () => {
       suspendedAt: plusDays(15),
       recoveryEndsAt: plusDays(45),
       lastConfirmedCompetenceKey: null,
+      emittedFactKeys: [
+        "sub-regression:past_due_entered:2026-08:v1",
+      ],
     });
 
     const mutation = reduceFinancialFact(suspended, {

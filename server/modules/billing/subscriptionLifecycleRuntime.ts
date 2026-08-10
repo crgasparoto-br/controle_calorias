@@ -1,5 +1,6 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createBillingSubscriptionLifecycleRepository } from "../../repositories/billingSubscriptionLifecycleRepository";
+import { createBillingLifecycleRemediationReadModel } from "../../repositories/billingLifecycleRemediationReadModel";
 import { billingCatalogService } from "./catalogRuntime";
 import {
   createBillingSubscriptionLifecycleService,
@@ -29,9 +30,16 @@ export const billingSubscriptionLifecycleRepository =
     onWarning: logPersistenceWarning,
   });
 
+export const billingSubscriptionLifecycleRemediationReadModel =
+  createBillingLifecycleRemediationReadModel({
+    getDb,
+    onWarning: logPersistenceWarning,
+  });
+
 export const billingSubscriptionLifecycleService =
   createBillingSubscriptionLifecycleService({
     repository: billingSubscriptionLifecycleRepository,
+    remediationReadModel: billingSubscriptionLifecycleRemediationReadModel,
     hashTrialIdentity,
     couponCoordinator: {
       async reserve(input) {

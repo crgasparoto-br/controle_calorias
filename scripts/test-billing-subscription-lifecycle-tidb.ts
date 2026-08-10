@@ -10,6 +10,7 @@ import {
 import { createBillingCatalogRepository } from "../server/repositories/billingCatalogRepository";
 import { createDrizzleBillingRepository } from "../server/repositories/billingRepository";
 import { createBillingSubscriptionLifecycleRepository } from "../server/repositories/billingSubscriptionLifecycleRepository";
+import { createBillingLifecycleRemediationReadModel } from "../server/repositories/billingLifecycleRemediationReadModel";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -20,6 +21,7 @@ const users = {
   trialA: 9391,
   trialB: 9392,
   professional: 9393,
+  transition: 9394,
 };
 const provider = "lifecycle-integration-test";
 const day = 24 * 60 * 60 * 1000;
@@ -41,6 +43,7 @@ async function main() {
   };
   const catalog = createBillingCatalogRepository(deps);
   const lifecycleRepository = createBillingSubscriptionLifecycleRepository(deps);
+  const remediationReadModel = createBillingLifecycleRemediationReadModel(deps);
   const billingRepository = createDrizzleBillingRepository(deps);
 
   async function cleanup() {
@@ -88,6 +91,10 @@ async function main() {
     }
     await pool.query(
       `DELETE FROM billingTrialEligibilityAuditEvents WHERE payerUserId IN (${placeholders})`,
+      ids
+    );
+    await pool.query(
+      `DELETE FROM billingEntitlements WHERE beneficiaryUserId IN (${placeholders})`,
       ids
     );
     await pool.query(`DELETE FROM users WHERE id IN (${placeholders})`, ids);
@@ -140,11 +147,68 @@ async function main() {
     const plusDays = (days: number) => new Date(base.getTime() + days * day);
     const service = createBillingSubscriptionLifecycleService({
       repository: lifecycleRepository,
+      remediationReadModel,
       hashTrialIdentity: createTrialIdentityHasher(
         "billing-lifecycle-integration-secret-0001"
       ),
       now: () => base,
     });
+
+    await pool.query(
+      `INSERT INTO billingEntitlements (
+        id, beneficiaryUserId, sourceType, sourceId, state, activeGrantKey,
+        entitlementsJson, validFrom, validUntil, createdAt, updatedAt
+      ) VALUES (?, ?, 'transition', ?, 'active', ?, JSON_ARRAY('system_access'), ?, ?, NOW(), NOW())`,
+      [
+        "lifecycle-transition-entitlement",
+        users.transition,
+        "migration-30-days",
+        "transition:lifecycle-test",
+        base,
+        plusDays(30),
+      ]
+    );
+    const migrationContract = await service.startContract({
+      contractKey: "lifecycle-transition-contract",
+      providerCode: provider,
+      payerUserId: users.transition,
+      versionCode: individual.versionCode,
+      paymentMethod: "credit_card",
+      trialChoice: "request",
+      transitionAccessUntil: plusDays(30),
+      correlationId: "transition-contract",
+    });
+    assert(migrationContract.ok);
+    assert.equal(migrationContract.snapshot.trialStartedAt, null);
+    assert.equal(migrationContract.snapshot.trialEndsAt, null);
+    assert.equal(migrationContract.snapshot.firstChargeAt?.getTime(), plusDays(31).getTime());
+    const [transitionClaims] = await pool.query<mysql.RowDataPacket[]>(
+      "SELECT COUNT(*) AS total FROM billingTrialIdentityClaims WHERE subscriptionId = ?",
+      [migrationContract.snapshot.subscriptionId]
+    );
+    assert.equal(Number(transitionClaims[0]?.total ?? 0), 0);
+    const laterTrial = await service.startContract({
+      contractKey: "lifecycle-transition-later-trial",
+      providerCode: provider,
+      payerUserId: users.transition,
+      versionCode: individual.versionCode,
+      paymentMethod: "credit_card",
+      trialChoice: "request",
+      verifiedPaymentInstrument: {
+        payerUserId: users.transition,
+        providerCode: provider,
+        paymentMethod: "credit_card",
+        registrationId: "registered-card-transition",
+        verifiedAt: base,
+      },
+      identity: {
+        userId: users.transition,
+        cpf: "98765432100",
+        phone: "11944444444",
+      },
+      correlationId: "transition-later-trial",
+    });
+    assert.deepEqual(laterTrial, { ok: false, reason: "trial_already_used" });
 
     const [trialA, trialB] = await Promise.all([
       service.startContract({
@@ -154,6 +218,13 @@ async function main() {
         versionCode: individual.versionCode,
         paymentMethod: "credit_card",
         trialChoice: "request",
+        verifiedPaymentInstrument: {
+          payerUserId: users.trialA,
+          providerCode: provider,
+          paymentMethod: "credit_card",
+          registrationId: "registered-card",
+          verifiedAt: base,
+        },
         identity: {
           userId: users.trialA,
           cpf: "12345678901",
@@ -168,6 +239,13 @@ async function main() {
         versionCode: individual.versionCode,
         paymentMethod: "credit_card",
         trialChoice: "request",
+        verifiedPaymentInstrument: {
+          payerUserId: users.trialB,
+          providerCode: provider,
+          paymentMethod: "credit_card",
+          registrationId: "registered-card",
+          verifiedAt: base,
+        },
         identity: {
           userId: users.trialB,
           cpf: "12345678901",
@@ -223,16 +301,47 @@ async function main() {
 
     await service.applyFinancialFact({
       providerCode: provider,
+      providerEventId: "lifecycle-old-competence-failure",
+      subscriptionId: winner.snapshot.subscriptionId,
+      kind: "payment_failed",
+      chargePurpose: "renewal",
+      occurredAt: plusDays(20),
+      competenceKey: "older-competence",
+      currentPeriodStart: base,
+      currentPeriodEnd: plusDays(8),
+      correlationId: "old-competence-failure",
+    });
+    current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
+    assert.equal(current?.state, "active", "older competence must not regress active state");
+
+    await service.applyFinancialFact({
+      providerCode: provider,
       providerEventId: "lifecycle-renewal-failed",
       subscriptionId: winner.snapshot.subscriptionId,
       kind: "payment_failed",
       chargePurpose: "renewal",
       occurredAt: plusDays(38),
       competenceKey: "next-competence",
+      currentPeriodStart: plusDays(38),
+      currentPeriodEnd: plusDays(68),
       correlationId: "renewal-failed",
     });
     current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
     assert.equal(current?.state, "past_due");
+    await service.applyFinancialFact({
+      providerCode: provider,
+      providerEventId: "lifecycle-old-competence-payment",
+      subscriptionId: winner.snapshot.subscriptionId,
+      kind: "payment_confirmed",
+      chargePurpose: "renewal",
+      occurredAt: plusDays(39),
+      competenceKey: "first-paid-competence",
+      currentPeriodStart: plusDays(8),
+      currentPeriodEnd: plusDays(38),
+      correlationId: "old-competence-payment",
+    });
+    current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
+    assert.equal(current?.state, "past_due", "older payment must not clear current delinquency");
     const winnerUserId = winner.snapshot.payerUserId;
     const graceAccess = await billingRepository.listAccessCandidates(
       winnerUserId,
@@ -287,6 +396,13 @@ async function main() {
       versionCode: professional.versionCode,
       paymentMethod: "credit_card",
       trialChoice: "request",
+      verifiedPaymentInstrument: {
+        payerUserId: users.professional,
+        providerCode: provider,
+        paymentMethod: "credit_card",
+        registrationId: "registered-card-professional",
+        verifiedAt: base,
+      },
       identity: {
         userId: users.professional,
         cnpj: "12345678000199",
@@ -301,6 +417,53 @@ async function main() {
     );
     assert.equal(professionalAccess?.capacityLimit, 5);
     assert.equal(professionalAccess?.status, "pending");
+
+    const earlyUnconfirmed = await service.applyFinancialFact({
+      providerCode: provider,
+      providerEventId: "lifecycle-early-unconfirmed",
+      subscriptionId: professionalTrial.snapshot.subscriptionId,
+      kind: "payment_confirmed",
+      chargePurpose: "early_conversion",
+      occurredAt: plusDays(2),
+      competenceKey: "professional-first-paid",
+      currentPeriodStart: plusDays(2),
+      currentPeriodEnd: plusDays(32),
+      commercialConfirmationKey: "professional-early-confirmation",
+      correlationId: "early-unconfirmed",
+    });
+    assert.equal(earlyUnconfirmed.state, "pending");
+    await service.confirmEarlyConversion({
+      subscriptionId: professionalTrial.snapshot.subscriptionId,
+      actorUserId: users.professional,
+      confirmationKey: "professional-early-confirmation",
+      productCode: professional.productCode,
+      versionCode: professional.versionCode,
+      billingCycle: professional.billingCycle,
+      currency: professional.currency,
+      unitAmount: professional.unitAmount,
+      capacityLimit: professional.capacityLimit,
+      firstChargeAt: plusDays(2),
+    });
+    const earlyConfirmed = await service.applyFinancialFact({
+      providerCode: provider,
+      providerEventId: "lifecycle-early-confirmed",
+      subscriptionId: professionalTrial.snapshot.subscriptionId,
+      kind: "payment_confirmed",
+      chargePurpose: "early_conversion",
+      occurredAt: plusDays(2),
+      competenceKey: "professional-first-paid",
+      currentPeriodStart: plusDays(2),
+      currentPeriodEnd: plusDays(32),
+      commercialConfirmationKey: "professional-early-confirmation",
+      correlationId: "early-confirmed",
+    });
+    assert.equal(earlyConfirmed.state, "active");
+    const professionalPaid = await billingRepository.getActiveProfessionalSubscription(
+      users.professional,
+      plusDays(3)
+    );
+    assert.equal(professionalPaid?.capacityLimit, professional.capacityLimit);
+    assert.equal(professionalPaid?.status, "active");
 
     const [factPayloads] = await pool.query<mysql.RowDataPacket[]>(
       "SELECT payloadJson FROM billingSubscriptionFacts WHERE subscriptionId = ?",

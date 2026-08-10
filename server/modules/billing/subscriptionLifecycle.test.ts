@@ -232,7 +232,7 @@ describe("billing subscription lifecycle", () => {
     expect(prepared.intent.trialWaivedAt).toEqual(base);
   });
 
-  it("blocks trial replay by stable hashed identity and does not accumulate migration access", async () => {
+  it("blocks trial replay by stable hashed identity", async () => {
     const { lifecycle } = service();
     const first = await lifecycle.startContract({
       contractKey: "first-trial",
@@ -241,18 +241,24 @@ describe("billing subscription lifecycle", () => {
       versionCode: individualPlan.versionCode,
       paymentMethod: "credit_card",
       trialChoice: "request",
+      verifiedPaymentInstrument: {
+        payerUserId: 1,
+        providerCode: "fake-provider",
+        paymentMethod: "credit_card",
+        registrationId: "registered-card",
+        verifiedAt: base,
+      },
       identity: {
         userId: 1,
         cpf: "123.456.789-01",
         phone: "+55 (11) 99999-9999",
       },
-      transitionAccessUntil: plusDays(30),
       correlationId: "first-trial",
     });
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     expect(first.snapshot.trialEndsAt).toEqual(plusDays(7));
-    expect(first.snapshot.firstChargeAt).toEqual(plusDays(31));
+    expect(first.snapshot.firstChargeAt).toEqual(plusDays(8));
 
     const second = await lifecycle.startContract({
       contractKey: "second-account",
@@ -261,6 +267,13 @@ describe("billing subscription lifecycle", () => {
       versionCode: individualPlan.versionCode,
       paymentMethod: "credit_card",
       trialChoice: "request",
+      verifiedPaymentInstrument: {
+        payerUserId: 2,
+        providerCode: "fake-provider",
+        paymentMethod: "credit_card",
+        registrationId: "registered-card",
+        verifiedAt: base,
+      },
       identity: {
         userId: 2,
         cpf: "12345678901",

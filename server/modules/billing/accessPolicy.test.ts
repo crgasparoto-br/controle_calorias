@@ -4,6 +4,7 @@ import {
   createBillingAccessPolicy,
   isBillingAccessExemptPath,
 } from "./accessPolicy";
+import type { UserEntitlementsResult } from "./types";
 
 const ctx = {
   user: {
@@ -14,47 +15,109 @@ const ctx = {
   },
 } as any;
 
+const access = (
+  overrides: Partial<UserEntitlementsResult> = {}
+): UserEntitlementsResult => ({
+  allowed: true,
+  reason: "active_subscription",
+  entitlements: ["system_access"],
+  sourceAvailable: true,
+  evaluatedAt: new Date("2026-08-10T12:00:00.000Z"),
+  ...overrides,
+});
+
 describe("billing protected procedure policy", () => {
   it("keeps billing status procedures accessible while commercial access is pending", async () => {
-    const userCanUseSystem = vi.fn(async () => false);
-    const policy = createBillingAccessPolicy({ userCanUseSystem });
+    const getUserEntitlements = vi.fn(async () =>
+      access({ allowed: false, reason: "no_access", entitlements: [] })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
 
     await expect(
-      policy({ path: "billing.subscriptionStatus", ctx })
+      policy({ path: "billing.subscriptionStatus", type: "query", ctx })
     ).resolves.toBeUndefined();
-    expect(userCanUseSystem).not.toHaveBeenCalled();
+    expect(getUserEntitlements).not.toHaveBeenCalled();
+  });
+
+  it("keeps account deletion available while suspended", async () => {
+    const getUserEntitlements = vi.fn(async () =>
+      access({ reason: "read_only_access" })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
+
+    await expect(
+      policy({ path: "nutrition.privacy.requestAccountDeletion", type: "mutation", ctx })
+    ).resolves.toBeUndefined();
+    expect(getUserEntitlements).not.toHaveBeenCalled();
   });
 
   it("keeps authenticated WhatsApp account linking accessible while commercial access is pending", async () => {
-    const userCanUseSystem = vi.fn(async () => false);
-    const policy = createBillingAccessPolicy({ userCanUseSystem });
+    const getUserEntitlements = vi.fn(async () =>
+      access({ allowed: false, reason: "no_access", entitlements: [] })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
 
     await expect(
-      policy({ path: "auth.whatsappOnboarding.linkExistingAccount", ctx })
+      policy({
+        path: "auth.whatsappOnboarding.linkExistingAccount",
+        type: "mutation",
+        ctx,
+      })
     ).resolves.toBeUndefined();
-    expect(userCanUseSystem).not.toHaveBeenCalled();
+    expect(getUserEntitlements).not.toHaveBeenCalled();
   });
 
   it("blocks protected domain procedures when eligibility is denied", async () => {
     const policy = createBillingAccessPolicy({
-      userCanUseSystem: vi.fn(async () => false),
+      getUserEntitlements: vi.fn(async () =>
+        access({ allowed: false, reason: "no_access", entitlements: [] })
+      ),
     });
 
     await expect(
-      policy({ path: "nutrition.meals.list", ctx })
+      policy({ path: "nutrition.meals.list", type: "query", ctx })
     ).rejects.toMatchObject<Partial<TRPCError>>({
       code: "FORBIDDEN",
     });
   });
 
   it("allows protected domain procedures when eligibility is valid", async () => {
-    const userCanUseSystem = vi.fn(async () => true);
-    const policy = createBillingAccessPolicy({ userCanUseSystem });
+    const getUserEntitlements = vi.fn(async () => access());
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
 
     await expect(
-      policy({ path: "nutrition.meals.list", ctx })
+      policy({ path: "nutrition.meals.createManual", type: "mutation", ctx })
     ).resolves.toBeUndefined();
-    expect(userCanUseSystem).toHaveBeenCalledWith(42);
+    expect(getUserEntitlements).toHaveBeenCalledWith(42);
+  });
+
+  it("allows read-only queries but blocks mutations while suspended", async () => {
+    const getUserEntitlements = vi.fn(async () =>
+      access({
+        reason: "read_only_access",
+        entitlements: ["system_access", "web_access", "reports"],
+      })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
+
+    await expect(
+      policy({ path: "nutrition.meals.list", type: "query", ctx })
+    ).resolves.toBeUndefined();
+    await expect(
+      policy({ path: "nutrition.meals.createManual", type: "mutation", ctx })
+    ).rejects.toMatchObject<Partial<TRPCError>>({ code: "FORBIDDEN" });
+  });
+
+  it("keeps billing management mutations available while suspended", async () => {
+    const getUserEntitlements = vi.fn(async () =>
+      access({ reason: "read_only_access" })
+    );
+    const policy = createBillingAccessPolicy({ getUserEntitlements });
+
+    await expect(
+      policy({ path: "billing.refreshOnboardingActivation", type: "mutation", ctx })
+    ).resolves.toBeUndefined();
+    expect(getUserEntitlements).not.toHaveBeenCalled();
   });
 
   it("does not exempt similarly named non-billing procedures", () => {

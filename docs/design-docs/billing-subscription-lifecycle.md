@@ -13,12 +13,13 @@ A máquina canônica persiste os estados `pending`, `active`, `past_due`, `suspe
 ## Contratação e trial
 
 - somente `credit_card` e `pix_automatic` podem chegar ao domínio, conforme a versão comercial;
-- trial é permitido somente com cartão;
+- trial é permitido somente com cartão de crédito previamente cadastrado e verificado pelo backend/provider adapter; o domínio recebe apenas a prova provider-neutral `BillingVerifiedPaymentInstrument`, vinculada ao pagador, e não persiste número, token ou dados crus do cartão;
 - Pix Automático exige `trialChoice=waive`; a renúncia fica persistida em `billingContractIntents.trialWaivedAt` antes de qualquer confirmação financeira;
 - trial Individual dura 7 dias;
 - trial Profissional dura 14 dias e limita a capacidade a 5 pacientes;
-- período de transição/migração e trial não são somados: o trial mantém seu relógio próprio e a primeira cobrança fica para o dia posterior ao maior prazo protegido;
-- pagamento antecipado somente ativa antes de `firstChargeAt` quando o fato autoritativo estiver marcado como conversão antecipada; caso contrário o domínio exige reconciliação.
+- período de transição/migração **substitui** o trial: enquanto a transição estiver protegendo o usuário não são criados entitlement, claim antifraude nem fato `trial_started`; a primeira cobrança fica para o dia seguinte ao fim da transição;
+- a existência histórica de uma origem `transition` para o usuário torna esse beneficiário inelegível a um trial posterior, mesmo depois do fim da transição ou do encerramento da tentativa comercial;
+- efetivação antecipada do trial Profissional exige antes uma confirmação comercial persistida por `confirmEarlyConversion`, vinculada a produto, versão, ciclo, moeda, preço, capacidade, primeira cobrança e `confirmationKey`; o fato financeiro `early_conversion` somente ativa quando apresenta a mesma chave e os mesmos termos.
 
 A prevenção de trial repetido usa claims persistentes e imutáveis por audiência sobre usuário interno, telefone normalizado e CPF/CNPJ aplicável. O domínio armazena somente HMAC-SHA256 do identificador, calculado com `BILLING_TRIAL_IDENTITY_SECRET`; e-mail, cookie, browser e valores crus de CPF/CNPJ/telefone não são usados como chave de elegibilidade.
 
@@ -32,9 +33,11 @@ O domínio recebe `BillingProviderNeutralFinancialFact`, e não payload de provi
 
 - confirmação de pagamento ativa ou renova somente a competência correspondente;
 - repetição do mesmo evento é no-op idempotente;
-- fato com `occurredAt` anterior ao último fato autoritativo não regride o estado;
+- `occurredAt` continua protegendo contra fatos cronologicamente antigos, mas não é usado sozinho para ordenar competências diferentes; quando a competência diverge, `currentPeriodStart` e o marco de inadimplência persistido distinguem competência anterior, atual e futura;
+- a entrada em `past_due` registra no outbox a `competenceKey` e o início/fim do período que originaram a dívida; enquanto `past_due`/`suspended`, pagamento da competência anterior é ignorado e competência diferente/ambígua entra em reconciliação em vez de alterar estado;
+- se a ordem entre competências não puder ser demonstrada com os dados provider-neutral disponíveis, o domínio falha fechado em `financial_reconciliation_required`;
 - confirmação tardia depois de `expired` não reativa automaticamente: marca reconciliação obrigatória;
-- confirmação anterior à primeira cobrança esperada, sem conversão antecipada explícita, também exige reconciliação;
+- confirmação anterior à primeira cobrança esperada, sem conversão antecipada explicitamente confirmada, também exige reconciliação;
 - cupom reservado é confirmado somente quando a contratação é efetivamente confirmada e é cancelado quando a tentativa termina sem contrato.
 
 ## Inadimplência, suspensão e recuperação
@@ -53,8 +56,9 @@ Confirmação de pagamento durante a carência reativa/regulariza a assinatura e
 
 Ao terminar a carência, a assinatura entra em `suspended`:
 
-- o usuário Individual recebe apenas o entitlement técnico de leitura (`system_access`, `web_access`, `reports`) para consultar/exportar dados e administrar cobrança;
-- o Profissional deixa de obter capacidade contratável para novos pacientes;
+- o usuário Individual recebe apenas o entitlement técnico de leitura (`system_access`, `web_access`, `reports`); queries protegidas de consulta permanecem disponíveis, assim como billing e exclusão de conta, mas mutations de domínio ficam bloqueadas antes do handler;
+- o pipeline do WhatsApp trata `read_only_access` como inelegível para escrita: texto, imagem, áudio e confirmações não chegam ao processamento nutricional e conteúdo bruto não é persistido;
+- o Profissional deixa de obter capacidade contratável para novos pacientes e novas ações protegidas de domínio ficam bloqueadas pelo mesmo gate de escrita;
 - alocações de capacidade já existentes não são liberadas automaticamente;
 - pacientes cobertos deixam de receber acesso patrocinado enquanto o patrocinador está suspenso;
 - um fato `coverage_pause_requested` é publicado para integração posterior com a #894.
@@ -109,6 +113,6 @@ O repository usa transação, lock das entidades críticas, revisão otimista e 
 ## Validação
 
 - testes unitários usam relógio controlado e provider fake determinístico;
-- o teste TiDB `scripts/test-billing-subscription-lifecycle-tidb.ts` cobre concorrência de identidade, idempotência de provider, evento fora de ordem, carência, suspensão, expiração, reconciliação tardia e capacidade profissional 5;
+- o teste TiDB `scripts/test-billing-subscription-lifecycle-tidb.ts` cobre concorrência de identidade, prova de cartão, substituição e histórico da migração, idempotência de provider, competência financeira fora de ordem, carência, suspensão, expiração, reconciliação tardia, confirmação de conversão antecipada e capacidade profissional 5;
 - o workflow `Billing persistence TiDB gate` executa esse teste junto ao gate de billing existente;
 - `pnpm agent:check`, `pnpm build`, drift Drizzle e integridade referencial permanecem gates obrigatórios do candidato.

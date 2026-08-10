@@ -77,6 +77,26 @@ export type HashedTrialIdentity = {
   hash: string;
 };
 
+export type BillingVerifiedPaymentInstrument = {
+  payerUserId: number;
+  providerCode: string;
+  paymentMethod: "credit_card";
+  registrationId: string;
+  verifiedAt: Date;
+};
+
+export type BillingEarlyConversionConfirmation = {
+  confirmationKey: string;
+  confirmedAt: Date;
+  productCode: string;
+  versionCode: string;
+  billingCycle: BillingCycle;
+  currency: string;
+  unitAmount: number;
+  capacityLimit: number | null;
+  firstChargeAt: Date;
+};
+
 export type BillingContractIntent = {
   id: string;
   contractKey: string;
@@ -128,6 +148,7 @@ export type BillingProviderNeutralFinancialFact = {
   chargePurpose?: "initial" | "early_conversion" | "renewal" | "recovery";
   currentPeriodStart?: Date | null;
   currentPeriodEnd?: Date | null;
+  commercialConfirmationKey?: string | null;
   correlationId: string;
 };
 

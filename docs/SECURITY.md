@@ -19,6 +19,8 @@
 - Rotas administrativas devem usar `adminProcedure`. Concessões e revogações comerciais derivam autoria da sessão e preservam histórico. Mutações de catálogo e cupom revalidam `users.role = admin` dentro da própria transação e mantêm a linha de autoridade bloqueada até o commit, evitando TOCTOU entre middleware e persistência.
 - Catálogo e cupons seguem a mesma fronteira: criação, publicação, desativação e revisão recebem o ator somente de `ctx.user.id`, exigem motivo persistido e nunca aceitam `catalog_range_review_required` ou automação como substituto de uma ação administrativa.
 - Capacidades de pagamento não são input do cliente. `billing.catalog` calcula no backend a interseção entre a política versionada e o provider registrado; erro de banco em consulta pública retorna mensagem genérica sem SQL, host ou detalhe de schema.
+- Trial exige prova provider-neutral de cartão cadastrado vinculada ao pagador e ao provider (`BillingVerifiedPaymentInstrument`); número, CVV, token e identificador de registro não são persistidos pelo domínio de lifecycle, e a prova só pode ser construída por backend/adapter confiável.
+- Em `read_only_access`, o gate do WhatsApp roda antes de correlação de mídia e do pipeline nutricional: texto, legenda, áudio e mídia não são persistidos como conteúdo bruto e nenhuma mutação nutricional é executada.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.
 - Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.
 - Retry de notificação de meta só pode ser executado pelo profissional autor e nunca retorna ou registra a justificativa privada.

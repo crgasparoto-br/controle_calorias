@@ -24,6 +24,12 @@ export type UserEntitlementsResult = {
   evaluatedAt: Date;
 };
 
+export function canUseBillingWriteAccess(
+  access: Pick<UserEntitlementsResult, "allowed" | "reason">
+) {
+  return access.allowed && access.reason !== "read_only_access";
+}
+
 export type BillingEntitlementCandidate = {
   reason: Exclude<BillingAccessReason, "no_access">;
   sourceId: string;
