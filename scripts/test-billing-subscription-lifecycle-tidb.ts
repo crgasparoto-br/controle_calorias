@@ -22,9 +22,7 @@ const users = {
   professional: 9393,
 };
 const provider = "lifecycle-integration-test";
-const base = new Date("2026-08-09T12:00:00.000Z");
 const day = 24 * 60 * 60 * 1000;
-const plusDays = (value: Date, days: number) => new Date(value.getTime() + days * day);
 
 async function main() {
   const pool = mysql.createPool({
@@ -44,13 +42,6 @@ async function main() {
   const catalog = createBillingCatalogRepository(deps);
   const lifecycleRepository = createBillingSubscriptionLifecycleRepository(deps);
   const billingRepository = createDrizzleBillingRepository(deps);
-  const service = createBillingSubscriptionLifecycleService({
-    repository: lifecycleRepository,
-    hashTrialIdentity: createTrialIdentityHasher(
-      "billing-lifecycle-integration-secret-0001"
-    ),
-    now: () => base,
-  });
 
   async function cleanup() {
     const ids = Object.values(users);
@@ -115,6 +106,7 @@ async function main() {
         ]
       );
     }
+
     await catalog.seedInitialCatalog(INITIAL_BILLING_CATALOG);
     const individual = INITIAL_BILLING_CATALOG.find(
       item => item.audience === "individual" && item.billingCycle === "monthly"
@@ -124,6 +116,19 @@ async function main() {
     );
     assert(individual, "individual monthly plan must exist");
     assert(professional, "professional monthly plan must exist");
+
+    const base = new Date(
+      Math.max(individual.effectiveFrom.getTime(), professional.effectiveFrom.getTime()) +
+        60_000
+    );
+    const plusDays = (days: number) => new Date(base.getTime() + days * day);
+    const service = createBillingSubscriptionLifecycleService({
+      repository: lifecycleRepository,
+      hashTrialIdentity: createTrialIdentityHasher(
+        "billing-lifecycle-integration-secret-0001"
+      ),
+      now: () => base,
+    });
 
     const [trialA, trialB] = await Promise.all([
       service.startContract({
@@ -159,24 +164,26 @@ async function main() {
     assert.equal(successfulTrials.length, 1, "only one concurrent CPF trial may win");
     assert(
       [trialA, trialB].some(
-        result => !result.ok && ["trial_already_used", "trial_identity_conflict"].includes(result.reason)
+        result =>
+          !result.ok &&
+          ["trial_already_used", "trial_identity_conflict"].includes(result.reason)
       ),
       "the losing trial must be an explicit identity decision"
     );
     const winner = successfulTrials[0];
     assert(winner?.ok);
 
-    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(base, 6));
+    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(6));
     const firstPayment = {
       providerCode: provider,
       providerEventId: "lifecycle-payment-confirmed",
       subscriptionId: winner.snapshot.subscriptionId,
       kind: "payment_confirmed" as const,
       chargePurpose: "initial" as const,
-      occurredAt: plusDays(base, 8),
-      competenceKey: "2026-08",
-      currentPeriodStart: plusDays(base, 8),
-      currentPeriodEnd: plusDays(base, 38),
+      occurredAt: plusDays(8),
+      competenceKey: "first-paid-competence",
+      currentPeriodStart: plusDays(8),
+      currentPeriodEnd: plusDays(38),
       correlationId: "payment-confirmed",
     };
     const applied = await service.applyFinancialFact(firstPayment);
@@ -191,8 +198,8 @@ async function main() {
       subscriptionId: winner.snapshot.subscriptionId,
       kind: "payment_failed",
       chargePurpose: "renewal",
-      occurredAt: plusDays(base, 7),
-      competenceKey: "2026-09",
+      occurredAt: plusDays(7),
+      competenceKey: "next-competence",
       correlationId: "stale-failure",
     });
     let current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
@@ -204,22 +211,23 @@ async function main() {
       subscriptionId: winner.snapshot.subscriptionId,
       kind: "payment_failed",
       chargePurpose: "renewal",
-      occurredAt: plusDays(base, 38),
-      competenceKey: "2026-09",
+      occurredAt: plusDays(38),
+      competenceKey: "next-competence",
       correlationId: "renewal-failed",
     });
     current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
     assert.equal(current?.state, "past_due");
+    const winnerUserId = winner.snapshot.payerUserId;
     const graceAccess = await billingRepository.listAccessCandidates(
-      users.trialA === winner.snapshot.payerUserId ? users.trialA : users.trialB,
-      plusDays(base, 40)
+      winnerUserId,
+      plusDays(40)
     );
     assert(
       graceAccess.some(candidate => candidate.reason === "active_subscription"),
       "past_due grace must preserve full subscription access"
     );
 
-    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(base, 45));
+    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(45));
     current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
     assert.equal(current?.state, "suspended");
     const [noticeRows] = await pool.query<mysql.RowDataPacket[]>(
@@ -239,7 +247,7 @@ async function main() {
       }
     );
 
-    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(base, 75));
+    await service.tickSubscription(winner.snapshot.subscriptionId, plusDays(75));
     current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
     assert.equal(current?.state, "expired");
     await service.applyFinancialFact({
@@ -248,8 +256,8 @@ async function main() {
       subscriptionId: winner.snapshot.subscriptionId,
       kind: "payment_confirmed",
       chargePurpose: "recovery",
-      occurredAt: plusDays(base, 76),
-      competenceKey: "2026-09",
+      occurredAt: plusDays(76),
+      competenceKey: "next-competence",
       correlationId: "late-payment",
     });
     current = await lifecycleRepository.loadLifecycle(winner.snapshot.subscriptionId);
@@ -273,7 +281,7 @@ async function main() {
     assert(professionalTrial.ok);
     const professionalAccess = await billingRepository.getActiveProfessionalSubscription(
       users.professional,
-      plusDays(base, 1)
+      plusDays(1)
     );
     assert.equal(professionalAccess?.capacityLimit, 5);
     assert.equal(professionalAccess?.status, "pending");
