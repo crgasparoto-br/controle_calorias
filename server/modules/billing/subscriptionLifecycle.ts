@@ -167,15 +167,19 @@ function sameConfirmation(
 }
 
 export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
-  const repository = {
-    ...deps.repository,
-    commitMutation(input: Parameters<ServiceDeps["repository"]["commitMutation"]>[0]) {
-      return deps.repository.commitMutation({
-        ...input,
-        mutation: invalidateObsoleteTrialEnding(input.snapshot, input.mutation),
-      });
+  const repository = new Proxy(deps.repository, {
+    get(target, property, receiver) {
+      if (property === "commitMutation") {
+        return (input: Parameters<ServiceDeps["repository"]["commitMutation"]>[0]) =>
+          target.commitMutation({
+            ...input,
+            mutation: invalidateObsoleteTrialEnding(input.snapshot, input.mutation),
+          });
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
     },
-  };
+  });
   const baseline = base.createBillingSubscriptionLifecycleService({ ...deps, repository });
   const readModel = deps.remediationReadModel;
   const nowProvider = deps.now ?? (() => new Date());
