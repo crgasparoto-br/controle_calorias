@@ -117,9 +117,17 @@ async function main() {
     assert(individual, "individual monthly plan must exist");
     assert(professional, "professional monthly plan must exist");
 
+    const [persistedIndividual, persistedProfessional] = await Promise.all([
+      catalog.getVersionByCode(individual.versionCode),
+      catalog.getVersionByCode(professional.versionCode),
+    ]);
+    assert(persistedIndividual, "persisted individual monthly plan must exist");
+    assert(persistedProfessional, "persisted professional monthly plan must exist");
     const base = new Date(
-      Math.max(individual.effectiveFrom.getTime(), professional.effectiveFrom.getTime()) +
-        60_000
+      Math.max(
+        persistedIndividual.effectiveFrom.getTime(),
+        persistedProfessional.effectiveFrom.getTime()
+      ) + 60_000
     );
     const plusDays = (days: number) => new Date(base.getTime() + days * day);
     const service = createBillingSubscriptionLifecycleService({
