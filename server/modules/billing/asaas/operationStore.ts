@@ -42,7 +42,7 @@ export type AsaasOperation = {
   paymentMethod: BillingPaymentMethod | null;
   trialChoice: BillingTrialChoice | null;
   couponCode: string | null;
-  billingCycle: BillingCycle | null;
+  billingCycle: BillingCycle | "custom" | null;
   correlationId: string | null;
   amountMinor: number | null;
   unitAmountMinor: number | null;
