@@ -25,6 +25,10 @@ Se a alteração remota tiver resultado incerto, a tentativa seguinte executa GE
 
 Os hooks são registrados no startup normal e no comando de reconciliação administrativa. A correlação necessária para retomar processamento não depende de memória do callback: ela permanece em `billingProviderEvents`, permitindo replay após reinício sem duplicar cobrança, confirmação comercial ou transição.
 
+Mutações de cancelamento e reativação que terminem com resultado remoto incerto são relidas no Asaas antes de qualquer nova mutação. Se a leitura comprovar que o efeito ocorreu, o ledger fecha como `created`; se comprovar que o efeito não ocorreu, a operação volta a `prepared` e exige uma nova chamada para executar o retry, mantendo uma única chamada outbound por tentativa. O reset do valor-base após o fim de um desconto segue o mesmo contrato: relê a assinatura, fecha quando o valor remoto coincide com o esperado ou reabre a operação quando a leitura comprova ausência do efeito. Atualização direta de cartão por token não é anunciada como capacidade enquanto não houver leitura autoritativa capaz de comprovar o resultado de um timeout; o backend deve usar um fluxo externo recuperável quando esse contrato for implementado.
+
+As transições do ledger são monotônicas para efeitos confirmados: uma operação já marcada como `created` não pode regredir para `outcome_unknown` ou `failed` por uma resposta HTTP tardia concorrendo com webhook/reconciliação.
+
 ## Evidência de regressão
 
 A remediação adiciona controles focados para:
@@ -32,6 +36,10 @@ A remediação adiciona controles focados para:
 - alinhamento do trial ao `firstChargeAt` autoritativo;
 - repetição da mesma operação sem PUT duplicado;
 - outcome incerto fechado por GET;
+- cancelamento/reativação incertos fechados por leitura autoritativa;
+- ausência comprovada do efeito reabre a operação para retry seguro em uma chamada posterior;
+- `coupon_reset` incerto fechado por leitura do valor remoto, sem segundo PUT;
+- estado `created` protegido contra regressão concorrente;
 - cobrança de conversão antecipada já alinhada sem nova mutação;
 - recuperação da `confirmationKey` por `paymentId`;
 - callback hospedado permanecendo `pending`.

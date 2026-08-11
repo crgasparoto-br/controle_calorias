@@ -76,6 +76,13 @@ function memoryStore(): AsaasOperationStore {
       if (!current) throw new Error("missing");
       values.set(key(kind, operationKey), { ...current, state: "outcome_unknown" });
     },
+    async resetOutcomeUnknownToPrepared(kind, operationKey) {
+      const current = values.get(key(kind, operationKey));
+      if (!current) throw new Error("missing");
+      if (current.state === "outcome_unknown") {
+        values.set(key(kind, operationKey), { ...current, state: "prepared" });
+      }
+    },
     async markFailed(kind, operationKey) {
       const current = values.get(key(kind, operationKey));
       if (!current) throw new Error("missing");

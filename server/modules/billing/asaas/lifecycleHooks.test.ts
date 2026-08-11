@@ -56,6 +56,7 @@ function store(input: {
     async markCreated() {},
     async bindSubscription() {},
     async markOutcomeUnknown() {},
+    async resetOutcomeUnknownToPrepared() {},
     async markFailed() {},
     async countCouponCharges() {
       return 0;

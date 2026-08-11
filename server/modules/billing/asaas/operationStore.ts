@@ -95,6 +95,10 @@ export type AsaasOperationStore = {
     subscriptionId: string
   ): Promise<void>;
   markOutcomeUnknown(kind: AsaasOperationKind, operationKey: string): Promise<void>;
+  resetOutcomeUnknownToPrepared(
+    kind: AsaasOperationKind,
+    operationKey: string
+  ): Promise<void>;
   markFailed(
     kind: AsaasOperationKind,
     operationKey: string,
@@ -304,6 +308,7 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       subscriptionId: input.subscriptionId ?? current.subscriptionId,
     };
     const metadata = metadataFromOperation(next);
+    const protectsConfirmedState = state !== "created" && state !== "prepared";
     await executor.execute(sql`
       UPDATE billingProviderEvents
       SET status = ${
@@ -318,6 +323,11 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
         errorCode = ${input.errorCode ?? null}, updatedAt = NOW()
       WHERE provider = 'asaas'
         AND providerEventId = ${providerEventId(input.kind, input.operationKey)}
+        ${
+          protectsConfirmedState
+            ? sql`AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.status')), 'prepared') <> 'created'`
+            : sql``
+        }
     `);
   }
 
@@ -337,6 +347,21 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
         state: "outcome_unknown",
         errorCode: "outcome_unknown",
       });
+    },
+    async resetOutcomeUnknownToPrepared(kind, operationKey) {
+      const executor = await db();
+      await executor.execute(sql`
+        UPDATE billingProviderEvents
+        SET status = 'received', errorCode = NULL,
+          payloadJson = JSON_SET(
+            COALESCE(payloadJson, JSON_OBJECT()),
+            '$.status', 'prepared'
+          ),
+          updatedAt = NOW()
+        WHERE provider = 'asaas'
+          AND providerEventId = ${providerEventId(kind, operationKey)}
+          AND JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.status')) = 'outcome_unknown'
+      `);
     },
     markFailed(kind, operationKey, errorCode) {
       return updateOperation({ kind, operationKey, state: "failed", errorCode });

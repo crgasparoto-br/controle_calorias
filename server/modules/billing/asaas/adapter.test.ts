@@ -75,6 +75,13 @@ function memoryStore(): AsaasOperationStore {
       if (!current) throw new Error("missing");
       values.set(key(kind, operationKey), { ...current, state: "outcome_unknown" });
     },
+    async resetOutcomeUnknownToPrepared(kind, operationKey) {
+      const current = values.get(key(kind, operationKey));
+      if (!current) throw new Error("missing");
+      if (current.state === "outcome_unknown") {
+        values.set(key(kind, operationKey), { ...current, state: "prepared" });
+      }
+    },
     async markFailed(kind, operationKey) {
       const current = values.get(key(kind, operationKey));
       if (!current) throw new Error("missing");
@@ -296,5 +303,48 @@ describe("Asaas adapter", () => {
       dueDate: "2026-08-18",
       externalReference: "contract-1:2026-08-18",
     });
+  });
+
+  it("reconciles an uncertain coupon reset by GET and never repeats the PUT", async () => {
+    const calls: string[] = [];
+    let putAttempted = false;
+    const fetchImpl: typeof fetch = async (request, init) => {
+      const url = String(request);
+      const method = init?.method ?? "GET";
+      calls.push(`${method} ${url}`);
+      if (method === "PUT" && url.endsWith("/subscriptions/sub_remote_1")) {
+        putAttempted = true;
+        throw new DOMException("aborted", "AbortError");
+      }
+      if (method === "GET" && url.endsWith("/subscriptions/sub_remote_1")) {
+        return jsonResponse({ id: "sub_remote_1", status: "ACTIVE", value: 39.9 });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    };
+    const adapter = createAsaasAdapter({
+      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      store: memoryStore(),
+      enabledPaymentMethods: ["credit_card"],
+    });
+
+    await expect(
+      adapter.restoreSubscriptionBaseAmount({
+        subscriptionId: "sub-local-1",
+        externalSubscriptionId: "sub_remote_1",
+        contractKey: "contract-1",
+        unitAmountMinor: 3990,
+      })
+    ).rejects.toBeInstanceOf(AsaasUncertainOutcomeError);
+    expect(putAttempted).toBe(true);
+
+    await adapter.restoreSubscriptionBaseAmount({
+      subscriptionId: "sub-local-1",
+      externalSubscriptionId: "sub_remote_1",
+      contractKey: "contract-1",
+      unitAmountMinor: 3990,
+    });
+
+    expect(calls.filter(call => call.startsWith("PUT "))).toHaveLength(1);
+    expect(calls.filter(call => call.startsWith("GET "))).toHaveLength(1);
   });
 });

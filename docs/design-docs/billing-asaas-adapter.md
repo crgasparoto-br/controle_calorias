@@ -133,7 +133,7 @@ O runtime fornece operações server-side para:
 - consultar/sincronizar assinatura e próxima renovação;
 - solicitar cancelamento de renovação;
 - reativar renovação de cartão quando ainda suportada pelo contrato local;
-- atualizar cartão usando referência provider-side, sem persistir token;
+- atualização direta de cartão por token não é anunciada como capacidade enquanto o resultado de um timeout não puder ser confirmado por leitura autoritativa; um fluxo externo recuperável deve ser usado quando esse contrato for implementado;
 - cancelar autorização Pix;
 - reconciliar uma tentativa por `contractKey`.
 

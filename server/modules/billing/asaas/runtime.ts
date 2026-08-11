@@ -27,6 +27,7 @@ import {
   createAsaasClient,
   type AsaasEnvironment,
 } from "./client";
+import { executeGuardedAsaasMutation } from "./mutationGuard";
 import {
   createDrizzleAsaasOperationStore,
   type AsaasOperationStore,
@@ -313,55 +314,14 @@ async function loadSubscriptionOperation(input: {
   };
 }
 
-async function guardedProviderMutation(input: {
-  operationKey: string;
-  subscriptionId: string;
-  contractKey: string;
-  action: () => Promise<string>;
-}) {
-  const runtime = getAsaasRuntime();
-  const prepared = await runtime.store.prepare({
-    kind: "reconciliation",
-    operationKey: input.operationKey,
-    subscriptionId: input.subscriptionId,
-    externalReference: input.contractKey,
-  });
-  if (prepared.operation.state === "created") return;
-  if (prepared.operation.state === "outcome_unknown") {
-    throw new Error("asaas_financial_operation_reconciliation_pending");
-  }
-  if (!prepared.created && prepared.operation.state === "failed") {
-    throw new Error("asaas_financial_operation_failed");
-  }
-  try {
-    const externalId = await input.action();
-    await runtime.store.markCreated({
-      kind: "reconciliation",
-      operationKey: input.operationKey,
-      externalId,
-      externalReference: input.contractKey,
-    });
-  } catch (error) {
-    if (error instanceof AsaasUncertainOutcomeError) {
-      await runtime.store.markOutcomeUnknown("reconciliation", input.operationKey);
-    } else {
-      await runtime.store.markFailed(
-        "reconciliation",
-        input.operationKey,
-        "provider_mutation_failed"
-      );
-    }
-    throw error;
-  }
-}
-
 export async function requestAsaasCancellation(input: {
   subscriptionId: string;
   payerUserId: number;
   correlationId: string;
 }) {
   const financial = await loadSubscriptionOperation(input);
-  await guardedProviderMutation({
+  await executeGuardedAsaasMutation({
+    store: getAsaasRuntime().store,
     operationKey: `cancel:${input.subscriptionId}:${input.correlationId}`,
     subscriptionId: input.subscriptionId,
     contractKey: financial.contractKey,
@@ -383,6 +343,25 @@ export async function requestAsaasCancellation(input: {
       );
       return financial.externalSubscriptionId;
     },
+    reconcile: async () => {
+      if (financial.paymentMethod === "pix_automatic") {
+        if (!financial.pixAuthorizationId) return { status: "pending" as const };
+        const authorization = await getAsaasRuntime().adapter.getPixAutomaticAuthorization(
+          financial.pixAuthorizationId
+        );
+        const status = String(authorization.status ?? "").toUpperCase();
+        return ["CANCELLED", "CANCELED", "EXPIRED", "REFUSED"].includes(status)
+          ? { status: "applied" as const, externalId: financial.pixAuthorizationId }
+          : { status: "not_applied" as const };
+      }
+      if (!financial.externalSubscriptionId) return { status: "pending" as const };
+      const synchronized = await getAsaasRuntime().adapter.provider.synchronizeSubscription(
+        financial.externalSubscriptionId
+      );
+      return synchronized.status === "canceled" || synchronized.status === "expired"
+        ? { status: "applied" as const, externalId: financial.externalSubscriptionId }
+        : { status: "not_applied" as const };
+    },
   });
   return billingSubscriptionLifecycleService.requestCancellation(
     input.subscriptionId,
@@ -402,7 +381,8 @@ export async function reactivateAsaasCancellation(input: {
   if (!financial.externalSubscriptionId || !financial.currentPeriodEnd) {
     throw new Error("asaas_subscription_reactivation_context_missing");
   }
-  await guardedProviderMutation({
+  await executeGuardedAsaasMutation({
+    store: getAsaasRuntime().store,
     operationKey: `reactivate:${input.subscriptionId}:${input.correlationId}`,
     subscriptionId: input.subscriptionId,
     contractKey: financial.contractKey,
@@ -414,6 +394,20 @@ export async function reactivateAsaasCancellation(input: {
         nextRenewalAt: financial.currentPeriodEnd!,
       });
       return financial.externalSubscriptionId!;
+    },
+    reconcile: async () => {
+      if (!financial.externalSubscriptionId || !financial.currentPeriodEnd) {
+        return { status: "pending" as const };
+      }
+      const synchronized = await getAsaasRuntime().adapter.provider.synchronizeSubscription(
+        financial.externalSubscriptionId
+      );
+      const sameRenewal =
+        synchronized.currentPeriodEnd?.toISOString().slice(0, 10) ===
+        financial.currentPeriodEnd.toISOString().slice(0, 10);
+      return synchronized.status === "active" && !synchronized.cancelAtPeriodEnd && sameRenewal
+        ? { status: "applied" as const, externalId: financial.externalSubscriptionId }
+        : { status: "not_applied" as const };
     },
   });
   return billingSubscriptionLifecycleService.reactivateCancellation(
@@ -429,28 +423,8 @@ export async function updateAsaasCardPaymentMethod(input: {
   remoteIp: string;
   correlationId: string;
 }) {
-  const financial = await loadSubscriptionOperation(input);
-  if (
-    financial.paymentMethod !== "credit_card" ||
-    !financial.externalSubscriptionId
-  ) {
-    throw new Error("asaas_credit_card_subscription_required");
-  }
-  await guardedProviderMutation({
-    operationKey: `update-card:${input.subscriptionId}:${input.correlationId}`,
-    subscriptionId: input.subscriptionId,
-    contractKey: financial.contractKey,
-    action: async () => {
-      const update = getAsaasRuntime().adapter.provider.updatePaymentMethod;
-      if (!update) throw new Error("asaas_update_payment_method_not_supported");
-      await update({
-        externalSubscriptionId: financial.externalSubscriptionId!,
-        providerPaymentMethodReference: input.providerPaymentMethodReference,
-        remoteIp: input.remoteIp,
-      });
-      return financial.externalSubscriptionId!;
-    },
-  });
+  void input;
+  throw new Error("asaas_update_payment_method_requires_recoverable_external_flow");
 }
 
 export async function synchronizeAsaasSubscription(input: {

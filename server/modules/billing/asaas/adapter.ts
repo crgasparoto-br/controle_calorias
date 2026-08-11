@@ -35,6 +35,7 @@ type SubscriptionResponse = {
   customer?: string;
   externalReference?: string;
   nextDueDate?: string;
+  value?: number;
 };
 type SubscriptionListResponse = { data?: SubscriptionResponse[] };
 type PaymentResponse = {
@@ -152,7 +153,9 @@ export function createAsaasAdapter(input: {
     hostedCheckout: paymentMethods.includes("credit_card"),
     recurringBilling: paymentMethods.includes("credit_card"),
     automaticPix: paymentMethods.includes("pix_automatic"),
-    updatePaymentMethod: paymentMethods.includes("credit_card"),
+    // The token-based mutation cannot be authoritatively re-read after a timeout,
+    // so it is not advertised as a recoverable provider capability.
+    updatePaymentMethod: false,
     synchronization: true,
   };
 
@@ -613,7 +616,24 @@ export function createAsaasAdapter(input: {
     });
     if (prepared.operation.state === "created") return;
     if (prepared.operation.state === "outcome_unknown") {
-      throw new Error("asaas_coupon_reset_reconciliation_pending");
+      const current = await input.client.get<SubscriptionResponse>(
+        `/subscriptions/${encodeURIComponent(inputReset.externalSubscriptionId)}`
+      );
+      const currentMinor =
+        typeof current.value === "number" && Number.isFinite(current.value)
+          ? Math.round(current.value * 100)
+          : null;
+      if (currentMinor === inputReset.unitAmountMinor) {
+        await input.store.markCreated({
+          kind: "coupon_reset",
+          operationKey,
+          externalId: inputReset.externalSubscriptionId,
+          externalReference: inputReset.contractKey,
+        });
+        return;
+      }
+      await input.store.resetOutcomeUnknownToPrepared("coupon_reset", operationKey);
+      throw new Error("asaas_coupon_reset_safe_retry_required");
     }
     if (!prepared.created && prepared.operation.state === "failed") {
       throw new Error("asaas_coupon_reset_failed");
@@ -679,15 +699,6 @@ export function createAsaasAdapter(input: {
         {
           status: "ACTIVE",
           nextDueDate: dateOnly(reactivation.nextRenewalAt),
-        }
-      );
-    },
-    async updatePaymentMethod(update) {
-      await input.client.put(
-        `/subscriptions/${encodeURIComponent(update.externalSubscriptionId)}/creditCard`,
-        {
-          creditCardToken: update.providerPaymentMethodReference,
-          remoteIp: update.remoteIp,
         }
       );
     },
