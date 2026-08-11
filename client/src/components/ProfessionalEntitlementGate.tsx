@@ -36,8 +36,15 @@ export default function ProfessionalEntitlementGate({
       staleTime: 30_000,
     }
   );
+  const basicSettingsAvailableDuringSuspension = Boolean(
+    resource === "professional_settings" &&
+      query.data?.allowed &&
+      query.data.commercialState === "suspended"
+  );
   const resourceEnabled = Boolean(
-    query.data?.allowed && query.data.enabledResources.includes(resource)
+    query.data?.allowed &&
+      (query.data.enabledResources.includes(resource) ||
+        basicSettingsAvailableDuringSuspension)
   );
   const verificationUnavailable = Boolean(
     !query.isLoading &&

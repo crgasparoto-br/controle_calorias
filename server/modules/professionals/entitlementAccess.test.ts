@@ -9,6 +9,7 @@ vi.mock("./entitlementService", () => ({
 }));
 
 import {
+  assertProfessionalBasicSettingsAccess,
   assertProfessionalResourceAccess,
   isProfessionalEntitlementVerificationUnavailableError,
   isProfessionalResourceDeniedError,
@@ -95,5 +96,56 @@ describe("assertProfessionalResourceAccess", () => {
         new ProfessionalResourceDeniedError()
       )
     ).toBe(false);
+  });
+});
+
+describe("assertProfessionalBasicSettingsAccess", () => {
+  it("allows basic settings while the professional subscription is suspended", async () => {
+    const snapshot = {
+      allowed: true,
+      commercialState: "suspended",
+      enabledResources: [],
+    };
+    mocks.getProfessionalEntitlements.mockResolvedValue(snapshot);
+
+    await expect(assertProfessionalBasicSettingsAccess(7)).resolves.toBe(
+      snapshot
+    );
+  });
+
+  it("denies a suspended snapshot when access itself is not allowed", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: false,
+      commercialState: "suspended",
+      enabledResources: [],
+    });
+
+    await expect(assertProfessionalBasicSettingsAccess(7)).rejects.toBeInstanceOf(
+      ProfessionalResourceDeniedError
+    );
+  });
+
+  it("still requires the settings entitlement outside suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
+
+    await expect(assertProfessionalBasicSettingsAccess(7)).rejects.toBeInstanceOf(
+      ProfessionalResourceDeniedError
+    );
+  });
+
+  it("does not make other professional resources available during suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "suspended",
+      enabledResources: [],
+    });
+
+    await expect(
+      assertProfessionalResourceAccess(7, "professional_reports")
+    ).rejects.toBeInstanceOf(ProfessionalResourceDeniedError);
   });
 });

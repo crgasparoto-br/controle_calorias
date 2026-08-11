@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { handleWhatsAppWebhookWithImageIdempotency } from "./whatsappImageIdempotencyWebhook";
+import { gateSuspendedWhatsAppWrites } from "./whatsappBillingWriteGate";
 import { extractIndexedWhatsAppWebhookMessages } from "./modules/whatsapp/webhookUtils";
 import {
   enrichInboundMessage,
@@ -29,14 +30,22 @@ function buildMediaCorrelations(payload: unknown) {
   });
 }
 
-/** Entry point HTTP canônico: correlação de mídia + claim persistente + roteadores reais. */
+/** Entry point HTTP canônico: gate comercial + correlação de mídia + claim persistente + roteadores reais. */
 export async function handleWhatsAppPersistentContextWebhook(req: Request, res: Response) {
-  const correlations = buildMediaCorrelations(req.body);
   return runWithMessageLifecycleRequestScope(() =>
-    runWithWhatsAppTimeZoneRequestScope(() =>
-      withStoragePersistenceCorrelations(correlations, () =>
+    runWithWhatsAppTimeZoneRequestScope(async () => {
+      const gated = await gateSuspendedWhatsAppWrites(req.body);
+      if (gated.handledCount > 0) req.body = gated.remainingPayload;
+
+      const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
+      if (remainingMessages.length === 0) {
+        return res.status(200).json({ ok: true, processed: gated.handledCount });
+      }
+
+      const correlations = buildMediaCorrelations(req.body);
+      return withStoragePersistenceCorrelations(correlations, () =>
         handleWhatsAppWebhookWithImageIdempotency(req, res),
-      ),
-    ),
+      );
+    }),
   );
 }

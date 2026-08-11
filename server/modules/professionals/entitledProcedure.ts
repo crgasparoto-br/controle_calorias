@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../_core/trpc";
 import {
+  assertProfessionalBasicSettingsAccess,
   assertProfessionalResourceAccess,
   isProfessionalEntitlementVerificationUnavailableError,
   isProfessionalResourceDeniedError,
@@ -85,6 +86,19 @@ export const professionalReportsProcedure = professionalEntitledProcedure(
 export const professionalAiProcedure = professionalEntitledProcedure(
   "professional_ai_assistance"
 );
-export const professionalSettingsProcedure = professionalEntitledProcedure(
-  "professional_settings"
+export const professionalSettingsProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    try {
+      const profile = await getProfessionalProfile(ctx.user.id);
+      if (!profile?.active) {
+        throw new Error(
+          "A Área Profissional está inativa. Reative o perfil para continuar."
+        );
+      }
+      await assertProfessionalBasicSettingsAccess(ctx.user.id);
+    } catch (error) {
+      throw toProfessionalEntitlementTrpcError("professional_settings", error);
+    }
+    return next({ ctx });
+  }
 );

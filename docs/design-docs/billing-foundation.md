@@ -24,7 +24,7 @@ Cobertura profissional não cria assinatura em nome do paciente. Exceção admin
 
 - `billingProducts`: identidade estável da família comercial, independente de provider, preço, ciclo e revisão.
 - `billingPlans`: versões comerciais imutáveis vinculadas ao produto; preservam ciclo, preço em unidade inteira, capacidade, matriz do pagador, matriz do paciente coberto quando aplicável, meios autorizados, vigência, estado e ordem. Assinaturas continuam referenciando a versão contratada por `planId`.
-- `billingSubscriptions`: titular, plano, provider, identificadores externos, período e estado normalizado (`pending`, `active`, `past_due`, `canceled`, `expired`).
+- `billingSubscriptions`: titular, plano, provider, identificadores externos, período e estado de compatibilidade (`pending`, `active`, `past_due`, `canceled`, `expired`). A semântica canônica de ciclo de vida da #893 fica em `billingSubscriptionLifecycle`; nesse campo de compatibilidade, `suspended` continua representado como `past_due` enquanto consumidores legados existirem.
 - `billingProviderEvents`: envelope normalizado e idempotente por `(provider, providerEventId)`.
 - `billingEntitlements`: concessões próprias, patrocinadas, trial, transição, acesso somente para leitura, acesso gratuito configurado ou origem administrativa relacionada.
 - `billingCapacityAllocations`: ocupação e liberação auditável de vagas profissionais por `coverageKey`.
@@ -56,7 +56,7 @@ A lista permitida contém apenas identificadores operacionais, estado, motivo sa
 
 `free_access` permanece reservado ao modo de rollout aberto e a concessões gratuitas explicitamente configuradas; ele não substitui transição nem leitura.
 
-A precedência define origem efetiva, atribuição de consumo e comunicação. Origens secundárias ainda válidas não são apagadas. Dentro da mesma origem, vence a concessão com maior validade; empate é resolvido pelo identificador da fonte. Registros futuros ou expirados são descartados defensivamente. Apenas assinatura `active` dentro do período concede acesso; `pending`, `past_due`, `canceled` e `expired` não concedem.
+A precedência define origem efetiva, atribuição de consumo e comunicação. Origens secundárias ainda válidas não são apagadas. Dentro da mesma origem, vence a concessão com maior validade; empate é resolvido pelo identificador da fonte. Registros futuros ou expirados são descartados defensivamente. A máquina canônica da #893 prevalece para o ciclo comercial: `active` concede acesso pago; `past_due` preserva acesso integral somente durante a carência vigente; `suspended` mantém apenas o entitlement técnico de leitura; `pending` sem trial ou transição e `expired` não concedem acesso por assinatura. Consumidores novos devem usar `billingSubscriptionLifecycle.state`, não inferir `suspended` a partir do campo legado `billingSubscriptions.status`.
 
 Cobertura profissional exige simultaneamente assinatura ativa do patrocinador, vaga ativa, entitlement ativo e autorização profissional-paciente aprovada. Assinatura não substitui consentimento clínico.
 

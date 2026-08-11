@@ -9,3 +9,13 @@ export function buildWhatsAppAccessPendingReplyMessage() {
     "Nenhuma refeição, água, exercício ou alteração foi registrada por esta mensagem.",
   ].join("\n");
 }
+
+export function buildWhatsAppReadOnlyAccessReplyMessage() {
+  return [
+    "*Assinatura temporariamente suspensa*",
+    "────────────────────",
+    "Você ainda pode consultar e exportar seus dados pelo sistema web e acessar Plano e acesso.",
+    "Novos registros e recursos pagos pelo WhatsApp ficam indisponíveis até a regularização.",
+    "Nenhuma refeição, água, exercício ou alteração foi registrada por esta mensagem.",
+  ].join("\n");
+}

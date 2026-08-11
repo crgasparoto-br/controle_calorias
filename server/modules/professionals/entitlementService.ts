@@ -11,6 +11,7 @@ export type ProfessionalEntitlementReason =
   | "active_subscription"
   | "active_trial"
   | "admin_override"
+  | "read_only_access"
   | "free_access"
   | "no_access";
 
@@ -73,6 +74,7 @@ export type ProfessionalEntitlementSnapshot = {
     | "active"
     | "trial"
     | "override"
+    | "suspended"
     | "unavailable"
     | "no_access";
   planCode: string | null;
@@ -119,6 +121,7 @@ function stateForReason(reason: ProfessionalEntitlementReason) {
   if (reason === "active_subscription") return "active" as const;
   if (reason === "active_trial") return "trial" as const;
   if (reason === "admin_override") return "override" as const;
+  if (reason === "read_only_access") return "suspended" as const;
   if (reason === "free_access") return "open_access" as const;
   return "no_access" as const;
 }
@@ -218,7 +221,9 @@ export async function getProfessionalEntitlements(
       planName: result.planName?.trim() || "Plano profissional",
       validUntil,
       enabledResources: effectiveAllowed
-        ? normalizeResources(result.entitlements)
+        ? effectiveReason === "read_only_access"
+          ? ["professional_settings"]
+          : normalizeResources(result.entitlements)
         : [],
       capacity: normalizeCapacity(result.capacity),
       providerAvailable: true,

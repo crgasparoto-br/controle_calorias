@@ -6,6 +6,7 @@ const sourcePaths = [
   path.join(root, "drizzle/schema.ts"),
   path.join(root, "drizzle/professional-schema.ts"),
   path.join(root, "drizzle/billing-schema.ts"),
+  path.join(root, "drizzle/billing-subscription-lifecycle-schema.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
@@ -84,7 +85,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts` e `drizzle/billing-schema.ts`.",
+    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts` e `drizzle/billing-subscription-lifecycle-schema.ts`.",
     "",
     "## Tabelas",
     "",

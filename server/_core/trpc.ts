@@ -13,7 +13,7 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 const requireUser = t.middleware(async opts => {
-  const { ctx, next, path, getRawInput } = opts;
+  const { ctx, next, path, type, getRawInput } = opts;
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
@@ -23,7 +23,7 @@ const requireUser = t.middleware(async opts => {
     ...ctx,
     user: ctx.user,
   };
-  await enforceProtectedProcedurePolicies({ path, ctx: authenticatedCtx });
+  await enforceProtectedProcedurePolicies({ path, type, ctx: authenticatedCtx });
 
   const rawInput = await getRawInput();
   const result = await next({ ctx: authenticatedCtx });

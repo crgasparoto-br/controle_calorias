@@ -42,6 +42,14 @@ async function assertProfessionalReactivationAccess(userId: number) {
   }
 
   try {
+    const entitlements = await getProfessionalEntitlements(userId);
+    if (entitlements.commercialState === "suspended") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "Sua assinatura está suspensa. Regularize o plano antes de reativar a Área Profissional.",
+      });
+    }
     await assertProfessionalResourceAccess(userId, "professional_settings");
   } catch (error) {
     throw toProfessionalEntitlementTrpcError("professional_settings", error);

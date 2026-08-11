@@ -57,6 +57,7 @@ Exemplos principais:
 - `design-docs/whatsapp-onboarding.md`
 - `design-docs/professional-ai-assistance.md`
 - `design-docs/billing-foundation.md`
+- `design-docs/billing-subscription-lifecycle.md`
 
 ## Testes e regressão
 
