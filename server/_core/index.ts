@@ -32,6 +32,11 @@ import {
 import { startConversationRetentionScheduler } from "../modules/whatsapp/conversationRetentionScheduler";
 import { handleProfessionalAccessRevocationStream } from "../modules/professionals/accessRevocationStream";
 import { configureAiObservabilityLogging } from "../modules/aiObservability/logSink";
+import {
+  configureAsaasBillingRuntime,
+  getAsaasWebhookHandler,
+  startAsaasBillingReconciliationScheduler,
+} from "../modules/billing/asaas/runtime";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -78,6 +83,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   validateRuntimeEnv();
   configureAiObservabilityLogging();
+  configureAsaasBillingRuntime();
 
   const app = express();
   const server = createServer(app);
@@ -135,6 +141,7 @@ async function startServer() {
   });
   const mediaJsonParser = express.json({ limit: PAYLOAD_LIMITS.mediaJson });
   const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
+  const asaasWebhookHandler = getAsaasWebhookHandler();
 
   app.use(MEDIA_TRPC_PATHS, mediaJsonParser);
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
@@ -176,6 +183,13 @@ async function startServer() {
       void handleWhatsAppPersistentContextWebhook(req, res);
     }
   );
+  app.post(
+    "/api/billing/asaas/webhook",
+    express.raw({ type: "application/json", limit: "128kb" }),
+    (req, res) => {
+      void asaasWebhookHandler(req, res);
+    }
+  );
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -201,6 +215,7 @@ async function startServer() {
   });
 
   startConversationRetentionScheduler();
+  startAsaasBillingReconciliationScheduler();
 }
 
 startServer().catch(console.error);
