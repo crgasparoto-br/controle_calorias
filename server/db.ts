@@ -7,10 +7,10 @@ import { getConfiguredBillingDbProvider } from "./repositories/billingRepository
 
 export * from "./dbImplementation";
 
-export async function getDb() {
+export function getDb(): ReturnType<typeof getDbImplementation> {
   const billingProvider = getConfiguredBillingDbProvider();
   if (billingProvider && billingProvider !== getDb) {
-    return billingProvider();
+    return billingProvider() as ReturnType<typeof getDbImplementation>;
   }
   return getDbImplementation();
 }
