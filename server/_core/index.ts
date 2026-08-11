@@ -37,6 +37,7 @@ import {
   getAsaasWebhookHandler,
   startAsaasBillingReconciliationScheduler,
 } from "../modules/billing/asaas/runtime";
+import { configureAsaasBillingLifecycleHooks } from "../modules/billing/asaas/remediationRuntime";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -84,6 +85,7 @@ async function startServer() {
   validateRuntimeEnv();
   configureAiObservabilityLogging();
   configureAsaasBillingRuntime();
+  configureAsaasBillingLifecycleHooks();
 
   const app = express();
   const server = createServer(app);
