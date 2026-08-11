@@ -98,13 +98,28 @@ function invalidateObsoleteTrialEnding(
   };
 }
 
+function finalizeLifecycleMutation(
+  snapshot: BillingLifecycleSnapshot,
+  mutation: BillingLifecycleMutation
+): BillingLifecycleMutation {
+  const finalized = invalidateObsoleteTrialEnding(snapshot, mutation);
+  if (
+    finalized.nextState === "expired" &&
+    snapshot.couponContractKey &&
+    finalized.couponAction === "none"
+  ) {
+    return { ...finalized, couponAction: "cancel" };
+  }
+  return finalized;
+}
+
 export function reduceFinancialFact(
   snapshot: BillingLifecycleSnapshot,
   input: BillingProviderNeutralFinancialFact,
   context: BillingFinancialRemediationContext = emptyFinancialContext()
 ): BillingLifecycleMutation {
   const guarded = guardFinancialFact(snapshot, input, context);
-  if (guarded) return invalidateObsoleteTrialEnding(snapshot, guarded);
+  if (guarded) return finalizeLifecycleMutation(snapshot, guarded);
 
   const mutation = enrichPastDueFact(base.reduceFinancialFact(snapshot, input), input);
   if (
@@ -115,7 +130,7 @@ export function reduceFinancialFact(
   ) {
     mutation.facts = [...mutation.facts, recoveryFact(snapshot, input)];
   }
-  return invalidateObsoleteTrialEnding(snapshot, mutation);
+  return finalizeLifecycleMutation(snapshot, mutation);
 }
 
 export function reduceLifecycleTick(
@@ -126,7 +141,7 @@ export function reduceLifecycleTick(
     snapshot.state === "past_due" || snapshot.state === "suspended"
       ? { ...snapshot, cancelAtPeriodEnd: false }
       : snapshot;
-  return invalidateObsoleteTrialEnding(
+  return finalizeLifecycleMutation(
     snapshot,
     base.reduceLifecycleTick(effectiveSnapshot, now)
   );
@@ -173,7 +188,7 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
         return (input: Parameters<ServiceDeps["repository"]["commitMutation"]>[0]) =>
           target.commitMutation({
             ...input,
-            mutation: invalidateObsoleteTrialEnding(input.snapshot, input.mutation),
+            mutation: finalizeLifecycleMutation(input.snapshot, input.mutation),
           });
       }
       const value = Reflect.get(target, property, receiver);
@@ -425,6 +440,45 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
     return ids.length;
   }
 
+  async function extendGrace(input: Parameters<BaseService["extendGrace"]>[0]) {
+    const snapshot = await deps.repository.loadLifecycle(input.subscriptionId);
+    if (!snapshot || snapshot.state !== "past_due") {
+      throw new Error("billing_past_due_subscription_required");
+    }
+    const now = nowProvider();
+    if (input.until.getTime() <= now.getTime()) {
+      throw new Error("billing_grace_extension_must_be_future");
+    }
+    if (
+      !snapshot.graceEndsAt ||
+      input.until.getTime() <= snapshot.graceEndsAt.getTime()
+    ) {
+      throw new Error("billing_grace_extension_must_extend_current_window");
+    }
+    const mutation: BillingLifecycleMutation = {
+      expectedRevision: snapshot.revision,
+      nextState: snapshot.state,
+      updates: { graceEndsAt: input.until },
+      facts: [],
+      invalidateFactTypes: [],
+      endTrialEntitlement: false,
+      suspendedReadOnlyUntil: undefined,
+      couponAction: "none",
+      audit: {
+        actorUserId: input.actorUserId,
+        requireAdmin: true,
+        action: "grace_extended",
+        reason: input.reason,
+        metadata: {
+          previousGraceEndsAt: snapshot.graceEndsAt.toISOString(),
+          newGraceEndsAt: input.until.toISOString(),
+          correlationId: input.correlationId,
+        },
+      },
+    };
+    return repository.commitMutation({ snapshot, mutation });
+  }
+
   return {
     ...baseline,
     startContract,
@@ -432,5 +486,6 @@ export function createBillingSubscriptionLifecycleService(deps: ServiceDeps) {
     applyFinancialFact,
     tickSubscription,
     processDue,
+    extendGrace,
   };
 }
