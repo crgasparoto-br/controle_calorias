@@ -34,7 +34,7 @@ As transições do ledger distinguem falha de transporte de encerramento autorit
 
 O Asaas mantém documentação recente com duas formas de resposta de criação de Checkout: uma inclui `link`, outra descreve somente o `id` e a montagem de `https://asaas.com/checkoutSession/show?id=<id>`. O adapter aceita ambas. Um retorno somente com `id` não é classificado como falha local depois de criação remota bem-sucedida.
 
-Eventos terminais são processados antes da correlação genérica `CHECKOUT_*`/`PIX_AUTOMATIC_*`. O ledger usa `markProviderTerminal` para permitir somente essa transição autoritativa de `created` para `failed`; transições ordinárias continuam protegidas contra regressão concorrente.
+Eventos terminais usam os códigos autoritativos já emitidos pelo handler (`checkout_expired` e `authorization_closed`). No store, `markFailed` reconhece apenas esses pares de tipo/código como encerramento do provider, permite a transição `created -> failed` e persiste o marcador `provider_terminal:*`; transições ordinárias continuam protegidas contra regressão concorrente e não podem sobrescrever uma tentativa já encerrada pelo provider.
 
 ## Operação e sandbox
 
