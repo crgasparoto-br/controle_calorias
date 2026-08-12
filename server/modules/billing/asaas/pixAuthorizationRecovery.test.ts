@@ -52,6 +52,7 @@ describe("Asaas Pix Automático uncertain authorization recovery", () => {
       expect(url.pathname).toBe("/v3/pix/automatic/authorizations");
       expect(url.searchParams.get("customerId")).toBe("cus-1");
       expect(url.searchParams.get("limit")).toBe("100");
+      expect(url.searchParams.get("offset")).toBe("0");
       return jsonResponse({
         data: [
           {
@@ -155,12 +156,38 @@ describe("Asaas Pix Automático uncertain authorization recovery", () => {
     expect(calls).toBe(1);
   });
 
-  it("PIX-AUTH-UNKNOWN-PAGE-001 stays pending when the first page cannot prove absence", async () => {
-    let calls = 0;
-    const fetchImpl: typeof fetch = async (_request, init) => {
-      calls += 1;
+  it("PIX-AUTH-UNKNOWN-PAGE-001 finds a match on a later page without retrying the POST", async () => {
+    const offsets: string[] = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
       expect(init?.method).toBe("GET");
-      return jsonResponse({ data: [], hasMore: true });
+      const url = new URL(String(request));
+      const offset = url.searchParams.get("offset") ?? "";
+      offsets.push(offset);
+      if (offset === "0") {
+        return jsonResponse({
+          data: [
+            {
+              id: "aut-unrelated",
+              status: "ACTIVE",
+              customerId: "cus-1",
+              contractId: "other-contract",
+            },
+          ],
+          hasMore: true,
+        });
+      }
+      expect(offset).toBe("100");
+      return jsonResponse({
+        data: [
+          {
+            id: "aut-second-page",
+            status: "CREATED",
+            customerId: "cus-1",
+            contractId: "contract-hash-1",
+          },
+        ],
+        hasMore: false,
+      });
     };
     const client = createAsaasClient({
       environment: "sandbox",
@@ -171,10 +198,103 @@ describe("Asaas Pix Automático uncertain authorization recovery", () => {
     await expect(
       readAsaasPixAuthorizationOutcome({ client, operation: operation() })
     ).resolves.toEqual({
-      status: "pending",
-      reason: "not_found_first_page",
+      status: "reconciled",
+      externalId: "aut-second-page",
+      remoteStatus: "CREATED",
+      conciliationIdentifier: null,
     });
-    expect(calls).toBe(1);
+    expect(offsets).toEqual(["0", "100"]);
+  });
+
+  it("PIX-AUTH-UNKNOWN-PAGE-NOT-FOUND-001 proves absence only after the final page", async () => {
+    const offsets: string[] = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
+      expect(init?.method).toBe("GET");
+      const url = new URL(String(request));
+      const offset = url.searchParams.get("offset") ?? "";
+      offsets.push(offset);
+      return jsonResponse({
+        data: [],
+        hasMore: offset === "0",
+      });
+    };
+    const client = createAsaasClient({
+      environment: "sandbox",
+      apiKey: "key",
+      fetchImpl,
+    });
+
+    await expect(
+      readAsaasPixAuthorizationOutcome({ client, operation: operation() })
+    ).resolves.toEqual({ status: "pending", reason: "not_found" });
+    expect(offsets).toEqual(["0", "100"]);
+  });
+
+  it("PIX-AUTH-UNKNOWN-PAGE-AMBIGUOUS-001 rejects matches split across pages", async () => {
+    const offsets: string[] = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
+      expect(init?.method).toBe("GET");
+      const url = new URL(String(request));
+      const offset = url.searchParams.get("offset") ?? "";
+      offsets.push(offset);
+      return jsonResponse({
+        data: [
+          {
+            id: offset === "0" ? "aut-page-1" : "aut-page-2",
+            status: "CREATED",
+            customerId: "cus-1",
+            contractId: "contract-hash-1",
+          },
+        ],
+        hasMore: offset === "0",
+      });
+    };
+    const client = createAsaasClient({
+      environment: "sandbox",
+      apiKey: "key",
+      fetchImpl,
+    });
+
+    await expect(
+      readAsaasPixAuthorizationOutcome({ client, operation: operation() })
+    ).rejects.toThrow("asaas_pix_authorization_reconciliation_ambiguous");
+    expect(offsets).toEqual(["0", "100"]);
+  });
+
+  it("PIX-AUTH-UNKNOWN-PAGE-DEDUP-001 tolerates the same authorization repeated across pages", async () => {
+    const offsets: string[] = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
+      expect(init?.method).toBe("GET");
+      const url = new URL(String(request));
+      const offset = url.searchParams.get("offset") ?? "";
+      offsets.push(offset);
+      return jsonResponse({
+        data: [
+          {
+            id: "aut-stable",
+            status: offset === "0" ? "CREATED" : "ACTIVE",
+            customerId: "cus-1",
+            contractId: "contract-hash-1",
+          },
+        ],
+        hasMore: offset === "0",
+      });
+    };
+    const client = createAsaasClient({
+      environment: "sandbox",
+      apiKey: "key",
+      fetchImpl,
+    });
+
+    await expect(
+      readAsaasPixAuthorizationOutcome({ client, operation: operation() })
+    ).resolves.toEqual({
+      status: "reconciled",
+      externalId: "aut-stable",
+      remoteStatus: "ACTIVE",
+      conciliationIdentifier: null,
+    });
+    expect(offsets).toEqual(["0", "100"]);
   });
 
   it("PIX-AUTH-UNKNOWN-AMBIGUOUS-001 refuses multiple matches without a provider mutation", async () => {

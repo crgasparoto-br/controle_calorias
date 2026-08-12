@@ -53,7 +53,7 @@ export type PixAuthorizationReadOutcome =
     }
   | {
       status: "pending";
-      reason: "not_found" | "not_found_first_page" | "operation_not_uncertain";
+      reason: "not_found" | "operation_not_uncertain";
     }
   | {
       status: "reused";
@@ -119,7 +119,7 @@ function isTerminalAuthorizationStatus(status: string | null) {
 }
 
 /**
- * Performs exactly one provider read for an uncertain Pix Automático creation.
+ * Reconciles an uncertain Pix Automático creation using read-only pagination.
  * It never retries the original POST. Local persistence is intentionally left
  * to the caller so provider observation and state transition remain explicit.
  */
@@ -147,32 +147,40 @@ export async function readAsaasPixAuthorizationOutcome(input: {
     throw new Error("asaas_pix_authorization_reconciliation_context_missing");
   }
 
-  const response = await input.client.get<PixAuthorizationListResponse>(
-    "/pix/automatic/authorizations",
-    { customerId, limit: 100 }
-  );
-  const matches = (response.data ?? []).filter(item => {
-    const id = textValue(item.id);
-    const remoteContractId = textValue(item.contractId);
-    const remoteCustomerId = textValue(item.customerId);
-    return (
-      !!id &&
-      remoteContractId === contractId &&
-      (!remoteCustomerId || remoteCustomerId === customerId)
-    );
-  });
+  const pageLimit = 100;
+  let offset = 0;
+  const matches = new Map<string, PixAuthorizationResponse>();
 
-  if (matches.length > 1) {
+  while (true) {
+    const response = await input.client.get<PixAuthorizationListResponse>(
+      "/pix/automatic/authorizations",
+      { customerId, limit: pageLimit, offset }
+    );
+    for (const item of response.data ?? []) {
+      const id = textValue(item.id);
+      const remoteContractId = textValue(item.contractId);
+      const remoteCustomerId = textValue(item.customerId);
+      if (
+        id &&
+        remoteContractId === contractId &&
+        (!remoteCustomerId || remoteCustomerId === customerId)
+      ) {
+        matches.set(id, item);
+      }
+    }
+
+    if (!response.hasMore) break;
+    offset += pageLimit;
+  }
+
+  if (matches.size > 1) {
     throw new Error("asaas_pix_authorization_reconciliation_ambiguous");
   }
-  if (matches.length === 0) {
-    return {
-      status: "pending",
-      reason: response.hasMore ? "not_found_first_page" : "not_found",
-    };
+  if (matches.size === 0) {
+    return { status: "pending", reason: "not_found" };
   }
 
-  const match = matches[0]!;
+  const match = matches.values().next().value!;
   const externalId = textValue(match.id);
   if (!externalId) throw new Error("asaas_pix_authorization_id_missing");
   const remoteStatus = textValue(match.status)?.toUpperCase() ?? null;

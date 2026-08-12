@@ -85,6 +85,8 @@ Quando POST/PUT/DELETE falhar por transporte depois de possivelmente alcançar o
 4. se a leitura provar que o efeito não ocorreu, reabra para `prepared` e faça o retry somente em uma chamada posterior;
 5. se a leitura for inconclusiva, mantenha `pending` e escale.
 
+Para criação incerta de autorização Pix Automático, a leitura administrativa/automática percorre a listagem inteira do cliente por `offset` até `hasMore=false`, comparando o `contractId` persistido. Não conclua ausência pela primeira página: match posterior fecha a operação, matches distintos em páginas diferentes exigem intervenção por ambiguidade e nenhum desses caminhos repete o POST da autorização.
+
 ## Checkout expirado/cancelado
 
 `CHECKOUT_EXPIRED`, `CHECKOUT_CANCELED` e `CHECKOUT_CANCELLED` são terminais para aquela tentativa. O backend registra o encerramento autoritativo mesmo se a criação já estava `created`. Uma resposta HTTP tardia não pode reconfirmar o Checkout.

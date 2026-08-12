@@ -29,6 +29,8 @@ Mutações de cancelamento e reativação que terminem com resultado remoto ince
 
 As transições do ledger distinguem falha de transporte de encerramento autoritativo. Uma operação já `created` não pode regredir para `outcome_unknown` ou `failed` por resposta HTTP tardia; porém `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` e uma autorização Pix cancelada, expirada ou recusada podem encerrar explicitamente a tentativa porque são fatos autoritativos do provider. Depois desse encerramento, respostas HTTP tardias também não podem reabrir ou reconfirmar a operação.
 
+Quando a criação de uma autorização Pix Automático fica `outcome_unknown`, a recuperação usa a listagem read-only por `customerId` e percorre todas as páginas do Asaas com `limit=100` e `offset` até `hasMore=false`. O `contractId` persistido localmente é comparado em todas as páginas; ausência só é concluída depois da página terminal, matches distintos em páginas diferentes continuam sendo ambiguidade e o mesmo ID repetido entre páginas é deduplicado. A recuperação nunca repete o POST original.
+
 ## Correlação do primeiro pagamento do Pix Automático
 
 A Jornada 3 do Pix Automático retorna `immediateQrCode.conciliationIdentifier` junto da autorização. O mesmo identificador volta no objeto do primeiro pagamento liquidado e é a referência autoritativa para ligar esse pagamento à autorização que originou o QR.
@@ -69,6 +71,7 @@ A remediação adiciona controles focados para:
 - estado `created` protegido contra falha/timeout tardio e encerramento terminal do provider protegido contra resposta HTTP tardia;
 - resposta de Checkout somente com `id`, sem `link`;
 - eventos terminais de Checkout e autorização Pix;
+- recuperação de autorização Pix com match em página posterior, ausência após a página terminal, ambiguidade entre páginas e deduplicação por ID;
 - cobrança de conversão antecipada já alinhada sem nova mutação;
 - recuperação da `confirmationKey` por `paymentId`;
 - callback hospedado permanecendo `pending`;
