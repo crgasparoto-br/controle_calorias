@@ -135,7 +135,6 @@ describe("issue #970 - retomada persistente da clarificação parcial de café",
     expect(completed?.reply).toContain("3 copos");
   });
 
-
   it("preserva a referência temporal da mensagem original ao completar no turno seguinte", async () => {
     const userId = 97010;
     const temporalStart = new Date("2026-08-12T02:59:00.000Z"); // 11/08 23:59 em São Paulo
@@ -191,11 +190,14 @@ describe("issue #970 - retomada persistente da clarificação parcial de café",
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(other).toBeNull();
+    expect(other).toEqual(expect.objectContaining({
+      handled: true,
+      action: "food_clarification_standalone_command_blocked",
+      eventType: "whatsapp.food_clarification.standalone_command_blocked",
+    }));
     expect(await repository.getActivePendingOperation(ownerUserId, new Date(start.getTime() + 1_001))).not.toBeNull();
     expect(updateMealMock).not.toHaveBeenCalled();
   });
-
 
   it("reapresenta a mesma pergunta para resposta inválida sem consumir a pendência", async () => {
     const userId = 97011;
@@ -278,7 +280,6 @@ describe("issue #970 - retomada persistente da clarificação parcial de café",
     }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
-
 
   it("consome somente uma vez quando duas respostas chegam concorrentemente", async () => {
     const userId = 97008;
