@@ -163,7 +163,7 @@ export function createAsaasAdapter(input: {
   });
   return {
     ...adapter,
-    createPaymentFlow(flow: BillingProviderPaymentFlowInput) {
+    async createPaymentFlow(flow: BillingProviderPaymentFlowInput) {
       return adapter.createPaymentFlow({
         ...flow,
         customer: {
