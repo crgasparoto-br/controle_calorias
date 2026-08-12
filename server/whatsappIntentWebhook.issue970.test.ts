@@ -177,6 +177,6 @@ describe("issue #970 - webhook textual real", () => {
       status: "success",
       eventType: "whatsapp.intent.meal_item_added",
     }));
-    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (150 ml) de Café sem açúcar");
+    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
   });
 });

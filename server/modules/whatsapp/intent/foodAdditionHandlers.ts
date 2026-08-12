@@ -46,6 +46,13 @@ function normalizeCoffeeAdditionText(value: string) {
     .toLowerCase();
 }
 
+function formatAdditionActionFoodName(item: MealItemInput) {
+  const normalizedName = normalizeCoffeeAdditionText(item.foodName);
+  return /\bcafe\b/.test(normalizedName) && /\bsem acucar\b/.test(normalizedName)
+    ? "café sem açúcar"
+    : item.foodName;
+}
+
 function findResolvedSweetenedCoffee(items: MealItemInput[]) {
   const matches = items.filter(item =>
     isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
@@ -174,7 +181,7 @@ export async function handleFoodAdditionIntent(
         options: {
           title: "Alimento adicionado",
           actionLines: [
-            `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+            `Adicionei ${addedItem.portionText} de ${formatAdditionActionFoodName(addedItem)} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
           ],
         },
       }),

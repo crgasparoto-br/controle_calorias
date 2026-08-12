@@ -105,7 +105,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
       action: "meal_item_added",
       eventType: "whatsapp.intent.meal_item_added",
     }));
-    expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de Café sem açúcar");
+    expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
   });
 
