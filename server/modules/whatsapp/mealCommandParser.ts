@@ -70,11 +70,15 @@ const QUANTITY_UNIT_PATTERN = joinUnitWords([
 ]);
 const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
 const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
-const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
+const ADD_ITEMS_ACTION_PATTERN_SOURCE = "(?:adicionar|adiciona|adicione|incluir|inclui|inclua|colocar|coloca|coloque|registrar|registra|registre|acrescentar|acrescenta|acrescente|lan[cç]ar|lan[cç]a|lance)";
+const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|desjejum|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
+const MEAL_DESTINATION_PATTERN_SOURCE = `(?:${MEAL_PATTERN_SOURCE}|caf[eé])`;
+const MEAL_PREPOSITION_PATTERN_SOURCE = "(?:a|ao|à|no|na|para\\s+(?:o|a))";
 
 const MEAL_TYPES = [
   "cafe da manha",
   "café da manhã",
+  "desjejum",
   "almoco",
   "almoço",
   "jantar",
@@ -165,11 +169,39 @@ function resolveCommandDate(input: string, context: MealCommandContext) {
 }
 
 function normalizeMealType(value: string) {
-  return value
-    .replace("almoco", "almoço")
-    .replace("cafe da manha", "café da manhã")
-    .replace(/pr[eé][\s-]?treino/, "pré-treino")
-    .replace(/p[oó]s[\s-]?treino/, "pós-treino");
+  const normalized = normalizeText(value);
+  if (normalized === "cafe da manha" || normalized === "desjejum" || normalized === "cafe") {
+    return "café da manhã";
+  }
+  if (normalized === "almoco") {
+    return "almoço";
+  }
+  if (/^pre[\s-]?treino$/.test(normalized)) {
+    return "pré-treino";
+  }
+  if (/^pos[\s-]?treino$/.test(normalized)) {
+    return "pós-treino";
+  }
+  return normalized;
+}
+
+function hasShortCoffeeMealDestination(normalizedInput: string) {
+  const relativeDatePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?";
+  const destinationAtEnd = new RegExp(
+    `(?:^|\\s)(?:a|ao|no|na|para\\s+(?:o|a))\\s+(?:refeicao\\s+)?cafe${relativeDatePattern}\\s*[.,;:!?-]*\\s*$`,
+    "i",
+  );
+  const destinationBeforeAction = new RegExp(
+    `^cafe\\s*[,;:]\\s*${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b`,
+    "i",
+  );
+  const destinationAfterAction = new RegExp(
+    `\\b${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b\\s+cafe\\s*[:;,]`,
+    "i",
+  );
+  return destinationAtEnd.test(normalizedInput)
+    || destinationBeforeAction.test(normalizedInput)
+    || destinationAfterAction.test(normalizedInput);
 }
 
 function findMealType(input: string, context: MealCommandContext) {
@@ -177,6 +209,9 @@ function findMealType(input: string, context: MealCommandContext) {
   const mealType = MEAL_TYPES.find(candidate => normalized.includes(normalizeText(candidate)));
   if (mealType) {
     return normalizeMealType(mealType);
+  }
+  if (hasShortCoffeeMealDestination(normalized)) {
+    return "café da manhã";
   }
   return context.recentMealType ?? null;
 }
@@ -289,7 +324,7 @@ function removeBrand(foodName: string, brand: string | null) {
 function cleanFoodName(value: string) {
   return normalizeSpaces(
     stripTrailingDate(value)
-      .replace(new RegExp(`^(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*[,;:]?\\s*`, "i"), "")
+      .replace(new RegExp(`^${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*[,;:]?\\s*`, "i"), "")
       .replace(/^(?:de|do|da|dos|das)\s+/i, "")
       .replace(/[.,;:!?]+$/g, ""),
   );
@@ -347,7 +382,7 @@ function buildItemFromPart(part: string) {
 }
 
 function parseAddItemsCommand(input: string, context: MealCommandContext): ParsedMealCommand | null {
-  const actionMatch = input.match(/\b(?:adicionar|adiciona|adicione|incluir|inclui|inclua|registrar|registra|registre|acrescentar|acrescenta|acrescente)\b/i);
+  const actionMatch = input.match(new RegExp(`\\b${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b`, "i"));
   if (!actionMatch) {
     return null;
   }
@@ -356,9 +391,11 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const date = resolveCommandDate(input, context);
   const afterAction = input.slice((actionMatch.index ?? 0) + actionMatch[0].length);
   const datePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?";
-  const mealPrefixPattern = `(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}${datePattern}`;
-  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)\\s+${mealPrefixPattern}\\s*$`, "i"));
-  const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:]\\s*|\\s+)(.+)$`, "i"));
+  const mealPrefixPattern = `${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}${datePattern}`;
+  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)(?:\\s*[,;-]\\s*|\\s+)${mealPrefixPattern}\\s*$`, "i"));
+  const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:-]\\s*|\\s+)(.+)$`, "i"))
+    ?? afterAction.match(new RegExp(`^\\s*${MEAL_PATTERN_SOURCE}${datePattern}\\s*[:;,]\\s*(.+)$`, "i"))
+    ?? afterAction.match(/^\s*caf[eé]\s*[:;,]\s*(.+)$/i);
   const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
   const items = splitItemParts(itemsText).map(buildItemFromPart);
   const missingFields = [
@@ -496,7 +533,7 @@ function parseImplicitFoodAdditionCommand(input: string, context: MealCommandCon
   );
   const withoutMeal = normalizeSpaces(
     withoutExpression
-      .replace(new RegExp(`\\s*(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
+      .replace(new RegExp(`\\s*${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
       .replace(new RegExp(`${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*`, "i"), " "),
   );
   const foodNameRaw = cleanFoodName(withoutMeal);

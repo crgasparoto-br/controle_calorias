@@ -3,6 +3,7 @@ import { getHabitSnapshots } from "../../../db";
 import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
 import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
 import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
+import { parseMealCommandFromWhatsApp } from "../mealCommandParser";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
@@ -215,31 +216,94 @@ export async function handleFoodAdditionIntent(
   };
 }
 
+function normalizeCoffeeAdditionText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function resolveCanonicalCoffeeAddition(
+  text: string,
+  addition: CoffeeAdditionIntent,
+  receivedAt: Date,
+  timeZone: string,
+): CoffeeAdditionIntent {
+  const parsed = parseMealCommandFromWhatsApp(text, {
+    referenceDate: receivedAt,
+    timeZone,
+  });
+  if (parsed.intent !== "add_items_to_meal") {
+    return addition;
+  }
+
+  const parsedCoffee = parsed.items.find(item => {
+    const normalizedName = normalizeCoffeeAdditionText(item.foodName ?? "");
+    return /\bcafe\b/.test(normalizedName) && /\bsem acucar\b/.test(normalizedName);
+  });
+  const parsedUnit = parsedCoffee?.unit ?? null;
+  const parsedCups = parsedCoffee?.quantity
+    && (parsedUnit === "xícara" || parsedUnit === "copo")
+    ? parsedCoffee.quantity
+    : 0;
+
+  return {
+    cups: parsedCups || addition.cups,
+    mealLabel: parsed.mealType ?? addition.mealLabel,
+  };
+}
+
+function buildCoffeeAdditionMissingFieldsReply(addition: CoffeeAdditionIntent) {
+  if (!addition.cups && addition.mealLabel) {
+    return {
+      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar café sem açúcar à refeição ${addition.mealLabel}. Me diga apenas a quantidade, por exemplo: 3 xícaras.`),
+      detail: "Pedido para adicionar café sem açúcar com refeição reconhecida e quantidade ausente.",
+    };
+  }
+  if (addition.cups && !addition.mealLabel) {
+    return {
+      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar ${addition.cups} xícaras de café sem açúcar. Me diga apenas a refeição, por exemplo: café da manhã.`),
+      detail: "Pedido para adicionar café sem açúcar com quantidade reconhecida e refeição ausente.",
+    };
+  }
+  return {
+    reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã."),
+    detail: "Pedido para adicionar café sem açúcar sem quantidade nem refeição explícitas.",
+  };
+}
+
 export async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
-  if (!addition.cups || !addition.mealLabel) {
+  const resolvedAddition = resolveCanonicalCoffeeAddition(
+    text,
+    addition,
+    receivedAt,
+    timeZone,
+  );
+  if (!resolvedAddition.cups || !resolvedAddition.mealLabel) {
+    const clarification = buildCoffeeAdditionMissingFieldsReply(resolvedAddition);
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã."),
+      reply: clarification.reply,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido para adicionar café sem açúcar sem quantidade ou refeição explícita.",
+      detail: clarification.detail,
     };
   }
 
   const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate, timeZone);
+  const targetMeal = findMealByLabel(meals, resolvedAddition.mealLabel, targetDate, timeZone);
   if (!targetMeal) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${resolvedAddition.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar café sem açúcar sem refeição compatível.",
     };
   }
 
-  const coffeeItem = buildUnsweetenedCoffeeItem(addition.cups);
+  const coffeeItem = buildUnsweetenedCoffeeItem(resolvedAddition.cups);
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,
@@ -268,7 +332,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
       mealId: updatedMeal.id,
       mealLabel: targetMeal.mealLabel,
       foodName: coffeeItem.foodName,
-      cups: addition.cups,
+      cups: resolvedAddition.cups,
       quantity: coffeeItem.quantity,
       unit: coffeeItem.unit,
       calories: coffeeItem.calories,

@@ -56,7 +56,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos que adicionam alimento com quantidade em gramas a uma refeição indicada, como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem`, devem atualizar a refeição indicada no dia relativo em vez de criar nova refeição por fallback.
 - Quando o pedido de adição de alimento em gramas indicar uma refeição que não existe no dia interpretado, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Textos que adicionam café sem açúcar a uma refeição existente, como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã`, devem atualizar a refeição indicada e não criar uma nova refeição por fallback.
-- Quando a refeição indicada para adicionar café não existir ou faltar quantidade/refeição, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
+- O parser canônico de adição aceita os verbos `adicionar`, `incluir`, `colocar`, `acrescentar`, `registrar` e `lançar` com suas formas imperativas usuais; aceita destino antes ou depois do alimento, refeição antes do verbo e a forma `<verbo> <refeição>: <quantidade> <alimento>`. As preposições canônicas incluem `no`, `na`, `ao`, `à`, `para o`, `para a`, `a refeição`, `na refeição` e `à refeição`. `desjejum` normaliza para `café da manhã`; o alias curto `café` só representa `café da manhã` quando estiver inequivocamente na posição de destino, nunca quando for o próprio alimento.
+- Quando a refeição indicada para adicionar café não existir, o sistema deve pedir esclarecimento antes de alterar qualquer registro. Se quantidade ou refeição já tiver sido reconhecida, a clarificação solicita somente o dado ausente e preserva o restante do comando.
 - Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
 - Quando um pedido de resumo vier sem período, o sistema deve manter contexto temporário para que a próxima mensagem textual curta, como `hoje`, `ontem` ou `semana`, complete o pedido em vez de cair no fluxo de registro de refeição.
@@ -200,7 +201,7 @@ A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingesti
 - Testar que `água de coco`, `água tônica` e `água saborizada` permanecem como alimento.
 - Testar conversão massa-volume somente com densidade confiável.
 - Testar redução, incremento e correção curta de quantidade sem criar refeição nova.
-- Testar adição de alimento/café a refeição existente e esclarecimento quando ela não existe.
+- Testar adição de alimento/café a refeição existente cobrindo matriz de verbos, preposições, ordens, aliases e clarificação apenas do dado ausente; quando a refeição não existir, não deve haver mutação.
 - Testar sugestões e relatórios sem fallback nutricional.
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
 - Testar respostas finais simplificadas, imagem inline, preferência da anotação e consolidação.
