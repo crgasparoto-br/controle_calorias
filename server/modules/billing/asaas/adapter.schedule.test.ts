@@ -333,7 +333,7 @@ describe("Asaas hosted checkout navigation boundary", () => {
       paymentMethod: "credit_card",
       trialChoice: "waive",
       trialDays: 0,
-      customer: { payerUserId: 9, name: "Callback User" },
+      customer: { payerUserId: 9, name: "Callback User", cpfCnpj: "52998224725" },
       correlationId: "callback-attempt",
       successUrl: "https://app.example/billing/return/success",
       cancelUrl: "https://app.example/billing/return/cancel",

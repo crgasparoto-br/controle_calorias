@@ -39,7 +39,7 @@ O cliente HTTP não possui retry oculto. Timeout ou falha de transporte após um
 
 O customer Asaas usa `externalReference=controle-calorias:user:<userId>`. A operação é preparada antes do POST. Se a resposta do POST for incerta, uma tentativa posterior executa somente `GET /customers?externalReference=...`; um único match fecha a operação, zero matches mantém reconciliação pendente e múltiplos matches viram ambiguidade operacional.
 
-O customer pode ser criado inicialmente com dados mínimos server-side. Para trial de cartão, CPF/CNPJ e telefone usados pela proteção anti-repetição são relidos do customer Asaas depois de o checkout recorrente gerar a assinatura; esses valores não são persistidos pelo adapter.
+A criação de customer exige `name` e `cpfCnpj` antes de qualquer persistência operacional ou chamada outbound. O adapter normaliza CPF/CNPJ para dígitos e rejeita documento ausente ou fora dos comprimentos estruturais de CPF/CNPJ; e-mail e telefone continuam opcionais. Para trial de cartão, CPF/CNPJ e telefone usados pela proteção anti-repetição são relidos do customer Asaas depois de o checkout recorrente gerar a assinatura; esses valores não são persistidos pelo adapter.
 
 ## Cartão e Checkout hospedado
 
@@ -155,6 +155,7 @@ Mutações financeiras adicionais usam o mesmo ledger local-first. Reativação 
 
 ## Validação mínima
 
+- customer exige CPF/CNPJ válido estruturalmente antes de persistência/outbound e envia o documento normalizado ao Asaas;
 - customer/checkout idempotentes com transporte fake;
 - uma tentativa mutável = uma chamada outbound e ausência de retry oculto;
 - timeout de POST bloqueia recriação cega;

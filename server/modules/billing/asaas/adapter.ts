@@ -21,6 +21,16 @@ function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function normalizeCustomerDocument(value: unknown) {
+  const raw = textValue(value);
+  if (!raw) throw new Error("asaas_customer_document_required");
+  const digits = raw.replace(/[.\-/\s]/g, "");
+  if (!/^\d+$/.test(digits) || (digits.length !== 11 && digits.length !== 14)) {
+    throw new Error("asaas_customer_document_invalid");
+  }
+  return digits;
+}
+
 export async function persistPixInitialPaymentCorrelation(input: {
   store: AsaasOperationStore;
   contractKey: string;
@@ -153,6 +163,15 @@ export function createAsaasAdapter(input: {
   });
   return {
     ...adapter,
+    createPaymentFlow(flow: BillingProviderPaymentFlowInput) {
+      return adapter.createPaymentFlow({
+        ...flow,
+        customer: {
+          ...flow.customer,
+          cpfCnpj: normalizeCustomerDocument(flow.customer.cpfCnpj),
+        },
+      });
+    },
     persistPixInitialPaymentCorrelation: (correlation: {
       contractKey: string;
       subscriptionId?: string | null;

@@ -148,6 +148,7 @@ function pixFlow() {
       payerUserId: 7,
       name: "Pix User",
       email: "pix@example.com",
+      cpfCnpj: "52998224725",
     },
     correlationId: "attempt-pix-1",
     successUrl: "https://app.example/success",

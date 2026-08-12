@@ -32,7 +32,7 @@ export type BillingProviderCustomerInput = {
   name: string;
   email?: string | null;
   mobilePhone?: string | null;
-  cpfCnpj?: string | null;
+  cpfCnpj: string;
 };
 
 export type BillingProviderValidatedDiscount = {

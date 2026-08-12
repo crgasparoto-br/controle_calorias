@@ -134,6 +134,7 @@ function baseFlow() {
       payerUserId: 7,
       name: "Test User",
       email: "test@example.com",
+      cpfCnpj: "529.982.247-25",
     },
     correlationId: "attempt-1",
     successUrl: "https://app.example/success",
@@ -174,6 +175,77 @@ describe("Asaas adapter", () => {
     const second = await adapter.createPaymentFlow(baseFlow());
     expect(first).toEqual(second);
     expect(calls).toHaveLength(2);
+  });
+
+  it("rejects a missing or structurally invalid customer document before persistence or outbound calls", async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return jsonResponse({ id: "unexpected" });
+    };
+    const store = memoryStore();
+    const adapter = createAsaasAdapter({
+      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      store,
+      enabledPaymentMethods: ["credit_card"],
+    });
+
+    await expect(
+      adapter.createPaymentFlow({
+        ...baseFlow(),
+        customer: { ...baseFlow().customer, cpfCnpj: "   " },
+      })
+    ).rejects.toThrow("asaas_customer_document_required");
+    await expect(
+      adapter.createPaymentFlow({
+        ...baseFlow(),
+        customer: { ...baseFlow().customer, cpfCnpj: "123" },
+      })
+    ).rejects.toThrow("asaas_customer_document_invalid");
+    await expect(
+      adapter.createPaymentFlow({
+        ...baseFlow(),
+        customer: { ...baseFlow().customer, cpfCnpj: "529.982.247-X25" },
+      })
+    ).rejects.toThrow("asaas_customer_document_invalid");
+
+    expect(calls).toBe(0);
+    expect(
+      await store.get("customer", "controle-calorias:user:7")
+    ).toBeNull();
+  });
+
+  it("normalizes CPF/CNPJ and always sends it when creating an Asaas customer", async () => {
+    const bodies: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
+      const url = String(request);
+      bodies.push({
+        url,
+        body: init?.body ? JSON.parse(String(init.body)) : {},
+      });
+      if (url.endsWith("/customers")) return jsonResponse({ id: "cus_1" });
+      if (url.endsWith("/checkouts")) {
+        return jsonResponse({ id: "chk_1", link: "https://sandbox.asaas.com/checkout/chk_1" });
+      }
+      throw new Error("unexpected");
+    };
+    const adapter = createAsaasAdapter({
+      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      store: memoryStore(),
+      enabledPaymentMethods: ["credit_card"],
+    });
+
+    await adapter.createPaymentFlow(baseFlow());
+
+    expect(bodies[0]).toMatchObject({
+      url: expect.stringContaining("/customers"),
+      body: {
+        name: "Test User",
+        email: "test@example.com",
+        cpfCnpj: "52998224725",
+        externalReference: "controle-calorias:user:7",
+      },
+    });
   });
 
   it("builds the official checkout URL when Asaas returns only the checkout id", async () => {
