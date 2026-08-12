@@ -1,0 +1,54 @@
+{
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "canonical-path-divergence / duplicated-grammar",
+      "source_audit": {
+        "head_sha": "5b27dd9c70c916b51209764c6913c6aaa85aab0f",
+        "finding_id": "A-001"
+      },
+      "plausible_wrong_implementation": "A specialized coffee parser keeps its own action and meal grammar, returns a poorer partial state, and a downstream canonical reparse hides the divergence on successful end-to-end cases.",
+      "boundary": "server/modules/whatsapp/intent/parsers.ts#parseCoffeeAdditionIntent before intentActions/handlers compensate",
+      "literal_case": {
+        "procedure": "Run issue970-canon-divergence harness for Adicionar 3 xícaras de café sem açúcar no café da manhã.",
+        "status": "passed",
+        "evidence": "server/modules/whatsapp/intent/parsers.issue970.test.ts"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "dimension": "verb/preposition",
+          "case": "Coloque 3 xícaras de café sem açúcar para o café da manhã",
+          "status": "passed",
+          "evidence": "server/modules/whatsapp/intent/parsers.issue970.test.ts"
+        },
+        {
+          "id": "A-001-S2",
+          "dimension": "verb/unit/destination marker",
+          "case": "Lance 3 copos de café sem açúcar a refeição café da manhã",
+          "status": "passed",
+          "evidence": "server/modules/whatsapp/intent/parsers.issue970.test.ts"
+        },
+        {
+          "id": "A-001-S3",
+          "dimension": "order",
+          "case": "No café da manhã, adicione 3 xícaras de café sem açúcar",
+          "status": "passed",
+          "evidence": "server/modules/whatsapp/intent/parsers.issue970.test.ts"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "server/modules/whatsapp/intent/parsers.ts",
+        "evidence": "parseCoffeeAdditionIntent now delegates interpretation to parseMealCommandFromWhatsApp and only projects the coffee-specific partial state; the handler no longer reparses to compensate."
+      },
+      "detection_change": {
+        "skill_or_gate": "server/modules/whatsapp/intent/parsers.issue970.test.ts",
+        "control_id": "CANON-DIVERGENCE-001",
+        "evidence": "Regression compares specialized output with the canonical parser across literal, sibling, partial, and unsupported-unit cases and asserts no duplicate action vocabulary in the specialized parser."
+      },
+      "preventive_test": "server/modules/whatsapp/intent/parsers.issue970.test.ts",
+      "reusable_control_id": "CANON-DIVERGENCE-001",
+      "status": "passed"
+    }
+  ]
+}

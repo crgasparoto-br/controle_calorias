@@ -5,7 +5,6 @@ import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
 import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
 import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
 import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
-import { parseMealCommandFromWhatsApp } from "../mealCommandParser";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
@@ -239,37 +238,6 @@ export async function handleFoodAdditionIntent(
   };
 }
 
-function resolveCanonicalCoffeeAddition(
-  text: string,
-  addition: CoffeeAdditionIntent,
-  receivedAt: Date,
-  timeZone: string,
-): CoffeeAdditionIntent {
-  const parsed = parseMealCommandFromWhatsApp(text, {
-    referenceDate: receivedAt,
-    timeZone,
-  });
-  if (parsed.intent !== "add_items_to_meal") {
-    return addition;
-  }
-
-  const parsedCoffee = parsed.items.find(item => {
-    const normalizedName = normalizeCoffeeAdditionText(item.foodName ?? "");
-    return /\bcafe\b/.test(normalizedName) && /\bsem acucar\b/.test(normalizedName);
-  });
-  const parsedUnit = parsedCoffee?.unit ?? null;
-  const parsedCups = parsedCoffee?.quantity
-    && (parsedUnit === "xícara" || parsedUnit === "copo")
-    ? parsedCoffee.quantity
-    : 0;
-
-  return {
-    cups: parsedCups || addition.cups,
-    unit: (parsedCups ? parsedUnit : null) ?? addition.unit,
-    mealLabel: parsed.mealType ?? addition.mealLabel,
-  };
-}
-
 function formatCoffeeAdditionQuantity(addition: CoffeeAdditionIntent) {
   const unitLabel = addition.unit === "copo"
     ? (addition.cups === 1 ? "copo" : "copos")
@@ -297,22 +265,16 @@ function buildCoffeeAdditionMissingFieldsReply(addition: CoffeeAdditionIntent) {
 }
 
 export async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
-  const resolvedAddition = resolveCanonicalCoffeeAddition(
-    text,
-    addition,
-    receivedAt,
-    timeZone,
-  );
-  if (!resolvedAddition.cups || !resolvedAddition.mealLabel) {
-    if (Boolean(resolvedAddition.cups) !== Boolean(resolvedAddition.mealLabel)) {
+  if (!addition.cups || !addition.mealLabel) {
+    if (Boolean(addition.cups) !== Boolean(addition.mealLabel)) {
       return createWhatsappCoffeeAdditionClarification({
         userId,
         originalText: text,
-        addition: resolvedAddition,
+        addition,
         receivedAt,
       });
     }
-    const clarification = buildCoffeeAdditionMissingFieldsReply(resolvedAddition);
+    const clarification = buildCoffeeAdditionMissingFieldsReply(addition);
     return {
       handled: true,
       action: "clarification_needed",
@@ -324,18 +286,18 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
 
   const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, resolvedAddition.mealLabel, targetDate, timeZone);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate, timeZone);
   if (!targetMeal) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${resolvedAddition.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar café sem açúcar sem refeição compatível.",
     };
   }
 
-  const coffeeItem = buildUnsweetenedCoffeeItem(resolvedAddition.cups, resolvedAddition.unit ?? "xícara");
+  const coffeeItem = buildUnsweetenedCoffeeItem(addition.cups, addition.unit ?? "xícara");
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,
@@ -364,7 +326,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
       mealId: updatedMeal.id,
       mealLabel: targetMeal.mealLabel,
       foodName: coffeeItem.foodName,
-      cups: resolvedAddition.cups,
+      cups: addition.cups,
       quantity: coffeeItem.quantity,
       unit: coffeeItem.unit,
       calories: coffeeItem.calories,

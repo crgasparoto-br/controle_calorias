@@ -1,0 +1,90 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": ".audit/entregar-issue/specification-snapshot.json",
+    "sha256": "a028c71addcf5193bb4f85122da935df71317f3c081d73a84a2d50f38b06b3ad"
+  },
+  "primary_issue_source_id": "github-issue-970",
+  "obligations": [
+    {
+      "id": "OBL-970",
+      "candidate_key": "2e24b87627ca22e0927b1e0a7ef335c5c07d8db846c90b720b601044d3f9c6e1",
+      "source_id": "github-issue-970",
+      "source_sha256": "8fec6dea945c38c1bdd4f0a428ab7fe6c30c1a00341cf79f28cf05d08102bae0",
+      "source_line": 1,
+      "source_text": "Issue #970 requires coffee additions to converge on the canonical parser/executor and forbids divergent competing grammar or a third parallel parser.",
+      "flags": ["structural", "forbidden-implementation", "canonical-path", "precedence"],
+      "disposition": "covered",
+      "requirement_ids": ["REQ-970-CANON"],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "The previous independent audit proved the happy path could pass while the specialized parser still carried a competing grammar."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "github-issue-970",
+      "source_sha256": "8fec6dea945c38c1bdd4f0a428ab7fe6c30c1a00341cf79f28cf05d08102bae0",
+      "candidate_count": 1,
+      "obligation_ids": ["OBL-970"],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "No read model changed in this remediation.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "Coffee addition parsing now projects from parseMealCommandFromWhatsApp; no independent action grammar remains in parseCoffeeAdditionIntent.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "Existing whatsapp-ingestion design already declares the canonical parser contract; remediation aligns code to it.",
+    "old_contract_terms": [],
+    "new_contract_terms": ["parser canônico de adição"],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": ["docs/design-docs/whatsapp-ingestion.md:58-60", "AGENTS.md WhatsApp domain map"]
+  },
+  "scope_reduction_review": {"status": "passed", "matches": []},
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": ["REQ-970-CANON", "REQ-970-PARTIAL"],
+    "obligation_ids": ["OBL-970"],
+    "evidence": ["server/modules/whatsapp/intent/parsers.issue970.test.ts", "server/modules/whatsapp/intent/parsers.ts"],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  },
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Issue #970 explicitly requires one functional/canonical interpretation and forbids divergent specialized grammar.",
+    "entries": [
+      {
+        "id": "SIC-970",
+        "kind": "canonical-path-parity",
+        "requirement_ids": ["REQ-970-CANON"],
+        "obligation_ids": ["OBL-970"],
+        "plausible_wrong_implementation": "Keep a specialized coffee verb/meal regex that loses destination data, then mask the loss by reparsing canonically later in the handler.",
+        "canonical_path": "server/modules/whatsapp/mealCommandParser.ts#parseMealCommandFromWhatsApp",
+        "competing_paths": [],
+        "evidence_ids": ["CANON-DIVERGENCE-001", "CANON-SOURCE-001"],
+        "scenario_ids": ["literal-no-breakfast", "sibling-coloque-para", "sibling-lance-refeicao", "sibling-meal-before-action", "partial-meal", "partial-quantity", "unsupported-unit-generic"],
+        "negative_control_evidence": ["server/modules/whatsapp/intent/parsers.issue970.test.ts", "server/modules/whatsapp/intent/parsers.ts"]
+      }
+    ],
+    "unresolved_invariants": []
+  }
+}

@@ -159,31 +159,29 @@ export function parseFoodReplacementIntents(text: string): FoodReplacementIntent
 }
 
 export function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
-  const normalized = normalizeIntentText(text);
-  if (!/\b(?:adicionar|adiciona|adicione|incluir|inclui|inclua|colocar|coloca|coloque|acrescentar|acrescenta|acrescente|registrar|registra|registre|lancar|lanca|lance)\b/.test(normalized)) {
-    return null;
-  }
-  if (!/\bcafe\b/.test(normalized) || !/\bsem acucar\b/.test(normalized)) {
+  const parsed = parseMealCommandFromWhatsApp(text);
+  if (parsed.intent !== "add_items_to_meal") {
     return null;
   }
 
-  const amountMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(xicaras?|xicara?s?|copos?)\b/);
-  if (!amountMatch) {
-    return { cups: 0, unit: null, mealLabel: null };
+  const coffeeItem = parsed.items.find(item => {
+    const normalizedName = normalizeIntentText(item.foodName ?? "");
+    return /\bcafe\b/.test(normalizedName) && /\bsem acucar\b/.test(normalizedName);
+  });
+  if (!coffeeItem) {
+    return null;
   }
 
-  const cups = Number(amountMatch[1].replace(",", "."));
-  if (!Number.isFinite(cups) || cups <= 0) {
-    return { cups: 0, unit: null, mealLabel: null };
+  const unit = coffeeItem.unit ? normalizeMeasurementUnit(coffeeItem.unit) : null;
+  if (coffeeItem.quantity && unit !== "xícara" && unit !== "copo") {
+    return null;
   }
-  const unit = normalizeMeasurementUnit(amountMatch[2]);
 
-  const mealMatch = normalized.match(/\brefeicao\s+(.+)$/);
-  const mealLabel = mealMatch?.[1]
-    ?.replace(/\b(?:hoje|ontem|agora|por favor|pfv)\b/g, "")
-    .trim() || null;
-
-  return { cups, unit, mealLabel };
+  return {
+    cups: coffeeItem.quantity ?? 0,
+    unit: coffeeItem.quantity ? unit : null,
+    mealLabel: parsed.mealType ?? null,
+  };
 }
 
 export function parseCoffeeLorCapsuleIntent(text: string): CoffeeLorCapsuleIntent | null {
