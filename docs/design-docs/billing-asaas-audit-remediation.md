@@ -25,10 +25,26 @@ Se a alteração remota tiver resultado incerto, a tentativa seguinte executa GE
 
 Os hooks são registrados no startup normal e no comando de reconciliação administrativa. A correlação necessária para retomar processamento não depende de memória do callback: ela permanece em `billingProviderEvents`, permitindo replay após reinício sem duplicar cobrança, confirmação comercial ou transição.
 
-Mutações de cancelamento e reativação que terminem com resultado remoto incerto são relidas no Asaas antes de qualquer nova mutação. Se a leitura comprovar que o efeito ocorreu, o ledger fecha como `created`; se comprovar que o efeito não ocorreu, a operação volta a `prepared` e exige uma nova chamada para executar o retry, mantendo uma única chamada outbound por tentativa. O reset do valor-base após o fim de um desconto segue o mesmo contrato: relê a assinatura, fecha quando o valor remoto coincide com o esperado ou reabre a operação quando a leitura comprova ausência do efeito. Atualização direta de cartão por token não é anunciada como capacidade enquanto não houver leitura autoritativa capaz de comprovar o resultado de um timeout; o backend deve usar um fluxo externo recuperável quando esse contrato for implementado.
+Mutações de cancelamento e reativação que terminem com resultado remoto incerto são relidas no Asaas antes de qualquer nova mutação. Se a leitura comprovar que o efeito ocorreu, o ledger fecha como `created`; se comprovar que o efeito não ocorreu, a operação volta a `prepared` e exige uma nova chamada para executar o retry, mantendo uma única chamada outbound por tentativa. O reset do valor-base após o fim de um desconto segue o mesmo contrato: relê a assinatura, fecha quando o valor remoto coincide com o esperado ou reabre a operação quando a leitura comprova ausência do efeito. Atualização direta de cartão por token não é anunciada como capacidade enquanto não houver leitura autoritativa capaz de comprovar o resultado de um timeout; o backend deve usar um fluxo externo recuperável quando esse contrato estiver disponível.
 
 As transições do ledger distinguem falha de transporte de encerramento autoritativo. Uma operação já `created` não pode regredir para `outcome_unknown` ou `failed` por resposta HTTP tardia; porém `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` e uma autorização Pix cancelada, expirada ou recusada podem encerrar explicitamente a tentativa porque são fatos autoritativos do provider. Depois desse encerramento, respostas HTTP tardias também não podem reabrir ou reconfirmar a operação.
 
+## Correlação do primeiro pagamento do Pix Automático
+
+A Jornada 3 do Pix Automático retorna `immediateQrCode.conciliationIdentifier` junto da autorização. O mesmo identificador volta no objeto do primeiro pagamento liquidado e é a referência autoritativa para ligar esse pagamento à autorização que originou o QR.
+
+A fronteira Asaas agora persiste essa relação antes de devolver o QR quando a contratação paga já possui `subscriptionId`: `conciliationIdentifier -> contractKey/subscriptionId/authorizationId`. O registro usa o mesmo ledger sanitizado e não persiste QR payload, corpo bruto nem segredo.
+
+No recebimento de um webhook de pagamento com `conciliationIdentifier`, uma operação local `pix_payment` terminal e sem efeito financeiro próprio preserva `paymentId -> conciliationIdentifier`. Quando a relação principal já existe, o envelope entregue ao handler durável é enriquecido somente com `externalReference` e `pixAutomaticAuthorizationId` previamente correlacionados. Se o pagamento chegar antes da correlação principal, o sidecar permanece durável e a releitura posterior resolve a assinatura sem associar um identificador desconhecido a outro contrato.
+
+A camada de webhook também aceita recuperar a correlação a partir de evento de autorização que traga `id`, `contractId` e `immediateQrCode.conciliationIdentifier`. Falha ao persistir a correlação antes do aceite do webhook retorna erro temporário, permitindo retry do provider em vez de confirmar um evento que perderia a chave de reconciliação.
+
+Controles herméticos obrigatórios desta remediação:
+
+- `PIX-CONCILIATION-001`: resposta de autorização com `conciliationIdentifier` é persistida antes do retorno do QR;
+- `PIX-CONCILIATION-NEG-001`: autorização remota sem o identificador esperado vira resultado incerto quando existe assinatura local, evitando sucesso sem reconciliação;
+- pagamento inicial fora de ordem permanece recuperável pelo sidecar durável;
+- identificador desconhecido não herda `subscriptionId` de outra contratação.
 
 ## Contrato de link do Checkout e encerramentos terminais
 
@@ -55,4 +71,5 @@ A remediação adiciona controles focados para:
 - eventos terminais de Checkout e autorização Pix;
 - cobrança de conversão antecipada já alinhada sem nova mutação;
 - recuperação da `confirmationKey` por `paymentId`;
-- callback hospedado permanecendo `pending`.
+- callback hospedado permanecendo `pending`;
+- correlação do primeiro pagamento Pix por `conciliationIdentifier`, incluindo chegada fora de ordem e controle negativo de identificador desconhecido.
