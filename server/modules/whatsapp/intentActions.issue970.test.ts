@@ -70,7 +70,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     "Acrescente 3 xícaras de café sem açúcar à refeição café da manhã",
     "Registre 3 xícaras de café sem açúcar para a refeição café da manhã",
     "Lance 3 xícaras de café sem açúcar a refeição café da manhã",
-  ])("mantém os verbos de adição de café no executor especializado sem LLM: %s", async text => {
+  ])("mantém os verbos de adição de café no executor canônico sem LLM: %s", async text => {
     listMealsMock.mockResolvedValue([breakfast]);
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 970,
@@ -105,7 +105,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
       action: "meal_item_added",
       eventType: "whatsapp.intent.meal_item_added",
     }));
-    expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
+    expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de Café sem açúcar");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
   });
 
