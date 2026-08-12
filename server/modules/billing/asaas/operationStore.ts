@@ -26,6 +26,16 @@ export type AsaasOperationState =
   | "outcome_unknown"
   | "failed";
 
+export function isAsaasProviderTerminalFailure(
+  kind: AsaasOperationKind,
+  errorCode: string
+) {
+  return (
+    (kind === "checkout" && errorCode === "checkout_expired") ||
+    (kind === "pix_automatic_authorization" && errorCode === "authorization_closed")
+  );
+}
+
 export type AsaasOperation = {
   id: string;
   kind: AsaasOperationKind;
@@ -104,6 +114,16 @@ export type AsaasOperationStore = {
     operationKey: string,
     errorCode: string
   ): Promise<void>;
+  markProviderTerminal?(input: {
+    kind: AsaasOperationKind;
+    operationKey: string;
+    errorCode: string;
+    externalId?: string | null;
+    externalReference?: string | null;
+    customerReference?: string | null;
+    authorizationReference?: string | null;
+    publicReference?: string | null;
+  }): Promise<void>;
   countCouponCharges(subscriptionId: string): Promise<number>;
   findByExternalId(
     kind: AsaasOperationKind,
@@ -291,6 +311,8 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
     publicReference?: string | null;
     subscriptionId?: string | null;
     errorCode?: string | null;
+    allowConfirmedStateTransition?: boolean;
+    allowProviderTerminalTransition?: boolean;
   }) {
     const executor = await db();
     const current = await get(input.kind, input.operationKey);
@@ -308,7 +330,11 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       subscriptionId: input.subscriptionId ?? current.subscriptionId,
     };
     const metadata = metadataFromOperation(next);
-    const protectsConfirmedState = state !== "created" && state !== "prepared";
+    const protectsConfirmedState =
+      !input.allowConfirmedStateTransition &&
+      state !== "created" &&
+      state !== "prepared";
+    const protectsProviderTerminal = !input.allowProviderTerminalTransition;
     await executor.execute(sql`
       UPDATE billingProviderEvents
       SET status = ${
@@ -326,6 +352,11 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
         ${
           protectsConfirmedState
             ? sql`AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.status')), 'prepared') <> 'created'`
+            : sql``
+        }
+        ${
+          protectsProviderTerminal
+            ? sql`AND COALESCE(errorCode, '') NOT LIKE 'provider_terminal:%'`
             : sql``
         }
     `);
@@ -364,7 +395,24 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       `);
     },
     markFailed(kind, operationKey, errorCode) {
-      return updateOperation({ kind, operationKey, state: "failed", errorCode });
+      const providerTerminal = isAsaasProviderTerminalFailure(kind, errorCode);
+      return updateOperation({
+        kind,
+        operationKey,
+        state: "failed",
+        errorCode: providerTerminal ? `provider_terminal:${errorCode}` : errorCode,
+        allowConfirmedStateTransition: providerTerminal,
+        allowProviderTerminalTransition: providerTerminal,
+      });
+    },
+    markProviderTerminal(input) {
+      return updateOperation({
+        ...input,
+        state: "failed",
+        errorCode: `provider_terminal:${input.errorCode}`,
+        allowConfirmedStateTransition: true,
+        allowProviderTerminalTransition: true,
+      });
     },
     async findByExternalId(kind, externalId) {
       const executor = await db();

@@ -45,6 +45,8 @@ O customer pode ser criado inicialmente com dados mínimos server-side. Para tri
 
 Cartão usa Checkout hospedado recorrente com `billingTypes=[CREDIT_CARD]`, `chargeTypes=[RECURRENT]`, customer existente e `externalReference=contractKey`. O callback serve apenas para navegação e permanece `pending`; ele nunca confirma pagamento nem ativa acesso.
 
+A resposta de criação do Checkout é tratada de forma compatível com as duas formas atualmente documentadas pelo Asaas: quando `link` vier na resposta, o adapter o preserva; quando vier apenas `id`, o adapter monta a URL canônica `https://asaas.com/checkoutSession/show?id=<id>`. Em ambos os casos, `id` e URL são persistidos no ledger antes do retorno ao caller, e um retry local reutiliza a mesma operação em vez de criar novo Checkout.
+
 Para trial, a intenção financeira do checkout é criada antes da assinatura local. Quando `SUBSCRIPTION_CREATED` chega por webhook, o backend:
 
 1. correlaciona a operação pelo `contractKey`;
@@ -94,6 +96,8 @@ Depois da autenticação:
 - processamento ocorre sobre o registro persistido, não sobre o objeto JSON em memória;
 - duplicatas retornam sucesso sem repetir efeito;
 - `failed/correlation_pending` e falhas transitórias ficam reprocessáveis pelo reconciliador;
+- `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` e autorizações Pix canceladas, expiradas ou recusadas fecham a tentativa como terminal por uma transição explicitamente autoritativa do provider;
+- a proteção contra resposta HTTP tardia continua impedindo `markCreated`, `markOutcomeUnknown` ou `markFailed` comuns de sobrescrever uma tentativa já fechada pelo provider;
 - eventos desconhecidos ficam `ignored/unknown_event`, sanitizados e sem conceder acesso.
 
 Isso mantém o processamento recuperável após reinício do processo.
@@ -123,7 +127,7 @@ Há dois caminhos:
 - automática: scheduler processa webhooks `received/failed` recuperáveis e cobranças Pix agendadas;
 - manual: `pnpm exec tsx scripts/reconcile-asaas-billing.ts [contractKey]` reprocessa a fila ou consulta uma assinatura por `externalReference` para recuperar um checkout com resultado local incompleto.
 
-Reconciliação usa leitura autoritativa e não implica retry de mutação.
+Reconciliação usa leitura autoritativa e não implica retry de mutação. O procedimento operacional, incluindo fila interrompida, falhas consecutivas, divergência, evidência sanitizada e validação live em sandbox, está em `docs/runbooks/billing-asaas.md`.
 
 ## Operações financeiras expostas pelo runtime
 
@@ -154,8 +158,14 @@ Mutações financeiras adicionais usam o mesmo ledger local-first. Reativação 
 - customer/checkout idempotentes com transporte fake;
 - uma tentativa mutável = uma chamada outbound e ausência de retry oculto;
 - timeout de POST bloqueia recriação cega;
+- resposta de Checkout somente com `id` produz a URL oficial e continua idempotente;
+- evento terminal do provider fecha a tentativa mesmo se ela já estava `created`, e resposta HTTP tardia não reabre nem reconfirma essa tentativa;
 - método desabilitado, Pix com trial e charge zero falham antes de outbound;
 - Pix usa autorização `MANUAL`, sem valor recorrente fixo;
 - cobrança Pix futura é apenas agendada até entrar na janela operacional;
 - webhook exige token exato e sanitiza metadata;
 - CI deve executar os gates definidos pelo repositório, incluindo TypeScript, testes, arquitetura, documentação, build e `pnpm agent:check`.
+
+## Gate live de sandbox
+
+Testes herméticos e CI não recebem credenciais reais do Asaas. Antes de liberar a integração para uso real, um responsável operacional deve executar o checklist live do `docs/runbooks/billing-asaas.md` com `ASAAS_ENV=sandbox`, registrar evidência sanitizada vinculada ao SHA e confirmar checkout, webhooks e reconciliação sem alterar `BILLING_ACCESS_MODE=open_access`.

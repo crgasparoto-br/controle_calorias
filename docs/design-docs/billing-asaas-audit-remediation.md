@@ -27,7 +27,18 @@ Os hooks são registrados no startup normal e no comando de reconciliação admi
 
 Mutações de cancelamento e reativação que terminem com resultado remoto incerto são relidas no Asaas antes de qualquer nova mutação. Se a leitura comprovar que o efeito ocorreu, o ledger fecha como `created`; se comprovar que o efeito não ocorreu, a operação volta a `prepared` e exige uma nova chamada para executar o retry, mantendo uma única chamada outbound por tentativa. O reset do valor-base após o fim de um desconto segue o mesmo contrato: relê a assinatura, fecha quando o valor remoto coincide com o esperado ou reabre a operação quando a leitura comprova ausência do efeito. Atualização direta de cartão por token não é anunciada como capacidade enquanto não houver leitura autoritativa capaz de comprovar o resultado de um timeout; o backend deve usar um fluxo externo recuperável quando esse contrato for implementado.
 
-As transições do ledger são monotônicas para efeitos confirmados: uma operação já marcada como `created` não pode regredir para `outcome_unknown` ou `failed` por uma resposta HTTP tardia concorrendo com webhook/reconciliação.
+As transições do ledger distinguem falha de transporte de encerramento autoritativo. Uma operação já `created` não pode regredir para `outcome_unknown` ou `failed` por resposta HTTP tardia; porém `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` e uma autorização Pix cancelada, expirada ou recusada podem encerrar explicitamente a tentativa porque são fatos autoritativos do provider. Depois desse encerramento, respostas HTTP tardias também não podem reabrir ou reconfirmar a operação.
+
+
+## Contrato de link do Checkout e encerramentos terminais
+
+O Asaas mantém documentação recente com duas formas de resposta de criação de Checkout: uma inclui `link`, outra descreve somente o `id` e a montagem de `https://asaas.com/checkoutSession/show?id=<id>`. O adapter aceita ambas. Um retorno somente com `id` não é classificado como falha local depois de criação remota bem-sucedida.
+
+Eventos terminais são processados antes da correlação genérica `CHECKOUT_*`/`PIX_AUTOMATIC_*`. O ledger usa `markProviderTerminal` para permitir somente essa transição autoritativa de `created` para `failed`; transições ordinárias continuam protegidas contra regressão concorrente.
+
+## Operação e sandbox
+
+`docs/runbooks/billing-asaas.md` é o runbook canônico para fila interrompida, falhas consecutivas, `outcome_unknown`, divergência e validação live em sandbox. Credenciais reais não entram em PR, artefato ou GitHub Actions; a validação live é executada por operador autorizado em ambiente seguro e produz apenas evidência sanitizada vinculada ao SHA.
 
 ## Evidência de regressão
 
@@ -39,7 +50,9 @@ A remediação adiciona controles focados para:
 - cancelamento/reativação incertos fechados por leitura autoritativa;
 - ausência comprovada do efeito reabre a operação para retry seguro em uma chamada posterior;
 - `coupon_reset` incerto fechado por leitura do valor remoto, sem segundo PUT;
-- estado `created` protegido contra regressão concorrente;
+- estado `created` protegido contra falha/timeout tardio e encerramento terminal do provider protegido contra resposta HTTP tardia;
+- resposta de Checkout somente com `id`, sem `link`;
+- eventos terminais de Checkout e autorização Pix;
 - cobrança de conversão antecipada já alinhada sem nova mutação;
 - recuperação da `confirmationKey` por `paymentId`;
 - callback hospedado permanecendo `pending`.

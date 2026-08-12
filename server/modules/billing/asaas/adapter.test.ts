@@ -176,6 +176,36 @@ describe("Asaas adapter", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("builds the official checkout URL when Asaas returns only the checkout id", async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (request, init) => {
+      const url = String(request);
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/customers")) return jsonResponse({ id: "cus_1" });
+      if (url.endsWith("/checkouts")) return jsonResponse({ id: "chk_id_only" });
+      throw new Error("unexpected");
+    };
+    const adapter = createAsaasAdapter({
+      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      store: memoryStore(),
+      enabledPaymentMethods: ["credit_card"],
+      now: () => new Date("2026-08-11T12:00:00.000Z"),
+    });
+
+    const first = await adapter.createPaymentFlow(baseFlow());
+    const second = await adapter.createPaymentFlow(baseFlow());
+
+    expect(first).toEqual({
+      kind: "hosted_checkout",
+      provider: "asaas",
+      externalId: "chk_id_only",
+      url: "https://asaas.com/checkoutSession/show?id=chk_id_only",
+      state: "pending",
+    });
+    expect(second).toEqual(first);
+    expect(calls).toHaveLength(2);
+  });
+
   it("does not blindly recreate a checkout after an uncertain POST outcome", async () => {
     let calls = 0;
     const fetchImpl: typeof fetch = async request => {

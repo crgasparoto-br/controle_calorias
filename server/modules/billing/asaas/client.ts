@@ -86,6 +86,22 @@ export function createAsaasClient(input: {
         }
       }
       if (!response.ok) throw new AsaasHttpError(response.status, errorCodes(payload));
+      if (
+        method === "POST" &&
+        url.pathname.endsWith("/checkouts") &&
+        payload &&
+        typeof payload === "object" &&
+        !Array.isArray(payload)
+      ) {
+        const checkout = payload as { id?: unknown; link?: unknown };
+        const checkoutId = typeof checkout.id === "string" ? checkout.id.trim() : "";
+        const checkoutLink = typeof checkout.link === "string" ? checkout.link.trim() : "";
+        if (checkoutId && !checkoutLink) {
+          const checkoutUrl = new URL("https://asaas.com/checkoutSession/show");
+          checkoutUrl.searchParams.set("id", checkoutId);
+          payload = { ...checkout, link: checkoutUrl.toString() };
+        }
+      }
       return payload as T;
     } catch (error) {
       if (error instanceof AsaasHttpError) throw error;
