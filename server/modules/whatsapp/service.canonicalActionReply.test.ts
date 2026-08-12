@@ -94,7 +94,7 @@ describe("simulateWhatsappInbound canonical action reply", () => {
     }));
   });
 
-  it("encaminha o cenário #970 do simulador sem alterar o comando textual", async () => {
+  it("encaminha o cenário #970 do simulador pelo executor canônico após normalização de unidade", async () => {
     executeWhatsappTextIntentMock.mockResolvedValue({
       handled: true,
       action: "meal_item_added",
@@ -113,7 +113,7 @@ describe("simulateWhatsappInbound canonical action reply", () => {
     });
 
     expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      text,
+      text: "Adicionar 3 xícara de café sem açúcar no café da manhã",
       messageId: "issue-970-simulator",
     }));
     expect(result).toEqual(expect.objectContaining({
