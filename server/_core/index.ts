@@ -38,6 +38,7 @@ import {
   startAsaasBillingReconciliationScheduler,
 } from "../modules/billing/asaas/runtime";
 import { configureAsaasBillingLifecycleHooks } from "../modules/billing/asaas/remediationRuntime";
+import { startAsaasPixAuthorizationRecoveryScheduler } from "../modules/billing/asaas/pixAuthorizationRecovery";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -218,6 +219,7 @@ async function startServer() {
 
   startConversationRetentionScheduler();
   startAsaasBillingReconciliationScheduler();
+  startAsaasPixAuthorizationRecoveryScheduler();
 }
 
 startServer().catch(console.error);
