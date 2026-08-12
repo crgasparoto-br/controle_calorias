@@ -167,22 +167,23 @@ export function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | 
     return null;
   }
 
-  const amountMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:xicaras?|xicara?s?|copos?)\b/);
+  const amountMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(xicaras?|xicara?s?|copos?)\b/);
   if (!amountMatch) {
-    return { cups: 0, mealLabel: null };
+    return { cups: 0, unit: null, mealLabel: null };
   }
 
   const cups = Number(amountMatch[1].replace(",", "."));
   if (!Number.isFinite(cups) || cups <= 0) {
-    return { cups: 0, mealLabel: null };
+    return { cups: 0, unit: null, mealLabel: null };
   }
+  const unit = normalizeMeasurementUnit(amountMatch[2]);
 
   const mealMatch = normalized.match(/\brefeicao\s+(.+)$/);
   const mealLabel = mealMatch?.[1]
     ?.replace(/\b(?:hoje|ontem|agora|por favor|pfv)\b/g, "")
     .trim() || null;
 
-  return { cups, mealLabel };
+  return { cups, unit, mealLabel };
 }
 
 export function parseCoffeeLorCapsuleIntent(text: string): CoffeeLorCapsuleIntent | null {

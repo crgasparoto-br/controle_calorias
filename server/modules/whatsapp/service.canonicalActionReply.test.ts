@@ -93,4 +93,31 @@ describe("simulateWhatsappInbound canonical action reply", () => {
       reply: canonicalReply,
     }));
   });
+
+  it("encaminha o cenário #970 do simulador sem alterar o comando textual", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValue({
+      handled: true,
+      action: "meal_item_added",
+      reply: "Adicionei 3 xícaras de café sem açúcar à refeição Café da manhã.",
+      eventType: "whatsapp.intent.meal_item_added",
+      detail: "Cenário #970 tratado pelo executor textual canônico.",
+      data: { mealId: 970 },
+    });
+
+    const text = "Adicionar 3 xícaras de café sem açúcar no café da manhã";
+    const result = await simulateWhatsappInbound(42, {
+      text,
+      receivedAt: new Date("2026-08-12T12:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+      messageId: "issue-970-simulator",
+    });
+
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      text,
+      messageId: "issue-970-simulator",
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_added",
+    }));
+  });
 });

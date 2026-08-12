@@ -172,18 +172,21 @@ export function buildFoodAdditionItem(foodName: string, quantity: number, unit =
   };
 }
 
-export function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
-  const volumeMl = Math.round(cups * UNSWEETENED_COFFEE_CUP_ML);
-  const calories = Math.round(cups * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
-  const cupLabel = cups === 1 ? "xícara" : "xícaras";
+export function buildUnsweetenedCoffeeItem(quantity: number, unit = "xícara"): MealItemInput {
+  const normalizedUnit = normalizeAdditionUnit(unit);
+  const volumeMl = Math.round(quantity * UNSWEETENED_COFFEE_CUP_ML);
+  const calories = Math.round(quantity * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
+  const householdUnitLabel = normalizedUnit === "copo"
+    ? (quantity === 1 ? "copo" : "copos")
+    : (quantity === 1 ? "xícara" : "xícaras");
 
   return {
     foodName: "Café sem açúcar",
     canonicalName: "Café preto sem açúcar",
-    quantity: cups,
-    unit: "xícara",
-    portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
-    servings: Math.max(cups, 0.1),
+    quantity,
+    unit: normalizedUnit,
+    portionText: `${formatNumber(quantity)} ${householdUnitLabel} (${formatNumber(volumeMl)} ml)`,
+    servings: Math.max(quantity, 0.1),
     estimatedGrams: volumeMl,
     calories,
     protein: 0,

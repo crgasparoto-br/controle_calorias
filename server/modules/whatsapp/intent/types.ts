@@ -63,6 +63,7 @@ export type NutritionTotals = {
 
 export type CoffeeAdditionIntent = {
   cups: number;
+  unit: string | null;
   mealLabel: string | null;
 };
 

@@ -67,6 +67,57 @@ describe("issue #970 - adição natural com destino de refeição", () => {
     expect(result.items[0]?.missingFields).toEqual([]);
   });
 
+  it("preserva todos os itens de uma adição mista", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar 3 xícaras de café sem açúcar e 1 banana no café da manhã",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("café da manhã");
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      quantity: 3,
+      unit: "xícara",
+    }));
+    expect(normalize(result.items[0].foodName)).toBe("cafe sem acucar");
+    expect(result.items[1]).toEqual(expect.objectContaining({
+      foodName: "banana",
+      quantity: 1,
+      unit: "unidade",
+    }));
+  });
+
+  it("preserva copo como unidade canônica de café sem açúcar", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar 3 copos de café sem açúcar no café da manhã",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("café da manhã");
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      quantity: 3,
+      unit: "copo",
+      missingFields: [],
+    }));
+    expect(normalize(result.items[0].foodName)).toBe("cafe sem acucar");
+  });
+
+  it.each([
+    ["Adicionar 1 copo de café sem açúcar no café da manhã", 1],
+    ["Adicionar 2 copos de café sem açúcar no lanche", 2],
+  ])("preserva singular/plural de copo sem converter a unidade: %s", (text, quantity) => {
+    const result = parseMealCommandFromWhatsApp(text, { referenceDate });
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      quantity,
+      unit: "copo",
+      missingFields: [],
+    }));
+  });
+
   it("não interpreta o alimento café como alias curto de café da manhã", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar 3 xícaras de café sem açúcar",

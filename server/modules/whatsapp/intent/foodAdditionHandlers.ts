@@ -1,3 +1,4 @@
+import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { getHabitSnapshots } from "../../../db";
 import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
@@ -38,6 +39,13 @@ function buildCompleteAdditionFoodText(items: FoodAdditionItem[]) {
   return items.map(buildAdditionFoodText).join(" e ");
 }
 
+function normalizeCoffeeAdditionText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function findResolvedSweetenedCoffee(items: MealItemInput[]) {
   const matches = items.filter(item =>
     isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
@@ -55,9 +63,16 @@ async function resolveAdditionItems(input: {
   | { kind: "items"; items: MealItemInput[] }
   | { kind: "clarification"; result: WhatsappIntentResult }
 > {
-  const resolvedItems = input.addition.items.map(item =>
-    buildFoodAdditionItem(item.foodName, item.quantity, item.unit)
-  );
+  const resolvedItems = input.addition.items.map(item => {
+    const normalizedUnit = normalizeMeasurementUnit(item.unit);
+    const normalizedName = normalizeCoffeeAdditionText(item.foodName);
+    const isUnsweetenedCoffee = /\bcafe\b/.test(normalizedName)
+      && /\bsem acucar\b/.test(normalizedName);
+    if (isUnsweetenedCoffee && (normalizedUnit === "xícara" || normalizedUnit === "copo")) {
+      return buildUnsweetenedCoffeeItem(item.quantity, normalizedUnit);
+    }
+    return buildFoodAdditionItem(item.foodName, item.quantity, normalizedUnit);
+  });
   const coffeeIndexes = input.addition.items
     .map((item, index) => isCoffeeWithAddedSugar(item.foodName) ? index : -1)
     .filter(index => index >= 0);
@@ -216,13 +231,6 @@ export async function handleFoodAdditionIntent(
   };
 }
 
-function normalizeCoffeeAdditionText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 function resolveCanonicalCoffeeAddition(
   text: string,
   addition: CoffeeAdditionIntent,
@@ -249,8 +257,16 @@ function resolveCanonicalCoffeeAddition(
 
   return {
     cups: parsedCups || addition.cups,
+    unit: (parsedCups ? parsedUnit : null) ?? addition.unit,
     mealLabel: parsed.mealType ?? addition.mealLabel,
   };
+}
+
+function formatCoffeeAdditionQuantity(addition: CoffeeAdditionIntent) {
+  const unitLabel = addition.unit === "copo"
+    ? (addition.cups === 1 ? "copo" : "copos")
+    : (addition.cups === 1 ? "xícara" : "xícaras");
+  return `${addition.cups} ${unitLabel}`;
 }
 
 function buildCoffeeAdditionMissingFieldsReply(addition: CoffeeAdditionIntent) {
@@ -262,7 +278,7 @@ function buildCoffeeAdditionMissingFieldsReply(addition: CoffeeAdditionIntent) {
   }
   if (addition.cups && !addition.mealLabel) {
     return {
-      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar ${addition.cups} xícaras de café sem açúcar. Me diga apenas a refeição, por exemplo: café da manhã.`),
+      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar ${formatCoffeeAdditionQuantity(addition)} de café sem açúcar. Me diga apenas a refeição, por exemplo: café da manhã.`),
       detail: "Pedido para adicionar café sem açúcar com quantidade reconhecida e refeição ausente.",
     };
   }
@@ -303,7 +319,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     };
   }
 
-  const coffeeItem = buildUnsweetenedCoffeeItem(resolvedAddition.cups);
+  const coffeeItem = buildUnsweetenedCoffeeItem(resolvedAddition.cups, resolvedAddition.unit ?? "xícara");
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,

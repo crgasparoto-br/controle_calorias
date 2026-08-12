@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const processMealInputMock = vi.fn();
+const resolveWhatsAppPrecedenceGateMock = vi.fn(async () => ({ step: "continue_pipeline" as const }));
 
 vi.mock("../../db", () => ({
   getHabitSnapshots: vi.fn(async () => []),
@@ -31,6 +32,10 @@ vi.mock("../onboarding/profileRead", () => ({
   getUserOnboardingProfile: vi.fn(async () => ({ timezone: "America/Sao_Paulo" })),
 }));
 
+vi.mock("./messageRouter", () => ({
+  resolveWhatsAppPrecedenceGate: resolveWhatsAppPrecedenceGateMock,
+}));
+
 vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: vi.fn(async (input: {
     options?: { actionLines?: string[] };
@@ -54,6 +59,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     processMealInputMock.mockReset();
+    resolveWhatsAppPrecedenceGateMock.mockClear();
   });
 
   it.each([
@@ -101,6 +107,130 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     }));
     expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
+  });
+
+  it("mantém a mesma decisão no entrypoint de áudio transcrito", async () => {
+    listMealsMock.mockResolvedValue([breakfast]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 970,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      entrypoint: "audioTranscription",
+    });
+
+    expect(resolveWhatsAppPrecedenceGateMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      eventType: "whatsapp.intent.meal_item_added",
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+  });
+
+  it("preserva todos os itens quando café sem açúcar aparece em comando misto", async () => {
+    listMealsMock.mockResolvedValue([breakfast]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 970,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 xícaras de café sem açúcar e 1 banana no café da manhã",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 970,
+      items: [
+        expect.objectContaining({
+          foodName: "Café sem açúcar",
+          quantity: 3,
+          unit: "xícara",
+        }),
+        expect.objectContaining({
+          foodName: "banana",
+          quantity: 1,
+          unit: "un",
+        }),
+      ],
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      data: expect.objectContaining({ itemCount: 2 }),
+    }));
+  });
+
+  it("preserva itens mistos também quando café não é o primeiro item", async () => {
+    listMealsMock.mockResolvedValue([breakfast]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 970,
+      ...input,
+    }));
+
+    await executeWhatsappTextIntent(42, {
+      text: "Adicionar 1 banana e 3 xícaras de café sem açúcar no café da manhã",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [
+        expect.objectContaining({ foodName: "banana", quantity: 1, unit: "un" }),
+        expect.objectContaining({ foodName: "Café sem açúcar", quantity: 3, unit: "xícara" }),
+      ],
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+  });
+
+  it("preserva copo como unidade canônica no executor e na resposta", async () => {
+    listMealsMock.mockResolvedValue([breakfast]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 970,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 copos de café sem açúcar no café da manhã",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [expect.objectContaining({
+        foodName: "Café sem açúcar",
+        quantity: 3,
+        unit: "copo",
+        portionText: expect.stringContaining("3 copos"),
+      })],
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(result?.reply).toContain("3 copos");
+    expect(result?.reply).not.toContain("3 xícaras");
+  });
+
+  it("preserva copo na clarificação quando somente a refeição está ausente", async () => {
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 copos de café sem açúcar",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(result?.reply).toContain("3 copos de café sem açúcar");
+    expect(result?.reply).toContain("Me diga apenas a refeição");
+    expect(result?.reply).not.toContain("3 xícaras");
   });
 
   it("pergunta somente a quantidade quando a refeição já foi reconhecida", async () => {
