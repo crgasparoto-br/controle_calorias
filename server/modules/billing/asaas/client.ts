@@ -41,6 +41,26 @@ function errorCodes(payload: unknown): string[] {
     .slice(0, 10);
 }
 
+function normalizeRequestBody(
+  method: NonNullable<RequestOptions["method"]>,
+  url: URL,
+  body: unknown
+) {
+  if (
+    method !== "POST" ||
+    !url.pathname.endsWith("/pix/automatic/authorizations") ||
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
+    return body;
+  }
+  const payload = body as Record<string, unknown>;
+  return payload.frequency === "YEARLY"
+    ? { ...payload, frequency: "ANNUALLY" }
+    : body;
+}
+
 export function createAsaasClient(input: {
   environment: AsaasEnvironment;
   apiKey: string;
@@ -62,6 +82,7 @@ export function createAsaasClient(input: {
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== null && value !== undefined) url.searchParams.set(key, String(value));
     }
+    const requestBody = normalizeRequestBody(method, url, options.body);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -71,9 +92,9 @@ export function createAsaasClient(input: {
         headers: {
           accept: "application/json",
           access_token: apiKey,
-          ...(options.body === undefined ? {} : { "content-type": "application/json" }),
+          ...(requestBody === undefined ? {} : { "content-type": "application/json" }),
         },
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
         signal: controller.signal,
       });
       const text = await response.text();
