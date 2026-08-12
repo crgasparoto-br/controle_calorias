@@ -160,7 +160,7 @@ export function parseFoodReplacementIntents(text: string): FoodReplacementIntent
 
 export function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
   const normalized = normalizeIntentText(text);
-  if (!/\b(adicionar|adiciona|inclui|incluir|registrar|registra)\b/.test(normalized)) {
+  if (!/\b(?:adicionar|adiciona|adicione|incluir|inclui|inclua|colocar|coloca|coloque|acrescentar|acrescenta|acrescente|registrar|registra|registre|lancar|lanca|lance)\b/.test(normalized)) {
     return null;
   }
   if (!/\bcafe\b/.test(normalized) || !/\bsem acucar\b/.test(normalized)) {

@@ -56,7 +56,15 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     processMealInputMock.mockReset();
   });
 
-  it("registra o café quando quantidade e refeição já estão no texto", async () => {
+  it.each([
+    "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+    "Adicione 3 xícaras de café sem açúcar ao café da manhã",
+    "Inclua 3 xícaras de café sem açúcar na refeição café da manhã",
+    "Coloque 3 xícaras de café sem açúcar para o café da manhã",
+    "Acrescente 3 xícaras de café sem açúcar à refeição café da manhã",
+    "Registre 3 xícaras de café sem açúcar para a refeição café da manhã",
+    "Lance 3 xícaras de café sem açúcar a refeição café da manhã",
+  ])("mantém os verbos de adição de café no executor especializado sem LLM: %s", async text => {
     listMealsMock.mockResolvedValue([breakfast]);
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 970,
@@ -64,7 +72,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     }));
 
     const result = await executeWhatsappTextIntent(42, {
-      text: "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+      text,
       receivedAt,
       userTimezone: "America/Sao_Paulo",
     });
