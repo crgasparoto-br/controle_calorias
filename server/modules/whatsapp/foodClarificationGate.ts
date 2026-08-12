@@ -1,5 +1,11 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import {
+  isPendingCoffeeAdditionClarification,
+  parseCoffeeAdditionClarificationMeal,
+  parseCoffeeAdditionClarificationQuantity,
+  PENDING_COFFEE_ADDITION_CLARIFICATION_TYPE,
+} from "./coffeeAdditionClarification";
+import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
@@ -219,6 +225,30 @@ export async function resolvePendingWhatsappFoodClarification(input: {
       (await pendingOperationRepository.getLatestPendingOperation?.(
         input.userId
       )) ?? null;
+    if (
+      latest?.type === PENDING_COFFEE_ADDITION_CLARIFICATION_TYPE
+      && isPendingCoffeeAdditionClarification(latest.target)
+      && (latest.state !== "active"
+        || new Date(latest.expiresAt).getTime() < (input.receivedAt ?? new Date()).getTime())
+    ) {
+      const matchesStaleReply = latest.target.missingField === "quantity"
+        ? Boolean(parseCoffeeAdditionClarificationQuantity(input.text))
+        : Boolean(parseCoffeeAdditionClarificationMeal(input.text));
+      if (matchesStaleReply || isStandaloneWhatsappCommandWord(input.text)) {
+        return {
+          handled: true,
+          action: "clarification_needed",
+          reply: "Essa pergunta não está mais disponível. Envie novamente o comando completo para adicionar o café.",
+          eventType: "whatsapp.coffee_addition_clarification.unavailable",
+          detail: "Resposta curta para clarificação parcial de café expirada ou já consumida foi bloqueada antes do fallback.",
+          data: {
+            fallbackBlocked: true,
+            fallbackBlockReason: "stale_coffee_addition_clarification",
+            interactionLifecycle: "blocked",
+          },
+        };
+      }
+    }
     if (
       latest?.type === PENDING_MEAL_INTENT_DECISION_TYPE &&
       parseMealIntentDecisionTextAction(input.text) &&

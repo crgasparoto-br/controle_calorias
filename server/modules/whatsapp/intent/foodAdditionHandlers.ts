@@ -3,6 +3,7 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { getHabitSnapshots } from "../../../db";
 import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
 import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
 import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
 import { parseMealCommandFromWhatsApp } from "../mealCommandParser";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
@@ -303,6 +304,14 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     timeZone,
   );
   if (!resolvedAddition.cups || !resolvedAddition.mealLabel) {
+    if (Boolean(resolvedAddition.cups) !== Boolean(resolvedAddition.mealLabel)) {
+      return createWhatsappCoffeeAdditionClarification({
+        userId,
+        originalText: text,
+        addition: resolvedAddition,
+        receivedAt,
+      });
+    }
     const clarification = buildCoffeeAdditionMissingFieldsReply(resolvedAddition);
     return {
       handled: true,

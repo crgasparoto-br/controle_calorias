@@ -249,6 +249,11 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     }));
     expect(result?.reply).toContain("Me diga apenas a quantidade");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
+    expect(result?.data).toEqual(expect.objectContaining({
+      pendingType: "coffee_addition_clarification",
+      preservedMealLabel: "café da manhã",
+      missingField: "quantity",
+    }));
   });
 
   it("pergunta somente a refeição quando a quantidade já foi reconhecida", async () => {
@@ -267,5 +272,11 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     }));
     expect(result?.reply).toContain("Me diga apenas a refeição");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
+    expect(result?.data).toEqual(expect.objectContaining({
+      pendingType: "coffee_addition_clarification",
+      preservedQuantity: 3,
+      preservedUnit: "xícara",
+      missingField: "meal",
+    }));
   });
 });
