@@ -1,12 +1,12 @@
-import type { Request, Response } from "express";
 import {
   authenticateAsaasWebhook,
   createAsaasWebhookRuntime as createBaseAsaasWebhookRuntime,
   financialKind,
   isPixAuthorizationActivated,
   isPixAuthorizationTerminal,
-  normalizeAsaasWebhookEnvelope as normalizeBaseAsaasWebhookEnvelope,
+  normalizeAsaasWebhookEnvelope,
   type AsaasWebhookEnvelope,
+  type PersistedWebhookRow,
 } from "./webhookCore";
 import {
   persistPixInitialPaymentCorrelation,
@@ -14,19 +14,14 @@ import {
 } from "./adapter";
 import type { AsaasOperationStore } from "./operationStore";
 
-export type { AsaasWebhookEnvelope };
+export type { AsaasWebhookEnvelope, PersistedWebhookRow };
 export {
   authenticateAsaasWebhook,
   financialKind,
   isPixAuthorizationActivated,
   isPixAuthorizationTerminal,
+  normalizeAsaasWebhookEnvelope,
 };
-
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
 
 function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -36,52 +31,23 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function pixConciliationIdentifier(envelope: AsaasWebhookEnvelope) {
-  const immediateQrCode = recordValue(envelope.authorization?.immediateQrCode);
-  return (
-    textValue(envelope.payment?.conciliationIdentifier) ??
-    textValue(immediateQrCode?.conciliationIdentifier)
-  );
-}
-
-export function normalizeAsaasWebhookEnvelope(envelope: AsaasWebhookEnvelope) {
-  const normalized = normalizeBaseAsaasWebhookEnvelope(envelope);
-  const conciliationIdentifier = pixConciliationIdentifier(envelope);
-  if (!conciliationIdentifier) return normalized;
-  return {
-    ...normalized,
-    metadata: {
-      ...(normalized.metadata ?? {}),
-      publicReference: conciliationIdentifier,
-    },
-  };
-}
-
-function parseRawEnvelope(req: Request): AsaasWebhookEnvelope | null {
-  const raw = Buffer.isBuffer(req.body)
-    ? req.body
-    : req.body instanceof Uint8Array
-      ? Buffer.from(req.body)
-      : null;
-  if (!raw || raw.byteLength === 0 || raw.byteLength > 128 * 1024) return null;
-  try {
-    const parsed = JSON.parse(raw.toString("utf8"));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as AsaasWebhookEnvelope)
-      : null;
-  } catch {
-    return null;
-  }
+function metadataText(event: PersistedWebhookRow, key: string) {
+  return textValue(event.metadata[key]);
 }
 
 export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
   store: AsaasOperationStore;
-  envelope: AsaasWebhookEnvelope;
+  event: PersistedWebhookRow;
 }) {
-  const payment = input.envelope.payment;
-  const paymentId = textValue(payment?.id);
-  const conciliationIdentifier = pixConciliationIdentifier(input.envelope);
-  if (!paymentId || !conciliationIdentifier) return null;
+  const paymentId = metadataText(input.event, "objectId");
+  const conciliationIdentifier = metadataText(input.event, "publicReference");
+  if (
+    !input.event.eventType.startsWith("PAYMENT_") ||
+    !paymentId ||
+    !conciliationIdentifier
+  ) {
+    return null;
+  }
 
   const existingPayment = await input.store.findByExternalId(
     "pix_payment",
@@ -105,7 +71,7 @@ export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
     conciliationIdentifier
   );
   const operationKey = `pix-initial-payment-event:${paymentId}`;
-  const value = numberValue(payment?.value);
+  const amountMinor = numberValue(input.event.metadata.amountMinor);
   const prepared = await input.store.prepare({
     kind: "pix_payment",
     operationKey,
@@ -114,12 +80,9 @@ export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
     authorizationReference:
       mapping?.authorizationReference ?? mapping?.externalId ?? null,
     publicReference: conciliationIdentifier,
-    correlationId:
-      textValue(input.envelope.id) ??
-      textValue(input.envelope.event) ??
-      operationKey,
-    amountMinor: value === null ? null : Math.round(value * 100),
-    dueDate: textValue(payment?.dueDate),
+    correlationId: input.event.providerEventId,
+    amountMinor,
+    dueDate: metadataText(input.event, "dueDate"),
   });
   if (
     (prepared.operation.externalId && prepared.operation.externalId !== paymentId) ||
@@ -163,18 +126,20 @@ export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
 
 export async function recoverAsaasPixInitialPaymentCorrelationFromAuthorization(input: {
   store: AsaasOperationStore;
-  envelope: AsaasWebhookEnvelope;
+  event: PersistedWebhookRow;
 }) {
-  const authorization = input.envelope.authorization;
-  const authorizationId = textValue(authorization?.id);
-  const conciliationIdentifier = pixConciliationIdentifier(input.envelope);
+  if (!input.event.eventType.startsWith("PIX_AUTOMATIC_")) return null;
+  const authorizationId =
+    metadataText(input.event, "authorizationReference") ??
+    metadataText(input.event, "objectId");
+  const conciliationIdentifier = metadataText(input.event, "publicReference");
   if (!authorizationId || !conciliationIdentifier) return null;
 
   let operation = await input.store.findByExternalId(
     "pix_automatic_authorization",
     authorizationId
   );
-  const contractId = textValue(authorization?.contractId);
+  const contractId = metadataText(input.event, "contractReference");
   if (!operation && contractId) {
     operation = await input.store.findByPublicReference(
       "pix_automatic_authorization",
@@ -190,6 +155,14 @@ export async function recoverAsaasPixInitialPaymentCorrelationFromAuthorization(
     authorizationId,
     conciliationIdentifier,
   });
+}
+
+export async function processAsaasPixCorrelationForPersistedEvent(input: {
+  store: AsaasOperationStore;
+  event: PersistedWebhookRow;
+}) {
+  await recoverAsaasPixInitialPaymentCorrelationFromAuthorization(input);
+  return persistAsaasPixInitialPaymentEventCorrelation(input);
 }
 
 export function createConciliationAwareAsaasOperationStore(
@@ -236,75 +209,20 @@ export function createConciliationAwareAsaasOperationStore(
   };
 }
 
-function enrichPaymentEnvelope(
-  envelope: AsaasWebhookEnvelope,
-  mapping: Awaited<
-    ReturnType<AsaasOperationStore["findByPublicReference"]>
-  >
-) {
-  if (!mapping || !envelope.payment) return envelope;
-  const authorizationId = mapping.authorizationReference ?? mapping.externalId;
-  if (!mapping.externalReference && !authorizationId) return envelope;
-  return {
-    ...envelope,
-    payment: {
-      ...envelope.payment,
-      ...(mapping.externalReference
-        ? { externalReference: mapping.externalReference }
-        : {}),
-      ...(authorizationId
-        ? { pixAutomaticAuthorizationId: authorizationId }
-        : {}),
-    },
-  };
-}
-
 export function createAsaasWebhookRuntime(input: {
   webhookToken: string;
   adapter: AsaasAdapter;
   store: AsaasOperationStore;
 }) {
   const store = createConciliationAwareAsaasOperationStore(input.store);
-  const runtime = createBaseAsaasWebhookRuntime({ ...input, store });
-  return {
-    ...runtime,
-    async handle(req: Request, res: Response) {
-      if (
-        !authenticateAsaasWebhook(
-          req.headers as Record<string, string | string[] | undefined>,
-          input.webhookToken
-        )
-      ) {
-        return runtime.handle(req, res);
-      }
-
-      const envelope = parseRawEnvelope(req);
-      if (!envelope) return runtime.handle(req, res);
-      try {
-        await recoverAsaasPixInitialPaymentCorrelationFromAuthorization({
-          store: input.store,
-          envelope,
-        });
-        const paymentCorrelation =
-          await persistAsaasPixInitialPaymentEventCorrelation({
-            store: input.store,
-            envelope,
-          });
-        if (paymentCorrelation?.mapping) {
-          req.body = Buffer.from(
-            JSON.stringify(
-              enrichPaymentEnvelope(envelope, paymentCorrelation.mapping)
-            )
-          );
-        }
-      } catch (error) {
-        console.warn("[Billing/Asaas] Pix initial payment correlation failed", {
-          error: error instanceof Error ? error.name : "unknown",
-        });
-        res.status(503).json({ ok: false });
-        return;
-      }
-      return runtime.handle(req, res);
+  return createBaseAsaasWebhookRuntime({
+    ...input,
+    store,
+    beforeProcessEvent: async event => {
+      await processAsaasPixCorrelationForPersistedEvent({
+        store: input.store,
+        event,
+      });
     },
-  };
+  });
 }

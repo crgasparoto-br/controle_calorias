@@ -94,6 +94,7 @@ Depois da autenticação:
 - o body bruto não é salvo;
 - HTTP 200 é devolvido depois da persistência;
 - processamento ocorre sobre o registro persistido, não sobre o objeto JSON em memória;
+- a correlação auxiliar do Pix Automático (`conciliationIdentifier`) usa apenas metadata sanitizada do registro durável e acontece dentro do processamento recuperável, nunca antes da validação/persistência do `providerEventId`;
 - duplicatas retornam sucesso sem repetir efeito;
 - `failed/correlation_pending` e falhas transitórias ficam reprocessáveis pelo reconciliador;
 - `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` e autorizações Pix canceladas, expiradas ou recusadas fecham a tentativa como terminal por uma transição explicitamente autoritativa do provider;

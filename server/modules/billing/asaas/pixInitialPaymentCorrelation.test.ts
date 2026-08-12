@@ -3,11 +3,16 @@ import { createAsaasClient, AsaasUncertainOutcomeError } from "./client";
 import {
   createAsaasAdapter,
   persistPixInitialPaymentCorrelation,
+  type AsaasAdapter,
 } from "./adapter";
 import {
+  createAsaasWebhookRuntime,
   createConciliationAwareAsaasOperationStore,
   normalizeAsaasWebhookEnvelope,
   persistAsaasPixInitialPaymentEventCorrelation,
+  processAsaasPixCorrelationForPersistedEvent,
+  type AsaasWebhookEnvelope,
+  type PersistedWebhookRow,
 } from "./webhook";
 import type {
   AsaasOperation,
@@ -121,6 +126,19 @@ function memoryStore(): AsaasOperationStore {
           (item.state === "prepared" || item.state === "outcome_unknown")
       );
     },
+  };
+}
+
+
+function persistedEvent(envelope: AsaasWebhookEnvelope): PersistedWebhookRow {
+  const normalized = normalizeAsaasWebhookEnvelope(envelope);
+  return {
+    id: `db:${normalized.providerEventId}`,
+    providerEventId: normalized.providerEventId,
+    eventType: normalized.eventType,
+    subscriptionId: null,
+    occurredAt: normalized.occurredAt,
+    metadata: normalized.metadata ?? {},
   };
 }
 
@@ -247,7 +265,7 @@ describe("Asaas Pix Automático initial payment correlation", () => {
     const store = memoryStore();
     await persistAsaasPixInitialPaymentEventCorrelation({
       store,
-      envelope: {
+      event: persistedEvent({
         id: "evt_initial_pix",
         event: "PAYMENT_RECEIVED",
         payment: {
@@ -256,7 +274,7 @@ describe("Asaas Pix Automático initial payment correlation", () => {
           dueDate: "2026-08-12",
           conciliationIdentifier: "ASAAS-CID-LATE",
         },
-      },
+      }),
     });
 
     await persistPixInitialPaymentCorrelation({
@@ -299,14 +317,14 @@ describe("Asaas Pix Automático initial payment correlation", () => {
 
     const result = await persistAsaasPixInitialPaymentEventCorrelation({
       store,
-      envelope: {
+      event: persistedEvent({
         id: "evt_recurring",
         event: "PAYMENT_RECEIVED",
         payment: {
           id: "pay_recurring_1",
           conciliationIdentifier: "CID-RECURRING",
         },
-      },
+      }),
     });
 
     expect(result).toMatchObject({
@@ -329,14 +347,14 @@ describe("Asaas Pix Automático initial payment correlation", () => {
     });
     await persistAsaasPixInitialPaymentEventCorrelation({
       store,
-      envelope: {
+      event: persistedEvent({
         id: "evt_unknown",
         event: "PAYMENT_RECEIVED",
         payment: {
           id: "pay_unknown",
           conciliationIdentifier: "ASAAS-CID-UNKNOWN",
         },
-      },
+      }),
     });
 
     const wrapped = createConciliationAwareAsaasOperationStore(store);
@@ -344,4 +362,144 @@ describe("Asaas Pix Automático initial payment correlation", () => {
       wrapped.findByExternalId("pix_payment", "pay_unknown")
     ).resolves.toMatchObject({ subscriptionId: null });
   });
+
+  it("WEBHOOK-PERSIST-BEFORE-CORRELATION-001 rejects missing event identity with zero Pix mutation", async () => {
+    const store = memoryStore();
+    const runtime = createAsaasWebhookRuntime({
+      webhookToken: "secret-123",
+      adapter: {} as AsaasAdapter,
+      store,
+    });
+    let statusCode = 0;
+    const response = {
+      status(code: number) {
+        statusCode = code;
+        return this;
+      },
+      json() {
+        return this;
+      },
+    };
+    const request = {
+      headers: { "asaas-access-token": "secret-123" },
+      body: Buffer.from(
+        JSON.stringify({
+          event: "PAYMENT_RECEIVED",
+          payment: {
+            id: "pay_missing_event_id",
+            value: 39.9,
+            conciliationIdentifier: "CID-MISSING-EVENT-ID",
+          },
+        })
+      ),
+    };
+
+    await runtime.handle(
+      request as Parameters<typeof runtime.handle>[0],
+      response as Parameters<typeof runtime.handle>[1]
+    );
+
+    expect(statusCode).toBe(400);
+    await expect(
+      store.findByExternalId("pix_payment", "pay_missing_event_id")
+    ).resolves.toBeNull();
+    await expect(
+      store.findByPublicReference("reconciliation", "CID-MISSING-EVENT-ID")
+    ).resolves.toBeNull();
+  });
+
+  it("WEBHOOK-DUPLICATE-CORRELATION-001 keeps replay of the same durable event idempotent", async () => {
+    const base = memoryStore();
+    let markCreatedCalls = 0;
+    const store: AsaasOperationStore = {
+      ...base,
+      async markCreated(input) {
+        markCreatedCalls += 1;
+        return base.markCreated(input);
+      },
+    };
+    const event = persistedEvent({
+      id: "evt_duplicate_pix",
+      event: "PAYMENT_RECEIVED",
+      payment: {
+        id: "pay_duplicate_pix",
+        value: 39.9,
+        dueDate: "2026-08-12",
+        conciliationIdentifier: "CID-DUPLICATE-PIX",
+      },
+    });
+
+    const first = await processAsaasPixCorrelationForPersistedEvent({
+      store,
+      event,
+    });
+    const second = await processAsaasPixCorrelationForPersistedEvent({
+      store,
+      event,
+    });
+
+    expect(first?.operationKey).toBe(
+      "pix-initial-payment-event:pay_duplicate_pix"
+    );
+    expect(second?.operationKey).toBe(first?.operationKey);
+    expect(markCreatedCalls).toBe(1);
+    await expect(
+      store.findByExternalId("pix_payment", "pay_duplicate_pix")
+    ).resolves.toMatchObject({
+      state: "created",
+      correlationId: "evt_duplicate_pix",
+      publicReference: "CID-DUPLICATE-PIX",
+    });
+  });
+
+
+  it("WEBHOOK-AUTH-DURABLE-CORRELATION-001 rebuilds the Pix mapping from persisted authorization metadata", async () => {
+    const store = memoryStore();
+    const authorization = await store.prepare({
+      kind: "pix_automatic_authorization",
+      operationKey: "contract-auth:pix-automatic",
+      subscriptionId: "sub-auth",
+      externalReference: "contract-auth",
+      publicReference: "ASAAS-CONTRACT-AUTH",
+    });
+    await store.markCreated({
+      kind: "pix_automatic_authorization",
+      operationKey: authorization.operation.operationKey,
+      externalId: "aut-auth",
+      externalReference: "contract-auth",
+      authorizationReference: "aut-auth",
+      publicReference: "ASAAS-CONTRACT-AUTH",
+    });
+    const event = persistedEvent({
+      id: "evt_auth_durable",
+      event: "PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED",
+      authorization: {
+        id: "aut-auth",
+        contractId: "ASAAS-CONTRACT-AUTH",
+        immediateQrCode: {
+          conciliationIdentifier: "CID-AUTH-DURABLE",
+          rawSecret: "must-not-survive",
+        },
+      },
+    });
+
+    await processAsaasPixCorrelationForPersistedEvent({ store, event });
+
+    expect(event.metadata).toMatchObject({
+      authorizationReference: "aut-auth",
+      contractReference: "ASAAS-CONTRACT-AUTH",
+      publicReference: "CID-AUTH-DURABLE",
+    });
+    expect(JSON.stringify(event.metadata)).not.toContain("must-not-survive");
+    await expect(
+      store.findByPublicReference("reconciliation", "CID-AUTH-DURABLE")
+    ).resolves.toMatchObject({
+      state: "created",
+      subscriptionId: "sub-auth",
+      externalId: "aut-auth",
+      externalReference: "contract-auth",
+      authorizationReference: "aut-auth",
+    });
+  });
+
 });

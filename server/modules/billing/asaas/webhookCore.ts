@@ -37,7 +37,7 @@ type NormalizedAsaasWebhook = {
   metadata: ReturnType<typeof sanitizeBillingProviderEventMetadata>;
 };
 
-type PersistedWebhookRow = {
+export type PersistedWebhookRow = {
   id: string;
   providerEventId: string;
   eventType: string;
@@ -143,6 +143,22 @@ function customerReference(envelope: AsaasWebhookEnvelope) {
   );
 }
 
+function publicReference(envelope: AsaasWebhookEnvelope) {
+  const immediateQrCode = envelope.authorization?.immediateQrCode;
+  const authorizationConciliation =
+    immediateQrCode &&
+    typeof immediateQrCode === "object" &&
+    !Array.isArray(immediateQrCode)
+      ? stringValue(
+          (immediateQrCode as Record<string, unknown>).conciliationIdentifier
+        )
+      : null;
+  return (
+    stringValue(envelope.payment?.conciliationIdentifier) ??
+    authorizationConciliation
+  );
+}
+
 function chargePurpose(externalReference: string | null) {
   if (!externalReference) return null;
   if (externalReference.includes(":early_conversion")) return "early_conversion";
@@ -173,6 +189,7 @@ export function normalizeAsaasWebhookEnvelope(
       subscriptionReference: subscriptionReference(envelope),
       customerReference: customerReference(envelope),
       authorizationReference: authorizationReference(envelope),
+      publicReference: publicReference(envelope),
       dueDate:
         stringValue(envelope.payment?.dueDate) ??
         stringValue(envelope.paymentInstruction?.dueDate),
@@ -319,6 +336,7 @@ export function createAsaasWebhookRuntime(input: {
   webhookToken: string;
   adapter: AsaasAdapter;
   store: AsaasOperationStore;
+  beforeProcessEvent?: (row: PersistedWebhookRow) => Promise<void>;
 }) {
   async function dbRow(id: string): Promise<PersistedWebhookRow | null> {
     const db = await requireDb(getDb);
@@ -704,6 +722,8 @@ export function createAsaasWebhookRuntime(input: {
     const row = await dbRow(id);
     if (!row) return "missing" as const;
     try {
+      await input.beforeProcessEvent?.(row);
+
       if (row.eventType.startsWith("CHECKOUT_")) {
         const contractKey = metaString(row.metadata, "contractReference");
         const checkoutId = metaString(row.metadata, "objectId");
