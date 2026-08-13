@@ -14,11 +14,27 @@ import {
 
 export { resumeWhatsappStructuredCoffeePreparation };
 
+function shouldRunCoffeePreparationPreflight(text?: string | null) {
+  const normalized = text
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() ?? "";
+  if (!/\b\d+(?:[,.]\d+)?\s*(?:xicaras?|copos?|ml|l)\s+(?:de\s+)?cafe\b/.test(normalized)) {
+    return false;
+  }
+  return !/\bcafe\b[^,.;]*\b(?:leite|mel|creme|chantilly|condensad[oa]|chocolate|cacau)\b/.test(normalized);
+}
+
 export async function executeWhatsappLlmIntent(
   userId: number,
   input: StructuredCoffeeIntentInput,
 ) {
-  const coffeePreflight = await tryExecuteWhatsappStructuredCoffeeIntent(userId, input);
-  if (coffeePreflight.matched) return coffeePreflight.result;
+  if (shouldRunCoffeePreparationPreflight(input.text)) {
+    const coffeePreflight = await tryExecuteWhatsappStructuredCoffeeIntent(userId, input);
+    if (coffeePreflight.matched) return coffeePreflight.result;
+  }
   return executeLegacyWhatsappLlmIntent(userId, input);
 }
