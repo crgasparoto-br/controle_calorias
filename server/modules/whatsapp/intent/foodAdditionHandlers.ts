@@ -1,7 +1,9 @@
+import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { getHabitSnapshots } from "../../../db";
 import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
 import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
 import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
@@ -37,6 +39,20 @@ function buildCompleteAdditionFoodText(items: FoodAdditionItem[]) {
   return items.map(buildAdditionFoodText).join(" e ");
 }
 
+function normalizeCoffeeAdditionText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function formatAdditionActionFoodName(item: MealItemInput) {
+  const normalizedName = normalizeCoffeeAdditionText(item.foodName);
+  return /\bcafe\b/.test(normalizedName) && /\bsem acucar\b/.test(normalizedName)
+    ? "café sem açúcar"
+    : item.foodName;
+}
+
 function findResolvedSweetenedCoffee(items: MealItemInput[]) {
   const matches = items.filter(item =>
     isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
@@ -54,9 +70,16 @@ async function resolveAdditionItems(input: {
   | { kind: "items"; items: MealItemInput[] }
   | { kind: "clarification"; result: WhatsappIntentResult }
 > {
-  const resolvedItems = input.addition.items.map(item =>
-    buildFoodAdditionItem(item.foodName, item.quantity, item.unit)
-  );
+  const resolvedItems = input.addition.items.map(item => {
+    const normalizedUnit = normalizeMeasurementUnit(item.unit);
+    const normalizedName = normalizeCoffeeAdditionText(item.foodName);
+    const isUnsweetenedCoffee = /\bcafe\b/.test(normalizedName)
+      && /\bsem acucar\b/.test(normalizedName);
+    if (isUnsweetenedCoffee && (normalizedUnit === "xícara" || normalizedUnit === "copo")) {
+      return buildUnsweetenedCoffeeItem(item.quantity, normalizedUnit);
+    }
+    return buildFoodAdditionItem(item.foodName, item.quantity, normalizedUnit);
+  });
   const coffeeIndexes = input.addition.items
     .map((item, index) => isCoffeeWithAddedSugar(item.foodName) ? index : -1)
     .filter(index => index >= 0);
@@ -158,7 +181,7 @@ export async function handleFoodAdditionIntent(
         options: {
           title: "Alimento adicionado",
           actionLines: [
-            `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+            `Adicionei ${addedItem.portionText} de ${formatAdditionActionFoodName(addedItem)} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
           ],
         },
       }),
@@ -215,14 +238,49 @@ export async function handleFoodAdditionIntent(
   };
 }
 
+function formatCoffeeAdditionQuantity(addition: CoffeeAdditionIntent) {
+  const unitLabel = addition.unit === "copo"
+    ? (addition.cups === 1 ? "copo" : "copos")
+    : (addition.cups === 1 ? "xícara" : "xícaras");
+  return `${addition.cups} ${unitLabel}`;
+}
+
+function buildCoffeeAdditionMissingFieldsReply(addition: CoffeeAdditionIntent) {
+  if (!addition.cups && addition.mealLabel) {
+    return {
+      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar café sem açúcar à refeição ${addition.mealLabel}. Me diga apenas a quantidade, por exemplo: 3 xícaras.`),
+      detail: "Pedido para adicionar café sem açúcar com refeição reconhecida e quantidade ausente.",
+    };
+  }
+  if (addition.cups && !addition.mealLabel) {
+    return {
+      reply: buildWhatsAppClarificationReplyMessage(`Entendi que você quer adicionar ${formatCoffeeAdditionQuantity(addition)} de café sem açúcar. Me diga apenas a refeição, por exemplo: café da manhã.`),
+      detail: "Pedido para adicionar café sem açúcar com quantidade reconhecida e refeição ausente.",
+    };
+  }
+  return {
+    reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã."),
+    detail: "Pedido para adicionar café sem açúcar sem quantidade nem refeição explícitas.",
+  };
+}
+
 export async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   if (!addition.cups || !addition.mealLabel) {
+    if (Boolean(addition.cups) !== Boolean(addition.mealLabel)) {
+      return createWhatsappCoffeeAdditionClarification({
+        userId,
+        originalText: text,
+        addition,
+        receivedAt,
+      });
+    }
+    const clarification = buildCoffeeAdditionMissingFieldsReply(addition);
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã."),
+      reply: clarification.reply,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido para adicionar café sem açúcar sem quantidade ou refeição explícita.",
+      detail: clarification.detail,
     };
   }
 
@@ -239,7 +297,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     };
   }
 
-  const coffeeItem = buildUnsweetenedCoffeeItem(addition.cups);
+  const coffeeItem = buildUnsweetenedCoffeeItem(addition.cups, addition.unit ?? "xícara");
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,
