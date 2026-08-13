@@ -105,7 +105,19 @@ function buildIdempotencyKey(input: AppendMessageInput): string {
 }
 
 function isDuplicateEntryError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && (error as { code?: string }).code === DUPLICATE_ENTRY_ERROR_CODE);
+  let current: unknown = error;
+  const visited = new Set<unknown>();
+
+  while (current && typeof current === "object" && !visited.has(current)) {
+    visited.add(current);
+    const candidate = current as { code?: unknown; errno?: unknown; cause?: unknown };
+    if (candidate.code === DUPLICATE_ENTRY_ERROR_CODE || candidate.errno === 1062) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+
+  return false;
 }
 
 function getMysqlAffectedRows(result: unknown) {
