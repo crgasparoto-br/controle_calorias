@@ -1,0 +1,1 @@
+{"schema_version":1,"head_sha":"3ca52782ffcbc8b5abb5af01cf3f6f26785cb71a","source_audits":[],"controls":[{"id":"HANDOFF-READINESS-001","status":"passed","head_sha":"3ca52782ffcbc8b5abb5af01cf3f6f26785cb71a","evidence":"Focused generic handoff tests passed and the current readiness validators passed on the material head."}],"unresolved_controls":[]}
