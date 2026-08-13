@@ -31,6 +31,19 @@ Messages with caloric complements continue through the regular heuristic or cata
 
 The final candidate is checked by a shared semantic guard after every catalog source. The guard also applies to persisted entries, personal aliases, TACO, semantic search and WhatsApp lookups. The canonical name has precedence, so a bare alias cannot make `Café sem açúcar` compatible with `café` or `café com açúcar`.
 
+## Generic coffee preparation clarification
+
+Issue #974 makes preparation ambiguity a hard boundary before generic nutrition fallback on WhatsApp. A bare coffee description with an explicit beverage quantity, such as `3 xícaras de café`, is not assigned heuristic macros and is not persisted until the preparation is known.
+
+- The system preserves the original text, inbound correlation, quantity, unit, meal/date target and companion foods, then asks whether the coffee was `sem açúcar` or `com açúcar`.
+- The question is emitted only after a durable `coffee_preparation_clarification` pending operation is created in the central WhatsApp pending-operation repository.
+- `sem açúcar`, `puro`, `preto` and `natural` are treated as explicit unsweetened preparation and continue through the canonical nutrition engine, including the `Café sem açúcar` catalog reference.
+- `com açúcar` continues through the #903 contract. If the sugar amount is still required, the operation transitions to the existing persistent `food_clarification.quantity` lifecycle without losing the previously recognized meal, date, coffee quantity or companion foods.
+- Invalid replies keep the preparation decision pending. Cancellation ends the interaction without mutating the meal. Expired or unavailable decisions never authorize a generic coffee heuristic fallback.
+- The pending decision is claimed atomically before continuation, so retry, redelivery or concurrent replies cannot complete the same preparation decision twice.
+- Text webhook, transcribed audio and `simulateWhatsappInbound` use the same registered interaction and continuation contract.
+- The generic heuristic remains available for unrelated unknown foods; the precedence rule applies specifically when a coffee preparation is still semantically incomplete.
+
 ## Sweetened coffee quantity
 
 - An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
@@ -93,10 +106,11 @@ Coverage lives in:
 - `server/modules/whatsapp/intentActions.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`;
+- `server/modules/whatsapp/structuredCoffeeIntentActions.issue974.test.ts`;
 - `server/whatsappMealIntentDecisionWebhook.issue899.test.ts`;
 - `server/modules/whatsapp/mealIntentDecisionInteraction.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, production database outage through the real repository adapter, restart/cross-instance fail-closed behavior, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, text/audio/simulator parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, production database outage through the real repository adapter, restart/cross-instance fail-closed behavior, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, generic-coffee preparation precedence, companion preservation, text/audio/simulator registry parity and registry parity.
 
 ## Known limits
 
