@@ -148,3 +148,12 @@ O WhatsApp interpreta datas relativas no timezone efetivo do usuário identifica
 - Segurança, callback, comando `/`, operação pendente e comandos determinísticos mantêm precedência e encerram o fluxo sem chamada genérica de intenção.
 - JSON ou payload inválido pode consumir a política operacional limitada. Autenticação, modelo inexistente, incompatibilidade, bloqueio de segurança e configuração inválida terminam sem retry ou fallback externo.
 - Depois de falha técnica, a resposta segue o classificador determinístico/clarificação segura, sem mutação silenciosa e sem alterar correlação, expiração, idempotência ou isolamento.
+
+## Clarificação de café genérico (#974)
+
+- Café reconhecido sem estado de açúcar ou complemento calórico explícito é uma preparação incompleta e não pode alcançar o fallback nutricional genérico de `150 kcal / 6 g P / 15 g C / 5 g G por 100 g`.
+- Antes de compor ou persistir alimento/refeição, o sistema cria a pendência persistente e pergunta: `Seu café foi sem açúcar ou com açúcar?`.
+- A pendência preserva texto e correlação do inbound, data/timezone, intenção estruturada, quantidade/unidade, refeição e itens companheiros. A resposta retoma esse snapshot sob claim atômico.
+- `sem açúcar`, `puro`, `preto` e `natural` usam `cafe-sem-acucar`; com o catálogo atual, 3 xícaras correspondem a 600 ml e 6 kcal. `com açúcar`, `adoçado` e `açucarado` seguem o lifecycle persistente da #903 e perguntam somente a quantidade do açúcar quando ainda necessária.
+- `café com leite`, mel, creme, chocolate, chantilly, leite condensado e outros complementos explícitos não entram nessa decisão binária. O rótulo `Café da manhã` também não é tratado como item.
+- Resposta inválida mantém a mesma pendência; `CANCELAR` não causa mutação; resposta a pendência expirada/consumida é bloqueada antes do fallback. Retry, reentrega, callback e respostas concorrentes produzem no máximo uma mutação.
