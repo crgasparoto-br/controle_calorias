@@ -29,8 +29,8 @@ export const INTENT_CLARIFICATION_ACTIONS = [
 ] as const satisfies readonly WhatsappInteractionAction[];
 
 export const GENERIC_COFFEE_PREPARATION_ACTIONS = [
-  { id: "coffee_without_sugar", label: "Sem açúcar", effect: "ask_food_and_quantity" },
-  { id: "coffee_with_sugar", label: "Com açúcar", effect: "ask_correction_details" },
+  { id: "coffee_without_sugar", label: "Sem açúcar", effect: "complete_generic_coffee_once" },
+  { id: "coffee_with_sugar", label: "Com açúcar", effect: "complete_generic_coffee_once" },
   { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
 ] as const satisfies readonly WhatsappInteractionAction[];
 
@@ -119,10 +119,11 @@ function normalizeCoffeePreparationText(value: string) {
 function looksLikeGenericCoffeePreparationPrompt(value: string) {
   const normalized = normalizeCoffeePreparationText(value);
   if (normalized.includes("sem acucar ou com acucar")) return true;
-  if (!/\bcafe\b/.test(normalized) || /\bcafe da manha\b/.test(normalized)) return false;
-  if (/\b(?:sem acucar|com acucar|adocado|acucarado|puro|preto|natural)\b/.test(normalized)) return false;
-  if (/\b(?:leite|mel|creme|chantilly|chocolate|achocolatado|leite condensado)\b/.test(normalized)) return false;
-  return /\b(?:\d+(?:[,.]\d+)?\s*)?(?:xicaras?|copos?|ml|l|porcoes?|unidades?)?\s*(?:de\s+)?cafe\b/.test(normalized);
+  const itemText = normalized.replace(/\bcafe da manha\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!/\bcafe\b/.test(itemText)) return false;
+  if (/\b(?:sem acucar|com acucar|adocado|acucarado|puro|preto|natural)\b/.test(itemText)) return false;
+  if (/\b(?:leite|mel|creme|chantilly|chocolate|achocolatado|leite condensado)\b/.test(itemText)) return false;
+  return /\b(?:\d+(?:[,.]\d+)?\s*)?(?:xicaras?|copos?|ml|l|porcoes?|unidades?)?\s*(?:de\s+)?cafe\b/.test(itemText);
 }
 
 export function buildWhatsappIntentClarificationReply(
