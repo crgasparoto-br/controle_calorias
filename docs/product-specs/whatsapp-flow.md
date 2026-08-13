@@ -141,10 +141,18 @@ Todas as respostas e ações do WhatsApp usam o timezone efetivo do usuário vin
 
 O WhatsApp interpreta datas relativas no timezone efetivo do usuário identificado pelo telefone. A edição rápida exibe e converte horários no timezone do dono do registro; o navegador não substitui essa configuração e o backend não confia em timezone enviado pelo cliente.
 
-
 ## Intenção por capacidade (#922)
 
 - `WHATSAPP_INTENT` resolve provider, modelo, timeout, tentativas e fallback como unidade; modelo OpenAI nunca é enviado ao adapter Gemini.
 - Segurança, callback, comando `/`, operação pendente e comandos determinísticos mantêm precedência e encerram o fluxo sem chamada genérica de intenção.
 - JSON ou payload inválido pode consumir a política operacional limitada. Autenticação, modelo inexistente, incompatibilidade, bloqueio de segurança e configuração inválida terminam sem retry ou fallback externo.
 - Depois de falha técnica, a resposta segue o classificador determinístico/clarificação segura, sem mutação silenciosa e sem alterar correlação, expiração, idempotência ou isolamento.
+
+## Clarificação de preparo do café genérico (#974)
+
+- Uma quantidade explícita de `café` sem qualificador inequívoco de preparo tem precedência sobre o fallback nutricional genérico. O sistema pergunta se o café foi `sem açúcar` ou `com açúcar` antes de persistir qualquer item.
+- A interação `coffee_preparation.sugar_choice` usa o repositório central de operações pendentes, preservando texto original, correlação inbound, quantidade/unidade, refeição/data e alimentos acompanhantes antes do outbound.
+- Respostas `sem açúcar`, `puro`, `preto` e `natural` retomam o processamento nutricional canônico com a referência segura de café sem açúcar. Resposta `com açúcar` continua no contrato persistente da #903 e pode abrir `food_clarification.quantity` quando a quantidade de açúcar ainda for necessária.
+- Resposta inválida não consome a pendência; `CANCELAR` encerra sem mutação; pendência expirada ou já consumida não autoriza heurística para café genérico.
+- O claim da pendência precede a continuação, limitando retry, reentrega, callback ou respostas concorrentes a uma única conclusão. A mesma interação é registrada para webhook textual, webhook de intenção, áudio transcrito e simulador.
+- A heurística genérica permanece disponível para outros alimentos desconhecidos que não tenham essa ambiguidade crítica de preparo.
