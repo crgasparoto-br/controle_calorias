@@ -225,8 +225,8 @@ export async function resolvePeriodReportText(input: WhatsappInteractionTextInpu
   return normalizeResolvedInteraction(completed, action === "cancel" ? "period_report_cancelled" : "period_report");
 }
 
-export function classifyIntentClarificationText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
-  return parseIntentClarificationTextAction(text) ? "resolve" : "invalid";
+export function classifyIntentClarificationText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+  return parseIntentClarificationTextAction(text, target) ? "resolve" : "invalid";
 }
 
 export async function resolveIntentClarificationText(input: WhatsappInteractionTextInput) {
@@ -279,9 +279,6 @@ export function classifyFoodClarificationText(target: unknown, text?: string | n
     if (selection !== null) return "resolve";
   }
 
-  // Respostas incompletas continuam no resolvedor do domínio para produzir a
-  // orientação específica. Apenas um novo comando completo é incompatível com
-  // a pendência alimentar atual e deve substituí-la no gate central.
   return isCompleteWhatsappCommand(text) ? "invalid" : "resolve";
 }
 
