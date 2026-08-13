@@ -37,23 +37,28 @@ O cliente HTTP não possui retry oculto. Timeout ou falha de transporte após um
 
 ## Customer
 
-O customer Asaas usa `externalReference=controle-calorias:user:<userId>`. A operação é preparada antes do POST. Se a resposta do POST for incerta, uma tentativa posterior executa somente `GET /customers?externalReference=...`; um único match fecha a operação, zero matches mantém reconciliação pendente e múltiplos matches viram ambiguidade operacional.
+O customer Asaas usa `externalReference=controle-calorias:user:<userId>`. Para fluxos que exigem customer previamente criado, como Pix Automático, a operação é preparada antes do POST. Se a resposta do POST for incerta, uma tentativa posterior executa somente `GET /customers?externalReference=...`; um único match fecha a operação, zero matches mantém reconciliação pendente e múltiplos matches viram ambiguidade operacional.
 
-A criação de customer exige `name` e `cpfCnpj` antes de qualquer persistência operacional ou chamada outbound. O adapter normaliza CPF/CNPJ para dígitos e rejeita documento ausente ou fora dos comprimentos estruturais de CPF/CNPJ; e-mail e telefone continuam opcionais. Para trial de cartão, CPF/CNPJ e telefone usados pela proteção anti-repetição são relidos do customer Asaas depois de o checkout recorrente gerar a assinatura; esses valores não são persistidos pelo adapter.
+A criação direta de customer exige `name` e `cpfCnpj` antes de qualquer persistência operacional ou chamada outbound. O adapter normaliza CPF/CNPJ para dígitos e rejeita documento ausente ou fora dos comprimentos estruturais de CPF/CNPJ; e-mail e telefone continuam opcionais.
+
+No cartão hospedado, o primeiro Checkout não força um customer API incompleto. Enquanto ainda não existe customer proveniente de um Checkout concluído, o adapter omite `customer`/`customerData` e deixa a página hospedada coletar os dados exigidos pelo Asaas. Quando `SUBSCRIPTION_CREATED` chega, o `customer` retornado pelo provider é correlacionado ao `payerUserId` do checkout local e persistido no ledger com marcador `hosted_checkout`. Checkouts de cartão posteriores reutilizam somente essa referência provider-side já validada pela jornada hospedada. Um customer previamente criado por outro fluxo, sem esse marcador, não é automaticamente injetado no Checkout de cartão.
+
+Para trial de cartão, CPF/CNPJ e telefone usados pela proteção anti-repetição são relidos do customer Asaas depois de o checkout recorrente gerar a assinatura; esses valores não são persistidos pelo adapter.
 
 ## Cartão e Checkout hospedado
 
-Cartão usa Checkout hospedado recorrente com `billingTypes=[CREDIT_CARD]`, `chargeTypes=[RECURRENT]`, customer existente e `externalReference=contractKey`. O callback serve apenas para navegação e permanece `pending`; ele nunca confirma pagamento nem ativa acesso.
+Cartão usa Checkout hospedado recorrente com `billingTypes=[CREDIT_CARD]`, `chargeTypes=[RECURRENT]` e `externalReference=contractKey`. No primeiro fluxo, sem customer hospedado conhecido, os dados do pagador são coletados na página do Asaas; depois da correlação de `SUBSCRIPTION_CREATED`, novos checkouts podem reutilizar o `customer` persistido. O callback serve apenas para navegação e permanece `pending`; ele nunca confirma pagamento nem ativa acesso.
 
 A resposta de criação do Checkout é tratada de forma compatível com as duas formas atualmente documentadas pelo Asaas: quando `link` vier na resposta, o adapter o preserva; quando vier apenas `id`, o adapter monta a URL canônica `https://asaas.com/checkoutSession/show?id=<id>`. Em ambos os casos, `id` e URL são persistidos no ledger antes do retorno ao caller, e um retry local reutiliza a mesma operação em vez de criar novo Checkout.
 
 Para trial, a intenção financeira do checkout é criada antes da assinatura local. Quando `SUBSCRIPTION_CREATED` chega por webhook, o backend:
 
 1. correlaciona a operação pelo `contractKey`;
-2. relê o customer Asaas;
-3. usa a assinatura criada pelo checkout como prova provider-side de instrumento de cartão registrado;
-4. chama `startContract` da #893 com identidade anti-repetição;
-5. persiste `externalSubscriptionId`/`externalCustomerId` somente depois da correlação local.
+2. vincula o customer criado/reutilizado pelo Checkout ao `payerUserId` local para reuso posterior;
+3. relê o customer Asaas;
+4. usa a assinatura criada pelo checkout como prova provider-side de instrumento de cartão registrado;
+5. chama `startContract` da #893 com identidade anti-repetição;
+6. persiste `externalSubscriptionId`/`externalCustomerId` somente depois da correlação local.
 
 Se a #893 negar o trial ou a identidade obrigatória não puder ser validada, a assinatura remota é desativada e nenhum acesso é concedido.
 
@@ -94,6 +99,7 @@ Depois da autenticação:
 - o body bruto não é salvo;
 - HTTP 200 é devolvido depois da persistência;
 - processamento ocorre sobre o registro persistido, não sobre o objeto JSON em memória;
+- `SUBSCRIPTION_CREATED` correlaciona o customer da jornada hospedada ao `payerUserId` do checkout antes de processar a assinatura, sem transformar esse evento em confirmação financeira;
 - a correlação auxiliar do Pix Automático (`conciliationIdentifier`) usa apenas metadata sanitizada do registro durável e acontece dentro do processamento recuperável, nunca antes da validação/persistência do `providerEventId`;
 - duplicatas retornam sucesso sem repetir efeito;
 - `failed/correlation_pending` e falhas transitórias ficam reprocessáveis pelo reconciliador;
@@ -156,8 +162,10 @@ Mutações financeiras adicionais usam o mesmo ledger local-first. Reativação 
 
 ## Validação mínima
 
-- customer exige CPF/CNPJ válido estruturalmente antes de persistência/outbound e envia o documento normalizado ao Asaas;
-- customer/checkout idempotentes com transporte fake;
+- customer API exige CPF/CNPJ válido estruturalmente antes de persistência/outbound e envia o documento normalizado ao Asaas;
+- primeiro Checkout de cartão omite customer pré-criado incompleto, coleta dados na página hospedada e permanece idempotente por `contractKey`;
+- `SUBSCRIPTION_CREATED` persiste a correlação do customer hospedado e o próximo Checkout reutiliza essa referência sem novo POST de customer;
+- customer Pix/checkout idempotentes com transporte fake;
 - uma tentativa mutável = uma chamada outbound e ausência de retry oculto;
 - timeout de POST bloqueia recriação cega;
 - resposta de Checkout somente com `id` produz a URL oficial e continua idempotente;

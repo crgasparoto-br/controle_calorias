@@ -46,6 +46,8 @@ type PaymentResponse = {
 };
 type PaymentListResponse = { data?: PaymentResponse[] };
 
+const HOSTED_CHECKOUT_CUSTOMER_MARKER = "hosted_checkout";
+
 function requiredString(value: unknown, code: string) {
   if (typeof value !== "string" || !value.trim()) throw new Error(code);
   return value.trim();
@@ -248,9 +250,55 @@ export function createAsaasAdapter(input: {
     }
   }
 
+  async function hostedCheckoutCustomerId(payerUserId: number) {
+    const operation = await input.store.get(
+      "customer",
+      customerExternalReference(payerUserId)
+    );
+    return operation?.state === "created" &&
+      operation.publicReference === HOSTED_CHECKOUT_CUSTOMER_MARKER &&
+      operation.externalId
+      ? operation.externalId
+      : null;
+  }
+
+  async function rememberHostedCheckoutCustomer(
+    payerUserId: number,
+    customerId: string
+  ) {
+    const externalId = requiredString(
+      customerId,
+      "asaas_hosted_checkout_customer_id_required"
+    );
+    const externalReference = customerExternalReference(payerUserId);
+    const prepared = await input.store.prepare({
+      kind: "customer",
+      operationKey: externalReference,
+      externalReference,
+      customerReference: String(payerUserId),
+      payerUserId,
+    });
+    if (
+      prepared.operation.publicReference === HOSTED_CHECKOUT_CUSTOMER_MARKER &&
+      prepared.operation.externalId &&
+      prepared.operation.externalId !== externalId
+    ) {
+      throw new Error("asaas_hosted_checkout_customer_conflict");
+    }
+    await input.store.markCreated({
+      kind: "customer",
+      operationKey: externalReference,
+      externalId,
+      externalReference,
+      customerReference: String(payerUserId),
+      publicReference: HOSTED_CHECKOUT_CUSTOMER_MARKER,
+    });
+    return externalId;
+  }
+
   function flowOperationFields(
     flow: BillingProviderPaymentFlowInput,
-    customerId: string,
+    customerId: string | null,
     amountMinor: number
   ) {
     return {
@@ -274,7 +322,7 @@ export function createAsaasAdapter(input: {
   function assertFlowOperationMatches(
     operation: AsaasOperation,
     flow: BillingProviderPaymentFlowInput,
-    customerId: string,
+    customerId: string | null,
     amountMinor: number
   ) {
     if (
@@ -294,7 +342,7 @@ export function createAsaasAdapter(input: {
 
   async function createHostedCheckout(
     flow: BillingProviderPaymentFlowInput,
-    customerId: string,
+    customerId: string | null,
     amountMinor: number
   ): Promise<BillingProviderPaymentFlow> {
     const operationKey = `${flow.contractKey}:checkout`;
@@ -358,7 +406,7 @@ export function createAsaasAdapter(input: {
             value: amountMajor(amountMinor),
           },
         ],
-        customer: customerId,
+        ...(customerId ? { customer: customerId } : {}),
         subscription: {
           cycle: cycle(flow.billingCycle),
           nextDueDate: `${dateOnly(firstDueDate)} 12:00:00`,
@@ -486,10 +534,12 @@ export function createAsaasAdapter(input: {
 
   async function createPaymentFlow(flow: BillingProviderPaymentFlowInput) {
     const amountMinor = validateFlow(flow);
+    if (flow.paymentMethod === "credit_card") {
+      const customerId = await hostedCheckoutCustomerId(flow.payerUserId);
+      return createHostedCheckout(flow, customerId, amountMinor);
+    }
     const customerId = await ensureCustomer(flow.customer);
-    return flow.paymentMethod === "credit_card"
-      ? createHostedCheckout(flow, customerId, amountMinor)
-      : createPixAutomatic(flow, customerId, amountMinor);
+    return createPixAutomatic(flow, customerId, amountMinor);
   }
 
   async function schedulePixPayment(inputPayment: {
@@ -711,6 +761,7 @@ export function createAsaasAdapter(input: {
     provider,
     capabilities: () => capabilities,
     ensureCustomer,
+    rememberHostedCheckoutCustomer,
     createPaymentFlow,
     schedulePixPayment,
     executeScheduledPixPayment,

@@ -35,6 +35,29 @@ function metadataText(event: PersistedWebhookRow, key: string) {
   return textValue(event.metadata[key]);
 }
 
+export async function persistAsaasHostedCheckoutCustomerCorrelation(input: {
+  store: AsaasOperationStore;
+  adapter: AsaasAdapter;
+  event: PersistedWebhookRow;
+}) {
+  if (input.event.eventType !== "SUBSCRIPTION_CREATED") return null;
+  const contractKey = metadataText(input.event, "contractReference");
+  const customerId = metadataText(input.event, "customerReference");
+  if (!contractKey || !customerId) return null;
+
+  const checkout = await input.store.get("checkout", `${contractKey}:checkout`);
+  if (!checkout?.payerUserId) return null;
+
+  await input.adapter.rememberHostedCheckoutCustomer(
+    checkout.payerUserId,
+    customerId
+  );
+  return {
+    payerUserId: checkout.payerUserId,
+    customerId,
+  };
+}
+
 export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
   store: AsaasOperationStore;
   event: PersistedWebhookRow;
@@ -219,6 +242,11 @@ export function createAsaasWebhookRuntime(input: {
     ...input,
     store,
     beforeProcessEvent: async event => {
+      await persistAsaasHostedCheckoutCustomerCorrelation({
+        store: input.store,
+        adapter: input.adapter,
+        event,
+      });
       await processAsaasPixCorrelationForPersistedEvent({
         store: input.store,
         event,

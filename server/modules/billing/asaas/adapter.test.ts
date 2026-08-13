@@ -151,12 +151,11 @@ function jsonResponse(value: unknown) {
 }
 
 describe("Asaas adapter", () => {
-  it("uses one outbound call per operation and reuses persisted customer/checkout", async () => {
+  it("uses one outbound checkout call and reuses persisted checkout", async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async (request, init) => {
       const url = String(request);
       calls.push(`${init?.method ?? "GET"} ${url}`);
-      if (url.endsWith("/customers")) return jsonResponse({ id: "cus_1" });
       if (url.endsWith("/checkouts")) {
         return jsonResponse({
           id: "chk_1",
@@ -174,7 +173,44 @@ describe("Asaas adapter", () => {
     const first = await adapter.createPaymentFlow(baseFlow());
     const second = await adapter.createPaymentFlow(baseFlow());
     expect(first).toEqual(second);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("lets the first hosted checkout collect payer data and reuses its customer later", async () => {
+    const checkoutBodies: Record<string, unknown>[] = [];
+    const store = memoryStore();
+    const fetchImpl: typeof fetch = async (request, init) => {
+      const url = String(request);
+      if (!url.endsWith("/checkouts")) throw new Error("unexpected");
+      checkoutBodies.push(init?.body ? JSON.parse(String(init.body)) : {});
+      return jsonResponse({
+        id: `chk_${checkoutBodies.length}`,
+        link: `https://sandbox.asaas.com/checkout/chk_${checkoutBodies.length}`,
+      });
+    };
+    const adapter = createAsaasAdapter({
+      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      store,
+      enabledPaymentMethods: ["credit_card"],
+    });
+
+    await adapter.createPaymentFlow(baseFlow());
+    expect(checkoutBodies[0]).not.toHaveProperty("customer");
+    expect(await store.get("customer", "controle-calorias:user:7")).toBeNull();
+
+    await adapter.rememberHostedCheckoutCustomer(7, "cus_checkout_1");
+    await adapter.createPaymentFlow({
+      ...baseFlow(),
+      contractKey: "contract-2",
+      correlationId: "attempt-2",
+    });
+
+    expect(checkoutBodies[1]).toMatchObject({ customer: "cus_checkout_1" });
+    expect(await store.get("customer", "controle-calorias:user:7")).toMatchObject({
+      state: "created",
+      externalId: "cus_checkout_1",
+      publicReference: "hosted_checkout",
+    });
   });
 
   it("rejects a missing or structurally invalid customer document before persistence or outbound calls", async () => {
@@ -224,18 +260,26 @@ describe("Asaas adapter", () => {
         body: init?.body ? JSON.parse(String(init.body)) : {},
       });
       if (url.endsWith("/customers")) return jsonResponse({ id: "cus_1" });
-      if (url.endsWith("/checkouts")) {
-        return jsonResponse({ id: "chk_1", link: "https://sandbox.asaas.com/checkout/chk_1" });
+      if (url.endsWith("/pix/automatic/authorizations")) {
+        return jsonResponse({
+          id: "aut_1",
+          immediateQrCode: { payload: "qr-payload", expirationDate: "2026-08-11" },
+        });
       }
       throw new Error("unexpected");
     };
     const adapter = createAsaasAdapter({
       client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
       store: memoryStore(),
-      enabledPaymentMethods: ["credit_card"],
+      enabledPaymentMethods: ["pix_automatic"],
     });
 
-    await adapter.createPaymentFlow(baseFlow());
+    await adapter.createPaymentFlow({
+      ...baseFlow(),
+      paymentMethod: "pix_automatic",
+      trialChoice: "waive",
+      trialDays: 0,
+    });
 
     expect(bodies[0]).toMatchObject({
       url: expect.stringContaining("/customers"),
@@ -253,7 +297,6 @@ describe("Asaas adapter", () => {
     const fetchImpl: typeof fetch = async (request, init) => {
       const url = String(request);
       calls.push(`${init?.method ?? "GET"} ${url}`);
-      if (url.endsWith("/customers")) return jsonResponse({ id: "cus_1" });
       if (url.endsWith("/checkouts")) return jsonResponse({ id: "chk_id_only" });
       throw new Error("unexpected");
     };
@@ -275,16 +318,13 @@ describe("Asaas adapter", () => {
       state: "pending",
     });
     expect(second).toEqual(first);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
   });
 
   it("does not blindly recreate a checkout after an uncertain POST outcome", async () => {
     let calls = 0;
-    const fetchImpl: typeof fetch = async request => {
+    const fetchImpl: typeof fetch = async () => {
       calls += 1;
-      if (String(request).endsWith("/customers")) {
-        return jsonResponse({ id: "cus_1" });
-      }
       throw new DOMException("aborted", "AbortError");
     };
     const adapter = createAsaasAdapter({
@@ -298,7 +338,7 @@ describe("Asaas adapter", () => {
     await expect(adapter.createPaymentFlow(baseFlow())).rejects.toThrow(
       "asaas_checkout_reconciliation_pending"
     );
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
   });
 
   it("rejects disabled methods, Pix trials and zero-value charges before outbound", async () => {
