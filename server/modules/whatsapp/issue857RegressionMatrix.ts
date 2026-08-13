@@ -132,6 +132,15 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/whatsappIntentWebhook.test.ts", requiredTokens: ["clarification", "interactive"] },
     ],
   },
+  "coffee_addition.missing_field": {
+    modalities: ["text", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/coffeeAdditionClarification.issue970.test.ts",
+        requiredTokens: ["missingField", "originalTextPreserved", "cancela"],
+      },
+    ],
+  },
   "food_clarification.quantity": {
     modalities: ["text", "audio_transcription", "simulator", "image_context"],
     evidence: [
