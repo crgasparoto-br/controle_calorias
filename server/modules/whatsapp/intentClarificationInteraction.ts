@@ -9,8 +9,13 @@ import {
   buildWhatsappInteractionTelemetry,
   type WhatsappInteractionAction,
 } from "./interactionPresentation";
+import type { WhatsappInterpretedIntent } from "./intentSchema";
 import type { WhatsAppLogicalReply } from "./replyContract";
+import {
+  buildWhatsAppRecoverableErrorReplyMessage,
+} from "./replyMessages";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
+import { supersedeActiveWhatsappPendingOperations } from "./pendingOperationPrecedence";
 
 export const PENDING_INTENT_CLARIFICATION_TYPE = "intent_clarification";
 export const PENDING_INTENT_CLARIFICATION_ORIGIN = "intentClarificationInteraction";
@@ -23,9 +28,20 @@ export const INTENT_CLARIFICATION_ACTIONS = [
   { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
 ] as const satisfies readonly WhatsappInteractionAction[];
 
-export type IntentClarificationAction = (typeof INTENT_CLARIFICATION_ACTIONS)[number]["id"];
+export const GENERIC_COFFEE_PREPARATION_ACTIONS = [
+  { id: "coffee_without_sugar", label: "Sem açúcar", effect: "ask_food_and_quantity" },
+  { id: "coffee_with_sugar", label: "Com açúcar", effect: "ask_correction_details" },
+  { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+] as const satisfies readonly WhatsappInteractionAction[];
 
-export type PendingIntentClarification = {
+export const GENERIC_COFFEE_PREPARATION_QUESTION =
+  "Seu café foi sem açúcar ou com açúcar?";
+
+export type IntentClarificationAction =
+  | (typeof INTENT_CLARIFICATION_ACTIONS)[number]["id"]
+  | (typeof GENERIC_COFFEE_PREPARATION_ACTIONS)[number]["id"];
+
+export type PendingGenericIntentClarification = {
   contractVersion: 1;
   interactionId: "intent_clarification.generic";
   kind: "intent_clarification";
@@ -33,14 +49,50 @@ export type PendingIntentClarification = {
   actions: WhatsappInteractionAction[];
 };
 
+export type PendingGenericCoffeePreparationClarification = {
+  contractVersion: 1;
+  interactionId: "intent_clarification.generic";
+  kind: "generic_coffee_preparation";
+  originalText: string;
+  originalReceivedAt: string;
+  inboundMessageId: string | null;
+  userTimezone: string;
+  intentSnapshot: WhatsappInterpretedIntent;
+  genericItemIndexes: number[];
+  actions: WhatsappInteractionAction[];
+};
+
+export type PendingIntentClarification =
+  | PendingGenericIntentClarification
+  | PendingGenericCoffeePreparationClarification;
+
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
 
+export function isPendingGenericCoffeePreparationClarification(
+  value: unknown,
+): value is PendingGenericCoffeePreparationClarification {
+  if (!value || typeof value !== "object") return false;
+  const target = value as Partial<PendingGenericCoffeePreparationClarification>;
+  return target.contractVersion === 1
+    && target.interactionId === "intent_clarification.generic"
+    && target.kind === "generic_coffee_preparation"
+    && typeof target.originalText === "string"
+    && typeof target.originalReceivedAt === "string"
+    && typeof target.userTimezone === "string"
+    && target.intentSnapshot !== null
+    && typeof target.intentSnapshot === "object"
+    && Array.isArray(target.genericItemIndexes)
+    && target.genericItemIndexes.every(index => Number.isSafeInteger(index) && index >= 0)
+    && Array.isArray(target.actions);
+}
+
 export function isPendingIntentClarification(value: unknown): value is PendingIntentClarification {
   if (!value || typeof value !== "object") return false;
-  const target = value as Partial<PendingIntentClarification>;
+  if (isPendingGenericCoffeePreparationClarification(value)) return true;
+  const target = value as Partial<PendingGenericIntentClarification>;
   return target.contractVersion === 1
     && target.interactionId === "intent_clarification.generic"
     && target.kind === "intent_clarification"
@@ -48,18 +100,45 @@ export function isPendingIntentClarification(value: unknown): value is PendingIn
     && Array.isArray(target.actions);
 }
 
-export function isExpectedWhatsappIntentClarificationAction(action: string) {
+export function isExpectedWhatsappIntentClarificationAction(
+  action: string,
+  target?: unknown,
+) {
+  if (isPendingGenericCoffeePreparationClarification(target)) {
+    return GENERIC_COFFEE_PREPARATION_ACTIONS.some(candidate => candidate.id === action);
+  }
   return INTENT_CLARIFICATION_ACTIONS.some(candidate => candidate.id === action);
+}
+
+function normalizeCoffeePreparationText(value: string) {
+  return normalizeStandaloneWhatsappCommand(value)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeGenericCoffeePreparationPrompt(value: string) {
+  const normalized = normalizeCoffeePreparationText(value);
+  if (normalized.includes("sem acucar ou com acucar")) return true;
+  if (!/\bcafe\b/.test(normalized) || /\bcafe da manha\b/.test(normalized)) return false;
+  if (/\b(?:sem acucar|com acucar|adocado|acucarado|puro|preto|natural)\b/.test(normalized)) return false;
+  if (/\b(?:leite|mel|creme|chantilly|chocolate|achocolatado|leite condensado)\b/.test(normalized)) return false;
+  return /\b(?:\d+(?:[,.]\d+)?\s*)?(?:xicaras?|copos?|ml|l|porcoes?|unidades?)?\s*(?:de\s+)?cafe\b/.test(normalized);
 }
 
 export function buildWhatsappIntentClarificationReply(
   pendingOperationId: number,
   bodyText: string,
+  actions?: readonly WhatsappInteractionAction[],
 ): WhatsAppLogicalReply {
+  const resolvedActions = actions
+    ? [...actions]
+    : looksLikeGenericCoffeePreparationPrompt(bodyText)
+      ? [...GENERIC_COFFEE_PREPARATION_ACTIONS]
+      : [...INTENT_CLARIFICATION_ACTIONS];
   return buildWhatsappClosedDecisionReply({
     bodyText,
     pendingOperationId,
-    actions: [...INTENT_CLARIFICATION_ACTIONS],
+    actions: resolvedActions,
     listButtonText: "Escolher opção",
   });
 }
@@ -70,7 +149,7 @@ export async function createWhatsappIntentClarificationInteraction(input: {
   bodyText?: string;
   receivedAt?: Date;
 }) {
-  const target: PendingIntentClarification = {
+  const target: PendingGenericIntentClarification = {
     contractVersion: 1,
     interactionId: "intent_clarification.generic",
     kind: "intent_clarification",
@@ -111,7 +190,120 @@ export async function createWhatsappIntentClarificationInteraction(input: {
   };
 }
 
-export function parseIntentClarificationTextAction(text?: string | null): IntentClarificationAction | null {
+export async function createWhatsappGenericCoffeePreparationClarification(input: {
+  userId: number;
+  originalText: string;
+  receivedAt: Date;
+  messageId?: string | null;
+  userTimezone: string;
+  intent: WhatsappInterpretedIntent;
+  genericItemIndexes: number[];
+}) {
+  const replaced = await supersedeActiveWhatsappPendingOperations(
+    input.userId,
+    input.receivedAt,
+  );
+  if (!replaced) {
+    return {
+      handled: true as const,
+      action: "clarification_needed" as const,
+      reply: buildWhatsAppRecoverableErrorReplyMessage(
+        "Não consegui substituir a ação pendente com segurança. Nada foi alterado; cancele a ação anterior e envie a mensagem novamente.",
+      ),
+      eventType: "whatsapp.generic_coffee_preparation.pending_replacement_blocked",
+      detail: "Café genérico bloqueado porque uma pendência anterior não pôde ser substituída.",
+      data: {
+        fallbackBlocked: true,
+        fallbackBlockReason: "pending_replacement_failed",
+      },
+    };
+  }
+
+  const target: PendingGenericCoffeePreparationClarification = {
+    contractVersion: 1,
+    interactionId: "intent_clarification.generic",
+    kind: "generic_coffee_preparation",
+    originalText: input.originalText,
+    originalReceivedAt: input.receivedAt.toISOString(),
+    inboundMessageId: input.messageId?.trim() || null,
+    userTimezone: input.userTimezone,
+    intentSnapshot: structuredClone(input.intent),
+    genericItemIndexes: [...new Set(input.genericItemIndexes)].sort((a, b) => a - b),
+    actions: [...GENERIC_COFFEE_PREPARATION_ACTIONS],
+  };
+
+  const created = await pendingOperationRepository.createPendingOperation({
+    userId: input.userId,
+    type: PENDING_INTENT_CLARIFICATION_TYPE,
+    origin: PENDING_INTENT_CLARIFICATION_ORIGIN,
+    ttlMs: PENDING_INTENT_CLARIFICATION_TTL_MS,
+    now: input.receivedAt,
+    target,
+  });
+  if (!created) {
+    return {
+      handled: true as const,
+      action: "clarification_needed" as const,
+      reply: buildWhatsAppRecoverableErrorReplyMessage(
+        "Não consegui guardar a pergunta sobre o café com segurança. Nada foi registrado; envie a mensagem novamente.",
+      ),
+      eventType: "whatsapp.generic_coffee_preparation.persistence_unavailable",
+      detail: "Pergunta de preparo do café não foi enviada porque a pendência não pôde ser persistida.",
+      data: {
+        fallbackBlocked: true,
+        fallbackBlockReason: "pending_persistence_failed",
+        originalTextPreserved: true,
+      },
+    };
+  }
+
+  return {
+    handled: true as const,
+    action: "clarification_needed" as const,
+    reply: GENERIC_COFFEE_PREPARATION_QUESTION,
+    eventType: "whatsapp.generic_coffee_preparation.requested",
+    detail: "Café genérico aguardando confirmação persistente do preparo antes de qualquer composição nutricional.",
+    data: {
+      pendingOperationId: created.id,
+      pendingType: created.type,
+      originalTextPreserved: true,
+      genericCoffeeItemCount: target.genericItemIndexes.length,
+      ...buildWhatsappInteractionTelemetry({
+        interactionId: target.interactionId,
+        origin: PENDING_INTENT_CLARIFICATION_ORIGIN,
+        classification: "closed",
+        actions: target.actions,
+        lifecycle: "created",
+      }),
+    },
+    interactiveReply: buildWhatsappIntentClarificationReply(
+      created.id,
+      GENERIC_COFFEE_PREPARATION_QUESTION,
+      target.actions,
+    ),
+  };
+}
+
+export function parseGenericCoffeePreparationTextAction(
+  text?: string | null,
+): IntentClarificationAction | null {
+  const normalized = normalizeCoffeePreparationText(text ?? "");
+  if (!normalized) return null;
+  if (["cancelar", "cancela", "cancele", "nao", "nenhuma", "nenhum", "0"].includes(normalized)) return "cancel";
+  if (/^(?:opcao\s*)?1$/.test(normalized)) return "coffee_without_sugar";
+  if (/^(?:opcao\s*)?2$/.test(normalized)) return "coffee_with_sugar";
+  if (/^(?:sem acucar|sem adicao de acucar|puro|preto|natural)$/.test(normalized)) return "coffee_without_sugar";
+  if (/^(?:com acucar|adocado|acucarado)$/.test(normalized)) return "coffee_with_sugar";
+  return null;
+}
+
+export function parseIntentClarificationTextAction(
+  text?: string | null,
+  target?: unknown,
+): IntentClarificationAction | null {
+  if (isPendingGenericCoffeePreparationClarification(target)) {
+    return parseGenericCoffeePreparationTextAction(text);
+  }
   const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
   if (!normalized) return null;
   if (["cancelar", "cancela", "cancele", "nao", "nenhuma", "0"].includes(normalized)) return "cancel";
@@ -127,6 +319,40 @@ function canResumeAsFoodRegistration(action: string) {
   return action === "meal_item_added" || action.startsWith("food_clarification_");
 }
 
+async function completeGenericCoffeePreparation(
+  userId: number,
+  target: PendingGenericCoffeePreparationClarification,
+  action: IntentClarificationAction,
+) {
+  if (action === "cancel") {
+    return {
+      handled: true as const,
+      action: "food_clarification_cancelled",
+      reply: "Tudo certo. Não registrei o café pendente.",
+      eventType: "whatsapp.generic_coffee_preparation.cancelled",
+      detail: "Clarificação de preparo do café cancelada sem mutação.",
+      data: { originalTextPreserved: true },
+    };
+  }
+
+  if (action !== "coffee_without_sugar" && action !== "coffee_with_sugar") {
+    return {
+      handled: true as const,
+      action: "food_clarification_unavailable",
+      reply: "Essa opção não está mais disponível. Envie a mensagem alimentar completa novamente.",
+      eventType: "whatsapp.generic_coffee_preparation.unavailable",
+      detail: "Ação incompatível com a clarificação de preparo do café.",
+    };
+  }
+
+  const { resumeWhatsappGenericCoffeePreparationClarification } = await import("./llmIntentActions");
+  return resumeWhatsappGenericCoffeePreparationClarification({
+    userId,
+    target,
+    preparation: action === "coffee_without_sugar" ? "without_sugar" : "with_sugar",
+  });
+}
+
 export async function completeWhatsappIntentClarificationCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
@@ -134,13 +360,21 @@ export async function completeWhatsappIntentClarificationCallback(
   receivedAt?: Date,
 ) {
   const target = pendingOperation.target;
-  if (!isPendingIntentClarification(target) || !isExpectedWhatsappIntentClarificationAction(action)) {
+  if (!isPendingIntentClarification(target) || !isExpectedWhatsappIntentClarificationAction(action, target)) {
     return {
       handled: true as const,
       reply: "Essa opção não está mais disponível. Envie uma nova mensagem completa.",
       eventType: "whatsapp.intent_clarification.unavailable",
       detail: "Ação ou contrato de clarificação genérica inválido.",
     };
+  }
+
+  if (isPendingGenericCoffeePreparationClarification(target)) {
+    return completeGenericCoffeePreparation(
+      userId,
+      target,
+      action as IntentClarificationAction,
+    );
   }
 
   if (action === "cancel") {
@@ -214,7 +448,10 @@ export async function resolveWhatsappIntentClarificationText(input: {
   text?: string | null;
   receivedAt?: Date;
 }) {
-  const action = parseIntentClarificationTextAction(input.text);
+  const action = parseIntentClarificationTextAction(
+    input.text,
+    input.pendingOperation.target,
+  );
   if (!action) return null;
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
