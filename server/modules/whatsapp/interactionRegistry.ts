@@ -96,7 +96,7 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 8;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 9;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -238,7 +238,11 @@ function rebuildIntentClarification(input: WhatsappInteractionReplayInput): What
   const reply = `Essa resposta não corresponde às opções. Sua mensagem original "${target.originalText}" continua guardada.`;
   return {
     reply,
-    interactiveReply: buildWhatsappIntentClarificationReply(input.pendingOperation.id, reply),
+    interactiveReply: buildWhatsappIntentClarificationReply(
+      input.pendingOperation.id,
+      reply,
+      input.actions,
+    ),
   };
 }
 
@@ -520,7 +524,7 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     reconstruction: "pending_target",
     invalidResponse: "represent_same_actions",
     staleBehavior: "reply_unavailable_request_new_command",
-    allowedEffects: ["ask_food_and_quantity", "ask_correction_details", "run_daily_summary", "cancel"],
+    allowedEffects: ["ask_food_and_quantity", "ask_correction_details", "run_daily_summary", "complete_generic_coffee_once", "cancel"],
     forbiddenEffects: [...NUTRITION_FORBIDDEN, "persist_command_word_as_food"],
     matches: isPendingIntentClarification,
     actions: target => isPendingIntentClarification(target) ? target.actions.map(action => ({ ...action })) : [],
