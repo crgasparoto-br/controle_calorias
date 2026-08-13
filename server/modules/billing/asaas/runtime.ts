@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { requireDb, resultRows } from "../../../repositories/billingRepositorySupport";
+import {
+  requireDb,
+  resultRows,
+} from "../../../repositories/billingRepositorySupport";
 import type { BillingPaymentMethod } from "../catalogPolicy";
 import {
   billingCatalogService,
@@ -21,6 +24,7 @@ import {
   createAsaasAdapter,
   shouldCreateScheduledPixPayment,
   type AsaasAdapter,
+  type AsaasPaymentResponse,
 } from "./adapter";
 import {
   AsaasUncertainOutcomeError,
@@ -44,22 +48,23 @@ function credentials() {
   const production = environment() === "production";
   return {
     environment: production ? ("production" as const) : ("sandbox" as const),
-    apiKey: (
-      production
+    apiKey:
+      (production
         ? process.env.ASAAS_PRODUCTION_API_KEY
         : process.env.ASAAS_SANDBOX_API_KEY
-    )?.trim() ?? "",
-    webhookToken: (
-      production
+      )?.trim() ?? "",
+    webhookToken:
+      (production
         ? process.env.ASAAS_PRODUCTION_WEBHOOK_TOKEN
         : process.env.ASAAS_SANDBOX_WEBHOOK_TOKEN
-    )?.trim() ?? "",
+      )?.trim() ?? "",
   };
 }
 
 function enabledMethods(): BillingPaymentMethod[] {
   const configuredCredentials = credentials();
-  if (!configuredCredentials.apiKey || !configuredCredentials.webhookToken) return [];
+  if (!configuredCredentials.apiKey || !configuredCredentials.webhookToken)
+    return [];
   const configured = (
     process.env.ASAAS_ENABLED_PAYMENT_METHODS ?? "credit_card,pix_automatic"
   )
@@ -108,11 +113,56 @@ function uncertainty(error: unknown) {
   );
 }
 
-type Runtime = {
+export type Runtime = {
   adapter: AsaasAdapter;
   store: AsaasOperationStore;
   webhook: ReturnType<typeof createAsaasWebhookRuntime>;
 };
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function initialCheckoutDueDate(
+  checkout: Awaited<ReturnType<AsaasOperationStore["get"]>>
+) {
+  if (!checkout) return null;
+  if (checkout.dueDate) return checkout.dueDate;
+  const createdAt = checkout.createdAt ?? checkout.updatedAt;
+  if (checkout.trialChoice !== "waive" || !createdAt) return null;
+  return dateOnly(new Date(createdAt.getTime() + 86_400_000));
+}
+
+export function selectHostedCheckoutInitialPayment(input: {
+  checkout: NonNullable<Awaited<ReturnType<AsaasOperationStore["get"]>>>;
+  externalSubscriptionId: string;
+  customerReference: string | null;
+  payments: AsaasPaymentResponse[];
+}) {
+  const dueDate = initialCheckoutDueDate(input.checkout);
+  if (!dueDate || !input.checkout.amountMinor) return null;
+  const matches = input.payments.filter(payment => {
+    if (!payment.id || payment.subscription !== input.externalSubscriptionId) {
+      return false;
+    }
+    if (
+      payment.externalReference &&
+      payment.externalReference !== input.checkout.externalReference
+    ) {
+      return false;
+    }
+    return (
+      String(payment.billingType ?? "").toUpperCase() === "CREDIT_CARD" &&
+      Math.round(Number(payment.value) * 100) === input.checkout.amountMinor &&
+      payment.dueDate === dueDate &&
+      (!input.customerReference || payment.customer === input.customerReference)
+    );
+  });
+  if (matches.length > 1) {
+    throw new Error("asaas_checkout_payment_reconciliation_ambiguous");
+  }
+  return matches[0] ?? null;
+}
 
 let cached: Runtime | null = null;
 let schedulerStarted = false;
@@ -151,7 +201,10 @@ export function configureAsaasBillingRuntime() {
   configureBillingPaymentCapabilitiesProvider(() => enabledMethods());
 }
 
-export function getAsaasWebhookHandler(): (req: Request, res: Response) => Promise<void> {
+export function getAsaasWebhookHandler(): (
+  req: Request,
+  res: Response
+) => Promise<void> {
   const config = credentials();
   if (!config.apiKey || !config.webhookToken) {
     return async (_req: Request, res: Response) => {
@@ -186,7 +239,8 @@ export async function prepareAsaasBillingFlow(
   if (!plan.effectivePaymentMethods.includes(input.paymentMethod)) {
     throw new Error("billing_payment_method_not_available");
   }
-  if (plan.currency !== "BRL") throw new Error("billing_currency_not_supported");
+  if (plan.currency !== "BRL")
+    throw new Error("billing_currency_not_supported");
 
   const coupon = input.couponCode
     ? await billingCatalogService.reserveCoupon({
@@ -345,21 +399,32 @@ export async function requestAsaasCancellation(input: {
     },
     reconcile: async () => {
       if (financial.paymentMethod === "pix_automatic") {
-        if (!financial.pixAuthorizationId) return { status: "pending" as const };
-        const authorization = await getAsaasRuntime().adapter.getPixAutomaticAuthorization(
-          financial.pixAuthorizationId
-        );
+        if (!financial.pixAuthorizationId)
+          return { status: "pending" as const };
+        const authorization =
+          await getAsaasRuntime().adapter.getPixAutomaticAuthorization(
+            financial.pixAuthorizationId
+          );
         const status = String(authorization.status ?? "").toUpperCase();
         return ["CANCELLED", "CANCELED", "EXPIRED", "REFUSED"].includes(status)
-          ? { status: "applied" as const, externalId: financial.pixAuthorizationId }
+          ? {
+              status: "applied" as const,
+              externalId: financial.pixAuthorizationId,
+            }
           : { status: "not_applied" as const };
       }
-      if (!financial.externalSubscriptionId) return { status: "pending" as const };
-      const synchronized = await getAsaasRuntime().adapter.provider.synchronizeSubscription(
-        financial.externalSubscriptionId
-      );
-      return synchronized.status === "canceled" || synchronized.status === "expired"
-        ? { status: "applied" as const, externalId: financial.externalSubscriptionId }
+      if (!financial.externalSubscriptionId)
+        return { status: "pending" as const };
+      const synchronized =
+        await getAsaasRuntime().adapter.provider.synchronizeSubscription(
+          financial.externalSubscriptionId
+        );
+      return synchronized.status === "canceled" ||
+        synchronized.status === "expired"
+        ? {
+            status: "applied" as const,
+            externalId: financial.externalSubscriptionId,
+          }
         : { status: "not_applied" as const };
     },
   });
@@ -387,7 +452,8 @@ export async function reactivateAsaasCancellation(input: {
     subscriptionId: input.subscriptionId,
     contractKey: financial.contractKey,
     action: async () => {
-      const reactivate = getAsaasRuntime().adapter.provider.reactivateSubscription;
+      const reactivate =
+        getAsaasRuntime().adapter.provider.reactivateSubscription;
       if (!reactivate) throw new Error("asaas_reactivation_not_supported");
       await reactivate({
         externalSubscriptionId: financial.externalSubscriptionId!,
@@ -399,14 +465,20 @@ export async function reactivateAsaasCancellation(input: {
       if (!financial.externalSubscriptionId || !financial.currentPeriodEnd) {
         return { status: "pending" as const };
       }
-      const synchronized = await getAsaasRuntime().adapter.provider.synchronizeSubscription(
-        financial.externalSubscriptionId
-      );
+      const synchronized =
+        await getAsaasRuntime().adapter.provider.synchronizeSubscription(
+          financial.externalSubscriptionId
+        );
       const sameRenewal =
         synchronized.currentPeriodEnd?.toISOString().slice(0, 10) ===
         financial.currentPeriodEnd.toISOString().slice(0, 10);
-      return synchronized.status === "active" && !synchronized.cancelAtPeriodEnd && sameRenewal
-        ? { status: "applied" as const, externalId: financial.externalSubscriptionId }
+      return synchronized.status === "active" &&
+        !synchronized.cancelAtPeriodEnd &&
+        sameRenewal
+        ? {
+            status: "applied" as const,
+            externalId: financial.externalSubscriptionId,
+          }
         : { status: "not_applied" as const };
     },
   });
@@ -424,7 +496,9 @@ export async function updateAsaasCardPaymentMethod(input: {
   correlationId: string;
 }) {
   void input;
-  throw new Error("asaas_update_payment_method_requires_recoverable_external_flow");
+  throw new Error(
+    "asaas_update_payment_method_requires_recoverable_external_flow"
+  );
 }
 
 export async function synchronizeAsaasSubscription(input: {
@@ -439,9 +513,10 @@ export async function synchronizeAsaasSubscription(input: {
       nextRenewalAt: null,
     };
   }
-  const synchronized = await getAsaasRuntime().adapter.provider.synchronizeSubscription(
-    financial.externalSubscriptionId
-  );
+  const synchronized =
+    await getAsaasRuntime().adapter.provider.synchronizeSubscription(
+      financial.externalSubscriptionId
+    );
   return {
     provider: "asaas" as const,
     status: synchronized.status,
@@ -449,18 +524,60 @@ export async function synchronizeAsaasSubscription(input: {
   };
 }
 
-export async function reconcileAsaasContract(contractKey: string) {
-  const runtime = getAsaasRuntime();
-  const checkout = await runtime.store.get("checkout", `${contractKey}:checkout`);
-  if (!checkout) return { found: false as const };
-  const subscription = await runtime.adapter.findSubscriptionByReference(contractKey);
-  if (!subscription?.id) return { found: false as const };
+export async function reconcileAsaasContractWithRuntime(
+  contractKey: string,
+  runtime: Runtime
+) {
+  const checkout = await runtime.store.get(
+    "checkout",
+    `${contractKey}:checkout`
+  );
+  if (!checkout) {
+    return { found: false as const, reason: "checkout_not_found" as const };
+  }
+  const match = await runtime.adapter.findHostedCheckoutSubscription(checkout);
+  if (!match?.subscription?.id) {
+    return { found: false as const, reason: "subscription_not_found" as const };
+  }
+  const subscription = match.subscription;
+  const externalSubscriptionId = String(subscription.id);
+  const payments = await runtime.adapter.listSubscriptionPayments(
+    externalSubscriptionId
+  );
+  const payment = selectHostedCheckoutInitialPayment({
+    checkout,
+    externalSubscriptionId,
+    customerReference: subscription.customer ?? checkout.customerReference,
+    payments,
+  });
   const correlated = await runtime.webhook.reconcileSubscriptionCreated({
     contractKey,
-    externalSubscriptionId: subscription.id,
+    externalSubscriptionId,
     customerReference: subscription.customer ?? checkout.customerReference,
   });
-  return { found: true as const, ...correlated };
+  const recoveredWebhooks = await runtime.webhook.processDueEvents(100);
+  const financial =
+    correlated.subscriptionId && payment
+      ? await runtime.webhook.reconcileFinancialPayment({
+          subscriptionId: correlated.subscriptionId,
+          externalSubscriptionId,
+          payment,
+        })
+      : { processed: false as const, status: payment?.status ?? "NOT_FOUND" };
+  return {
+    found: true as const,
+    matchedBy: match.matchedBy,
+    externalSubscriptionId,
+    externalCustomerId: subscription.customer ?? null,
+    paymentId: payment?.id ?? null,
+    recoveredWebhooks,
+    financial,
+    ...correlated,
+  };
+}
+
+export async function reconcileAsaasContract(contractKey: string) {
+  return reconcileAsaasContractWithRuntime(contractKey, getAsaasRuntime());
 }
 
 export async function reconcileAsaasBilling(limit = 100) {
@@ -471,7 +588,10 @@ export async function reconcileAsaasBilling(limit = 100) {
   let pixReconciled = 0;
   for (const operation of scheduled) {
     if (operation.state === "prepared") {
-      if (!operation.dueDate || !shouldCreateScheduledPixPayment(operation.dueDate, new Date())) {
+      if (
+        !operation.dueDate ||
+        !shouldCreateScheduledPixPayment(operation.dueDate, new Date())
+      ) {
         continue;
       }
       if (!operation.authorizationReference) continue;

@@ -16,7 +16,7 @@ import type {
   BillingProviderNeutralFinancialFact,
   TrialIdentityInput,
 } from "../subscriptionLifecycleTypes";
-import type { AsaasAdapter } from "./adapter";
+import type { AsaasAdapter, AsaasPaymentResponse } from "./adapter";
 import type { AsaasOperation, AsaasOperationStore } from "./operationStore";
 
 export type AsaasWebhookEnvelope = {
@@ -57,7 +57,7 @@ export function authenticateAsaasWebhook(
   expectedToken: string
 ) {
   const token = headers["asaas-access-token"];
-  const actual = Array.isArray(token) ? token[0] ?? "" : token ?? "";
+  const actual = Array.isArray(token) ? (token[0] ?? "") : (token ?? "");
   return !!expectedToken && !!actual && safeEqual(actual, expectedToken);
 }
 
@@ -86,7 +86,8 @@ function numberValue(value: unknown) {
 }
 
 function dateValue(value: unknown) {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? null : value;
   const string = stringValue(value);
   if (!string) return null;
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(string)
@@ -161,7 +162,8 @@ function publicReference(envelope: AsaasWebhookEnvelope) {
 
 function chargePurpose(externalReference: string | null) {
   if (!externalReference) return null;
-  if (externalReference.includes(":early_conversion")) return "early_conversion";
+  if (externalReference.includes(":early_conversion"))
+    return "early_conversion";
   return null;
 }
 
@@ -271,6 +273,32 @@ export function financialKind(
   }
 }
 
+export function financialKindFromPaymentStatus(
+  status: unknown
+): BillingProviderNeutralFinancialFact["kind"] | null {
+  const normalized = String(status ?? "")
+    .trim()
+    .toUpperCase();
+  if (["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(normalized)) {
+    return "payment_confirmed";
+  }
+  if (normalized === "OVERDUE") return "payment_failed";
+  if (normalized === "REFUNDED" || normalized === "CHARGEBACK") {
+    return "chargeback_confirmed";
+  }
+  return null;
+}
+
+export function authoritativePaymentOccurredAt(payment: AsaasPaymentResponse) {
+  const raw =
+    payment.paymentDate ?? payment.confirmedDate ?? payment.clientPaymentDate;
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return dateValue(`${raw}T12:00:00.000Z`);
+  }
+  return dateValue(raw);
+}
+
 export function isPixAuthorizationActivated(eventType: string) {
   return (
     eventType === "PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED" ||
@@ -325,7 +353,9 @@ function nextCycleDate(dueDate: string, billingCycle: "monthly" | "yearly") {
   const targetYear = billingCycle === "yearly" ? year + 1 : year;
   const normalizedYear = targetYear + Math.floor(targetMonth / 12);
   const normalizedMonth = ((targetMonth % 12) + 12) % 12;
-  const lastDay = new Date(Date.UTC(normalizedYear, normalizedMonth + 1, 0)).getUTCDate();
+  const lastDay = new Date(
+    Date.UTC(normalizedYear, normalizedMonth + 1, 0)
+  ).getUTCDate();
   const result = new Date(
     Date.UTC(normalizedYear, normalizedMonth, Math.min(day, lastDay), 12)
   );
@@ -425,7 +455,30 @@ export function createAsaasWebhookRuntime(input: {
         updatedAt = NOW()
       WHERE id = ${inputBind.subscriptionId}
         AND provider = 'asaas'
+        AND (externalSubscriptionId IS NULL OR externalSubscriptionId = ${inputBind.externalSubscriptionId})
+        AND (
+          ${inputBind.customerReference ?? null} IS NULL
+          OR externalCustomerId IS NULL
+          OR externalCustomerId = ${inputBind.customerReference ?? null}
+        )
     `);
+    const [bound] = resultRows<Record<string, unknown>>(
+      await db.execute(sql`
+        SELECT externalSubscriptionId, externalCustomerId
+        FROM billingSubscriptions
+        WHERE id = ${inputBind.subscriptionId} AND provider = 'asaas'
+        LIMIT 1
+      `)
+    );
+    if (
+      !bound ||
+      String(bound.externalSubscriptionId ?? "") !==
+        inputBind.externalSubscriptionId ||
+      (inputBind.customerReference &&
+        String(bound.externalCustomerId ?? "") !== inputBind.customerReference)
+    ) {
+      throw new Error("asaas_subscription_correlation_conflict");
+    }
   }
 
   async function cancelRejectedTrial(externalSubscriptionId: string) {
@@ -440,7 +493,10 @@ export function createAsaasWebhookRuntime(input: {
       const synchronized = await input.adapter.provider.synchronizeSubscription(
         externalSubscriptionId
       );
-      if (synchronized.status === "canceled" || synchronized.status === "expired") {
+      if (
+        synchronized.status === "canceled" ||
+        synchronized.status === "expired"
+      ) {
         await input.store.markCreated({
           kind: "reconciliation",
           operationKey,
@@ -485,12 +541,21 @@ export function createAsaasWebhookRuntime(input: {
     customerReference: string | null;
     occurredAt: Date;
   }): Promise<{ subscriptionId: string | null; permanentReason?: string }> {
-    let subscriptionId = await loadContractSubscription(inputCorrelation.contractKey);
+    let subscriptionId = await loadContractSubscription(
+      inputCorrelation.contractKey
+    );
     const operationKey = `${inputCorrelation.contractKey}:checkout`;
     const checkout = await input.store.get("checkout", operationKey);
 
     if (!subscriptionId && checkout?.subscriptionId) {
       subscriptionId = checkout.subscriptionId;
+    }
+
+    if (checkout?.payerUserId && inputCorrelation.customerReference) {
+      await input.adapter.rememberHostedCheckoutCustomer(
+        checkout.payerUserId,
+        inputCorrelation.customerReference
+      );
     }
 
     if (!subscriptionId && checkout?.trialChoice === "request") {
@@ -502,7 +567,9 @@ export function createAsaasWebhookRuntime(input: {
       ) {
         return { subscriptionId: null };
       }
-      const customer = await input.adapter.getCustomer(inputCorrelation.customerReference);
+      const customer = await input.adapter.getCustomer(
+        inputCorrelation.customerReference
+      );
       let prepared: Awaited<
         ReturnType<typeof billingSubscriptionLifecycleService.startContract>
       >;
@@ -524,7 +591,8 @@ export function createAsaasWebhookRuntime(input: {
           identity: trialIdentity(checkout.payerUserId, customer),
           couponCode: checkout.couponCode,
           correlationId:
-            checkout.correlationId ?? `asaas:${inputCorrelation.providerEventId}`,
+            checkout.correlationId ??
+            `asaas:${inputCorrelation.providerEventId}`,
           transitionAccessUntil: checkout.transitionAccessUntil,
         });
       } catch (error) {
@@ -536,7 +604,10 @@ export function createAsaasWebhookRuntime(input: {
           code === "billing_plan_not_available"
         ) {
           await cancelRejectedTrial(inputCorrelation.externalSubscriptionId);
-          return { subscriptionId: null, permanentReason: code || "trial_invalid" };
+          return {
+            subscriptionId: null,
+            permanentReason: code || "trial_invalid",
+          };
         }
         throw error;
       }
@@ -548,7 +619,11 @@ export function createAsaasWebhookRuntime(input: {
         };
       }
       subscriptionId = prepared.intent.subscriptionId;
-      await input.store.bindSubscription("checkout", operationKey, subscriptionId);
+      await input.store.bindSubscription(
+        "checkout",
+        operationKey,
+        subscriptionId
+      );
     }
 
     if (subscriptionId) {
@@ -558,7 +633,11 @@ export function createAsaasWebhookRuntime(input: {
         customerReference: inputCorrelation.customerReference,
       });
       if (checkout && !checkout.subscriptionId) {
-        await input.store.bindSubscription("checkout", operationKey, subscriptionId);
+        await input.store.bindSubscription(
+          "checkout",
+          operationKey,
+          subscriptionId
+        );
       }
     }
     return { subscriptionId };
@@ -577,7 +656,10 @@ export function createAsaasWebhookRuntime(input: {
 
     const objectId = metaString(row.metadata, "objectId");
     if (objectId && row.eventType.startsWith("PAYMENT_")) {
-      const scheduled = await input.store.findByExternalId("pix_payment", objectId);
+      const scheduled = await input.store.findByExternalId(
+        "pix_payment",
+        objectId
+      );
       if (scheduled?.subscriptionId) return scheduled.subscriptionId;
     }
 
@@ -596,7 +678,8 @@ export function createAsaasWebhookRuntime(input: {
         "pix_automatic_authorization",
         contract
       );
-      if (pixByContractId?.subscriptionId) return pixByContractId.subscriptionId;
+      if (pixByContractId?.subscriptionId)
+        return pixByContractId.subscriptionId;
     }
 
     if (contract) {
@@ -704,7 +787,7 @@ export function createAsaasWebhookRuntime(input: {
         operation.unitAmountMinor &&
         confirmedCouponCharges < operation.discountDurationCharges
           ? operation.amountMinor
-          : operation.unitAmountMinor ?? operation.amountMinor;
+          : (operation.unitAmountMinor ?? operation.amountMinor);
       if (!nextAmount) return;
       await input.adapter.schedulePixPayment({
         subscriptionId,
@@ -755,7 +838,8 @@ export function createAsaasWebhookRuntime(input: {
         const operationKey = `${contractKey}:checkout`;
         const checkout = await input.store.get("checkout", operationKey);
         const subscriptionId =
-          checkout?.subscriptionId ?? (await loadContractSubscription(contractKey));
+          checkout?.subscriptionId ??
+          (await loadContractSubscription(contractKey));
         if (subscriptionId) {
           await billingSubscriptionLifecycleService.applyFinancialFact({
             providerCode: "asaas",
@@ -763,7 +847,8 @@ export function createAsaasWebhookRuntime(input: {
             subscriptionId,
             kind: "attempt_expired",
             occurredAt: row.occurredAt ?? new Date(),
-            competenceKey: metaString(row.metadata, "objectId") ?? row.providerEventId,
+            competenceKey:
+              metaString(row.metadata, "objectId") ?? row.providerEventId,
             correlationId: `asaas:${row.providerEventId}`,
           });
         } else if (checkout?.couponCode) {
@@ -772,7 +857,11 @@ export function createAsaasWebhookRuntime(input: {
           );
         }
         if (checkout) {
-          await input.store.markFailed("checkout", operationKey, "checkout_expired");
+          await input.store.markFailed(
+            "checkout",
+            operationKey,
+            "checkout_expired"
+          );
         }
         await markEvent(row.id, "processed", null, subscriptionId);
         return "processed" as const;
@@ -957,7 +1046,8 @@ export function createAsaasWebhookRuntime(input: {
       await markEvent(
         row.id,
         "failed",
-        error instanceof Error && error.message === "billing_subscription_not_found"
+        error instanceof Error &&
+          error.message === "billing_subscription_not_found"
           ? "correlation_pending"
           : "processing_failed"
       );
@@ -1009,6 +1099,77 @@ export function createAsaasWebhookRuntime(input: {
     });
   }
 
+  async function reconcileFinancialPayment(inputReconcile: {
+    subscriptionId: string;
+    externalSubscriptionId: string;
+    payment: AsaasPaymentResponse;
+  }) {
+    const paymentId = stringValue(inputReconcile.payment.id);
+    const paymentSubscription = stringValue(
+      inputReconcile.payment.subscription
+    );
+    const status = String(inputReconcile.payment.status ?? "")
+      .trim()
+      .toUpperCase();
+    if (
+      !paymentId ||
+      paymentSubscription !== inputReconcile.externalSubscriptionId
+    ) {
+      throw new Error("asaas_payment_reconciliation_identity_mismatch");
+    }
+    const kind = financialKindFromPaymentStatus(status);
+    if (!kind) return { processed: false as const, status };
+    const occurredAt = authoritativePaymentOccurredAt(inputReconcile.payment);
+    if (!occurredAt) {
+      return {
+        processed: false as const,
+        status,
+        reason: "authoritative_timestamp_missing" as const,
+      };
+    }
+    const providerEventId = `reconciliation:payment:${paymentId}:${status.toLowerCase()}`;
+    const row: PersistedWebhookRow = {
+      id: providerEventId,
+      providerEventId,
+      eventType: `RECONCILIATION_PAYMENT_${status}`,
+      subscriptionId: inputReconcile.subscriptionId,
+      occurredAt,
+      metadata: {
+        objectId: paymentId,
+        status,
+        subscriptionReference: inputReconcile.externalSubscriptionId,
+        customerReference: inputReconcile.payment.customer ?? null,
+        contractReference: inputReconcile.payment.externalReference ?? null,
+        dueDate: inputReconcile.payment.dueDate ?? null,
+        chargePurpose: "initial",
+      },
+    };
+    const applied =
+      await billingSubscriptionLifecycleService.applyFinancialFact({
+        providerCode: "asaas",
+        providerEventId,
+        subscriptionId: inputReconcile.subscriptionId,
+        kind,
+        occurredAt,
+        competenceKey: paymentId,
+        chargePurpose:
+          (metaString(row.metadata, "chargePurpose") as
+            | "initial"
+            | "early_conversion"
+            | "renewal"
+            | "recovery"
+            | null) ?? "renewal",
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        commercialConfirmationKey: null,
+        correlationId: `asaas:${providerEventId}`,
+      });
+    if (kind === "payment_confirmed") {
+      await postPaymentBookkeeping(row, inputReconcile.subscriptionId);
+    }
+    return { processed: true as const, status, kind, ...applied };
+  }
+
   async function handle(req: Request, res: Response) {
     if (
       !authenticateAsaasWebhook(
@@ -1051,5 +1212,6 @@ export function createAsaasWebhookRuntime(input: {
     processEvent,
     processDueEvents,
     reconcileSubscriptionCreated,
+    reconcileFinancialPayment,
   };
 }

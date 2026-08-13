@@ -32,7 +32,8 @@ export function isAsaasProviderTerminalFailure(
 ) {
   return (
     (kind === "checkout" && errorCode === "checkout_expired") ||
-    (kind === "pix_automatic_authorization" && errorCode === "authorization_closed")
+    (kind === "pix_automatic_authorization" &&
+      errorCode === "authorization_closed")
   );
 }
 
@@ -59,6 +60,7 @@ export type AsaasOperation = {
   discountDurationCharges: number | null;
   transitionAccessUntil: Date | null;
   dueDate: string | null;
+  createdAt?: Date | null;
   updatedAt: Date | null;
 };
 
@@ -85,7 +87,10 @@ export type PrepareAsaasOperationInput = {
 };
 
 export type AsaasOperationStore = {
-  get(kind: AsaasOperationKind, operationKey: string): Promise<AsaasOperation | null>;
+  get(
+    kind: AsaasOperationKind,
+    operationKey: string
+  ): Promise<AsaasOperation | null>;
   prepare(input: PrepareAsaasOperationInput): Promise<{
     operation: AsaasOperation;
     created: boolean;
@@ -104,7 +109,10 @@ export type AsaasOperationStore = {
     operationKey: string,
     subscriptionId: string
   ): Promise<void>;
-  markOutcomeUnknown(kind: AsaasOperationKind, operationKey: string): Promise<void>;
+  markOutcomeUnknown(
+    kind: AsaasOperationKind,
+    operationKey: string
+  ): Promise<void>;
   resetOutcomeUnknownToPrepared(
     kind: AsaasOperationKind,
     operationKey: string
@@ -190,8 +198,12 @@ function mapOperation(
     publicReference: stringOrNull(metadata.publicReference),
     payerUserId: numberOrNull(metadata.payerUserId),
     planCode: stringOrNull(metadata.planCode),
-    paymentMethod: stringOrNull(metadata.paymentMethod) as BillingPaymentMethod | null,
-    trialChoice: stringOrNull(metadata.trialChoice) as BillingTrialChoice | null,
+    paymentMethod: stringOrNull(
+      metadata.paymentMethod
+    ) as BillingPaymentMethod | null,
+    trialChoice: stringOrNull(
+      metadata.trialChoice
+    ) as BillingTrialChoice | null,
     couponCode: stringOrNull(metadata.couponCode),
     billingCycle: stringOrNull(metadata.billingCycle) as BillingCycle | null,
     correlationId: stringOrNull(metadata.correlationId),
@@ -203,6 +215,7 @@ function mapOperation(
         ? transitionAccessUntil
         : null,
     dueDate: stringOrNull(metadata.dueDate),
+    createdAt: dateOrNull(row.createdAt),
     updatedAt: dateOrNull(row.updatedAt),
   };
 }
@@ -244,7 +257,7 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
     const executor = await db();
     const [row] = resultRows<Record<string, unknown>>(
       await executor.execute(sql`
-        SELECT id, subscriptionId, payloadJson, updatedAt
+        SELECT id, subscriptionId, payloadJson, createdAt, updatedAt
         FROM billingProviderEvents
         WHERE provider = 'asaas'
           AND providerEventId = ${providerEventId(kind, operationKey)}
@@ -400,7 +413,9 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
         kind,
         operationKey,
         state: "failed",
-        errorCode: providerTerminal ? `provider_terminal:${errorCode}` : errorCode,
+        errorCode: providerTerminal
+          ? `provider_terminal:${errorCode}`
+          : errorCode,
         allowConfirmedStateTransition: providerTerminal,
         allowProviderTerminalTransition: providerTerminal,
       });
@@ -418,7 +433,7 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       const executor = await db();
       const [row] = resultRows<Record<string, unknown>>(
         await executor.execute(sql`
-          SELECT id, providerEventId, subscriptionId, payloadJson, updatedAt
+          SELECT id, providerEventId, subscriptionId, payloadJson, createdAt, updatedAt
           FROM billingProviderEvents
           WHERE provider = 'asaas'
             AND eventType = ${`local_${kind}`}
@@ -435,7 +450,7 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       const executor = await db();
       const [row] = resultRows<Record<string, unknown>>(
         await executor.execute(sql`
-          SELECT id, providerEventId, subscriptionId, payloadJson, updatedAt
+          SELECT id, providerEventId, subscriptionId, payloadJson, createdAt, updatedAt
           FROM billingProviderEvents
           WHERE provider = 'asaas'
             AND eventType = ${`local_${kind}`}
@@ -452,7 +467,7 @@ export function createDrizzleAsaasOperationStore(): AsaasOperationStore {
       const executor = await db();
       const rows = resultRows<Record<string, unknown>>(
         await executor.execute(sql`
-          SELECT id, providerEventId, subscriptionId, payloadJson, updatedAt
+          SELECT id, providerEventId, subscriptionId, payloadJson, createdAt, updatedAt
           FROM billingProviderEvents
           WHERE provider = 'asaas'
             AND eventType = 'local_pix_payment'

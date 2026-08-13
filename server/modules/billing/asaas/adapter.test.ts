@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   businessWeekdaysUntil,
   createAsaasAdapter,
+  selectHostedCheckoutSubscription,
   shouldCreateScheduledPixPayment,
 } from "./adapter";
 import { AsaasUncertainOutcomeError, createAsaasClient } from "./client";
@@ -73,7 +74,10 @@ function memoryStore(): AsaasOperationStore {
     async markOutcomeUnknown(kind, operationKey) {
       const current = values.get(key(kind, operationKey));
       if (!current) throw new Error("missing");
-      values.set(key(kind, operationKey), { ...current, state: "outcome_unknown" });
+      values.set(key(kind, operationKey), {
+        ...current,
+        state: "outcome_unknown",
+      });
     },
     async resetOutcomeUnknownToPrepared(kind, operationKey) {
       const current = values.get(key(kind, operationKey));
@@ -97,8 +101,9 @@ function memoryStore(): AsaasOperationStore {
     },
     async findByExternalId(kind, externalId) {
       return (
-        list().find(item => item.kind === kind && item.externalId === externalId) ??
-        null
+        list().find(
+          item => item.kind === kind && item.externalId === externalId
+        ) ?? null
       );
     },
     async findByPublicReference(kind, publicReference) {
@@ -151,6 +156,114 @@ function jsonResponse(value: unknown) {
 }
 
 describe("Asaas adapter", () => {
+  it("recovers a hosted Checkout subscription from one exact provider fingerprint", () => {
+    const checkout: AsaasOperation = {
+      id: "op-1",
+      kind: "checkout",
+      operationKey: "contract-1:checkout",
+      state: "created",
+      subscriptionId: "sub-local-1",
+      externalId: "checkout-1",
+      externalReference: "contract-1",
+      customerReference: null,
+      authorizationReference: null,
+      publicReference: "https://asaas.example/checkout-1",
+      payerUserId: 7,
+      planCode: "individual-yearly-v1",
+      paymentMethod: "credit_card",
+      trialChoice: "waive",
+      couponCode: null,
+      billingCycle: "yearly",
+      correlationId: "attempt-1",
+      amountMinor: 35900,
+      unitAmountMinor: 35900,
+      discountDurationCharges: null,
+      transitionAccessUntil: null,
+      dueDate: null,
+      updatedAt: new Date("2026-08-13T18:08:19.000Z"),
+    };
+    expect(
+      selectHostedCheckoutSubscription({
+        checkout,
+        subscriptions: [
+          {
+            id: "sub-wrong-cycle",
+            dateCreated: "2026-08-13",
+            billingType: "CREDIT_CARD",
+            cycle: "MONTHLY",
+            value: 359,
+            nextDueDate: "2027-08-14",
+            externalReference: null,
+          },
+          {
+            id: "sub-matched",
+            dateCreated: "2026-08-13",
+            billingType: "CREDIT_CARD",
+            cycle: "YEARLY",
+            value: 359,
+            nextDueDate: "2027-08-14",
+            externalReference: null,
+            customer: "cus-1",
+          },
+        ],
+      })
+    ).toMatchObject({ id: "sub-matched", customer: "cus-1" });
+  });
+
+  it("keeps hosted Checkout recovery pending for zero candidates and fails closed for ambiguity", () => {
+    const checkout: AsaasOperation = {
+      id: "op-1",
+      kind: "checkout",
+      operationKey: "contract-1:checkout",
+      state: "created",
+      subscriptionId: "sub-local-1",
+      externalId: "checkout-1",
+      externalReference: "contract-1",
+      customerReference: "cus-1",
+      authorizationReference: null,
+      publicReference: null,
+      payerUserId: 7,
+      planCode: "individual-yearly-v1",
+      paymentMethod: "credit_card",
+      trialChoice: "waive",
+      couponCode: null,
+      billingCycle: "yearly",
+      correlationId: "attempt-1",
+      amountMinor: 35900,
+      unitAmountMinor: 35900,
+      discountDurationCharges: null,
+      transitionAccessUntil: null,
+      dueDate: "2026-08-14",
+      updatedAt: new Date("2026-08-13T18:08:19.000Z"),
+    };
+    const matching = {
+      dateCreated: "2026-08-13",
+      billingType: "CREDIT_CARD",
+      cycle: "YEARLY",
+      value: 359,
+      nextDueDate: "2026-08-14",
+      externalReference: null,
+      customer: "cus-1",
+    };
+    expect(
+      selectHostedCheckoutSubscription({
+        checkout,
+        subscriptions: [
+          { id: "sub-other-customer", ...matching, customer: "cus-2" },
+        ],
+      })
+    ).toBeNull();
+    expect(() =>
+      selectHostedCheckoutSubscription({
+        checkout,
+        subscriptions: [
+          { id: "sub-1", ...matching },
+          { id: "sub-2", ...matching },
+        ],
+      })
+    ).toThrow("asaas_checkout_subscription_reconciliation_ambiguous");
+  });
+
   it("uses one outbound checkout call and reuses persisted checkout", async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async (request, init) => {
@@ -165,7 +278,11 @@ describe("Asaas adapter", () => {
       throw new Error("unexpected");
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["credit_card"],
       now: () => new Date("2026-08-11T12:00:00.000Z"),
@@ -189,7 +306,11 @@ describe("Asaas adapter", () => {
       });
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store,
       enabledPaymentMethods: ["credit_card"],
     });
@@ -206,7 +327,9 @@ describe("Asaas adapter", () => {
     });
 
     expect(checkoutBodies[1]).toMatchObject({ customer: "cus_checkout_1" });
-    expect(await store.get("customer", "controle-calorias:user:7")).toMatchObject({
+    expect(
+      await store.get("customer", "controle-calorias:user:7")
+    ).toMatchObject({
       state: "created",
       externalId: "cus_checkout_1",
       publicReference: "hosted_checkout",
@@ -221,7 +344,11 @@ describe("Asaas adapter", () => {
     };
     const store = memoryStore();
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store,
       enabledPaymentMethods: ["credit_card"],
     });
@@ -246,9 +373,7 @@ describe("Asaas adapter", () => {
     ).rejects.toThrow("asaas_customer_document_invalid");
 
     expect(calls).toBe(0);
-    expect(
-      await store.get("customer", "controle-calorias:user:7")
-    ).toBeNull();
+    expect(await store.get("customer", "controle-calorias:user:7")).toBeNull();
   });
 
   it("normalizes CPF/CNPJ and always sends it when creating an Asaas customer", async () => {
@@ -263,13 +388,20 @@ describe("Asaas adapter", () => {
       if (url.endsWith("/pix/automatic/authorizations")) {
         return jsonResponse({
           id: "aut_1",
-          immediateQrCode: { payload: "qr-payload", expirationDate: "2026-08-11" },
+          immediateQrCode: {
+            payload: "qr-payload",
+            expirationDate: "2026-08-11",
+          },
         });
       }
       throw new Error("unexpected");
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["pix_automatic"],
     });
@@ -297,11 +429,16 @@ describe("Asaas adapter", () => {
     const fetchImpl: typeof fetch = async (request, init) => {
       const url = String(request);
       calls.push(`${init?.method ?? "GET"} ${url}`);
-      if (url.endsWith("/checkouts")) return jsonResponse({ id: "chk_id_only" });
+      if (url.endsWith("/checkouts"))
+        return jsonResponse({ id: "chk_id_only" });
       throw new Error("unexpected");
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["credit_card"],
       now: () => new Date("2026-08-11T12:00:00.000Z"),
@@ -328,7 +465,11 @@ describe("Asaas adapter", () => {
       throw new DOMException("aborted", "AbortError");
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["credit_card"],
     });
@@ -348,7 +489,11 @@ describe("Asaas adapter", () => {
       return jsonResponse({ id: "unexpected" });
     };
     const cardOnly = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["credit_card"],
     });
@@ -362,7 +507,11 @@ describe("Asaas adapter", () => {
     ).rejects.toThrow("asaas_payment_method_unavailable");
 
     const pix = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["pix_automatic"],
     });
@@ -388,13 +537,20 @@ describe("Asaas adapter", () => {
       if (url.endsWith("/pix/automatic/authorizations")) {
         return jsonResponse({
           id: "aut_1",
-          immediateQrCode: { payload: "qr-payload", expirationDate: "2026-08-11" },
+          immediateQrCode: {
+            payload: "qr-payload",
+            expirationDate: "2026-08-11",
+          },
         });
       }
       throw new Error("unexpected");
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["pix_automatic"],
     });
@@ -417,11 +573,18 @@ describe("Asaas adapter", () => {
         url: String(request),
         body: init?.body ? JSON.parse(String(init.body)) : null,
       });
-      return jsonResponse({ id: "pay_1", externalReference: "contract-1:2026-08-18" });
+      return jsonResponse({
+        id: "pay_1",
+        externalReference: "contract-1:2026-08-18",
+      });
     };
     const store = memoryStore();
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store,
       enabledPaymentMethods: ["pix_automatic"],
       now: () => new Date("2026-08-11T12:00:00.000Z"),
@@ -436,8 +599,15 @@ describe("Asaas adapter", () => {
       amountMinor: 3990,
     });
     expect(calls).toHaveLength(0);
-    expect(businessWeekdaysUntil("2026-08-18", new Date("2026-08-11T12:00:00Z"))).toBe(5);
-    expect(shouldCreateScheduledPixPayment("2026-08-18", new Date("2026-08-11T12:00:00Z"))).toBe(true);
+    expect(
+      businessWeekdaysUntil("2026-08-18", new Date("2026-08-11T12:00:00Z"))
+    ).toBe(5);
+    expect(
+      shouldCreateScheduledPixPayment(
+        "2026-08-18",
+        new Date("2026-08-11T12:00:00Z")
+      )
+    ).toBe(true);
     await adapter.executeScheduledPixPayment(scheduled.operation);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.body).toMatchObject({
@@ -459,12 +629,20 @@ describe("Asaas adapter", () => {
         throw new DOMException("aborted", "AbortError");
       }
       if (method === "GET" && url.endsWith("/subscriptions/sub_remote_1")) {
-        return jsonResponse({ id: "sub_remote_1", status: "ACTIVE", value: 39.9 });
+        return jsonResponse({
+          id: "sub_remote_1",
+          status: "ACTIVE",
+          value: 39.9,
+        });
       }
       throw new Error(`unexpected ${method} ${url}`);
     };
     const adapter = createAsaasAdapter({
-      client: createAsaasClient({ environment: "sandbox", apiKey: "key", fetchImpl }),
+      client: createAsaasClient({
+        environment: "sandbox",
+        apiKey: "key",
+        fetchImpl,
+      }),
       store: memoryStore(),
       enabledPaymentMethods: ["credit_card"],
     });

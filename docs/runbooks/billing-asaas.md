@@ -36,14 +36,14 @@ Segredos são backend-only e nunca usam prefixo `VITE_`. Para qualquer validaç�
 
 ## Sinais e diagnóstico
 
-| Sinal | Interpretação provável | Ação inicial |
-| --- | --- | --- |
-| webhooks em `received` por tempo anormal | worker/reconciliação não processou | executar reconciliação administrativa e revisar logs sanitizados |
-| `failed/correlation_pending` repetido | evento chegou antes da correlação local | reconciliar o contrato/assinatura; não criar cobrança substituta |
-| `failed/processing_failed` consecutivo | falha recuperável no processamento | identificar classe do erro, corrigir causa e reprocessar pelo reconciliador |
-| operação local `outcome_unknown` | mutação pode ter ocorrido no Asaas | somente GET/reconciliação; nunca repetir POST/PUT/DELETE cegamente |
-| Checkout ou autorização Pix terminal | tentativa encerrada no provider | oferecer nova tentativa com nova intenção/contrato; não reutilizar objeto terminal |
-| divergência local x Asaas | estado não pode ser decidido com segurança | manter `pending`, coletar leitura autoritativa e reconciliar |
+| Sinal                                    | Interpretação provável                     | Ação inicial                                                                       |
+| ---------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| webhooks em `received` por tempo anormal | worker/reconciliação não processou         | executar reconciliação administrativa e revisar logs sanitizados                   |
+| `failed/correlation_pending` repetido    | evento chegou antes da correlação local    | reconciliar o contrato/assinatura; não criar cobrança substituta                   |
+| `failed/processing_failed` consecutivo   | falha recuperável no processamento         | identificar classe do erro, corrigir causa e reprocessar pelo reconciliador        |
+| operação local `outcome_unknown`         | mutação pode ter ocorrido no Asaas         | somente GET/reconciliação; nunca repetir POST/PUT/DELETE cegamente                 |
+| Checkout ou autorização Pix terminal     | tentativa encerrada no provider            | oferecer nova tentativa com nova intenção/contrato; não reutilizar objeto terminal |
+| divergência local x Asaas                | estado não pode ser decidido com segurança | manter `pending`, coletar leitura autoritativa e reconciliar                       |
 
 Logs devem conter somente IDs internos/sanitizados e classe de erro. Nunca registrar headers, corpo bruto, API key, token de webhook ou dados de cartão.
 
@@ -62,6 +62,16 @@ pnpm exec tsx scripts/reconcile-asaas-billing.ts '<contractKey>'
 ```
 
 O comando deve ser executado com o mesmo ambiente/configuração da aplicação. Reconciliação não significa repetir mutação: o código consulta o provider e só fecha/reabre a operação quando a leitura autoritativa permitir.
+
+Em Checkout hospedado, o Asaas pode manter o `externalReference` somente no Checkout e
+criar assinatura, customer e cobrança sem essa referência. Nesse caso, o comando tenta um
+fingerprint fail-closed usando os dados já persistidos da operação e leituras paginadas do
+provider. Resultado `subscription_not_found` deve permanecer pendente; erro
+`asaas_checkout_subscription_reconciliation_ambiguous` ou
+`asaas_checkout_payment_reconciliation_ambiguous` exige intervenção e nunca autoriza a
+escolha manual do primeiro resultado. Uma assinatura correlacionada com cobrança
+`PENDING` continua sem acesso. Não altere a assinatura remota apenas para inserir uma
+referência ausente.
 
 ## Fila de webhook interrompida ou falhas consecutivas
 

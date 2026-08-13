@@ -1,7 +1,9 @@
 import {
   authenticateAsaasWebhook,
+  authoritativePaymentOccurredAt,
   createAsaasWebhookRuntime as createBaseAsaasWebhookRuntime,
   financialKind,
+  financialKindFromPaymentStatus,
   isPixAuthorizationActivated,
   isPixAuthorizationTerminal,
   normalizeAsaasWebhookEnvelope,
@@ -17,7 +19,9 @@ import type { AsaasOperationStore } from "./operationStore";
 export type { AsaasWebhookEnvelope, PersistedWebhookRow };
 export {
   authenticateAsaasWebhook,
+  authoritativePaymentOccurredAt,
   financialKind,
+  financialKindFromPaymentStatus,
   isPixAuthorizationActivated,
   isPixAuthorizationTerminal,
   normalizeAsaasWebhookEnvelope,
@@ -108,7 +112,8 @@ export async function persistAsaasPixInitialPaymentEventCorrelation(input: {
     dueDate: metadataText(input.event, "dueDate"),
   });
   if (
-    (prepared.operation.externalId && prepared.operation.externalId !== paymentId) ||
+    (prepared.operation.externalId &&
+      prepared.operation.externalId !== paymentId) ||
     (prepared.operation.publicReference &&
       prepared.operation.publicReference !== conciliationIdentifier)
   ) {
@@ -211,7 +216,8 @@ export function createConciliationAwareAsaasOperationStore(
       return {
         ...direct,
         subscriptionId: mapping.subscriptionId,
-        externalReference: direct.externalReference ?? mapping.externalReference,
+        externalReference:
+          direct.externalReference ?? mapping.externalReference,
         authorizationReference:
           direct.authorizationReference ??
           mapping.authorizationReference ??
@@ -220,7 +226,11 @@ export function createConciliationAwareAsaasOperationStore(
     },
     async get(kind, operationKey) {
       const direct = await store.get(kind, operationKey);
-      if (direct || kind !== "checkout" || !operationKey.endsWith(":checkout")) {
+      if (
+        direct ||
+        kind !== "checkout" ||
+        !operationKey.endsWith(":checkout")
+      ) {
         return direct;
       }
       const contractKey = operationKey.slice(0, -":checkout".length);

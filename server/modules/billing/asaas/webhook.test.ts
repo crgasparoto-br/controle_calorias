@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   authenticateAsaasWebhook,
+  authoritativePaymentOccurredAt,
   financialKind,
+  financialKindFromPaymentStatus,
   isPixAuthorizationTerminal,
   normalizeAsaasWebhookEnvelope,
 } from "./webhook";
@@ -15,10 +17,7 @@ describe("Asaas webhook boundary", () => {
       )
     ).toBe(true);
     expect(
-      authenticateAsaasWebhook(
-        { "asaas-access-token": "wrong" },
-        "secret-123"
-      )
+      authenticateAsaasWebhook({ "asaas-access-token": "wrong" }, "secret-123")
     ).toBe(false);
     expect(authenticateAsaasWebhook({}, "secret-123")).toBe(false);
   });
@@ -48,7 +47,9 @@ describe("Asaas webhook boundary", () => {
       customerReference: "cus_1",
       dueDate: "2026-08-11",
     });
-    expect(JSON.stringify(normalized.metadata)).not.toContain("should-never-be-persisted");
+    expect(JSON.stringify(normalized.metadata)).not.toContain(
+      "should-never-be-persisted"
+    );
   });
 
   it("keeps Pix instruction refusal operational while treating authorization refusal as terminal", () => {
@@ -61,6 +62,33 @@ describe("Asaas webhook boundary", () => {
       )
     ).toBe(true);
     expect(financialKind("PAYMENT_OVERDUE")).toBe("payment_failed");
+  });
+
+  it("treats only final payment statuses from authoritative reads as financial facts", () => {
+    expect(financialKindFromPaymentStatus("PENDING")).toBeNull();
+    expect(financialKindFromPaymentStatus("CONFIRMED")).toBe(
+      "payment_confirmed"
+    );
+    expect(financialKindFromPaymentStatus("RECEIVED")).toBe(
+      "payment_confirmed"
+    );
+    expect(financialKindFromPaymentStatus("OVERDUE")).toBe("payment_failed");
+    expect(financialKindFromPaymentStatus("REFUND_REQUESTED")).toBeNull();
+    expect(
+      authoritativePaymentOccurredAt({
+        id: "pay-1",
+        status: "CONFIRMED",
+        dateCreated: "2026-08-13",
+      })
+    ).toBeNull();
+    expect(
+      authoritativePaymentOccurredAt({
+        id: "pay-1",
+        status: "CONFIRMED",
+        dateCreated: "2026-08-13",
+        confirmedDate: "2026-08-14",
+      })?.toISOString()
+    ).toBe("2026-08-14T12:00:00.000Z");
   });
 
   it("normalizes Automatic Pix instruction metadata without treating raw provider data as durable state", () => {
@@ -81,7 +109,9 @@ describe("Asaas webhook boundary", () => {
       status: "REFUSED",
       dueDate: "2026-09-11",
     });
-    expect(JSON.stringify(normalized.metadata)).not.toContain("must-not-persist");
+    expect(JSON.stringify(normalized.metadata)).not.toContain(
+      "must-not-persist"
+    );
   });
 
   it("normalizes Pix Automático authorization correlation without granting access", () => {

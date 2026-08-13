@@ -136,6 +136,17 @@ Há dois caminhos:
 
 Reconciliação usa leitura autoritativa e não implica retry de mutação. O procedimento operacional, incluindo fila interrompida, falhas consecutivas, divergência, evidência sanitizada e validação live em sandbox, está em `docs/runbooks/billing-asaas.md`.
 
+O `externalReference` do Checkout hospedado não é tratado como se fosse garantidamente
+propagado para a assinatura ou cobrança criadas pelo Asaas. Quando a busca direta da
+assinatura não encontra a referência, a reconciliação de cartão pagina as assinaturas e
+aceita somente um fingerprint único composto por método, ciclo, valor, data de criação,
+primeiro vencimento e customer quando ele já era conhecido. Zero candidatos mantém a
+tentativa pendente; múltiplos candidatos encerram a leitura como ambígua sem vincular
+nenhum objeto. Depois da correlação, a cobrança inicial também precisa ter match único por
+assinatura, customer, método, valor e vencimento. Estados como `PENDING` são apenas
+reportados; somente status financeiros finais mapeados para fatos provider-neutral podem
+alterar o lifecycle. A releitura é paginada, limitada e não emite `POST`, `PUT` ou `DELETE`.
+
 ## Operações financeiras expostas pelo runtime
 
 O runtime fornece operações server-side para:

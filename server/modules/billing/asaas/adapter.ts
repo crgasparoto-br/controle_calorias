@@ -3,13 +3,19 @@ import { AsaasUncertainOutcomeError, type AsaasClient } from "./client";
 import {
   businessWeekdaysUntil,
   createAsaasAdapter as createBaseAsaasAdapter,
+  selectHostedCheckoutSubscription,
   shouldCreateScheduledPixPayment,
   type AsaasCustomerResponse,
+  type AsaasPaymentResponse,
 } from "./adapterCore";
 import type { AsaasOperationStore } from "./operationStore";
 
-export { businessWeekdaysUntil, shouldCreateScheduledPixPayment };
-export type { AsaasCustomerResponse };
+export {
+  businessWeekdaysUntil,
+  selectHostedCheckoutSubscription,
+  shouldCreateScheduledPixPayment,
+};
+export type { AsaasCustomerResponse, AsaasPaymentResponse };
 
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -57,7 +63,8 @@ export async function persistPixInitialPaymentCorrelation(input: {
   const existing = prepared.operation;
   if (
     (existing.externalId && existing.externalId !== authorizationId) ||
-    (existing.externalReference && existing.externalReference !== contractKey) ||
+    (existing.externalReference &&
+      existing.externalReference !== contractKey) ||
     (existing.authorizationReference &&
       existing.authorizationReference !== authorizationId) ||
     (existing.publicReference &&
@@ -177,7 +184,11 @@ export function createAsaasAdapter(input: {
       subscriptionId?: string | null;
       authorizationId: string;
       conciliationIdentifier: string;
-    }) => persistPixInitialPaymentCorrelation({ store: input.store, ...correlation }),
+    }) =>
+      persistPixInitialPaymentCorrelation({
+        store: input.store,
+        ...correlation,
+      }),
   };
 }
 

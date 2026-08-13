@@ -29,22 +29,37 @@ type PixAuthorizationResponse = {
   status?: string;
   immediateQrCode?: { payload?: string; expirationDate?: string };
 };
-type SubscriptionResponse = {
+export type AsaasSubscriptionResponse = {
   id?: string;
+  dateCreated?: string;
   status?: string;
   customer?: string;
+  billingType?: string;
+  cycle?: string;
   externalReference?: string;
   nextDueDate?: string;
   value?: number;
+  deleted?: boolean;
 };
-type SubscriptionListResponse = { data?: SubscriptionResponse[] };
-type PaymentResponse = {
+type SubscriptionListResponse = {
+  data?: AsaasSubscriptionResponse[];
+  hasMore?: boolean;
+};
+export type AsaasPaymentResponse = {
   id?: string;
+  dateCreated?: string;
   status?: string;
+  customer?: string;
+  subscription?: string;
+  billingType?: string;
   dueDate?: string;
+  confirmedDate?: string;
+  paymentDate?: string;
+  clientPaymentDate?: string;
+  value?: number;
   externalReference?: string;
 };
-type PaymentListResponse = { data?: PaymentResponse[] };
+type PaymentListResponse = { data?: AsaasPaymentResponse[]; hasMore?: boolean };
 
 const HOSTED_CHECKOUT_CUSTOMER_MARKER = "hosted_checkout";
 
@@ -72,6 +87,64 @@ function amountMajor(minor: number) {
     throw new Error("asaas_invalid_amount");
   }
   return minor / 100;
+}
+
+function amountMinor(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(value * 100)
+    : null;
+}
+
+function expectedCheckoutDueDate(operation: AsaasOperation) {
+  if (operation.dueDate) return operation.dueDate;
+  const createdAt = operation.createdAt ?? operation.updatedAt;
+  if (operation.trialChoice !== "waive" || !createdAt) return null;
+  return dateOnly(addDays(createdAt, 1));
+}
+
+export function selectHostedCheckoutSubscription(input: {
+  checkout: AsaasOperation;
+  subscriptions: AsaasSubscriptionResponse[];
+}) {
+  const checkout = input.checkout;
+  if (
+    checkout.kind !== "checkout" ||
+    checkout.paymentMethod !== "credit_card" ||
+    !checkout.externalReference ||
+    !checkout.billingCycle ||
+    checkout.billingCycle === "custom" ||
+    !checkout.amountMinor ||
+    !(checkout.createdAt ?? checkout.updatedAt)
+  ) {
+    return null;
+  }
+  const expectedCycle = cycle(checkout.billingCycle);
+  const expectedCreatedDate = dateOnly(
+    checkout.createdAt ?? checkout.updatedAt!
+  );
+  if (!expectedCheckoutDueDate(checkout)) return null;
+
+  const matches = input.subscriptions.filter(subscription => {
+    if (!subscription.id || subscription.deleted) return false;
+    if (
+      subscription.externalReference &&
+      subscription.externalReference !== checkout.externalReference
+    ) {
+      return false;
+    }
+    return (
+      String(subscription.billingType ?? "").toUpperCase() === "CREDIT_CARD" &&
+      String(subscription.cycle ?? "").toUpperCase() === expectedCycle &&
+      amountMinor(subscription.value) === checkout.amountMinor &&
+      subscription.dateCreated === expectedCreatedDate &&
+      (!checkout.customerReference ||
+        subscription.customer === checkout.customerReference)
+    );
+  });
+  if (matches.length > 1) {
+    throw new Error("asaas_checkout_subscription_reconciliation_ambiguous");
+  }
+  return matches[0] ?? null;
 }
 
 function finalAmount(flow: BillingProviderPaymentFlowInput) {
@@ -105,15 +178,22 @@ function validateCallbackUrl(value: string, code: string) {
 }
 
 function shortContractId(contractKey: string) {
-  return crypto.createHash("sha256").update(contractKey).digest("hex").slice(0, 32);
+  return crypto
+    .createHash("sha256")
+    .update(contractKey)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function failureCode(error: unknown) {
-  return error instanceof AsaasHttpError ? `http_${error.status}` : "unexpected";
+  return error instanceof AsaasHttpError
+    ? `http_${error.status}`
+    : "unexpected";
 }
 
 function parseDateOnly(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("asaas_invalid_due_date");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new Error("asaas_invalid_due_date");
   const date = new Date(`${value}T12:00:00.000Z`);
   if (Number.isNaN(date.getTime())) throw new Error("asaas_invalid_due_date");
   return date;
@@ -127,7 +207,11 @@ export function businessWeekdaysUntil(dueDate: string, now: Date) {
   const cursor = new Date(`${dateOnly(now)}T12:00:00.000Z`);
   if (due.getTime() <= cursor.getTime()) return 0;
   let weekdays = 0;
-  for (let value = addDays(cursor, 1); value.getTime() <= due.getTime(); value = addDays(value, 1)) {
+  for (
+    let value = addDays(cursor, 1);
+    value.getTime() <= due.getTime();
+    value = addDays(value, 1)
+  ) {
     const day = value.getUTCDay();
     if (day !== 0 && day !== 6) weekdays += 1;
   }
@@ -146,9 +230,9 @@ export function createAsaasAdapter(input: {
   now?: () => Date;
 }) {
   const now = input.now ?? (() => new Date());
-  const paymentMethods = Array.from(new Set(input.enabledPaymentMethods)).filter(
-    method => method === "credit_card" || method === "pix_automatic"
-  );
+  const paymentMethods = Array.from(
+    new Set(input.enabledPaymentMethods)
+  ).filter(method => method === "credit_card" || method === "pix_automatic");
 
   const capabilities: BillingProviderCapabilities = {
     paymentMethods,
@@ -165,7 +249,8 @@ export function createAsaasAdapter(input: {
     if (!paymentMethods.includes(flow.paymentMethod)) {
       throw new Error("asaas_payment_method_unavailable");
     }
-    if (flow.currency !== "BRL") throw new Error("asaas_currency_not_supported");
+    if (flow.currency !== "BRL")
+      throw new Error("asaas_currency_not_supported");
     if (!flow.contractKey.trim() || !flow.versionCode.trim()) {
       throw new Error("asaas_contract_reference_required");
     }
@@ -174,7 +259,10 @@ export function createAsaasAdapter(input: {
     if (amount === 0) {
       throw new Error("asaas_zero_value_charge_not_supported");
     }
-    if (flow.paymentMethod === "pix_automatic" && flow.trialChoice !== "waive") {
+    if (
+      flow.paymentMethod === "pix_automatic" &&
+      flow.trialChoice !== "waive"
+    ) {
       throw new Error("pix_automatic_requires_trial_waiver");
     }
     validateCallbackUrl(flow.successUrl, "asaas_invalid_success_url");
@@ -183,7 +271,9 @@ export function createAsaasAdapter(input: {
     return amount;
   }
 
-  async function ensureCustomer(customer: BillingProviderPaymentFlowInput["customer"]) {
+  async function ensureCustomer(
+    customer: BillingProviderPaymentFlowInput["customer"]
+  ) {
     const externalReference = customerExternalReference(customer.payerUserId);
     const operationKey = externalReference;
     const prepared = await input.store.prepare({
@@ -193,14 +283,20 @@ export function createAsaasAdapter(input: {
       customerReference: String(customer.payerUserId),
       payerUserId: customer.payerUserId,
     });
-    if (prepared.operation.state === "created" && prepared.operation.externalId) {
+    if (
+      prepared.operation.state === "created" &&
+      prepared.operation.externalId
+    ) {
       return prepared.operation.externalId;
     }
     if (prepared.operation.state === "outcome_unknown") {
-      const existing = await input.client.get<CustomerListResponse>("/customers", {
-        externalReference,
-        limit: 2,
-      });
+      const existing = await input.client.get<CustomerListResponse>(
+        "/customers",
+        {
+          externalReference,
+          limit: 2,
+        }
+      );
       const matches = (existing.data ?? []).filter(
         row => row.externalReference === externalReference && row.id
       );
@@ -225,13 +321,18 @@ export function createAsaasAdapter(input: {
     }
 
     try {
-      const created = await input.client.post<AsaasCustomerResponse>("/customers", {
-        name: requiredString(customer.name, "asaas_customer_name_required"),
-        ...(customer.email ? { email: customer.email } : {}),
-        ...(customer.mobilePhone ? { mobilePhone: customer.mobilePhone } : {}),
-        ...(customer.cpfCnpj ? { cpfCnpj: customer.cpfCnpj } : {}),
-        externalReference,
-      });
+      const created = await input.client.post<AsaasCustomerResponse>(
+        "/customers",
+        {
+          name: requiredString(customer.name, "asaas_customer_name_required"),
+          ...(customer.email ? { email: customer.email } : {}),
+          ...(customer.mobilePhone
+            ? { mobilePhone: customer.mobilePhone }
+            : {}),
+          ...(customer.cpfCnpj ? { cpfCnpj: customer.cpfCnpj } : {}),
+          externalReference,
+        }
+      );
       const id = requiredString(created.id, "asaas_customer_id_missing");
       await input.store.markCreated({
         kind: "customer",
@@ -244,7 +345,11 @@ export function createAsaasAdapter(input: {
       if (error instanceof AsaasUncertainOutcomeError) {
         await input.store.markOutcomeUnknown("customer", operationKey);
       } else {
-        await input.store.markFailed("customer", operationKey, failureCode(error));
+        await input.store.markFailed(
+          "customer",
+          operationKey,
+          failureCode(error)
+        );
       }
       throw error;
     }
@@ -346,13 +451,26 @@ export function createAsaasAdapter(input: {
     amountMinor: number
   ): Promise<BillingProviderPaymentFlow> {
     const operationKey = `${flow.contractKey}:checkout`;
+    const firstDueDate = addDays(
+      now(),
+      flow.trialChoice === "request" ? Math.max(2, flow.trialDays + 2) : 1
+    );
     const prepared = await input.store.prepare({
       kind: "checkout",
       operationKey,
+      dueDate: dateOnly(firstDueDate),
       ...flowOperationFields(flow, customerId, amountMinor),
     });
-    assertFlowOperationMatches(prepared.operation, flow, customerId, amountMinor);
-    if (prepared.operation.state === "created" && prepared.operation.externalId) {
+    assertFlowOperationMatches(
+      prepared.operation,
+      flow,
+      customerId,
+      amountMinor
+    );
+    if (
+      prepared.operation.state === "created" &&
+      prepared.operation.externalId
+    ) {
       let url = prepared.operation.publicReference;
       if (!url) {
         const current = await input.client.get<CheckoutResponse>(
@@ -383,10 +501,6 @@ export function createAsaasAdapter(input: {
       throw new Error("asaas_checkout_creation_failed");
     }
 
-    const firstDueDate = addDays(
-      now(),
-      flow.trialChoice === "request" ? Math.max(2, flow.trialDays + 2) : 1
-    );
     try {
       const created = await input.client.post<CheckoutResponse>("/checkouts", {
         billingTypes: ["CREDIT_CARD"],
@@ -394,9 +508,18 @@ export function createAsaasAdapter(input: {
         minutesToExpire: 60,
         externalReference: flow.contractKey,
         callback: {
-          successUrl: validateCallbackUrl(flow.successUrl, "asaas_invalid_success_url"),
-          cancelUrl: validateCallbackUrl(flow.cancelUrl, "asaas_invalid_cancel_url"),
-          expiredUrl: validateCallbackUrl(flow.expiredUrl, "asaas_invalid_expired_url"),
+          successUrl: validateCallbackUrl(
+            flow.successUrl,
+            "asaas_invalid_success_url"
+          ),
+          cancelUrl: validateCallbackUrl(
+            flow.cancelUrl,
+            "asaas_invalid_cancel_url"
+          ),
+          expiredUrl: validateCallbackUrl(
+            flow.expiredUrl,
+            "asaas_invalid_expired_url"
+          ),
         },
         items: [
           {
@@ -412,7 +535,10 @@ export function createAsaasAdapter(input: {
           nextDueDate: `${dateOnly(firstDueDate)} 12:00:00`,
         },
       });
-      const externalId = requiredString(created.id, "asaas_checkout_id_missing");
+      const externalId = requiredString(
+        created.id,
+        "asaas_checkout_id_missing"
+      );
       const url = requiredString(created.link, "asaas_checkout_link_missing");
       await input.store.markCreated({
         kind: "checkout",
@@ -433,7 +559,11 @@ export function createAsaasAdapter(input: {
       if (error instanceof AsaasUncertainOutcomeError) {
         await input.store.markOutcomeUnknown("checkout", operationKey);
       } else {
-        await input.store.markFailed("checkout", operationKey, failureCode(error));
+        await input.store.markFailed(
+          "checkout",
+          operationKey,
+          failureCode(error)
+        );
       }
       throw error;
     }
@@ -451,14 +581,22 @@ export function createAsaasAdapter(input: {
       publicReference: shortContractId(flow.contractKey),
       ...flowOperationFields(flow, customerId, amountMinor),
     });
-    assertFlowOperationMatches(prepared.operation, flow, customerId, amountMinor);
+    assertFlowOperationMatches(
+      prepared.operation,
+      flow,
+      customerId,
+      amountMinor
+    );
     if (prepared.operation.state === "outcome_unknown") {
       throw new Error("asaas_pix_authorization_reconciliation_pending");
     }
     if (!prepared.created && prepared.operation.state === "failed") {
       throw new Error("asaas_pix_authorization_failed");
     }
-    if (prepared.operation.state === "created" && prepared.operation.externalId) {
+    if (
+      prepared.operation.state === "created" &&
+      prepared.operation.externalId
+    ) {
       const current = await input.client.get<PixAuthorizationResponse>(
         `/pix/automatic/authorizations/${encodeURIComponent(prepared.operation.externalId)}`
       );
@@ -618,14 +756,17 @@ export function createAsaasAdapter(input: {
     }
 
     try {
-      const created = await input.client.post<PaymentResponse>("/payments", {
-        customer: operation.customerReference,
-        billingType: "PIX",
-        value: amountMajor(operation.amountMinor),
-        dueDate: operation.dueDate,
-        externalReference,
-        pixAutomaticAuthorizationId: operation.authorizationReference,
-      });
+      const created = await input.client.post<AsaasPaymentResponse>(
+        "/payments",
+        {
+          customer: operation.customerReference,
+          billingType: "PIX",
+          value: amountMajor(operation.amountMinor),
+          dueDate: operation.dueDate,
+          externalReference,
+          pixAutomaticAuthorizationId: operation.authorizationReference,
+        }
+      );
       const externalId = requiredString(created.id, "asaas_payment_id_missing");
       await input.store.markCreated({
         kind: "pix_payment",
@@ -638,7 +779,10 @@ export function createAsaasAdapter(input: {
       return externalId;
     } catch (error) {
       if (error instanceof AsaasUncertainOutcomeError) {
-        await input.store.markOutcomeUnknown("pix_payment", operation.operationKey);
+        await input.store.markOutcomeUnknown(
+          "pix_payment",
+          operation.operationKey
+        );
       } else {
         await input.store.markFailed(
           "pix_payment",
@@ -666,7 +810,7 @@ export function createAsaasAdapter(input: {
     });
     if (prepared.operation.state === "created") return;
     if (prepared.operation.state === "outcome_unknown") {
-      const current = await input.client.get<SubscriptionResponse>(
+      const current = await input.client.get<AsaasSubscriptionResponse>(
         `/subscriptions/${encodeURIComponent(inputReset.externalSubscriptionId)}`
       );
       const currentMinor =
@@ -682,7 +826,10 @@ export function createAsaasAdapter(input: {
         });
         return;
       }
-      await input.store.resetOutcomeUnknownToPrepared("coupon_reset", operationKey);
+      await input.store.resetOutcomeUnknownToPrepared(
+        "coupon_reset",
+        operationKey
+      );
       throw new Error("asaas_coupon_reset_safe_retry_required");
     }
     if (!prepared.created && prepared.operation.state === "failed") {
@@ -706,7 +853,11 @@ export function createAsaasAdapter(input: {
       if (error instanceof AsaasUncertainOutcomeError) {
         await input.store.markOutcomeUnknown("coupon_reset", operationKey);
       } else {
-        await input.store.markFailed("coupon_reset", operationKey, failureCode(error));
+        await input.store.markFailed(
+          "coupon_reset",
+          operationKey,
+          failureCode(error)
+        );
       }
       throw error;
     }
@@ -717,7 +868,7 @@ export function createAsaasAdapter(input: {
     capabilities: () => capabilities,
     createPaymentFlow,
     async synchronizeSubscription(externalSubscriptionId) {
-      const data = await input.client.get<SubscriptionResponse>(
+      const data = await input.client.get<AsaasSubscriptionResponse>(
         `/subscriptions/${encodeURIComponent(externalSubscriptionId)}`
       );
       const status = String(data.status ?? "").toUpperCase();
@@ -783,6 +934,68 @@ export function createAsaasAdapter(input: {
         throw new Error("asaas_subscription_reconciliation_ambiguous");
       }
       return matches[0] ?? null;
+    },
+    async findHostedCheckoutSubscription(checkout: AsaasOperation) {
+      if (!checkout.externalReference) return null;
+      const direct = await input.client.get<SubscriptionListResponse>(
+        "/subscriptions",
+        { externalReference: checkout.externalReference, limit: 2 }
+      );
+      const directMatches = (direct.data ?? []).filter(
+        item => item.externalReference === checkout.externalReference && item.id
+      );
+      if (directMatches.length > 1) {
+        throw new Error("asaas_subscription_reconciliation_ambiguous");
+      }
+      if (directMatches[0]) {
+        return {
+          subscription: directMatches[0],
+          matchedBy: "external_reference" as const,
+        };
+      }
+
+      const subscriptions: AsaasSubscriptionResponse[] = [];
+      for (let offset = 0; offset < 10_000; offset += 100) {
+        const page = await input.client.get<SubscriptionListResponse>(
+          "/subscriptions",
+          { billingType: "CREDIT_CARD", limit: 100, offset }
+        );
+        subscriptions.push(...(page.data ?? []));
+        if (!page.hasMore && (page.data?.length ?? 0) < 100) break;
+        if (!page.hasMore && (page.data?.length ?? 0) === 0) break;
+        if (offset === 9_900) {
+          throw new Error("asaas_subscription_reconciliation_scan_limit");
+        }
+      }
+      const subscription = selectHostedCheckoutSubscription({
+        checkout,
+        subscriptions,
+      });
+      return subscription
+        ? { subscription, matchedBy: "checkout_fingerprint" as const }
+        : null;
+    },
+    async listSubscriptionPayments(externalSubscriptionId: string) {
+      const payments: AsaasPaymentResponse[] = [];
+      for (let offset = 0; offset < 10_000; offset += 100) {
+        const page = await input.client.get<PaymentListResponse>("/payments", {
+          subscription: externalSubscriptionId,
+          limit: 100,
+          offset,
+        });
+        payments.push(
+          ...(page.data ?? []).filter(
+            payment =>
+              payment.subscription === externalSubscriptionId && payment.id
+          )
+        );
+        if (!page.hasMore && (page.data?.length ?? 0) < 100) break;
+        if (!page.hasMore && (page.data?.length ?? 0) === 0) break;
+        if (offset === 9_900) {
+          throw new Error("asaas_payment_reconciliation_scan_limit");
+        }
+      }
+      return payments;
     },
     async cancelPixAutomaticAuthorization(id: string) {
       await input.client.delete(
