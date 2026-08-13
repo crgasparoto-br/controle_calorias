@@ -1,20 +1,35 @@
 import { createHash } from "node:crypto";
 import { roundNutritionValue } from "../../../shared/mealTotals";
 import { convertFoodQuantityForRegistration, normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
+import { hasCaloricCoffeeComplement, isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace } from "./aiToolContract";
+import { handleCoffeeSugarRegistrationIntent } from "./coffeeSugarIntent";
 import { learnWhatsappIntentAliasFromConfirmation } from "./intentAliasLearning";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
-import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import {
+  createWhatsappGenericCoffeePreparationClarification,
+  createWhatsappIntentClarificationInteraction,
+  type PendingGenericCoffeePreparationClarification,
+} from "./intentClarificationInteraction";
+import { handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
+import type { FoodAdditionIntent, WhatsappIntentResult } from "./intent/types";
 import { createWhatsappMealIntentDecisionInteraction } from "./mealIntentDecisionInteraction";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
-import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
+import {
+  WHATSAPP_INTENT_CONFIDENCE,
+  whatsappInterpretedIntentSchema,
+  type WhatsappIntentFoodItem,
+  type WhatsappIntentName,
+  type WhatsappInterpretedIntent,
+} from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
 import {
   buildWhatsAppClarificationReplyMessage,
@@ -36,6 +51,13 @@ const HEURISTIC_NUTRITION_PER_100G = {
   fat: 5,
 };
 const PERSISTENT_INTENTS = ["add_foods_to_meal", "replace_food_in_meal", "edit_food_quantity"] as const satisfies readonly WhatsappIntentName[];
+const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(
+  food => food.slug === "cafe-sem-acucar",
+);
+
+if (!UNSWEETENED_COFFEE_REFERENCE) {
+  throw new Error("A referência canônica de café sem açúcar não está disponível.");
+}
 
 type WhatsappLlmIntentResult = {
   handled: true;
@@ -182,6 +204,41 @@ function quantityToEstimatedGrams(quantity: number, unit: string) {
   return quantity * 100;
 }
 
+function buildIntentFoodIdentity(item: WhatsappIntentFoodItem) {
+  return [item.foodName, item.preparation]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ")
+    .trim();
+}
+
+function isExplicitUnsweetenedCoffeeItem(item: WhatsappIntentFoodItem) {
+  const identity = buildIntentFoodIdentity(item);
+  const normalized = normalizeText(identity);
+  if (!/\bcafe\b/.test(normalized) || /\bcafe da manha\b/.test(normalized)) return false;
+  if (isCoffeeWithAddedSugar(identity) || hasCaloricCoffeeComplement(identity)) return false;
+  return /\b(?:sem acucar|sem adicao de acucar|puro|preto|natural)\b/.test(normalized);
+}
+
+function isExplicitSweetenedCoffeeItem(item: WhatsappIntentFoodItem) {
+  const identity = buildIntentFoodIdentity(item);
+  return isCoffeeWithAddedSugar(identity);
+}
+
+function isGenericCoffeeItem(item: WhatsappIntentFoodItem) {
+  const identity = buildIntentFoodIdentity(item);
+  const normalized = normalizeText(identity);
+  if (!/\bcafe\b/.test(normalized) || /\bcafe da manha\b/.test(normalized)) return false;
+  if (isExplicitUnsweetenedCoffeeItem(item) || isExplicitSweetenedCoffeeItem(item)) return false;
+  if (hasCaloricCoffeeComplement(identity)) return false;
+  return true;
+}
+
+function listGenericCoffeeItemIndexes(intent: WhatsappInterpretedIntent) {
+  return intent.items
+    .map((item, index) => isGenericCoffeeItem(item) ? index : -1)
+    .filter(index => index >= 0);
+}
+
 function resolveFoodMeasurement(item: WhatsappIntentFoodItem, foodName: string): ResolvedFoodMeasurement {
   const quantity = item.quantity ?? 1;
   const unit = normalizeMeasurementUnit(item.unit ?? "porção");
@@ -199,8 +256,45 @@ function resolveFoodMeasurement(item: WhatsappIntentFoodItem, foodName: string):
   };
 }
 
+function buildCanonicalUnsweetenedCoffeeItem(item: WhatsappIntentFoodItem): MealItemInput | null {
+  if (!isExplicitUnsweetenedCoffeeItem(item)) return null;
+  const quantity = item.quantity ?? 1;
+  const unit = normalizeMeasurementUnit(item.unit ?? "xícara");
+  const estimatedGrams = unit === "kg"
+    ? quantity * 1000
+    : unit === "l"
+      ? quantity * 1000
+      : unit === "ml" || unit === "g"
+        ? quantity
+        : quantity * UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
+  const servings = Math.max(estimatedGrams / UNSWEETENED_COFFEE_REFERENCE.gramsPerServing, 0.01);
+  const portionText = item.quantity && item.unit
+    ? `${formatNumber(quantity)} ${unit}`
+    : UNSWEETENED_COFFEE_REFERENCE.servingLabel;
+
+  return {
+    foodName: UNSWEETENED_COFFEE_REFERENCE.name,
+    canonicalName: UNSWEETENED_COFFEE_REFERENCE.name,
+    brand: item.brand ?? undefined,
+    quantity,
+    unit,
+    portionText,
+    servings: roundNutritionValue(servings),
+    estimatedGrams: roundNutritionValue(estimatedGrams),
+    calories: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.calories * servings),
+    protein: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.protein * servings),
+    carbs: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.carbs * servings),
+    fat: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.fat * servings),
+    confidence: 0.99,
+    source: "catalog",
+  };
+}
+
 function buildMealItem(item: WhatsappIntentFoodItem): MealItemInput {
-  const foodName = [item.foodName, item.preparation].filter(Boolean).join(" ").trim();
+  const canonicalUnsweetenedCoffee = buildCanonicalUnsweetenedCoffeeItem(item);
+  if (canonicalUnsweetenedCoffee) return canonicalUnsweetenedCoffee;
+
+  const foodName = buildIntentFoodIdentity(item);
   const measurement = resolveFoodMeasurement(item, foodName);
   const estimatedGrams = Math.max(measurement.estimatedGrams, 1);
   const factor = estimatedGrams / 100;
@@ -388,6 +482,92 @@ function recordIntentAudit(input: {
   });
 }
 
+function buildStructuredFoodText(items: WhatsappIntentFoodItem[]) {
+  return items.map(item => {
+    const descriptor = [item.foodName, item.brand, item.preparation]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join(" ")
+      .trim();
+    return item.quantity && item.unit
+      ? `${formatNumber(item.quantity)} ${item.unit} de ${descriptor}`
+      : descriptor;
+  }).join(" e ");
+}
+
+function toFoodAdditionIntent(
+  intent: WhatsappInterpretedIntent,
+  mealLabel: string,
+  date: Date,
+): FoodAdditionIntent | null {
+  if (intent.items.some(item => !item.quantity || !item.unit)) return null;
+  return {
+    mealLabel,
+    date,
+    items: intent.items.map(item => ({
+      foodName: buildIntentFoodIdentity(item),
+      quantity: item.quantity!,
+      unit: item.unit!,
+      brand: item.brand ?? null,
+    })),
+  };
+}
+
+function mapSpecializedFoodResult(
+  result: WhatsappIntentResult,
+  intent: WhatsappInterpretedIntent,
+): WhatsappLlmIntentResult {
+  const mutated = result.action === "meal_item_added"
+    || result.action === "food_clarification_completed";
+  return {
+    handled: true,
+    action: mutated ? "llm_intent_add_foods_to_meal" : "clarification_needed",
+    reply: result.reply,
+    eventType: result.eventType,
+    detail: result.detail,
+    ...(result.data ? { data: result.data } : {}),
+    ...(result.interactiveReply ? { interactiveReply: result.interactiveReply } : {}),
+    toolTrace: mutated
+      ? [buildWhatsappAiToolTrace({
+          toolId: "meal_item_nutrition_simulate",
+          intent: "add_foods_to_meal",
+          backendValidated: true,
+          outcome: "success",
+          parameterSummary: { itemCount: intent.items.length, specializedCoffeePath: true },
+        })]
+      : [buildClarificationToolTrace(intent)],
+  };
+}
+
+async function requestGenericCoffeePreparationClarification(input: {
+  userId: number;
+  intent: WhatsappInterpretedIntent;
+  text: string;
+  receivedAt: Date;
+  messageId?: string | null;
+  timeZone: string;
+  genericItemIndexes: number[];
+}): Promise<WhatsappLlmIntentResult> {
+  const result = await createWhatsappGenericCoffeePreparationClarification({
+    userId: input.userId,
+    originalText: input.text,
+    receivedAt: input.receivedAt,
+    messageId: input.messageId,
+    userTimezone: input.timeZone,
+    intent: input.intent,
+    genericItemIndexes: input.genericItemIndexes,
+  });
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: result.reply,
+    eventType: result.eventType,
+    detail: result.detail,
+    ...(result.data ? { data: result.data } : {}),
+    ...(result.interactiveReply ? { interactiveReply: result.interactiveReply } : {}),
+    toolTrace: [buildClarificationToolTrace(input.intent)],
+  };
+}
+
 async function handleAddFoodsToMeal(
   userId: number,
   intent: WhatsappInterpretedIntent,
@@ -395,10 +575,25 @@ async function handleAddFoodsToMeal(
   idempotencyKey: string,
   sourceText: string,
   timeZone: string,
+  messageId?: string | null,
 ): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.meal?.label || !intent.items.length) {
     return null;
   }
+
+  const genericItemIndexes = listGenericCoffeeItemIndexes(intent);
+  if (genericItemIndexes.length) {
+    return requestGenericCoffeePreparationClarification({
+      userId,
+      intent,
+      text: sourceText,
+      receivedAt,
+      messageId,
+      timeZone,
+      genericItemIndexes,
+    });
+  }
+
   const toolTrace: WhatsappAiToolTrace[] = [];
   const targetDate = resolveIntentDateSelection(intent, receivedAt, timeZone, sourceText);
   const mealLabel = normalizeMealLabel(intent.meal.label);
@@ -417,6 +612,39 @@ async function handleAddFoodsToMeal(
   const existingMeal = findMealByLabel(meals, mealLabel, targetDate.date, timeZone, { allowCrossDayFallback: !targetDate.explicit });
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
+  }
+
+  if (intent.items.some(isExplicitSweetenedCoffeeItem)) {
+    if (existingMeal) {
+      const addition = toFoodAdditionIntent(intent, mealLabel, targetDate.date);
+      if (!addition) {
+        return buildToolFallbackResult(
+          toolTrace,
+          "Intenção com café adoçado perdeu quantidade ou unidade antes da rota persistente especializada.",
+        );
+      }
+      const specialized = await handleFoodAdditionIntent(
+        userId,
+        addition,
+        timeZone,
+        {
+          originalText: sourceText,
+          receivedAt,
+          messageId,
+        },
+      );
+      return mapSpecializedFoodResult(specialized, intent);
+    }
+
+    const registrationText = `${mealLabel}: ${buildStructuredFoodText(intent.items)}`;
+    const specialized = await handleCoffeeSugarRegistrationIntent({
+      userId,
+      text: registrationText,
+      receivedAt: targetDate.date,
+      userTimezone: timeZone,
+      messageId: messageId?.trim() || `llm:${idempotencyKey}`,
+    });
+    return mapSpecializedFoodResult(specialized, intent);
   }
 
   const addedItems = intent.items.map(buildMealItem);
@@ -493,6 +721,99 @@ async function handleAddFoodsToMeal(
     },
     toolTrace,
   };
+}
+
+function buildGenericCoffeeResumeUnavailable(detail: string): WhatsappIntentResult {
+  return {
+    handled: true,
+    action: "food_clarification_unavailable",
+    reply: buildWhatsAppRecoverableErrorReplyMessage(
+      "Não consegui retomar esse registro de café com segurança. Nada foi alterado; envie a refeição completa novamente.",
+    ),
+    eventType: "whatsapp.generic_coffee_preparation.unavailable",
+    detail,
+    data: {
+      originalTextPreserved: true,
+      fallbackBlocked: true,
+    },
+  };
+}
+
+function mapLlmAdditionToWhatsappResult(
+  result: WhatsappLlmIntentResult,
+): WhatsappIntentResult {
+  const completed = result.action === "llm_intent_add_foods_to_meal";
+  const clarificationAction = result.eventType.startsWith("whatsapp.food_clarification")
+    ? "food_clarification_requested"
+    : "clarification_needed";
+  return {
+    handled: true,
+    action: completed ? "meal_item_added" : clarificationAction,
+    reply: result.reply,
+    eventType: result.eventType,
+    detail: result.detail,
+    ...(result.data ? { data: result.data } : {}),
+    ...(result.interactiveReply ? { interactiveReply: result.interactiveReply } : {}),
+  };
+}
+
+export async function resumeWhatsappGenericCoffeePreparationClarification(input: {
+  userId: number;
+  target: PendingGenericCoffeePreparationClarification;
+  preparation: "without_sugar" | "with_sugar";
+}): Promise<WhatsappIntentResult> {
+  const parsedIntent = whatsappInterpretedIntentSchema.safeParse(input.target.intentSnapshot);
+  if (!parsedIntent.success || parsedIntent.data.intent !== "add_foods_to_meal") {
+    return buildGenericCoffeeResumeUnavailable(
+      "Snapshot da intenção de café genérico inválido ou incompatível com registro alimentar.",
+    );
+  }
+
+  const receivedAt = new Date(input.target.originalReceivedAt);
+  if (Number.isNaN(receivedAt.getTime())) {
+    return buildGenericCoffeeResumeUnavailable(
+      "Data original da intenção de café genérico não pôde ser revalidada.",
+    );
+  }
+
+  const intent = structuredClone(parsedIntent.data);
+  for (const index of input.target.genericItemIndexes) {
+    const item = intent.items[index];
+    if (!item || !isGenericCoffeeItem(item)) {
+      return buildGenericCoffeeResumeUnavailable(
+        "Item genérico de café mudou ou não corresponde mais ao snapshot persistido.",
+      );
+    }
+    intent.items[index] = {
+      ...item,
+      foodName: input.preparation === "without_sugar"
+        ? "Café sem açúcar"
+        : "Café com açúcar",
+      preparation: null,
+    };
+  }
+
+  const idempotencyKey = buildIdempotencyKey(
+    input.userId,
+    input.target.originalText,
+    receivedAt,
+    input.target.inboundMessageId,
+  );
+  const resumed = await handleAddFoodsToMeal(
+    input.userId,
+    intent,
+    receivedAt,
+    idempotencyKey,
+    input.target.originalText,
+    input.target.userTimezone,
+    input.target.inboundMessageId,
+  );
+  if (!resumed) {
+    return buildGenericCoffeeResumeUnavailable(
+      "Registro estruturado não encontrou uma operação segura após a resposta sobre o preparo do café.",
+    );
+  }
+  return mapLlmAdditionToWhatsappResult(resumed);
 }
 
 async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent, idempotencyKey: string, timeZone: string): Promise<WhatsappLlmIntentResult | null> {
@@ -782,6 +1103,29 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
       return { handled: false, intentHint: buildIntentHintFromInterpretation(interpretation) };
     }
 
+    const genericCoffeeItemIndexes = intent.intent === "add_foods_to_meal"
+      ? listGenericCoffeeItemIndexes(intent)
+      : [];
+    if (
+      genericCoffeeItemIndexes.length
+      && intent.meal?.label
+      && intent.items.every(item => Boolean(item.quantity) && Boolean(item.unit))
+      && intent.confidence >= WHATSAPP_INTENT_CONFIDENCE.clarify
+    ) {
+      return finish(
+        await requestGenericCoffeePreparationClarification({
+          userId,
+          intent,
+          text,
+          receivedAt,
+          messageId: input.messageId,
+          timeZone,
+          genericItemIndexes: genericCoffeeItemIndexes,
+        }),
+        interpretation.fallbackReason,
+      );
+    }
+
     if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
       const clarificationFallbackReason = intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify
         ? interpretation.fallbackReason ?? "low_confidence"
@@ -809,7 +1153,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
     switch (intent.intent) {
       case "add_foods_to_meal":
-        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text, timeZone));
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text, timeZone, input.messageId));
       case "replace_food_in_meal":
         return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey, timeZone));
       case "list_meal_records":
