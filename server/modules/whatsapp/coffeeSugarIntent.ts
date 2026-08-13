@@ -25,7 +25,7 @@ function withoutMealLabel(text: string) {
 function isGenericCoffeePreparationRegistrationText(text: string) {
   const normalized = withoutMealLabel(text);
   if (!/(?:^|\s)cafe(?:\s|$)/.test(normalized)) return false;
-  if (/\bcafe\b[^,.;]*\b(?:sem acucar|com acucar|puro|preto|natural|adocado|acucarado)\b/.test(normalized)) {
+  if (/\bcafe\b[^,.;]*\b(?:sem acucar|sem adicao de acucar|com acucar|puro|preto|natural|adocado|acucarado)\b/.test(normalized)) {
     return false;
   }
   if (/\bcafe\b[^,.;]*\b(?:leite|mel|creme|chantilly|condensad[oa]|chocolate|cacau)\b/.test(normalized)) {
@@ -129,7 +129,7 @@ export async function handleCoffeeSugarRegistrationIntent(input: {
 
   return {
     handled: true,
-    action: "food_clarification_unavailable",
+    action: "food_clarification_unavaile",
     reply: buildWhatsAppRecoverableErrorReplyMessage(outcome.prompt),
     eventType:
       outcome.status === "safe_to_retry"
