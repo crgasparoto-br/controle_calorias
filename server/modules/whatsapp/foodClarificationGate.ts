@@ -1,3 +1,6 @@
+/**
+ * Gate único de precedência para pendências conversacionais do WhatsApp.
+ */
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   isPendingCoffeeAdditionClarification,
@@ -14,7 +17,12 @@ import { parseLatestFoodCorrection } from "./contextualFoodReplacementIntent";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
-import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import {
+  createWhatsappIntentClarificationInteraction,
+  isPendingGenericCoffeePreparationClarification,
+  parseGenericCoffeePreparationTextAction,
+  PENDING_INTENT_CLARIFICATION_TYPE,
+} from "./intentClarificationInteraction";
 import {
   parseMealIntentDecisionTextAction,
   PENDING_MEAL_INTENT_DECISION_TYPE,
@@ -307,7 +315,14 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   );
   if (!interaction) return buildUnregisteredPendingResult(active);
 
-  const classification = interaction.classifyText(active.target, input.text);
+  const genericCoffeeAction =
+    active.type === PENDING_INTENT_CLARIFICATION_TYPE
+      && isPendingGenericCoffeePreparationClarification(active.target)
+      ? parseGenericCoffeePreparationTextAction(input.text)
+      : null;
+  const classification = genericCoffeeAction
+    ? "resolve"
+    : interaction.classifyText(active.target, input.text);
   if (classification === "resolve") {
     const resolved = await resolveWhatsappRegisteredText(interaction, {
       userId: input.userId,
