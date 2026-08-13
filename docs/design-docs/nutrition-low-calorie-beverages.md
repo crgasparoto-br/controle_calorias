@@ -31,6 +31,22 @@ Messages with caloric complements continue through the regular heuristic or cata
 
 The final candidate is checked by a shared semantic guard after every catalog source. The guard also applies to persisted entries, personal aliases, TACO, semantic search and WhatsApp lookups. The canonical name has precedence, so a bare alias cannot make `Café sem açúcar` compatible with `café` or `café com açúcar`.
 
+## Generic coffee preparation clarification
+
+Bare or otherwise unqualified coffee is an incomplete preparation, not a generic food eligible for heuristic macros. When the structured WhatsApp intent recognizes a coffee item without an explicit sugar state or caloric complement, the flow must stop before `buildMealItem`, meal creation or meal update and ask: `Seu café foi sem açúcar ou com açúcar?`.
+
+The question uses the existing persistent `intent_clarification.generic` lifecycle with the specialized target kind `generic_coffee_preparation`. The pending target stores the original inbound text and correlation id, original timestamp/time zone, the complete structured intent snapshot and the indexes of the ambiguous coffee items. This preserves quantity, unit, meal/date semantics and companion foods without reinterpreting the original message as a new unrelated command.
+
+- `sem açúcar`, `puro`, `preto` and `natural` skip the binary question and use the canonical `Café sem açúcar` reference. The structured executor scales the same catalog source used by the nutrition flow: one cup equals 200 ml and 2 kcal, so three cups equal 600 ml and 6 kcal.
+- `com açúcar`, `adoçado` and `açucarado` skip the binary question and enter the persistent sweetened-coffee path from issue #903. If the sugar amount is still missing, that downstream quantity clarification is persisted before its question is emitted and no meal mutation occurs beforehand.
+- `café com leite`, `café com mel`, `café com creme`, `café com leite condensado` and other explicit caloric complements do not enter the binary sugar-state clarification.
+- `Café da manhã` as a meal label is not a coffee item and never triggers the preparation question.
+- Invalid short answers keep the pending interaction active and re-present the same choices. `CANCELAR` consumes the pending operation without a nutrition mutation. A reply to an expired or already consumed coffee-preparation interaction is blocked before nutritional fallback and asks for the complete meal again.
+- The pending interaction is atomically claimed before resuming the structured snapshot, so retry, redelivery or concurrent valid replies can produce at most one downstream mutation.
+- The same pending gate is used by text webhook, transcribed audio and simulator entrypoints; the behavior is not channel-specific.
+
+The generic `150 kcal / 6 g protein / 15 g carbs / 5 g fat per 100 g` fallback remains available for unrelated unknown foods. It is specifically unreachable for a coffee item while its preparation is still ambiguous.
+
 ## Sweetened coffee quantity
 
 - An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
@@ -93,6 +109,7 @@ Coverage lives in:
 - `server/modules/whatsapp/intentActions.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`;
+- `server/modules/whatsapp/intentClarificationInteraction.issue974.test.ts`;
 - `server/whatsappMealIntentDecisionWebhook.issue899.test.ts`;
 - `server/modules/whatsapp/mealIntentDecisionInteraction.test.ts`.
 
