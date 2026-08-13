@@ -142,4 +142,52 @@ describe("professional settings router entitlement", () => {
     expect(mocks.getProfessionalEntitlements).toHaveBeenCalledWith(77);
     expect(mocks.getProfessionalSettingsSnapshot).toHaveBeenCalledWith(77);
   });
+
+  it("keeps identity and preference settings available during billing suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      reason: "read_only_access",
+      commercialState: "suspended",
+      enabledResources: ["professional_settings"],
+    });
+
+    await expect(
+      caller().updateIdentity({
+        displayName: "Nutricionista Ana",
+        registrationNumber: "CRN 123",
+        contactEmail: "ana@example.com",
+        contactPhone: "+55 15 99999-9999",
+        patientFacingBio: "Atendimento individual.",
+      })
+    ).resolves.toEqual({ success: true });
+    await expect(
+      caller().updatePreferences({
+        defaultReviewIntervalDays: 30,
+        messageTemplates: [],
+      })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.updateProfessionalIdentitySettings).toHaveBeenCalledTimes(1);
+    expect(mocks.updateProfessionalPreferencesSettings).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("allows deactivation but still rejects reactivation during billing suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      reason: "read_only_access",
+      commercialState: "suspended",
+      enabledResources: ["professional_settings"],
+    });
+
+    await expect(caller().setActive({ active: false })).resolves.toEqual({
+      active: false,
+    });
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledTimes(1);
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledWith(77, false);
+  });
 });

@@ -1,4 +1,13 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import {
+  classifyCoffeeAdditionClarificationText,
+  completeWhatsappCoffeeAdditionClarificationCallback,
+  isPendingCoffeeAdditionClarification,
+  PENDING_COFFEE_ADDITION_CLARIFICATION_ORIGIN,
+  PENDING_COFFEE_ADDITION_CLARIFICATION_TYPE,
+  rebuildCoffeeAdditionClarification,
+  resolveCoffeeAdditionClarificationText,
+} from "./coffeeAdditionClarification";
 import { buildProfessionalAccessActions } from "../professionals/accessInteractionContract";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import {
@@ -87,7 +96,7 @@ import {
 } from "./webhookTextCommands";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 7;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 8;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -519,6 +528,30 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     resolveText: resolveIntentClarificationText,
     rebuild: rebuildIntentClarification,
     completeCallback: completeIntentClarification,
+  },
+  {
+    id: "coffee_addition.missing_field",
+    pendingType: PENDING_COFFEE_ADDITION_CLARIFICATION_TYPE,
+    origin: PENDING_COFFEE_ADDITION_CLARIFICATION_ORIGIN,
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "open",
+    reconstruction: "pending_target",
+    invalidResponse: "text_guidance",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: ["provide_missing", "cancel", "complete_coffee_addition_once"],
+    forbiddenEffects: ["nutrition_fallback", "llm_reinterpretation", "meal_creation"],
+    matches: isPendingCoffeeAdditionClarification,
+    actions: target => isPendingCoffeeAdditionClarification(target)
+      ? target.actions.map(action => ({ ...action }))
+      : [],
+    classifyText: classifyCoffeeAdditionClarificationText,
+    resolveText: resolveCoffeeAdditionClarificationText,
+    rebuild: input => rebuildCoffeeAdditionClarification(input.pendingOperation),
+    completeCallback: input => completeWhatsappCoffeeAdditionClarificationCallback({
+      userId: input.userId,
+      pendingOperation: input.pendingOperation,
+      action: input.action,
+    }),
   },
   {
     id: "food_clarification.quantity",

@@ -161,6 +161,25 @@ describe("professional entitlement service", () => {
     expect(snapshot.enabledResources).toEqual(["professional_settings"]);
   });
 
+  it("preserves read-only suspension without enabling paid professional resources", async () => {
+    process.env.BILLING_ACCESS_MODE = "enforced";
+    _forTestOnly_setProfessionalEntitlementProvider(async () => ({
+      allowed: true,
+      reason: "read_only_access",
+      planCode: "professional-monthly",
+      planName: "Profissional",
+      entitlements: ["system_access", "web_access", "reports"],
+      capacity: { limit: null, used: null },
+    }));
+
+    const snapshot = await getProfessionalEntitlements(1081);
+
+    expect(snapshot.allowed).toBe(true);
+    expect(snapshot.reason).toBe("read_only_access");
+    expect(snapshot.commercialState).toBe("suspended");
+    expect(snapshot.enabledResources).toEqual(["professional_settings"]);
+  });
+
   it("denies an otherwise allowed entitlement after expiration", async () => {
     process.env.BILLING_ACCESS_MODE = "enforced";
     _forTestOnly_setProfessionalEntitlementProvider(async () =>

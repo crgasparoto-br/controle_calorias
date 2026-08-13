@@ -6,6 +6,7 @@ export type AuthenticatedTrpcContext = TrpcContext & {
 
 export type ProtectedProcedurePolicyInput = {
   path: string;
+  type?: "query" | "mutation" | "subscription";
   ctx: AuthenticatedTrpcContext;
 };
 

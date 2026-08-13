@@ -217,7 +217,16 @@ async function executeResumedFoodRegistration(
     );
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition)
+  if (coffeeAddition) {
+    const canonicalAddition = parseFoodAdditionIntent(text, receivedAt);
+    if (canonicalAddition) {
+      return handleFoodAdditionIntent(
+        userId,
+        canonicalAddition,
+        userTimeZone,
+        buildFoodMutationContext(userId, input, text, receivedAt)
+      );
+    }
     return handleCoffeeAdditionIntent(
       userId,
       text,
@@ -225,6 +234,7 @@ async function executeResumedFoodRegistration(
       receivedAt,
       userTimeZone
     );
+  }
 
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
@@ -384,7 +394,16 @@ export async function executeWhatsappTextIntent(
     );
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition)
+  if (coffeeAddition) {
+    const canonicalAddition = parseFoodAdditionIntent(text, receivedAt);
+    if (canonicalAddition) {
+      return handleFoodAdditionIntent(
+        userId,
+        canonicalAddition,
+        userTimeZone,
+        buildFoodMutationContext(userId, input, text, receivedAt)
+      );
+    }
     return handleCoffeeAdditionIntent(
       userId,
       text,
@@ -392,6 +411,7 @@ export async function executeWhatsappTextIntent(
       receivedAt,
       userTimeZone
     );
+  }
 
   const foodClarification = await handleWhatsappFoodClarification({
     userId,

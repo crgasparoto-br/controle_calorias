@@ -383,6 +383,38 @@ describe("ProfessionalProfileSettings activation", () => {
     );
   });
 
+  it("mantém o atalho de configurações profissionais durante suspensão de billing", () => {
+    mocks.authUser = {
+      id: 42,
+      name: "Nutricionista Ana",
+      professionalProfileActive: true,
+    };
+    mocks.profileData = {
+      userId: 42,
+      displayName: "Nutricionista Ana",
+      registrationNumber: "CRN 123",
+      active: true,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    mocks.entitlementsData = {
+      allowed: true,
+      commercialState: "suspended",
+      enabledResources: ["professional_settings"],
+    };
+
+    render(<ProfessionalProfileSettings />);
+
+    expect(
+      screen.getByRole("button", { name: "Abrir configurações profissionais" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "Configurações profissionais indisponíveis no acesso atual"
+      )
+    ).toBeNull();
+  });
+
   it("reconcilia o estado remoto antes de informar falha temporária", async () => {
     render(<ProfessionalProfileSettings />);
 

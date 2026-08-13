@@ -59,3 +59,20 @@ export async function assertProfessionalResourceAccess(
   }
   return snapshot;
 }
+
+export async function assertProfessionalBasicSettingsAccess(
+  professionalUserId: number
+) {
+  const snapshot = await getProfessionalEntitlements(professionalUserId);
+  if (snapshot.allowed && snapshot.commercialState === "suspended") return snapshot;
+  if (!snapshot.allowed) {
+    if (snapshot.commercialState === "unavailable") {
+      throw new ProfessionalEntitlementVerificationUnavailableError();
+    }
+    throw new ProfessionalResourceDeniedError();
+  }
+  if (!snapshot.enabledResources.includes("professional_settings")) {
+    throw new ProfessionalResourceDeniedError();
+  }
+  return snapshot;
+}

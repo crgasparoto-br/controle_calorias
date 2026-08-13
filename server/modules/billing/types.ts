@@ -24,6 +24,12 @@ export type UserEntitlementsResult = {
   evaluatedAt: Date;
 };
 
+export function canUseBillingWriteAccess(
+  access: Pick<UserEntitlementsResult, "allowed" | "reason">
+) {
+  return access.allowed && access.reason !== "read_only_access";
+}
+
 export type BillingEntitlementCandidate = {
   reason: Exclude<BillingAccessReason, "no_access">;
   sourceId: string;
@@ -39,7 +45,7 @@ export type BillingSubscriptionSummary = {
   provider: string;
   planCode: string;
   planName: string;
-  status: "pending" | "active" | "past_due" | "canceled" | "expired";
+  status: "pending" | "active" | "past_due" | "suspended" | "canceled" | "expired";
   billingCycle: "monthly" | "yearly" | "custom";
   currency: string;
   unitAmount: number;
