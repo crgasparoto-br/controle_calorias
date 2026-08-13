@@ -83,6 +83,10 @@ function normalizeText(value: string) {
   );
 }
 
+function normalizeCoffeeItemText(value: string) {
+  return collapseWhitespace(normalizeText(value).replace(/\bcafe da manha\b/g, " "));
+}
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
 }
@@ -196,18 +200,24 @@ function buildIdempotencyKey(
   return createHash("sha256").update(source).digest("hex");
 }
 
-function hasCoffeeQuantitySignal(text: string) {
-  const normalized = normalizeText(text);
-  return /\b\d+(?:[,.]\d+)?\s*(?:xicaras?|copos?|ml|l)\s+(?:de\s+)?cafe\b/.test(normalized);
+function hasCoffeeItemSignal(text: string) {
+  return /\bcafe\b/.test(normalizeCoffeeItemText(text));
 }
 
 function hasExplicitCoffeeSugarStatus(text: string) {
-  const normalized = normalizeText(text);
+  const normalized = normalizeCoffeeItemText(text);
   return /\bcafe\b[^,.;]*\b(?:sem acucar|com acucar|puro|preto|natural|adocado|acucarado)\b/.test(normalized);
 }
 
-function isGenericCoffeeQuantityText(text: string) {
-  return hasCoffeeQuantitySignal(text) && !hasExplicitCoffeeSugarStatus(text);
+function hasExplicitCoffeeCaloricComplement(text: string) {
+  const normalized = normalizeCoffeeItemText(text);
+  return /\bcafe\b[^,.;]*\b(?:leite|mel|creme|chantilly|condensad[oa]|chocolate|cacau)\b/.test(normalized);
+}
+
+function isGenericCoffeeText(text: string) {
+  return hasCoffeeItemSignal(text)
+    && !hasExplicitCoffeeSugarStatus(text)
+    && !hasExplicitCoffeeCaloricComplement(text);
 }
 
 function isSugarQuantityRequired(error: unknown) {
@@ -553,7 +563,7 @@ export async function tryExecuteWhatsappStructuredCoffeeIntent(
   input: StructuredCoffeeIntentInput,
 ): Promise<StructuredCoffeePreflightOutcome> {
   const text = input.text?.trim();
-  if (!text || !hasCoffeeQuantitySignal(text)) return { matched: false };
+  if (!text || !hasCoffeeItemSignal(text)) return { matched: false };
 
   const receivedAt = input.receivedAt ?? new Date();
   const timeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
@@ -570,7 +580,7 @@ export async function tryExecuteWhatsappStructuredCoffeeIntent(
     || !relevantCoffeeIndexes.length
     || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify
   ) {
-    if (!isGenericCoffeeQuantityText(text)) return { matched: false };
+    if (!isGenericCoffeeText(text)) return { matched: false };
     const result = clarificationResult({
       reply: buildWhatsAppClarificationReplyMessage(
         "O preparo do café ficou ambíguo e eu não consegui preservar o destino com segurança. Envie novamente a mensagem completa informando a refeição; não vou assumir calorias para o café genérico.",

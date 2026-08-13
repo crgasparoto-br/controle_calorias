@@ -22,10 +22,12 @@ function shouldRunCoffeePreparationPreflight(text?: string | null) {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim() ?? "";
-  if (!/\b\d+(?:[,.]\d+)?\s*(?:xicaras?|copos?|ml|l)\s+(?:de\s+)?cafe\b/.test(normalized)) {
-    return false;
-  }
-  return !/\bcafe\b[^,.;]*\b(?:leite|mel|creme|chantilly|condensad[oa]|chocolate|cacau)\b/.test(normalized);
+  const itemText = normalized
+    .replace(/\bcafe da manha\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!/\bcafe\b/.test(itemText)) return false;
+  return !/\bcafe\b[^,.;]*\b(?:leite|mel|creme|chantilly|condensad[oa]|chocolate|cacau)\b/.test(itemText);
 }
 
 export async function executeWhatsappLlmIntent(
