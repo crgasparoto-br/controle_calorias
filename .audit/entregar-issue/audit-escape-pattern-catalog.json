@@ -1,20 +1,13 @@
 {
   "schema_version": 1,
-  "escapes": [
+  "patterns": [
     {
-      "escape_id": "ESC-975-001",
       "escape_class": "integrated-regression-expectation-drift",
       "source_audit": {
         "head_sha": "62bda696718a17745bd160350de43f1c24d52189",
         "finding_id": "integrated-test-stale-expectation"
       },
       "plausible_wrong_implementation": "A focused regression test is updated for the new visible behavior while an integrated test still asserts the deprecated wording, allowing local focused validation to pass while the aggregate gate fails.",
-      "boundary": "focused regression coverage to aggregate integration gate",
-      "literal_case": {
-        "procedure": "Revalidate the integrated WhatsApp intent expectation after the focused origin-label fix and require the deprecated phrase to be absent.",
-        "status": "passed",
-        "evidence": "Material head 14ebc5bc updates intentActions.test.ts to require the complete Estimativa: totals line and reject por estimativa; Agent-first gate run 31760968698 completed successfully."
-      },
       "sibling_cases": [
         {
           "id": "ESC-975-001-S1",
@@ -38,26 +31,23 @@
         "control_id": "AUDIT-INTEGRATED-REGRESSION-001",
         "evidence": "Exact-head Agent-first run 31760968698 passed the Tests step and the full gate after the integrated assertion was corrected."
       },
-      "preventive_test": "server/modules/whatsapp/intentActions.test.ts and server/modules/whatsapp/intent/foodAdditionHandlers.issue975.test.ts",
-      "reusable_control_id": "AUDIT-INTEGRATED-REGRESSION-001",
-      "trigger_terms": ["focused test", "integrated regression", "stale expectation", "aggregate gate"],
-      "required_risk_families": ["structural-contract"],
-      "status": "passed"
+      "trigger_terms": [
+        "focused test",
+        "integrated regression",
+        "stale expectation",
+        "aggregate gate"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ]
     },
     {
-      "escape_id": "ESC-975-002",
       "escape_class": "reaudit-history-classification-loss",
       "source_audit": {
         "head_sha": "61768e9d0a7ca5c28a01656baa6e8e8e8182844a",
         "finding_id": "B1"
       },
       "plausible_wrong_implementation": "A delivery rebuilds a handoff after an independent rejection but marks the packet as a first-pass delivery, so audit escape closure, learning closure and inherited controls are omitted even though the functional candidate is unchanged.",
-      "boundary": "independent rejection history to handoff certificate readiness",
-      "literal_case": {
-        "procedure": "Rebuild the handoff for the unchanged material head with previous independent rejection enabled, include audit escape and learning closures, carry inherited controls, and validate the certificate before publication.",
-        "status": "passed",
-        "evidence": "Connector-only remediation package binds all re-audit artifacts to material head 14ebc5bc and is validated with previous-independent-rejection enabled before publication."
-      },
       "sibling_cases": [
         {
           "id": "ESC-975-002-S1",
@@ -87,11 +77,17 @@
         "control_id": "HANDOFF-REAUDIT-001",
         "evidence": "The generic validators fail closed on missing audit escape closure, missing inherited controls or an invalid terminal result-only handoff; focused contract suite passed 13 tests in this remediation run."
       },
-      "preventive_test": "entregar-issue generic learning, audit-escape, handoff-certificate, terminal-handoff and connector-only contract tests",
-      "reusable_control_id": "HANDOFF-REAUDIT-001",
-      "trigger_terms": ["independent rejection", "reaudit", "handoff rebuild", "previous rejection", "stale certificate"],
-      "required_risk_families": ["structural-contract", "documentation"],
-      "status": "passed"
+      "trigger_terms": [
+        "independent rejection",
+        "reaudit",
+        "handoff rebuild",
+        "previous rejection",
+        "stale certificate"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ]
     }
   ]
 }

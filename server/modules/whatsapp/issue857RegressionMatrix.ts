@@ -141,6 +141,15 @@ const INTERACTION_SCENARIOS: Record<string, {
       },
     ],
   },
+  "coffee_preparation.sugar_choice": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/structuredCoffeeIntentActions.issue974.test.ts",
+        requiredTokens: ["coffee_preparation.sugar_choice", "without_sugar", "with_sugar"],
+      },
+    ],
+  },
   "food_clarification.quantity": {
     modalities: ["text", "audio_transcription", "simulator", "image_context"],
     evidence: [

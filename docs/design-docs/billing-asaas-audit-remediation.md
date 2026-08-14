@@ -54,6 +54,12 @@ O Asaas mantém documentação recente com duas formas de resposta de criação 
 
 Eventos terminais usam os códigos autoritativos já emitidos pelo handler (`checkout_expired` e `authorization_closed`). No store, `markFailed` reconhece apenas esses pares de tipo/código como encerramento do provider, permite a transição `created -> failed` e persiste o marcador `provider_terminal:*`; transições ordinárias continuam protegidas contra regressão concorrente e não podem sobrescrever uma tentativa já encerrada pelo provider.
 
+## Concorrência e ownership do outbound
+
+A reauditoria revelou uma janela entre persistir a intenção e iniciar a mutação externa. A correção centraliza o ownership no store: para mutações imediatas, quem cria a chave única é o único processo autorizado a chamar o provider; uma segunda instância que encontra a mesma operação `prepared` falha fechada com `asaas_operation_in_progress`. Se o proprietário desaparecer, a operação só migra para `outcome_unknown` após 120 segundos, acima do timeout HTTP máximo de 60 segundos, e então volta ao fluxo autoritativo de reconciliação. Um retry comprovadamente seguro recebe um marcador persistido e é readquirido por CAS, com um único vencedor.
+
+`pix_payment` permanece agendado sem claim. Quando entra na janela válida e a autorização está ativa, o store reivindica a execução antes de entregá-la ao reconciliador; concorrentes não recebem a mesma cobrança. Claim abandonado também vira `outcome_unknown`, nunca um novo POST cego. `CONCURRENCY-CAS-001` cobre overlap de checkout, autorização Pix e mutação financeira genérica, e o gate TiDB executa duas instâncias independentes do store sobre a mesma chave.
+
 ## Operação e sandbox
 
 `docs/runbooks/billing-asaas.md` é o runbook canônico para fila interrompida, falhas consecutivas, `outcome_unknown`, divergência e validação live em sandbox. Credenciais reais não entram em PR, artefato ou GitHub Actions; a validação live é executada por operador autorizado em ambiente seguro e produz apenas evidência sanitizada vinculada ao SHA.
