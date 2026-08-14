@@ -525,7 +525,8 @@ describe("executeWhatsappTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_added",
       reply: expect.stringContaining("Adicionei 300 g de amendoim japonês Elma Chips à refeição Jantar"),
     }));
-    expect(result?.reply).toContain("por estimativa");
+    expect(result?.reply).toContain("Estimativa: 450 kcal | P 18 g | C 45 g | G 15 g.");
+    expect(result?.reply).not.toContain("por estimativa");
   });
 
   it("pede esclarecimento quando não encontra a refeição para adicionar café", async () => {
