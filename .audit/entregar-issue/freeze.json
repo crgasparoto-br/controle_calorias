@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
-  "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
-  "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
-  "material_merge_preview_sha": "07c69ba2b4bf391e8e956429847f326bc90a4acc",
-  "reason": "post-ci-refreeze after CI harness lifecycle remediation",
+  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
+  "material_merge_preview_sha": "f79a7303021f4759bd3e99053329085b8f3608ae",
+  "reason": "post-ci-refreeze after stale integrated test expectation remediation",
   "remote_gate": "success"
 }

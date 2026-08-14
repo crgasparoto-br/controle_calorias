@@ -1,1 +1,21 @@
-{"schema_version":1,"contract_version":"2026-08-06.2","repository":"crgasparoto-br/controle_calorias","issue":894,"pr":981,"branch":"feat/894-professional-coverage-capacity","cycle":2,"implementation_context_id":"impl-894-remediation-2","data":{"controller_disposition":"ready-for-controller-audit","assurance_level":"internal-remediation","material_head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","base_sha":"0fc479bc6f826084d79488171e68dd1eb738cb6d","material_merge_preview_sha":"b82d70d46b6c0815d62e3f92e7864850f501507f","read_only_next":true},"blocking_findings":[],"recommendations":[],"limitations":["Remote CI was in progress at the single allowed material-head observation; independent audit must re-observe current checks."]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 894,
+  "pr": 981,
+  "branch": "feat/894-professional-coverage-capacity",
+  "cycle": 3,
+  "implementation_context_id": "impl-894-post-ci-refreeze-b12c38e8",
+  "data": {
+    "controller_disposition": "ready-for-controller-audit",
+    "assurance_level": "internal-remediation-ci-green",
+    "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+    "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
+    "material_merge_preview_sha": "f79a7303021f4759bd3e99053329085b8f3608ae",
+    "read_only_next": true
+  },
+  "blocking_findings": [],
+  "recommendations": [],
+  "limitations": []
+}

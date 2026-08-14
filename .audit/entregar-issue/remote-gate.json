@@ -1,1 +1,28 @@
-{"schema_version":1,"material_head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","observed_at":"2026-08-14T16:43:00Z","mode":"observe-only","status":"pending","runs":[{"id":31821923294,"name":"Billing persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31821923309,"name":"Professional persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31821923297,"name":"Agent-first gate","status":"in_progress","conclusion":null}],"note":"Single remote snapshot for the frozen material head; no polling, rerun, dispatch or approval action performed."}
+{
+  "schema_version": 1,
+  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "observed_at": "2026-08-14T17:25:21Z",
+  "mode": "observe-only",
+  "status": "success",
+  "runs": [
+    {
+      "id": 31823380159,
+      "name": "Agent-first gate",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 31823380201,
+      "name": "Billing persistence TiDB gate",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 31823380164,
+      "name": "Professional persistence TiDB gate",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "note": "Exact-head terminal snapshot after CI remediation; no rerun, dispatch, cancellation or approval action performed."
+}

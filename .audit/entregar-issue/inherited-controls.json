@@ -1,1 +1,38 @@
-{"schema_version":1,"head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","source_audits":[{"kind":"independent-audit","source_head_sha":"ad01f02ad3f5b622447f64b148d25e51852602d5","verdict":"rejected"}],"controls":[{"id":"TEMP-HORIZON-001","finding_id":"A-001","escape_class":"canonical-horizon-shadowing","status":"passed","head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","evidence":"server/repositories/billingLifecycleAccessRepository.test.ts uses a stale shorter entitlement horizon and requires lifecycle grace to win."},{"id":"PARTIAL-REPAIR-001","finding_id":"A-002","escape_class":"partial-effect-repair-source-loss","status":"passed","head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","evidence":"professionalCoverageClinicalRepair.test.ts proves transition failure does not release the repair source; professionalCoverageService.test.ts covers later retry."},{"id":"EVENT-TIME-001","finding_id":"A-003","escape_class":"event-time-worker-clock-drift","status":"passed","head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","evidence":"professionalCoverageService.test.ts differentiates contract event time from worker time and binds first grandfather reconciliation to occurredAt."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "source_audits": [
+    {
+      "kind": "independent-audit",
+      "source_head_sha": "ad01f02ad3f5b622447f64b148d25e51852602d5",
+      "verdict": "rejected"
+    }
+  ],
+  "controls": [
+    {
+      "id": "TEMP-HORIZON-001",
+      "finding_id": "A-001",
+      "escape_class": "canonical-horizon-shadowing",
+      "status": "passed",
+      "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+      "evidence": "server/repositories/billingLifecycleAccessRepository.test.ts uses a stale shorter entitlement horizon and requires lifecycle grace to win; re-executed by Agent-first run 31823380159 Tests step on exact material head b12c38e81acc2dbda966eb9647c4f501dd108a38"
+    },
+    {
+      "id": "PARTIAL-REPAIR-001",
+      "finding_id": "A-002",
+      "escape_class": "partial-effect-repair-source-loss",
+      "status": "passed",
+      "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+      "evidence": "professionalCoverageClinicalRepair.test.ts proves transition failure does not release the repair source; professionalCoverageService.test.ts covers later retry; re-executed by Agent-first run 31823380159 Tests step on exact material head b12c38e81acc2dbda966eb9647c4f501dd108a38"
+    },
+    {
+      "id": "EVENT-TIME-001",
+      "finding_id": "A-003",
+      "escape_class": "event-time-worker-clock-drift",
+      "status": "passed",
+      "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+      "evidence": "professionalCoverageService.test.ts differentiates contract event time from worker time and binds first grandfather reconciliation to occurredAt; re-executed by Agent-first run 31823380159 Tests step on exact material head b12c38e81acc2dbda966eb9647c4f501dd108a38"
+    }
+  ],
+  "unresolved_controls": []
+}

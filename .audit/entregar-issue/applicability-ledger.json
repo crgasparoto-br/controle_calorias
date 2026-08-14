@@ -1,1 +1,32 @@
-{"schema_version":1,"contract_version":"2026-08-06.2","material_head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","entries":[{"skill":"fluxos-conversacionais","applicable":true,"status":"passed","reason":"Clinical-loss recovery and lifecycle facts require durable retry/idempotency controls."},{"skill":"documentacao-repositorio","applicable":true,"status":"passed","reason":"Canonical billing coverage contract was updated with repaired invariants."},{"skill":"design-interface","applicable":false,"status":"not-applicable","reason":"No visible interface changed."},{"skill":"revisar-issue","applicable":false,"status":"not-applicable","reason":"Remediation consumed an already-ready independent audit."}],"unresolved_applicability":[]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "entries": [
+    {
+      "skill": "fluxos-conversacionais",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Clinical-loss recovery and lifecycle facts require durable retry/idempotency controls."
+    },
+    {
+      "skill": "documentacao-repositorio",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Canonical billing coverage contract was updated with repaired invariants."
+    },
+    {
+      "skill": "design-interface",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No visible interface changed."
+    },
+    {
+      "skill": "revisar-issue",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Remediation consumed an already-ready independent audit."
+    }
+  ],
+  "unresolved_applicability": []
+}

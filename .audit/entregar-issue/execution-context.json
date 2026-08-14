@@ -1,1 +1,18 @@
-{"schema_version":1,"contract_version":"2026-08-06.2","repository":"crgasparoto-br/controle_calorias","issue":894,"implementation_context_id":"impl-894-remediation-2","controller_mode":"delivery","delivery_mode":"connector-only","base_branch":"develop","branch":"feat/894-professional-coverage-capacity","pr":981,"cycle":2,"material_head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","base_sha":"0fc479bc6f826084d79488171e68dd1eb738cb6d","material_merge_preview_sha":"b82d70d46b6c0815d62e3f92e7864850f501507f","write_owner":"entregar-issue","merge_performed":false}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 894,
+  "implementation_context_id": "impl-894-post-ci-refreeze-b12c38e8",
+  "controller_mode": "delivery-single-invocation",
+  "delivery_mode": "artifact-bundle",
+  "base_branch": "develop",
+  "branch": "feat/894-professional-coverage-capacity",
+  "pr": 981,
+  "cycle": 3,
+  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
+  "material_merge_preview_sha": "f79a7303021f4759bd3e99053329085b8f3608ae",
+  "write_owner": "entregar-issue",
+  "merge_performed": false
+}

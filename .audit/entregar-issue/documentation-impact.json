@@ -1,1 +1,29 @@
-{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":894,"branch":"feat/894-professional-coverage-capacity","pr":981,"last_scanned_head":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","mode":"internal-verification","input_fingerprint":"remediation-docs-894-v2","reused":false,"complete":true,"canonical_sources":[{"path":"docs/design-docs/billing-professional-coverage.md","reason":"Canonical technical contract for professional coverage","action":"updated","state":"verified"}],"divergences":[],"validations":[{"command":"static documentation review","status":"passed","evidence":"The document mirrors the repaired runtime invariants."}],"unresolved_contradictions":[]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 894,
+  "branch": "feat/894-professional-coverage-capacity",
+  "pr": 981,
+  "last_scanned_head": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "mode": "internal-verification",
+  "input_fingerprint": "post-ci-refreeze-894-b12c38e8",
+  "reused": true,
+  "complete": true,
+  "canonical_sources": [
+    {
+      "path": "docs/design-docs/billing-professional-coverage.md",
+      "reason": "Canonical technical contract for professional coverage",
+      "action": "updated",
+      "state": "verified"
+    }
+  ],
+  "divergences": [],
+  "validations": [
+    {
+      "command": "GitHub Actions Agent-first run 31823380159 / Documentation check",
+      "status": "passed",
+      "evidence": "Exact material head; CI-only remediation changed a test file and the canonical coverage documentation remained consistent."
+    }
+  ],
+  "unresolved_contradictions": []
+}

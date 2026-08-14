@@ -1,1 +1,43 @@
-{"schema_version":1,"contract_version":"2026-08-06.2","repository":"crgasparoto-br/controle_calorias","issue":894,"cycle":2,"implementation_context_id":"impl-894-remediation-2","material_head_sha":"970260a3cc49c207aaec65b70841dc7a1c3e11fd","events":[{"kind":"independent-rejection-remediation","status":"completed","detail":"Closed A-001, A-002 and A-003 with material code/test/documentation changes."},{"kind":"audit-escape-learning","status":"completed","detail":"Promoted generic prevention/detection controls and packaged both updated skills."},{"kind":"freeze","status":"completed","detail":"970260a3cc49c207aaec65b70841dc7a1c3e11fd"}],"blocking_findings":[],"open_regressions":[]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 894,
+  "cycle": 3,
+  "implementation_context_id": "impl-894-post-ci-refreeze-b12c38e8",
+  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "events": [
+    {
+      "kind": "independent-rejection-remediation",
+      "status": "completed",
+      "detail": "Closed A-001, A-002 and A-003 with material code/test/documentation changes."
+    },
+    {
+      "kind": "audit-escape-learning",
+      "status": "completed",
+      "detail": "Promoted generic prevention/detection controls and packaged both updated skills."
+    },
+    {
+      "kind": "freeze",
+      "status": "completed",
+      "detail": "970260a3cc49c207aaec65b70841dc7a1c3e11fd"
+    },
+    {
+      "kind": "ci-remediation",
+      "status": "completed",
+      "detail": "Aligned persistenceService.capacity.test.ts with the durable clinical-loss repair boundary; no production behavior changed."
+    },
+    {
+      "kind": "remote-gates",
+      "status": "completed",
+      "detail": "Exact-head CI green: Agent-first 31823380159, Billing TiDB 31823380201, Professional TiDB 31823380164."
+    },
+    {
+      "kind": "post-ci-refreeze",
+      "status": "completed",
+      "detail": "b12c38e81acc2dbda966eb9647c4f501dd108a38"
+    }
+  ],
+  "blocking_findings": [],
+  "open_regressions": []
+}

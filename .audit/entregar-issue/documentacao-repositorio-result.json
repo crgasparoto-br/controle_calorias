@@ -1,1 +1,32 @@
-{"schema_version":1,"contract_version":"2026-08-06.2","skill":"documentacao-repositorio","mode":"internal-verification","status":"passed","summary":"Canonical coverage design doc now states lifecycle horizon precedence, event-time anchoring, and durable clinical-loss repair.","requirements":[],"findings":[],"validations":[{"name":"documentation-delta","status":"passed","evidence":"docs/design-docs/billing-professional-coverage.md updated on material head."}],"artifacts":[],"changed_files":["docs/design-docs/billing-professional-coverage.md"],"documentation_impacts":[{"path":"docs/design-docs/billing-professional-coverage.md","status":"verified"}],"limitations":["Remote docs gate in progress at the single observation."],"requires_refreeze":false,"input_fingerprint":"remediation-docs-894-v2","reused":false,"data":{"unresolved_contradictions":[]}}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "skill": "documentacao-repositorio",
+  "mode": "internal-verification",
+  "status": "passed",
+  "summary": "Canonical coverage design doc now states lifecycle horizon precedence, event-time anchoring, and durable clinical-loss repair.",
+  "requirements": [],
+  "findings": [],
+  "validations": [
+    {
+      "name": "documentation-delta-reuse",
+      "status": "passed",
+      "evidence": "Agent-first run 31823380159 Documentation check passed on exact material head b12c38e81acc2dbda966eb9647c4f501dd108a38; CI fix touched only persistenceService.capacity.test.ts."
+    }
+  ],
+  "artifacts": [],
+  "changed_files": [],
+  "documentation_impacts": [
+    {
+      "path": "docs/design-docs/billing-professional-coverage.md",
+      "status": "verified"
+    }
+  ],
+  "limitations": [],
+  "requires_refreeze": false,
+  "input_fingerprint": "post-ci-refreeze-894-b12c38e8",
+  "reused": true,
+  "data": {
+    "unresolved_contradictions": []
+  }
+}
