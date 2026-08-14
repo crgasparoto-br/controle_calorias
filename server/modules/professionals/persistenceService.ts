@@ -7,6 +7,7 @@ import {
   type UpsertCanonicalProfessionalProfileInput,
 } from "../../repositories/professionalRepository";
 import { deleteProfessionalProfilePersistence } from "../../repositories/professionalProfileDeletionRepository";
+import { professionalCoverageService } from "../billing/professionalCoverageService";
 import {
   releaseProfessionalCapacityReservation,
   withProfessionalCapacityReservation,
@@ -20,6 +21,35 @@ const deletedProfileUserIds = new Set<number>();
 
 function capacityCoverageKey(authorizationId: string) {
   return `professional-authorization:${authorizationId}`;
+}
+
+async function recordCoverageConfirmation(input: {
+  patientUserId: number;
+  coverageKey: string;
+}) {
+  try {
+    await professionalCoverageService.handleCoverageConfirmed(input);
+  } catch (error) {
+    // Coverage itself is already valid. Failure to synchronize the secondary
+    // individual renewal must remain pending and cannot roll back consent or
+    // clinical tracking.
+    logPersistenceWarning("billing_professional_coverage_confirmation", error);
+  }
+}
+
+async function recordCoverageLoss(input: {
+  patientUserId: number;
+  coverageKey: string;
+  causeKey: string;
+}) {
+  try {
+    await professionalCoverageService.handleClinicalCoverageLoss(input);
+  } catch (error) {
+    // Clinical revocation/ending is authoritative and cannot be blocked by a
+    // commercial persistence outage. The lifecycle processor can safely retry
+    // commercial causes; clinical repair remains observable through warnings.
+    logPersistenceWarning("billing_professional_coverage_loss", error);
+  }
 }
 
 async function deleteProfessionalProfile(userId: number) {
@@ -52,14 +82,20 @@ export const professionalRepository = {
         return baseProfessionalRepository.transitionAuthorization(input);
       }
 
-      return withProfessionalCapacityReservation(
+      const coverageKey = capacityCoverageKey(current.id);
+      const transitioned = await withProfessionalCapacityReservation(
         {
           professionalUserId: current.professionalUserId,
           patientUserId: current.patientUserId,
-          coverageKey: capacityCoverageKey(current.id),
+          coverageKey,
         },
         () => baseProfessionalRepository.transitionAuthorization(input)
       );
+      await recordCoverageConfirmation({
+        patientUserId: current.patientUserId,
+        coverageKey,
+      });
+      return transitioned;
     }
 
     const transitioned =
@@ -69,10 +105,41 @@ export const professionalRepository = {
       // A revogação pertence ao paciente e nunca pode ser bloqueada por uma
       // indisponibilidade comercial. A liberação é idempotente pela coverageKey
       // e pode ser repetida com segurança pelo provider central.
+      const coverageKey = capacityCoverageKey(current.id);
       await releaseProfessionalCapacityReservation({
         professionalUserId: current.professionalUserId,
         patientUserId: current.patientUserId,
-        coverageKey: capacityCoverageKey(current.id),
+        coverageKey,
+      });
+      await recordCoverageLoss({
+        patientUserId: current.patientUserId,
+        coverageKey,
+        causeKey: `authorization-revoked:${current.id}:${transitioned.updatedAt.toISOString()}`,
+      });
+    }
+
+    return transitioned;
+  },
+  async transitionTracking(input: TransitionProfessionalTrackingInput) {
+    const current = await baseProfessionalRepository.getTrackingByAuthorization(
+      input.authorizationId
+    );
+    const transitioned = await baseProfessionalRepository.transitionTracking(input);
+
+    // Paused tracking keeps consuming the slot. Only definitive ending releases
+    // capacity. Ended tracking cannot be reactivated by the canonical state
+    // machine, so a future active tracking must obtain a fresh reservation.
+    if (input.nextStatus === "ended" && current && current.status !== "ended") {
+      const coverageKey = capacityCoverageKey(current.authorizationId);
+      await releaseProfessionalCapacityReservation({
+        professionalUserId: current.professionalUserId,
+        patientUserId: current.patientUserId,
+        coverageKey,
+      });
+      await recordCoverageLoss({
+        patientUserId: current.patientUserId,
+        coverageKey,
+        causeKey: `tracking-ended:${current.id}:${transitioned.updatedAt.toISOString()}`,
       });
     }
 
