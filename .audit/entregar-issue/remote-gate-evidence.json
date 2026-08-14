@@ -1,1 +1,29 @@
-{"schema_version":1,"material_head_sha":"5dce73c3d628e4e116e32145f5d38a5368c85667","observed_once":true,"observation_policy":"observe-only-no-polling-no-rerun","previous_material_failure":{"material_head_sha":"9cf805991960a50074ef56cd2766fba1e99f4aed","run_id":31797257176,"classification":"actionable-delivery","cause":"providerMutationConcurrency test asserted status instead of public flow field state"},"runs":[{"id":31798843869,"name":"AI provider live smoke","status":"completed","conclusion":"skipped"},{"id":31798843852,"name":"Billing persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31798843854,"name":"Professional persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31798843898,"name":"Agent-first gate","status":"in_progress","conclusion":null}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
+  "observed_at": "2026-08-14T13:00:00Z",
+  "runs": [
+    {
+      "id": 31802356544,
+      "name": "Billing persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356406,
+      "name": "Professional persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356412,
+      "name": "Agent-first gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356495,
+      "name": "AI provider live smoke",
+      "conclusion": "skipped"
+    }
+  ]
+}

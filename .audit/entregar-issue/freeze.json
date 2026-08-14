@@ -1,1 +1,10 @@
-{"schema_version":1,"material_head_sha":"5dce73c3d628e4e116e32145f5d38a5368c85667","base_sha":"d57f2024d67749a97dce66c30160d5a81669e3a8","material_merge_preview_sha":"63e7591e49531c4e158906f7e11e0612ae0e3355","worktree_clean":true,"source":"GitHub contents commit for test-only CI remediation; focused TypeScript public-flow contract validation","remote_gate":"observed-in-progress","handoff_mode":"result-only-child"}
+{
+  "schema_version": 1,
+  "status": "frozen",
+  "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
+  "material_merge_preview_sha": "07c69ba2b4bf391e8e956429847f326bc90a4acc",
+  "reason": "post-ci-refreeze after CI harness lifecycle remediation",
+  "remote_gate": "success"
+}
