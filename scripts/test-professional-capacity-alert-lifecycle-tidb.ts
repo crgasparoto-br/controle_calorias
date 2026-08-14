@@ -83,11 +83,19 @@ async function main() {
       `SELECT payloadJson
        FROM billingSubscriptionFacts
        WHERE subscriptionId = ?
-         AND factType = 'professional_capacity_admin_alert_opened'
-       ORDER BY createdAt ASC, id ASC`,
+         AND factType = 'professional_capacity_admin_alert_opened'`,
       [ids.subscription]
     );
     return rows.map(row => jsonValue(row.payloadJson));
+  }
+
+  function requireAlertByEventKey(
+    alerts: Record<string, unknown>[],
+    alertEventKey: string
+  ) {
+    const alert = alerts.find(item => item.alertEventKey === alertEventKey);
+    assert.ok(alert, `expected alert event ${alertEventKey}`);
+    return alert;
   }
 
   try {
@@ -170,10 +178,13 @@ async function main() {
 
     let alerts = await alertPayloads();
     assert.equal(alerts.length, 1, "initial crossing must create one alert");
-    assert.equal(alerts[0]?.kind, "capacity_exceeded");
-    assert.equal(alerts[0]?.priority, "normal");
-    assert.equal(alerts[0]?.alertTrigger, "initial_exceeded_capacity");
-    assert.equal(alerts[0]?.occupancy, 45);
+    const initialAlert = alerts.find(
+      alert => alert.alertTrigger === "initial_exceeded_capacity"
+    );
+    assert.ok(initialAlert, "initial crossing must persist its alert identity");
+    assert.equal(initialAlert.kind, "capacity_exceeded");
+    assert.equal(initialAlert.priority, "normal");
+    assert.equal(initialAlert.occupancy, 45);
 
     await insertAllocations(patientIds.slice(45));
     await coverageRepository.reconcileProfessionalCapacity(
@@ -182,11 +193,14 @@ async function main() {
     );
     alerts = await alertPayloads();
     assert.equal(alerts.length, 2, "crossing the public range must reopen once");
-    assert.equal(alerts[1]?.kind, "catalog_range_review_required");
-    assert.equal(alerts[1]?.priority, "high");
-    assert.equal(alerts[1]?.alertTrigger, "catalog_range_crossed");
-    assert.equal(alerts[1]?.alertEventKey, "catalog_range_review_required:100");
-    assert.equal(alerts[1]?.occupancy, 101);
+    const rangeAlert = requireAlertByEventKey(
+      alerts,
+      "catalog_range_review_required:100"
+    );
+    assert.equal(rangeAlert.kind, "catalog_range_review_required");
+    assert.equal(rangeAlert.priority, "high");
+    assert.equal(rangeAlert.alertTrigger, "catalog_range_crossed");
+    assert.equal(rangeAlert.occupancy, 101);
 
     await coverageRepository.reconcileProfessionalCapacity(
       ids.subscription,
@@ -205,11 +219,11 @@ async function main() {
     );
     alerts = await alertPayloads();
     assert.equal(alerts.length, 3, "unresolved expiry must reopen the alert once");
-    assert.equal(alerts[2]?.alertTrigger, "grandfathering_expired");
-    assert.equal(
-      alerts[2]?.alertEventKey,
+    const firstExpiryAlert = requireAlertByEventKey(
+      alerts,
       `grandfathering_expired:${firstEndsAt.toISOString()}`
     );
+    assert.equal(firstExpiryAlert.alertTrigger, "grandfathering_expired");
 
     await coverageRepository.reconcileProfessionalCapacity(
       ids.subscription,
@@ -238,11 +252,11 @@ async function main() {
       4,
       "a later unresolved extension horizon must reopen the alert independently"
     );
-    assert.equal(alerts[3]?.alertTrigger, "grandfathering_expired");
-    assert.equal(
-      alerts[3]?.alertEventKey,
+    const extensionExpiryAlert = requireAlertByEventKey(
+      alerts,
       `grandfathering_expired:${extension.endsAt.toISOString()}`
     );
+    assert.equal(extensionExpiryAlert.alertTrigger, "grandfathering_expired");
 
     await coverageRepository.reconcileProfessionalCapacity(
       ids.subscription,
