@@ -8,10 +8,7 @@ import {
 } from "../../repositories/professionalRepository";
 import { deleteProfessionalProfilePersistence } from "../../repositories/professionalProfileDeletionRepository";
 import { professionalCoverageService } from "../billing/professionalCoverageService";
-import {
-  releaseProfessionalCapacityReservation,
-  withProfessionalCapacityReservation,
-} from "./entitlementService";
+import { withProfessionalCapacityReservation } from "./entitlementService";
 
 const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
@@ -38,6 +35,7 @@ async function recordCoverageConfirmation(input: {
 }
 
 async function recordCoverageLoss(input: {
+  professionalUserId: number;
   patientUserId: number;
   coverageKey: string;
   causeKey: string;
@@ -45,9 +43,10 @@ async function recordCoverageLoss(input: {
   try {
     await professionalCoverageService.handleClinicalCoverageLoss(input);
   } catch (error) {
-    // Clinical revocation/ending is authoritative and cannot be blocked by a
-    // commercial persistence outage. The lifecycle processor can safely retry
-    // commercial causes; clinical repair remains observable through warnings.
+    // Clinical revocation/ending is authoritative. The canonical clinical state
+    // plus the preserved allocation/entitlement form a durable repair source for
+    // the lifecycle processor, so a transient billing outage cannot lose the
+    // release or the patient's transition.
     logPersistenceWarning("billing_professional_coverage_loss", error);
   }
 }
@@ -102,19 +101,10 @@ export const professionalRepository = {
       await baseProfessionalRepository.transitionAuthorization(input);
 
     if (input.nextStatus === "revoked" && current) {
-      // A revogação pertence ao paciente e nunca pode ser bloqueada por uma
-      // indisponibilidade comercial. A liberação é idempotente pela coverageKey
-      // e pode ser repetida com segurança pelo provider central. Revoked é
-      // terminal, então o próprio id da autorização é uma causa estável.
-      const coverageKey = capacityCoverageKey(current.id);
-      await releaseProfessionalCapacityReservation({
+      await recordCoverageLoss({
         professionalUserId: current.professionalUserId,
         patientUserId: current.patientUserId,
-        coverageKey,
-      });
-      await recordCoverageLoss({
-        patientUserId: current.patientUserId,
-        coverageKey,
+        coverageKey: capacityCoverageKey(current.id),
         causeKey: `authorization-revoked:${current.id}`,
       });
     }
@@ -129,17 +119,12 @@ export const professionalRepository = {
 
     // Paused tracking keeps consuming the slot. Only definitive ending releases
     // capacity. Ended tracking is terminal in the canonical state machine, so
-    // its tracking id is also a stable idempotency cause for the loss event.
+    // its tracking id is a stable idempotency cause for the repair source.
     if (input.nextStatus === "ended" && current && current.status !== "ended") {
-      const coverageKey = capacityCoverageKey(current.authorizationId);
-      await releaseProfessionalCapacityReservation({
+      await recordCoverageLoss({
         professionalUserId: current.professionalUserId,
         patientUserId: current.patientUserId,
-        coverageKey,
-      });
-      await recordCoverageLoss({
-        patientUserId: current.patientUserId,
-        coverageKey,
+        coverageKey: capacityCoverageKey(current.authorizationId),
         causeKey: `tracking-ended:${current.id}`,
       });
     }
