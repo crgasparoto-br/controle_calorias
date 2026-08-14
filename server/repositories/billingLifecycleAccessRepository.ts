@@ -23,7 +23,14 @@ export function createBillingLifecycleAccessRepository(
   >
 ) {
   async function listAccessCandidates(userId: number, now: Date) {
-    const candidates = await baseline.listAccessCandidates(userId, now);
+    const baselineCandidates = await baseline.listAccessCandidates(userId, now);
+    // Lifecycle is authoritative for professional coverage after #893/#894.
+    // Removing the legacy sponsored candidate prevents a suspended professional
+    // subscription from leaking access only because billingSubscriptions.status
+    // still says active.
+    const candidates = baselineCandidates.filter(
+      candidate => candidate.reason !== "sponsored_by_professional"
+    );
     const db = await requireDb(deps.getDb);
 
     const graceRows = resultRows<Record<string, unknown>>(
@@ -55,6 +62,7 @@ export function createBillingLifecycleAccessRepository(
         SELECT e.sourceId, e.validFrom, e.validUntil AS entitlementValidUntil,
           e.sponsorUserId, p.code AS planCode, e.entitlementsJson,
           CASE
+            WHEN l.state = 'active' THEN s.currentPeriodEnd
             WHEN l.state = 'past_due' THEN l.graceEndsAt
             WHEN l.state = 'pending' THEN l.trialEndsAt
             ELSE NULL
@@ -67,13 +75,17 @@ export function createBillingLifecycleAccessRepository(
         INNER JOIN billingPlans p ON p.id = s.planId
         INNER JOIN professionalPatientAuthorizations a
           ON a.id = c.authorizationId AND a.status = 'approved'
+        INNER JOIN professionalPatientTrackings t
+          ON t.authorizationId = a.id AND t.status IN ('active', 'paused')
         WHERE e.beneficiaryUserId = ${userId}
           AND e.sourceType = 'professional_coverage'
           AND e.state = 'active'
           AND e.validFrom <= ${now}
           AND (e.validUntil IS NULL OR e.validUntil > ${now})
           AND (
-            (l.state = 'past_due' AND l.graceEndsAt > ${now})
+            (l.state = 'active'
+              AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > ${now}))
+            OR (l.state = 'past_due' AND l.graceEndsAt > ${now})
             OR (l.state = 'pending' AND l.trialEndsAt > ${now})
           )
         ORDER BY e.createdAt DESC
@@ -123,12 +135,6 @@ export function createBillingLifecycleAccessRepository(
     professionalUserId: number,
     now: Date
   ): Promise<ProfessionalBillingSubscription | null> {
-    const active = await baseline.getActiveProfessionalSubscription(
-      professionalUserId,
-      now
-    );
-    if (active) return active;
-
     const db = await requireDb(deps.getDb);
     const [row] = resultRows<Record<string, unknown>>(
       await db.execute(sql`
@@ -153,14 +159,21 @@ export function createBillingLifecycleAccessRepository(
         WHERE s.payerUserId = ${professionalUserId}
           AND p.audience = 'professional'
           AND (
-            (l.state = 'pending' AND l.trialEndsAt > ${now})
+            (l.state = 'active'
+              AND (s.currentPeriodStart IS NULL OR s.currentPeriodStart <= ${now})
+              AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > ${now}))
+            OR (l.state = 'pending' AND l.trialEndsAt > ${now})
             OR (l.state = 'past_due' AND l.graceEndsAt > ${now})
           )
         ORDER BY accessValidUntil DESC
         LIMIT 1
       `)
     );
-    if (!row) return null;
+    if (!row) {
+      // Compatibility only for records predating the lifecycle table. New
+      // commercial states must never bypass the lifecycle query above.
+      return baseline.getActiveProfessionalSubscription(professionalUserId, now);
+    }
     return {
       id: String(row.id),
       provider: String(row.provider),
