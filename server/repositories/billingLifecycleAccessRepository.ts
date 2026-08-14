@@ -60,7 +60,7 @@ export function createBillingLifecycleAccessRepository(
 
     const sponsoredRows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
-        SELECT e.sourceId, e.validFrom, e.validUntil AS entitlementValidUntil,
+        SELECT e.sourceId, e.validFrom,
           e.sponsorUserId, p.code AS planCode, e.entitlementsJson,
           CASE
             WHEN l.state = 'active' THEN s.currentPeriodEnd
@@ -82,7 +82,6 @@ export function createBillingLifecycleAccessRepository(
           AND e.sourceType = 'professional_coverage'
           AND e.state = 'active'
           AND e.validFrom <= ${now}
-          AND (e.validUntil IS NULL OR e.validUntil > ${now})
           AND (
             (l.state = 'active'
               AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > ${now}))
@@ -97,7 +96,10 @@ export function createBillingLifecycleAccessRepository(
         reason: "sponsored_by_professional",
         sourceId: String(row.sourceId),
         validFrom: dateOrNull(row.validFrom),
-        validUntil: earliestDate(row.entitlementValidUntil, row.sponsorValidUntil),
+        // The lifecycle is the canonical commercial horizon. A coverage grant
+        // created during a prior paid period may carry an older denormalized
+        // validUntil; that snapshot must not truncate grace or recovery.
+        validUntil: dateOrNull(row.sponsorValidUntil),
         sponsorUserId: numberValue(row.sponsorUserId),
         planCode: row.planCode ? String(row.planCode) : null,
         entitlements: stringArray(row.entitlementsJson),
