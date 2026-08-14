@@ -1,24 +1,11 @@
 {
   "schema_version": 1,
-  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
-  "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
-  "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
-  "observed_at": "2026-08-14T17:25:21Z",
-  "runs": [
-    {
-      "id": 31823380159,
-      "name": "Agent-first gate",
-      "conclusion": "success"
-    },
-    {
-      "id": 31823380201,
-      "name": "Billing persistence TiDB gate",
-      "conclusion": "success"
-    },
-    {
-      "id": 31823380164,
-      "name": "Professional persistence TiDB gate",
-      "conclusion": "success"
-    }
-  ]
+  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
+  "status": "partial-green-ci-in-progress",
+  "evidence": [
+    {"run_id":31828559473,"scope":"billing persistence, concurrency and idempotency","conclusion":"success"},
+    {"run_id":31828559646,"scope":"professional persistence","conclusion":"success"},
+    {"run_id":31828559472,"scope":"aggregate typecheck/tests/docs/build/agent gates","conclusion":"in_progress at single observation"}
+  ],
+  "limitations": ["Agent-first gate had not reached terminal state at the single allowed observation for this material SHA."]
 }

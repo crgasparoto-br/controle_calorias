@@ -1,58 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
-  "status": "passed",
-  "gates": [
-    {
-      "name": "typescript",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / TypeScript check"
-    },
-    {
-      "name": "tests",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / Tests; includes persistenceService.capacity.test.ts repaired boundary"
-    },
-    {
-      "name": "architecture",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / Architecture check"
-    },
-    {
-      "name": "documentation",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / Documentation check"
-    },
-    {
-      "name": "build",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / Build"
-    },
-    {
-      "name": "agent-check",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / Agent check"
-    },
-    {
-      "name": "ci-gate-docs",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380159 / CI gate docs check"
-    },
-    {
-      "name": "billing-tidb",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380201"
-    },
-    {
-      "name": "professional-tidb",
-      "status": "passed",
-      "evidence": "GitHub Actions run 31823380164"
-    },
-    {
-      "name": "db-integrity",
-      "status": "skipped",
-      "evidence": "GitHub Actions run 31823380159; DATABASE_URL unavailable and explicit skip step succeeded"
-    }
+  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
+  "status": "internal-gates-passed-remote-partial",
+  "local_validations": [
+    {"name":"TypeScript syntax/noResolve","status":"passed-with-expected-missing-import-diagnostics","evidence":"Only TS2307 missing-module diagnostics in connector-only workspace."},
+    {"name":"event-time retry harness","status":"passed","evidence":"Failure before effect and after effect before receipt both reused occurredAt and suppressed worker-clock fallback."},
+    {"name":"specification coverage","status":"passed"},
+    {"name":"requirement attack matrix","status":"passed"},
+    {"name":"risk saturation","status":"passed"},
+    {"name":"inherited controls","status":"passed"},
+    {"name":"learning closure","status":"passed"},
+    {"name":"handoff readiness","status":"passed"}
   ],
-  "open_regressions": []
+  "remote_gate_status": "in_progress",
+  "blocking_findings": []
 }

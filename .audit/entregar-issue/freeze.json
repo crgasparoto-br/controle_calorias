@@ -1,10 +1,13 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
-  "head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
+  "material_head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
   "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
-  "material_merge_preview_sha": "f79a7303021f4759bd3e99053329085b8f3608ae",
-  "reason": "post-ci-refreeze after stale integrated test expectation remediation",
-  "remote_gate": "success"
+  "material_merge_preview_sha": "6f1e1c87ef39c5988284b051c78e9d3cb1dc899f",
+  "frozen_at": "2026-08-14T18:30:19.655027+00:00",
+  "material_paths": [
+    "server/modules/billing/professionalCoverageService.ts",
+    "server/modules/billing/professionalCoverageService.test.ts",
+    "docs/design-docs/billing-professional-coverage.md"
+  ]
 }

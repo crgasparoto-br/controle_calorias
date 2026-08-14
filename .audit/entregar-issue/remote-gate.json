@@ -1,28 +1,14 @@
 {
   "schema_version": 1,
-  "material_head_sha": "b12c38e81acc2dbda966eb9647c4f501dd108a38",
-  "observed_at": "2026-08-14T17:25:21Z",
-  "mode": "observe-only",
-  "status": "success",
+  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
+  "observed_at": "2026-08-14T18:30:19.655027+00:00",
+  "observation_policy": "single-observation-per-material-sha",
+  "status": "in_progress",
   "runs": [
-    {
-      "id": 31823380159,
-      "name": "Agent-first gate",
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "id": 31823380201,
-      "name": "Billing persistence TiDB gate",
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "id": 31823380164,
-      "name": "Professional persistence TiDB gate",
-      "status": "completed",
-      "conclusion": "success"
-    }
+    {"id":31828559472,"name":"Agent-first gate","status":"in_progress","conclusion":null},
+    {"id":31828559473,"name":"Billing persistence TiDB gate","status":"completed","conclusion":"success"},
+    {"id":31828559646,"name":"Professional persistence TiDB gate","status":"completed","conclusion":"success"}
   ],
-  "note": "Exact-head terminal snapshot after CI remediation; no rerun, dispatch, cancellation or approval action performed."
+  "rerun_triggered": false,
+  "polling_performed": false
 }
