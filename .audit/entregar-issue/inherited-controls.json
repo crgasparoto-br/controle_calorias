@@ -1,1 +1,33 @@
-{"schema_version":1,"head_sha":"62bda696718a17745bd160350de43f1c24d52189","controls":[],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "14ebc5bc50761802fe3f16cf67d5906a4f4e7f93",
+  "source_audits": [
+    {
+      "head_sha": "62bda696718a17745bd160350de43f1c24d52189",
+      "finding_id": "integrated-test-stale-expectation",
+      "disposition": "remediated"
+    },
+    {
+      "head_sha": "61768e9d0a7ca5c28a01656baa6e8e8e8182844a",
+      "finding_id": "B1",
+      "disposition": "remediated"
+    }
+  ],
+  "controls": [
+    {
+      "id": "AUDIT-INTEGRATED-REGRESSION-001",
+      "source_escape": "ESC-975-001",
+      "status": "passed",
+      "head_sha": "14ebc5bc50761802fe3f16cf67d5906a4f4e7f93",
+      "evidence": "The integrated WhatsApp intent regression on the material head requires Estimativa: with totals, rejects por estimativa, and exact-head Agent-first run 31760968698 completed successfully."
+    },
+    {
+      "id": "HANDOFF-REAUDIT-001",
+      "source_escape": "ESC-975-002",
+      "status": "passed",
+      "head_sha": "14ebc5bc50761802fe3f16cf67d5906a4f4e7f93",
+      "evidence": "The re-audit handoff is rebuilt with previous-independent-rejection enabled, audit and learning closures present, cumulative controls bound to the material head, and generic re-audit/handoff contract tests passed."
+    }
+  ],
+  "unresolved_controls": []
+}
