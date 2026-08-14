@@ -16,7 +16,7 @@ Uma cobertura profissional só é elegível quando existem simultaneamente:
 
 `paused` mantém a vaga. `ended` e revogação clínica liberam a reserva de forma idempotente. `suspended` interrompe a cobertura patrocinada, mas mantém reserva e vínculo para que a recuperação reutilize a mesma alocação. `expired` encerra a origem comercial e libera explicitamente as reservas ainda ativas, preservando os registros históricos.
 
-A seleção de acesso patrocinado é feita pelo lifecycle canônico. O candidato legado baseado somente em `billingSubscriptions.status` é removido antes da avaliação para impedir que uma assinatura suspensa continue concedendo acesso.
+A seleção de acesso patrocinado é feita pelo lifecycle canônico. Em registros que já possuem `billingSubscriptionLifecycle`, o horizonte comercial da cobertura vem exclusivamente do lifecycle (`trialEndsAt`, `currentPeriodEnd` ou `graceEndsAt`); um `billingEntitlements.validUntil` antigo não pode encurtar `past_due` nem impedir a restauração. O candidato legado baseado somente em `billingSubscriptions.status` permanece restrito a assinaturas que ainda não possuem linha de lifecycle.
 
 ## Capacidade
 
@@ -38,7 +38,7 @@ O estado de capacidade é derivado de fatos append-only em `billingSubscriptionF
 - `grandfathered_expired` no limite temporal;
 - `grandfathered_resolved` quando a ocupação natural volta ao limite contratado.
 
-Ao primeiro cruzamento acima do limite, o reconciliador registra um fato `professional_capacity_grandfathered_started` com plano/versão, limite contratado, ocupação inicial, limite temporário fixado à ocupação inicial, início, fim em 90 dias, motivo e origem. O limite temporário preserva a carteira; ele nunca aumenta silenciosamente nem libera novas admissões.
+Ao primeiro cruzamento acima do limite, o reconciliador registra um fato `professional_capacity_grandfathered_started` com plano/versão, limite contratado, ocupação inicial, limite temporário fixado à ocupação inicial, início, fim em 90 dias, motivo e origem. Quando o cruzamento é detectado a partir de `contract_confirmed`, `startedAt` usa o `effectiveAt`/`occurredAt` do fato comercial e não o relógio do worker. Assim, backlog ou retry não prolongam silenciosamente a janela. O limite temporário preserva a carteira; ele nunca aumenta silenciosamente nem libera novas admissões.
 
 Os avisos são fatos idempotentes nos marcos início, D-60, D-30, D-15, D-7 e expiração. Cada payload contém limite contratado, ocupação, excesso, data final, bloqueio de novas coberturas e alternativas (`natural_endings`, `upgrade`, `admin_extension`).
 
@@ -54,6 +54,8 @@ Se outra cobertura profissional válida continuar ativa, nenhuma transição é 
 
 1. `transition`, válida por 7 dias e herdando a matriz pessoal da cobertura encerrada;
 2. `read_only`, com início exatamente no fim da transição, preservando login, leitura, exportação e gestão da conta sem reabrir escrita, WhatsApp, IA, imagens ou áudio.
+
+Revogação e `ended` são persistidos pelo domínio clínico antes da reparação comercial. O processador da #894 deriva candidatos pendentes diretamente desse estado clínico persistido enquanto a alocação ou o entitlement patrocinado ainda estiverem ativos. A reparação resolve primeiro a decisão idempotente de transição e somente depois libera a alocação; uma falha transitória deixa o candidato detectável para retry posterior, sem desfazer a revogação clínica e sem perder permanentemente a transição do paciente.
 
 Nenhum fluxo apaga refeições, metas, vínculos, autorizações, acompanhamentos ou histórico de alocação.
 
@@ -75,13 +77,13 @@ O processador da #894 consome de forma idempotente os fatos profissionais releva
 
 - `coverage_pause_requested`: preserva reservas; a consulta de entitlement já remove acesso durante `suspended`;
 - `coverage_restore_requested` / `subscription_recovered`: reutiliza as reservas existentes e reconcilia capacidade;
-- `contract_confirmed`: reconcilia capacidade para detectar carteira excedida;
+- `contract_confirmed`: reconcilia capacidade usando o instante efetivo do fato para detectar carteira excedida sem estender a janela de 90 dias por atraso do worker;
 - `subscription_expired`, `cancellation_effective` e `administrative_termination`: liberam reservas ainda ativas e avaliam a transição individual de cada paciente.
 
-Eventos duplicados ou causas simultâneas não recriam reservas, não duplicam transições e não repetem warnings/alertas com a mesma chave de idempotência.
+Além dos fatos comerciais, o mesmo processamento reconcilia perdas clínicas persistidas que ficaram parciais por indisponibilidade de billing. Eventos duplicados ou causas simultâneas não recriam reservas, não duplicam transições e não repetem warnings/alertas com a mesma chave de idempotência.
 
 ## Validação
 
-Os testes unitários cobrem limites temporais, cooldown de 12 meses, marcos de aviso, estado de grandfathering, bloqueio de crescimento e escalonamento `catalog_range_review_required`. O serviço também cobre o contrato de uma tentativa de cancelamento individual e o estado `pending` em falha remota.
+Os testes unitários cobrem limites temporais, cooldown de 12 meses, marcos de aviso, estado de grandfathering, bloqueio de crescimento, escalonamento `catalog_range_review_required`, horizonte canônico de `past_due`, retry de perda clínica e ancoragem temporal em `contract_confirmed`. O serviço também cobre o contrato de uma tentativa de cancelamento individual e o estado `pending` em falha remota.
 
 A validação integrada permanece nos gates normais de billing (`pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e `pnpm agent:check`). Em ambiente com banco, os cenários concorrentes e de persistência devem continuar sendo exercitados pelo gate TiDB de billing.
