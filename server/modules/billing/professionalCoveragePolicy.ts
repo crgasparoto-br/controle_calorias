@@ -99,19 +99,40 @@ export function professionalCapacityWarningMilestones(input: {
   startedAt: Date;
   endsAt: Date;
 }): ProfessionalCapacityWarningMilestone[] {
-  return [
-    { key: "started", dueAt: input.startedAt, daysRemaining: 90 },
-    ...PROFESSIONAL_CAPACITY_WARNING_DAYS.map(daysRemaining => ({
+  const initialEndsAt = professionalCapacityGrandfatherEndsAt(input.startedAt);
+  const horizonStartsAt =
+    input.endsAt.getTime() > initialEndsAt.getTime()
+      ? addDays(input.endsAt, -PROFESSIONAL_CAPACITY_EXTENSION_DAYS)
+      : input.startedAt;
+  const horizonStartsAtMs = horizonStartsAt.getTime();
+  const horizonDays = Math.max(
+    0,
+    Math.ceil((input.endsAt.getTime() - horizonStartsAtMs) / DAY_MS)
+  );
+  const milestones: ProfessionalCapacityWarningMilestone[] = [
+    { key: "started", dueAt: horizonStartsAt, daysRemaining: horizonDays },
+  ];
+
+  for (const daysRemaining of PROFESSIONAL_CAPACITY_WARNING_DAYS) {
+    const dueAt = addDays(input.endsAt, -daysRemaining);
+    // A newly-created horizon must never backfill a milestone that was already
+    // in the past before that horizon existed. When start and a named milestone
+    // coincide (for example D30 on a 30-day extension), the start warning is
+    // the single canonical event for that instant.
+    if (dueAt.getTime() <= horizonStartsAtMs && daysRemaining !== 0) continue;
+    milestones.push({
       key: (daysRemaining === 0 ? "expired" : `d${daysRemaining}`) as
         | "d60"
         | "d30"
         | "d15"
         | "d7"
         | "expired",
-      dueAt: addDays(input.endsAt, -daysRemaining),
+      dueAt,
       daysRemaining,
-    })),
-  ];
+    });
+  }
+
+  return milestones;
 }
 
 export function dueProfessionalCapacityWarnings(input: {

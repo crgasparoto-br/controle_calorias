@@ -89,6 +89,17 @@ async function main() {
     return rows.map(row => jsonValue(row.payloadJson));
   }
 
+  async function warningPayloads() {
+    const [rows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT payloadJson
+       FROM billingSubscriptionFacts
+       WHERE subscriptionId = ?
+         AND factType = 'professional_capacity_warning'`,
+      [ids.subscription]
+    );
+    return rows.map(row => jsonValue(row.payloadJson));
+  }
+
   function requireAlertByEventKey(
     alerts: Record<string, unknown>[],
     alertEventKey: string
@@ -242,6 +253,22 @@ async function main() {
       analysisStatus: "temporary_exception_approved",
       now: firstEndsAt,
     });
+    await coverageRepository.reconcileProfessionalCapacity(
+      ids.subscription,
+      firstEndsAt
+    );
+    const extensionStartWarnings = (await warningPayloads()).filter(
+      warning => warning.temporaryEndsAt === extension.endsAt.toISOString()
+    );
+    assert.deepEqual(
+      extensionStartWarnings.map(warning => [
+        warning.milestone,
+        warning.daysRemaining,
+      ]),
+      [["started", 30]],
+      "a 30-day extension must not backfill D60/D30 warnings that predate or coincide with its start"
+    );
+
     await coverageRepository.reconcileProfessionalCapacity(
       ids.subscription,
       extension.endsAt

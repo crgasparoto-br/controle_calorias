@@ -92,6 +92,31 @@ describe("professional coverage policy", () => {
     expect(due.map(item => item.key)).toEqual(["d7"]);
   });
 
+  it("does not backfill impossible warning milestones for a 30-day extension horizon", () => {
+    const startedAt = new Date("2026-01-01T00:00:00.000Z");
+    const extensionStartsAt = professionalCapacityGrandfatherEndsAt(startedAt);
+    const endsAt = professionalCapacityExtensionEndsAt(extensionStartsAt);
+
+    expect(
+      dueProfessionalCapacityWarnings({
+        startedAt,
+        endsAt,
+        now: new Date(extensionStartsAt.getTime() - 86_400_000),
+      })
+    ).toEqual([]);
+
+    const atStart = dueProfessionalCapacityWarnings({
+      startedAt,
+      endsAt,
+      now: extensionStartsAt,
+    });
+    expect(atStart.map(item => [item.key, item.daysRemaining])).toEqual([
+      ["started", 30],
+    ]);
+    expect(atStart.some(item => item.key === "d60")).toBe(false);
+    expect(atStart.some(item => item.key === "d30")).toBe(false);
+  });
+
   it("grants one seven-day transition per rolling twelve-month window", () => {
     const first = new Date("2026-01-01T00:00:00.000Z");
     expect(professionalCoverageTransitionEndsAt(first).toISOString()).toBe(
