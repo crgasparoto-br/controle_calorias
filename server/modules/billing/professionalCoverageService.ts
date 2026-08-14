@@ -114,20 +114,29 @@ export function createProfessionalCoverageService(deps: {
 
   async function processLifecycleFacts(limit = 100) {
     const facts = await deps.repository.listPendingLifecycleFacts(limit);
+    const eventTimeCapacityIds = new Set(
+      facts
+        .filter(fact => fact.factType === "contract_confirmed")
+        .map(fact => fact.subscriptionId)
+    );
     let applied = 0;
     for (const fact of facts) {
       try {
-        const result = await deps.repository.applyLifecycleFact(fact);
-        if (result === "applied") applied += 1;
-        if (
-          fact.factType === "contract_confirmed" ||
-          fact.factType === "subscription_recovered"
-        ) {
+        if (fact.factType === "contract_confirmed") {
+          // Persist the event-time-derived capacity effect before acknowledging
+          // the source fact. A crash must leave contract_confirmed pending so a
+          // retry uses the same occurredAt instead of the worker clock.
           await deps.repository.reconcileProfessionalCapacity(
             fact.subscriptionId,
-            fact.factType === "contract_confirmed"
-              ? fact.occurredAt
-              : nowProvider()
+            fact.occurredAt
+          );
+        }
+        const result = await deps.repository.applyLifecycleFact(fact);
+        if (result === "applied") applied += 1;
+        if (fact.factType === "subscription_recovered") {
+          await deps.repository.reconcileProfessionalCapacity(
+            fact.subscriptionId,
+            nowProvider()
           );
         }
       } catch (error) {
@@ -137,6 +146,10 @@ export function createProfessionalCoverageService(deps: {
     const capacityIds =
       await deps.repository.listProfessionalCapacityReconciliationIds(limit);
     for (const subscriptionId of capacityIds) {
+      // A pending contract confirmation owns the temporal anchor for its first
+      // capacity window. Do not let the generic worker-clock pass race or mask a
+      // failed event-time reconciliation in the same processing cycle.
+      if (eventTimeCapacityIds.has(subscriptionId)) continue;
       try {
         await deps.repository.reconcileProfessionalCapacity(
           subscriptionId,

@@ -38,7 +38,7 @@ O estado de capacidade é derivado de fatos append-only em `billingSubscriptionF
 - `grandfathered_expired` no limite temporal;
 - `grandfathered_resolved` quando a ocupação natural volta ao limite contratado.
 
-Ao primeiro cruzamento acima do limite, o reconciliador registra um fato `professional_capacity_grandfathered_started` com plano/versão, limite contratado, ocupação inicial, limite temporário fixado à ocupação inicial, início, fim em 90 dias, motivo e origem. Quando o cruzamento é detectado a partir de `contract_confirmed`, `startedAt` usa o `effectiveAt`/`occurredAt` do fato comercial e não o relógio do worker. Assim, backlog ou retry não prolongam silenciosamente a janela. O limite temporário preserva a carteira; ele nunca aumenta silenciosamente nem libera novas admissões.
+Ao primeiro cruzamento acima do limite, o reconciliador registra um fato `professional_capacity_grandfathered_started` com plano/versão, limite contratado, ocupação inicial, limite temporário fixado à ocupação inicial, início, fim em 90 dias, motivo e origem. Quando o cruzamento é detectado a partir de `contract_confirmed`, `startedAt` usa o `effectiveAt`/`occurredAt` do fato comercial e não o relógio do worker. A reconciliação que materializa essa janela ocorre antes do receipt `professional_coverage_fact_applied`; enquanto `contract_confirmed` permanecer pendente, a passagem genérica de capacidade não pode reconciliar a mesma assinatura com o relógio do worker. Assim, uma falha antes da reconciliação mantém o fato disponível para retry com o mesmo instante, e uma falha depois da reconciliação mas antes do receipt apenas repete idempotentemente a mesma janela. Backlog, restart ou retry não prolongam silenciosamente os 90 dias. O limite temporário preserva a carteira; ele nunca aumenta silenciosamente nem libera novas admissões.
 
 Os avisos são fatos idempotentes nos marcos início, D-60, D-30, D-15, D-7 e expiração. Cada payload contém limite contratado, ocupação, excesso, data final, bloqueio de novas coberturas e alternativas (`natural_endings`, `upgrade`, `admin_extension`).
 
@@ -77,13 +77,13 @@ O processador da #894 consome de forma idempotente os fatos profissionais releva
 
 - `coverage_pause_requested`: preserva reservas; a consulta de entitlement já remove acesso durante `suspended`;
 - `coverage_restore_requested` / `subscription_recovered`: reutiliza as reservas existentes e reconcilia capacidade;
-- `contract_confirmed`: reconcilia capacidade usando o instante efetivo do fato para detectar carteira excedida sem estender a janela de 90 dias por atraso do worker;
+- `contract_confirmed`: reconcilia capacidade usando o instante efetivo do fato antes de registrar o receipt; se houver falha parcial, o retry reutiliza o mesmo `occurredAt` e a passagem genérica não pode substituir esse instante pelo relógio do worker;
 - `subscription_expired`, `cancellation_effective` e `administrative_termination`: liberam reservas ainda ativas e avaliam a transição individual de cada paciente.
 
 Além dos fatos comerciais, o mesmo processamento reconcilia perdas clínicas persistidas que ficaram parciais por indisponibilidade de billing. Eventos duplicados ou causas simultâneas não recriam reservas, não duplicam transições e não repetem warnings/alertas com a mesma chave de idempotência.
 
 ## Validação
 
-Os testes unitários cobrem limites temporais, cooldown de 12 meses, marcos de aviso, estado de grandfathering, bloqueio de crescimento, escalonamento `catalog_range_review_required`, horizonte canônico de `past_due`, retry de perda clínica e ancoragem temporal em `contract_confirmed`. O serviço também cobre o contrato de uma tentativa de cancelamento individual e o estado `pending` em falha remota.
+Os testes unitários cobrem limites temporais, cooldown de 12 meses, marcos de aviso, estado de grandfathering, bloqueio de crescimento, escalonamento `catalog_range_review_required`, horizonte canônico de `past_due`, retry de perda clínica e ancoragem temporal em `contract_confirmed`. O controle temporal inclui falha antes do efeito, falha do receipt após o efeito e retry após restart, comprovando que nenhum desses caminhos troca `occurredAt` pelo relógio do worker. O serviço também cobre o contrato de uma tentativa de cancelamento individual e o estado `pending` em falha remota.
 
 A validação integrada permanece nos gates normais de billing (`pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e `pnpm agent:check`). Em ambiente com banco, os cenários concorrentes e de persistência devem continuar sendo exercitados pelo gate TiDB de billing.
