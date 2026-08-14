@@ -1,1 +1,10 @@
-{"schema_version":1,"issue":975,"base_sha":"311cca66d6213f2a6ea2312e83154a9041b8a21b","material_head_sha":"14ebc5bc50761802fe3f16cf67d5906a4f4e7f93","merge_preview_sha":"841640d0a0d91355256e93a7d785a568bab46a38","status":"frozen","reason":"Reaudit remediation is evidence-only: functional material head remains unchanged; exact-head product CI is green; cumulative audit controls and learning closure were rebuilt before handoff."}
+{
+  "schema_version": 1,
+  "status": "frozen",
+  "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
+  "material_merge_preview_sha": "07c69ba2b4bf391e8e956429847f326bc90a4acc",
+  "reason": "post-ci-refreeze after CI harness lifecycle remediation",
+  "remote_gate": "success"
+}

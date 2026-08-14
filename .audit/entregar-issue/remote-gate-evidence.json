@@ -1,1 +1,29 @@
-{"schema_version":1,"issue":975,"material_head_sha":"14ebc5bc50761802fe3f16cf67d5906a4f4e7f93","observation":"completed-success","workflow_runs":[{"id":31760968707,"name":"WhatsApp context TiDB gate","status":"completed","conclusion":"success"},{"id":31760968698,"name":"Agent-first gate","status":"completed","conclusion":"success","validated_steps":["TypeScript check","Tests","Architecture check","Documentation check","Build","Agent check","CI gate docs check","Create exact-head verification manifest","Upload exact-head verification manifest"]}],"policy":"observe-only","polling_performed":false}
+{
+  "schema_version": 1,
+  "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
+  "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
+  "observed_at": "2026-08-14T13:00:00Z",
+  "runs": [
+    {
+      "id": 31802356544,
+      "name": "Billing persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356406,
+      "name": "Professional persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356412,
+      "name": "Agent-first gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 31802356495,
+      "name": "AI provider live smoke",
+      "conclusion": "skipped"
+    }
+  ]
+}

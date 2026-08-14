@@ -14,6 +14,16 @@ export type TransactionalSqlExecutor = SqlExecutor & {
 };
 
 export type DbProvider = () => Promise<unknown | null>;
+
+let configuredBillingDbProvider: DbProvider | null = null;
+
+export function configureBillingDbProvider(getDb: DbProvider) {
+  configuredBillingDbProvider = getDb;
+}
+
+export function getConfiguredBillingDbProvider() {
+  return configuredBillingDbProvider;
+}
 export type WarningHandler = (scope: string, error: unknown) => void;
 export type BillingRepositoryDeps = {
   getDb: DbProvider;

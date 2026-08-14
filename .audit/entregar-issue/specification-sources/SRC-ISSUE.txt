@@ -1,0 +1,119 @@
+Parent: #145
+
+## Objetivo
+
+Integrar o Asaas por meio do contrato provider-neutral, entregando cliente, checkout hospedado, cartão, Pix Automático, descontos, operações financeiras idempotentes, webhooks autenticados, processamento assíncrono e reconciliação autoritativa.
+
+## Adapter e configuração
+
+- Isolar SDK, endpoints, enums, payloads e identificadores do Asaas dentro do adapter.
+- Separar completamente sandbox e produção.
+- Não armazenar cartão, CVV, token de cartão, segredo ou payload bruto desnecessário.
+- Mapear produtos, versões e meios de pagamento internos da #891 sem contaminar domínio ou frontend.
+- Expor ao backend as capacidades reais do ambiente e do produto no Asaas, sem ampliar a política comercial definida no catálogo.
+
+## Cliente, checkout e cobranças
+
+- Criar ou reutilizar cliente com correlação local e idempotência.
+- Persistir intenção local antes da chamada externa.
+- Uma intenção ativa por usuário, versão, ciclo, método e tentativa controlada.
+- Timeout após possível criação remota exige releitura/reconciliação; nunca repetir criação cegamente.
+- Retorno do navegador é apenas navegação e permanece pendente até confirmação autoritativa.
+- Retry, múltiplas abas ou duplo clique não podem criar cliente, assinatura, cobrança, autorização ou checkout duplicado.
+
+## Meios de pagamento no lançamento
+
+- Suportar cartão de crédito e Pix Automático para todos os produtos, nos ciclos mensal e anual, quando também habilitados pelo catálogo da #891.
+- Boleto e Pix manual não devem ser publicados no checkout inicial, mesmo que o provider possua capacidade técnica.
+- Trial individual e profissional utiliza somente cartão cadastrado.
+- Seleção de Pix Automático inicia contratação paga sem trial e exige consentimento explícito dessa consequência.
+- Autorização do Pix Automático, checkout criado ou retorno do navegador não ativam plano isoladamente.
+- O estado permanece `pending` até confirmação financeira autoritativa normalizada para #893.
+- Falha, abandono, recusa ou expiração da autorização deve permitir retry ou troca de método sem duplicação e sem concessão de acesso.
+- A lista final de métodos é a interseção entre métodos comercialmente autorizados em #891 e capacidades reais do adapter.
+
+## Trials
+
+- Trial individual: cartão cadastrado antes do início, primeira cobrança após 7 dias.
+- Trial profissional: cartão cadastrado antes do início, primeira cobrança após 14 dias.
+- Efetivação antecipada do profissional cria a cobrança correspondente e somente libera a capacidade completa após confirmação autoritativa.
+- Falha, abandono ou pendência não encerra o trial nem amplia capacidade.
+- Pix Automático não inicia trial e não substitui o cartão exigido para trial.
+
+## Cupons e descontos
+
+- Receber do domínio somente um desconto previamente validado conforme #891/#893.
+- Refletir no Asaas o valor e a duração aprovados sem transferir ao provider a autoridade sobre elegibilidade do código.
+- Persistir correlação entre utilização local do cupom e cobrança/assinatura externa.
+- Um cupom por contratação; nenhum acúmulo.
+- Mensal: desconto por no máximo 3 cobranças.
+- Anual: desconto somente na primeira cobrança.
+- Desconto de 100% não pode ser enviado como cupom; deve usar isenção administrativa local.
+- Trial + cupom aplica o desconto apenas na primeira cobrança após o trial.
+- Retry e reconciliação não podem consumir novamente o cupom nem duplicar desconto.
+
+## Webhooks e processamento
+
+- Validar `asaas-access-token` antes de qualquer efeito.
+- Persistir recebimento por identificador externo único antes do processamento.
+- Processar por fila/job recuperável.
+- Evento duplicado retorna sucesso sem repetir efeitos.
+- Evento atrasado ou fora de ordem não regride estado válido.
+- Evento desconhecido fica sanitizado e não libera acesso.
+- Eventos de autorização, cobrança e pagamento do Pix Automático devem ser correlacionados à mesma intenção local e normalizados sem conceder acesso prematuro.
+- Fila interrompida, atraso, falha consecutiva e divergência geram observabilidade e runbook.
+
+## Normalização e reconciliação
+
+- Traduzir fatos externos para os comandos e estados de #893.
+- Adapter não decide trial, cupom, carência, cobertura ou suspensão.
+- Disponibilizar reconciliação automática e administrativa.
+- Pagamento tardio após `expired` exige decisão administrativa.
+- Falha após confirmação financeira permanece recuperável sem nova cobrança.
+- Divergência entre autorização do Pix Automático, cobrança e assinatura local deve permanecer pendente até reconciliação autoritativa.
+
+## Operações financeiras
+
+- Cancelar renovação futura.
+- Reativar renovação quando permitido.
+- Consultar cobrança, assinatura e próxima renovação.
+- Atualizar forma de pagamento ou abrir fluxo externo quando suportado.
+- Informar capacidades reais do provider ao backend.
+
+## Invariantes
+
+- Callback do navegador nunca confirma pagamento.
+- Apenas fonte autoritativa altera estado financeiro.
+- Retry, timeout e evento repetido não duplicam cobrança, assinatura, autorização, desconto ou efeito.
+- Isenção administrativa não cria evento financeiro fictício.
+- Falha temporária mantém operação pendente e recuperável.
+- Método tecnicamente disponível no Asaas, mas não autorizado pelo catálogo, não pode ser publicado.
+
+## Critérios de aceite
+
+- [ ] Adapter não vaza tipos Asaas ao domínio ou frontend.
+- [ ] Sandbox e produção estão separados.
+- [ ] Cliente, checkout, assinatura, cobrança e autorização são idempotentes.
+- [ ] Cartão e Pix Automático funcionam para mensal e anual nos três produtos quando elegíveis.
+- [ ] Boleto e Pix manual não são publicados no checkout inicial.
+- [ ] Trials iniciam somente com cartão e só cobram após o período aprovado.
+- [ ] Pix Automático inicia contratação paga sem trial e permanece pendente até confirmação autoritativa.
+- [ ] Efetivação antecipada profissional só amplia capacidade após confirmação.
+- [ ] Cupons validados são aplicados com duração correta e sem consumo duplicado.
+- [ ] Desconto de 100% é rejeitado como cupom.
+- [ ] Webhook inválido não altera estado.
+- [ ] Eventos duplicados, atrasados e fora de ordem não repetem efeitos.
+- [ ] Existe reconciliação automática e administrativa.
+- [ ] A lista efetiva de métodos respeita catálogo e capacidades do provider.
+- [ ] Testes cobrem callback, timeout, retry, troca de método, Pix pendente/recusado/confirmado, desconto, trial, evento duplicado e pagamento tardio.
+
+## Dependências
+
+- #145
+- #869 / PR #870
+- #891
+- #893
+
+## Prontidão
+
+**Pronta para integração técnica.** Os meios de pagamento do lançamento estão definidos; a publicação depende da implementação, testes de sandbox e validação dos contratos com #891, #893 e #895.
