@@ -13,6 +13,13 @@ function repository() {
   } as any;
 }
 
+function clinicalRepair() {
+  return {
+    listPendingClinicalCoverageLosses: vi.fn().mockResolvedValue([]),
+    repairClinicalCoverageLoss: vi.fn(),
+  };
+}
+
 describe("professional coverage service", () => {
   it("performs at most one explicit cancellation attempt and persists confirmation", async () => {
     const repo = repository();
@@ -31,6 +38,7 @@ describe("professional coverage service", () => {
     const service = createProfessionalCoverageService({
       repository: repo,
       cancelIndividualRenewal: cancel,
+      clinicalRepair: clinicalRepair(),
       now: () => new Date("2026-08-14T12:00:00.000Z"),
     });
 
@@ -65,6 +73,7 @@ describe("professional coverage service", () => {
     const service = createProfessionalCoverageService({
       repository: repo,
       cancelIndividualRenewal: cancel,
+      clinicalRepair: clinicalRepair(),
       now: () => new Date("2026-08-14T12:00:00.000Z"),
     });
 
@@ -89,6 +98,7 @@ describe("professional coverage service", () => {
     const service = createProfessionalCoverageService({
       repository: repo,
       cancelIndividualRenewal: cancel,
+      clinicalRepair: clinicalRepair(),
     });
 
     await expect(
@@ -98,5 +108,87 @@ describe("professional coverage service", () => {
       })
     ).resolves.toEqual({ status: "not_applicable" });
     expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("retries a clinical loss from durable clinical state after the immediate repair fails", async () => {
+    const repo = repository();
+    const repair = clinicalRepair();
+    const loss = {
+      professionalUserId: 10,
+      patientUserId: 20,
+      coverageKey: "professional-authorization:auth-1",
+      causeKey: "authorization-revoked:auth-1",
+    };
+    repair.repairClinicalCoverageLoss
+      .mockRejectedValueOnce(new Error("database unavailable"))
+      .mockResolvedValueOnce({ granted: true });
+    repair.listPendingClinicalCoverageLosses.mockResolvedValue([loss]);
+    const service = createProfessionalCoverageService({
+      repository: repo,
+      clinicalRepair: repair,
+      now: () => new Date("2026-08-14T12:00:00.000Z"),
+    });
+
+    await expect(service.handleClinicalCoverageLoss(loss)).rejects.toThrow(
+      "database unavailable"
+    );
+    await expect(service.processLifecycleFacts()).resolves.toEqual(
+      expect.objectContaining({ clinicalScanned: 1, clinicalRepaired: 1 })
+    );
+    expect(repair.repairClinicalCoverageLoss).toHaveBeenCalledTimes(2);
+  });
+
+  it("anchors the initial 90-day capacity window to contract confirmation time", async () => {
+    const repo = repository();
+    const repair = clinicalRepair();
+    const occurredAt = new Date("2026-08-10T09:00:00.000Z");
+    repo.listPendingLifecycleFacts.mockResolvedValue([
+      {
+        id: "fact-1",
+        subscriptionId: "professional-1",
+        factType: "contract_confirmed",
+        occurredAt,
+      },
+    ]);
+    repo.applyLifecycleFact.mockResolvedValue("applied");
+    const service = createProfessionalCoverageService({
+      repository: repo,
+      clinicalRepair: repair,
+      now: () => new Date("2026-08-14T12:00:00.000Z"),
+    });
+
+    await service.processLifecycleFacts();
+
+    expect(repo.reconcileProfessionalCapacity).toHaveBeenCalledWith(
+      "professional-1",
+      occurredAt
+    );
+  });
+
+  it("uses processing time for capacity reconciliation after recovery", async () => {
+    const repo = repository();
+    const repair = clinicalRepair();
+    const processedAt = new Date("2026-08-14T12:00:00.000Z");
+    repo.listPendingLifecycleFacts.mockResolvedValue([
+      {
+        id: "fact-2",
+        subscriptionId: "professional-1",
+        factType: "subscription_recovered",
+        occurredAt: new Date("2026-08-10T09:00:00.000Z"),
+      },
+    ]);
+    repo.applyLifecycleFact.mockResolvedValue("applied");
+    const service = createProfessionalCoverageService({
+      repository: repo,
+      clinicalRepair: repair,
+      now: () => processedAt,
+    });
+
+    await service.processLifecycleFacts();
+
+    expect(repo.reconcileProfessionalCapacity).toHaveBeenCalledWith(
+      "professional-1",
+      processedAt
+    );
   });
 });
