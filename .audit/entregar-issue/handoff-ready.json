@@ -1,27 +1,33 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-14T13:11:11.701566+00:00",
+  "created_at": "2026-08-14T15:57:15.886147+00:00",
   "identity": {
-    "head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
-    "material_head_sha": "2cb05dce18af083c6ae4b9ad7cb0e9074009b785",
-    "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
-    "merge_preview_sha": "07c69ba2b4bf391e8e956429847f326bc90a4acc",
-    "material_merge_preview_sha": "07c69ba2b4bf391e8e956429847f326bc90a4acc"
+    "head_sha": "ad01f02ad3f5b622447f64b148d25e51852602d5",
+    "material_head_sha": "ad01f02ad3f5b622447f64b148d25e51852602d5",
+    "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
+    "merge_preview_sha": "5653e3122d54d741b32b1902b00f5827efcd9040",
+    "material_merge_preview_sha": "5653e3122d54d741b32b1902b00f5827efcd9040"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
-      ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/freeze.json",
+      ".audit/entregar-issue/applicability-ledger.json",
+      ".audit/entregar-issue/controller-handoff.json",
+      ".audit/entregar-issue/cycle-history.json",
+      ".audit/entregar-issue/documentacao-repositorio-result.json",
+      ".audit/entregar-issue/documentation-impact.json",
+      ".audit/entregar-issue/execution-context.json",
+      ".audit/entregar-issue/fluxos-conversacionais-result.json",
+      ".audit/entregar-issue/gate-report.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
-      ".audit/entregar-issue/learning-closure.json",
-      ".audit/entregar-issue/remote-gate-evidence.json",
+      ".audit/entregar-issue/remote-gate.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json"
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE.txt"
     ]
   },
   "contract_version": "2026-08-06.2",
@@ -40,32 +46,24 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "e59ff5a86f9733ef5c3188bfc53ccdab0f8901294a6e5a7c7d8b04a2d8c6552b"
+      "sha256": "4fa00ac3ef55f0ef9af20a411926fd01a03b4b19e9dd92d4310e626bc6a601ad"
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "14936e34035d8c60d0d9c69bb213b917b5e0bb42c5fa810098352e852c627264"
+      "sha256": "87111ced5f78da2f59ad8fd0def3f341361ab40775ba6e1bd910b9fcb3c03fb3"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "c94903f1fd0b3b01cd1a8347a0446ba4bb425e77e7bf1ce08d83e2ab94450e07"
+      "sha256": "b10aa82cb823650b09ea93a4e1dc093db706059a17d620c53c8f6f9f3df2664e"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "8666b590bff2e523d255f9204e19935a2472ffe8eee296dfc29f5941b9250e8a"
+      "sha256": "9a9ec551dcb7be52431568efef25135cd52f32da1a7b1640edac93c6a88ab9e6"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "a4498a1a80d2dbf55ae332a2615038988b6a0e01a408656bda54b6656e851d72"
-    },
-    "audit_escape_closure": {
-      "name": "audit-escape-closure.json",
-      "sha256": "97cc0c5dd2753e6522070f541a71c5573adf0b5e526c5054b7daad6a0edd5997"
-    },
-    "learning_closure": {
-      "name": "learning-closure.json",
-      "sha256": "81add87d47aab231812ca8e629f26557d9ce2b834e2fe30e966e6fe8711bac90"
+      "sha256": "6e08c7bd3f2ebedef1704f45e912b184ff9ed83991191898b0cd51d3e89853c4"
     }
   },
-  "previous_independent_rejection": true
+  "previous_independent_rejection": false
 }
