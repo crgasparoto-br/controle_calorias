@@ -1,6 +1,10 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createBillingProfessionalCoverageRepository } from "../../repositories/billingProfessionalCoverageRepository";
 import { cancelIndividualRenewalForProfessionalCoverage } from "./professionalCoverageCancellationRuntime";
+import {
+  professionalCoverageClinicalRepair,
+  type ProfessionalClinicalCoverageLoss,
+} from "./professionalCoverageClinicalRepair";
 
 export type IndividualRenewalCancellationInput = {
   subscriptionId: string;
@@ -17,6 +21,15 @@ export type IndividualRenewalCancellationPort = (
   input: IndividualRenewalCancellationInput
 ) => Promise<IndividualRenewalCancellationResult>;
 
+type ProfessionalCoverageClinicalRepairPort = {
+  listPendingClinicalCoverageLosses: (
+    limit?: number
+  ) => Promise<ProfessionalClinicalCoverageLoss[]>;
+  repairClinicalCoverageLoss: (
+    input: ProfessionalClinicalCoverageLoss & { now?: Date }
+  ) => Promise<unknown>;
+};
+
 let cancellationPort: IndividualRenewalCancellationPort | null = null;
 
 export function configureProfessionalCoverageCancellationPort(
@@ -28,11 +41,13 @@ export function configureProfessionalCoverageCancellationPort(
 export function createProfessionalCoverageService(deps: {
   repository: ReturnType<typeof createBillingProfessionalCoverageRepository>;
   cancelIndividualRenewal?: IndividualRenewalCancellationPort | null;
+  clinicalRepair?: ProfessionalCoverageClinicalRepairPort;
   now?: () => Date;
   onWarning?: (scope: string, error: unknown) => void;
 }) {
   const nowProvider = deps.now ?? (() => new Date());
   const warning = deps.onWarning ?? (() => undefined);
+  const clinicalRepair = deps.clinicalRepair ?? professionalCoverageClinicalRepair;
 
   async function handleCoverageConfirmed(input: {
     patientUserId: number;
@@ -88,12 +103,10 @@ export function createProfessionalCoverageService(deps: {
     }
   }
 
-  async function handleClinicalCoverageLoss(input: {
-    patientUserId: number;
-    coverageKey: string;
-    causeKey: string;
-  }) {
-    return deps.repository.grantTransitionAfterClinicalLoss({
+  async function handleClinicalCoverageLoss(
+    input: ProfessionalClinicalCoverageLoss
+  ) {
+    return clinicalRepair.repairClinicalCoverageLoss({
       ...input,
       now: nowProvider(),
     });
@@ -112,7 +125,9 @@ export function createProfessionalCoverageService(deps: {
         ) {
           await deps.repository.reconcileProfessionalCapacity(
             fact.subscriptionId,
-            nowProvider()
+            fact.factType === "contract_confirmed"
+              ? fact.occurredAt
+              : nowProvider()
           );
         }
       } catch (error) {
@@ -131,10 +146,28 @@ export function createProfessionalCoverageService(deps: {
         warning("billing_professional_capacity_reconciliation", error);
       }
     }
+
+    const clinicalLosses =
+      await clinicalRepair.listPendingClinicalCoverageLosses(limit);
+    let clinicalRepaired = 0;
+    for (const loss of clinicalLosses) {
+      try {
+        await clinicalRepair.repairClinicalCoverageLoss({
+          ...loss,
+          now: nowProvider(),
+        });
+        clinicalRepaired += 1;
+      } catch (error) {
+        warning("billing_professional_clinical_coverage_repair", error);
+      }
+    }
+
     return {
       scanned: facts.length,
       applied,
       capacityScanned: capacityIds.length,
+      clinicalScanned: clinicalLosses.length,
+      clinicalRepaired,
     };
   }
 
@@ -187,5 +220,6 @@ export const billingProfessionalCoverageRepository =
 export const professionalCoverageService = createProfessionalCoverageService({
   repository: billingProfessionalCoverageRepository,
   cancelIndividualRenewal: cancelIndividualRenewalForProfessionalCoverage,
+  clinicalRepair: professionalCoverageClinicalRepair,
   onWarning: logPersistenceWarning,
 });
