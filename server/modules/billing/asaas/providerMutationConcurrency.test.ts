@@ -199,7 +199,7 @@ describe("CONCURRENCY-CAS-001 provider mutation ownership", () => {
     );
     expect(checkoutPosts).toBe(1);
     gate.release();
-    await expect(first).resolves.toMatchObject({ status: "pending" });
+    await expect(first).resolves.toMatchObject({ state: "pending" });
     expect(checkoutPosts).toBe(1);
   });
 
@@ -240,7 +240,7 @@ describe("CONCURRENCY-CAS-001 provider mutation ownership", () => {
     );
     expect(pixPosts).toBe(1);
     gate.release();
-    await expect(first).resolves.toMatchObject({ status: "pending" });
+    await expect(first).resolves.toMatchObject({ state: "pending" });
     expect(pixPosts).toBe(1);
   });
 
