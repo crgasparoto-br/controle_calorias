@@ -104,7 +104,8 @@ export const professionalRepository = {
     if (input.nextStatus === "revoked" && current) {
       // A revogação pertence ao paciente e nunca pode ser bloqueada por uma
       // indisponibilidade comercial. A liberação é idempotente pela coverageKey
-      // e pode ser repetida com segurança pelo provider central.
+      // e pode ser repetida com segurança pelo provider central. Revoked é
+      // terminal, então o próprio id da autorização é uma causa estável.
       const coverageKey = capacityCoverageKey(current.id);
       await releaseProfessionalCapacityReservation({
         professionalUserId: current.professionalUserId,
@@ -114,7 +115,7 @@ export const professionalRepository = {
       await recordCoverageLoss({
         patientUserId: current.patientUserId,
         coverageKey,
-        causeKey: `authorization-revoked:${current.id}:${transitioned.updatedAt.toISOString()}`,
+        causeKey: `authorization-revoked:${current.id}`,
       });
     }
 
@@ -127,8 +128,8 @@ export const professionalRepository = {
     const transitioned = await baseProfessionalRepository.transitionTracking(input);
 
     // Paused tracking keeps consuming the slot. Only definitive ending releases
-    // capacity. Ended tracking cannot be reactivated by the canonical state
-    // machine, so a future active tracking must obtain a fresh reservation.
+    // capacity. Ended tracking is terminal in the canonical state machine, so
+    // its tracking id is also a stable idempotency cause for the loss event.
     if (input.nextStatus === "ended" && current && current.status !== "ended") {
       const coverageKey = capacityCoverageKey(current.authorizationId);
       await releaseProfessionalCapacityReservation({
@@ -139,7 +140,7 @@ export const professionalRepository = {
       await recordCoverageLoss({
         patientUserId: current.patientUserId,
         coverageKey,
-        causeKey: `tracking-ended:${current.id}:${transitioned.updatedAt.toISOString()}`,
+        causeKey: `tracking-ended:${current.id}`,
       });
     }
 
