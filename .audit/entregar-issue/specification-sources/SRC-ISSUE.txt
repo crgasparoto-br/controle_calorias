@@ -1,20 +1,123 @@
-1. O comando completo de adição com ação explícita, quantidade, alimento e refeição deve ser interpretado sem clarificação redundante; o cenário principal é "Adicionar 3 xícaras de café sem açúcar no café da manhã".
-2. O parser especializado não pode interceptar uma mensagem completa e produzir estado mais pobre que o parser canônico; deve reutilizar o parser/executor canônico, não manter gramática concorrente nem parser paralelo, e a precedência não pode mascarar divergência por fallback tardio.
-3. Frases semanticamente equivalentes devem produzir o mesmo payload variando verbos adicionar/adicione/adiciona, incluir/inclua, colocar/coloque, acrescentar/acrescente, registrar/registre, lançar/lance; ordem alimento-destino ou destino-alimento/início/dois-pontos; preposições no/na/ao/à/para o/para a/a refeição/na refeição/à refeição; acentuação, caixa e pontuação.
-4. O payload estruturado deve preservar refeição canônica, alimento sem a expressão de destino, quantidade explícita e unidade normalizada; no cenário principal deve preservar Café da manhã, café sem açúcar, 3 e xícara(s).
-5. Quantidade explícita deve ser preservada e não pode virar null, zero, 1 porção ou estimativa; singular/plural, 300g/300 g e quantidade unitária sem unidade devem seguir o normalizador canônico quando suportados.
-6. A refeição explícita deve ser preservada e não pode ser substituída por inferência de horário; destinos com data relativa, como jantar de ontem, devem manter o contrato temporal existente.
-7. O sistema não deve pedir novamente quantidade ou refeição quando esses campos já estiverem presentes e válidos, nem responder genericamente "me diga a quantidade e a refeição" para um comando completo.
-8. A implementação deve reutilizar parseMealCommandFromWhatsApp/parseFoodAdditionIntent e o executor canônico ou consolidar o caminho especializado sobre esses contratos; não deve duplicar vocabulário/regex/gramática de ação e destino entre caminhos concorrentes.
-9. O parser deve separar alimento e destino com segurança: no/para o café da manhã e equivalentes não podem entrar em foodName; desjejum e cafe da manha devem normalizar para Café da manhã; o alias curto café só pode ser refeição em posição inequívoca de destino e não quando fizer parte do alimento.
-10. Quando faltar realmente apenas quantidade ou apenas refeição, o sistema deve preservar os campos já reconhecidos, perguntar somente o dado ausente e manter contexto persistido com isolamento por usuário, consumo único, concorrência, expiração/cancelamento e referência temporal original conforme o contrato existente.
-11. Se a refeição citada não existir, o sistema deve aplicar a política canônica vigente para refeição reconhecida porém inexistente e não deve tratar o caso como falha de extração textual.
-12. Uma ação já interpretada com sucesso não pode cair novamente no fallback nutricional nem em outro handler que produza resposta ou mutação duplicada.
-13. A equivalência semântica deve valer para outros alimentos e refeições, não apenas café/café da manhã; deve cobrir pelo menos alimento sólido e outra refeição, incluindo "Coloque 150g de frango no almoço" e "Adicionar 1 banana no lanche".
-14. A ampliação linguística não pode converter frases sem intenção de mutação suficientemente clara em registro automático; frases como "café da manhã com 3 xícaras de café sem açúcar" devem manter o contrato de ambiguidade consumo x sugestão.
-15. Cenários com quantidade explícita devem funcionar no caminho determinístico/canônico efetivamente executado pelo webhook sem depender de chamada LLM bem-sucedida; o LLM não pode compensar silenciosamente parser determinístico que intercepta antes dele.
-16. Webhook textual real, áudio transcrito encaminhado ao fluxo textual e simulateWhatsappInbound devem usar decisão semanticamente equivalente para o cenário principal e demais casos aplicáveis.
-17. O normalizador canônico deve preservar unidades e datas relativas suportadas, incluindo xícara/xícaras, 300g/300 g, quantidade unitária suportada e "300 g de amendoim japonês ao jantar de ontem", sem criar conversor numérico isolado.
-18. A entrega deve passar pnpm check, pnpm test, pnpm architecture:check, pnpm docs:check, pnpm agent:check e pnpm build, além de testes focados do parser canônico, executor de intents, webhook e simulador.
-19. A documentação canônica existente deve permanecer consistente com o vocabulário compartilhado de verbos, preposições, aliases e contrato de parser/executor; mudanças materiais no vocabulário devem atualizar a documentação existente em vez de criar documentação paralela.
-20. A regressão deve comprovar a causa raiz e a classe de escape, não apenas a frase literal: deve exercer divergência de caminho canônico, casos irmãos de verbo/preposição/ordem/unidade, ausência de vocabulário duplicado e ausência de compensação tardia que esconda estado semântico mais pobre.
+## Objetivo
+
+Corrigir o caso em que `3 xícaras de café` é registrado como item genérico com `150 kcal | P 6 g | C 15 g | G 5 g`.
+
+Quando o usuário informa apenas `café`, sem indicar o preparo, o sistema deve preservar quantidade, unidade, refeição/data já reconhecidas e perguntar **se o café é com ou sem açúcar antes de persistir qualquer item**.
+
+## Evidência
+
+Entrada:
+
+```text
+3 xícaras de café
+```
+
+Resultado atual:
+
+```text
+☕ Café — 3 xícara
+150 kcal | P 6 g | C 15 g | G 5 g
+```
+
+Em `develop`, `server/modules/whatsapp/llmIntentActions.ts` possui `HEURISTIC_NUTRITION_PER_100G = { calories: 150, protein: 6, carbs: 15, fat: 5 }`. No caminho estruturado, `intent.items.map(buildMealItem)` aplica essa heurística antes de `updateMeal`/`createManualMeal`; portanto, a decisão de clarificar café genérico deve ocorrer antes da construção e persistência do item heurístico.
+
+`docs/design-docs/nutrition-low-calorie-beverages.md` já define que `café` isolado é ambíguo e não pode resolver silenciosamente para `Café sem açúcar`.
+
+## Limite do gatilho
+
+Esta issue exige a nova clarificação para **café isolado/genérico**. Ela não autoriza tratar toda descrição que contenha `café` como ambiguidade de açúcar.
+
+- `café sem açúcar`, `sem adição de açúcar`, `puro`, `preto` ou `natural` continuam usando a referência canônica de baixa caloria sem esta pergunta;
+- `café com açúcar`, `adoçado` ou `açucarado` seguem diretamente a #903;
+- `café com leite`, mel, creme, leite condensado ou outro complemento calórico explícito continuam no fluxo nutricional atual da preparação completa e não devem ser interceptados apenas porque o texto não declara açúcar;
+- descrições de preparo não cobertas pelas fontes canônicas acima ficam fora do escopo desta issue; não ampliar o gatilho por suposição.
+
+O `café` que faz parte do label `Café da manhã` não é alimento genérico e não pode abrir esta clarificação.
+
+## Requisitos
+
+1. `café` isolado/genérico deve ser tratado como preparo nutricional incompleto, não como alimento com macros heurísticos prontos.
+2. Antes de qualquer mutação, perguntar `Seu café foi sem açúcar ou com açúcar?` ou interação equivalente.
+3. Persistir a clarificação antes do outbound e preservar texto original, usuário, correlação, quantidade, unidade, refeição/data/alvo, operação e alimentos companheiros quando aplicável.
+4. Resposta `sem açúcar` deve reutilizar a referência canônica de `Café sem açúcar` da #402/#903.
+5. Resposta `com açúcar` deve seguir o contrato da #903; se ainda faltar a quantidade de açúcar e ela for necessária, continuar pela clarificação persistente existente sem perder o contexto.
+6. Resposta inválida mantém a pendência; `CANCELAR` encerra sem mutação; expiração não pode cair no fallback heurístico.
+7. Retry, redelivery ou respostas concorrentes devem produzir no máximo uma mutação.
+8. Webhook textual, áudio transcrito e `simulateWhatsappInbound` devem ter a mesma decisão.
+9. A heurística genérica pode continuar existindo para outros alimentos desconhecidos; ela apenas não pode resolver esta ambiguidade crítica.
+10. Se a resposta `com açúcar` exigir uma nova pendência de quantidade, o próximo estado deve estar persistido antes da nova pergunta; falha nessa transição não pode causar mutação, pergunta órfã nem fallback heurístico.
+
+## Cenários obrigatórios
+
+| Entrada/fluxo | Resultado esperado |
+|---|---|
+| `3 xícaras de café` | preserva `3 xícaras`; pergunta `com ou sem açúcar?`; não persiste heurística |
+| `adicionar 3 xícaras de café ao café da manhã` | preserva quantidade e refeição; pergunta apenas o preparo |
+| `3 xícaras de café sem açúcar` | usa referência de baixa caloria sem perguntar |
+| `3 xícaras de café puro` / `café preto` | segue sem açúcar quando semanticamente inequívoco |
+| `3 xícaras de café com açúcar` | segue diretamente #903 |
+| `3 xícaras de café com leite` | mantém o fluxo atual da preparação completa; não abre esta clarificação |
+| resposta `sem açúcar` | retoma o lançamento original e persiste uma vez |
+| resposta `com açúcar` | continua #903 sem perder quantidade/refeição |
+| resposta inválida | mantém pendência, sem mutação |
+| `CANCELAR` | encerra sem registrar café |
+| pendência expirada | não registra e não usa heurística |
+| falha ao persistir pendência inicial ou subsequente | não envia a respectiva pergunta, não muta e não usa fallback heurístico |
+| mensagem composta `3 xícaras de café e 1 pão` | preserva todos os itens sem perda ou duplicação |
+
+## Critérios de aceite
+
+- [ ] O cenário real é reproduzido em teste da cadeia executada pelo WhatsApp.
+- [ ] `3 xícaras de café` não persiste item antes da resposta à clarificação.
+- [ ] `150/6/15/5` não reaparece para café genérico.
+- [ ] Quantidade, unidade, refeição/data e alvo reconhecidos são preservados.
+- [ ] `sem açúcar` usa a referência canônica segura.
+- [ ] `com açúcar` segue #903 e nunca usa `cafe-sem-acucar`.
+- [ ] Preparações com complemento calórico explícito, como `café com leite`, não são capturadas indevidamente pela nova pergunta.
+- [ ] Resposta inválida, cancelamento e expiração não geram mutação.
+- [ ] Falha de persistência não gera pergunta órfã, mutação ou fallback heurístico.
+- [ ] Retry/reentrega/concorrência concluem no máximo uma mutação.
+- [ ] Áudio, webhook textual e simulador possuem paridade.
+
+## Invariantes
+
+- **precedence_invariants:** ambiguidade de preparo do café genérico tem precedência sobre construção/persistência do item heurístico.
+- **must_not_behave:** corrigir apenas o texto exibido, mantendo item heurístico persistido, é inválido.
+- **must_not_depend_on:** a solução não pode depender de a LLM assumir `com açúcar` ou `sem açúcar`.
+- **must_reuse:** reutilizar o lifecycle central de interações pendentes; não criar store paralelo específico para esta pergunta.
+- **must_be_single_source:** `sem açúcar` reutiliza a referência canônica da #402/#903, sem duplicar seus valores em uma constante desta clarificação.
+- **forbidden_implementation:** não usar um gatilho simples `contém café && não contém sem açúcar`, pois isso capturaria preparações como `café com leite`.
+
+Controles discriminantes mínimos: testar `café com leite` como caso negativo do gatilho; injetar falha de persistência e verificar ausência de pergunta/mutação/fallback; validar que `sem açúcar` usa fonte e valores canônicos, não apenas nome visível; testar duas respostas concorrentes com um único efeito de domínio.
+
+## Documentação
+
+Atualizar `docs/design-docs/nutrition-low-calorie-beverages.md` para explicitar que **café isolado/genérico** exige clarificação antes de fallback/persistência, preservando o fluxo atual das preparações com complementos calóricos. Atualizar `docs/product-specs/whatsapp-flow.md` e o registro de interações se houver novo estado/tipo de clarificação.
+
+## Referências
+
+- #402
+- #903
+- #970
+- `docs/design-docs/nutrition-low-calorie-beverages.md`
+- `server/modules/whatsapp/llmIntentActions.ts`
+- `server/modules/whatsapp/interactionRegistry.ts`
+- `server/modules/whatsapp/coffeeAdditionClarification.ts`
+- `server/repositories/whatsappPendingOperationRepository.ts`
+
+## Validação
+
+Base: `develop`.
+
+```bash
+pnpm check
+pnpm test
+pnpm architecture:check
+pnpm docs:check
+pnpm agent:check
+pnpm build
+```
+
+## Prontidão
+
+**Pronta para implementação.**
