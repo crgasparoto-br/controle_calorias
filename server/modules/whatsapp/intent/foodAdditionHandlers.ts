@@ -170,7 +170,7 @@ export async function handleFoodAdditionIntent(
 
   if (addedItems.length === 1) {
     const addedItem = addedItems[0];
-    const recalculationSource = addedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
+    const estimationLabel = addedItem.source === "catalog" ? "Estimativa com base no catálogo" : "Estimativa";
     return {
       handled: true,
       action: "meal_item_added",
@@ -181,7 +181,7 @@ export async function handleFoodAdditionIntent(
         options: {
           title: "Alimento adicionado",
           actionLines: [
-            `Adicionei ${addedItem.portionText} de ${formatAdditionActionFoodName(addedItem)} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+            `Adicionei ${addedItem.portionText} de ${formatAdditionActionFoodName(addedItem)} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. ${estimationLabel}: ${formatTotalsLine(addedItem)}.`,
           ],
         },
       }),
