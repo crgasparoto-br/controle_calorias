@@ -1,0 +1,1 @@
+{"schema_version":1,"head_sha":"427b7774468cb55f0c28facf757fff91fe817625","status":"no-new-impact","reason":"Recuperação altera somente evidência de handoff; documentação de produto permanece a do candidato material.","verified_sources":["docs/design-docs/billing-subscription-lifecycle.md","docs/SECURITY.md","docs/design-docs/billing-foundation.md"]}

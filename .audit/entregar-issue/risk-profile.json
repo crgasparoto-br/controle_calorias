@@ -1,0 +1,1 @@
+{"schema_version":1,"head_sha":"427b7774468cb55f0c28facf757fff91fe817625","profile":"high","reasons":["financial state machine","idempotency","concurrency/persistence","temporal transitions","privacy boundary","authorization during suspension"],"fast_path":"handoff-only; functional implementation not reopened"}

@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-08-14T14:26:31.782698+00:00",
+  "identity": {
+    "head_sha": "427b7774468cb55f0c28facf757fff91fe817625",
+    "material_head_sha": "427b7774468cb55f0c28facf757fff91fe817625",
+    "base_sha": "587a8c8dc6770e1df27fb39c1ea4d800f6cdcb18",
+    "merge_preview_sha": "3a5054984ac71d3f44a99c76a7cd191feb1a0d4e",
+    "material_merge_preview_sha": "3a5054984ac71d3f44a99c76a7cd191feb1a0d4e"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/applicability-ledger.json",
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
+      ".audit/entregar-issue/controller-context.json",
+      ".audit/entregar-issue/delivery-state.json",
+      ".audit/entregar-issue/documentation-impact.json",
+      ".audit/entregar-issue/execution-plan.json",
+      ".audit/entregar-issue/freeze.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/internal-verification.json",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/remote-gates.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/risk-profile.json",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/source-manifest.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-COMMENT.txt",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE.txt"
+    ]
+  },
+  "contract_version": "2026-08-06.2",
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "c906ff5c817574159e653bab5c2b6837b432349aedb1176415156a59763dcfc2"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
+    "validate_handoff_readiness.py": "dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83",
+    "validate_requirement_attack_matrix.py": "72d64f62fa29c074991514cdc2669f5d465215e21599416225761d2849d20744",
+    "validate_risk_saturation.py": "c8228c28f93d8b7a3699e2489d2cc8011147816fbd9d4b1d543d4f10ec5a1b31",
+    "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
+    "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "fd11c97c4606ecac47ef580914369ec30814ce2734e698048ac7397991898773"
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "f6a3f00168d5b5099a9d8d036e0a6968d729482ca72413916bdf75222d7f99fa"
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "f007d2659d70db034ffef64f162d318790960f728bfbb492a739bb8ec3a6c4ad"
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "b7f791f26ca850e0a7b2babbe057e0d9b39a11462aa07afc6eedc97dd21747f2"
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "527ac8e703fb3695c5460cc7e4df53e27cb54d696215f5587e634a1b4a6e3da7"
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "c0f942a6dee20fb876f94716156cea69a8b79f617d5df848bf31551807e2e5bb"
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "5d81b2db9d915b6b7f77b123fb5c4706576c9aa9f846fdf8399ed4cea64120bf"
+    }
+  },
+  "previous_independent_rejection": true
+}

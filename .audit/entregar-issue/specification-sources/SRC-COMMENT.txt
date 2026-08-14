@@ -1,0 +1,9 @@
+# Complemento vinculante — comunicações do ciclo de assinatura
+
+- Cada transição aplicável deve publicar exatamente um gatilho lógico versionado para comunicação, sem envio direto dentro da máquina financeira.
+- Gatilhos devem cobrir trial iniciado/encerrando, contratação pending/confirmada/recusada/expirada, renovação confirmada, past_due e avisos 0/2/5/7, suspended, recuperação, expired, cancelamento solicitado, reativação e encerramento efetivo.
+- Fatos de comunicação devem conter apenas dados provider-neutral necessários: usuário/pagador, produto, versão, ciclo, datas relevantes, estado anterior/novo, ação permitida e correlação, sem payload do Asaas.
+- Eventos duplicados, retry ou fora de ordem não podem duplicar comunicação; pagamento confirmado deve invalidar retries pendentes de inadimplência quando apropriado.
+- Comunicação obsoleta deve ser cancelável quando evento posterior resolver a situação antes do envio; falha no envio não pode regredir o estado financeiro.
+- Persistência da notificação interna deve ocorrer antes das tentativas externas e pacientes não podem receber dados financeiros do profissional.
+- Cancelamento programado e encerramento efetivo devem gerar mensagens distintas e testes devem usar relógio controlado para validar idempotência dos marcos.

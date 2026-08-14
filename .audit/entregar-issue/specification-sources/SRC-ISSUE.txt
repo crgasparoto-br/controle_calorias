@@ -1,0 +1,30 @@
+# Issue 893 — requisitos normalizados da fonte canônica
+
+- Implementar a máquina de estados provider-neutral `pending -> active -> past_due -> suspended -> expired`, com cancelamento de renovação separado do encerramento imediato e sem regressão por eventos atrasados.
+- Contratações pagas devem aceitar cartão de crédito e Pix Automático quando elegíveis pelo catálogo; boleto e Pix manual devem ser rejeitados no lançamento.
+- A assinatura deve permanecer `pending` até confirmação financeira autoritativa; autorização recorrente, checkout ou retorno do navegador não podem conceder acesso pago.
+- Retry, abandono, recusa, expiração ou troca de método devem ser recuperáveis sem duplicar assinatura, intenção, cobrança, cupom, desconto ou elegibilidade.
+- Trial individual deve durar 7 dias, exigir cartão cadastrado, prever primeira cobrança no dia seguinte ao encerramento e não cobrar quando cancelado durante o trial.
+- Trial individual deve ser concedido no máximo uma vez por pessoa, inclusive após exclusão lógica, nova contratação ou alteração de e-mail.
+- Trial profissional deve durar 14 dias, exigir cartão, liberar recursos profissionais completos e limitar a 5 pacientes ativos durante o trial.
+- Efetivação antecipada do trial profissional deve exigir confirmação explícita e somente ampliar a capacidade para 30 ou 100 após confirmação financeira autoritativa; falha ou pendência deve manter limite 5 até a data original.
+- Seleção de Pix Automático deve registrar renúncia explícita ao trial antes do redirecionamento e não iniciar trial nessa contratação.
+- Prevenção de repetição de trial deve considerar conta interna, CPF/CPF-CNPJ conforme perfil e telefone normalizado, usando proteção por hash/tokenização e decisão auditável em colisão, ausência ou correção cadastral.
+- Cupom deve ser validado no backend por produto, versão, ciclo, vigência, limites e usuário, com no máximo um cupom não acumulável por contratação.
+- Cupom público deve limitar desconto a 30%; mensal a no máximo 3 cobranças; anual somente primeira cobrança; 100% deve ser rejeitado como cupom e tratado como isenção administrativa.
+- Trial mais cupom deve ser permitido e o desconto deve começar somente na primeira cobrança; migração de 30 dias deve substituir trial em vez de acumular.
+- Reserva e consumo de cupom devem ser idempotentes e reconciliáveis, sem consumo definitivo em falha/abandono e sem novo consumo na troca recuperável entre cartão e Pix Automático.
+- Ativação e renovação devem usar chave idempotente por competência, recalcular elegibilidade uma vez e entrar em reconciliação após confirmação se houver falha sem criar nova cobrança.
+- Solicitação de cancelamento deve desativar renovação imediatamente, manter acesso até `currentPeriodEnd` ou fim do trial e não gerar reembolso proporcional automático.
+- Reativação antes do encerramento deve preservar versão, preço e ciclo; nova contratação após encerramento deve usar condições vigentes e não conceder novo trial.
+- Cancelamento administrativo imediato somente deve ocorrer por fraude, chargeback, risco de segurança, obrigação legal, reembolso integral aprovado ou erro operacional, sempre com motivo e auditoria.
+- Falha de renovação deve mover para `past_due`, manter acesso completo por 7 dias corridos e gerar avisos idempotentes nos dias 0, 2, 5 e 7.
+- Administração deve poder estender a carência com data final e justificativa sem simular alteração de cobrança.
+- Em `suspended`, usuário individual deve manter login, consulta, exportação e gestão, bloqueando novos registros, IA, WhatsApp, imagens e áudios.
+- Em `suspended`, profissional deve manter conta, cobrança e configurações básicas, bloquear novas ações profissionais e recursos pagos, preservar vínculos/dados/reservas e impedir ocupação das vagas preservadas.
+- Recuperação dentro de 30 dias da suspensão deve reativar a mesma assinatura, versão, preço e ciclo após pagamento confirmado, sem novo trial, entitlement duplicado ou comunicação duplicada.
+- Expiração após 30 dias sem regularização deve mover para `expired`, exigir nova contratação com condições vigentes, preservar dados/vínculos/reservas históricas e impedir reativação automática por pagamento tardio.
+- O domínio deve conhecer apenas identificadores e fatos financeiros provider-neutral e não deve importar tipos, enums ou payloads do Asaas.
+- A implementação deve ser testável com provider fake, relógio controlado e cenários de evento duplicado, atrasado/fora de ordem e pagamento tardio.
+- Pacientes não podem receber valor, método ou detalhes financeiros do profissional patrocinador.
+- Schema deve incluir `suspended` explicitamente e persistir transições auditáveis, idempotentes e recuperáveis.
