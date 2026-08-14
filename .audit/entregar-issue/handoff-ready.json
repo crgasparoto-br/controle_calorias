@@ -1,19 +1,18 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-14T11:54:04.194430+00:00",
+  "created_at": "2026-08-14T12:07:21.288412+00:00",
   "identity": {
-    "head_sha": "9cf805991960a50074ef56cd2766fba1e99f4aed",
-    "material_head_sha": "9cf805991960a50074ef56cd2766fba1e99f4aed",
+    "head_sha": "5dce73c3d628e4e116e32145f5d38a5368c85667",
+    "material_head_sha": "5dce73c3d628e4e116e32145f5d38a5368c85667",
     "base_sha": "d57f2024d67749a97dce66c30160d5a81669e3a8",
-    "merge_preview_sha": "4bba93036d27c7139ac2555ab635065efb72f9e9",
-    "material_merge_preview_sha": "4bba93036d27c7139ac2555ab635065efb72f9e9"
+    "merge_preview_sha": "63e7591e49531c4e158906f7e11e0612ae0e3355",
+    "material_merge_preview_sha": "63e7591e49531c4e158906f7e11e0612ae0e3355"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
       ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
@@ -23,7 +22,6 @@
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-975.txt",
       ".audit/entregar-issue/specification-sources/SRC-ISSUE.txt"
     ]
   },
@@ -47,23 +45,23 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "08f192f497e3ec0e82363ab9ad6c6df8fb43fd594cda2d9e1e92cbf727c43396"
+      "sha256": "c2eef07b1f7d5feedf62834a56a4019d9d933b78cdb01a2478778453ea98bf63"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "90c8824e7092d19a8a0692fc62f3e087fcfdee38fcb4f6949a0df75181b53340"
+      "sha256": "7a8261e128c966374d166081cafccd53114cce4728cc8e3dd5e957c882cd6b7b"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "62d029d45aa53582c23d2eb83b9dae8fa750941fe5389d028d6b47c8a4338035"
+      "sha256": "8d1457a60ee1106e68163df188c2278a60c81c0717d6fbd0edd7556ccfea6ee3"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "38c6476b4958c6cc4dc83be8c6ff3be50f77f1881db006f294bbaa7c73be9817"
+      "sha256": "2b46f42c8867aaffb1174e14b1dc3d2494b634fabb3ea8689f9e19cf29514061"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "9fbefaa97bd3f9e1b53b88b029cb3e3a1b163da937e3e2bc646ba7892fccb7b3"
+      "sha256": "021f3fab426c52a55c96884af243d5b99ccbc6c40a14b9bdcc9504b8c9cf1564"
     },
     "learning_closure": {
       "name": "learning-closure.json",
