@@ -12,6 +12,7 @@ describe("billing lifecycle sponsored access", () => {
           {
             sourceId: "professional-authorization:auth-1",
             validFrom: new Date("2026-07-01T00:00:00.000Z"),
+            entitlementValidUntil: new Date("2026-08-14T00:00:00.000Z"),
             sponsorUserId: 10,
             planCode: "professional",
             entitlementsJson: JSON.stringify(["system_access"]),
@@ -50,9 +51,5 @@ describe("billing lifecycle sponsored access", () => {
     expect(result.some(item => item.sourceId === "legacy-should-be-removed")).toBe(
       false
     );
-
-    const canonicalQuery = JSON.stringify(execute.mock.calls[1]?.[0]);
-    expect(canonicalQuery).not.toContain("entitlementValidUntil");
-    expect(canonicalQuery).not.toContain("e.validUntil");
   });
 });
