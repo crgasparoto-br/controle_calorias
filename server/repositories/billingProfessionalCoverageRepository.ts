@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import { sql } from "drizzle-orm";
 import {
   canGrantProfessionalCoverageTransition,
+  dueProfessionalCapacityAlertEvents,
   dueProfessionalCapacityWarnings,
-  professionalCapacityAlert,
   professionalCapacityExtensionEndsAt,
   professionalCapacityGrandfatherEndsAt,
   professionalCapacityState,
@@ -42,6 +42,11 @@ type CapacityWindow = {
   startedAt: Date;
   endsAt: Date;
   temporaryLimit: number;
+};
+
+type CapacityAlertHistory = {
+  hasExistingAlert: boolean;
+  eventKeys: Set<string>;
 };
 
 export type ProfessionalCoverageLifecycleFact = {
@@ -242,6 +247,49 @@ async function loadCapacityWindow(
   };
 }
 
+async function loadCapacityAlertHistory(
+  tx: SqlExecutor,
+  subscriptionId: string,
+  windowKey: string
+): Promise<CapacityAlertHistory> {
+  const rows = resultRows<Record<string, unknown>>(
+    await tx.execute(sql`
+      SELECT payloadJson
+      FROM billingSubscriptionFacts
+      WHERE subscriptionId = ${subscriptionId}
+        AND factType = 'professional_capacity_admin_alert_opened'
+      ORDER BY createdAt ASC
+      LIMIT 100
+    `)
+  );
+  const matchingPayloads = rows
+    .map(row => jsonObject(row.payloadJson))
+    .filter(payload => payload.windowKey === windowKey);
+  const eventKeys = new Set<string>();
+  for (const payload of matchingPayloads) {
+    const eventKey = safeText(payload.alertEventKey, 191);
+    if (eventKey) eventKeys.add(eventKey);
+
+    const kind = safeText(payload.kind, 120);
+    if (kind === "catalog_range_review_required") {
+      const highestPublicCapacity = Number(payload.highestPublicCapacity);
+      if (Number.isFinite(highestPublicCapacity)) {
+        eventKeys.add(
+          `catalog_range_review_required:${highestPublicCapacity}`
+        );
+      }
+    }
+    if (payload.temporaryState === "grandfathered_expired") {
+      const expiredAt = safeText(payload.expiredAt, 64);
+      if (expiredAt) eventKeys.add(`grandfathering_expired:${expiredAt}`);
+    }
+  }
+  return {
+    hasExistingAlert: matchingPayloads.length > 0,
+    eventKeys,
+  };
+}
+
 async function hasOtherProfessionalCoverage(
   tx: SqlExecutor,
   patientUserId: number,
@@ -438,30 +486,6 @@ export function createBillingProfessionalCoverageRepository(
             migrationSource: "issue_894_policy_reconciliation",
           },
         });
-        const alert = professionalCapacityAlert(context);
-        if (alert) {
-          await appendCoverageFact(tx, {
-            context,
-            factType: "professional_capacity_admin_alert_opened",
-            idempotencyKey: `${windowKey}:admin-alert:v1`,
-            correlationId: `professional-capacity:${subscriptionId}`,
-            occurredAt: startedAt,
-            actionAllowed: "admin_review",
-            payload: {
-              windowKey,
-              professionalUserId: context.professionalUserId,
-              planId: context.planId,
-              versionCode: context.versionCode,
-              contractedLimit: context.contractedLimit,
-              occupancy: context.occupancy,
-              excess: context.occupancy - context.contractedLimit,
-              highestPublicCapacity: context.highestPublicCapacity,
-              kind: alert.kind,
-              priority: alert.priority,
-              temporaryState: "grandfathered_active",
-            },
-          });
-        }
       }
 
       const dueWarnings = dueProfessionalCapacityWarnings({
@@ -499,6 +523,65 @@ export function createBillingProfessionalCoverageRepository(
         endsAt: window.endsAt,
         now,
       });
+
+      const alertHistory = await loadCapacityAlertHistory(
+        tx,
+        subscriptionId,
+        window.windowKey
+      );
+      const alertEvents = dueProfessionalCapacityAlertEvents({
+        occupancy: context.occupancy,
+        contractedLimit: context.contractedLimit,
+        highestPublicCapacity: context.highestPublicCapacity,
+        capacityState: state,
+        windowEndsAt: window.endsAt,
+        hasExistingAlert: alertHistory.hasExistingAlert,
+        existingEventKeys: alertHistory.eventKeys,
+      });
+      for (const alertEvent of alertEvents) {
+        const occurredAt =
+          alertEvent.trigger === "initial_exceeded_capacity"
+            ? window.startedAt
+            : alertEvent.trigger === "grandfathering_expired"
+              ? window.endsAt
+              : now;
+        const idempotencyKey =
+          alertEvent.trigger === "initial_exceeded_capacity"
+            ? `${window.windowKey}:admin-alert:v1`
+            : `professional-capacity-alert:${crypto
+                .createHash("sha256")
+                .update(`${window.windowKey}:${alertEvent.eventKey}`)
+                .digest("hex")
+                .slice(0, 40)}:v1`;
+        await appendCoverageFact(tx, {
+          context,
+          factType: "professional_capacity_admin_alert_opened",
+          idempotencyKey,
+          correlationId: `professional-capacity:${subscriptionId}`,
+          occurredAt,
+          actionAllowed: "admin_review",
+          payload: {
+            windowKey: window.windowKey,
+            professionalUserId: context.professionalUserId,
+            planId: context.planId,
+            versionCode: context.versionCode,
+            contractedLimit: context.contractedLimit,
+            occupancy: context.occupancy,
+            excess: context.occupancy - context.contractedLimit,
+            highestPublicCapacity: context.highestPublicCapacity,
+            kind: alertEvent.kind,
+            priority: alertEvent.priority,
+            temporaryState: state,
+            temporaryEndsAt: window.endsAt.toISOString(),
+            alertTrigger: alertEvent.trigger,
+            alertEventKey: alertEvent.eventKey,
+            ...(alertEvent.trigger === "grandfathering_expired"
+              ? { expiredAt: window.endsAt.toISOString() }
+              : {}),
+          },
+        });
+      }
+
       if (state === "grandfathered_expired") {
         await appendCoverageFact(tx, {
           context,

@@ -23,6 +23,18 @@ export type ProfessionalCapacityAlertKind =
 
 export type ProfessionalCapacityAlertPriority = "normal" | "high";
 
+export type ProfessionalCapacityAlertTrigger =
+  | "initial_exceeded_capacity"
+  | "catalog_range_crossed"
+  | "grandfathering_expired";
+
+export type ProfessionalCapacityAlertEvent = {
+  kind: ProfessionalCapacityAlertKind;
+  priority: ProfessionalCapacityAlertPriority;
+  trigger: ProfessionalCapacityAlertTrigger;
+  eventKey: string;
+};
+
 function addDays(value: Date, days: number) {
   return new Date(value.getTime() + days * DAY_MS);
 }
@@ -132,6 +144,62 @@ export function professionalCapacityAlert(input: {
     return { kind: "catalog_range_review_required", priority: "high" };
   }
   return { kind: "capacity_exceeded", priority: "normal" };
+}
+
+export function dueProfessionalCapacityAlertEvents(input: {
+  occupancy: number;
+  contractedLimit: number;
+  highestPublicCapacity: number | null;
+  capacityState: ProfessionalCapacityState;
+  windowEndsAt: Date;
+  hasExistingAlert: boolean;
+  existingEventKeys?: Iterable<string>;
+}): ProfessionalCapacityAlertEvent[] {
+  const alert = professionalCapacityAlert(input);
+  if (!alert) return [];
+
+  const existingEventKeys = new Set(input.existingEventKeys ?? []);
+  const events: ProfessionalCapacityAlertEvent[] = [];
+  const catalogRangeEventKey = `catalog_range_review_required:${input.highestPublicCapacity ?? "none"}`;
+
+  if (!input.hasExistingAlert) {
+    events.push({
+      ...alert,
+      trigger: "initial_exceeded_capacity",
+      eventKey:
+        alert.kind === "catalog_range_review_required"
+          ? catalogRangeEventKey
+          : "initial_exceeded_capacity",
+    });
+  }
+
+  if (alert.kind === "catalog_range_review_required") {
+    const initialAlreadyCoversRange =
+      !input.hasExistingAlert && alert.kind === "catalog_range_review_required";
+    if (
+      !initialAlreadyCoversRange &&
+      !existingEventKeys.has(catalogRangeEventKey)
+    ) {
+      events.push({
+        ...alert,
+        trigger: "catalog_range_crossed",
+        eventKey: catalogRangeEventKey,
+      });
+    }
+  }
+
+  if (input.capacityState === "grandfathered_expired") {
+    const eventKey = `grandfathering_expired:${input.windowEndsAt.toISOString()}`;
+    if (!existingEventKeys.has(eventKey)) {
+      events.push({
+        ...alert,
+        trigger: "grandfathering_expired",
+        eventKey,
+      });
+    }
+  }
+
+  return events;
 }
 
 export function canAddProfessionalCoverage(input: {

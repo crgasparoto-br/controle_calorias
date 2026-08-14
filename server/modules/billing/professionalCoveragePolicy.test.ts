@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAddProfessionalCoverage,
   canGrantProfessionalCoverageTransition,
+  dueProfessionalCapacityAlertEvents,
   dueProfessionalCapacityWarnings,
   professionalCapacityAlert,
   professionalCapacityExtensionEndsAt,
@@ -128,6 +129,129 @@ describe("professional coverage policy", () => {
         highestPublicCapacity: 100,
       })
     ).toEqual({ kind: "capacity_exceeded", priority: "normal" });
+  });
+
+  it("reopens the persisted alert exactly once when occupancy crosses the public catalog range", () => {
+    const events = dueProfessionalCapacityAlertEvents({
+      occupancy: 101,
+      contractedLimit: 30,
+      highestPublicCapacity: 100,
+      capacityState: "grandfathered_active",
+      windowEndsAt: new Date("2026-12-01T00:00:00.000Z"),
+      hasExistingAlert: true,
+      existingEventKeys: ["initial_exceeded_capacity"],
+    });
+
+    expect(events).toEqual([
+      {
+        kind: "catalog_range_review_required",
+        priority: "high",
+        trigger: "catalog_range_crossed",
+        eventKey: "catalog_range_review_required:100",
+      },
+    ]);
+
+    expect(
+      dueProfessionalCapacityAlertEvents({
+        occupancy: 101,
+        contractedLimit: 30,
+        highestPublicCapacity: 100,
+        capacityState: "grandfathered_active",
+        windowEndsAt: new Date("2026-12-01T00:00:00.000Z"),
+        hasExistingAlert: true,
+        existingEventKeys: [
+          "initial_exceeded_capacity",
+          "catalog_range_review_required:100",
+        ],
+      })
+    ).toEqual([]);
+  });
+
+  it("does not reopen an alert that started already above the public catalog range", () => {
+    const initial = dueProfessionalCapacityAlertEvents({
+      occupancy: 101,
+      contractedLimit: 30,
+      highestPublicCapacity: 100,
+      capacityState: "grandfathered_active",
+      windowEndsAt: new Date("2026-12-01T00:00:00.000Z"),
+      hasExistingAlert: false,
+    });
+    expect(initial).toEqual([
+      {
+        kind: "catalog_range_review_required",
+        priority: "high",
+        trigger: "initial_exceeded_capacity",
+        eventKey: "catalog_range_review_required:100",
+      },
+    ]);
+
+    expect(
+      dueProfessionalCapacityAlertEvents({
+        occupancy: 101,
+        contractedLimit: 30,
+        highestPublicCapacity: 100,
+        capacityState: "grandfathered_active",
+        windowEndsAt: new Date("2026-12-01T00:00:00.000Z"),
+        hasExistingAlert: true,
+        existingEventKeys: ["catalog_range_review_required:100"],
+      })
+    ).toEqual([]);
+  });
+
+  it("reopens the persisted alert once per unresolved expiry horizon", () => {
+    const firstEndsAt = new Date("2026-07-01T00:00:00.000Z");
+    const firstExpiryKey = `grandfathering_expired:${firstEndsAt.toISOString()}`;
+
+    expect(
+      dueProfessionalCapacityAlertEvents({
+        occupancy: 45,
+        contractedLimit: 30,
+        highestPublicCapacity: 100,
+        capacityState: "grandfathered_expired",
+        windowEndsAt: firstEndsAt,
+        hasExistingAlert: true,
+        existingEventKeys: ["initial_exceeded_capacity"],
+      })
+    ).toEqual([
+      {
+        kind: "capacity_exceeded",
+        priority: "normal",
+        trigger: "grandfathering_expired",
+        eventKey: firstExpiryKey,
+      },
+    ]);
+
+    expect(
+      dueProfessionalCapacityAlertEvents({
+        occupancy: 45,
+        contractedLimit: 30,
+        highestPublicCapacity: 100,
+        capacityState: "grandfathered_expired",
+        windowEndsAt: firstEndsAt,
+        hasExistingAlert: true,
+        existingEventKeys: ["initial_exceeded_capacity", firstExpiryKey],
+      })
+    ).toEqual([]);
+
+    const extendedEndsAt = new Date("2026-07-31T00:00:00.000Z");
+    expect(
+      dueProfessionalCapacityAlertEvents({
+        occupancy: 45,
+        contractedLimit: 30,
+        highestPublicCapacity: 100,
+        capacityState: "grandfathered_expired",
+        windowEndsAt: extendedEndsAt,
+        hasExistingAlert: true,
+        existingEventKeys: ["initial_exceeded_capacity", firstExpiryKey],
+      })
+    ).toEqual([
+      {
+        kind: "capacity_exceeded",
+        priority: "normal",
+        trigger: "grandfathering_expired",
+        eventKey: `grandfathering_expired:${extendedEndsAt.toISOString()}`,
+      },
+    ]);
   });
 
   it("creates finite 90-day and 30-day calendar windows", () => {
