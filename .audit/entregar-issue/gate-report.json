@@ -1,17 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
-  "status": "internal-gates-passed-remote-partial",
-  "local_validations": [
-    {"name":"TypeScript syntax/noResolve","status":"passed-with-expected-missing-import-diagnostics","evidence":"Only TS2307 missing-module diagnostics in connector-only workspace."},
-    {"name":"event-time retry harness","status":"passed","evidence":"Failure before effect and after effect before receipt both reused occurredAt and suppressed worker-clock fallback."},
-    {"name":"specification coverage","status":"passed"},
-    {"name":"requirement attack matrix","status":"passed"},
-    {"name":"risk saturation","status":"passed"},
-    {"name":"inherited controls","status":"passed"},
-    {"name":"learning closure","status":"passed"},
-    {"name":"handoff readiness","status":"passed"}
-  ],
-  "remote_gate_status": "in_progress",
-  "blocking_findings": []
-}
+{"schema_version":1,"head_sha":"0e9fca0610b0cb136bfe6325df415f006141677e","status":"internal-gates-passed-remote-in-progress","local_validations":[{"name":"git diff check","status":"passed","evidence":"Material delta had no whitespace errors before publication."},{"name":"focused TypeScript policy compile","status":"passed","evidence":"professionalCoveragePolicy compiled standalone with global TypeScript."},{"name":"ALERT-REOPEN-001 focused policy harness","status":"passed","evidence":"Range escalation, initial-high no duplicate, expiry, retry and extension horizon passed."},{"name":"entregar-issue prevention contract","status":"passed","evidence":"Focused contract tests and skill genericity validation passed."},{"name":"auditar-issue detection contract","status":"passed","evidence":"Focused contract tests and skill genericity validation passed."},{"name":"controller contracts","status":"passed","evidence":"controller_cli validate-contracts returned contracts-valid."},{"name":"specification coverage","status":"passed","evidence":"Canonical specification coverage validator passed."},{"name":"requirement attack matrix","status":"passed","evidence":"Every covered requirement has positive, adversarial and regression evidence."},{"name":"risk saturation","status":"passed","evidence":"Canonical risk families, including ALERT-REOPEN-001, are saturated."},{"name":"inherited controls","status":"passed","evidence":"Cumulative inherited controls are passed on the material head."},{"name":"learning closure","status":"passed","evidence":"Systemic rejection learning is generalized and promoted."},{"name":"handoff readiness","status":"passed","evidence":"Requirement attacks, saturation, inherited controls, structural invariants and audit escapes are closed."}],"remote_gate_status":"in_progress","blocking_findings":[],"limitations":["Full repository pnpm execution was unavailable in the connector-only local runtime; exact-head Agent-first/Billing/Professional gates were in progress at the single permitted remote observation."]}

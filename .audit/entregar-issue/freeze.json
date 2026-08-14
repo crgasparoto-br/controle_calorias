@@ -1,13 +1,1 @@
-{
-  "schema_version": 1,
-  "status": "frozen",
-  "material_head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
-  "base_sha": "0fc479bc6f826084d79488171e68dd1eb738cb6d",
-  "material_merge_preview_sha": "6f1e1c87ef39c5988284b051c78e9d3cb1dc899f",
-  "frozen_at": "2026-08-14T18:30:19.655027+00:00",
-  "material_paths": [
-    "server/modules/billing/professionalCoverageService.ts",
-    "server/modules/billing/professionalCoverageService.test.ts",
-    "docs/design-docs/billing-professional-coverage.md"
-  ]
-}
+{"schema_version":1,"status":"frozen","material_head_sha":"0e9fca0610b0cb136bfe6325df415f006141677e","base_sha":"0fc479bc6f826084d79488171e68dd1eb738cb6d","material_merge_preview_sha":"dc524a50ed761db1daefba7acd5c7654f33ce402","frozen_at":"2026-08-14T20:35:24Z","material_paths":["server/modules/billing/professionalCoveragePolicy.ts","server/modules/billing/professionalCoveragePolicy.test.ts","server/repositories/billingProfessionalCoverageRepository.ts","scripts/test-professional-capacity-alert-lifecycle-tidb.ts","package.json","docs/design-docs/billing-professional-coverage.md"]}

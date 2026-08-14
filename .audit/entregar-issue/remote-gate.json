@@ -1,14 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
-  "observed_at": "2026-08-14T18:30:19.655027+00:00",
-  "observation_policy": "single-observation-per-material-sha",
-  "status": "in_progress",
-  "runs": [
-    {"id":31828559472,"name":"Agent-first gate","status":"in_progress","conclusion":null},
-    {"id":31828559473,"name":"Billing persistence TiDB gate","status":"completed","conclusion":"success"},
-    {"id":31828559646,"name":"Professional persistence TiDB gate","status":"completed","conclusion":"success"}
-  ],
-  "rerun_triggered": false,
-  "polling_performed": false
-}
+{"schema_version":1,"head_sha":"0e9fca0610b0cb136bfe6325df415f006141677e","observed_at":"2026-08-14T20:33:00Z","observation_policy":"single-observation-per-material-sha","status":"in_progress","runs":[{"id":31838338042,"name":"Agent-first gate","status":"in_progress","conclusion":null},{"id":31838338046,"name":"Billing persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31838338045,"name":"Professional persistence TiDB gate","status":"in_progress","conclusion":null},{"id":31838338047,"name":"AI provider live smoke","status":"completed","conclusion":"skipped"}],"rerun_triggered":false,"polling_performed":false}

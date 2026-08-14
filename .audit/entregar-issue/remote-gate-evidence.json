@@ -1,11 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "785ba7c9eecce6ffb99b414c390910e8ad8042a1",
-  "status": "partial-green-ci-in-progress",
-  "evidence": [
-    {"run_id":31828559473,"scope":"billing persistence, concurrency and idempotency","conclusion":"success"},
-    {"run_id":31828559646,"scope":"professional persistence","conclusion":"success"},
-    {"run_id":31828559472,"scope":"aggregate typecheck/tests/docs/build/agent gates","conclusion":"in_progress at single observation"}
-  ],
-  "limitations": ["Agent-first gate had not reached terminal state at the single allowed observation for this material SHA."]
-}
+{"schema_version":1,"head_sha":"0e9fca0610b0cb136bfe6325df415f006141677e","status":"ci-in-progress-single-observation","evidence":[{"run_id":31838338042,"scope":"aggregate typecheck/tests/docs/build/agent gates","conclusion":"in_progress at single observation"},{"run_id":31838338046,"scope":"billing persistence, including the new persisted ALERT-REOPEN-001 scenario","conclusion":"in_progress at single observation"},{"run_id":31838338045,"scope":"professional persistence","conclusion":"in_progress at single observation"},{"run_id":31838338047,"scope":"AI provider live smoke","conclusion":"skipped"}],"limitations":["Exact-head remote terminal results were not available at the single allowed observation for this material SHA. No polling, rerun or dispatch was performed."]}
