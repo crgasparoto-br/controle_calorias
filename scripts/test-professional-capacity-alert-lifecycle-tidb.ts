@@ -100,6 +100,28 @@ async function main() {
     return rows.map(row => jsonValue(row.payloadJson));
   }
 
+  async function extensionPayloads() {
+    const [rows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT payloadJson
+       FROM billingSubscriptionFacts
+       WHERE subscriptionId = ?
+         AND factType = 'professional_capacity_extension_granted'
+       ORDER BY createdAt ASC`,
+      [ids.subscription]
+    );
+    return rows.map(row => jsonValue(row.payloadJson));
+  }
+
+  async function factCount(factType: string) {
+    const [rows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM billingSubscriptionFacts
+       WHERE subscriptionId = ? AND factType = ?`,
+      [ids.subscription, factType]
+    );
+    return Number(rows[0]?.total ?? 0);
+  }
+
   function requireAlertByEventKey(
     alerts: Record<string, unknown>[],
     alertEventKey: string
@@ -246,13 +268,34 @@ async function main() {
       "retry after expiry must not duplicate the alert"
     );
 
-    const extension = await coverageRepository.grantCapacityExtension({
+    const firstDecision = {
       subscriptionId: ids.subscription,
       actorUserId: ids.admin,
+      decisionId: "capacity-alert-lifecycle:extension-01",
       reason: "Capacity alert lifecycle integration",
       analysisStatus: "temporary_exception_approved",
+    };
+    const extension = await coverageRepository.grantCapacityExtension({
+      ...firstDecision,
       now: firstEndsAt,
     });
+    const extensionRetry = await coverageRepository.grantCapacityExtension({
+      ...firstDecision,
+      now: new Date(firstEndsAt.getTime() + 60_000),
+    });
+    assert.deepEqual(
+      [extensionRetry.startsAt.toISOString(), extensionRetry.endsAt.toISOString()],
+      [extension.startsAt.toISOString(), extension.endsAt.toISOString()],
+      "retrying one administrative decision must return the persisted extension instead of adding 30 days"
+    );
+    assert.equal(
+      (await extensionPayloads()).filter(
+        payload => payload.decisionId === firstDecision.decisionId
+      ).length,
+      1,
+      "one decision identity must persist exactly one extension fact"
+    );
+
     await coverageRepository.reconcileProfessionalCapacity(
       ids.subscription,
       firstEndsAt
@@ -293,6 +336,87 @@ async function main() {
       (await alertPayloads()).length,
       4,
       "retry after extension expiry must remain idempotent"
+    );
+
+    const concurrentDecision = {
+      subscriptionId: ids.subscription,
+      actorUserId: ids.admin,
+      decisionId: "capacity-alert-lifecycle:extension-02",
+      reason: "Concurrent retry identity coverage",
+      analysisStatus: "temporary_exception_approved",
+      now: extension.endsAt,
+    };
+    const [concurrentA, concurrentB] = await Promise.all([
+      coverageRepository.grantCapacityExtension(concurrentDecision),
+      coverageRepository.grantCapacityExtension(concurrentDecision),
+    ]);
+    assert.deepEqual(
+      [concurrentB.startsAt.toISOString(), concurrentB.endsAt.toISOString()],
+      [concurrentA.startsAt.toISOString(), concurrentA.endsAt.toISOString()],
+      "concurrent delivery of one decision must converge on one persisted extension"
+    );
+    assert.equal(
+      (await extensionPayloads()).filter(
+        payload => payload.decisionId === concurrentDecision.decisionId
+      ).length,
+      1,
+      "concurrent delivery must not duplicate the extension fact"
+    );
+
+    let latestExtension = concurrentA;
+    for (let index = 3; index <= 20; index += 1) {
+      latestExtension = await coverageRepository.grantCapacityExtension({
+        subscriptionId: ids.subscription,
+        actorUserId: ids.admin,
+        decisionId: `capacity-alert-lifecycle:extension-${String(index).padStart(2, "0")}`,
+        reason: `Long-lived window extension ${index}`,
+        analysisStatus: "temporary_exception_approved",
+        now: latestExtension.endsAt,
+      });
+    }
+    assert.equal(
+      (await extensionPayloads()).length,
+      20,
+      "the fixture must cross the former mixed-history page boundary"
+    );
+
+    const afterLongHistory = await coverageRepository.reconcileProfessionalCapacity(
+      ids.subscription,
+      latestExtension.startsAt
+    );
+    assert.equal(
+      afterLongHistory?.grandfatheredAt?.toISOString(),
+      startedAt.toISOString(),
+      "rehydration after 20 extensions must retain the original grandfathering identity"
+    );
+    assert.equal(
+      await factCount("professional_capacity_grandfathered_started"),
+      1,
+      "crossing the history page boundary must never manufacture a new 90-day window"
+    );
+
+    const twentyFirst = await coverageRepository.grantCapacityExtension({
+      subscriptionId: ids.subscription,
+      actorUserId: ids.admin,
+      decisionId: "capacity-alert-lifecycle:extension-21",
+      reason: "Explicit decision after long-lived history",
+      analysisStatus: "temporary_exception_approved",
+      now: latestExtension.endsAt,
+    });
+    assert.equal(
+      twentyFirst.startsAt.toISOString(),
+      latestExtension.endsAt.toISOString(),
+      "a new decision after long history must extend from the durable current horizon"
+    );
+    assert.equal(
+      twentyFirst.endsAt.getTime() - twentyFirst.startsAt.getTime(),
+      30 * 86_400_000,
+      "each distinct administrative decision must add exactly 30 days"
+    );
+    assert.equal(
+      (await extensionPayloads()).length,
+      21,
+      "a distinct decision identity must create exactly one additional extension"
     );
   } finally {
     await cleanup().catch(() => undefined);

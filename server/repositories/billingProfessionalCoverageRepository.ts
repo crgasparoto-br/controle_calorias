@@ -193,22 +193,18 @@ async function loadCapacityWindow(
   tx: SqlExecutor,
   subscriptionId: string
 ): Promise<CapacityWindow | null> {
-  const rows = resultRows<Record<string, unknown>>(
+  // The root event is the durable identity of the current aggregate. Never
+  // reconstruct it from a bounded mixed page of child events: a long-lived
+  // window may legitimately accumulate more extensions than any page size.
+  const [latestStarted] = resultRows<Record<string, unknown>>(
     await tx.execute(sql`
-      SELECT factType, payloadJson, effectiveAt
+      SELECT payloadJson, effectiveAt
       FROM billingSubscriptionFacts
       WHERE subscriptionId = ${subscriptionId}
-        AND factType IN (
-          'professional_capacity_grandfathered_started',
-          'professional_capacity_extension_granted',
-          'professional_capacity_grandfathered_resolved'
-        )
+        AND factType = 'professional_capacity_grandfathered_started'
       ORDER BY createdAt DESC
-      LIMIT 20
+      LIMIT 1
     `)
-  );
-  const latestStarted = rows.find(
-    row => row.factType === "professional_capacity_grandfathered_started"
   );
   if (!latestStarted) return null;
   const startPayload = jsonObject(latestStarted.payloadJson);
@@ -217,27 +213,41 @@ async function loadCapacityWindow(
   const temporaryLimit = Number(startPayload.temporaryLimit);
   if (!windowKey || !baseEndsAt || !Number.isFinite(temporaryLimit)) return null;
 
-  const latestResolved = rows.find(
-    row => row.factType === "professional_capacity_grandfathered_resolved"
+  const resolvedKey = `${windowKey}:resolved:v1`;
+  const [resolved] = resultRows<Record<string, unknown>>(
+    await tx.execute(sql`
+      SELECT id
+      FROM billingSubscriptionFacts
+      WHERE subscriptionId = ${subscriptionId}
+        AND factType = 'professional_capacity_grandfathered_resolved'
+        AND idempotencyKey = ${resolvedKey}
+      LIMIT 1
+    `)
   );
-  if (
-    latestResolved &&
-    dateValue(latestResolved.effectiveAt).getTime() >=
-      dateValue(latestStarted.effectiveAt).getTime()
-  ) {
-    return null;
-  }
+  if (resolved) return null;
+
+  const extensionPrefix = `${windowKey}:extension:`;
+  const [latestExtension] = resultRows<Record<string, unknown>>(
+    await tx.execute(sql`
+      SELECT payloadJson
+      FROM billingSubscriptionFacts
+      WHERE subscriptionId = ${subscriptionId}
+        AND factType = 'professional_capacity_extension_granted'
+        AND SUBSTRING(idempotencyKey, 1, ${extensionPrefix.length}) = ${extensionPrefix}
+      ORDER BY createdAt DESC
+      LIMIT 1
+    `)
+  );
 
   let endsAt = new Date(baseEndsAt);
-  for (const row of rows) {
-    if (row.factType !== "professional_capacity_extension_granted") continue;
-    const payload = jsonObject(row.payloadJson);
-    if (payload.windowKey !== windowKey) continue;
+  if (Number.isNaN(endsAt.getTime())) return null;
+  if (latestExtension) {
+    const payload = jsonObject(latestExtension.payloadJson);
     const candidate = safeText(payload.endsAt, 64);
-    if (candidate) {
-      const value = new Date(candidate);
-      if (value.getTime() > endsAt.getTime()) endsAt = value;
-    }
+    if (!candidate) return null;
+    const value = new Date(candidate);
+    if (Number.isNaN(value.getTime())) return null;
+    if (value.getTime() > endsAt.getTime()) endsAt = value;
   }
   return {
     windowKey,
@@ -614,6 +624,7 @@ export function createBillingProfessionalCoverageRepository(
   async function grantCapacityExtension(input: {
     subscriptionId: string;
     actorUserId: number;
+    decisionId: string;
     reason: string;
     analysisStatus: string;
     now?: Date;
@@ -629,29 +640,91 @@ export function createBillingProfessionalCoverageRepository(
         `)
       );
       if (!admin) throw new Error("billing_admin_required");
+      const decisionId = safeText(input.decisionId, 191);
       const reason = safeText(input.reason, 500);
       const analysisStatus = safeText(input.analysisStatus, 120);
+      if (!decisionId) {
+        throw new Error("billing_capacity_extension_decision_required");
+      }
       if (!reason || !analysisStatus) {
         throw new Error("billing_capacity_extension_reason_required");
       }
+
+      // Lock the subscription before resolving the command identity so two
+      // actors delivering the same decision concurrently cannot both derive a
+      // different post-effect horizon before the duplicate is visible.
       const context = await loadCoverageContext(tx, input.subscriptionId);
+      if (!context) throw new Error("billing_capacity_grandfathering_required");
+      const decisionHash = crypto
+        .createHash("sha256")
+        .update(`${input.subscriptionId}:${decisionId}`)
+        .digest("hex")
+        .slice(0, 40);
+      const decisionCorrelationId = `professional-capacity-extension-decision:${decisionHash}`;
+      const [existingDecision] = resultRows<Record<string, unknown>>(
+        await tx.execute(sql`
+          SELECT payloadJson
+          FROM billingSubscriptionFacts
+          WHERE subscriptionId = ${input.subscriptionId}
+            AND factType = 'professional_capacity_extension_granted'
+            AND correlationId = ${decisionCorrelationId}
+          LIMIT 1
+        `)
+      );
+      if (existingDecision) {
+        const payload = jsonObject(existingDecision.payloadJson);
+        const persistedDecisionId = safeText(payload.decisionId, 191);
+        const persistedReason = safeText(payload.reason, 500);
+        const persistedAnalysisStatus = safeText(payload.analysisStatus, 120);
+        const persistedActorUserId = Number(payload.actorUserId);
+        if (
+          persistedDecisionId !== decisionId ||
+          persistedReason !== reason ||
+          persistedAnalysisStatus !== analysisStatus ||
+          persistedActorUserId !== input.actorUserId
+        ) {
+          throw new Error("billing_capacity_extension_decision_conflict");
+        }
+        const persistedStartsAt = safeText(payload.startsAt, 64);
+        const persistedEndsAt = safeText(payload.endsAt, 64);
+        const persistedTemporaryLimit = Number(payload.temporaryLimit);
+        if (
+          !persistedStartsAt ||
+          !persistedEndsAt ||
+          !Number.isFinite(persistedTemporaryLimit)
+        ) {
+          throw new Error("billing_capacity_extension_record_invalid");
+        }
+        const startsAt = new Date(persistedStartsAt);
+        const endsAt = new Date(persistedEndsAt);
+        if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+          throw new Error("billing_capacity_extension_record_invalid");
+        }
+        return {
+          startsAt,
+          endsAt,
+          temporaryLimit: persistedTemporaryLimit,
+        };
+      }
+
       const window = await loadCapacityWindow(tx, input.subscriptionId);
-      if (!context || !window || context.occupancy <= context.contractedLimit) {
+      if (!window || context.occupancy <= context.contractedLimit) {
         throw new Error("billing_capacity_grandfathering_required");
       }
       const startsAt =
         window.endsAt.getTime() > now.getTime() ? window.endsAt : now;
       const endsAt = professionalCapacityExtensionEndsAt(startsAt);
-      const key = `${window.windowKey}:extension:${startsAt.toISOString()}:${input.actorUserId}:v1`;
+      const key = `${window.windowKey}:extension:${decisionHash}:v2`;
       await appendCoverageFact(tx, {
         context,
         factType: "professional_capacity_extension_granted",
         idempotencyKey: key,
-        correlationId: `professional-capacity-extension:${input.subscriptionId}`,
+        correlationId: decisionCorrelationId,
         occurredAt: now,
         actionAllowed: "resolve_capacity",
         payload: {
           windowKey: window.windowKey,
+          decisionId,
           actorUserId: input.actorUserId,
           reason,
           analysisStatus,

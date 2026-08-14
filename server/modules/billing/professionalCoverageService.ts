@@ -194,6 +194,7 @@ export function createProfessionalCoverageService(deps: {
   function grantCapacityExtension(input: {
     subscriptionId: string;
     actorUserId: number;
+    decisionId: string;
     reason: string;
     analysisStatus: string;
   }) {
