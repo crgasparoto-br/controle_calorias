@@ -25,9 +25,10 @@ export function createBillingLifecycleAccessRepository(
   async function listAccessCandidates(userId: number, now: Date) {
     const baselineCandidates = await baseline.listAccessCandidates(userId, now);
     // Lifecycle is authoritative for professional coverage after #893/#894.
-    // Removing the legacy sponsored candidate prevents a suspended professional
-    // subscription from leaking access only because billingSubscriptions.status
-    // still says active.
+    // Removing the baseline sponsored candidate prevents a suspended lifecycle
+    // from leaking access merely because billingSubscriptions.status still says
+    // active. Legacy subscriptions without a lifecycle row are re-evaluated
+    // below with the same clinical/reservation invariants as canonical records.
     const candidates = baselineCandidates.filter(
       candidate => candidate.reason !== "sponsored_by_professional"
     );
@@ -92,6 +93,50 @@ export function createBillingLifecycleAccessRepository(
       `)
     );
     for (const row of sponsoredRows) {
+      candidates.push({
+        reason: "sponsored_by_professional",
+        sourceId: String(row.sourceId),
+        validFrom: dateOrNull(row.validFrom),
+        validUntil: earliestDate(row.entitlementValidUntil, row.sponsorValidUntil),
+        sponsorUserId: numberValue(row.sponsorUserId),
+        planCode: row.planCode ? String(row.planCode) : null,
+        entitlements: stringArray(row.entitlementsJson),
+      });
+    }
+
+    // Compatibility for professional contracts created before the lifecycle
+    // table existed. These rows may use the legacy active status only when no
+    // lifecycle row exists at all; as soon as #893 owns the subscription, the
+    // canonical query above is the sole authority. Clinical state, reservation,
+    // entitlement validity and professional audience remain mandatory here.
+    const legacySponsoredRows = resultRows<Record<string, unknown>>(
+      await db.execute(sql`
+        SELECT e.sourceId, e.validFrom, e.validUntil AS entitlementValidUntil,
+          e.sponsorUserId, p.code AS planCode, e.entitlementsJson,
+          s.currentPeriodEnd AS sponsorValidUntil
+        FROM billingEntitlements e
+        INNER JOIN billingCapacityAllocations c
+          ON c.coverageKey = e.sourceId AND c.state IN ('reserved', 'active')
+        INNER JOIN billingSubscriptions s ON s.id = c.subscriptionId
+        LEFT JOIN billingSubscriptionLifecycle l ON l.subscriptionId = s.id
+        INNER JOIN billingPlans p ON p.id = s.planId AND p.audience = 'professional'
+        INNER JOIN professionalPatientAuthorizations a
+          ON a.id = c.authorizationId AND a.status = 'approved'
+        INNER JOIN professionalPatientTrackings t
+          ON t.authorizationId = a.id AND t.status IN ('active', 'paused')
+        WHERE e.beneficiaryUserId = ${userId}
+          AND e.sourceType = 'professional_coverage'
+          AND e.state = 'active'
+          AND e.validFrom <= ${now}
+          AND (e.validUntil IS NULL OR e.validUntil > ${now})
+          AND l.subscriptionId IS NULL
+          AND s.status = 'active'
+          AND (s.currentPeriodStart IS NULL OR s.currentPeriodStart <= ${now})
+          AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > ${now})
+        ORDER BY e.createdAt DESC
+      `)
+    );
+    for (const row of legacySponsoredRows) {
       candidates.push({
         reason: "sponsored_by_professional",
         sourceId: String(row.sourceId),
