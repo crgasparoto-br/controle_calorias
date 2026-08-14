@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import { createDrizzleAsaasOperationStore } from "../server/modules/billing/asaas/operationStore";
+import { configureBillingDbProvider } from "../server/repositories/billingRepositorySupport";
 
 const operationKey = "billing-test-asaas-concurrent-claim";
 const externalReference = "billing-test-concurrent-contract";
@@ -9,6 +11,8 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   const pool = mysql.createPool(databaseUrl);
+  const db = drizzle(pool);
+  configureBillingDbProvider(async () => db);
   try {
     await pool.query(
       "DELETE FROM billingProviderEvents WHERE provider = 'asaas' AND JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.operationReference')) = ?",
