@@ -1,70 +1,64 @@
-# Issue 982 remediation evidence - material head 22e0ad646dcd624ff751798922e38958e9e00fe5
+Issue: crgasparoto-br/controle_calorias#982
+PR: #983
+Base: develop @ 61886031ddc314c085b17bed9b0b14b766f9c9f1
+Rejected material head: 22e0ad646dcd624ff751798922e38958e9e00fe5
+Rejected published handoff head: 39af8da6e8a26ab9fda83d7bea44d34281b1d17c
+Current material head: 877261b438310f3f232c7bad0207a340958b9c96
+Material merge preview: 767e11e8e265cfab1714f06a23dd7b0d74387eb5
 
-## Product syntax parse
-PASS server/mealContainerNoise.ts
-PASS server/mealItemCleanup.ts
-PASS server/mealItemCleanup.issue982.test.ts
-PASS server/nutritionEngine.issue982.test.ts
+Independent findings remediated:
+- A-001: connector complements with multiple tokens could bypass the object/noise filter because token cardinality was used as the final decision.
+- A-002: documentation was explicitly required and correctly updated, but the saturation artifact marked documentation not-applicable.
 
-## Diff hygiene
-PASS git diff --check
+Material delta:
+- server/mealContainerNoise.ts
+- server/mealItemCleanup.issue982.test.ts
 
-## Focused classifier harness
-PASS	food 	Bolo de pote	actual=false
-PASS	food 	Bolo de pote ninho cremoso	actual=false
-PASS	noise	Pote	actual=true
-PASS	noise	Pote vazio	actual=true
-PASS	noise	Copo descartável	actual=true
-PASS	noise	Copo de brinquedo	actual=true
-PASS	noise	Pote de tinta	actual=true
-PASS	noise	Bandeja de isopor	actual=true
-PASS	noise	Panela com cabo	actual=true
-PASS	noise	Tigela de parafuso	actual=true
-PASS	noise	Pote de cimento	actual=true
-PASS	food 	Copo açaí	actual=false
-PASS	food 	Pote iogurte	actual=false
-PASS	food 	Marmita frango arroz	actual=false
-PASS	food 	Copo de smoothie de pitaya	actual=false
-PASS	food 	Tigela com bubble tea	actual=false
-PASS	food 	Pote de sobremesa artesanal	actual=false
-PASS	food 	Bandeja de sushi vegano	actual=false
-PASS	food 	Travessa com lasanha caseira	actual=false
-PASS	food 	Panela com curry tailandês	actual=false
-PASS	noise	Tigela de plástico	actual=true
-PASS	noise	Copo com tampa	actual=true
-PASS	noise	Pote de vidro	actual=true
-PASS	noise	Bandeja de alumínio	actual=true
-PASS	noise	Panela de pressão	actual=true
+Published bytes verified by immutable Git blob:
+- server/mealContainerNoise.ts blob 9df4673292464a3dda8d311af4750597c8bc0bbd
+- server/mealItemCleanup.issue982.test.ts blob 96d216e877011992975bf43732677ac047fd5977
 
-## Synthetic transfer controls for OPEN-SET-NESTED-CONTEXT-001
-PASS public_entrypoint transfer: novel nested discriminant distinguishes finite nested list
-PASS specialized_adapter transfer: sibling wrapper surface exposes same escape class
+Focused exact-source syntax validation:
+- mealContainerNoise.ts: PASS (TypeScript transpile diagnostics = 0)
+- mealItemCleanup.issue982.test.ts: PASS (TypeScript transpile diagnostics = 0)
 
-## Skill prevention/detection controls
-.
-----------------------------------------------------------------------
-Ran 1 test in 0.000s
+New OPEN-SET-NESTED-CARDINALITY-001 discriminants:
+NEG PASS Pote de tinta acrilica fosca
+NEG PASS Copo de plastico transparente reciclavel
+NEG PASS Bandeja de isopor branco expandido
+NEG PASS Panela com cabo longo removivel
+NEG PASS Tigela de parafuso metalico sextavado
+NEG PASS Pote de cimento branco estrutural
+NEG PASS Copo de silicone flexivel reutilizavel
+NEG PASS Travessa de vidro temperado transparente
+POS PASS Copo de smoothie de pitaya
+POS PASS Tigela com bubble tea
+POS PASS Pote de sobremesa artesanal
+POS PASS Bandeja de sushi vegano
+POS PASS Travessa com lasanha caseira
+POS PASS Panela com curry tailandes
+POS PASS Marmita de bibimbap coreano artesanal
 
-OK
-.
-----------------------------------------------------------------------
-Ran 1 test in 0.000s
+Inherited functional controls preserved by unchanged material ancestry and focused review:
+- OPEN-SET-NEGATIVE-001: direct arbitrary modifiers remain rejected.
+- OPEN-POSITIVE-CATALOG-INDEPENDENCE-001: uncatalogued preparations remain accepted.
+- OPEN-SET-NESTED-CONTEXT-001: one-token nested object complements remain rejected and connector-omitted known food remains accepted.
+- REQ-PLUM-LOCAL-NEG: local ameixa roxa normalization and no semantic search regression remain unchanged.
+- REQ-PRECEDENCE-NEG: ameixa em calda precedence remains unchanged.
+- REQ-OBSERVABILITY-NEG: canonical logInferenceEvent, five stable reasons, privacy-only detail and best-effort sink behavior remain unchanged.
 
-OK
-READY: skill permanent assets are free of obvious issue-number coupling
-READY: skill permanent assets are free of obvious issue-number coupling
-PASS ecosystem: 15/15 (report /mnt/data/issue982-skill-ecosystem-report.txt)
+Documentation closure:
+- docs/design-docs/ai-observability-pricing.md already contains meal.inference_fallback, all five stable reasons, separation from ai.inference_call, privacy constraints and best-effort semantics.
+- REQ-DOCUMENTATION added to requirement closure/attack matrix.
+- risk-saturation documentation family is applicable=true, status=passed, controlled by REQ-DOCUMENTATION-NEG.
 
-## Unchanged exact-head baseline controls
-Baseline a2d99a538350da2800d6885c55fa7ea4653a4e6b had official Agent-first gate success (TypeScript, Tests, Architecture, Documentation, Build, Agent check).
-Current material delta changes only meal container cleanup classifier and issue #982 regression tests; local normalization, catalog precedence and fallback telemetry implementation are unchanged from that green baseline.
+Systemic learning promotion:
+- entregar-issue prevention contract now requires open-set sibling variation across cardinality, depth and composition and explicit documentation-family activation.
+- auditar-issue detection contract now attacks the same shape dimensions and rejects documentation=not-applicable when canonical specification requires documentation.
+- focused skill contract tests: 2 passed.
+- validate_skill_genericity.py: PASS for both skills.
 
-## Remote gate snapshot
-Agent-first gate run 31881930976 for material head 22e0ad646dcd624ff751798922e38958e9e00fe5: queued (single observation; no polling/rerun).
-
-## Material identity
-material_head_sha=22e0ad646dcd624ff751798922e38958e9e00fe5
-base_branch=develop
-base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
-merge_preview_sha=8d8948f06804a0edfe119884e2aa9f3bdfdb6393
-changed_product_paths=server/mealContainerNoise.ts,server/mealItemCleanup.ts,server/mealItemCleanup.issue982.test.ts,server/nutritionEngine.issue982.test.ts
+Remote observation policy:
+- one read-only observation performed for material SHA 877261b438310f3f232c7bad0207a340958b9c96.
+- Agent-first workflow run 31883393223 was in_progress at that observation.
+- no rerun, dispatch, cancellation or polling was performed.

@@ -1,1 +1,74 @@
-{"schema_version":2,"status":"ready","created_at":"2026-08-15T11:33:12.888721+00:00","identity":{"head_sha":"22e0ad646dcd624ff751798922e38958e9e00fe5","material_head_sha":"22e0ad646dcd624ff751798922e38958e9e00fe5","base_sha":"61886031ddc314c085b17bed9b0b14b766f9c9f1","merge_preview_sha":"8d8948f06804a0edfe119884e2aa9f3bdfdb6393","material_merge_preview_sha":"8d8948f06804a0edfe119884e2aa9f3bdfdb6393"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/audit-escape-closure.json",".audit/entregar-issue/audit-escape-pattern-catalog.json",".audit/entregar-issue/evidence/remediation-evidence.txt",".audit/entregar-issue/freeze.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/learning-closure.json",".audit/entregar-issue/remote-gate-evidence.json",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/requirement-closure.json",".audit/entregar-issue/risk-saturation.json",".audit/entregar-issue/source-manifest.json",".audit/entregar-issue/specification-snapshot.json"]},"contract_version":"2026-08-06.2","producer":{"skill":"entregar-issue","skill_sha256":"48e791585a47bb932df5ad7e7794f4cf4cd75fe6e5cbabdaebfd29964d401efd"},"validators":{"validate_specification_coverage.py":"a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20","validate_handoff_readiness.py":"dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83","validate_requirement_attack_matrix.py":"72d64f62fa29c074991514cdc2669f5d465215e21599416225761d2849d20744","validate_risk_saturation.py":"c8228c28f93d8b7a3699e2489d2cc8011147816fbd9d4b1d543d4f10ec5a1b31","validate_inherited_controls.py":"614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685","validate_learning_closure.py":"38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"},"artifacts":{"specification_snapshot":{"name":"specification-snapshot.json","sha256":"8560cbd2d1e1ccc7a6743728c7f739cf262e9a55db60fb6e2983e1db0a042a45"},"requirement_closure":{"name":"requirement-closure.json","sha256":"663fa4f0b3f520a7c92c5918f43cff4f30f811a24a405a08ea2f24e17bf092b0"},"requirement_attack_matrix":{"name":"requirement-attack-matrix.json","sha256":"62ccae77df5bb6d86a9dcdee5798408f7bea2b8f0749a89d7101d74325864c65"},"risk_saturation":{"name":"risk-saturation.json","sha256":"15c670c1c72501f5d1a6a472fe7760078576720aa9b3cf1cdf63ff348b894455"},"inherited_controls":{"name":"inherited-controls.json","sha256":"7807718f19948b42a1afbe3ed09b31d642ffee0c971943f8abba66a4ef824608"},"audit_escape_closure":{"name":"audit-escape-closure.json","sha256":"a8895170337f70d766f78267c891bb03f56ff1638bbe43d72545a0eaafa8a0fb"},"learning_closure":{"name":"learning-closure.json","sha256":"1e23676fb2c00d32f1440fc7df6028156599d81ebb821a6742bc6a693c1e0ac4"}},"previous_independent_rejection":true}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-08-15T12:04:37.036302+00:00",
+  "identity": {
+    "head_sha": "877261b438310f3f232c7bad0207a340958b9c96",
+    "material_head_sha": "877261b438310f3f232c7bad0207a340958b9c96",
+    "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
+    "merge_preview_sha": "767e11e8e265cfab1714f06a23dd7b0d74387eb5",
+    "material_merge_preview_sha": "767e11e8e265cfab1714f06a23dd7b0d74387eb5"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
+      ".audit/entregar-issue/evidence/remediation-evidence.txt",
+      ".audit/entregar-issue/freeze.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/remote-gate-evidence.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/source-manifest.json",
+      ".audit/entregar-issue/specification-snapshot.json"
+    ]
+  },
+  "contract_version": "2026-08-06.2",
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "72a94c9841d40f5a9692f35d0d578ccf1d49c9eb9af1dad5788d428a87e0d000"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
+    "validate_handoff_readiness.py": "dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83",
+    "validate_requirement_attack_matrix.py": "72d64f62fa29c074991514cdc2669f5d465215e21599416225761d2849d20744",
+    "validate_risk_saturation.py": "c8228c28f93d8b7a3699e2489d2cc8011147816fbd9d4b1d543d4f10ec5a1b31",
+    "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
+    "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "f7084bc99716e78bc8962f372da59e09c8fb95bad350847a9cbaf338f8650e49"
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "2bc4121cb3b9a47363bd5655f39eb1a9e6ecf227b628fecb4f06ce2854e6c84d"
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "dce3fc7c8c2efb2c9d2919710e91162293e4e2e6cdb16b59918142a04c98ab42"
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "6210d554b52f8940c4344c9e7b3b00b36653fc8fb40bee4b8e6199eaff45ee3d"
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "7170c095ea045d0b2da69ccd163d28fd371e850fc00cc65557224fd76652d481"
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "a8b7b1f3ba99d32d6d26476fdda7ca742b71833cfa1315360266aa04698ece1a"
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "e2847c5e57d6bc02397d3d45c88323ce0c4c4575ae39dceef98f61d9b23eb4a5"
+    }
+  },
+  "previous_independent_rejection": true
+}

@@ -1,9 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "22e0ad646dcd624ff751798922e38958e9e00fe5",
-  "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
-  "merge_preview_sha": "8d8948f06804a0edfe119884e2aa9f3bdfdb6393",
-  "status": "frozen",
-  "local_evidence": "evidence/remediation-evidence.txt",
-  "remote_gate": "queued"
-}
+{"schema_version":1,"status":"frozen","material_head_sha":"877261b438310f3f232c7bad0207a340958b9c96","base_sha":"61886031ddc314c085b17bed9b0b14b766f9c9f1","material_merge_preview_sha":"767e11e8e265cfab1714f06a23dd7b0d74387eb5","frozen_at":"2026-08-15T12:00:00+00:00","material_paths":["server/mealContainerNoise.ts","server/mealItemCleanup.issue982.test.ts"]}
