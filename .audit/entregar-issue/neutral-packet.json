@@ -1,8 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "bc3c807ff8e301b63097e89c0d8434d88e70ec4a",
-  "issue": 982,
-  "pr": 983,
-  "base": "develop",
-  "summary": "Container cleanup preserves valid unseen preparations after serving-container content connectors without a finite positive allowlist, while explicit non-food material/product evidence remains rejected."
-}
+{"schema_version":1,"material_head_sha":"9f9a785745081e01adf4536bc85a4360fa851d35","issue":982,"pr":983,"base":"develop","summary":"Container cleanup now uses affirmative bidirectional semantic evidence across open positive and negative classes, covering inflection, homonyms and unseen siblings without hardcoding audit phrases."}

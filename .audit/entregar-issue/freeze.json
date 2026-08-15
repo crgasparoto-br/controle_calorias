@@ -1,11 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "bc3c807ff8e301b63097e89c0d8434d88e70ec4a",
-  "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
-  "status": "frozen",
-  "created_at": "2026-08-15T16:57:54.906377+00:00",
-  "material_paths": [
-    "server/mealContainerNoise.ts",
-    "server/mealItemCleanup.issue982.test.ts"
-  ]
-}
+{"schema_version":1,"material_head_sha":"9f9a785745081e01adf4536bc85a4360fa851d35","base_sha":"61886031ddc314c085b17bed9b0b14b766f9c9f1","status":"frozen","created_at":"2026-08-15T18:22:04+00:00","material_paths":["server/mealContainerNoise.ts","server/mealItemCleanup.issue982.test.ts","server/nutritionEngine.issue982.test.ts","docs/design-docs/nutrition-engine.md"]}

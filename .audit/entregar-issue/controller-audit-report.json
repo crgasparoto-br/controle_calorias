@@ -1,10 +1,1 @@
-{
-  "schema_version": 1,
-  "assurance_level": "controller-adversarial",
-  "approval_scope": "internal-only",
-  "release_gate_satisfied": false,
-  "material_head_sha": "bc3c807ff8e301b63097e89c0d8434d88e70ec4a",
-  "status": "passed",
-  "finding_count": 0,
-  "note": "Latest independent finite-positive-allowlist escape is closed with unseen-positive controls; independent re-audit remains required."
-}
+{"schema_version":1,"assurance_level":"controller-adversarial","approval_scope":"internal-only","release_gate_satisfied":false,"material_head_sha":"9f9a785745081e01adf4536bc85a4360fa851d35","status":"passed","finding_count":0,"note":"Latest independent bidirectional open-class escape is closed with unseen positive/negative controls, collision scans and cumulative inherited controls; independent re-audit remains required."}

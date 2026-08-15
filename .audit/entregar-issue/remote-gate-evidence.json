@@ -1,11 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "bc3c807ff8e301b63097e89c0d8434d88e70ec4a",
-  "workflow": "Agent-first gate",
-  "run_id": 31896803364,
-  "job_id": null,
-  "observed_status": "in_progress",
-  "conclusion": null,
-  "observation_policy": "single-snapshot-observe-only",
-  "observed_at": "2026-08-15T16:57:54.906377+00:00"
-}
+{"schema_version":1,"head_sha":"9f9a785745081e01adf4536bc85a4360fa851d35","workflow":"Agent-first gate","run_id":31900931881,"job_id":null,"observed_status":"in_progress","conclusion":null,"observation_policy":"single-snapshot-observe-only","observed_at":"2026-08-15T18:22:04+00:00"}
