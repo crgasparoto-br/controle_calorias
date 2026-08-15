@@ -31,6 +31,9 @@ describe("cleanMealItems issue #982", () => {
       item("Tigela com bubble tea"),
       item("Bandeja de sushi vegano"),
       item("Travessa com lasanha caseira"),
+      item("Copo açaí"),
+      item("Pote iogurte"),
+      item("Marmita frango arroz"),
     ]);
 
     expect(cleaned.map(entry => entry.foodName)).toEqual([
@@ -41,6 +44,9 @@ describe("cleanMealItems issue #982", () => {
       "Tigela com bubble tea",
       "Bandeja de sushi vegano",
       "Travessa com lasanha caseira",
+      "Copo açaí",
+      "Pote iogurte",
+      "Marmita frango arroz",
     ]);
   });
 
@@ -60,6 +66,12 @@ describe("cleanMealItems issue #982", () => {
     "Copo azul",
     "Tigela nova",
     "Prato decorativo",
+    "Copo de brinquedo",
+    "Pote de tinta",
+    "Bandeja de isopor",
+    "Panela com cabo",
+    "Tigela de parafuso",
+    "Pote de cimento",
   ])("continua descartando objeto ou ruído não alimentar: %s", foodName => {
     expect(cleanMealItems([item(foodName)])).toEqual([]);
   });
@@ -72,6 +84,29 @@ describe("cleanMealItems issue #982", () => {
     ];
 
     expect(arbitraryObjectModifiers.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("rejeita complemento unitário desconhecido após conectores sem enumeração finita", () => {
+    const novelConnectorObjects = [
+      "Copo de brinquedo",
+      "Pote de tinta",
+      "Bandeja de isopor",
+      "Panela com cabo",
+      "Tigela de parafuso",
+      "Pote de cimento",
+    ];
+
+    expect(novelConnectorObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("preserva sinal alimentar conhecido mesmo sem de/com", () => {
+    const implicitServingContent = [
+      "Copo açaí",
+      "Pote iogurte",
+      "Marmita frango arroz",
+    ];
+
+    expect(implicitServingContent.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
   });
 
   it("não exige que o conteúdo alimentar do recipiente já exista na TACO", () => {

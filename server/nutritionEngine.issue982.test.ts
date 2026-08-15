@@ -49,6 +49,28 @@ describe("nutritionEngine issue #982", () => {
   });
 
 
+  it("preserva alimento conhecido em recipiente mesmo sem de/com", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ text: "244g copo açaí" });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Copo Açaí",
+      quantity: 244,
+      unit: "g",
+      estimatedGrams: 244,
+    }));
+  });
+
+  it("remove objeto inédito após conector no fallback local", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text: "244g copo de brinquedo" })).rejects.toBeInstanceOf(MealInferenceError);
+  });
+
   it("preserva preparação fora da TACO no fallback local mesmo com recipiente", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
 
