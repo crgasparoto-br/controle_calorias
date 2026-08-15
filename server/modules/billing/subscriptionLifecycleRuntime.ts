@@ -2,6 +2,7 @@ import { getDb, logPersistenceWarning } from "../../db";
 import { createBillingSubscriptionLifecycleRepository } from "../../repositories/billingSubscriptionLifecycleRepository";
 import { createBillingLifecycleRemediationReadModel } from "../../repositories/billingLifecycleRemediationReadModel";
 import { billingCatalogService } from "./catalogRuntime";
+import { professionalCoverageService } from "./professionalCoverageService";
 import {
   enrichBillingProviderFinancialFact,
   runBillingProviderAfterStartContract,
@@ -56,6 +57,9 @@ const baseBillingSubscriptionLifecycleService =
     },
   });
 
+async function applyProfessionalCoverageFacts() {
+  await professionalCoverageService.processLifecycleFacts(100);
+}
 
 export const billingSubscriptionLifecycleService = {
   ...baseBillingSubscriptionLifecycleService,
@@ -67,8 +71,26 @@ export const billingSubscriptionLifecycleService = {
     return result;
   },
   async applyFinancialFact(input: BillingProviderNeutralFinancialFact) {
-    return baseBillingSubscriptionLifecycleService.applyFinancialFact(
+    const result = await baseBillingSubscriptionLifecycleService.applyFinancialFact(
       await enrichBillingProviderFinancialFact(input)
     );
+    await applyProfessionalCoverageFacts();
+    return result;
+  },
+  async tickSubscription(
+    subscriptionId: string,
+    now?: Date
+  ) {
+    const result = await baseBillingSubscriptionLifecycleService.tickSubscription(
+      subscriptionId,
+      now
+    );
+    await applyProfessionalCoverageFacts();
+    return result;
+  },
+  async processDue(limit = 100) {
+    const result = await baseBillingSubscriptionLifecycleService.processDue(limit);
+    await professionalCoverageService.processLifecycleFacts(limit);
+    return result;
   },
 };

@@ -378,6 +378,25 @@ async function main() {
           now,
         ]
       );
+      await pool.query(
+        `INSERT INTO professionalPatientTrackings (
+          id, authorizationId, professionalUserId, patientUserId, status,
+          startedAt, lastTransitionAt, lastTransitionByUserId,
+          lastTransitionReason, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
+        [
+          `billing-test-tracking-${authorizationId}`,
+          authorizationId,
+          ids.professional,
+          patientUserId,
+          now,
+          now,
+          ids.professional,
+          "Billing integration active tracking",
+          now,
+          now,
+        ]
+      );
     }
 
     await pool.query(
