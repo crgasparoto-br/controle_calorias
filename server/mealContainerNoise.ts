@@ -1,5 +1,6 @@
 import { normalizeForMatching } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
+import { hasHighConfidenceNonFoodLexicalEvidence } from "./mealContainerSemanticEvidence";
 
 const NON_FOOD_OBJECT_TERMS = new Set([
   "prato",
@@ -98,11 +99,10 @@ const AMBIGUOUS_FOOD_CONTENT_HEADS = new Set([
   "po",
 ]);
 
-// A detecção negativa é organizada por famílias semânticas/stems, e não por
-// frases de auditoria. Isso permite reconhecer variações flexionadas e novos
-// compostos da mesma família sem transformar ausência em uma lista finita em
-// evidência positiva de alimento. O fallback para conteúdo desconhecido continua
-// sendo revisável para preservar a classe positiva aberta.
+// Evidências negativas explícitas continuam sendo usadas quando a família é
+// conhecida. Para conteúdo fora dessas famílias, um modelo lexical local e
+// conservador fecha a classe negativa aberta sem tornar ausência em catálogo
+// uma decisão semântica.
 const NON_FOOD_CONTENT_STEM_PATTERNS = [
   // Materiais, construção e componentes físicos.
   /^(?:acessor|acril|alca|alumin|arame|argamass|arruel|borrach|brita|cabo|ceramic|cimento|concret|espuma|ferrament|fio|gesso|isopor|madeir|material|metal|papel|papelao|parafus|peca|plast|porca|porcelan|pressao|resin|silicon|tampa|tecid|verniz|vidro)/,
@@ -256,11 +256,13 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (strongNonFood) {
     return true;
   }
+  if (hasHighConfidenceNonFoodLexicalEvidence(content)) {
+    return true;
+  }
 
-  // A forma "recipiente + de/com + conteúdo" é semanticamente ambígua no mundo
-  // aberto. Sem evidência afirmativa de objeto/material, preservamos o conteúdo
-  // como rascunho revisável para não transformar uma allowlist alimentar finita
-  // em requisito. A segurança vem dos ramos negativos afirmativos acima, não da
-  // ausência do termo em listas positivas ou negativas.
+  // No mundo aberto, o modelo lexical funciona somente como evidência negativa
+  // afirmativa de alta confiança. Conteúdo incerto permanece revisável, evitando
+  // transformar ausência no catálogo ou em qualquer vocabulário finito numa
+  // decisão semântica por default.
   return false;
 }
