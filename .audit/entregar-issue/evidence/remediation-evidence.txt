@@ -1,105 +1,15 @@
-Issue 982 remediation evidence
-material_head_sha=9f9a785745081e01adf4536bc85a4360fa851d35
+material_head_sha=1729c33f717c343fb48e1539a4b28d30054d2921
 base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
-material_merge_preview_sha=89da23a579bc2ced09b5cb7044579b9d8b55810a
-OPEN-BIDIRECTIONAL-UNSEEN-001=passed
-base scenario matrix=74/74
-extended matrix=103/103 (38 positive, 65 negative)
-inherited cumulative harness=17 positive + 40 negative, fail=0
-production full attack literals absent=passed
-reference catalog collision scan=182 entries, fail=0
-TACO ambiguous-head collision scan=0 collisions
-TypeScript syntax checks=passed
-skill prevention+detection focused contracts=21 passed; genericity validators=READY
-remote CI single observation: Agent-first run 31900931881 status=in_progress; no polling/rerun/dispatch performed
+issue=982
+pr=983
+material_paths=server/mealContainerNoise.ts,server/mealContainerSemanticEvidence.ts,server/mealContainerOpenClass.issue982.test.ts
 
---- RAW BIDIRECTIONAL HARNESS ---
-material_head_sha=9f9a785745081e01adf4536bc85a4360fa851d35
-control=OPEN-BIDIRECTIONAL-UNSEEN-001
-(node:2774) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
---import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("/tmp/ts-loader.mjs", pathToFileURL("./"));'
-(Use `node --trace-warnings ...` to show where the warning was created)
-(node:2774) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
-(Use `node --trace-warnings ...` to show where the warning was created)
-POS	PASS	Pote de tiramisu artesanal
-POS	PASS	Tigela de panna cotta de baunilha
-POS	PASS	Travessa com baklava de pistache
-POS	PASS	Marmita de pierogi tradicional
-POS	PASS	Panela com shakshuka picante
-POS	PASS	Copo de lassi salgado
-POS	PASS	Copo de kombucha fermentada
-POS	PASS	Tigela de ramen artesanal
-POS	PASS	Bandeja de falafel assado
-POS	PASS	Copo açaí
-POS	PASS	Pote iogurte
-POS	PASS	Marmita frango arroz
-POS	PASS	Copo de kvass
-POS	PASS	Prato de injera
-POS	PASS	Pote de mochi
-POS	PASS	Tigela de okonomiyaki caseiro
-POS	PASS	Bandeja de arepa venezuelana
-NEG	PASS	Pote translúcido
-NEG	PASS	Copo rachado
-NEG	PASS	Tigela brilhante
-NEG	PASS	Copo de brinquedo
-NEG	PASS	Pote de tinta
-NEG	PASS	Bandeja de isopor
-NEG	PASS	Panela com cabo
-NEG	PASS	Tigela de parafuso
-NEG	PASS	Pote de cimento
-NEG	PASS	Pote de shampoo anticaspa
-NEG	PASS	Copo de detergente clorado
-NEG	PASS	Tigela de maquiagem mineral
-NEG	PASS	Bandeja de equipamento eletrônico portátil
-NEG	PASS	Travessa de material sintético resistente
-NEG	PASS	Pote de tinta acrílica fosca
-NEG	PASS	Copo de plástico transparente reciclável
-NEG	PASS	Bandeja de isopor branco expandido
-NEG	PASS	Panela com cabo longo removível
-NEG	PASS	Tigela de parafuso metálico sextavado
-NEG	PASS	Pote de cimento branco estrutural
-NEG	PASS	Copo de silicone flexível reutilizável
-NEG	PASS	Travessa de vidro temperado transparente
-NEG	PASS	Marmita com medicamento infantil
-NEG	PASS	Panela com dispositivo eletrônico
-NEG	PASS	Panela de pressão
-NEG	PASS	Pote vazio
-NEG	PASS	Copo descartável
-NEG	PASS	Pote de querosene aeronáutico
-NEG	PASS	Copo de solvente industrial
-NEG	PASS	Tigela de fluido automotivo
-NEG	PASS	Travessa com anticongelante concentrado
-NEG	PASS	Marmita de munição esportiva
-NEG	PASS	Copo de água sanitária
-NEG	PASS	Pote de óleo de motor
-NEG	PASS	Pote de pasta de dente
-NEG	PASS	Tigela de creme hidratante
-NEG	PASS	Um pote vazio
-NEG	PASS	Dois potes vazios
-NEG	PASS	Copos descartáveis
-NEG	PASS	Panelas de pressão
-SUMMARY	positive=17	negative=40	fail=0
+A-009 remediation:
+- finite-stem default acceptance is no longer the terminal decision for ambiguous container content;
+- catalog/TACO positive evidence and explicit non-food semantic guards keep precedence;
+- a deterministic local lexical model supplies affirmative negative evidence only when food-likelihood < 0.49;
+- uncertain content remains revisable, so absence from catalog or finite vocabulary is not itself a rejection;
+- withheld positive and negative members were exercised together at the production classifier boundary;
+- withheld negative literals are absent from production discriminator source.
 
---- COLLISION SCAN ---
-material_head_sha=9f9a785745081e01adf4536bc85a4360fa851d35
-extended_control_matrix=103 cases (38 positive, 65 negative), fail=0
-base_control_matrix=74/74, fail=0
-static_catalog_collision_scan=182 FOOD_CATALOG_REFERENCE names/aliases, fail=0
-taco_ambiguous_head_collision_scan=0 known-name collisions
-attack_literal_presence_in_production_classifier:
-PASS absent: querosene aeronáutico
-PASS absent: solvente industrial
-PASS absent: fluido automotivo
-PASS absent: anticongelante concentrado
-PASS absent: munição esportiva
-
---- SKILL CONTROLS ---
-OPEN-BIDIRECTIONAL-UNSEEN-001 generic Skill controls
-entregar-issue focused prevention + learning/escape contract suite: 21 passed in 9.41s
-auditar-issue focused detection + learning/escape contract suite: included in the same 21 passing tests
-entregar genericity: READY: skill permanent assets are free of obvious issue-number coupling
-auditar genericity: READY: skill permanent assets are free of obvious issue-number coupling
-entregar before_sha256=ae90147fd64e0df7aa39118d50ec6061e73623badec6f92fc18ad4927fd48260
-entregar after_sha256=11857327a9ef2aac7eb08b32ea5d2caf01f119013aceee5b89c3d3e4bc450033
-auditar before_sha256=01624d4a3899c34222339664301f4951a0676eb3afdca16c2fa3cfee41f0b851
-auditar after_sha256=6ca516630f8898e5ec145f255b6393c0fa9f9e18ac18fe144a1f20bc0ba0c5d4
+Other issue requirements are inherited unchanged from the previously validated material: local plum normalization, specific-variant precedence, fallback telemetry, documentation, and develop base.

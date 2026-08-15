@@ -57,7 +57,6 @@ Exemplos que devem continuar sendo removidos como ruído:
 - outros objetos sem indicação de alimento
 
 Evitar uma solução baseada apenas em remoção dos termos da lista ou em trocar o teste atual por igualdade exata. A correção deve preservar preparações válidas sem passar a aceitar descrições compostas claramente não alimentares.
-
 ### B. Corrigir reconhecimento de `ameixa roxa`
 
 Garantir que `ameixa roxa` seja resolvida para uma referência real de ameixa, preferencialmente `Ameixa, crua`, em vez do fallback genérico.

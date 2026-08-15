@@ -1,7 +1,13 @@
-entregar genericity
-READY: skill permanent assets are free of obvious issue-number coupling
-auditar genericity
-READY: skill permanent assets are free of obvious issue-number coupling
-focused contract suite
-..........                                                               [100%]
-10 passed in 3.73s
+SYSTEMIC ESCAPE PROMOTION
+prevention_skill=/home/oai/skills/entregar-issue
+prevention_before=69646323a19915c5e20a417ee746f2cf3eee2094850b54046209b3e7d5ac2c6f
+prevention_after=6a45cbe49203bc711c1c6b0feea69f44a2a1c526149abc258bd917198e6a694c
+detection_skill=/home/oai/skills/auditar-issue
+detection_before=d966ce430fe91c429374a2a53dc5e8d08ca8607029e4b1673c6cf2500246561f
+detection_after=83b0f6f90c828ab2b1611f384ccfff1185d8817fcb3d0587f4091bad15a1f855
+control_id=OPEN-CLASS-BIDIR-001
+focused_prevention_test=PASS
+genericity_prevention=READY
+focused_detection_test=PASS
+genericity_detection=READY
+ecosystem_fast_profile=15 passed, 0 failed

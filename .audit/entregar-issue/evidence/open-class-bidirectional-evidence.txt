@@ -1,0 +1,28 @@
+control_id=OPEN-CLASS-BIDIR-001
+material_head_sha=1729c33f717c343fb48e1539a4b28d30054d2921
+boundary=isContainerObjectOnlyDescription via the same predicate consumed by cleanMealItems
+runtime=connector-only ephemeral TypeScript compilation with real production classifier and local stubs only for catalog lookup/normalization
+
+Negative withheld controls (expected reject=true):
+NEG 0.1112 true Pote de caderno escolar
+NEG 0.0628 true Copo de sapato esportivo
+NEG 0.4171 true Tigela com livro didático
+NEG 0.3042 true Travessa de violão elétrico
+NEG 0.1622 true Marmita de revista acadêmica
+NEG 0.0799 true Panela com controle remoto
+POS 0.6892 false Copo de kvass
+POS 0.7597 false Prato de injera
+POS 0.7562 false Pote de mochi
+POS 0.6603 false Tigela de okonomiyaki caseiro
+POS 0.5579 false Bandeja de arepa venezuelana
+POS 0.8037 false Pote de kimchi industrializado
+POS 0.7809 false Copo de bubble tea
+
+Production-literal leakage control:
+HOLDOUT-LITERAL-SCAN PASS: production discriminator contains none of the withheld control literals.
+
+Regression interpretation:
+- all negative withheld members were rejected;
+- all positive withheld members remained revisable;
+- catalog absence was stubbed for the holdout exercise, so acceptance was not caused by a finite positive catalog;
+- production discriminator/model source contains none of the withheld negative control literals.

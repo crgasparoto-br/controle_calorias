@@ -1,1 +1,1 @@
-{"schema_version":1,"material_head_sha":"9f9a785745081e01adf4536bc85a4360fa851d35","issue":982,"pr":983,"base":"develop","summary":"Container cleanup now uses affirmative bidirectional semantic evidence across open positive and negative classes, covering inflection, homonyms and unseen siblings without hardcoding audit phrases."}
+{"schema_version":1,"material_head_sha":"1729c33f717c343fb48e1539a4b28d30054d2921","issue":982,"pr":983,"base":"develop","summary":"Neutral packet contains canonical specification identity, material diff identity and raw validation evidence only."}
