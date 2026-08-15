@@ -1,6 +1,6 @@
 import { normalizeForMatching } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
-import { hasHighConfidenceNonFoodLexicalEvidence } from "./mealContainerSemanticEvidence";
+import { hasHighConfidenceNonFoodLexicalEvidence, scoreContainerContentFoodLikelihood } from "./mealContainerSemanticEvidence";
 
 const NON_FOOD_OBJECT_TERMS = new Set([
   "prato",
@@ -129,6 +129,45 @@ const CLEARLY_NON_FOOD_NOUN_STEM_PATTERNS = [
   /^(?:areia|diamant|joia|lixo|moeda|racao|rotulo)/,
 ];
 
+// Modificadores contextuais descrevem finalidade, estado, tecnologia ou acabamento
+// do objeto, em vez de enumerar o substantivo principal. Eles sao avaliados antes
+// do classificador lexical para impedir que um score incidentalmente alimentar
+// transforme "recipiente + objeto qualificado" em refeicao. O conjunto e formado
+// por familias/stems transferiveis; alimentos conhecidos continuam prevalecendo.
+const NON_FOOD_CONTEXT_HEAD_MAX_FOOD_PROBABILITY = 0.65;
+const STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS = [
+  // Uso institucional, tecnico ou funcional.
+  /^(?:academ|administrativ|automotiv|cientif|corporativ|didat|domestic|eletric|eletron|escolar|esportiv|hospitalar|mecanic|medic|militar|oficial|profission|sanitari|tecnic)/,
+  // Conectividade, controle e interfaces de dispositivos.
+  /^(?:bluetooth|digital|hdmi|inteligent|laser|multimidi|remot|usb|wifi|wireless)/,
+  // Estado, acabamento, materialidade ou propriedade tipica de artefato.
+  /^(?:brilhant|descartav|dobrav|fosco|metal|nitril|plast|portat|protet|quebrad|rachad|recicl|resistent|reutiliz|sextavad|sintetic|temperad|transluc|transparent)/,
+];
+
+const AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS = [
+  // Cores, dimensoes e relacoes fisicas tambem podem qualificar alimentos.
+  /^(?:azul|branc|cinza|dourad|grau|long|pret|redond|verd|vermelh)/,
+];
+
+function hasStrongNonFoodContextModifier(contentTokens: string[]) {
+  if (contentTokens.length < 2) return false;
+
+  const modifiers = contentTokens.slice(1);
+  if (modifiers.some(token => tokenMatchesAnyPattern(token, STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS))) {
+    return true;
+  }
+
+  const hasAmbiguousObjectModifier = modifiers.some(token =>
+    tokenMatchesAnyPattern(token, AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS),
+  );
+  if (!hasAmbiguousObjectModifier) return false;
+
+  // Cores e dimensoes so vetam a leitura alimentar quando o nucleo nao traz
+  // sinal lexical forte de comida. Isso preserva "curry vermelho" e semelhantes,
+  // mas continua removendo descricoes como "caneta azul" sem enumerar o objeto.
+  return scoreContainerContentFoodLikelihood(contentTokens[0]) < NON_FOOD_CONTEXT_HEAD_MAX_FOOD_PROBABILITY;
+}
+
 function canonicalObjectTerm(token: string) {
   return OBJECT_TERM_ALIASES.get(token) ?? token;
 }
@@ -256,13 +295,16 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (strongNonFood) {
     return true;
   }
+  if (hasStrongNonFoodContextModifier(contentTokens)) {
+    return true;
+  }
   if (hasHighConfidenceNonFoodLexicalEvidence(content)) {
     return true;
   }
 
-  // No mundo aberto, o modelo lexical funciona somente como evidência negativa
-  // afirmativa de alta confiança. Conteúdo incerto permanece revisável, evitando
-  // transformar ausência no catálogo ou em qualquer vocabulário finito numa
-  // decisão semântica por default.
+  // No mundo aberto, somente evidencia negativa afirmativa e de alta margem
+  // descarta o item. O classificador lexical e um sinal auxiliar, nao um default
+  // semantico: conteudo incerto permanece revisavel para preservar preparacoes
+  // novas sem depender de catalogo finito ou calibracao contra fixtures fixos.
   return false;
 }

@@ -48,4 +48,43 @@ describe("open container-content classes issue #982", () => {
 
     expect(withheldPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
   });
+
+  it("fecha a regressão de generalização encontrada na auditoria independente", () => {
+    const independentNegatives = [
+      "Pote de óculos de grau",
+      "Copo de caneta azul",
+      "Tigela com roteador wifi",
+    ];
+    const independentPositives = [
+      "Prato de bibimbap",
+      "Tigela de ramen caseiro",
+      "Travessa de paella vegetariana",
+      "Bandeja de croissant recheado",
+    ];
+
+    expect(independentNegatives.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+    expect(independentPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
+  it("exercita famílias irmãs sem depender dos substantivos do finding", () => {
+    const siblingNegatives = [
+      "Pote de scanner portátil",
+      "Copo de capacete vermelho",
+      "Tigela com manual técnico",
+      "Travessa de documento oficial",
+      "Marmita de brinquedo digital",
+    ];
+    const siblingPositives = [
+      "Copo de skyr artesanal",
+      "Prato de börek recheado",
+      "Pote de dosa masala",
+      "Tigela de harira marroquina",
+      "Travessa de khachapuri assado",
+      "Copo de curry vermelho",
+    ];
+
+    expect(siblingNegatives.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+    expect(siblingPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
 });
