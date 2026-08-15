@@ -35,50 +35,62 @@ const FOOD_CONTENT_CONNECTORS = new Set(["de", "da", "das", "do", "dos", "com"])
 const NON_FOOD_CONNECTORS = new Set(["a", "as", "o", "os", ...FOOD_CONTENT_CONNECTORS, "sem"]);
 const EXPLICIT_NON_FOOD_PHRASES = new Set(["marmita vazia", "mesa posta", "decoracao"]);
 
-// Preparacoes culinarias que podem ser validas mesmo sem entrada propria na TACO.
-// Esta lista funciona somente como evidencia positiva. A ausencia de um termo aqui
-// nunca transforma um complemento desconhecido em alimento: descricoes iniciadas
-// por recipiente continuam conservadoramente sendo ruido sem outro sinal positivo.
-const UNCATALOGUED_FOOD_SIGNALS = new Set([
-  "bebida",
-  "bibimbap",
-  "bubble tea",
-  "caldo",
-  "ceviche",
-  "curry",
-  "doce",
-  "ensopado",
-  "falafel",
-  "guacamole",
-  "hummus",
-  "kebab",
-  "kombucha",
-  "lasanha",
-  "massa",
-  "milkshake",
-  "mingau",
-  "moqueca",
-  "mousse",
-  "onigiri",
-  "paella",
-  "poke",
-  "quiche",
-  "ramen",
-  "risoto",
-  "salada",
-  "sanduiche",
-  "shake",
-  "shawarma",
-  "smoothie",
-  "sobremesa",
-  "sopa",
-  "sorvete",
-  "sushi",
-  "taco",
-  "temaki",
-  "vitamina",
-  "wrap",
-  "yakisoba",
+// Evidencia negativa forte para complementos que descrevem material, componente,
+// produto de limpeza/cuidado pessoal, ferragem ou outro artefato. Esta lista nao
+// e usada como allowlist positiva. A evidencia positiva estrutural e o proprio
+// conector de conteudo ("de/com") em um recipiente que tambem representa porcao;
+// termos desta taxonomia apenas vetam essa leitura quando o complemento traz um
+// nucleo inequivocamente nao alimentar.
+const NON_FOOD_CONTENT_HEAD_TERMS = new Set([
+  "acessorio",
+  "acrilico",
+  "alca",
+  "aluminio",
+  "arame",
+  "bateria",
+  "borracha",
+  "brinquedo",
+  "cabo",
+  "celular",
+  "ceramica",
+  "cimento",
+  "cola",
+  "componente",
+  "cosmetico",
+  "detergente",
+  "dispositivo",
+  "eletronico",
+  "embalagem",
+  "equipamento",
+  "espuma",
+  "ferramenta",
+  "fio",
+  "higiene",
+  "isopor",
+  "lixo",
+  "madeira",
+  "maquiagem",
+  "material",
+  "medicamento",
+  "metal",
+  "papel",
+  "papelao",
+  "parafuso",
+  "peca",
+  "plastico",
+  "porcelana",
+  "pressao",
+  "produto",
+  "resina",
+  "sabao",
+  "shampoo",
+  "silicone",
+  "tampa",
+  "tecido",
+  "telefone",
+  "tinta",
+  "verniz",
+  "vidro",
 ]);
 
 function candidateContainsExactFoodSignal(value: string) {
@@ -113,13 +125,8 @@ function hasKnownFoodSignal(value: string) {
   return false;
 }
 
-function hasUncataloguedFoodSignal(value: string) {
-  const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
-  if (!normalized) return false;
-
-  return Array.from(UNCATALOGUED_FOOD_SIGNALS).some(signal =>
-    (` ${normalized} `).includes(` ${signal} `),
-  );
+function hasExplicitNonFoodContentHead(contentTokens: string[]) {
+  return contentTokens.some(token => NON_FOOD_CONTENT_HEAD_TERMS.has(token));
 }
 
 export function isContainerObjectOnlyDescription(value: string) {
@@ -146,8 +153,9 @@ export function isContainerObjectOnlyDescription(value: string) {
     return false;
   }
 
-  // Para recipientes que tambem podem descrever uma porcao, um modificador
-  // arbitrario sem conector continua nao sendo evidencia de alimento.
+  // Sem um conector de conteudo, um modificador arbitrario de recipiente nao e
+  // suficiente para afirmar que existe alimento (ex.: "copo azul"). Esse ramo
+  // permanece aberto para qualquer modificador, sem enumerar adjetivos.
   const connectorIndex = tokens.findIndex((token, index) =>
     index > headIndex && FOOD_CONTENT_CONNECTORS.has(token),
   );
@@ -158,12 +166,11 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (!contentTokens.length) return true;
 
   const content = contentTokens.join(" ");
-  if (hasKnownFoodSignal(content) || hasUncataloguedFoodSignal(content)) {
-    return false;
-  }
+  if (hasKnownFoodSignal(content)) return false;
 
-  // Ausencia em uma lista negativa, quantidade de tokens ou profundidade nao e
-  // evidencia de alimento. Para descricoes iniciadas por recipiente, complemento
-  // desconhecido sem sinal alimentar positivo permanece conservadoramente ruido.
-  return true;
+  // Depois de "recipiente + de/com", a frase expressa conteudo/porcao. Para nao
+  // transformar uma classe positiva aberta em uma allowlist finita, preparacoes
+  // desconhecidas continuam revisaveis. So descartamos quando existe evidencia
+  // afirmativa de que o complemento e material/componente/artefato nao alimentar.
+  return hasExplicitNonFoodContentHead(contentTokens);
 }

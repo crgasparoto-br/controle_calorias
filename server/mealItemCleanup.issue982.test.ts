@@ -136,20 +136,30 @@ describe("cleanMealItems issue #982", () => {
     expect(implicitServingContent.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
   });
 
-  it("preserva preparações culinárias fora da TACO somente com evidência positiva", () => {
+  it("preserva preparações culinárias fora da TACO sem exigir allowlist positiva", () => {
     const uncataloguedPreparations = [
-      "Copo de smoothie de pitaya",
-      "Tigela com bubble tea",
-      "Pote de sobremesa artesanal",
-      "Bandeja de sushi vegano",
-      "Travessa com lasanha caseira",
-      "Panela com curry tailandês",
-      "Marmita de bibimbap coreano artesanal",
-      "Copo de kombucha fermentada",
-      "Tigela de ramen artesanal",
-      "Bandeja de falafel assado",
+      "Pote de tiramisu artesanal",
+      "Tigela de panna cotta de baunilha",
+      "Travessa com baklava de pistache",
+      "Marmita de pierogi tradicional",
+      "Panela com shakshuka picante",
+      "Copo de lassi salgado",
     ];
 
     expect(uncataloguedPreparations.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
+  it("mantém os controles negativos cruzados ao abrir a classe positiva", () => {
+    const clearlyNonFoodContents = [
+      "Pote de shampoo anticaspa",
+      "Copo de detergente clorado",
+      "Tigela de maquiagem mineral",
+      "Bandeja de equipamento eletrônico portátil",
+      "Travessa de material sintético resistente",
+      "Marmita com medicamento infantil",
+      "Panela com dispositivo eletrônico",
+    ];
+
+    expect(clearlyNonFoodContents.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
   });
 });
