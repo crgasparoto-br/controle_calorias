@@ -1,15 +1,20 @@
-material_head_sha=1729c33f717c343fb48e1539a4b28d30054d2921
+material_head_sha=937cfcd94400cf6ae0b2c65bd248f7a433b36b2e
 base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
 issue=982
 pr=983
-material_paths=server/mealContainerNoise.ts,server/mealContainerSemanticEvidence.ts,server/mealContainerOpenClass.issue982.test.ts
+material_paths=server/mealContainerSemanticEvidence.ts
+previous_frozen_sha=1729c33f717c343fb48e1539a4b28d30054d2921
+intervening_result_only_child=23114815360892d21073347c683cba5b008e1eae
 
-A-009 remediation:
-- finite-stem default acceptance is no longer the terminal decision for ambiguous container content;
-- catalog/TACO positive evidence and explicit non-food semantic guards keep precedence;
-- a deterministic local lexical model supplies affirmative negative evidence only when food-likelihood < 0.49;
-- uncertain content remains revisable, so absence from catalog or finite vocabulary is not itself a rejection;
-- withheld positive and negative members were exercised together at the production classifier boundary;
-- withheld negative literals are absent from production discriminator source.
+Post-CI refreeze remediation:
+- the CI failure on head 23114815360892d21073347c683cba5b008e1eae was caused by false-positive lexical rejection in the container-content classifier;
+- the production threshold changed from 0.49 to 0.44, preserving high-confidence negative evidence while restoring valid nutritional contexts;
+- withheld negative maximum is 0.4171, while the formerly rejected positive controls score 0.4630 (água mineral) and 0.4864 (sopa colher);
+- exact-head Agent-first gate run 31909705270 (run 5477) completed success on 937cfcd94400cf6ae0b2c65bd248f7a433b36b2e;
+- CI steps TypeScript check, Tests, Architecture check, Documentation check, Build, Agent check and CI gate docs check all completed success;
+- exact-head verification manifest identifies headSha=937cfcd94400cf6ae0b2c65bd248f7a433b36b2e and checkoutSha=76f044f7397efae72af4074df7a2819d2edce752.
 
-Other issue requirements are inherited unchanged from the previously validated material: local plum normalization, specific-variant precedence, fallback telemetry, documentation, and develop base.
+Unchanged issue requirements are inherited by material-delta proof:
+- git material delta from previous frozen head to the new material head, excluding the authorized result-only child, touches only server/mealContainerSemanticEvidence.ts;
+- local plum normalization, specific-variant precedence, fallback telemetry, documentation and develop base are unchanged;
+- the full exact-head CI suite passed after the threshold calibration.

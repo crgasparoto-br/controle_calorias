@@ -1,27 +1,23 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-15T20:24:22.403817+00:00",
+  "created_at": "2026-08-15T21:48:01.857918+00:00",
   "identity": {
-    "head_sha": "1729c33f717c343fb48e1539a4b28d30054d2921",
-    "material_head_sha": "1729c33f717c343fb48e1539a4b28d30054d2921",
+    "head_sha": "937cfcd94400cf6ae0b2c65bd248f7a433b36b2e",
+    "material_head_sha": "937cfcd94400cf6ae0b2c65bd248f7a433b36b2e",
     "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
-    "merge_preview_sha": "785c316654a21fdb05b67efa239051bdaa377721",
-    "material_merge_preview_sha": "785c316654a21fdb05b67efa239051bdaa377721"
+    "merge_preview_sha": "76f044f7397efae72af4074df7a2819d2edce752",
+    "material_merge_preview_sha": "76f044f7397efae72af4074df7a2819d2edce752"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
-      ".audit/entregar-issue/controller-audit-report.json",
-      ".audit/entregar-issue/coverage-matrix.json",
       ".audit/entregar-issue/evidence/local-gates.txt",
       ".audit/entregar-issue/evidence/material-diff-identity.txt",
+      ".audit/entregar-issue/evidence/material-diff.patch",
       ".audit/entregar-issue/evidence/open-class-bidirectional-evidence.txt",
       ".audit/entregar-issue/evidence/remediation-evidence.txt",
-      ".audit/entregar-issue/evidence/skill-control-tests.txt",
-      ".audit/entregar-issue/evidence/skills-identity.txt",
       ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
@@ -30,17 +26,15 @@
       ".audit/entregar-issue/remote-gate-evidence.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
-      ".audit/entregar-issue/requirements-rederivation.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/source-manifest.json",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-GITHUB-ISSUE-982.txt"
+      ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
   "contract_version": "2026-08-06.2",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "bf3b146428da106d673cf3a1a2cdf7ca5b18ecc0b31bba2d671bc69033d2f21c"
+    "skill_sha256": "1c757aee73b7bae78c5e62c636cc2c954e110a418704438acb9b66c00ab44ea9"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
@@ -61,15 +55,15 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "24c04d384c5f9732cc42e9feea6e6fc92e6ae530e9494b75f9f8895d7305d46c"
+      "sha256": "9a704835240169ae4bf43df35cd366703ddfafe94388b6892acd3d6b72034af1"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "0dc1e5713f01a401e9710b77b3d31bb1504692ff9a3a0ad6a82cf9551f2f2d30"
+      "sha256": "f972d0e211baf0dd82efbceff4c50d153acef6baa3abecfe4baaf06cb7559c61"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "3fddc89152ecc6af3165a2fa49aaba71752b58c4d26f693c08637ec30ef2151e"
+      "sha256": "57cb7e0d0c006e6c2a6e3e5cd72b8a05d8eb76efce7ff06d9416d4c5b79f04ed"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",

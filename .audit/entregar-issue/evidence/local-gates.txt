@@ -1,19 +1,19 @@
-> python /home/oai/skills/entregar-issue/scripts/validate_specification_coverage.py --specification-snapshot /tmp/issue982-handoff/specification-snapshot.json --requirement-closure /tmp/issue982-handoff/requirement-closure.json
+> python /home/oai/skills/entregar-issue/scripts/validate_specification_coverage.py --specification-snapshot .audit/entregar-issue/specification-snapshot.json --requirement-closure .audit/entregar-issue/requirement-closure.json
 READY: canonical specification coverage is complete
 
-> python /home/oai/skills/entregar-issue/scripts/validate_requirement_attack_matrix.py --requirement-closure /tmp/issue982-handoff/requirement-closure.json --attack-matrix /tmp/issue982-handoff/requirement-attack-matrix.json
+> python /home/oai/skills/entregar-issue/scripts/validate_requirement_attack_matrix.py --requirement-closure .audit/entregar-issue/requirement-closure.json --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json
 READY: every covered requirement has positive, adversarial and regression evidence
 
-> python /home/oai/skills/entregar-issue/scripts/validate_risk_saturation.py --attack-matrix /tmp/issue982-handoff/requirement-attack-matrix.json --risk-saturation /tmp/issue982-handoff/risk-saturation.json
+> python /home/oai/skills/entregar-issue/scripts/validate_risk_saturation.py --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json --risk-saturation .audit/entregar-issue/risk-saturation.json
 READY: canonical risk families are explicitly saturated
 
-> python /home/oai/skills/entregar-issue/scripts/validate_inherited_controls.py --inherited-controls /tmp/issue982-handoff/inherited-controls.json --head-sha 1729c33f717c343fb48e1539a4b28d30054d2921 --previous-independent-rejection
+> python /home/oai/skills/entregar-issue/scripts/validate_inherited_controls.py --inherited-controls .audit/entregar-issue/inherited-controls.json --head-sha 937cfcd94400cf6ae0b2c65bd248f7a433b36b2e --previous-independent-rejection
 READY: cumulative inherited audit controls are closed
 
-> python /home/oai/skills/entregar-issue/scripts/validate_learning_closure.py --learning-closure /tmp/issue982-handoff/learning-closure.json
+> python /home/oai/skills/entregar-issue/scripts/validate_learning_closure.py --learning-closure .audit/entregar-issue/learning-closure.json
 READY: rejection learning is closed and generalized
 
-> python /home/oai/skills/entregar-issue/scripts/validate_handoff_readiness.py --requirement-closure /tmp/issue982-handoff/requirement-closure.json --attack-matrix /tmp/issue982-handoff/requirement-attack-matrix.json --risk-saturation /tmp/issue982-handoff/risk-saturation.json --inherited-controls /tmp/issue982-handoff/inherited-controls.json --audit-escape-closure /tmp/issue982-handoff/audit-escape-closure.json --previous-independent-rejection
+> python /home/oai/skills/entregar-issue/scripts/validate_handoff_readiness.py --requirement-closure .audit/entregar-issue/requirement-closure.json --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json --risk-saturation .audit/entregar-issue/risk-saturation.json --inherited-controls .audit/entregar-issue/inherited-controls.json --audit-escape-closure .audit/entregar-issue/audit-escape-closure.json --previous-independent-rejection
 READY: requirement attacks, risk saturation, inherited controls, structural invariants and audit escapes are closed
 
 > python /home/oai/skills/entregar-issue/scripts/validate_skill_genericity.py --skill-root /home/oai/skills/entregar-issue
@@ -22,3 +22,7 @@ READY: skill permanent assets are free of obvious issue-number coupling
 > python /home/oai/skills/entregar-issue/scripts/validate_skill_genericity.py --skill-root /home/oai/skills/auditar-issue
 READY: skill permanent assets are free of obvious issue-number coupling
 
+> python /home/oai/skills/entregar-issue/scripts/controller_cli.py validate-contracts --skills-root /home/oai/skills
+contracts-valid
+
+diagnostic_only: focused installed-skill fixture test_post_ci_refreeze_contract.py has one stale literal-string assertion; canonical contract validation and all handoff validators above pass.

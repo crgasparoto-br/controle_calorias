@@ -2,10 +2,10 @@ repository=crgasparoto-br/controle_calorias
 issue=982
 pr=983
 base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
-material_head_sha=1729c33f717c343fb48e1539a4b28d30054d2921
-merge_preview_sha=785c316654a21fdb05b67efa239051bdaa377721
-parent_sha=62edc63b74b1c9d73821b1ed3370e8f6df891352
-changed_paths:
-server/mealContainerNoise.ts modified +12 -10
-server/mealContainerOpenClass.issue982.test.ts added +51 -0
-server/mealContainerSemanticEvidence.ts added +47 -0
+previous_frozen_sha=1729c33f717c343fb48e1539a4b28d30054d2921
+intervening_result_only_child=23114815360892d21073347c683cba5b008e1eae
+material_head_sha=937cfcd94400cf6ae0b2c65bd248f7a433b36b2e
+merge_preview_sha=76f044f7397efae72af4074df7a2819d2edce752
+material_delta_policy=exclude .audit/entregar-issue result-only paths
+changed_material_paths:
+server/mealContainerSemanticEvidence.ts modified +1 -1
