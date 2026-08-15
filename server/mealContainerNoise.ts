@@ -20,6 +20,25 @@ const NON_FOOD_OBJECT_TERMS = new Set([
   "marmita",
 ]);
 
+const OBJECT_TERM_ALIASES = new Map<string, string>([
+  ["pratos", "prato"],
+  ["talheres", "talher"],
+  ["garfos", "garfo"],
+  ["facas", "faca"],
+  ["colheres", "colher"],
+  ["guardanapos", "guardanapo"],
+  ["mesas", "mesa"],
+  ["bandejas", "bandeja"],
+  ["embalagens", "embalagem"],
+  ["rotulos", "rotulo"],
+  ["copos", "copo"],
+  ["tigelas", "tigela"],
+  ["potes", "pote"],
+  ["panelas", "panela"],
+  ["travessas", "travessa"],
+  ["marmitas", "marmita"],
+]);
+
 const FOOD_SERVING_CONTAINER_TERMS = new Set([
   "copo",
   "tigela",
@@ -34,64 +53,123 @@ const FOOD_SERVING_CONTAINER_TERMS = new Set([
 const FOOD_CONTENT_CONNECTORS = new Set(["de", "da", "das", "do", "dos", "com"]);
 const NON_FOOD_CONNECTORS = new Set(["a", "as", "o", "os", ...FOOD_CONTENT_CONNECTORS, "sem"]);
 const EXPLICIT_NON_FOOD_PHRASES = new Set(["marmita vazia", "mesa posta", "decoracao"]);
-
-// Evidencia negativa forte para complementos que descrevem material, componente,
-// produto de limpeza/cuidado pessoal, ferragem ou outro artefato. Esta lista nao
-// e usada como allowlist positiva. A evidencia positiva estrutural e o proprio
-// conector de conteudo ("de/com") em um recipiente que tambem representa porcao;
-// termos desta taxonomia apenas vetam essa leitura quando o complemento traz um
-// nucleo inequivocamente nao alimentar.
-const NON_FOOD_CONTENT_HEAD_TERMS = new Set([
-  "acessorio",
-  "acrilico",
-  "alca",
-  "aluminio",
-  "arame",
-  "bateria",
-  "borracha",
-  "brinquedo",
-  "cabo",
-  "celular",
-  "ceramica",
-  "cimento",
-  "cola",
-  "componente",
-  "cosmetico",
-  "detergente",
-  "dispositivo",
-  "eletronico",
-  "embalagem",
-  "equipamento",
-  "espuma",
-  "ferramenta",
-  "fio",
-  "higiene",
-  "isopor",
-  "lixo",
-  "madeira",
-  "maquiagem",
-  "material",
-  "medicamento",
-  "metal",
-  "papel",
-  "papelao",
-  "parafuso",
-  "peca",
-  "plastico",
-  "porcelana",
-  "pressao",
-  "produto",
-  "resina",
-  "sabao",
-  "shampoo",
-  "silicone",
-  "tampa",
-  "tecido",
-  "telefone",
-  "tinta",
-  "verniz",
-  "vidro",
+const LEADING_DETERMINERS = new Set([
+  "o",
+  "a",
+  "os",
+  "as",
+  "um",
+  "uma",
+  "uns",
+  "umas",
+  "meu",
+  "minha",
+  "meus",
+  "minhas",
+  "meio",
+  "meia",
 ]);
+const LEADING_NUMBER_WORDS = new Set([
+  "um",
+  "uma",
+  "dois",
+  "duas",
+  "tres",
+  "quatro",
+  "cinco",
+  "seis",
+  "sete",
+  "oito",
+  "nove",
+  "dez",
+]);
+
+// Alguns nomes também são alimentos em certos contextos (por exemplo, óleo,
+// água, pasta, creme e gel). Para esses núcleos, evidência forte de domínio
+// não alimentar deve prevalecer sobre um match alimentar genérico do catálogo.
+const AMBIGUOUS_FOOD_CONTENT_HEADS = new Set([
+  "agua",
+  "creme",
+  "fluido",
+  "gel",
+  "liquido",
+  "oleo",
+  "pasta",
+  "po",
+]);
+
+// A detecção negativa é organizada por famílias semânticas/stems, e não por
+// frases de auditoria. Isso permite reconhecer variações flexionadas e novos
+// compostos da mesma família sem transformar ausência em uma lista finita em
+// evidência positiva de alimento. O fallback para conteúdo desconhecido continua
+// sendo revisável para preservar a classe positiva aberta.
+const NON_FOOD_CONTENT_STEM_PATTERNS = [
+  // Materiais, construção e componentes físicos.
+  /^(?:acessor|acril|alca|alumin|arame|argamass|arruel|borrach|brita|cabo|ceramic|cimento|concret|espuma|ferrament|fio|gesso|isopor|madeir|material|metal|papel|papelao|parafus|peca|plast|porca|porcelan|pressao|resin|silicon|tampa|tecid|verniz|vidro)/,
+  // Limpeza, higiene, cosméticos e substâncias técnicas.
+  /^(?:anticongel|condicionador|cosmetic|desinfet|detergent|diesel|esmalte|fertiliz|gasolin|grax|herbicid|higien|inseticid|querosen|lubrific|maquiag|perfume|pesticid|sabao|shampoo|solvent|tinta|toxic|venen)/,
+  // Eletrônicos, ferramentas, energia e artefatos.
+  /^(?:bateri|brinqued|carregador|celular|dispositiv|eletronic|embalagem|equipament|pilha|telefone|toner)/,
+  // Saúde, armas e outros itens incompatíveis com registro nutricional humano.
+  /^(?:cartuch|medic|munic|polvor|remedi|vacina)/,
+];
+
+const AMBIGUOUS_HEAD_NON_FOOD_CONTEXT = new Map<string, RegExp[]>([
+  ["agua", [/^(?:oxigenad|sanitari)/]],
+  ["creme", [/^(?:capilar|cosmetic|dent|hidratant|pele)/]],
+  ["fluido", [/^(?:arrefec|automotiv|freio|hidraul|motor|radiador|transmissao)/]],
+  ["gel", [/^(?:alcool|cabelo|capilar|cosmetic|sanitiz|ultrassom)/]],
+  ["liquido", [/^(?:arrefec|automotiv|freio|hidraul|limpeza|motor|radiador|transmissao)/]],
+  ["oleo", [/^(?:freio|hidraul|lubrific|mecanic|mineral|motor|transmissao)/]],
+  ["pasta", [/^(?:dent|poliment|solda)/]],
+  ["po", [/^(?:extintor)/]],
+]);
+
+const CLEARLY_NON_FOOD_NOUN_STEM_PATTERNS = [
+  /^(?:areia|diamant|joia|lixo|moeda|racao|rotulo)/,
+];
+
+function canonicalObjectTerm(token: string) {
+  return OBJECT_TERM_ALIASES.get(token) ?? token;
+}
+
+function isLeadingStructuralToken(token: string) {
+  return LEADING_DETERMINERS.has(token)
+    || LEADING_NUMBER_WORDS.has(token)
+    || NON_FOOD_CONNECTORS.has(token)
+    || /^\d+(?:[,.]\d+)?$/.test(token);
+}
+
+function findObjectHead(tokens: string[]) {
+  let headIndex = 0;
+  while (headIndex < tokens.length && isLeadingStructuralToken(tokens[headIndex])) {
+    headIndex += 1;
+  }
+  if (headIndex >= tokens.length) return null;
+
+  const head = canonicalObjectTerm(tokens[headIndex]);
+  if (!NON_FOOD_OBJECT_TERMS.has(head)) return null;
+  return { head, headIndex };
+}
+
+function tokenMatchesAnyPattern(token: string, patterns: RegExp[]) {
+  return patterns.some(pattern => pattern.test(token));
+}
+
+function hasStrongNonFoodEvidence(contentTokens: string[]) {
+  return contentTokens.some(token =>
+    tokenMatchesAnyPattern(token, NON_FOOD_CONTENT_STEM_PATTERNS)
+    || tokenMatchesAnyPattern(token, CLEARLY_NON_FOOD_NOUN_STEM_PATTERNS),
+  );
+}
+
+function hasAmbiguousHeadWithNonFoodContext(contentTokens: string[]) {
+  const contentHead = contentTokens[0];
+  if (!AMBIGUOUS_FOOD_CONTENT_HEADS.has(contentHead)) return false;
+
+  const contextPatterns = AMBIGUOUS_HEAD_NON_FOOD_CONTEXT.get(contentHead) ?? [];
+  return contentTokens.slice(1).some(token => tokenMatchesAnyPattern(token, contextPatterns));
+}
 
 function candidateContainsExactFoodSignal(value: string) {
   const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
@@ -125,8 +203,11 @@ function hasKnownFoodSignal(value: string) {
   return false;
 }
 
-function hasExplicitNonFoodContentHead(contentTokens: string[]) {
-  return contentTokens.some(token => NON_FOOD_CONTENT_HEAD_TERMS.has(token));
+function shouldNonFoodEvidenceOverrideFoodSignal(contentTokens: string[]) {
+  const contentHead = contentTokens[0];
+  return AMBIGUOUS_FOOD_CONTENT_HEADS.has(contentHead)
+    && (hasStrongNonFoodEvidence(contentTokens.slice(1))
+      || hasAmbiguousHeadWithNonFoodContext(contentTokens));
 }
 
 export function isContainerObjectOnlyDescription(value: string) {
@@ -135,27 +216,26 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (EXPLICIT_NON_FOOD_PHRASES.has(normalized)) return true;
 
   const tokens = normalized.split(/\s+/).filter(Boolean);
-  const headIndex = tokens.findIndex(token => !NON_FOOD_CONNECTORS.has(token));
-  if (headIndex < 0) return false;
+  const objectHead = findObjectHead(tokens);
+  if (!objectHead) return false;
 
-  const head = tokens[headIndex];
-  if (!NON_FOOD_OBJECT_TERMS.has(head)) return false;
+  const { head, headIndex } = objectHead;
 
-  // Objetos que nao representam recipientes/porcoes alimentares continuam sendo
-  // ruido mesmo quando recebem modificadores arbitrarios (ex.: "mesa redonda").
+  // Objetos que não representam recipientes/porções alimentares continuam sendo
+  // ruído mesmo quando recebem modificadores arbitrários (ex.: "mesa redonda").
   if (!FOOD_SERVING_CONTAINER_TERMS.has(head)) return true;
 
-  // Um alimento conhecido e evidencia positiva mesmo quando o usuario omite
-  // "de/com" (ex.: "copo acai", "marmita frango arroz").
+  // Um alimento conhecido é evidência positiva mesmo quando o usuário omite
+  // "de/com" (ex.: "copo açaí", "marmita frango arroz").
   const trailingContent = tokens.slice(headIndex + 1)
     .filter(token => !NON_FOOD_CONNECTORS.has(token));
-  if (trailingContent.length && hasKnownFoodSignal(trailingContent.join(" "))) {
+  if (trailingContent.length && hasKnownFoodSignal(trailingContent.join(" "))
+    && !shouldNonFoodEvidenceOverrideFoodSignal(trailingContent)) {
     return false;
   }
 
-  // Sem um conector de conteudo, um modificador arbitrario de recipiente nao e
-  // suficiente para afirmar que existe alimento (ex.: "copo azul"). Esse ramo
-  // permanece aberto para qualquer modificador, sem enumerar adjetivos.
+  // Sem conector de conteúdo, um modificador arbitrário do recipiente não é
+  // evidência de alimento. Esse ramo permanece aberto para qualquer modificador.
   const connectorIndex = tokens.findIndex((token, index) =>
     index > headIndex && FOOD_CONTENT_CONNECTORS.has(token),
   );
@@ -166,11 +246,21 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (!contentTokens.length) return true;
 
   const content = contentTokens.join(" ");
-  if (hasKnownFoodSignal(content)) return false;
+  const knownFood = hasKnownFoodSignal(content);
+  const strongNonFood = hasStrongNonFoodEvidence(contentTokens)
+    || hasAmbiguousHeadWithNonFoodContext(contentTokens);
 
-  // Depois de "recipiente + de/com", a frase expressa conteudo/porcao. Para nao
-  // transformar uma classe positiva aberta em uma allowlist finita, preparacoes
-  // desconhecidas continuam revisaveis. So descartamos quando existe evidencia
-  // afirmativa de que o complemento e material/componente/artefato nao alimentar.
-  return hasExplicitNonFoodContentHead(contentTokens);
+  if (knownFood && !shouldNonFoodEvidenceOverrideFoodSignal(contentTokens)) {
+    return false;
+  }
+  if (strongNonFood) {
+    return true;
+  }
+
+  // A forma "recipiente + de/com + conteúdo" é semanticamente ambígua no mundo
+  // aberto. Sem evidência afirmativa de objeto/material, preservamos o conteúdo
+  // como rascunho revisável para não transformar uma allowlist alimentar finita
+  // em requisito. A segurança vem dos ramos negativos afirmativos acima, não da
+  // ausência do termo em listas positivas ou negativas.
+  return false;
 }

@@ -162,4 +162,92 @@ describe("cleanMealItems issue #982", () => {
 
     expect(clearlyNonFoodContents.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
   });
+
+  it("não deixa artigos, quantificadores ou plural contornarem a detecção de recipiente", () => {
+    const inflectedObjects = [
+      "Um pote vazio",
+      "Uma tigela plástica",
+      "Dois potes vazios",
+      "Duas tigelas plásticas",
+      "3 pratos decorativos",
+      "10 copos rachados",
+      "Potes de vidro",
+      "Copos com tampa",
+      "Panelas de pressão",
+    ];
+
+    expect(inflectedObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("rejeita negativos inéditos por famílias semânticas, sem cadastrar as frases de ataque", () => {
+    const unseenSemanticNegatives = [
+      "Pote de querosene aeronáutico",
+      "Copo de solvente industrial",
+      "Tigela de fluido automotivo",
+      "Travessa com anticongelante concentrado",
+      "Marmita de munição esportiva",
+      "Pote de desinfetante hospitalar",
+      "Copo de inseticida doméstico",
+      "Bandeja de argamassa pronta",
+      "Pote de carregador portátil",
+      "Tigela de areia sanitária",
+    ];
+
+    expect(unseenSemanticNegatives.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("não deixa um match alimentar genérico ocultar contexto inequivocamente não alimentar", () => {
+    const nonFoodHomonyms = [
+      "Copo de água sanitária",
+      "Copo de água oxigenada",
+      "Panela de óleo lubrificante",
+      "Pote de óleo de motor",
+      "Pote de pasta de dente",
+      "Tigela de creme hidratante",
+      "Pote de gel capilar",
+      "Copo de líquido de freio",
+    ];
+
+    expect(nonFoodHomonyms.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("preserva os homônimos quando o contexto continua nutricional", () => {
+    const foodHomonyms = [
+      "Copo de água mineral",
+      "Pote de óleo de coco",
+      "Pote de pasta de amendoim",
+      "Tigela de creme de milho",
+      "Pote de gel energético",
+      "Copo de suplemento proteico",
+      "Panela com caldo concentrado",
+    ];
+
+    expect(foodHomonyms.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
+  it("preserva positivos inéditos de uma ou várias palavras fora do catálogo", () => {
+    const openPositiveClass = [
+      "Copo de kvass",
+      "Prato de injera",
+      "Pote de mochi",
+      "Tigela de okonomiyaki caseiro",
+      "Bandeja de arepa venezuelana",
+      "Pote de kimchi industrializado",
+    ];
+
+    expect(openPositiveClass.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
+  it("mantém alimento conhecido quando há utensílio ou embalagem como contexto secundário", () => {
+    const foodsWithIncidentalObjects = [
+      "Pote de bolo com tampa",
+      "Copo de café com canudo",
+      "Tigela de sopa com colher",
+      "Prato de arroz com talher",
+      "Pote de sorvete com embalagem",
+    ];
+
+    expect(foodsWithIncidentalObjects.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
 });

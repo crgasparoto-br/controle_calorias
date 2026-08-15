@@ -71,6 +71,16 @@ describe("nutritionEngine issue #982", () => {
     await expect(processMealInput({ text: "244g copo de brinquedo" })).rejects.toBeInstanceOf(MealInferenceError);
   });
 
+  it.each([
+    "244g pote de querosene aeronáutico",
+    "244g copo de água sanitária",
+  ])("não transforma conteúdo inequivocamente não alimentar em rascunho: %s", async sourceText => {
+    createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text: sourceText })).rejects.toBeInstanceOf(MealInferenceError);
+  });
+
   it("preserva preparação fora da TACO no fallback local mesmo com recipiente", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
 
