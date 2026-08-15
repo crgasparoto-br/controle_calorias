@@ -48,6 +48,27 @@ describe("nutritionEngine issue #982", () => {
     expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("generic_nutrition_fallback", 1);
   });
 
+
+  it("preserva preparação fora da TACO no fallback local mesmo com recipiente", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ text: "244g copo de smoothie de pitaya" });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Copo de Smoothie de Pitaya",
+      quantity: 244,
+      unit: "g",
+      estimatedGrams: 244,
+      source: "heuristic",
+    }));
+    expect(findCatalogFoodSemanticMock).not.toHaveBeenCalled();
+    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("ai_unavailable_or_error", 1);
+    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("catalog_miss", 1);
+    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("generic_nutrition_fallback", 1);
+  });
+
   it("resolve ameixa roxa pela TACO local preservando 230 g e sem embeddings", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
 

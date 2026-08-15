@@ -31,11 +31,37 @@ const FOOD_SERVING_CONTAINER_TERMS = new Set([
   "pote",
   "prato",
   "marmita",
+  "bandeja",
+  "travessa",
+  "panela",
 ]);
 
 const FOOD_CONTENT_CONNECTORS = new Set(["de", "da", "das", "do", "dos", "com"]);
 const NON_FOOD_CONNECTORS = new Set(["a", "as", "o", "os", ...FOOD_CONTENT_CONNECTORS, "sem"]);
 const EXPLICIT_NON_FOOD_PHRASES = new Set(["marmita vazia", "mesa posta", "decoracao"]);
+const NON_FOOD_CONTAINER_CONTENT_HEADS = new Set([
+  "plastico",
+  "vidro",
+  "metal",
+  "papel",
+  "papelao",
+  "ceramica",
+  "porcelana",
+  "madeira",
+  "aco",
+  "aluminio",
+  "pressao",
+  "tampa",
+  "canudo",
+  "talher",
+  "garfo",
+  "faca",
+  "colher",
+  "guardanapo",
+  "rotulo",
+  "etiqueta",
+  "embalagem",
+]);
 
 const CONVERSATIONAL_ONLY_TERMS = new Set([
   "oi",
@@ -148,7 +174,17 @@ function isObjectOnlyDescription(normalizedName: string) {
     .filter(token => !NON_FOOD_CONNECTORS.has(token));
   if (!contentTokens.length) return true;
 
-  return !hasKnownFoodSignal(contentTokens.join(" "));
+  const content = contentTokens.join(" ");
+  if (hasKnownFoodSignal(content)) return false;
+
+  // O catálogo local é evidência positiva, não pré-requisito para reconhecer
+  // conteúdo alimentar. Um recipiente seguido por um conector de conteúdo deve
+  // poder carregar preparações válidas ainda ausentes da TACO (por exemplo,
+  // "copo de smoothie de pitaya" ou "tigela com bubble tea"). Mantemos a
+  // rejeição quando o complemento descreve material/componente do próprio
+  // recipiente, enquanto descritores sem conector continuam rejeitados de
+  // forma estrutural e aberta pelo ramo acima.
+  return NON_FOOD_CONTAINER_CONTENT_HEADS.has(contentTokens[0]);
 }
 
 function isLikelyNonFoodNoise(item: MealDraftItem) {
