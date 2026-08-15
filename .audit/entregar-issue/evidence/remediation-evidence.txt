@@ -1,64 +1,22 @@
-Issue: crgasparoto-br/controle_calorias#982
-PR: #983
-Base: develop @ 61886031ddc314c085b17bed9b0b14b766f9c9f1
-Rejected material head: 22e0ad646dcd624ff751798922e38958e9e00fe5
-Rejected published handoff head: 39af8da6e8a26ab9fda83d7bea44d34281b1d17c
-Current material head: 877261b438310f3f232c7bad0207a340958b9c96
-Material merge preview: 767e11e8e265cfab1714f06a23dd7b0d74387eb5
-
-Independent findings remediated:
-- A-001: connector complements with multiple tokens could bypass the object/noise filter because token cardinality was used as the final decision.
-- A-002: documentation was explicitly required and correctly updated, but the saturation artifact marked documentation not-applicable.
-
-Material delta:
-- server/mealContainerNoise.ts
-- server/mealItemCleanup.issue982.test.ts
-
-Published bytes verified by immutable Git blob:
-- server/mealContainerNoise.ts blob 9df4673292464a3dda8d311af4750597c8bc0bbd
-- server/mealItemCleanup.issue982.test.ts blob 96d216e877011992975bf43732677ac047fd5977
-
-Focused exact-source syntax validation:
-- mealContainerNoise.ts: PASS (TypeScript transpile diagnostics = 0)
-- mealItemCleanup.issue982.test.ts: PASS (TypeScript transpile diagnostics = 0)
-
-New OPEN-SET-NESTED-CARDINALITY-001 discriminants:
-NEG PASS Pote de tinta acrilica fosca
-NEG PASS Copo de plastico transparente reciclavel
-NEG PASS Bandeja de isopor branco expandido
-NEG PASS Panela com cabo longo removivel
-NEG PASS Tigela de parafuso metalico sextavado
-NEG PASS Pote de cimento branco estrutural
-NEG PASS Copo de silicone flexivel reutilizavel
-NEG PASS Travessa de vidro temperado transparente
-POS PASS Copo de smoothie de pitaya
-POS PASS Tigela com bubble tea
-POS PASS Pote de sobremesa artesanal
-POS PASS Bandeja de sushi vegano
-POS PASS Travessa com lasanha caseira
-POS PASS Panela com curry tailandes
-POS PASS Marmita de bibimbap coreano artesanal
-
-Inherited functional controls preserved by unchanged material ancestry and focused review:
-- OPEN-SET-NEGATIVE-001: direct arbitrary modifiers remain rejected.
-- OPEN-POSITIVE-CATALOG-INDEPENDENCE-001: uncatalogued preparations remain accepted.
-- OPEN-SET-NESTED-CONTEXT-001: one-token nested object complements remain rejected and connector-omitted known food remains accepted.
-- REQ-PLUM-LOCAL-NEG: local ameixa roxa normalization and no semantic search regression remain unchanged.
-- REQ-PRECEDENCE-NEG: ameixa em calda precedence remains unchanged.
-- REQ-OBSERVABILITY-NEG: canonical logInferenceEvent, five stable reasons, privacy-only detail and best-effort sink behavior remain unchanged.
-
-Documentation closure:
-- docs/design-docs/ai-observability-pricing.md already contains meal.inference_fallback, all five stable reasons, separation from ai.inference_call, privacy constraints and best-effort semantics.
-- REQ-DOCUMENTATION added to requirement closure/attack matrix.
-- risk-saturation documentation family is applicable=true, status=passed, controlled by REQ-DOCUMENTATION-NEG.
-
-Systemic learning promotion:
-- entregar-issue prevention contract now requires open-set sibling variation across cardinality, depth and composition and explicit documentation-family activation.
-- auditar-issue detection contract now attacks the same shape dimensions and rejects documentation=not-applicable when canonical specification requires documentation.
-- focused skill contract tests: 2 passed.
-- validate_skill_genericity.py: PASS for both skills.
-
-Remote observation policy:
-- one read-only observation performed for material SHA 877261b438310f3f232c7bad0207a340958b9c96.
-- Agent-first workflow run 31883393223 was in_progress at that observation.
-- no rerun, dispatch, cancellation or polling was performed.
+material_head_sha=3cf60a185101e2873558e01ad6690bc39d555d19
+base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
+focused_harness=passed preserved=13 removed=28
+new_negative_literal=Pote de shampoo anticaspa -> removed
+new_negative_sibling_1=Copo de detergente clorado -> removed
+new_negative_sibling_2=Tigela de maquiagem mineral -> removed
+new_negative_sibling_3=Bandeja de equipamento eletronico portatil -> removed
+new_negative_sibling_4=Travessa de material sintetico resistente -> removed
+positive_boundary_1=Copo de smoothie de pitaya -> preserved
+positive_boundary_2=Tigela com bubble tea -> preserved
+positive_boundary_3=Copo de kombucha fermentada -> preserved
+positive_boundary_4=Tigela de ramen artesanal -> preserved
+positive_boundary_5=Bandeja de falafel assado -> preserved
+source_blob_code=5111fe44de7faf1b03fc13eaa23df6d2bf52c60c
+test_blob=4f69e8e9dbc7af698b4062a626a2b3c4e2eca4c2
+pr_base=develop
+observed_remote_gate=in_progress run=31890199522 job=95025226785
+old_inherited_controls=rerun_by_focused_suite_and_unchanged_contract_evidence
+OPEN-CROSS-DIMENSION-001=passed
+REQ-DOCUMENTATION-NEG=passed canonical_doc_unchanged_from_previously_green_material_scope
+skill_prevention_test=passed genericity=passed
+skill_detection_test=passed genericity=passed
