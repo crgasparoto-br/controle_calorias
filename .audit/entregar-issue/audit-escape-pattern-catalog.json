@@ -14,6 +14,13 @@
       "control_id": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
       "risk_family": "structural-contract",
       "status": "passed"
+    },
+    {
+      "escape_id": "A-003",
+      "escape_class": "nested-context-finite-enumeration-gap",
+      "control_id": "OPEN-SET-NESTED-CONTEXT-001",
+      "risk_family": "structural-contract",
+      "status": "passed"
     }
   ]
 }

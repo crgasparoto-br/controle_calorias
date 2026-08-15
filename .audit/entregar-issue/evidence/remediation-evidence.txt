@@ -1,67 +1,70 @@
-Issue: crgasparoto-br/controle_calorias#982
-PR: #983
-Base: develop @ 61886031ddc314c085b17bed9b0b14b766f9c9f1
-Previous material head: 1db4a240a9526d27127efc647347639f73ef845f
-Previous handoff head: a949da4187c723fbdbaa03efd87b09cca1d1b146
-Current material head: a2d99a538350da2800d6885c55fa7ea4653a4e6b
-Material merge preview: ca70910d421e1d47932067b3309b5befe44cb32f
+# Issue 982 remediation evidence - material head 22e0ad646dcd624ff751798922e38958e9e00fe5
 
-Independent finding remediated:
-A-002 finite-catalog-open-positive-rejection: a valid preparation beginning with a serving-container term was rejected when the content after de/com was absent from the finite local TACO catalog.
+## Product syntax parse
+PASS server/mealContainerNoise.ts
+PASS server/mealItemCleanup.ts
+PASS server/mealItemCleanup.issue982.test.ts
+PASS server/nutritionEngine.issue982.test.ts
 
-Material delta:
-- server/mealItemCleanup.ts
-- server/mealItemCleanup.issue982.test.ts
-- server/nutritionEngine.issue982.test.ts
-GitHub material commit stats: +82/-1; no documentation/provider/plum code changed in this remediation.
+## Diff hygiene
+PASS git diff --check
 
-Focused execution on the exact local bytes published in material head:
-POS PASS Bolo de pote -> 1
-POS PASS Copo de açaí -> 1
-POS PASS Copo de smoothie de pitaya -> 1
-POS PASS Tigela com bubble tea -> 1
-POS PASS Pote de sobremesa artesanal -> 1
-POS PASS Bandeja de sushi vegano -> 1
-POS PASS Travessa com lasanha caseira -> 1
-POS PASS Panela com curry tailandês -> 1
-NEG PASS Pote -> 0
-NEG PASS Pote translúcido -> 0
-NEG PASS Copo rachado -> 0
-NEG PASS Tigela brilhante -> 0
-NEG PASS Tigela de plástico -> 0
-NEG PASS Copo com tampa -> 0
-NEG PASS Pote de vidro -> 0
-NEG PASS Bandeja de alumínio -> 0
-NEG PASS Panela de pressão -> 0
-NEG PASS Mesa redonda -> 0
+## Focused classifier harness
+PASS	food 	Bolo de pote	actual=false
+PASS	food 	Bolo de pote ninho cremoso	actual=false
+PASS	noise	Pote	actual=true
+PASS	noise	Pote vazio	actual=true
+PASS	noise	Copo descartável	actual=true
+PASS	noise	Copo de brinquedo	actual=true
+PASS	noise	Pote de tinta	actual=true
+PASS	noise	Bandeja de isopor	actual=true
+PASS	noise	Panela com cabo	actual=true
+PASS	noise	Tigela de parafuso	actual=true
+PASS	noise	Pote de cimento	actual=true
+PASS	food 	Copo açaí	actual=false
+PASS	food 	Pote iogurte	actual=false
+PASS	food 	Marmita frango arroz	actual=false
+PASS	food 	Copo de smoothie de pitaya	actual=false
+PASS	food 	Tigela com bubble tea	actual=false
+PASS	food 	Pote de sobremesa artesanal	actual=false
+PASS	food 	Bandeja de sushi vegano	actual=false
+PASS	food 	Travessa com lasanha caseira	actual=false
+PASS	food 	Panela com curry tailandês	actual=false
+PASS	noise	Tigela de plástico	actual=true
+PASS	noise	Copo com tampa	actual=true
+PASS	noise	Pote de vidro	actual=true
+PASS	noise	Bandeja de alumínio	actual=true
+PASS	noise	Panela de pressão	actual=true
 
-TypeScript syntax/transpile checks:
-server/mealItemCleanup.ts PASS 0
-server/mealItemCleanup.issue982.test.ts PASS 0
-server/nutritionEngine.issue982.test.ts PASS 0
+## Synthetic transfer controls for OPEN-SET-NESTED-CONTEXT-001
+PASS public_entrypoint transfer: novel nested discriminant distinguishes finite nested list
+PASS specialized_adapter transfer: sibling wrapper surface exposes same escape class
 
-git diff --check: PASS
+## Skill prevention/detection controls
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
 
-Inherited controls:
-- OPEN-SET-NEGATIVE-001 remains passed: arbitrary modifiers without a content connector remain rejected, including Pote translúcido, Copo rachado and Tigela brilhante.
-- Adjacent object-material/component negatives remain rejected: Tigela de plástico, Copo com tampa, Pote de vidro, Bandeja de alumínio, Panela de pressão.
+OK
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
 
-New reusable control:
-- OPEN-POSITIVE-CATALOG-INDEPENDENCE-001 passed: valid positive members absent from the finite catalog remain accepted. Literal case: Copo de smoothie de pitaya. Siblings: Tigela com bubble tea, Bandeja de sushi vegano, Travessa com lasanha caseira, Panela com curry tailandês. Nearby negatives continue rejected.
+OK
+READY: skill permanent assets are free of obvious issue-number coupling
+READY: skill permanent assets are free of obvious issue-number coupling
+PASS ecosystem: 15/15 (report /mnt/data/issue982-skill-ecosystem-report.txt)
 
-Unchanged requirements reused from exact-head green baseline:
-- Agent-first run 31859832375 completed success on previous material head 1db4a240a9526d27127efc647347639f73ef845f and exercised TypeScript, tests, architecture, documentation, build and agent checks.
-- Current remediation does not change ameixa normalization, catalog precedence, telemetry helper, documentation, or base branch; static inspection confirms those code paths are unchanged from the green baseline.
+## Unchanged exact-head baseline controls
+Baseline a2d99a538350da2800d6885c55fa7ea4653a4e6b had official Agent-first gate success (TypeScript, Tests, Architecture, Documentation, Build, Agent check).
+Current material delta changes only meal container cleanup classifier and issue #982 regression tests; local normalization, catalog precedence and fallback telemetry implementation are unchanged from that green baseline.
 
-Current remote-gate single observation for material head a2d99a538350da2800d6885c55fa7ea4653a4e6b:
-- Agent-first run 31863411597: in_progress at the sole observation.
-- No polling, rerun, dispatch, cancel or approval performed.
+## Remote gate snapshot
+Agent-first gate run 31881930976 for material head 22e0ad646dcd624ff751798922e38958e9e00fe5: queued (single observation; no polling/rerun).
 
-Skill prevention/detection improvement for the systemic escape:
-- entregar-issue prevention reference before: 8bbcc4234d06b5cea9a690ba64f3ad22f6a8423fa58b790ba9ca4c5e577a33e3
-- entregar-issue prevention reference after: 59ee6da666057e0b2d6d674d15a5623e927f97bade78065d3905a19a4708d624
-- auditar-issue detection reference before: f30d7500cf596d6a7d65cd962a3d5dbaa8bf26e2c1706ff2bcdaa57d5aed3175
-- auditar-issue detection reference after: 07f121649ec3067c8ab3d8f7fc3639a4a2ff14991a983bd1bfd315ceeb1f0209
-- Focused generic skill tests: entregar-issue 2 passed; auditar-issue 1 passed.
-- validate_skill_genericity.py: PASS for both skills.
-- entregar-issue ecosystem fast suite: 15 passed, 0 failed.
+## Material identity
+material_head_sha=22e0ad646dcd624ff751798922e38958e9e00fe5
+base_branch=develop
+base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
+merge_preview_sha=8d8948f06804a0edfe119884e2aa9f3bdfdb6393
+changed_product_paths=server/mealContainerNoise.ts,server/mealItemCleanup.ts,server/mealItemCleanup.issue982.test.ts,server/nutritionEngine.issue982.test.ts

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "22e0ad646dcd624ff751798922e38958e9e00fe5",
+  "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
+  "merge_preview_sha": "8d8948f06804a0edfe119884e2aa9f3bdfdb6393",
+  "status": "frozen",
+  "local_evidence": "evidence/remediation-evidence.txt",
+  "remote_gate": "queued"
+}
