@@ -128,6 +128,7 @@ async function appendCoverageFact(
         FROM billingSubscriptionFacts
         WHERE idempotencyKey = ${input.idempotencyKey}
         LIMIT 1
+        FOR UPDATE
       `)
     );
     if (!existing) throw error;
@@ -204,6 +205,7 @@ async function loadCapacityWindow(
         AND factType = 'professional_capacity_grandfathered_started'
       ORDER BY createdAt DESC
       LIMIT 1
+      FOR UPDATE
     `)
   );
   if (!latestStarted) return null;
@@ -222,6 +224,7 @@ async function loadCapacityWindow(
         AND factType = 'professional_capacity_grandfathered_resolved'
         AND idempotencyKey = ${resolvedKey}
       LIMIT 1
+      FOR UPDATE
     `)
   );
   if (resolved) return null;
@@ -236,6 +239,7 @@ async function loadCapacityWindow(
         AND SUBSTRING(idempotencyKey, 1, ${extensionPrefix.length}) = ${extensionPrefix}
       ORDER BY createdAt DESC
       LIMIT 1
+      FOR UPDATE
     `)
   );
 
@@ -669,6 +673,7 @@ export function createBillingProfessionalCoverageRepository(
             AND factType = 'professional_capacity_extension_granted'
             AND correlationId = ${decisionCorrelationId}
           LIMIT 1
+          FOR UPDATE
         `)
       );
       if (existingDecision) {
