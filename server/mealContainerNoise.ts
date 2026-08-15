@@ -35,6 +35,45 @@ const FOOD_CONTENT_CONNECTORS = new Set(["de", "da", "das", "do", "dos", "com"])
 const NON_FOOD_CONNECTORS = new Set(["a", "as", "o", "os", ...FOOD_CONTENT_CONNECTORS, "sem"]);
 const EXPLICIT_NON_FOOD_PHRASES = new Set(["marmita vazia", "mesa posta", "decoracao"]);
 
+// Estes termos representam nucleos semanticos de material, componente ou
+// artefato, e nao frases completas. Uma vez reconhecido o nucleo, qualquer
+// quantidade de modificadores continua descrevendo o objeto (por exemplo,
+// "tinta acrilica fosca" ou "plastico transparente reciclavel"). Isso evita
+// que a fronteira volte a depender do numero de tokens sem transformar o
+// catalogo de alimentos em uma allowlist obrigatoria.
+const NON_FOOD_CONTENT_HEAD_TERMS = new Set([
+  "acrilico",
+  "alca",
+  "aluminio",
+  "arame",
+  "borracha",
+  "brinquedo",
+  "cabo",
+  "ceramica",
+  "cimento",
+  "cola",
+  "componente",
+  "espuma",
+  "ferramenta",
+  "fio",
+  "isopor",
+  "madeira",
+  "metal",
+  "papel",
+  "papelao",
+  "parafuso",
+  "peca",
+  "plastico",
+  "porcelana",
+  "resina",
+  "silicone",
+  "tampa",
+  "tecido",
+  "tinta",
+  "verniz",
+  "vidro",
+]);
+
 function candidateContainsExactFoodSignal(value: string) {
   const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
   if (!normalized) return false;
@@ -65,6 +104,10 @@ function hasKnownFoodSignal(value: string) {
   }
 
   return false;
+}
+
+function hasExplicitNonFoodContentHead(contentTokens: string[]) {
+  return contentTokens.some(token => NON_FOOD_CONTENT_HEAD_TERMS.has(token));
 }
 
 export function isContainerObjectOnlyDescription(value: string) {
@@ -106,10 +149,16 @@ export function isContainerObjectOnlyDescription(value: string) {
   const content = contentTokens.join(" ");
   if (hasKnownFoodSignal(content)) return false;
 
-  // Complementos desconhecidos de um único núcleo ("de X"/"com X") são
-  // tratados como relação de objeto/material, sem enumerar X. Isso cobre de
-  // forma aberta novos materiais, componentes e objetos. Preparações compostas
-  // continuam revisáveis mesmo fora da TACO, preservando a independência de
-  // catálogo exigida para nomes culinários ainda não catalogados.
-  return contentTokens.length === 1;
+  // O complemento unitario desconhecido continua conservadoramente sendo
+  // tratado como objeto/material. Para complementos maiores, um nucleo
+  // inequivocamente nao alimentar torna toda a descricao nao alimentar,
+  // independentemente da quantidade de adjetivos/modificadores posteriores.
+  if (contentTokens.length === 1 || hasExplicitNonFoodContentHead(contentTokens)) {
+    return true;
+  }
+
+  // Sem sinal positivo conhecido nem sinal negativo inequívoco, preserva uma
+  // preparação revisável fora do catálogo. Esse fallback é deliberadamente
+  // independente da TACO para não reintroduzir uma allowlist finita de comidas.
+  return false;
 }

@@ -99,6 +99,21 @@ describe("cleanMealItems issue #982", () => {
     expect(novelConnectorObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
   });
 
+  it("propaga núcleo não alimentar para modificadores arbitrários sem depender da cardinalidade", () => {
+    const nestedMultiTokenObjects = [
+      "Pote de tinta acrílica fosca",
+      "Copo de plástico transparente reciclável",
+      "Bandeja de isopor branco expandido",
+      "Panela com cabo longo removível",
+      "Tigela de parafuso metálico sextavado",
+      "Pote de cimento branco estrutural",
+      "Copo de silicone flexível reutilizável",
+      "Travessa de vidro temperado transparente",
+    ];
+
+    expect(nestedMultiTokenObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
   it("preserva sinal alimentar conhecido mesmo sem de/com", () => {
     const implicitServingContent = [
       "Copo açaí",
@@ -116,6 +131,8 @@ describe("cleanMealItems issue #982", () => {
       "Pote de sobremesa artesanal",
       "Bandeja de sushi vegano",
       "Travessa com lasanha caseira",
+      "Panela com curry tailandês",
+      "Marmita de bibimbap coreano artesanal",
     ];
 
     expect(uncataloguedPreparations.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
