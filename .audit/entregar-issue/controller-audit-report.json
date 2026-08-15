@@ -1,1 +1,10 @@
-{"schema_version":1,"assurance_level":"controller-adversarial","approval_scope":"internal-only","release_gate_satisfied":false,"material_head_sha":"3cf60a185101e2873558e01ad6690bc39d555d19","status":"passed","finding_count":0,"note":"Focused remediation closes the latest independent open-class finding; independent audit remains required."}
+{
+  "schema_version": 1,
+  "assurance_level": "controller-adversarial",
+  "approval_scope": "internal-only",
+  "release_gate_satisfied": false,
+  "material_head_sha": "bc3c807ff8e301b63097e89c0d8434d88e70ec4a",
+  "status": "passed",
+  "finding_count": 0,
+  "note": "Latest independent finite-positive-allowlist escape is closed with unseen-positive controls; independent re-audit remains required."
+}

@@ -1,1 +1,7 @@
-git diff --check: PASS
+material_head_sha=bc3c807ff8e301b63097e89c0d8434d88e70ec4a
+changed_paths:
+server/mealContainerNoise.ts
+server/mealItemCleanup.issue982.test.ts
+remote_blobs:
+server/mealContainerNoise.ts bedb89302fbf07ab9699a9e70cbf9aafe8588d8e
+server/mealItemCleanup.issue982.test.ts 3d3278065946eff4800de342d61b83f535598cbe

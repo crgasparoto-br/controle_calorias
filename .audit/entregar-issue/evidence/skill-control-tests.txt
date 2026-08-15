@@ -1,0 +1,7 @@
+entregar genericity
+READY: skill permanent assets are free of obvious issue-number coupling
+auditar genericity
+READY: skill permanent assets are free of obvious issue-number coupling
+focused contract suite
+..........                                                               [100%]
+10 passed in 3.73s
