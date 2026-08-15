@@ -1,1 +1,19 @@
-{"schema_version":1,"patterns":[{"escape_class":"closed-enumeration-open-set-negative-gap","source_audit":{"head_sha":"c65f10d617405a7fac10d142ec1edf053269aeb0","finding_id":"A-001","validity":"independent"},"plausible_wrong_implementation":"Implement an open-ended rejection class as a finite list of known bad descriptors so the named examples pass while novel descriptors are accepted.","sibling_cases":[{"id":"A-001-S1","dimension":"different container head","status":"passed","evidence":"copo azul and tigela nova are rejected by structure rather than descriptor enumeration."},{"id":"A-001-S2","dimension":"novel modifier family","status":"passed","evidence":"pote translucido, copo rachado and tigela brilhante are rejected although the discriminants are absent from implementation enums."},{"id":"A-001-S3","dimension":"valid exception","status":"passed","evidence":"copo de acai, prato com arroz and pote de iogurte remain accepted when the suffix carries a known local food signal."}],"prevention_change":{"skill_or_code":"entregar-issue + meal cleanup","control_id":"OPEN-SET-NEGATIVE-001","evidence":"Product cleanup now uses structural/container-content rules; prevention skill requires novel discriminants for open-set negative classes. See evidence/open-set-negative.txt and evidence/skill-remediation.txt."},"detection_change":{"skill_or_gate":"auditar-issue","control_id":"OPEN-SET-NEGATIVE-001","evidence":"Audit control design now requires attacking candidate finite enumerations with discriminants absent from those lists and sibling surfaces. See evidence/skill-remediation.txt."},"trigger_terms":["any other","arbitrary","others","variants","open-ended class","allowlist","denylist","finite enumeration"],"required_risk_families":["structural-contract"]},{"escape_class":"snapshot-stale-idempotency-read-after-serialization","source_audit":{"finding_id":"A-009"},"plausible_wrong_implementation":"A serialized workflow uses consistent snapshot reads for mutable command state and misses a winner committed while waiting for the serialization lock.","prevention_change":{"evidence":"Existing decision-idempotency rule already requires convergence; implementation now uses current locking reads."},"detection_change":{"control_id":"DECISION-IDEM-001","evidence":"Existing concurrent replay scenario detects the defect."},"trigger_terms":["transaction","snapshot","locking read","retry","idempotency","concurrency"],"required_risk_families":["idempotency","concurrency-atomicity","reference-liveness"]}]}
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "closed-enumeration-open-set-negative-gap",
+      "control_id": "OPEN-SET-NEGATIVE-001",
+      "risk_family": "structural-contract",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "finite-catalog-open-positive-rejection",
+      "control_id": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
+      "risk_family": "structural-contract",
+      "status": "passed"
+    }
+  ]
+}

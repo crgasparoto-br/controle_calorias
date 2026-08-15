@@ -1,1 +1,69 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"repository":"crgasparoto-br/controle_calorias","issue":982,"finding_id":"A-001","rejected_head_sha":"c65f10d617405a7fac10d142ec1edf053269aeb0","remediated_head_sha":"1db4a240a9526d27127efc647347639f73ef845f"},"generalized_learning":{"escape_class":"closed-enumeration-open-set-negative-gap","generalized_failure_pattern":"An open-ended negative class is implemented and tested only through a finite enumeration of known bad variants, so unseen variants outside the enumeration can pass while all named examples remain green.","plausible_wrong_implementation":"Use a finite set or regex alternatives for known rejected variants and write negative tests only from that same set.","trigger_signals":["contract says any other/others/arbitrary/variants","broad reject class with valid exceptions","candidate contains finite deny/allow enumerations","negative fixtures mirror implementation constants"],"risk_families":["structural-contract"],"reusable_control":"OPEN-SET-NEGATIVE-001","prevention_rule":"For open-ended negative classes, require a structural, semantic, provenance, or capability predicate plus at least one negative discriminant absent from implementation enumerations and a positive exception.","detection_rule":"Inspect candidate enums/sets/regex tables and attack with a novel discriminant absent from those lists, at least two sibling cases, and a positive valid exception.","transfer_cases":[{"surface":"public_entrypoint","status":"passed","evidence":"Synthetic transfer control uses novel_bad_c outside known_bad_a/known_bad_b and preserves valid_linked_variant."},{"surface":"specialized_adapter","status":"passed","evidence":"Synthetic transfer control uses future_invalid_c outside legacy invalid fixtures and preserves canonical_adapter."}],"promotion_status":"promoted"},"skill_changes":[{"skill":"entregar-issue","role":"prevention","status":"passed","before_sha256":"1c757aee73b7bae78c5e62c636cc2c954e110a418704438acb9b66c00ab44ea9","after_sha256":"1057d6ddabe2c122bf0a56b1c7972899ad5b1e8022cc2fc1dcb97eb149274dfe","files":["references/controller-adversarial-evidence.md","tests/test_open_set_negative_control_contract.py"],"evidence":"focused contract tests, genericity validator and ecosystem tests passed"},{"skill":"auditar-issue","role":"detection","status":"passed","before_sha256":"not-recorded-in-prior-handoff","after_sha256":"ae13a40c3435ff6c3cce029b9a31023a95b224488eec2b4978f8c633609e9515","files":["references/adversarial-control-design.md","tests/test_open_set_negative_audit_contract.py"],"evidence":"focused contract tests, genericity validator and ecosystem tests passed"}],"evidence":["evidence/remediation-evidence.txt"]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue": 982,
+    "finding_id": "A-002",
+    "rejected_head_sha": "1db4a240a9526d27127efc647347639f73ef845f",
+    "remediated_head_sha": "a2d99a538350da2800d6885c55fa7ea4653a4e6b"
+  },
+  "generalized_learning": {
+    "escape_class": "finite-source-open-positive-rejection",
+    "generalized_failure_pattern": "An open positive class is implemented with a finite catalog, registry, allowlist, enum, table or known set as a mandatory acceptance prerequisite, so all known fixtures pass while valid unseen members are rejected.",
+    "plausible_wrong_implementation": "Treat membership in a finite known set as necessary proof of validity even though the contract requires accepting future or otherwise unenumerated valid members.",
+    "trigger_signals": [
+      "contract says any valid, equivalent, future, other valid, or similar open positive wording",
+      "candidate checks catalog, registry, allowlist, enum, table or known set inside acceptance predicate",
+      "positive fixtures are all members of the same finite source used by implementation"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
+    "prevention_rule": "For every open positive class guarded by a finite source, require a valid positive discriminant absent from all implementation finite sources, sibling positives across at least two forms or surfaces, and a nearby negative boundary.",
+    "detection_rule": "Inspect acceptance predicates for finite-source membership and attack them with a valid unseen member; fail the control when all positive fixtures are already known by the same finite source.",
+    "transfer_cases": [
+      {
+        "surface": "public_entrypoint",
+        "status": "passed",
+        "evidence": "Synthetic control accepts valid_future_member absent from known_member_a/known_member_b while rejecting invalid_shape."
+      },
+      {
+        "surface": "specialized_adapter",
+        "status": "passed",
+        "evidence": "Synthetic control accepts future_supported_variant absent from registry_v1 while retaining a nearby unsupported variant rejection."
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "skill": "entregar-issue",
+      "role": "prevention",
+      "status": "passed",
+      "before_sha256": "8bbcc4234d06b5cea9a690ba64f3ad22f6a8423fa58b790ba9ca4c5e577a33e3",
+      "after_sha256": "59ee6da666057e0b2d6d674d15a5623e927f97bade78065d3905a19a4708d624",
+      "files": [
+        "references/controller-adversarial-evidence.md",
+        "tests/test_open_positive_catalog_independence_contract.py"
+      ],
+      "evidence": "Focused contract tests, genericity validator and ecosystem fast suite passed."
+    },
+    {
+      "skill": "auditar-issue",
+      "role": "detection",
+      "status": "passed",
+      "before_sha256": "f30d7500cf596d6a7d65cd962a3d5dbaa8bf26e2c1706ff2bcdaa57d5aed3175",
+      "after_sha256": "07f121649ec3067c8ab3d8f7fc3639a4a2ff14991a983bd1bfd315ceeb1f0209",
+      "files": [
+        "references/adversarial-control-design.md",
+        "tests/test_open_positive_catalog_independence_audit_contract.py"
+      ],
+      "evidence": "Focused contract test and genericity validator passed."
+    }
+  ],
+  "evidence": [
+    "evidence/remediation-evidence.txt"
+  ]
+}

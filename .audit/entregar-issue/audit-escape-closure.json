@@ -1,1 +1,124 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-001","escape_class":"closed-enumeration-open-set-negative-gap","source_audit":{"head_sha":"c65f10d617405a7fac10d142ec1edf053269aeb0","finding_id":"A-001","validity":"independent"},"plausible_wrong_implementation":"Implement an open-ended rejection class as a finite list of known bad descriptors so the named examples pass while novel descriptors are accepted.","literal_case":{"procedure":"Run cleanMealItems against a container plus a novel object modifier absent from implementation enumerations.","status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-001-S1","dimension":"different container head","status":"passed","evidence":"copo azul and tigela nova are rejected by structure rather than descriptor enumeration."},{"id":"A-001-S2","dimension":"novel modifier family","status":"passed","evidence":"pote translucido, copo rachado and tigela brilhante are rejected although the discriminants are absent from implementation enums."},{"id":"A-001-S3","dimension":"valid exception","status":"passed","evidence":"copo de acai, prato com arroz and pote de iogurte remain accepted when the suffix carries a known local food signal."}],"prevention_change":{"skill_or_code":"entregar-issue + meal cleanup","control_id":"OPEN-SET-NEGATIVE-001","evidence":"Combined raw remediation evidence plus generic prevention skill contract tests in evidence/remediation-evidence.txt"},"detection_change":{"skill_or_gate":"auditar-issue","control_id":"OPEN-SET-NEGATIVE-001","evidence":"Combined raw remediation evidence plus generic detection skill contract tests in evidence/remediation-evidence.txt"},"trigger_terms":["any other","arbitrary","others","variants","open-ended class","allowlist","denylist","finite enumeration"],"required_risk_families":["structural-contract"],"status":"passed"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "closed-enumeration-open-set-negative-gap",
+      "source_audit": {
+        "head_sha": "c65f10d617405a7fac10d142ec1edf053269aeb0",
+        "finding_id": "A-001",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Implement an open-ended rejection class as a finite list of known bad descriptors so named examples pass while novel descriptors are accepted.",
+      "literal_case": {
+        "procedure": "Run cleanup against a container plus a novel object modifier absent from implementation enumerations.",
+        "status": "passed",
+        "evidence": "evidence/remediation-evidence.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "dimension": "different container head",
+          "status": "passed",
+          "evidence": "Copo rachado and Tigela brilhante remain rejected structurally."
+        },
+        {
+          "id": "A-001-S2",
+          "dimension": "object material/component after connector",
+          "status": "passed",
+          "evidence": "Tigela de plástico, Copo com tampa and Bandeja de alumínio remain rejected."
+        },
+        {
+          "id": "A-001-S3",
+          "dimension": "valid exception",
+          "status": "passed",
+          "evidence": "Copo de açaí and other food-bearing variants remain accepted."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "entregar-issue + meal cleanup",
+        "control_id": "OPEN-SET-NEGATIVE-001",
+        "evidence": "Inherited open-set negative control remains active and is re-executed on the final material bytes."
+      },
+      "detection_change": {
+        "skill_or_gate": "auditar-issue",
+        "control_id": "OPEN-SET-NEGATIVE-001",
+        "evidence": "Inherited detection control remains represented and re-executed."
+      },
+      "trigger_terms": [
+        "any other",
+        "arbitrary",
+        "others",
+        "variants",
+        "open-ended class",
+        "allowlist",
+        "denylist",
+        "finite enumeration"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "finite-catalog-open-positive-rejection",
+      "source_audit": {
+        "head_sha": "1db4a240a9526d27127efc647347639f73ef845f",
+        "finding_id": "A-002",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Use a finite catalog or registry as a mandatory acceptance prerequisite for an open positive class, so known positives pass while valid unseen members are rejected.",
+      "literal_case": {
+        "procedure": "Run cleanup against a valid serving-container preparation whose content is absent from the finite catalog.",
+        "status": "passed",
+        "evidence": "evidence/remediation-evidence.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-002-S1",
+          "dimension": "different serving-container head",
+          "status": "passed",
+          "evidence": "Tigela com bubble tea and Pote de sobremesa artesanal remain accepted outside the finite catalog."
+        },
+        {
+          "id": "A-002-S2",
+          "dimension": "different preparation family",
+          "status": "passed",
+          "evidence": "Bandeja de sushi vegano, Travessa com lasanha caseira and Panela com curry tailandês remain accepted."
+        },
+        {
+          "id": "A-002-S3",
+          "dimension": "nearby negative boundary",
+          "status": "passed",
+          "evidence": "Pote de vidro, Copo com tampa, Bandeja de alumínio and Panela de pressão remain rejected."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "entregar-issue",
+        "control_id": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
+        "evidence": "Generic prevention rule and contract test added; focused tests, genericity validation and ecosystem suite passed."
+      },
+      "detection_change": {
+        "skill_or_gate": "auditar-issue",
+        "control_id": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
+        "evidence": "Generic detection rule and contract test added; focused tests and genericity validation passed."
+      },
+      "trigger_terms": [
+        "any valid",
+        "any other valid",
+        "equivalent",
+        "future variants",
+        "open positive class",
+        "catalog",
+        "allowlist",
+        "registry",
+        "finite table"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed"
+    }
+  ]
+}

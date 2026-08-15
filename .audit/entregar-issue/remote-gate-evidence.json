@@ -1,1 +1,18 @@
-{"schema_version":1,"material_head_sha":"1db4a240a9526d27127efc647347639f73ef845f","observation_count":1,"observed_state":"pending-no-run","workflow_runs":[],"polling_performed":false,"dispatch_performed":false,"evidence":"evidence/remediation-evidence.txt"}
+{
+  "schema_version": 1,
+  "material_head_sha": "a2d99a538350da2800d6885c55fa7ea4653a4e6b",
+  "observation_count": 1,
+  "observed_state": "in_progress",
+  "workflow_runs": [
+    {
+      "run_id": 31863411597,
+      "name": "Agent-first gate",
+      "status": "in_progress",
+      "conclusion": null
+    }
+  ],
+  "polling_performed": false,
+  "dispatch_performed": false,
+  "rerun_performed": false,
+  "evidence": "evidence/remediation-evidence.txt"
+}

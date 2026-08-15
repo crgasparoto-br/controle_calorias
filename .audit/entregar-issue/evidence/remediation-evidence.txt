@@ -1,194 +1,67 @@
-===== open-set-negative.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-{
-  "status": "passed",
-  "keep": [
-    "Bolo de pote",
-    "Bolo de pote ninho cremoso",
-    "Copo de açaí",
-    "Prato com arroz",
-    "Pote de iogurte"
-  ],
-  "drop": [
-    "Pote",
-    "Pote vazio",
-    "Copo descartável",
-    "Tigela de plástico",
-    "Prato",
-    "Marmita vazia",
-    "Decoração",
-    "Pote quebrado",
-    "Copo azul",
-    "Tigela nova",
-    "Prato decorativo",
-    "Pote translúcido",
-    "Copo rachado",
-    "Tigela brilhante"
-  ],
-  "novel_discriminants": [
-    "quebrado",
-    "azul",
-    "nova",
-    "decorativo",
-    "translucido",
-    "rachado",
-    "brilhante"
-  ]
-}
+Issue: crgasparoto-br/controle_calorias#982
+PR: #983
+Base: develop @ 61886031ddc314c085b17bed9b0b14b766f9c9f1
+Previous material head: 1db4a240a9526d27127efc647347639f73ef845f
+Previous handoff head: a949da4187c723fbdbaa03efd87b09cca1d1b146
+Current material head: a2d99a538350da2800d6885c55fa7ea4653a4e6b
+Material merge preview: ca70910d421e1d47932067b3309b5befe44cb32f
 
-===== plum-precedence-control.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-ameixa_roxa=230g ameixa crua
-ameixa_em_calda=230g ameixa em calda
-status=passed
+Independent finding remediated:
+A-002 finite-catalog-open-positive-rejection: a valid preparation beginning with a serving-container term was rejected when the content after de/com was absent from the finite local TACO catalog.
 
-===== telemetry-control.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-[{"origin":"admin","status":"warning","eventType":"meal.inference_fallback","detail":"{\"schemaVersion\":1,\"reason\":\"ai_unavailable_or_error\",\"stage\":\"ai_extraction\",\"count\":2}"},{"origin":"admin","status":"warning","eventType":"meal.inference_fallback","detail":"{\"schemaVersion\":1,\"reason\":\"ai_empty_items\",\"stage\":\"ai_extraction\",\"count\":2}"},{"origin":"admin","status":"warning","eventType":"meal.inference_fallback","detail":"{\"schemaVersion\":1,\"reason\":\"ai_items_rejected\",\"stage\":\"ai_extraction\",\"count\":2}"},{"origin":"admin","status":"warning","eventType":"meal.inference_fallback","detail":"{\"schemaVersion\":1,\"reason\":\"catalog_miss\",\"stage\":\"catalog_resolution\",\"count\":2}"},{"origin":"admin","status":"warning","eventType":"meal.inference_fallback","detail":"{\"schemaVersion\":1,\"reason\":\"generic_nutrition_fallback\",\"stage\":\"nutrition_estimation\",\"count\":2}"}]
-sink_failure_non_throw=passed
-status=passed
-
-===== syntax-check.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-command=tsc --noEmit --noCheck --module NodeNext --moduleResolution NodeNext --target ES2022 server/mealItemCleanup.ts server/mealItemCleanup.issue982.test.ts
-status=passed
-
-===== test-contract-scan.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-status=passed
-cleanup regression test markers:
-27:      item("Bolo de pote"),
-28:      item("Bolo de pote ninho cremoso"),
-29:      item("Copo de açaí"),
-33:      "Bolo de pote",
-34:      "Bolo de pote ninho cremoso",
-35:      "Copo de açaí",
-47:    "Pote quebrado",
-48:    "Copo azul",
-49:    "Tigela nova",
-57:      "Pote translúcido",
-58:      "Copo rachado",
-59:      "Tigela brilhante",
-plum/local/precedence regression markers:
-3:const { createTextResponseMock, findCatalogFoodSemanticMock, logMealInferenceFallbackMock } = vi.hoisted(() => ({
-5:  findCatalogFoodSemanticMock: vi.fn(async () => null),
-20:  findCatalogFoodSemantic: findCatalogFoodSemanticMock,
-29:    findCatalogFoodSemanticMock.mockClear();
-51:  it("resolve ameixa roxa pela TACO local preservando 230 g e sem embeddings", async () => {
-55:    const result = await processMealInput({ text: "230g ameixa roxa" });
-60:      quantity: 230,
-62:      estimatedGrams: 230,
-71:    expect(findCatalogFoodSemanticMock).not.toHaveBeenCalled();
-76:  it("mantém variante específica de ameixa em calda em vez de cair em ameixa crua", async () => {
-80:    const result = await processMealInput({ text: "230g ameixa em calda" });
-83:    expect(result.items[0].quantity).toBe(230);
-85:    expect(result.items[0].canonicalName).toMatch(/calda/i);
-87:    expect(findCatalogFoodSemanticMock).not.toHaveBeenCalled();
-telemetry regression markers:
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:46:    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("ai_unavailable_or_error", 1);
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:47:    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("catalog_miss", 1);
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:48:    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("generic_nutrition_fallback", 1);
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:72:    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith("catalog_miss", expect.anything());
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:73:    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith("generic_nutrition_fallback", expect.anything());
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:90:  it("registra ai_empty_items quando a IA retorna zero itens e usa o texto", async () => {
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:105:    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("ai_empty_items", 1);
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:108:  it("registra ai_items_rejected quando todos os itens da IA contradizem o texto", async () => {
-/mnt/data/issue982-current/server/nutritionEngine.issue982.test.ts:141:    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith("ai_items_rejected", 1);
-/mnt/data/issue982-current/server/mealInferenceFallbackTelemetry.test.ts:19:    logMealInferenceFallback("generic_nutrition_fallback", 2);
-/mnt/data/issue982-current/server/mealInferenceFallbackTelemetry.test.ts:32:      reason: "generic_nutrition_fallback",
-/mnt/data/issue982-current/server/mealInferenceFallbackTelemetry.test.ts:45:    expect(() => logMealInferenceFallback("catalog_miss", 1)).not.toThrow();
-
-===== structural-scan.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-status=passed
-1:import { logInferenceEvent } from "./db";
-18:export function logMealInferenceFallback(reason: MealInferenceFallbackReason, count: number) {
-20:    logInferenceEvent({
-23:      eventType: "meal.inference_fallback",
-25:        schemaVersion: 1,
-26:        reason,
-27:        stage: FALLBACK_STAGE[reason],
-28:        count: Math.max(1, Math.trunc(count)),
-no free-text/user-content/parallel-console markers found in domain telemetry payload
-18:export function normalizeKnownFoodName(value: string) {
-31:  if (normalized === "ameixa roxa") {
-32:    return "ameixa crua";
-52:    const foodName = normalizeKnownFoodName(quantityWithUnit[2]);
-60:    const foodName = normalizeKnownFoodName(numericQuantity[2]);
-69:    const foodName = normalizeKnownFoodName(wordQuantity[2]);
-75:  return normalizeKnownFoodName(text);
-base=develop@61886031ddc314c085b17bed9b0b14b766f9c9f1
-
-===== privacy-structural-scan.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-status=passed
-1:import { logInferenceEvent } from "./db";
-18:export function logMealInferenceFallback(reason: MealInferenceFallbackReason, count: number) {
-20:    logInferenceEvent({
-23:      eventType: "meal.inference_fallback",
-25:        schemaVersion: 1,
-26:        reason,
-27:        stage: FALLBACK_STAGE[reason],
-28:        count: Math.max(1, Math.trunc(count)),
-no free-text/user-content/parallel-console markers found in domain telemetry payload
-18:export function normalizeKnownFoodName(value: string) {
-31:  if (normalized === "ameixa roxa") {
-32:    return "ameixa crua";
-52:    const foodName = normalizeKnownFoodName(quantityWithUnit[2]);
-60:    const foodName = normalizeKnownFoodName(numericQuantity[2]);
-69:    const foodName = normalizeKnownFoodName(wordQuantity[2]);
-75:  return normalizeKnownFoodName(text);
-base=develop@61886031ddc314c085b17bed9b0b14b766f9c9f1
-
-===== skill-remediation.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-OPEN-SET-NEGATIVE-001 prevention=/home/oai/skills/entregar-issue/references/controller-adversarial-evidence.md
-OPEN-SET-NEGATIVE-001 detection=/home/oai/skills/auditar-issue/references/adversarial-control-design.md
-focused skill contract tests: passed (2 + 2)
-genericity validators: passed for entregar-issue and auditar-issue
-ecosystem tests: 15 passed, 0 failed
-e1fe9ff2cc5dd5a8abe993afa51a6815fe89b005b9a485e4f0365f65f7b2eebe  /mnt/data/issue982-skill-ecosystem-report.json
-
-===== generic-open-set-transfer.txt =====
-control_id=OPEN-SET-NEGATIVE-001
-status=passed
-surface=public_entrypoint
-known_bad=known_bad_a,known_bad_b
-novel_discriminant=novel_bad_c
-result=novel_bad_c rejected by structural predicate; valid_linked_variant preserved by positive exception
-surface=specialized_adapter
-known_bad=legacy_invalid_a,legacy_invalid_b
-novel_discriminant=future_invalid_c
-result=future_invalid_c rejected by structural predicate; canonical_adapter remains accepted
-
-===== readiness-validation.txt =====
-READY: canonical specification coverage is complete
-READY: every covered requirement has positive, adversarial and regression evidence
-READY: canonical risk families are explicitly saturated
-READY: cumulative inherited audit controls are closed
-READY: rejection learning is closed and generalized
-READY: requirement attacks, risk saturation, inherited controls, structural invariants and audit escapes are closed
-
-===== published-diff.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-base_ref=develop
-base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f
-status=ahead_by_1
-changed_files=9
-- docs/design-docs/ai-observability-pricing.md
-- server/foodTextNormalization.ts
-- server/mealInferenceFallbackTelemetry.test.ts
-- server/mealInferenceFallbackTelemetry.ts
-- server/mealItemCleanup.issue982.test.ts
+Material delta:
 - server/mealItemCleanup.ts
-- server/mealNutritionFallback.ts
+- server/mealItemCleanup.issue982.test.ts
 - server/nutritionEngine.issue982.test.ts
-- server/nutritionEngine.ts
-remote_compare=passed; merge_base_equals_develop_base
+GitHub material commit stats: +82/-1; no documentation/provider/plum code changed in this remediation.
 
-===== remote-gate.txt =====
-material_head_sha=1db4a240a9526d27127efc647347639f73ef845f
-observed_state=pending-no-run
-workflow_runs=0
-observation_policy=single observation; no polling or dispatch
+Focused execution on the exact local bytes published in material head:
+POS PASS Bolo de pote -> 1
+POS PASS Copo de açaí -> 1
+POS PASS Copo de smoothie de pitaya -> 1
+POS PASS Tigela com bubble tea -> 1
+POS PASS Pote de sobremesa artesanal -> 1
+POS PASS Bandeja de sushi vegano -> 1
+POS PASS Travessa com lasanha caseira -> 1
+POS PASS Panela com curry tailandês -> 1
+NEG PASS Pote -> 0
+NEG PASS Pote translúcido -> 0
+NEG PASS Copo rachado -> 0
+NEG PASS Tigela brilhante -> 0
+NEG PASS Tigela de plástico -> 0
+NEG PASS Copo com tampa -> 0
+NEG PASS Pote de vidro -> 0
+NEG PASS Bandeja de alumínio -> 0
+NEG PASS Panela de pressão -> 0
+NEG PASS Mesa redonda -> 0
 
+TypeScript syntax/transpile checks:
+server/mealItemCleanup.ts PASS 0
+server/mealItemCleanup.issue982.test.ts PASS 0
+server/nutritionEngine.issue982.test.ts PASS 0
+
+git diff --check: PASS
+
+Inherited controls:
+- OPEN-SET-NEGATIVE-001 remains passed: arbitrary modifiers without a content connector remain rejected, including Pote translúcido, Copo rachado and Tigela brilhante.
+- Adjacent object-material/component negatives remain rejected: Tigela de plástico, Copo com tampa, Pote de vidro, Bandeja de alumínio, Panela de pressão.
+
+New reusable control:
+- OPEN-POSITIVE-CATALOG-INDEPENDENCE-001 passed: valid positive members absent from the finite catalog remain accepted. Literal case: Copo de smoothie de pitaya. Siblings: Tigela com bubble tea, Bandeja de sushi vegano, Travessa com lasanha caseira, Panela com curry tailandês. Nearby negatives continue rejected.
+
+Unchanged requirements reused from exact-head green baseline:
+- Agent-first run 31859832375 completed success on previous material head 1db4a240a9526d27127efc647347639f73ef845f and exercised TypeScript, tests, architecture, documentation, build and agent checks.
+- Current remediation does not change ameixa normalization, catalog precedence, telemetry helper, documentation, or base branch; static inspection confirms those code paths are unchanged from the green baseline.
+
+Current remote-gate single observation for material head a2d99a538350da2800d6885c55fa7ea4653a4e6b:
+- Agent-first run 31863411597: in_progress at the sole observation.
+- No polling, rerun, dispatch, cancel or approval performed.
+
+Skill prevention/detection improvement for the systemic escape:
+- entregar-issue prevention reference before: 8bbcc4234d06b5cea9a690ba64f3ad22f6a8423fa58b790ba9ca4c5e577a33e3
+- entregar-issue prevention reference after: 59ee6da666057e0b2d6d674d15a5623e927f97bade78065d3905a19a4708d624
+- auditar-issue detection reference before: f30d7500cf596d6a7d65cd962a3d5dbaa8bf26e2c1706ff2bcdaa57d5aed3175
+- auditar-issue detection reference after: 07f121649ec3067c8ab3d8f7fc3639a4a2ff14991a983bd1bfd315ceeb1f0209
+- Focused generic skill tests: entregar-issue 2 passed; auditar-issue 1 passed.
+- validate_skill_genericity.py: PASS for both skills.
+- entregar-issue ecosystem fast suite: 15 passed, 0 failed.
