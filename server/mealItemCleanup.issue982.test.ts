@@ -99,7 +99,19 @@ describe("cleanMealItems issue #982", () => {
     expect(novelConnectorObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
   });
 
-  it("propaga núcleo não alimentar para modificadores arbitrários sem depender da cardinalidade", () => {
+  it("rejeita objetos multi-token inéditos sem usar ausência em lista negativa como sinal de alimento", () => {
+    const unseenMultiTokenObjects = [
+      "Pote de shampoo anticaspa",
+      "Copo de detergente clorado",
+      "Tigela de maquiagem mineral",
+      "Bandeja de equipamento eletrônico portátil",
+      "Travessa de material sintético resistente",
+    ];
+
+    expect(unseenMultiTokenObjects.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("mantém objetos multi-token conhecidos removidos independentemente da cardinalidade", () => {
     const nestedMultiTokenObjects = [
       "Pote de tinta acrílica fosca",
       "Copo de plástico transparente reciclável",
@@ -124,7 +136,7 @@ describe("cleanMealItems issue #982", () => {
     expect(implicitServingContent.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
   });
 
-  it("não exige que o conteúdo alimentar do recipiente já exista na TACO", () => {
+  it("preserva preparações culinárias fora da TACO somente com evidência positiva", () => {
     const uncataloguedPreparations = [
       "Copo de smoothie de pitaya",
       "Tigela com bubble tea",
@@ -133,6 +145,9 @@ describe("cleanMealItems issue #982", () => {
       "Travessa com lasanha caseira",
       "Panela com curry tailandês",
       "Marmita de bibimbap coreano artesanal",
+      "Copo de kombucha fermentada",
+      "Tigela de ramen artesanal",
+      "Bandeja de falafel assado",
     ];
 
     expect(uncataloguedPreparations.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);

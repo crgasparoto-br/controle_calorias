@@ -35,43 +35,50 @@ const FOOD_CONTENT_CONNECTORS = new Set(["de", "da", "das", "do", "dos", "com"])
 const NON_FOOD_CONNECTORS = new Set(["a", "as", "o", "os", ...FOOD_CONTENT_CONNECTORS, "sem"]);
 const EXPLICIT_NON_FOOD_PHRASES = new Set(["marmita vazia", "mesa posta", "decoracao"]);
 
-// Estes termos representam nucleos semanticos de material, componente ou
-// artefato, e nao frases completas. Uma vez reconhecido o nucleo, qualquer
-// quantidade de modificadores continua descrevendo o objeto (por exemplo,
-// "tinta acrilica fosca" ou "plastico transparente reciclavel"). Isso evita
-// que a fronteira volte a depender do numero de tokens sem transformar o
-// catalogo de alimentos em uma allowlist obrigatoria.
-const NON_FOOD_CONTENT_HEAD_TERMS = new Set([
-  "acrilico",
-  "alca",
-  "aluminio",
-  "arame",
-  "borracha",
-  "brinquedo",
-  "cabo",
-  "ceramica",
-  "cimento",
-  "cola",
-  "componente",
-  "espuma",
-  "ferramenta",
-  "fio",
-  "isopor",
-  "madeira",
-  "metal",
-  "papel",
-  "papelao",
-  "parafuso",
-  "peca",
-  "plastico",
-  "porcelana",
-  "resina",
-  "silicone",
-  "tampa",
-  "tecido",
-  "tinta",
-  "verniz",
-  "vidro",
+// Preparacoes culinarias que podem ser validas mesmo sem entrada propria na TACO.
+// Esta lista funciona somente como evidencia positiva. A ausencia de um termo aqui
+// nunca transforma um complemento desconhecido em alimento: descricoes iniciadas
+// por recipiente continuam conservadoramente sendo ruido sem outro sinal positivo.
+const UNCATALOGUED_FOOD_SIGNALS = new Set([
+  "bebida",
+  "bibimbap",
+  "bubble tea",
+  "caldo",
+  "ceviche",
+  "curry",
+  "doce",
+  "ensopado",
+  "falafel",
+  "guacamole",
+  "hummus",
+  "kebab",
+  "kombucha",
+  "lasanha",
+  "massa",
+  "milkshake",
+  "mingau",
+  "moqueca",
+  "mousse",
+  "onigiri",
+  "paella",
+  "poke",
+  "quiche",
+  "ramen",
+  "risoto",
+  "salada",
+  "sanduiche",
+  "shake",
+  "shawarma",
+  "smoothie",
+  "sobremesa",
+  "sopa",
+  "sorvete",
+  "sushi",
+  "taco",
+  "temaki",
+  "vitamina",
+  "wrap",
+  "yakisoba",
 ]);
 
 function candidateContainsExactFoodSignal(value: string) {
@@ -106,8 +113,13 @@ function hasKnownFoodSignal(value: string) {
   return false;
 }
 
-function hasExplicitNonFoodContentHead(contentTokens: string[]) {
-  return contentTokens.some(token => NON_FOOD_CONTENT_HEAD_TERMS.has(token));
+function hasUncataloguedFoodSignal(value: string) {
+  const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
+  if (!normalized) return false;
+
+  return Array.from(UNCATALOGUED_FOOD_SIGNALS).some(signal =>
+    (` ${normalized} `).includes(` ${signal} `),
+  );
 }
 
 export function isContainerObjectOnlyDescription(value: string) {
@@ -122,21 +134,20 @@ export function isContainerObjectOnlyDescription(value: string) {
   const head = tokens[headIndex];
   if (!NON_FOOD_OBJECT_TERMS.has(head)) return false;
 
-  // Objetos que não representam recipientes/porções alimentares continuam sendo
-  // ruído mesmo quando recebem modificadores arbitrários (ex.: "mesa redonda").
+  // Objetos que nao representam recipientes/porcoes alimentares continuam sendo
+  // ruido mesmo quando recebem modificadores arbitrarios (ex.: "mesa redonda").
   if (!FOOD_SERVING_CONTAINER_TERMS.has(head)) return true;
 
-  // Um alimento conhecido é evidência positiva mesmo quando o usuário omite
-  // "de/com" (ex.: "copo açaí", "marmita frango arroz"). A decisão não deve
-  // depender de uma lista fechada de formas sintáticas.
+  // Um alimento conhecido e evidencia positiva mesmo quando o usuario omite
+  // "de/com" (ex.: "copo acai", "marmita frango arroz").
   const trailingContent = tokens.slice(headIndex + 1)
     .filter(token => !NON_FOOD_CONNECTORS.has(token));
   if (trailingContent.length && hasKnownFoodSignal(trailingContent.join(" "))) {
     return false;
   }
 
-  // Para recipientes que também podem descrever uma porção, um modificador
-  // arbitrário sem conector continua não sendo evidência de alimento.
+  // Para recipientes que tambem podem descrever uma porcao, um modificador
+  // arbitrario sem conector continua nao sendo evidencia de alimento.
   const connectorIndex = tokens.findIndex((token, index) =>
     index > headIndex && FOOD_CONTENT_CONNECTORS.has(token),
   );
@@ -147,18 +158,12 @@ export function isContainerObjectOnlyDescription(value: string) {
   if (!contentTokens.length) return true;
 
   const content = contentTokens.join(" ");
-  if (hasKnownFoodSignal(content)) return false;
-
-  // O complemento unitario desconhecido continua conservadoramente sendo
-  // tratado como objeto/material. Para complementos maiores, um nucleo
-  // inequivocamente nao alimentar torna toda a descricao nao alimentar,
-  // independentemente da quantidade de adjetivos/modificadores posteriores.
-  if (contentTokens.length === 1 || hasExplicitNonFoodContentHead(contentTokens)) {
-    return true;
+  if (hasKnownFoodSignal(content) || hasUncataloguedFoodSignal(content)) {
+    return false;
   }
 
-  // Sem sinal positivo conhecido nem sinal negativo inequívoco, preserva uma
-  // preparação revisável fora do catálogo. Esse fallback é deliberadamente
-  // independente da TACO para não reintroduzir uma allowlist finita de comidas.
-  return false;
+  // Ausencia em uma lista negativa, quantidade de tokens ou profundidade nao e
+  // evidencia de alimento. Para descricoes iniciadas por recipiente, complemento
+  // desconhecido sem sinal alimentar positivo permanece conservadoramente ruido.
+  return true;
 }
