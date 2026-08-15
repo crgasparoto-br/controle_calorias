@@ -28,6 +28,9 @@ export function normalizeKnownFoodName(value: string) {
   if (normalized === "ovos cozido") {
     return "ovos cozidos";
   }
+  if (normalized === "ameixa roxa") {
+    return "ameixa crua";
+  }
 
   return cleaned;
 }
