@@ -40,11 +40,18 @@ export const grantUsageAllowanceSchema = z.object({
 
 export const revokeUsageAllowanceSchema = z.object({ id, reason });
 
+const sanitizedEvidenceValue = z.union([
+  z.number(),
+  z.string().trim().max(120),
+  z.boolean(),
+  z.null(),
+]);
+
 export const openUsageAbuseCaseSchema = z.object({
   subjectUserId: z.number().int().positive(),
   sponsorUserId: z.number().int().positive().optional(),
   signals: z.array(z.string().trim().min(1).max(80)).min(1).max(20),
-  evidence: z.record(z.union([z.number(), z.string().trim().max(120), z.boolean(), z.null()])).refine(
+  evidence: z.record(z.string(), sanitizedEvidenceValue).refine(
     value => !Object.keys(value).some(key => /prompt|content|text|message|transcript|audio|image|media|payload|error|secret|token|url/i.test(key)),
     "Evidências não podem conter conteúdo bruto ou campos sensíveis.",
   ),
@@ -80,11 +87,11 @@ export const revokeUsageLimitationSchema = z.object({ id, reason });
 export const authorizeConsumptionChargingSchema = z.object({
   policyVersion: z.string().trim().min(1).max(64),
   reason,
-  pricing: z.record(z.unknown()).refine(value => Object.keys(value).length > 0, "Preços versionados são obrigatórios."),
+  pricing: z.record(z.string(), z.unknown()).refine(value => Object.keys(value).length > 0, "Preços versionados são obrigatórios."),
   affectedPlans: z.array(z.string().trim().min(1).max(191)).min(1).max(100),
   effectiveFrom: isoDate,
   communicationAt: isoDate,
-  rollback: z.record(z.unknown()).refine(value => Object.keys(value).length > 0, "Plano de rollback é obrigatório."),
+  rollback: z.record(z.string(), z.unknown()).refine(value => Object.keys(value).length > 0, "Plano de rollback é obrigatório."),
 });
 
 export const revokeConsumptionChargingSchema = z.object({ id, reason });
