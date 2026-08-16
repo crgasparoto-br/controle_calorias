@@ -1,0 +1,10 @@
+[entregar-issue generic controls]
+........                                                                 [100%]
+8 passed in 3.81s
+[auditar-issue generic controls]
+.                                                                        [100%]
+1 passed in 0.02s
+[genericity entregar]
+READY: skill permanent assets are free of obvious issue-number coupling
+[genericity auditar]
+READY: skill permanent assets are free of obvious issue-number coupling

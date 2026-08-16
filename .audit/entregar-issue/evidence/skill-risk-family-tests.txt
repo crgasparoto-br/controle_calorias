@@ -1,8 +1,0 @@
-[skill-tests]
-.......                                                                  [100%]
-7 passed in 2.39s
-READY: skill permanent assets are free of obvious issue-number coupling
-READY: skill permanent assets are free of obvious issue-number coupling
-[synthetic-transfer]
-policy-deactivation rollback PASS ['rollback']
-historical-ledger historical-immutability PASS ['historical-immutability']

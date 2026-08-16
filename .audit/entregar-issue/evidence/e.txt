@@ -1,0 +1,52 @@
+issue=897
+repository=crgasparoto-br/controle_calorias
+material_head_sha=d1a5643942611037d5089aabab1d1df4b1c3a272
+base_sha=6b735b34fdfbe46c3c65856aba62a1c44830a729
+previous_head_sha=82235676742a70fe6158c2d949fdc089980a90ef
+recorded_at=2026-08-16T21:16:09Z
+mode=connector-only-independent-audit-remediation
+
+[canonical-source]
+SRC-GITHUB-ISSUE-897 git_blob_sha=40588a5f2ebaeded58dc65b3005bd345ee4ec979
+SRC-GITHUB-ISSUE-897 sha256=8b2b3bd2ae22bf8a8d4a657a265e9678a965741eb07d69ce97ff2d62b6efd3f5
+SRC-GITHUB-ISSUE-897 line_count=277
+RESULT=PASS: materialized source matches both Git blob identity and SHA-256.
+
+[published-material-delta]
+RESULT=PASS: compare 8223567..d1a5643 contains exactly 10 expected remediation paths and no unrelated product path.
+paths=docs/design-docs/usage-governance.md;server/modules/usageGovernance/adminService.test.ts;server/modules/usageGovernance/adminService.ts;server/modules/usageGovernance/router.ts;server/modules/usageGovernance/schemas.ts;server/modules/usageGovernance/service.test.ts;server/modules/usageGovernance/service.ts;server/repositories/usageGovernancePolicyRepository.ts;server/repositories/usageGovernanceRepository.test.ts;server/repositories/usageGovernanceRetentionRepository.ts
+
+[material-controls]
+AGG-UNIT-001=PASS: variable cost joins economic revenue only when currency is comparable; unmatched priced cost is preserved in a cost-only currency bucket; incompatible revenue KPI becomes unavailable instead of silently mixing units.
+TEMP-ROLL-001=PASS: analytics loads pre-window history, requires three consecutive comparable months, computes weighted three-month ratio, and requires two consecutive rolling months above 30 percent for mandatory review.
+POLICY-EFFECT-001=PASS: temporary exemption is consumed by runtime gate for user, sponsored professional, and professional self-use; active legal hold is consumed by retention for detail, daily aggregates and monthly economics.
+AUTH-CHAIN-001=PASS: limitation history is reloaded server-side; one extension only, exact adjacency, active predecessor, distinct authenticated second administrator; emergency requires recognized security signal plus sanitized securityRiskConfirmed evidence and cannot be chained.
+ROLLBACK-HISTORICAL=PASS: prior rollback/deactivation and historical attribution controls remain unchanged and applicable; the remediation did not weaken their product paths.
+
+[local-static-validation]
+command=cd /mnt/data/issue897-remediation && npx tsc --noEmit
+result=PASS
+stdout_stderr_sha256=19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061
+note=focused connector-only materialization; this is TypeScript static validation, not a full repository build.
+
+[skill-generalization]
+entregar_tests=8 passed
+independent_audit_detection_tests=1 passed
+genericity_entregar=PASS
+genericity_auditar=PASS
+stdout_stderr_sha256=8cca5595c221f89a5bb12684f529c2ed100fd07192daae3512a3131bc5ef99d5
+promoted_controls=AGG-UNIT-001,TEMP-ROLL-001,POLICY-EFFECT-001,AUTH-CHAIN-001
+
+[remote-ci-single-snapshot]
+policy=single exact-material-head observation; no polling, rerun, dispatch or approval
+live-smoke=completed/skipped
+agent-first=in_progress
+professional-persistence-tidb=in_progress
+billing-persistence-tidb=in_progress
+tidb-context-regression=queued
+onboarding-activation-persistence=queued
+state=pending
+note=CI pending is recorded separately and does not block connector-only result-only handoff publication.
+
+[limitations]
+Vitest/full repository suite was not runnable in the connector-only local materialization; remote workflows were observed once and were still pending at the snapshot. No remote workflow was triggered or rerun.
