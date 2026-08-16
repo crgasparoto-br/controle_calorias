@@ -1,16 +1,48 @@
 {
   "schema_version": 1,
-  "material_head_sha": "d1a5643942611037d5089aabab1d1df4b1c3a272",
+  "material_head_sha": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9",
   "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
-  "observed_at": "2026-08-16T21:11:30Z",
+  "observed_at": "2026-08-16T21:58:35Z",
   "state": "pending",
   "observation_policy": "single exact-material-head observation; no polling or manual rerun",
   "runs": [
-    {"name":"Agent-first gate","status":"in_progress","conclusion":null},
-    {"name":"Professional persistence TiDB","status":"in_progress","conclusion":null},
-    {"name":"Billing persistence TiDB","status":"in_progress","conclusion":null},
-    {"name":"TiDB context regression","status":"queued","conclusion":null},
-    {"name":"Onboarding activation persistence","status":"queued","conclusion":null},
-    {"name":"AI provider live smoke","status":"completed","conclusion":"skipped"}
-  ]
+    {
+      "name": "Agent-first gate",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Professional persistence TiDB",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Billing persistence TiDB",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "TiDB context regression",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Onboarding activation persistence",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "name": "AI provider live smoke",
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "previous_material_failure": {
+    "material_head_sha": "d1a5643942611037d5089aabab1d1df4b1c3a272",
+    "job": "Agent-first gate",
+    "job_id": 95227625988,
+    "classification": "actionable-delivery",
+    "cause": "usage aggregation fragmented cost when versionCode was absent despite a unique economic version",
+    "corrected_by": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"
+  }
 }

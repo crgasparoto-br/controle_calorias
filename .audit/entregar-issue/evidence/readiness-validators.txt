@@ -1,0 +1,12 @@
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_specification_coverage.py --specification-snapshot /mnt/data/issue897-handoff/.audit/entregar-issue/specification-snapshot.json --requirement-closure /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-closure.json
+READY: canonical specification coverage is complete
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_requirement_attack_matrix.py --requirement-closure /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-closure.json --attack-matrix /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-attack-matrix.json
+READY: every covered requirement has cross-surface adversarial and regression evidence
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_risk_saturation.py --attack-matrix /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-attack-matrix.json --risk-saturation /mnt/data/issue897-handoff/.audit/entregar-issue/risk-saturation.json
+READY: canonical risk families, attack surfaces and audit-escape dimensions are saturated
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_inherited_controls.py --inherited-controls /mnt/data/issue897-handoff/.audit/entregar-issue/inherited-controls.json --head-sha a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9 --previous-independent-rejection
+READY: cumulative inherited audit controls are closed
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_learning_closure.py --learning-closure /mnt/data/issue897-handoff/.audit/entregar-issue/learning-closure.json
+READY: rejection learning is closed and generalized
+$ python3 /home/oai/skills/entregar-issue/scripts/validate_handoff_readiness.py --requirement-closure /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-closure.json --attack-matrix /mnt/data/issue897-handoff/.audit/entregar-issue/requirement-attack-matrix.json --risk-saturation /mnt/data/issue897-handoff/.audit/entregar-issue/risk-saturation.json --inherited-controls /mnt/data/issue897-handoff/.audit/entregar-issue/inherited-controls.json --audit-escape-closure /mnt/data/issue897-handoff/.audit/entregar-issue/audit-escape-closure.json --previous-independent-rejection
+READY: requirement attacks, risk saturation, inherited controls, structural invariants and audit escapes are closed
