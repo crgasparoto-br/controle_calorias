@@ -6,6 +6,7 @@
  * gate no webhook real, no áudio transcrito e no simulador.
  */
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
@@ -58,8 +59,6 @@ function isExpectedInteractiveAction(
 ) {
   const description = describeWhatsappRegisteredInteraction(pendingOperation);
   if (!description || description.interaction.pendingType !== type) return false;
-  // Perguntas abertas são respondidas por texto. Mesmo que o contrato lógico
-  // descreva a ação "provide_quantity", ela nunca é um callback de botão/lista.
   if (description.interaction.classification === "open" && action !== "cancel") return false;
   return isExpectedWhatsappRegisteredAction(type, action, pendingOperation);
 }
@@ -157,12 +156,15 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   }
 
   if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
-    const result = await executeWhatsappAiQuestionIntent(input.userId, {
-      text: input.text,
-      receivedAt: input.receivedAt,
-      userTimezone: input.userTimezone,
-      externalMessageId: input.messageId,
-    });
+    const result = await runWithAiUsageScope(
+      { userId: input.userId, conversationId: input.messageId },
+      () => executeWhatsappAiQuestionIntent(input.userId, {
+        text: input.text,
+        receivedAt: input.receivedAt,
+        userTimezone: input.userTimezone,
+        externalMessageId: input.messageId,
+      }),
+    );
     if (result) return { step: "ai_question", result };
   }
 
