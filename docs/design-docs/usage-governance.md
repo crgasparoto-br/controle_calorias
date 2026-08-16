@@ -1,87 +1,60 @@
-# Governança interna de uso e economia da IA
+# Medição de consumo, economia e governança de uso
 
-Este documento define o contrato operacional implementado pela issue #897. Ele complementa `ai-observability-pricing.md` e `billing-foundation.md`; não cria uma fonte paralela de preço, assinatura ou entitlement.
+Este documento registra o contrato da issue #897. A camada é **gerencial e operacional**: não substitui conciliação contábil/fiscal nem autoriza cobrança por consumo. Preços técnicos continuam no catálogo versionado de IA e estado comercial continua no módulo de billing.
 
-## Objetivo
+## Eventos de consumo
 
-A plataforma precisa responder, sem persistir conteúdo conversacional livre em analytics, quanto a IA está sendo usada, quanto custa aproximadamente, onde retries/timeouts aumentam custo e quando um usuário deve ser limitado antes de uma nova chamada externa.
+`billingUsageEvents` é o ledger detalhado idempotente. Cada evento congela, quando aplicável, beneficiário/paciente, patrocinador/pagador, assinatura, produto/versão/ciclo, fonte de acesso, operação, canal, provider/modelo, unidade, custo estimado/efetivo, moeda, resultado, retry, ambiente, competência, correlação e versão da regra.
 
-## Fontes canônicas
+O paciente permanece beneficiário quando o profissional paga. O custo é atribuído à assinatura/pagador profissional e o auto-uso do profissional usa a mesma assinatura, sem criar uma segunda fonte comercial. Trial, transição, acesso aberto e liberações administrativas permanecem fontes distintas.
 
-- Preço de provider/modelo/ferramenta continua exclusivamente em `server/_core/ai/pricingCatalog.ts`, incluindo versão, data efetiva e unidade de cobrança.
-- Estado comercial, assinatura, cobertura profissional e `admin_override` continuam em billing.
-- Eventos econômicos detalhados reutilizam `inferenceLogs` com `eventType=ai.inference_call`; não existe cópia do prompt, resposta, texto de conversa, áudio, imagem, URL, reasoning ou erro bruto.
-- Reservas de quota reutilizam `inferenceLogs` com `eventType=ai.usage_reservation.<capability>` e contêm somente identificadores internos/referências opacas e metadados comerciais normalizados.
+Eventos de IA derivam do evento normalizado de observabilidade. A chave idempotente usa a referência opaca da mensagem/conversa quando disponível, evitando duplicação em callbacks/reprocessamentos; retries pagos continuam explicitamente identificados como tentativas adicionais. Prompt, resposta, texto de mensagem, áudio, imagem e transcrição não são copiados para o ledger.
 
-## Separação: plano, fonte, entitlement e allowance
+## Economia gerencial
 
-Os conceitos não são intercambiáveis:
+`billingEconomicFacts` registra fatos idempotentes e versionados como receita contratual, desconto, cupom, crédito, reembolso, chargeback, imposto sobre receita, tarifa efetiva de recebimento e custo financeiro. Valores estimados e efetivos não são misturados silenciosamente.
 
-- **plano**: versão comercial contratada. Para um usuário com `admin_override`, a assinatura original continua existindo e seu `planCode` não é sobrescrito.
-- **fonte de acesso**: razão efetiva retornada por billing, como `active_subscription`, `sponsored_by_professional` ou `admin_override`.
-- **entitlement**: capacidade funcional concedida pelo acesso efetivo.
-- **allowance**: quantidade operacional permitida na janela de quota. A allowance é derivada depois do acesso, podendo usar override por `planCode` ou entitlement sem modificar nenhum desses objetos.
+A receita gerencial é reconhecida proporcionalmente ao período de serviço, inclusive em planos anuais; pagamento antecipado não concentra receita no mês de caixa. Trial, transição, acesso aberto e waiver não geram receita contratual reconhecida sem fato comercial correspondente.
 
-Em cobertura profissional, o beneficiário continua sendo o dono da quota por usuário e `billedUserId` identifica o patrocinador para atribuição econômica. Em `admin_override`, `originalSubscriptionPlanCode` preserva a proveniência da assinatura quando houver.
+Receita econômica líquida:
 
-## Quotas e proteção contra abuso
+`receita contratual reconhecida - descontos - cupons - créditos - reembolsos - chargebacks - impostos sobre receita - tarifas efetivas de recebimento`.
 
-O executor comum de capacidades aplica a governança antes de criar ou chamar o adapter do provider quando existe atribuição de usuário no escopo da requisição.
+Custo de antecipação de recebíveis fica separado como custo financeiro e não entra no denominador do KPI. Moedas permanecem separadas; conversão futura exige regra de FX explicitamente versionada.
 
-A reserva é persistente e multi-instância: dentro de transação, o repositório bloqueia a linha do usuário (`FOR UPDATE`), conta reservas da capability na janela e só então persiste a próxima reserva. Isso evita que duas instâncias aprovem simultaneamente a mesma última vaga de quota.
+O KPI de custo variável é `custos variáveis diretos / receita econômica líquida`. Faixas mensais e para média móvel de três meses: até 20% saudável; acima de 20% até 25% atenção; acima de 25% revisão; acima de 30% por dois meses consecutivos exige revisão administrativa. A faixa **nunca limita usuário automaticamente**.
 
-Defaults por fonte de acesso, por janela de uma hora:
+## Fair use e abuso
 
-| Fonte | Chamadas |
-|---|---:|
-| `admin_override` | 240 |
-| `active_subscription` | 180 |
-| `sponsored_by_professional` | 120 |
-| `active_trial` | 60 |
-| `free_access` | 30 |
-| `transition_access` | 30 |
-| `read_only_access` / `no_access` | 0 |
+O lançamento não cobra excedente, créditos ou pacotes. A política prevê 90 dias de observação e alertas configuráveis em 70/85/100% do orçamento esperado. Atingir 100% apenas abre sinal operacional.
 
-Os defaults podem ser refinados sem espalhar regra pelo código:
+Alto custo isolado não é abuso. Sinais automáticos podem abrir caso, mas limitação normal exige revisão humana com evidência sanitizada, exclusão de falhas/retries do sistema, revisão de crescimento legítimo, operações afetadas, aprovação administrativa, comunicação e oferta de revisão/apelação. A primeira limitação é de até sete dias. Extensão, quando implementada, exige segundo responsável e mais no máximo sete dias. Proteção emergencial de segurança pode durar até 24 horas antes da revisão.
 
-- `AI_USAGE_PLAN_ALLOWANCES_JSON`: mapa JSON `{ "planCode": maxCalls }`;
-- `AI_USAGE_ENTITLEMENT_ALLOWANCES_JSON`: mapa JSON `{ "entitlement": maxCalls }`.
+Limitações atingem somente operações pesadas explicitamente listadas; login, leitura, exportação e registros manuais não são retirados. O executor comum de IA consulta apenas uma limitação administrativa ativa antes de chamar provider. Orçamento, KPI, plano ou feature flag não produzem bloqueio por conta própria.
 
-Plan override tem precedência sobre entitlement override, que tem precedência sobre o default da fonte. Valores inválidos são ignorados. A razão de bloqueio exposta pelo domínio é `usage_limit_exceeded`; indisponibilidade da persistência produz `usage_governance_unavailable`, em vez de liberar silenciosamente uma chamada sem governança.
+`billingUsageAllowanceGrants` permite franquia adicional ou isenção temporária para usuário/profissional, com início, fim, motivo, responsável e revogação. Esses registros não criam cobrança, assinatura ou evento financeiro no Asaas.
 
-## Privacidade e granularidade
+## Cobrança futura por consumo
 
-A telemetria permite agregação por usuário interno, capability/feature, origem, plano/fonte de acesso e janela temporal. Quando há referência de conversa, o valor recebido no fluxo é transformado em SHA-256 truncado antes de persistência e vira `conversationRef`; o identificador externo bruto não é mantido na telemetria econômica.
+Medição e autorização de cobrança são contratos separados. `billingConsumptionChargeAuthorizations` exige responsável, motivo, política, preços, planos/versões afetados, data futura de vigência, comunicação anterior, proibição de retroatividade e rollback. A janela de observação nunca pode ser convertida retroativamente em cobrança.
 
-Campos permitidos incluem contadores, tokens normalizados, custo estimado, latência, outcome, retry/fallback, IDs internos, referência opaca de conversa, `planCode`, fonte de acesso, allowance e versão da política. Conteúdo livre do usuário continua proibido.
+## Agregação e relatórios
 
-## Retenção
+`billingUsageDailyAggregates` mantém consumo por dia e dimensões comerciais. `billingEconomicMonthlyAggregates` mantém competência, receita reconhecida, deduções, receita líquida, custo variável, KPI e qualidade da medição. Assim consultas históricas não precisam varrer indefinidamente o ledger detalhado.
 
-Versão da política: `2026-08-16.1`.
+O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI e retorna uso operacional e economia mensal. Valores econômicos são gerenciais até homologação contábil/fiscal apropriada.
 
-- Reservas de quota e eventos `usage_limit_exceeded`: **48 horas**. Finalidade: enforcement da janela, investigação curta de abuso/rate limit e suporte operacional.
-- Eventos detalhados `ai.inference_call`: **90 dias**. Finalidade: custo aproximado, regressões, retries/timeouts, comparação de features e investigação operacional.
-- Agregados de custo expostos pelo endpoint interno: **não são persistidos** nesta entrega; são calculados sob demanda dentro da janela pedida. Portanto não criam uma nova retenção além dos eventos detalhados.
-- Dados de produto, conversa, mídia e billing seguem suas políticas próprias; a limpeza econômica não remove registros nutricionais ou comerciais.
+## Retenção e legal hold
 
-O scheduler executa limpeza periódica e a política também é exportada no resultado analítico para tornar a retenção auditável.
+Política `2026-08-16.2`:
 
-## Visibilidade interna
+- eventos detalhados de consumo: **13 meses**;
+- agregados diários: **24 meses**;
+- agregados financeiros/econômicos mensais: **5 anos**;
+- trilhas de decisão, autorização e limitação: **5 anos**.
 
-`billing.adminUsageAnalytics` usa `adminProcedure`; não existe endpoint público equivalente. A consulta aceita janela máxima de 31 dias e filtro opcional por usuário.
+O ciclo automático registra `billingUsageRetentionAudit`. `billingUsageLegalHolds` suspende eliminação somente para escopo documentado enquanto estiver ativo. Agregados preservados não contêm conteúdo conversacional bruto e não devem permitir reconstruí-lo.
 
-A resposta contém:
+## Privacidade
 
-- chamadas e tokens;
-- custo estimado total;
-- custo associado a retry/fallback/timeout;
-- agrupamento por feature + plano + fonte de acesso;
-- usuários que mais pressionam limites, incluindo quantidade de bloqueios.
-
-Os valores são gerenciais/operacionais. Não são fatura, conciliação contábil nem cobrança ao cliente.
-
-## Limitações deliberadas
-
-- A allowance desta entrega mede chamadas por capability; não tenta converter todas as modalidades em uma única unidade financeira de cobrança ao cliente.
-- O custo é estimado pelo catálogo versionado da observabilidade. Evento sem usage/preço suportado permanece sem estimativa em vez de inventar valor.
-- O endpoint usa o conjunto de eventos detalhados disponível no período; dados já eliminados pela retenção não são reconstruídos.
+A correlação de conversa é SHA-256 truncada antes da persistência econômica. O sanitizador de observabilidade rejeita chaves associadas a prompt, conteúdo, texto, mensagem, transcrição, mídia, erro bruto, segredo, token e URL. A medição armazena somente metadados necessários a custo, atribuição, qualidade e auditoria.
