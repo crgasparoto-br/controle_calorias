@@ -1,302 +1,344 @@
 import crypto from "node:crypto";
+import type { AiInferenceEvent } from "../../_core/ai/observability";
 import type { AiUsageGateInput, AiUsageGateResult } from "../../_core/ai/usageGate";
-import { billingService } from "../billing/service";
 import {
-  listEconomicTelemetry,
-  purgeExpiredUsageTelemetry,
-  reserveUsageQuota,
+  getActiveUsageLimitation,
+  listEconomicFacts,
+  listMonthlyEconomicAggregates,
+  listUsageEvents,
+  purgeUsageGovernanceRetention,
+  recordEconomicFact,
+  recordUsageEvent,
+  refreshUsageDailyAggregates,
+  upsertMonthlyEconomicAggregate,
 } from "../../repositories/usageGovernanceRepository";
+import { billingService } from "../billing/service";
 
+export const USAGE_RULE_VERSION = "2026-08-16.2";
 export const USAGE_RETENTION_POLICY = {
-  quotaReservationsHours: 48,
-  detailedEconomicTelemetryDays: 90,
-  persistedCostAggregates: false,
-  policyVersion: "2026-08-16.1",
+  detailedUsageMonths: 13,
+  dailyAggregateMonths: 24,
+  monthlyEconomicYears: 5,
+  governanceAuditYears: 5,
+  rawConversationalContentStored: false,
+  legalHoldSupported: true,
+  policyVersion: USAGE_RULE_VERSION,
+} as const;
+export const FAIR_USE_POLICY = {
+  observationDays: 90,
+  alertThresholdPercentages: [70, 85, 100] as const,
+  automaticBlockingAtBudgetThreshold: false,
+  initialLimitationDays: 7,
+  extensionDays: 7,
+  emergencySecurityHours: 24,
 } as const;
 
-export class AiUsageLimitExceededError extends Error {
-  readonly code = "usage_limit_exceeded" as const;
-  constructor(
-    readonly retryAfterSeconds: number,
-    readonly limit: number,
-    readonly windowMs: number,
-  ) {
-    super("Limite de uso do assistente atingido para esta janela.");
-    this.name = "AiUsageLimitExceededError";
+export class AiUsageTemporarilyLimitedError extends Error {
+  readonly code = "usage_temporarily_limited" as const;
+  constructor(readonly retryAfterSeconds: number) {
+    super("Algumas operações de processamento estão temporariamente limitadas. O acesso, a consulta, a exportação e os registros manuais permanecem disponíveis.");
+    this.name = "AiUsageTemporarilyLimitedError";
   }
-}
-
-export class AiUsageGovernanceUnavailableError extends Error {
-  readonly code = "usage_governance_unavailable" as const;
-  constructor() {
-    super("Não foi possível validar o limite de uso do assistente agora.");
-    this.name = "AiUsageGovernanceUnavailableError";
-  }
-}
-
-type Allowance = {
-  maxCalls: number;
-  windowMs: number;
-  key: string;
-};
-
-const DEFAULT_WINDOW_MS = 60 * 60 * 1000;
-const DEFAULT_ALLOWANCES: Record<string, number> = {
-  admin_override: 240,
-  sponsored_by_professional: 120,
-  active_subscription: 180,
-  active_trial: 60,
-  transition_access: 30,
-  read_only_access: 0,
-  free_access: 30,
-  no_access: 0,
-};
-
-function parseAllowanceOverrides(raw: string | undefined) {
-  if (!raw?.trim()) return new Map<string, number>();
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return new Map(
-      Object.entries(parsed).flatMap(([key, value]) =>
-        typeof value === "number" && Number.isInteger(value) && value >= 0
-          ? [[key, value] as const]
-          : [],
-      ),
-    );
-  } catch {
-    return new Map<string, number>();
-  }
-}
-
-function resolveAllowance(input: {
-  accessReason: string;
-  planCode: string | null;
-  entitlements: string[];
-}): Allowance {
-  const planOverrides = parseAllowanceOverrides(process.env.AI_USAGE_PLAN_ALLOWANCES_JSON);
-  if (input.planCode && planOverrides.has(input.planCode)) {
-    return {
-      maxCalls: planOverrides.get(input.planCode)!,
-      windowMs: DEFAULT_WINDOW_MS,
-      key: `plan:${input.planCode}`,
-    };
-  }
-
-  const entitlementOverrides = parseAllowanceOverrides(
-    process.env.AI_USAGE_ENTITLEMENT_ALLOWANCES_JSON,
-  );
-  for (const entitlement of input.entitlements) {
-    if (entitlementOverrides.has(entitlement)) {
-      return {
-        maxCalls: entitlementOverrides.get(entitlement)!,
-        windowMs: DEFAULT_WINDOW_MS,
-        key: `entitlement:${entitlement}`,
-      };
-    }
-  }
-
-  return {
-    maxCalls: DEFAULT_ALLOWANCES[input.accessReason] ?? 0,
-    windowMs: DEFAULT_WINDOW_MS,
-    key: `source:${input.accessReason}`,
-  };
 }
 
 function opaqueConversationRef(value?: string | null) {
   if (!value) return null;
-  return crypto.createHash("sha256").update(value).digest("hex").slice(0, 24);
+  return crypto.createHash("sha256").update(value).digest("hex").slice(0, 32);
 }
 
-function originForLog(origin: AiUsageGateInput["origin"]): "web" | "whatsapp" | "admin" {
-  if (origin === "whatsapp") return "whatsapp";
-  if (origin === "web") return "web";
-  return "admin";
+function operationMatches(operations: string[], input: AiUsageGateInput) {
+  const keys = new Set([
+    "ai_heavy_processing",
+    `capability:${input.capability}`,
+    ...(input.flow ? [`flow:${input.flow}`] : []),
+  ]);
+  return operations.some(operation => keys.has(operation));
 }
 
-export async function enforceUsageAllowance(
-  input: AiUsageGateInput,
-): Promise<AiUsageGateResult> {
+export async function enforceUsageAllowance(input: AiUsageGateInput): Promise<AiUsageGateResult> {
   const status = await billingService.getUserSubscriptionStatus(input.userId);
   const access = status.access;
-  const originalSubscriptionPlanCode = status.subscription?.planCode ?? null;
-  const effectivePlanCode = access.planCode ?? originalSubscriptionPlanCode;
-  const allowance = resolveAllowance({
-    accessReason: access.reason,
-    planCode: effectivePlanCode,
-    entitlements: access.entitlements,
-  });
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - allowance.windowMs);
+  const originalPlanCode = status.subscription?.planCode ?? null;
+  const sponsored = access.reason === "sponsored_by_professional" && access.sponsorUserId;
+  const effectiveSubscription = sponsored ? status.professionalSubscription : status.subscription;
+  const effectivePlanCode = access.planCode ?? effectiveSubscription?.planCode ?? originalPlanCode;
   const conversationRef = opaqueConversationRef(input.conversationId);
-  const billedUserId = access.reason === "sponsored_by_professional" && access.sponsorUserId
-    ? access.sponsorUserId
-    : input.userId;
+  const payerUserId = sponsored ? access.sponsorUserId! : input.userId;
+  const now = new Date();
 
-  let reservation;
-  try {
-    reservation = await reserveUsageQuota({
-      userId: input.userId,
-      capability: input.capability,
-      origin: originForLog(input.origin),
-      windowStart,
-      maxCalls: allowance.maxCalls,
-      detail: {
-        capability: input.capability,
-        flow: input.flow ?? null,
-        conversationRef,
-        accessSource: access.reason,
-        effectivePlanCode,
-        originalSubscriptionPlanCode,
-        entitlementKeys: access.entitlements,
-        allowanceKey: allowance.key,
-        allowanceMaxCalls: allowance.maxCalls,
-        allowanceWindowMs: allowance.windowMs,
-        billedUserId,
-        policyVersion: USAGE_RETENTION_POLICY.policyVersion,
-      },
-    });
-  } catch {
-    throw new AiUsageGovernanceUnavailableError();
-  }
-
-  if (!reservation.allowed) {
-    throw new AiUsageLimitExceededError(
-      Math.max(1, Math.ceil(allowance.windowMs / 1000)),
-      allowance.maxCalls,
-      allowance.windowMs,
+  const limitations = await getActiveUsageLimitation(input.userId, now);
+  const active = limitations.find(item => operationMatches(item.operations, input));
+  if (active) {
+    throw new AiUsageTemporarilyLimitedError(
+      Math.max(1, Math.ceil((active.endsAt.getTime() - now.getTime()) / 1000)),
     );
   }
 
   return {
     correlation: {
       userId: input.userId,
-      billedUserId,
+      beneficiaryUserId: input.userId,
+      payerUserId,
+      billedUserId: payerUserId,
+      sponsorUserId: sponsored ? access.sponsorUserId! : 0,
       accessSource: access.reason,
       planCode: effectivePlanCode ?? "none",
-      originalPlanCode: originalSubscriptionPlanCode ?? "none",
-      allowanceKey: allowance.key,
-      allowanceLimit: allowance.maxCalls,
+      originalPlanCode: originalPlanCode ?? "none",
+      subscriptionId: effectiveSubscription?.id ?? "none",
+      billingCycle: effectiveSubscription?.billingCycle ?? "none",
+      currency: effectiveSubscription?.currency ?? "none",
       ...(conversationRef ? { conversationRef } : {}),
     },
   };
 }
 
-type SafeInferenceEvent = {
-  capability?: string;
-  origin?: string;
-  flow?: string;
-  callRole?: string;
-  outcome?: string;
-  estimatedCostUsd?: number | null;
-  usage?: { totalTokens?: number; inputTokens?: number; outputTokens?: number };
-  pricingCatalogVersion?: string;
-  correlation?: Record<string, string | number | boolean | null>;
-};
-
-function parseSafeInferenceEvent(detail: string): SafeInferenceEvent | null {
-  try {
-    const parsed = JSON.parse(detail) as SafeInferenceEvent;
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function tokensFrom(event: SafeInferenceEvent) {
+function usageUnits(event: AiInferenceEvent) {
   const usage = event.usage;
-  if (!usage) return 0;
-  if (typeof usage.totalTokens === "number") return usage.totalTokens;
-  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+  if (usage?.audioSeconds !== undefined) return { type: "audio_seconds", count: usage.audioSeconds };
+  if (usage?.generatedImages !== undefined) return { type: "generated_images", count: usage.generatedImages };
+  if (usage?.totalTokens !== undefined) return { type: "tokens", count: usage.totalTokens };
+  const tokenSum = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+  if (tokenSum > 0) return { type: "tokens", count: tokenSum };
+  return { type: "operation", count: 1 };
 }
 
-export async function getInternalUsageAnalytics(input: {
-  from: Date;
-  to: Date;
-  userId?: number;
+function safePositiveInt(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function correlationString(event: AiInferenceEvent, key: string) {
+  const value = event.correlation[key];
+  return typeof value === "string" && value !== "none" ? value : null;
+}
+
+export async function recordAiEconomicUsage(event: AiInferenceEvent) {
+  const beneficiaryUserId = safePositiveInt(event.correlation.beneficiaryUserId ?? event.correlation.userId);
+  if (!beneficiaryUserId) return { created: false, reason: "unattributed" as const };
+  const payerUserId = safePositiveInt(event.correlation.payerUserId ?? event.correlation.billedUserId) ?? beneficiaryUserId;
+  const sponsorUserId = safePositiveInt(event.correlation.sponsorUserId);
+  const conversationRef = correlationString(event, "conversationRef");
+  const units = usageUnits(event);
+  const idempotencyKey = conversationRef
+    ? `ai:${conversationRef}:${event.capability}:${event.callRole}:${event.attemptIndex}`
+    : `ai:${event.executionId}:${event.callRole}:${event.attemptIndex}`;
+  const costMicros = event.estimatedCostUsd == null ? null : Math.max(0, Math.round(event.estimatedCostUsd * 1_000_000));
+  const occurredAt = new Date(event.occurredAt);
+
+  return recordUsageEvent({
+    id: crypto.randomUUID(),
+    idempotencyKey,
+    beneficiaryUserId,
+    patientUserId: sponsorUserId ? beneficiaryUserId : null,
+    sponsorUserId,
+    payerUserId,
+    subscriptionId: correlationString(event, "subscriptionId"),
+    versionCode: correlationString(event, "planCode"),
+    billingCycle: correlationString(event, "billingCycle"),
+    accessSource: correlationString(event, "accessSource") ?? "unknown",
+    operation: event.flow || event.capability,
+    channel: event.origin,
+    provider: event.effectiveProvider,
+    model: event.effectiveModel,
+    unitType: units.type,
+    unitCount: Math.max(0, Math.round(units.count)),
+    estimatedCostMicros: costMicros,
+    currency: costMicros == null ? null : "USD",
+    eventState: event.outcome === "success" ? "success" : event.outcome,
+    attemptRole: event.callRole,
+    retryRootKey: event.callRole === "retry" ? event.executionId : null,
+    correlationId: event.executionId,
+    environment: process.env.NODE_ENV ?? "development",
+    ruleVersion: USAGE_RULE_VERSION,
+    metadata: {
+      capability: event.capability,
+      pricingCatalogVersion: event.pricingCatalogVersion,
+      pricingEffectiveDate: event.pricingEffectiveDate,
+      fallbackKind: event.fallback.kind,
+      degradation: event.degradation,
+    },
+    occurredAt,
+  });
+}
+
+export type EconomicFactType =
+  | "contract_revenue"
+  | "discount"
+  | "coupon"
+  | "credit"
+  | "refund"
+  | "chargeback"
+  | "revenue_tax"
+  | "receipt_fee"
+  | "financial_cost"
+  | "usage_cost_correction";
+
+export async function registerEconomicFact(input: {
+  idempotencyKey: string;
+  payerUserId: number;
+  subscriptionId?: string | null;
+  productCode?: string | null;
+  versionCode?: string | null;
+  billingCycle?: string | null;
+  factType: EconomicFactType;
+  amountMinor: number;
+  currency: string;
+  valueKind: "estimated" | "effective";
+  competenceStart: Date;
+  competenceEnd: Date;
+  effectiveAt?: Date;
+  reason?: string | null;
+  actorUserId?: number | null;
+  metadata?: Record<string, unknown> | null;
 }) {
-  const rows = await listEconomicTelemetry(input);
-  const groups = new Map<string, {
-    feature: string;
-    planCode: string;
-    accessSource: string;
-    calls: number;
-    tokens: number;
-    estimatedCostUsd: number;
-    retries: number;
-    fallbacks: number;
-    timeouts: number;
-    limitExceeded: number;
-  }>();
-  const pressure = new Map<number, { calls: number; estimatedCostUsd: number; limitExceeded: number }>();
-  let retryTimeoutCostUsd = 0;
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor < 0) throw new Error("economic_fact_amount_invalid");
+  if (input.competenceEnd.getTime() < input.competenceStart.getTime()) throw new Error("economic_fact_competence_invalid");
+  return recordEconomicFact({
+    ...input,
+    id: crypto.randomUUID(),
+    effectiveAt: input.effectiveAt ?? new Date(),
+    ruleVersion: USAGE_RULE_VERSION,
+    correlationId: crypto.randomUUID(),
+  });
+}
 
-  for (const row of rows) {
-    if (row.eventType === "ai.usage_limit_exceeded") {
-      if (row.userId !== null) {
-        const current = pressure.get(row.userId) ?? { calls: 0, estimatedCostUsd: 0, limitExceeded: 0 };
-        current.limitExceeded += 1;
-        pressure.set(row.userId, current);
-      }
-      continue;
-    }
+export function prorateMinorUnits(amountMinor: number, serviceStart: Date, serviceEnd: Date, sliceStart: Date, sliceEnd: Date) {
+  const total = Math.max(1, serviceEnd.getTime() - serviceStart.getTime());
+  const overlapStart = Math.max(serviceStart.getTime(), sliceStart.getTime());
+  const overlapEnd = Math.min(serviceEnd.getTime(), sliceEnd.getTime());
+  if (overlapEnd <= overlapStart) return 0;
+  return Math.round(amountMinor * ((overlapEnd - overlapStart) / total));
+}
 
-    const event = parseSafeInferenceEvent(row.detail);
-    if (!event) continue;
-    const feature = event.flow ?? event.capability ?? "unknown";
-    const planCode = String(event.correlation?.planCode ?? "unknown");
-    const accessSource = String(event.correlation?.accessSource ?? "unknown");
-    const key = `${feature}\u0000${planCode}\u0000${accessSource}`;
-    const current = groups.get(key) ?? {
-      feature,
-      planCode,
-      accessSource,
-      calls: 0,
-      tokens: 0,
-      estimatedCostUsd: 0,
-      retries: 0,
-      fallbacks: 0,
-      timeouts: 0,
-      limitExceeded: 0,
-    };
-    const cost = typeof event.estimatedCostUsd === "number" ? event.estimatedCostUsd : 0;
-    current.calls += 1;
-    current.tokens += tokensFrom(event);
-    current.estimatedCostUsd += cost;
-    if (event.callRole === "retry") current.retries += 1;
-    if (event.callRole === "fallback") current.fallbacks += 1;
-    if (event.outcome === "timeout") current.timeouts += 1;
-    if (event.callRole === "retry" || event.callRole === "fallback" || event.outcome === "timeout") {
-      retryTimeoutCostUsd += cost;
-    }
-    groups.set(key, current);
+export function calculateNetEconomicRevenueMinor(input: {
+  recognizedContractRevenueMinor: number;
+  discountMinor: number;
+  couponMinor: number;
+  creditMinor: number;
+  refundMinor: number;
+  chargebackMinor: number;
+  taxMinor: number;
+  receiptFeeMinor: number;
+}) {
+  return input.recognizedContractRevenueMinor - input.discountMinor - input.couponMinor - input.creditMinor
+    - input.refundMinor - input.chargebackMinor - input.taxMinor - input.receiptFeeMinor;
+}
 
-    if (row.userId !== null) {
-      const user = pressure.get(row.userId) ?? { calls: 0, estimatedCostUsd: 0, limitExceeded: 0 };
-      user.calls += 1;
-      user.estimatedCostUsd += cost;
-      pressure.set(row.userId, user);
+export function calculateVariableCostRatioBps(variableCostMicros: number, netRevenueMinor: number) {
+  if (netRevenueMinor <= 0) return null;
+  const revenueMicros = netRevenueMinor * 10_000;
+  return Math.round((variableCostMicros / revenueMicros) * 10_000);
+}
+
+export function economicHealthBand(ratioBps: number | null) {
+  if (ratioBps == null) return "unavailable" as const;
+  if (ratioBps <= 2000) return "healthy" as const;
+  if (ratioBps <= 2500) return "attention" as const;
+  if (ratioBps <= 3000) return "review" as const;
+  return "mandatory_review_candidate" as const;
+}
+
+function startOfMonth(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+}
+function addMonths(value: Date, months: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, 1));
+}
+function subtractMonths(value: Date, months: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() - months, value.getUTCDate(), value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds()));
+}
+
+export async function refreshEconomicAggregates(now = new Date()) {
+  const from = addMonths(startOfMonth(now), -2);
+  const to = addMonths(startOfMonth(now), 1);
+  await refreshUsageDailyAggregates(from, to, USAGE_RULE_VERSION);
+  const facts = await listEconomicFacts({ from, to });
+  const usage = await listUsageEvents({ from, to });
+  const buckets = new Map<string, Record<string, number | string | null | Date>>();
+
+  for (let month = new Date(from); month < to; month = addMonths(month, 1)) {
+    const next = addMonths(month, 1);
+    for (const fact of facts) {
+      const competenceStart = new Date(String(fact.competenceStart));
+      const competenceEnd = new Date(String(fact.competenceEnd));
+      const value = prorateMinorUnits(Number(fact.amountMinor), competenceStart, addMonths(startOfMonth(competenceEnd), 1), month, next);
+      if (!value) continue;
+      const key = [month.toISOString().slice(0, 10), fact.payerUserId, fact.subscriptionId ?? "", fact.versionCode ?? "", fact.currency].join("|");
+      const bucket = buckets.get(key) ?? {
+        month, payerUserId: Number(fact.payerUserId), subscriptionId: fact.subscriptionId ? String(fact.subscriptionId) : null,
+        productCode: fact.productCode ? String(fact.productCode) : null, versionCode: fact.versionCode ? String(fact.versionCode) : null,
+        billingCycle: fact.billingCycle ? String(fact.billingCycle) : null, currency: String(fact.currency), contract_revenue: 0,
+        discount: 0, coupon: 0, credit: 0, refund: 0, chargeback: 0, revenue_tax: 0, receipt_fee: 0, financial_cost: 0,
+        estimatedFacts: 0, effectiveFacts: 0, variableCostMicros: 0,
+      };
+      const factType = String(fact.factType);
+      bucket[factType] = Number(bucket[factType] ?? 0) + value;
+      if (String(fact.valueKind) === "effective") bucket.effectiveFacts = Number(bucket.effectiveFacts) + 1;
+      else bucket.estimatedFacts = Number(bucket.estimatedFacts) + 1;
+      buckets.set(key, bucket);
     }
   }
 
-  return {
-    window: { from: input.from, to: input.to },
-    retentionPolicy: USAGE_RETENTION_POLICY,
-    totals: {
-      calls: Array.from(groups.values()).reduce((sum, item) => sum + item.calls, 0),
-      tokens: Array.from(groups.values()).reduce((sum, item) => sum + item.tokens, 0),
-      estimatedCostUsd: Array.from(groups.values()).reduce((sum, item) => sum + item.estimatedCostUsd, 0),
-      retryTimeoutCostUsd,
-    },
-    byFeatureAndPlan: Array.from(groups.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd),
-    pressureUsers: Array.from(pressure.entries())
-      .map(([userId, value]) => ({ userId, ...value }))
-      .sort((a, b) => b.calls - a.calls || b.estimatedCostUsd - a.estimatedCostUsd)
-      .slice(0, 50),
-    generatedAt: new Date(),
-  };
+  for (const row of usage) {
+    const month = startOfMonth(new Date(String(row.occurredAt)));
+    const keyPrefix = month.toISOString().slice(0, 10);
+    for (const [key, bucket] of buckets) {
+      if (!key.startsWith(`${keyPrefix}|${row.payerUserId}|`)) continue;
+      if (bucket.subscriptionId && String(row.subscriptionId ?? "") !== bucket.subscriptionId) continue;
+      bucket.variableCostMicros = Number(bucket.variableCostMicros) + Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
+    }
+  }
+
+  for (const [key, bucket] of buckets) {
+    const net = calculateNetEconomicRevenueMinor({
+      recognizedContractRevenueMinor: Number(bucket.contract_revenue), discountMinor: Number(bucket.discount),
+      couponMinor: Number(bucket.coupon), creditMinor: Number(bucket.credit), refundMinor: Number(bucket.refund),
+      chargebackMinor: Number(bucket.chargeback), taxMinor: Number(bucket.revenue_tax), receiptFeeMinor: Number(bucket.receipt_fee),
+    });
+    const variableCostMicros = Number(bucket.variableCostMicros);
+    const estimated = Number(bucket.estimatedFacts);
+    const effective = Number(bucket.effectiveFacts);
+    await upsertMonthlyEconomicAggregate({
+      aggregateKey: crypto.createHash("sha256").update(key).digest("hex"), competenceMonth: bucket.month as Date,
+      payerUserId: Number(bucket.payerUserId), subscriptionId: bucket.subscriptionId as string | null,
+      productCode: bucket.productCode as string | null, versionCode: bucket.versionCode as string | null,
+      billingCycle: bucket.billingCycle as string | null, currency: String(bucket.currency),
+      recognizedContractRevenueMinor: Number(bucket.contract_revenue), discountMinor: Number(bucket.discount), couponMinor: Number(bucket.coupon),
+      creditMinor: Number(bucket.credit), refundMinor: Number(bucket.refund), chargebackMinor: Number(bucket.chargeback), taxMinor: Number(bucket.revenue_tax),
+      receiptFeeMinor: Number(bucket.receipt_fee), financialCostMinor: Number(bucket.financial_cost), netEconomicRevenueMinor: net,
+      variableCostMicros, variableCostRatioBps: calculateVariableCostRatioBps(variableCostMicros, net),
+      estimatedFactCount: estimated, effectiveFactCount: effective, measurementCoverageBps: effective + estimated ? Math.round(effective / (effective + estimated) * 10_000) : 0,
+      ruleVersion: USAGE_RULE_VERSION,
+    });
+  }
 }
 
-export function runUsageRetention(now = new Date()) {
-  return purgeExpiredUsageTelemetry(now);
+export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
+  const usage = await listUsageEvents(input);
+  const economics = await listMonthlyEconomicAggregates({ from: startOfMonth(input.from), to: addMonths(startOfMonth(input.to), 1), payerUserId: input.userId });
+  const byOperation = new Map<string, { operation: string; channel: string; calls: number; units: number; estimatedCostMicros: number; effectiveCostMicros: number; retries: number; failures: number }>();
+  for (const row of usage) {
+    const key = `${row.operation}|${row.channel}`;
+    const current = byOperation.get(key) ?? { operation: String(row.operation), channel: String(row.channel), calls: 0, units: 0, estimatedCostMicros: 0, effectiveCostMicros: 0, retries: 0, failures: 0 };
+    current.calls += 1; current.units += Number(row.unitCount ?? 0); current.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
+    current.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0); if (row.attemptRole === "retry") current.retries += 1;
+    if (row.eventState !== "success") current.failures += 1; byOperation.set(key, current);
+  }
+  const monthly = economics.map(row => ({
+    competenceMonth: row.competenceMonth, payerUserId: Number(row.payerUserId), versionCode: row.versionCode, currency: row.currency,
+    recognizedContractRevenueMinor: Number(row.recognizedContractRevenueMinor), netEconomicRevenueMinor: Number(row.netEconomicRevenueMinor),
+    variableCostMicros: Number(row.variableCostMicros), variableCostRatioBps: row.variableCostRatioBps == null ? null : Number(row.variableCostRatioBps),
+    health: economicHealthBand(row.variableCostRatioBps == null ? null : Number(row.variableCostRatioBps)), measurementCoverageBps: Number(row.measurementCoverageBps),
+  }));
+  return { window: input, policy: { fairUse: FAIR_USE_POLICY, retention: USAGE_RETENTION_POLICY }, byOperation: Array.from(byOperation.values()), monthlyEconomics: monthly, generatedAt: new Date() };
+}
+
+export async function runUsageRetention(now = new Date()) {
+  return purgeUsageGovernanceRetention({
+    now,
+    detailedCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.detailedUsageMonths),
+    dailyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths),
+    monthlyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.monthlyEconomicYears * 12),
+    ruleVersion: USAGE_RULE_VERSION,
+    auditId: crypto.randomUUID(),
+  });
 }
