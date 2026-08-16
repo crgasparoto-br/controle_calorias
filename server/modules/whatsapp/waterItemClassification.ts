@@ -39,6 +39,11 @@ const WATER_EXCLUSION_TOKENS = new Set([
   "aroma",
   "aromatizada",
   "aromatizado",
+  "cha",
+  "hibisco",
+  "hortela",
+  "infusao",
+  "limao",
 ]);
 
 const WATER_COMPOSITION_CONNECTOR_TOKENS = new Set(["e", "ou"]);
@@ -60,7 +65,7 @@ function hasPlainWaterClassificationEvidence(item: Pick<MealDraftItem, "classifi
   return item.classification?.isPlainWater === true;
 }
 
-function unknownTokensFormBoundaryBrandCandidate(tokens: string[], brandTokens: Set<string>) {
+function unknownTokensFormEmbeddedBrandCandidate(tokens: string[], brandTokens: Set<string>) {
   const significantTokens = tokens.filter(token => !isWaterMeasurementToken(token));
   const unknownIndexes = significantTokens.flatMap((token, index) => (
     !CORE_WATER_TOKENS.has(token) && !brandTokens.has(token) ? [index] : []
@@ -86,7 +91,7 @@ function unknownTokensFormBoundaryBrandCandidate(tokens: string[], brandTokens: 
     return false;
   }
 
-  return firstUnknownIndex === 0 || lastUnknownIndex === significantTokens.length - 1;
+  return true;
 }
 
 export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonicalName" | "brand" | "classification">) {
@@ -122,11 +127,13 @@ export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonica
     // Marca embutida sem `brand` e uma representação ambígua. Ela só pode ser
     // tolerada quando o extrator declarou separadamente que a identidade é
     // água potável pura; o nível NOVA de processamento não serve como prova
-    // de pureza. Os tokens desconhecidos ainda precisam formar um bloco de
-    // borda para não alterar a gramática interna da bebida.
+    // de pureza. Os tokens desconhecidos precisam formar um único bloco sem
+    // conectores de composição nas bordas, mas a posição desse bloco não é
+    // significativa: a inferência visual pode inserir a marca antes, entre ou
+    // depois dos qualificadores canônicos da água.
     return tokens.some(token => PURE_WATER_ANCHOR_TOKENS.has(token))
       && hasPlainWaterClassificationEvidence(item)
-      && unknownTokensFormBoundaryBrandCandidate(tokens, brandTokens);
+      && unknownTokensFormEmbeddedBrandCandidate(tokens, brandTokens);
   });
 }
 

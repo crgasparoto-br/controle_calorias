@@ -142,12 +142,43 @@ describe("waterItemClassification", () => {
     })).toBe(false);
   });
 
-  it("não interpreta token desconhecido no meio da gramática de água como marca embutida", () => {
+  it("aceita marca desconhecida no início, meio e fim da gramática de água pura", () => {
+    expect(isPureWaterItem({
+      foodName: "Crystal Água Mineral 500 ml",
+      canonicalName: "Crystal Água Mineral",
+      classification: plainWaterClassification,
+    })).toBe(true);
     expect(isPureWaterItem({
       foodName: "Água Crystal Mineral 500 ml",
       canonicalName: "Água Crystal Mineral",
       classification: plainWaterClassification,
-    })).toBe(false);
+    })).toBe(true);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral Crystal com Gás 500 ml",
+      canonicalName: "Água Mineral Crystal com Gás",
+      classification: plainWaterClassification,
+    })).toBe(true);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral com Gás Crystal 500 ml",
+      canonicalName: "Água Mineral com Gás Crystal",
+      classification: plainWaterClassification,
+    })).toBe(true);
+  });
+
+  it("não confunde composições, sabores ou infusões com marca em nenhuma posição", () => {
+    for (const name of [
+      "Vodka e Água Mineral 500 ml",
+      "Água Mineral e Vodka 500 ml",
+      "Água Mineral com Limão 500 ml",
+      "Água Mineral Hibisco 500 ml",
+      "Água Mineral Infusão de Hortelã 500 ml",
+    ]) {
+      expect(isPureWaterItem({
+        foodName: name,
+        canonicalName: name,
+        classification: plainWaterClassification,
+      }), name).toBe(false);
+    }
   });
 
   it("resolve o volume quando ele existe somente no nome aceito", () => {
