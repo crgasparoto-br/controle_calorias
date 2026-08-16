@@ -1,18 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getUserSubscriptionStatus = vi.fn();
-const reserveUsageQuota = vi.fn();
-const listEconomicTelemetry = vi.fn();
-const purgeExpiredUsageTelemetry = vi.fn();
+const mocks = vi.hoisted(() => ({
+  getUserSubscriptionStatus: vi.fn(),
+  reserveUsageQuota: vi.fn(),
+  listEconomicTelemetry: vi.fn(),
+  purgeExpiredUsageTelemetry: vi.fn(),
+}));
 
 vi.mock("../billing/service", () => ({
-  billingService: { getUserSubscriptionStatus },
+  billingService: { getUserSubscriptionStatus: mocks.getUserSubscriptionStatus },
 }));
 
 vi.mock("../../repositories/usageGovernanceRepository", () => ({
-  reserveUsageQuota,
-  listEconomicTelemetry,
-  purgeExpiredUsageTelemetry,
+  reserveUsageQuota: mocks.reserveUsageQuota,
+  listEconomicTelemetry: mocks.listEconomicTelemetry,
+  purgeExpiredUsageTelemetry: mocks.purgeExpiredUsageTelemetry,
 }));
 
 import {
@@ -52,11 +54,11 @@ describe("usage governance", () => {
     vi.clearAllMocks();
     delete process.env.AI_USAGE_PLAN_ALLOWANCES_JSON;
     delete process.env.AI_USAGE_ENTITLEMENT_ALLOWANCES_JSON;
-    reserveUsageQuota.mockResolvedValue({ allowed: true, used: 1, limit: 180 });
+    mocks.reserveUsageQuota.mockResolvedValue({ allowed: true, used: 1, limit: 180 });
   });
 
   it("preserves the original subscription plan when an admin override is the effective source", async () => {
-    getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
+    mocks.getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
       reason: "admin_override",
       subscriptionPlanCode: "individual_monthly_v1",
       entitlements: ["system_access", "assistant"],
@@ -70,8 +72,8 @@ describe("usage governance", () => {
       conversationId: "wamid.raw-external-id",
     });
 
-    expect(reserveUsageQuota).toHaveBeenCalledOnce();
-    const reservation = reserveUsageQuota.mock.calls[0][0];
+    expect(mocks.reserveUsageQuota).toHaveBeenCalledOnce();
+    const reservation = mocks.reserveUsageQuota.mock.calls[0][0];
     expect(reservation.detail).toMatchObject({
       accessSource: "admin_override",
       effectivePlanCode: "individual_monthly_v1",
@@ -88,7 +90,7 @@ describe("usage governance", () => {
   });
 
   it("attributes sponsored usage to the professional payer without changing the beneficiary quota owner", async () => {
-    getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
+    mocks.getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
       reason: "sponsored_by_professional",
       planCode: "professional_v1",
       sponsorUserId: 7,
@@ -101,18 +103,18 @@ describe("usage governance", () => {
       flow: "whatsapp_question",
     });
 
-    expect(reserveUsageQuota.mock.calls[0][0].userId).toBe(99);
-    expect(reserveUsageQuota.mock.calls[0][0].detail.billedUserId).toBe(7);
+    expect(mocks.reserveUsageQuota.mock.calls[0][0].userId).toBe(99);
+    expect(mocks.reserveUsageQuota.mock.calls[0][0].detail.billedUserId).toBe(7);
     expect(result.correlation?.billedUserId).toBe(7);
   });
 
   it("supports plan-specific allowances and rejects before an outbound call when the window is exhausted", async () => {
     process.env.AI_USAGE_PLAN_ALLOWANCES_JSON = JSON.stringify({ individual_monthly_v1: 2 });
-    getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
+    mocks.getUserSubscriptionStatus.mockResolvedValue(subscriptionStatus({
       reason: "active_subscription",
       planCode: "individual_monthly_v1",
     }));
-    reserveUsageQuota.mockResolvedValue({ allowed: false, used: 2, limit: 2 });
+    mocks.reserveUsageQuota.mockResolvedValue({ allowed: false, used: 2, limit: 2 });
 
     await expect(enforceUsageAllowance({
       userId: 5,
@@ -121,11 +123,11 @@ describe("usage governance", () => {
       flow: "question_answer",
     })).rejects.toBeInstanceOf(AiUsageLimitExceededError);
 
-    expect(reserveUsageQuota.mock.calls[0][0].maxCalls).toBe(2);
+    expect(mocks.reserveUsageQuota.mock.calls[0][0].maxCalls).toBe(2);
   });
 
   it("aggregates calls, tokens, provider cost and retry/timeout inflation without conversation text", async () => {
-    listEconomicTelemetry.mockResolvedValue([
+    mocks.listEconomicTelemetry.mockResolvedValue([
       {
         id: 1,
         userId: 42,
@@ -192,10 +194,10 @@ describe("usage governance", () => {
   });
 
   it("delegates retention using the documented policy", async () => {
-    purgeExpiredUsageTelemetry.mockResolvedValue({});
+    mocks.purgeExpiredUsageTelemetry.mockResolvedValue({});
     const now = new Date("2026-08-16T12:00:00.000Z");
     await runUsageRetention(now);
-    expect(purgeExpiredUsageTelemetry).toHaveBeenCalledWith(now);
+    expect(mocks.purgeExpiredUsageTelemetry).toHaveBeenCalledWith(now);
     expect(USAGE_RETENTION_POLICY).toMatchObject({
       quotaReservationsHours: 48,
       detailedEconomicTelemetryDays: 90,
