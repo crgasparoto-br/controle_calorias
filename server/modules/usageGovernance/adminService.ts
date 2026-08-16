@@ -121,9 +121,17 @@ export async function authorizeFutureConsumptionCharging(input: {
   if (input.effectiveFrom.getTime() <= now.getTime()) throw new Error("consumption_charge_effective_date_must_be_future");
   if (input.communicationAt.getTime() >= input.effectiveFrom.getTime()) throw new Error("consumption_charge_prior_communication_required");
   if (!input.affectedPlans.length) throw new Error("consumption_charge_plans_required");
+  if (!Object.keys(input.rollback).length) throw new Error("consumption_charge_rollback_required");
   const id = crypto.randomUUID();
   await createConsumptionChargeAuthorization({ ...input, id });
   return { id, state: "approved" as const, noRetroactive: true as const, measurementPolicyVersion: USAGE_RULE_VERSION };
+}
+
+export async function revokeFutureConsumptionCharging(id: string, actorUserId: number, reason: string) {
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) throw new Error("consumption_charge_revoke_reason_required");
+  await revokeConsumptionChargeAuthorization(id, actorUserId, normalizedReason);
+  return { id, state: "revoked" as const };
 }
 
 export async function placeUsageLegalHold(input: {
@@ -149,7 +157,7 @@ export const usageGovernanceAdminService = {
   applyUsageLimitation,
   revokeUsageLimitation: revokeLimitation,
   authorizeFutureConsumptionCharging,
-  revokeFutureConsumptionCharging: revokeConsumptionChargeAuthorization,
+  revokeFutureConsumptionCharging,
   placeUsageLegalHold,
   revokeUsageLegalHold: revokeLegalHold,
 };

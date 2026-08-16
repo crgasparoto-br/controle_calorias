@@ -42,9 +42,9 @@ export async function createConsumptionChargeAuthorization(input:{id:string;poli
   await db.execute(sql`INSERT INTO billingConsumptionChargeAuthorizations (id,state,policyVersion,reason,pricingJson,affectedPlansJson,effectiveFrom,communicationAt,noRetroactive,rollbackJson,authorizedByUserId) VALUES (${input.id},'approved',${input.policyVersion},${input.reason},${JSON.stringify(input.pricing)},${JSON.stringify(input.affectedPlans)},${input.effectiveFrom},${input.communicationAt},true,${JSON.stringify(input.rollback)},${input.actorUserId})`);
 }
 
-export async function revokeConsumptionChargeAuthorization(id:string, actorUserId:number) {
+export async function revokeConsumptionChargeAuthorization(id:string, actorUserId:number, reason:string) {
   const db=await requireDb();
-  await db.execute(sql`UPDATE billingConsumptionChargeAuthorizations SET state='revoked',revokedAt=NOW(),revokedByUserId=${actorUserId} WHERE id=${id} AND state='approved'`);
+  await db.execute(sql`UPDATE billingConsumptionChargeAuthorizations SET state='revoked',revokedAt=NOW(),revokedByUserId=${actorUserId},revokeReason=${reason} WHERE id=${id} AND state='approved'`);
 }
 
 export async function createLegalHold(input:{id:string;scopeType:string;scopeId:string;reason:string;startsAt:Date;endsAt?:Date|null;actorUserId:number}) {

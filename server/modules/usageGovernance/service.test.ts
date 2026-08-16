@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AiInferenceEvent } from "../../_core/ai/observability";
 
 const mocks = vi.hoisted(() => ({
   getUserSubscriptionStatus: vi.fn(),
@@ -35,6 +36,7 @@ import {
   economicHealthBand,
   enforceUsageAllowance,
   prorateMinorUnits,
+  recordAiEconomicUsage,
   runUsageRetention,
 } from "./service";
 
@@ -46,11 +48,50 @@ function status(reason = "active_subscription", sponsorUserId?: number) {
   };
 }
 
+function inferenceEvent(executionId: string, correlation: Record<string, string | number | boolean | null>): AiInferenceEvent {
+  return {
+    schemaVersion: 1,
+    occurredAt: "2026-08-16T12:30:00.000Z",
+    executionId,
+    capability: "QUESTION",
+    origin: "whatsapp",
+    flow: "whatsapp_question",
+    configuredProvider: "openai",
+    configuredModel: "gpt-4o-mini",
+    effectiveProvider: "openai",
+    effectiveModel: "gpt-4o-mini",
+    callRole: "primary",
+    attemptIndex: 1,
+    totalAttempts: 1,
+    latencyMs: 10,
+    totalLatencyMs: 10,
+    outcome: "success",
+    usage: { totalTokens: 100 },
+    tools: [],
+    estimatedCostUsd: 0.001,
+    executionEstimatedCostUsd: 0.001,
+    pricingCatalogVersion: "test",
+    pricingEffectiveDate: "2026-08-01",
+    fallback: {
+      requested: false,
+      enabled: false,
+      kind: "none",
+      eligibility: "not_needed",
+      reason: "primary_succeeded",
+      primaryAttempts: 1,
+      fallbackCalls: 0,
+    },
+    degradation: "none",
+    correlation,
+  };
+}
+
 describe("usage governance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getActiveUsageLimitation.mockResolvedValue([]);
     mocks.getUserSubscriptionStatus.mockResolvedValue(status());
+    mocks.recordUsageEvent.mockResolvedValue({ created: true });
     mocks.purgeUsageGovernanceRetention.mockResolvedValue(undefined);
   });
 
@@ -59,6 +100,47 @@ describe("usage governance", () => {
     const result = await enforceUsageAllowance({ userId: 99, capability: "QUESTION", origin: "whatsapp", flow: "whatsapp_question", conversationId: "wamid.private" });
     expect(result.correlation).toMatchObject({ beneficiaryUserId: 99, payerUserId: 7, sponsorUserId: 7, subscriptionId: "sub-pro", accessSource: "sponsored_by_professional" });
     expect(JSON.stringify(result.correlation)).not.toContain("wamid.private");
+  });
+
+  it("keeps historical attribution frozen when the current plan changes", async () => {
+    mocks.getUserSubscriptionStatus.mockResolvedValueOnce(status("sponsored_by_professional", 7));
+    const historical = await enforceUsageAllowance({
+      userId: 99,
+      capability: "QUESTION",
+      origin: "whatsapp",
+      flow: "whatsapp_question",
+      conversationId: "wamid.before-plan-change",
+    });
+
+    mocks.getUserSubscriptionStatus.mockResolvedValueOnce(status());
+    const current = await enforceUsageAllowance({
+      userId: 99,
+      capability: "QUESTION",
+      origin: "whatsapp",
+      flow: "whatsapp_question",
+      conversationId: "wamid.after-plan-change",
+    });
+
+    await recordAiEconomicUsage(inferenceEvent("exec-before", historical.correlation));
+    await recordAiEconomicUsage(inferenceEvent("exec-after", current.correlation));
+
+    expect(mocks.recordUsageEvent.mock.calls[0][0]).toMatchObject({
+      beneficiaryUserId: 99,
+      payerUserId: 7,
+      sponsorUserId: 7,
+      subscriptionId: "sub-pro",
+      versionCode: "professional_v1",
+      accessSource: "sponsored_by_professional",
+    });
+    expect(mocks.recordUsageEvent.mock.calls[1][0]).toMatchObject({
+      beneficiaryUserId: 99,
+      payerUserId: 99,
+      sponsorUserId: null,
+      subscriptionId: "sub-own",
+      versionCode: "individual_v1",
+      accessSource: "active_subscription",
+    });
+    expect(mocks.getUserSubscriptionStatus).toHaveBeenCalledTimes(2);
   });
 
   it("does not block at a budget threshold; only an approved active limitation blocks heavy processing", async () => {

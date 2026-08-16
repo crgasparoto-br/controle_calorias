@@ -232,6 +232,7 @@ CREATE TABLE IF NOT EXISTS `billingConsumptionChargeAuthorizations` (
   `authorizedByUserId` int NOT NULL,
   `revokedByUserId` int NULL,
   `revokedAt` timestamp NULL,
+  `revokeReason` varchar(255) NULL,
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `billingConsumptionChargeAuthorizations_state_effective_idx` (`state`, `effectiveFrom`)

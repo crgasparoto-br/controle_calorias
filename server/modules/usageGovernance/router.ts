@@ -119,7 +119,7 @@ export const usageGovernanceRouter = router({
     } catch (error) { governanceError(error); }
   }),
   revokeConsumptionCharging: adminProcedure.input(revokeConsumptionChargingSchema).mutation(async ({ ctx, input }) => {
-    try { await usageGovernanceAdminService.revokeFutureConsumptionCharging(input.id, ctx.user.id); return { revoked: true as const }; }
+    try { await usageGovernanceAdminService.revokeFutureConsumptionCharging(input.id, ctx.user.id, input.reason); return { revoked: true as const }; }
     catch (error) { governanceError(error); }
   }),
 

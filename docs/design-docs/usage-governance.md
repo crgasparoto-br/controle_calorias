@@ -6,7 +6,7 @@ Este documento registra o contrato da issue #897. A camada é **gerencial e oper
 
 `billingUsageEvents` é o ledger detalhado idempotente. Cada evento congela, quando aplicável, beneficiário/paciente, patrocinador/pagador, assinatura, produto/versão/ciclo, fonte de acesso, operação, canal, provider/modelo, unidade, custo estimado/efetivo, moeda, resultado, retry, ambiente, competência, correlação e versão da regra.
 
-O paciente permanece beneficiário quando o profissional paga. O custo é atribuído à assinatura/pagador profissional e o auto-uso do profissional usa a mesma assinatura, sem criar uma segunda fonte comercial. Trial, transição, acesso aberto e liberações administrativas permanecem fontes distintas.
+O paciente permanece beneficiário quando o profissional paga. O custo é atribuído à assinatura/pagador profissional e o auto-uso do profissional usa a mesma assinatura, sem criar uma segunda fonte comercial. Trial, transição, acesso aberto e liberações administrativas permanecem fontes distintas. Como a atribuição comercial é congelada no evento, uma mudança posterior de plano ou patrocinador não reatribui o histórico já medido; eventos novos usam o contexto vigente no momento da execução.
 
 Eventos de IA derivam do evento normalizado de observabilidade. A chave idempotente usa a referência opaca da mensagem/conversa quando disponível, evitando duplicação em callbacks/reprocessamentos; retries pagos continuam explicitamente identificados como tentativas adicionais. Prompt, resposta, texto de mensagem, áudio, imagem e transcrição não são copiados para o ledger.
 
@@ -36,7 +36,7 @@ Limitações atingem somente operações pesadas explicitamente listadas; login,
 
 ## Cobrança futura por consumo
 
-Medição e autorização de cobrança são contratos separados. `billingConsumptionChargeAuthorizations` exige responsável, motivo, política, preços, planos/versões afetados, data futura de vigência, comunicação anterior, proibição de retroatividade e rollback. A janela de observação nunca pode ser convertida retroativamente em cobrança.
+Medição e autorização de cobrança são contratos separados. `billingConsumptionChargeAuthorizations` exige responsável, motivo, política, preços, planos/versões afetados, data futura de vigência, comunicação anterior, proibição de retroatividade e plano de rollback não vazio. A revogação/desativação registra data, responsável e motivo, preservando a trilha de retorno da política. A janela de observação nunca pode ser convertida retroativamente em cobrança.
 
 ## Agregação e relatórios
 
