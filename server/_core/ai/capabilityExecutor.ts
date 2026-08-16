@@ -26,6 +26,7 @@ import {
   type AiObservabilitySink,
 } from "./observability";
 import { enforceAiUsageGate } from "./usageGate";
+import { getCurrentAiUsageScope } from "./usageContext";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
   provider: AiProvider;
@@ -85,14 +86,19 @@ async function applyUsageGovernance(
   observability?: AiObservabilityContext,
 ): Promise<AiObservabilityContext | undefined> {
   const rawCorrelation = observability?.correlation ?? {};
-  const userId = rawCorrelation.userId;
-  if (typeof userId !== "number" || !Number.isInteger(userId) || userId <= 0) {
+  const scoped = getCurrentAiUsageScope();
+  const candidateUserId = rawCorrelation.userId ?? scoped?.userId;
+  if (
+    typeof candidateUserId !== "number" ||
+    !Number.isInteger(candidateUserId) ||
+    candidateUserId <= 0
+  ) {
     return observability;
   }
 
-  const rawConversationId = rawCorrelation.conversationId;
+  const rawConversationId = rawCorrelation.conversationId ?? scoped?.conversationId;
   const usage = await enforceAiUsageGate({
-    userId,
+    userId: candidateUserId,
     capability: config.capability,
     origin: observability?.origin,
     flow: observability?.flow,
@@ -107,6 +113,7 @@ async function applyUsageGovernance(
     ...observability,
     correlation: {
       ...safeCorrelation,
+      userId: candidateUserId,
       ...(usage?.correlation ?? {}),
     },
   };
