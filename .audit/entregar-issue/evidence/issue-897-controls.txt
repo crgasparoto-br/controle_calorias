@@ -1,0 +1,34 @@
+Material candidate: 13961c4a54623d91225d681282219f4239d2ba80
+Base observed: 2b906cc26075d93303e06f9092f82175bca2f3d7
+Merge preview observed: 42e8bd33512982d6494a705ceebda597c3becaa3
+
+Remote exact-head evidence:
+- Agent-first gate run 31931417600: completed success.
+- Billing persistence TiDB gate run 31931417596: completed success.
+- WhatsApp context TiDB gate run 31931417623: completed success.
+- Onboarding activation TiDB gate run 31931417617: completed success.
+- Professional persistence TiDB gate run 31931417611: completed success.
+- AI provider live smoke run 31931417608: skipped by workflow policy.
+
+Focused behavioral evidence on the material head:
+- server/modules/usageGovernance/service.test.ts verifies sponsored patient attribution to professional payer without losing beneficiary and without retaining raw WhatsApp conversation id.
+- The same test file verifies budget thresholds do not auto-block and that only an approved active limitation blocks heavy processing.
+- The same test file verifies annual contractual revenue is prorated over service competence.
+- The same test file verifies net economic revenue deductions, exclusion of financial anticipation from the KPI denominator, and 20/25/30% economic bands.
+- The same test file verifies 13-month detail retention, 24-month daily retention, five-year monthly/audit retention, no raw conversational content retention, and legal-hold support.
+- server/modules/usageGovernance/service.ts defines idempotent AI usage keys, payer/beneficiary/sponsor attribution, fair-use thresholds 70/85/100, no automatic budget blocking, economic aggregation, retention, and internal analytics.
+- server/modules/usageGovernance/adminService.ts enforces human review before non-emergency limitations, 7-day initial limit, 24-hour emergency limit, heavy-operation-only limitations, prior communication/appeal, temporary allowances with billingSideEffect=false, future-only charging authorization with prior communication and noRetroactive=true, and legal hold lifecycle.
+- server/repositories/usageGovernanceRepository.ts and server/repositories/usageGovernanceAdminRepository.ts persist usage/economic/governance contracts.
+- docs/design-docs/usage-governance.md documents the separation between management economics, accounting/fiscal use, measurement, fair-use governance, and future charging authorization.
+- docs/generated/trpc-routes.md was regenerated on the material head; Documentation check passed in Agent-first gate run 31931417600.
+
+Negative/adversarial controls exercised by the implementation and exact-head suite:
+- duplicate/retry usage is keyed idempotently rather than counted as a new unrelated event;
+- professional sponsorship keeps beneficiary distinct from payer and does not double-count the same cost as individual + professional;
+- budget/economic thresholds do not become automatic access blocks;
+- active limitations are scoped to heavy operations and basic access remains available;
+- non-emergency limitation requires completed human review plus communication and appeal;
+- temporary allowances have no billing side effect;
+- charging authorization must be future-dated, communicated in advance, and records no retroactivity;
+- raw conversational ids are hashed/opaque for economic correlation and raw content is not retained for measurement;
+- retention preserves legal-hold policy while expiring non-held detail/aggregates by their configured horizons.

@@ -1,1 +1,113 @@
-{"schema_version":1,"head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","families":[{"family":"authorization","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"tenant-isolation","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"public-boundary","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"reference-liveness","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"temporal-consistency","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"temporal-destination","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"concurrency-atomicity","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"idempotency","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"rollback","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"historical-immutability","applicable":false,"status":"not-applicable","reason":"This remediation does not change this risk family.","control_ids":[]},{"family":"structural-contract","applicable":true,"status":"passed","reason":"Open-class discrimination, local dependency independence, precedence, telemetry structure and base constraints are material.","control_ids":["OPEN-CLASS-BIDIR-001","REQ-PLUM-LOCAL-NEG","REQ-PRECEDENCE-NEG","REQ-OBSERVABILITY-NEG","REQ-BASE-NEG","OPEN-CLASS-DISTRIBUTION-001","OPEN-CLASS-GATE-001"]},{"family":"documentation","applicable":true,"status":"passed","reason":"The issue explicitly requires canonical documentation to remain current.","control_ids":["REQ-DOCUMENTATION-NEG"]}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-NO-AUTO-BILLING",
+        "NEG-TEST-COVERAGE"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-NO-AUTO-BILLING",
+        "NEG-REPORTING-PRIVACY"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-ABUSE-GOVERNANCE",
+        "NEG-ECONOMICS",
+        "NEG-NO-AUTO-BILLING",
+        "NEG-REPORTING-PRIVACY",
+        "NEG-RETENTION-PRIVACY"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-ECONOMICS",
+        "NEG-NO-AUTO-BILLING",
+        "NEG-REPORTING-PRIVACY"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-METERING-ATTRIBUTION",
+        "NEG-TEST-COVERAGE"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-ECONOMICS",
+        "NEG-PROFESSIONAL-ATTRIBUTION"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    }
+  ],
+  "material_families_missing_controls": []
+}

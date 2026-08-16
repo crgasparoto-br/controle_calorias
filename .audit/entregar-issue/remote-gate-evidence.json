@@ -1,1 +1,44 @@
-{"schema_version":1,"head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","workflow":"Agent-first gate","run_id":31919726916,"run_number":5481,"observed_status":"in_progress","conclusion":null,"observation_policy":"single exact-head observation; no polling","observed_at":"2026-08-16T01:33:35.166595+00:00"}
+{
+  "schema_version": 1,
+  "head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
+  "ci_state": "green",
+  "observed_at": "2026-08-16T06:40:44.342886+00:00",
+  "workflows": [
+    {
+      "name": "Agent-first gate",
+      "run_id": 31931417600,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Billing persistence TiDB gate",
+      "run_id": 31931417596,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 31931417623,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Onboarding activation TiDB gate",
+      "run_id": 31931417617,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "run_id": 31931417611,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "AI provider live smoke",
+      "run_id": 31931417608,
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ]
+}

@@ -1,6 +1,0 @@
-control_id=OPEN-CLASS-BIDIR-001
-head_sha=5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a
-status=passed
-procedure=Execute the real container cleanup boundary against all existing withheld positive/negative fixtures plus A-010 literal and sibling controls.
-observed=ALL_FOCUSED_CASES_PASS
-notes=Fixed withheld sets remain green, and OPEN-CLASS-DISTRIBUTION-001 now adds fresh post-tuning shadow plus transfer sets.
