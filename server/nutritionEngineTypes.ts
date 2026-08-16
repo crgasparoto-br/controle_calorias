@@ -31,6 +31,8 @@ export type FoodClassificationEstimate = {
   isFruit: boolean;
   isVegetable: boolean;
   fiberGrams: number;
+  /** Evidência semântica independente de que o item é água potável pura. */
+  isPlainWater?: boolean | null;
 };
 
 export type MealDraftItem = {

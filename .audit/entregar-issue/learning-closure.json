@@ -1,1 +1,55 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"repository":"crgasparoto-br/controle_calorias","issue":982,"finding_id":"A-011","affected_head_sha":"5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a"},"generalized_learning":{"escape_class":"finite-precondition-open-class-gap","generalized_failure_pattern":"An open or extensible semantic decision is placed behind a finite precondition, so unseen precondition values can short-circuit before the transferable discriminator runs.","plausible_wrong_implementation":"Generalize downstream members and holdouts while retaining a finite outer key, prefix, head or type switch whose miss returns a default result before the open-class decision.","trigger_signals":["open or extensible semantic classes","finite precondition before the main discriminator","early return on unknown gate values","withheld tests vary only downstream fields"],"risk_families":["structural-contract"],"reusable_control":"OPEN-CLASS-GATE-001","prevention_rule":"For every open-class boundary, enumerate finite preconditions and execute withheld values outside each gate, including at least two sibling gate dimensions plus an opposite-class abstention control.","detection_rule":"Inspect early returns, finite keys, heads, prefixes, type switches and allowlists before an open-class decision; independently vary the gate itself, not only fields after it, at the real boundary.","transfer_cases":[{"surface":"extensible parser classification behind a finite record-kind prefix","status":"passed","evidence":"generic prevention contract test requires withheld gate values"},{"surface":"extensible routing decision behind a finite adapter/type switch","status":"passed","evidence":"generic detection contract test requires independent gate variation"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","skill":"entregar-issue","before_sha256":"69646323a19915c5e20a417ee746f2cf3eee2094850b54046209b3e7d5ac2c6f","after_sha256":"e96a37e58da6638ed2b73df72f10be661d367f59a9863de776ab9a56bd248217","status":"passed","evidence":"evidence/skill-control-tests.txt"},{"role":"detection","skill":"auditar-issue","before_sha256":"d966ce430fe91c429374a2a53dc5e8d08ca8607029e4b1673c6cf2500246561f","after_sha256":"91c997c7649598936ec54e3c3ded00f6396e9e0fb4e9ff459c1ae7466a5ac43c","status":"passed","evidence":"evidence/skill-control-tests.txt"}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "type": "independent-rejection",
+    "findings": [
+      "A-001-cycle3"
+    ],
+    "candidate_head_sha": "89332dd9d71812f43cf12067afd94870d4cb4b5c"
+  },
+  "generalized_learning": {
+    "escape_class": "open-class-token-position-restriction",
+    "generalized_failure_pattern": "Open identity accepted only at boundary without contractual ordering.",
+    "plausible_wrong_implementation": "Gate identity on token position.",
+    "trigger_signals": [
+      "open-class identity",
+      "multiple token orders"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": [
+      "OPEN-POSITION-001"
+    ],
+    "prevention_rule": "Do not impose position unless ordering is semantic.",
+    "detection_rule": "Permute identity positions with negative siblings.",
+    "transfer_cases": [
+      {
+        "surface": "address-parser",
+        "case": "organization positions",
+        "status": "passed"
+      },
+      {
+        "surface": "device-parser",
+        "case": "vendor positions",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "path": "entregar-issue/references/requirement-attack-matrix.md",
+      "status": "passed",
+      "evidence": "existing sibling control"
+    },
+    {
+      "role": "detection",
+      "path": "entregar-issue/references/audit-escape-closure.md",
+      "status": "passed",
+      "evidence": "existing class closure"
+    }
+  ]
+}

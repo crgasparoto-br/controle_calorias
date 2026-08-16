@@ -1,0 +1,19 @@
+Material head: 89332dd9d71812f43cf12067afd94870d4cb4b5c
+
+Focused controls:
+- corepack pnpm exec vitest run server/modules/whatsapp/waterItemClassification.test.ts server/whatsappWebhook.image.water.test.ts
+- Result: 2 files, 27 tests passed.
+- SEM-NEGATIVE-001: explicit isPlainWater=false overrides foodName, canonicalName and structured brand representations, including names with no unknown token.
+- REP-RECONCILE-001: quantity/unit, portionText, foodName and canonicalName volumes are collected before resolution; contradictions return null and the webhook asks for volume without persisting hydration.
+
+Repository gates:
+- corepack pnpm check: passed as the first agent:check stage.
+- corepack pnpm build: passed.
+- corepack pnpm architecture:check: passed.
+- corepack pnpm docs:check: passed.
+- git diff --check: passed.
+
+Aggregate-suite observation:
+- agent:check reached the full test suite and failed on load-sensitive 5-second timeouts plus one stale environment-dependent nutritionEngine assertion inherited from the previous material candidate.
+- The stale assertion was repaired by isolating the expected capability model and including the required isPlainWater field.
+- All reported tests were rerun together with --testTimeout=15000. nutritionEngine, mealIntentDecisionInteraction and breadVariationMatching passed. Two broad nutritionRouter image tests remained environment-bound and timed out at 15 seconds while exercising missing storage/image-provider fallbacks; no failure involved the changed hydration classifier or volume resolver.

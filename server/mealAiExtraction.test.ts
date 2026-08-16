@@ -33,6 +33,7 @@ function validExtraction(overrides: Record<string, unknown> = {}) {
         isFruit: false,
         isVegetable: false,
         fiberGrams: 0.4,
+        isPlainWater: false,
       },
     }],
     ...overrides,
@@ -72,6 +73,20 @@ describe("meal extraction capabilities", () => {
     expect(result?.items[0]?.foodName).toBe("arroz");
     expect(openAiCreateTextResponse.mock.calls[0][0].model).toBe("gpt-meal-text");
     expect(geminiCreateTextResponse).not.toHaveBeenCalled();
+  });
+
+  it("requires an independent plain-water signal in the structured extraction contract", async () => {
+    process.env.AI_MEAL_VISION_PROVIDER = "gemini";
+    process.env.AI_MEAL_VISION_MODEL = "gemini-meal-vision";
+    geminiCreateTextResponse.mockResolvedValue({ id: "g-water", outputText: JSON.stringify(validExtraction()), raw: {} });
+
+    await extractWithAi({ text: "garrafa", imageUrl: "data:image/jpeg;base64,AAAA" });
+
+    const request = geminiCreateTextResponse.mock.calls[0][0];
+    const itemSchema = request.format.schema.properties.items.items;
+    expect(itemSchema.properties.foodClassification.properties.isPlainWater).toEqual({ type: "boolean" });
+    expect(itemSchema.properties.foodClassification.required).toContain("isPlainWater");
+    expect(JSON.stringify(request.input)).toContain("foodClassification.isPlainWater");
   });
 
   it("binds MEAL_VISION independently to Gemini and preserves inline image input", async () => {

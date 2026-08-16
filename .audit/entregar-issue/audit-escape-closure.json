@@ -1,1 +1,185 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-001","escape_class":"closed-enumeration-negative-gap","status":"passed","source_audit":{"finding_id":"A-001","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-001-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-001-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-002","escape_class":"finite-positive-catalog-gap","status":"passed","source_audit":{"finding_id":"A-002","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-002-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-002-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-003","escape_class":"nested-context-enumeration-gap","status":"passed","source_audit":{"finding_id":"A-003","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-003-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-003-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-004","escape_class":"nested-cardinality-enumeration-gap","status":"passed","source_audit":{"finding_id":"A-004","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-004-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-004-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-005","escape_class":"cross-dimension-enumeration-gap","status":"passed","source_audit":{"finding_id":"A-005","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-005-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-005-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-006","escape_class":"open-positive-unseen-gap","status":"passed","source_audit":{"finding_id":"A-006","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-006-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-006-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-007","escape_class":"positive-negative-default-asymmetry","status":"passed","source_audit":{"finding_id":"A-007","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-007-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-007-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-008","escape_class":"bidirectional-unseen-control-gap","status":"passed","source_audit":{"finding_id":"A-008","validity":"independent"},"plausible_wrong_implementation":"Use a narrow finite discriminator that passes named fixtures while an adjacent open-class member escapes.","literal_case":{"status":"passed","evidence":"evidence/remediation-evidence.txt"},"sibling_cases":[{"id":"A-008-S1","status":"passed","evidence":"evidence/remediation-evidence.txt"},{"id":"A-008-S2","status":"passed","evidence":"evidence/remediation-evidence.txt"}],"prevention_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"},"detection_change":{"control_id":"inherited-control","evidence":"evidence/remediation-evidence.txt"}},{"escape_id":"A-009","escape_class":"finite-vocabulary-default-acceptance","status":"passed","source_audit":{"finding_id":"A-009","validity":"independent"},"plausible_wrong_implementation":"Use finite vocabulary coverage and default-accept unseen negative members while named fixtures pass.","literal_case":{"status":"passed","evidence":"evidence/open-class-bidirectional-evidence.txt"},"sibling_cases":[{"id":"A-009-S1","status":"passed","evidence":"evidence/open-class-bidirectional-evidence.txt"},{"id":"A-009-S2","status":"passed","evidence":"evidence/open-class-bidirectional-evidence.txt"}],"prevention_change":{"control_id":"OPEN-CLASS-BIDIR-001","evidence":"evidence/skill-control-tests.txt"},"detection_change":{"control_id":"OPEN-CLASS-BIDIR-001","evidence":"evidence/skill-control-tests.txt"}},{"escape_id":"A-010","escape_class":"fixed-holdout-threshold-generalization-gap","status":"passed","source_audit":{"finding_id":"A-010","validity":"independent","affected_head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e"},"plausible_wrong_implementation":"Tune a numeric discriminator to a fixed bidirectional holdout until named cases pass while unseen members from either open class still flip.","literal_case":{"status":"passed","evidence":"evidence/open-class-gate-evidence.txt"},"sibling_cases":[{"id":"A-010-S1","status":"passed","evidence":"evidence/open-class-gate-evidence.txt","dimension":"fresh post-tuning bidirectional shadow holdout"},{"id":"A-010-S2","status":"passed","evidence":"evidence/open-class-gate-evidence.txt","dimension":"cross-family bidirectional transfer"}],"prevention_change":{"control_id":"OPEN-CLASS-DISTRIBUTION-001","evidence":"evidence/skill-control-tests.txt"},"detection_change":{"control_id":"OPEN-CLASS-DISTRIBUTION-001","evidence":"evidence/skill-control-tests.txt"}},{"escape_id":"A-011","escape_class":"finite-precondition-open-class-gap","status":"passed","source_audit":{"finding_id":"A-011","validity":"independent","affected_head_sha":"5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a"},"plausible_wrong_implementation":"Generalize the downstream open-class discriminator but keep a finite outer key, head, type or prefix gate whose miss returns before semantic evidence is evaluated.","literal_case":{"status":"passed","evidence":"evidence/open-class-gate-evidence.txt","procedure":"exercise unseen outer heads that previously bypassed semantic evidence"},"sibling_cases":[{"id":"A-011-S1","dimension":"different unseen outer heads plus explicit artifact state/material modifiers","status":"passed","evidence":"evidence/open-class-gate-evidence.txt"},{"id":"A-011-S2","dimension":"unseen outer heads with positive culinary content to control false rejection","status":"passed","evidence":"evidence/open-class-gate-evidence.txt"},{"id":"A-011-S3","dimension":"quantifier/plural variation before unseen outer heads","status":"passed","evidence":"evidence/open-class-gate-evidence.txt"}],"prevention_change":{"skill_or_code":"generic open-class precondition coverage rule plus product boundary fix","control_id":"OPEN-CLASS-GATE-001","evidence":"evidence/skill-control-tests.txt"},"detection_change":{"skill_or_gate":"independent adversarial gate varies finite preconditions as well as downstream members","control_id":"OPEN-CLASS-GATE-001","evidence":"evidence/skill-control-tests.txt"},"trigger_terms":["open class","finite gate","early return","allowlist","head","prefix","type switch"],"required_risk_families":["structural-contract"]}]}
+{
+  "schema_version": 1,
+  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "status": "passed",
+      "escape_class": "explicit-negative-semantic-bypass",
+      "source_audit": {
+        "head_sha": "74f59b930ad5433966f662f03c68cb5c2ec0461c",
+        "finding_id": "A-001",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Apply negative semantic evidence only when a name contains unknown tokens, allowing a syntactically plain name to bypass an explicit false classification.",
+      "literal_case": {
+        "procedure": "classify Água Mineral with isPlainWater=false and no unknown token",
+        "status": "passed",
+        "evidence": "evidence/issue986-cycle2-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "dimension": "foodName representation",
+          "status": "passed",
+          "evidence": "unit and webhook controls"
+        },
+        {
+          "id": "A-001-S2",
+          "dimension": "canonicalName plus structured brand representation",
+          "status": "passed",
+          "evidence": "unit controls"
+        },
+        {
+          "id": "A-001-S3",
+          "dimension": "unseen flavor and infusion negatives",
+          "status": "passed",
+          "evidence": "existing Limão/Hortelã webhook regression"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "water classifier checks explicit negative semantic evidence before every positive name branch",
+        "control_id": "SEM-NEGATIVE-001",
+        "status": "passed",
+        "evidence": "server/modules/whatsapp/waterItemClassification.ts"
+      },
+      "detection_change": {
+        "skill_or_gate": "cross-representation semantic negative regression",
+        "control_id": "SEM-NEGATIVE-001",
+        "status": "passed",
+        "evidence": "server/modules/whatsapp/waterItemClassification.test.ts and server/whatsappWebhook.image.water.test.ts"
+      },
+      "reusable_control": "SEM-NEGATIVE-001",
+      "trigger_terms": [
+        "explicit negative evidence",
+        "multiple name representations",
+        "early positive branch"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "semantic-effect"
+      ]
+    },
+    {
+      "escape_id": "A-002",
+      "status": "passed",
+      "escape_class": "multi-representation-early-return-conflict",
+      "source_audit": {
+        "head_sha": "74f59b930ad5433966f662f03c68cb5c2ec0461c",
+        "finding_id": "A-002",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Return the first structured value before collecting equivalent accepted representations, silently persisting a value contradicted downstream.",
+      "literal_case": {
+        "procedure": "provide structured 500 ml and foodName 1 l",
+        "status": "passed",
+        "evidence": "evidence/issue986-cycle2-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-002-S1",
+          "dimension": "quantity versus foodName",
+          "status": "passed",
+          "evidence": "unit controls"
+        },
+        {
+          "id": "A-002-S2",
+          "dimension": "quantity and portionText versus canonicalName",
+          "status": "passed",
+          "evidence": "unit controls"
+        },
+        {
+          "id": "A-002-S3",
+          "dimension": "four coherent representations with unit conversion",
+          "status": "passed",
+          "evidence": "unit controls resolve 0.5 l and 500 ml to exactly 500"
+        },
+        {
+          "id": "A-002-S4",
+          "dimension": "material webhook effect",
+          "status": "passed",
+          "evidence": "webhook rejects contradiction without hydration persistence"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "volume resolver collects and reconciles every accepted representation before effect",
+        "control_id": "REP-RECONCILE-001",
+        "status": "passed",
+        "evidence": "server/modules/whatsapp/waterItemClassification.ts"
+      },
+      "detection_change": {
+        "skill_or_gate": "fan-in conflict and coherent-equivalence regressions",
+        "control_id": "REP-RECONCILE-001",
+        "status": "passed",
+        "evidence": "server/modules/whatsapp/waterItemClassification.test.ts and server/whatsappWebhook.image.water.test.ts"
+      },
+      "reusable_control": "REP-RECONCILE-001",
+      "trigger_terms": [
+        "equivalent representations",
+        "early return",
+        "conflicting values",
+        "fan-in"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "semantic-effect"
+      ]
+    },
+    {
+      "escape_id": "A-001-cycle3",
+      "status": "passed",
+      "escape_class": "open-class-token-position-restriction",
+      "source_audit": {
+        "head_sha": "89332dd9d71812f43cf12067afd94870d4cb4b5c",
+        "finding_id": "A-001",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Accept an unknown embedded brand only at a token boundary.",
+      "literal_case": {
+        "procedure": "classify Água Crystal Mineral and Água Mineral Crystal com Gás",
+        "status": "passed",
+        "evidence": "evidence/issue986-cycle3-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "C3-S1",
+          "dimension": "prefix",
+          "status": "passed",
+          "evidence": "unit"
+        },
+        {
+          "id": "C3-S2",
+          "dimension": "middle",
+          "status": "passed",
+          "evidence": "unit and webhook"
+        },
+        {
+          "id": "C3-S3",
+          "dimension": "suffix and negatives",
+          "status": "passed",
+          "evidence": "unit"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "position-independent brand block",
+        "control_id": "OPEN-POSITION-001",
+        "status": "passed",
+        "evidence": "classifier"
+      },
+      "detection_change": {
+        "skill_or_gate": "position permutation",
+        "control_id": "OPEN-POSITION-001",
+        "status": "passed",
+        "evidence": "tests"
+      },
+      "reusable_control": "OPEN-POSITION-001",
+      "trigger_terms": [
+        "open class",
+        "token position"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ]
+    }
+  ]
+}

@@ -1,1 +1,11 @@
-{"schema_version":1,"head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","workflow":"Agent-first gate","run_id":31919726916,"run_number":5481,"observed_status":"in_progress","conclusion":null,"observation_policy":"single exact-head observation; no polling","observed_at":"2026-08-16T01:33:35.166595+00:00"}
+{
+  "schema_version": 1,
+  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "observation_mode": "read-only-single-observation",
+  "observed_runs": [
+    { "name": "Agent-first gate", "run_id": 31956480869, "status": "in_progress", "conclusion": null },
+    { "name": "WhatsApp context TiDB gate", "run_id": 31956480866, "status": "in_progress", "conclusion": null }
+  ],
+  "rerun_or_dispatch_performed": false,
+  "observation_disposition": "remote gates observed once; result-only handoff proceeds while runs are in progress"
+}

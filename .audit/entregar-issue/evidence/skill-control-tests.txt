@@ -1,21 +1,14 @@
-A-011 systemic audit-escape prevention/detection promotion
-control_id=OPEN-CLASS-GATE-001
-
-prevention skill=entregar-issue
-before_sha256=69646323a19915c5e20a417ee746f2cf3eee2094850b54046209b3e7d5ac2c6f
-after_sha256=e96a37e58da6638ed2b73df72f10be661d367f59a9863de776ab9a56bd248217
-change=generic rule requires varying finite preconditions/early-return gates before open-class discriminators
-
-detection skill=auditar-issue
-before_sha256=d966ce430fe91c429374a2a53dc5e8d08ca8607029e4b1673c6cf2500246561f
-after_sha256=91c997c7649598936ec54e3c3ded00f6396e9e0fb4e9ff459c1ae7466a5ac43c
-change=generic adversarial rule attacks finite keys/heads/prefixes/type switches and verifies the real boundary is reached
-
-validation:
-- validate_skill_genericity.py entregar-issue: PASS
-- validate_skill_genericity.py auditar-issue: PASS
-- focused contract tests: 2 passed
-- ecosystem tests: 15/15 passed
-- promoted rules/tests contain no repository, issue, PR, branch, SHA or product-specific dependency
-
-- ecosystem_report_sha256=18d0992019bb06e60ed6c1bda861747fcb037ce5dba842ad28a897c829d9db82
+control_id=SEM-EVIDENCE-001
+prevention_contract_test=passed (1 passed)
+detection_contract_test=passed (1 passed)
+ecosystem_profile=fast
+ecosystem_test_files=11
+ecosystem_passed=11
+ecosystem_failed=0
+entregar_issue_genericity=passed
+auditar_issue_genericity=passed
+prevention_before_sha256=8bbcc4234d06b5cea9a690ba64f3ad22f6a8423fa58b790ba9ca4c5e577a33e3
+prevention_after_sha256=fa8f57292b4869658a45f5b84fde2f49b58f25947846e0fbe43bb7d5253cf12d
+detection_before_sha256=f30d7500cf596d6a7d65cd962a3d5dbaa8bf26e2c1706ff2bcdaa57d5aed3175
+detection_after_sha256=026cd2a559217499107772416d491509cb786edd718a4ead6b7bda97b4400eaf
+full_ecosystem_profile=not-completed; fast profile is the executed local gate for this remediation

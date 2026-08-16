@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createTextResponseMock = vi.fn();
 
@@ -17,7 +17,11 @@ vi.mock("./_core/ai/providerResolver", () => ({
 describe("nutritionEngine.processMealInput", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
+    vi.stubEnv("AI_MEAL_VISION_PROVIDER", "openai");
+    vi.stubEnv("AI_MEAL_VISION_MODEL", "gpt-4.1-mini");
   });
+
+  afterEach(() => vi.unstubAllEnvs());
 
   it("converte a resposta estruturada da OpenAI em itens validados e recalcula os totais no backend", async () => {
     createTextResponseMock.mockResolvedValue({
@@ -39,7 +43,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 999,
             },
             confidence: 0.95,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0, isPlainWater: false },
           },
           {
             foodName: "molho pesto",
@@ -53,7 +57,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 11,
             },
             confidence: 0.72,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0, isPlainWater: false },
           },
         ],
       }),

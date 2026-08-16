@@ -1,1 +1,167 @@
-{"schema_version":1,"head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","requirements":[{"requirement_id":"REQ-CLEANUP","obligation_ids":["OBL-001","OBL-003","OBL-004","OBL-008","OBL-011","OBL-012","OBL-013","OBL-026","OBL-027","OBL-028","OBL-035","OBL-036","OBL-039","OBL-040","OBL-041","OBL-042","OBL-053","OBL-054","OBL-055","OBL-056"],"description":"Preserve valid preparations containing container terms while rejecting open-ended object-only descriptions without finite-list defaults.","risk_families":["structural-contract"],"plausible_wrong_implementation":"Generalize downstream content checks while retaining a finite outer gate that default-accepts unseen head values before semantic evidence is reached.","positive_control":{"id":"REQ-CLEANUP-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/open-class-gate-evidence.txt","sibling_cases":[]},"negative_controls":[{"id":"OPEN-CLASS-BIDIR-001","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/open-class-bidirectional-evidence.txt","sibling_cases":[{"case":"withheld lexical families reject across multiple container heads","status":"passed"},{"case":"withheld culinary preparations remain revisable across multiple container heads","status":"passed"},{"case":"production discriminator omits withheld literals","status":"passed"}]},{"id":"OPEN-CLASS-DISTRIBUTION-001","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/open-class-gate-evidence.txt","sibling_cases":[{"case":"fresh bidirectional members remain separated","status":"passed"},{"case":"cross-family transfer members remain separated","status":"passed"}]},{"id":"OPEN-CLASS-GATE-001","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/open-class-gate-evidence.txt","sibling_cases":[{"case":"unseen outer object heads with explicit artifact modifiers are rejected","status":"passed"},{"case":"unseen outer serving heads with culinary content remain revisable","status":"passed"},{"case":"quantifier and plural variants outside the finite gate remain correctly classified","status":"passed"}]}],"regression_controls":[{"id":"REQ-CLEANUP-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/open-class-gate-evidence.txt","sibling_cases":[]}]},{"requirement_id":"REQ-PLUM-LOCAL","obligation_ids":["OBL-002","OBL-005","OBL-006","OBL-014","OBL-015","OBL-016","OBL-029","OBL-030","OBL-031","OBL-037","OBL-043","OBL-044","OBL-045","OBL-046","OBL-057","OBL-058"],"description":"Resolve the curated plum variation deterministically to a real local nutrition reference without external providers.","risk_families":["structural-contract"],"plausible_wrong_implementation":"Use provider or semantic search for the variation and preserve the generic nutrition estimate when local deterministic normalization exists.","positive_control":{"id":"REQ-PLUM-LOCAL-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]},"negative_controls":[{"id":"REQ-PLUM-LOCAL-NEG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[{"case":"AI unavailable still resolves locally","status":"passed"},{"case":"semantic search remains unnecessary","status":"passed"}]}],"regression_controls":[{"id":"REQ-PLUM-LOCAL-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]}]},{"requirement_id":"REQ-PRECEDENCE","obligation_ids":["OBL-017","OBL-018","OBL-024","OBL-025","OBL-032","OBL-047","OBL-048","OBL-059"],"description":"Keep more specific qualified variants ahead of the generic local alias.","risk_families":["structural-contract"],"plausible_wrong_implementation":"Normalize every qualified plum expression to the generic raw-plum alias and erase a more specific existing reference.","positive_control":{"id":"REQ-PRECEDENCE-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]},"negative_controls":[{"id":"REQ-PRECEDENCE-NEG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[{"case":"specific syrup variant retains specific reference","status":"passed"},{"case":"generic curated alias still resolves raw variant","status":"passed"}]}],"regression_controls":[{"id":"REQ-PRECEDENCE-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]}]},{"requirement_id":"REQ-OBSERVABILITY","obligation_ids":["OBL-007","OBL-019","OBL-020","OBL-021","OBL-022","OBL-023","OBL-033","OBL-038","OBL-049","OBL-050","OBL-051","OBL-052","OBL-060","OBL-061"],"description":"Emit local nutrition fallback decisions through the canonical logging pipeline using safe low-cardinality metadata and best-effort semantics.","risk_families":["structural-contract"],"plausible_wrong_implementation":"Add a parallel sink or leak source text while happy-path nutrition output remains correct.","positive_control":{"id":"REQ-OBSERVABILITY-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]},"negative_controls":[{"id":"REQ-OBSERVABILITY-NEG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[{"case":"sink failure does not alter output","status":"passed"},{"case":"detail remains limited to safe technical fields","status":"passed"}]}],"regression_controls":[{"id":"REQ-OBSERVABILITY-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]}]},{"requirement_id":"REQ-DOCUMENTATION","obligation_ids":["OBL-062","OBL-063"],"description":"Keep the canonical AI observability document synchronized with local meal fallback telemetry.","risk_families":["documentation"],"plausible_wrong_implementation":"Change runtime fallback telemetry while leaving the canonical operational documentation describing only provider attempts.","positive_control":{"id":"REQ-DOCUMENTATION-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]},"negative_controls":[{"id":"REQ-DOCUMENTATION-NEG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[{"case":"canonical provider event remains documented","status":"passed"},{"case":"local fallback event and safe-detail contract remain documented","status":"passed"}]}],"regression_controls":[{"id":"REQ-DOCUMENTATION-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]}]},{"requirement_id":"REQ-BASE","obligation_ids":["OBL-065"],"description":"Deliver from develop as the base branch.","risk_families":["structural-contract"],"plausible_wrong_implementation":"Prepare the remediation from another base while local file-level checks still pass.","positive_control":{"id":"REQ-BASE-POS","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]},"negative_controls":[{"id":"REQ-BASE-NEG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[{"case":"PR base is develop","status":"passed"},{"case":"captured base SHA matches develop","status":"passed"}]}],"regression_controls":[{"id":"REQ-BASE-REG","status":"passed","head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","evidence":"evidence/unaffected-revalidation.txt","sibling_cases":[]}]}],"uncovered_requirements":[]}
+{
+  "schema_version": 1,
+  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "requirements": [
+    {
+      "requirement_id": "REQ-986",
+      "obligation_ids": [
+        "OBL-001"
+      ],
+      "risk_families": [
+        "concurrency-atomicity",
+        "idempotency",
+        "reference-liveness",
+        "semantic-effect",
+        "structural-contract",
+        "temporal-consistency",
+        "tenant-isolation"
+      ],
+      "plausible_wrong_implementation": "Usar um marcador textual e uma classificação auxiliar correlacionada como prova de pureza, aceitando membros inéditos da classe errada, ou aceitar uma representação que o consumidor downstream não resolve.",
+      "positive_control": {
+        "id": "CTRL-986-POS",
+        "status": "passed",
+        "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+        "evidence": "evidence/issue986-cycle2-remediation.txt: água mineral com marcas inéditas, inclusive composta, registra 500 ml sem refeição"
+      },
+      "negative_controls": [
+        {
+          "id": "OPEN-UNKNOWN-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "SIB-MIXED-CONNECTOR",
+              "status": "passed",
+              "evidence": "composição explícita com outro componente continua fora da hidratação mesmo com sinal de pureza inconsistente"
+            },
+            {
+              "id": "SIB-NATURAL-FLAVOR",
+              "status": "passed",
+              "evidence": "descritores Limão/Hortelã com o mesmo nível NOVA do positivo e isPlainWater=false permanecem nutricionais"
+            },
+            {
+              "id": "SIB-NO-PURITY-EVIDENCE",
+              "status": "passed",
+              "evidence": "NOVA natural sem isPlainWater não autoriza token desconhecido"
+            }
+          ]
+        },
+        {
+          "id": "REP-FANIN-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "SIB-NAME-ONLY-ML",
+              "status": "passed",
+              "evidence": "volume existe só no nome e é consumido pelo resolver"
+            },
+            {
+              "id": "SIB-CONFLICTING-NAME-VOLUMES",
+              "status": "passed",
+              "evidence": "volumes conflitantes entre nomes falham fechado"
+            },
+            {
+              "id": "SIB-PORTION-TEXT",
+              "status": "passed",
+              "evidence": "volume vindo de portionText continua consumido"
+            }
+          ]
+        },
+        {
+          "id": "SEM-EVIDENCE-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "SIB-SEM-POSITIVE-UNKNOWN-BRAND",
+              "status": "passed",
+              "evidence": "marca inédita Fonte e Vida + isPlainWater=true é aceita mantendo NOVA natural"
+            },
+            {
+              "id": "SIB-SEM-NEGATIVE-SAME-AUX",
+              "status": "passed",
+              "evidence": "Limão/Hortelã + isPlainWater=false são rejeitados mantendo o mesmo NOVA natural"
+            },
+            {
+              "id": "SIB-SEM-CONTRADICTION",
+              "status": "passed",
+              "evidence": "e Vodka é rejeitado mesmo com isPlainWater=true inconsistente"
+            }
+          ]
+        },
+        {
+          "id": "SEM-NEGATIVE-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "SIB-NEG-FOODNAME",
+              "status": "passed",
+              "evidence": "explicit false overrides plain foodName"
+            },
+            {
+              "id": "SIB-NEG-CANONICAL-BRAND",
+              "status": "passed",
+              "evidence": "explicit false overrides canonicalName plus brand"
+            }
+          ]
+        },
+        {
+          "id": "REP-RECONCILE-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "SIB-STRUCTURED-NAME-CONFLICT",
+              "status": "passed",
+              "evidence": "quantity conflicts with foodName"
+            },
+            {
+              "id": "SIB-ALL-COHERENT",
+              "status": "passed",
+              "evidence": "all accepted representations resolve exactly 500 ml"
+            }
+          ]
+        },
+        {
+          "id": "OPEN-POSITION-001",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "evidence/issue986-cycle3-remediation.txt",
+          "sibling_cases": [
+            {
+              "id": "PREFIX",
+              "status": "passed",
+              "evidence": "unit"
+            },
+            {
+              "id": "MIDDLE",
+              "status": "passed",
+              "evidence": "unit/webhook"
+            },
+            {
+              "id": "SUFFIX",
+              "status": "passed",
+              "evidence": "unit/webhook"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "CTRL-986-REG",
+          "status": "passed",
+          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+          "evidence": "server/whatsappWebhook.image.water.test.ts atravessa handleWhatsAppWebhook para positivos, negativos NOVA-equivalentes, ausência de refeição e idempotência"
+        }
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}
