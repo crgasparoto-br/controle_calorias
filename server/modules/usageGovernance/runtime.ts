@@ -1,7 +1,7 @@
 import { setAiUsageGate } from "../../_core/ai/usageGate";
-import { enforceUsageAllowance, runUsageRetention } from "./service";
+import { enforceUsageAllowance, refreshEconomicAggregates, runUsageRetention } from "./service";
 
-const RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const GOVERNANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let retentionTimer: NodeJS.Timeout | null = null;
 
 export function configureUsageGovernanceRuntime() {
@@ -10,15 +10,18 @@ export function configureUsageGovernanceRuntime() {
 
 export function startUsageGovernanceRetentionScheduler() {
   if (retentionTimer) return retentionTimer;
-
-  const run = () => {
-    void runUsageRetention().catch(error => {
-      console.warn("[Usage governance] Retention cleanup skipped:", error);
-    });
+  const run = async () => {
+    try {
+      await refreshEconomicAggregates();
+      await runUsageRetention();
+    } catch (error) {
+      console.warn("[Usage governance] Aggregation/retention cycle skipped", {
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
+    }
   };
-
-  run();
-  retentionTimer = setInterval(run, RETENTION_INTERVAL_MS);
+  void run();
+  retentionTimer = setInterval(() => void run(), GOVERNANCE_INTERVAL_MS);
   retentionTimer.unref?.();
   return retentionTimer;
 }
