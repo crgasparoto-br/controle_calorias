@@ -1,1 +1,15 @@
-{"schema_version":1,"head_sha":"46af7f0e9b0769433c24dd3ddc7cf29aed26131e","ci_state":"pending-no-run","observation_policy":"single exact-head observation; no polling or manual rerun","observed_at":"2026-08-16T16:21:20+00:00","runs":[],"mergeability_observation":{"state":"unknown","note":"Git ancestry proves develop is an ancestor of the candidate; previous dirty state was invalidated by an identical-tree head refresh."}}
+{
+  "schema_version": 1,
+  "material_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "observed_at": "2026-08-16T19:42:17.319941+00:00",
+  "state": "completed-success",
+  "runs": [
+    {"name":"Agent-first gate","status":"completed","conclusion":"success"},
+    {"name":"Professional persistence TiDB gate","status":"completed","conclusion":"success"},
+    {"name":"Onboarding activation TiDB gate","status":"completed","conclusion":"success"},
+    {"name":"WhatsApp context TiDB gate","status":"completed","conclusion":"success"},
+    {"name":"Billing persistence TiDB gate","status":"completed","conclusion":"success"},
+    {"name":"AI provider live smoke","status":"completed","conclusion":"skipped"}
+  ]
+}

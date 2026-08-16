@@ -1,1 +1,9 @@
-{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":897,"material_head_sha":"46af7f0e9b0769433c24dd3ddc7cf29aed26131e","base_sha":"2b906cc26075d93303e06f9092f82175bca2f3d7","primary_source":"specification-sources/SRC-GITHUB-ISSUE-897.txt","material_paths":["docs/design-docs/usage-governance.md","docs/generated/trpc-routes.md","drizzle/0043_billing_usage_economics_governance.sql","drizzle/0044_billing_usage_charge_revoke_reason.sql","server/_core/ai/capabilityExecutor.ts","server/_core/ai/usageContext.ts","server/_core/ai/usageGate.ts","server/_core/index.ts","server/modules/aiObservability/logSink.ts","server/modules/billing/router.ts","server/modules/usageGovernance/adminService.test.ts","server/modules/usageGovernance/adminService.ts","server/modules/usageGovernance/router.ts","server/modules/usageGovernance/runtime.ts","server/modules/usageGovernance/schemas.ts","server/modules/usageGovernance/service.test.ts","server/modules/usageGovernance/service.ts","server/modules/whatsapp/messageRouter.ts","server/repositories/usageGovernanceAdminRepository.ts","server/repositories/usageGovernanceRepository.ts","server/routers.ts"]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 897,
+  "material_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "sources": [{"id":"SRC-GITHUB-ISSUE-897","path":"specification-sources/SRC-GITHUB-ISSUE-897.txt","sha256":"8b2b3bd2ae22bf8a8d4a657a265e9678a965741eb07d69ce97ff2d62b6efd3f5","required":true}],
+  "reused_evidence": ["evidence/issue-897-post-merge-revalidation.txt","evidence/skill-risk-family-tests.txt"]
+}
