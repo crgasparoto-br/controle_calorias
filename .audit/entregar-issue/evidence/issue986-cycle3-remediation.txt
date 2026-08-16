@@ -1,0 +1,22 @@
+Issue #986 cycle 3 remediation
+Material head: 4df504eb65f94304be658fd18f21e55761e7b589
+Finding: A-001 embedded brand position restriction
+
+Implementation:
+- accepts an unknown contiguous brand block before, between, or after canonical pure-water qualifiers when isPlainWater=true;
+- preserves explicit semantic exclusions for tonic, coconut, flavored, aromatic, tea, hibiscus, mint, infusion, and lemon;
+- preserves explicit composition connector rejection and explicit isPlainWater=false authority.
+
+Focused gate:
+corepack pnpm vitest run server/modules/whatsapp/waterItemClassification.test.ts server/whatsappWebhook.image.water.test.ts
+PASS: 2 files, 29 tests after the real-webhook middle-position regression was added.
+
+Build gate:
+corepack pnpm build
+PASS.
+
+Aggregate gate:
+corepack pnpm agent:check
+PARTIAL: typecheck passed; 3594/3599 tests passed. Five unrelated pre-existing slow tests timed out at the fixed 5s limit, including the same failures when rerun with one worker. No failing assertion involved this diff. Focused affected tests remained green.
+
+Negative controls: explicit compositions, flavors, and infusions remain rejected even with inconsistent positive semantic evidence.

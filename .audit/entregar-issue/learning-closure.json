@@ -1,1 +1,55 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"type":"independent-rejection","findings":["A-001","A-002"],"candidate_head_sha":"74f59b930ad5433966f662f03c68cb5c2ec0461c"},"generalized_learning":{"escape_class":"negative-evidence-authority-and-representation-reconciliation","generalized_failure_pattern":"A positive branch can bypass explicit negative semantic evidence, and an early return can select one accepted representation before detecting contradictions from peers.","plausible_wrong_implementation":"Evaluate negative evidence only in an ambiguous-name branch or return a preferred structured value before collecting all accepted sources.","trigger_signals":["explicit negative semantic flag","multiple equivalent representations","precedence implemented as early return","material effect uses selected value"],"risk_families":["structural-contract","semantic-effect"],"reusable_control":["SEM-NEGATIVE-001","REP-RECONCILE-001"],"prevention_rule":"Apply explicit negative evidence before every positive branch and collect all accepted equivalent representations before applying precedence or effects.","detection_rule":"Cross product negative evidence with each representation shape; test coherent equivalence and pairwise conflicts through the material effect.","transfer_cases":[{"surface":"eligibility-router","case":"explicit ineligible flag overrides syntactically eligible aliases","status":"passed"},{"surface":"request-decoder","case":"header, body and query representations are reconciled before mutation","status":"passed"},{"surface":"measurement-normalizer","case":"converted structured and textual units agree exactly while contradictions fail closed","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","path":"entregar-issue/references/controller-adversarial-evidence.md","status":"passed","evidence":"existing generic semantic evidence and fan-in controls applied through SEM-NEGATIVE-001 and REP-RECONCILE-001"},{"role":"detection","path":"auditar-issue/references/adversarial-control-design.md","status":"passed","evidence":"existing generic cross-representation negative and conflict controls exercised on material head"}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "type": "independent-rejection",
+    "findings": [
+      "A-001-cycle3"
+    ],
+    "candidate_head_sha": "89332dd9d71812f43cf12067afd94870d4cb4b5c"
+  },
+  "generalized_learning": {
+    "escape_class": "open-class-token-position-restriction",
+    "generalized_failure_pattern": "Open identity accepted only at boundary without contractual ordering.",
+    "plausible_wrong_implementation": "Gate identity on token position.",
+    "trigger_signals": [
+      "open-class identity",
+      "multiple token orders"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": [
+      "OPEN-POSITION-001"
+    ],
+    "prevention_rule": "Do not impose position unless ordering is semantic.",
+    "detection_rule": "Permute identity positions with negative siblings.",
+    "transfer_cases": [
+      {
+        "surface": "address-parser",
+        "case": "organization positions",
+        "status": "passed"
+      },
+      {
+        "surface": "device-parser",
+        "case": "vendor positions",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "path": "entregar-issue/references/requirement-attack-matrix.md",
+      "status": "passed",
+      "evidence": "existing sibling control"
+    },
+    {
+      "role": "detection",
+      "path": "entregar-issue/references/audit-escape-closure.md",
+      "status": "passed",
+      "evidence": "existing class closure"
+    }
+  ]
+}

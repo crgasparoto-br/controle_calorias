@@ -1,1 +1,16 @@
-{"schema_version":1,"material_head_sha":"89332dd9d71812f43cf12067afd94870d4cb4b5c","base_sha":"2b906cc26075d93303e06f9092f82175bca2f3d7","material_merge_preview_sha":"00336d69a62c27656d354ca43b3fd5e04ffb4948","status":"frozen","local_controls":["OPEN-UNKNOWN-001","REP-FANIN-001","SEM-EVIDENCE-001","SEM-NEGATIVE-001","REP-RECONCILE-001"],"previous_independent_rejection":true}
+{
+  "schema_version": 1,
+  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "base_sha": "2b906cc26075d93303e06f9092f82175bca2f3d7",
+  "material_merge_preview_sha": "167e67702f0e51c15709de9c50400a2fab5e6e71",
+  "status": "frozen",
+  "local_controls": [
+    "OPEN-UNKNOWN-001",
+    "REP-FANIN-001",
+    "SEM-EVIDENCE-001",
+    "SEM-NEGATIVE-001",
+    "REP-RECONCILE-001",
+    "OPEN-POSITION-001"
+  ],
+  "previous_independent_rejection": true
+}
