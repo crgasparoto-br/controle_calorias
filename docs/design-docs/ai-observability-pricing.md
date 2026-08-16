@@ -34,6 +34,20 @@ Os adapters legados podem continuar usando tipos internos com `raw`, mas esse co
 
 O hook roda após validação comum e semântica. Falha do sink é best effort e nunca altera retry, fallback ou o resultado funcional.
 
+## Fallback local da inferência de refeição
+
+O pipeline nutricional registra decisões locais de degradação com `eventType=meal.inference_fallback`, reutilizando o mesmo `logInferenceEvent`. Esse evento não substitui nem replica `ai.inference_call`: chamadas externas, retries e fallback entre providers continuam sendo descritos exclusivamente pela telemetria canônica de provider.
+
+Os motivos de baixa cardinalidade suportados são:
+
+- `ai_unavailable_or_error`: a extração por IA ficou indisponível e o texto fonte foi usado localmente;
+- `ai_empty_items`: a IA respondeu sem itens e o texto fonte foi usado;
+- `ai_items_rejected`: todos os itens retornados pela IA foram rejeitados pelas salvaguardas do domínio e o texto fonte foi usado;
+- `catalog_miss`: não houve referência compatível no catálogo local/TACO para o item processado;
+- `generic_nutrition_fallback`: a estimativa nutricional genérica foi efetivamente usada após o miss de catálogo.
+
+O detalhe contém somente `schemaVersion`, `reason`, `stage` e `count`. Não deve incluir texto fonte, transcrição, prompt, nome livre de alimento, mídia/URL, reasoning, payload ou erro bruto. A escrita é best effort: falha de observabilidade não pode bloquear nem alterar o rascunho nutricional produzido.
+
 ## Catálogo versionado
 
 `server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão atual é `2026-08-05.3`, efetiva em `2026-08-05`.
@@ -59,4 +73,4 @@ Correlação aceita no máximo oito escalares limitados. Chaves relacionadas a p
 
 O contrato central define `origin` e `flow` por capacidade, e os consumidores podem sobrescrever esse contexto quando conhecem uma origem mais específica. Consumidores que detectam configuração indisponível antes da execução emitem evento de tentativa zero. Embeddings e anotação podem marcar degradação local apenas no encerramento externo malsucedido; retry ou fallback que recupera a execução mantém `degradation=none`.
 
-Consulta operacional: filtrar `eventType=ai.inference_call` e agrupar por `capability`, `outcome`, provider/modelo efetivo, `callRole`, `fallback.kind` e versão do catálogo. Antes de usar os dados em relatórios financeiros, validar volume, cardinalidade, ausência de conteúdo sensível e percentual de custos `null`.
+Consulta operacional: filtrar `eventType=ai.inference_call` e agrupar por `capability`, `outcome`, provider/modelo efetivo, `callRole`, `fallback.kind` e versão do catálogo. Para degradações locais da refeição, filtrar `eventType=meal.inference_fallback` e agrupar por `reason` e `stage`. Antes de usar os dados em relatórios financeiros, validar volume, cardinalidade, ausência de conteúdo sensível e percentual de custos `null`.

@@ -10,6 +10,7 @@ import {
   shouldRequestSugarQuantity,
 } from "./coffeeSugarNutrition";
 import { extractWithAi } from "./mealAiExtraction";
+import { logMealInferenceFallback, type MealInferenceFallbackReason } from "./mealInferenceFallbackTelemetry";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
   applyExplicitQuantities,
@@ -19,6 +20,7 @@ import {
   hasUsableNutrition,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
+import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
 import {
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
@@ -173,19 +175,32 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
   return undefined;
 }
 
-async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOptions = {}): Promise<MealDraftItem[]> {
+type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
+
+async function buildItemsFromInference(
+  items: LlmItem[],
+  options: BuildItemsOptions = {},
+  observeFallback?: NutritionFallbackObserver,
+): Promise<MealDraftItem[]> {
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
     const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
+    if (!catalog) {
+      observeFallback?.("catalog_miss");
+    }
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
     } else if (!hasUsableNutrition(normalizedItem)) {
       const fallbackItem = sourceFoodName
         ? { ...normalizedItem, foodName: sourceFoodName }
         : normalizedItem;
-      results.push(buildEstimatedNutritionFallbackItem(fallbackItem, catalog));
+      const result = buildEstimatedNutritionFallbackItem(fallbackItem, catalog);
+      if (!catalog && isGenericNutritionFallbackItem(result)) {
+        observeFallback?.("generic_nutrition_fallback");
+      }
+      results.push(result);
     } else {
       results.push(buildHybridItem(normalizedItem));
     }
@@ -325,12 +340,27 @@ function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extrac
   return Boolean(sourceText && extraction && extraction.items.length === 0);
 }
 
+function createFallbackReasonCollector() {
+  const counts = new Map<MealInferenceFallbackReason, number>();
+  return {
+    observe(reason: MealInferenceFallbackReason) {
+      counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    },
+    flush() {
+      for (const [reason, count] of counts) {
+        logMealInferenceFallback(reason, count);
+      }
+    },
+  };
+}
+
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
   const quantityClarification = getQuantityExpressionClarification(sourceText);
   if (quantityClarification) throw new MealInferenceError(quantityClarification);
 
   const detectedMealLabel = resolveMealLabel(input, sourceText);
+  const fallbackReasons = createFallbackReasonCollector();
 
   let extraction: Awaited<ReturnType<typeof extractWithAi>> = null;
   try {
@@ -339,7 +369,14 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     extraction = null;
   }
 
+  if (!extraction && sourceText) {
+    fallbackReasons.observe("ai_unavailable_or_error");
+  } else if (shouldFallbackToSourceText(extraction, sourceText)) {
+    fallbackReasons.observe("ai_empty_items");
+  }
+
   if (shouldRequestSugarQuantity(sourceText, extraction?.items)) {
+    fallbackReasons.flush();
     throw new MealInferenceError(
       "Para registrar o café com açúcar, informe somente a quantidade de açúcar. Exemplo: 5 g de açúcar ou 1 colher de chá.",
       {
@@ -362,7 +399,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     rawItems = [explicitSugarCoffee];
     usedSourceTextFallback = true;
   } else if (usedSourceTextFallback || !extraction) {
-    rawItems = fallbackFromText(sourceText);
+    rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
   } else {
     const confirmedExtraction = extraction;
     const inferenceItems = shouldConstrainAiItemsToText(input, sourceText)
@@ -372,7 +409,8 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     if (sourceText && confirmedExtraction.items.length > 0 && inferenceItems.length === 0) {
       rejectedAllAiItems = true;
       usedSourceTextFallback = true;
-      rawItems = fallbackFromText(sourceText);
+      fallbackReasons.observe("ai_items_rejected");
+      rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
     } else {
       rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
@@ -383,6 +421,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
           ),
           sourceText,
         },
+        reason => fallbackReasons.observe(reason),
       ), sourceText);
     }
   }
@@ -393,7 +432,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     : cleanedItems;
   const items = normalizeSweetenedCoffeeDraftItems(sourceNamedItems, sourceText);
 
-  if (!items.length) throw new MealInferenceError();
+  if (!items.length) {
+    fallbackReasons.flush();
+    throw new MealInferenceError();
+  }
 
   const totals = sumTotals(items);
   const confidence = extraction && !usedSourceTextFallback ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
@@ -405,6 +447,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
       : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
+  fallbackReasons.flush();
   return {
     detectedMealLabel,
     sourceText,

@@ -1,31 +1,10 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeForMatching, normalizeText, normalizedTokenIncludes, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
+import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
+import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
+import { isContainerObjectOnlyDescription } from "./mealContainerNoise";
 import type { MealDraftItem } from "./nutritionEngineTypes";
-
-const NON_FOOD_TERMS = [
-  "prato",
-  "talher",
-  "garfo",
-  "faca",
-  "colher",
-  "guardanapo",
-  "mesa",
-  "bandeja",
-  "embalagem",
-  "rotulo",
-  "rótulo",
-  "copo",
-  "tigela",
-  "pote",
-  "panela",
-  "travessa",
-  "marmita vazia",
-  "mesa posta",
-  "decoracao",
-  "decoração",
-];
 
 const CONVERSATIONAL_ONLY_TERMS = new Set([
   "oi",
@@ -45,6 +24,8 @@ const CONVERSATIONAL_ONLY_TERMS = new Set([
   "valeu",
   "teste",
 ]);
+
+type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
 
 export function isConversationalOnlyText(value: string) {
   const normalized = normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ");
@@ -66,7 +47,15 @@ function coalesceTrailingQuantityParts(parts: string[]) {
   return coalesced;
 }
 
-export function fallbackFromText(sourceText: string): MealDraftItem[] {
+function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallbackObserver) {
+  if (!observer || item.source !== "heuristic") return;
+  observer("catalog_miss");
+  if (isGenericNutritionFallbackItem(item)) {
+    observer("generic_nutrition_fallback");
+  }
+}
+
+export function fallbackFromText(sourceText: string, observer?: NutritionFallbackObserver): MealDraftItem[] {
   const parts = coalesceTrailingQuantityParts(splitFoodTextSegments(sourceText))
     .filter(value => value && !isConversationalOnlyText(value));
 
@@ -74,7 +63,11 @@ export function fallbackFromText(sourceText: string): MealDraftItem[] {
     return [];
   }
 
-  return parts.map(value => buildHeuristicItem(normalizeKnownFoodText(value)));
+  return parts.map(value => {
+    const item = buildHeuristicItem(normalizeKnownFoodText(value));
+    observeHeuristicFallback(item, observer);
+    return item;
+  });
 }
 
 export function sumTotals(items: MealDraftItem[]) {
@@ -82,12 +75,16 @@ export function sumTotals(items: MealDraftItem[]) {
 }
 
 function isLikelyNonFoodNoise(item: MealDraftItem) {
-  const normalizedName = normalizeForMatching(`${item.foodName} ${item.canonicalName}`);
   if (isConversationalOnlyText(item.foodName) || isConversationalOnlyText(item.canonicalName)) {
     return true;
   }
 
-  return NON_FOOD_TERMS.some(term => normalizedTokenIncludes(normalizedName, term));
+  const normalizedNames = [item.foodName, item.canonicalName]
+    .map(value => normalizeForMatching(value).trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+
+  return normalizedNames.length > 0
+    && normalizedNames.every(value => isContainerObjectOnlyDescription(value));
 }
 
 export function cleanMealItems(items: MealDraftItem[]) {

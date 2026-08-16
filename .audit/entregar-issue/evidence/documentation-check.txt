@@ -1,0 +1,8 @@
+material_head_sha=bc3c807ff8e301b63097e89c0d8434d88e70ec4a
+39:O pipeline nutricional registra decisões locais de degradação com `eventType=meal.inference_fallback`, reutilizando o mesmo `logInferenceEvent`. Esse evento não substitui nem replica `ai.inference_call`: chamadas externas, retries e fallback entre providers continuam sendo descritos exclusivamente pela telemetria canônica de provider.
+43:- `ai_unavailable_or_error`: a extração por IA ficou indisponível e o texto fonte foi usado localmente;
+44:- `ai_empty_items`: a IA respondeu sem itens e o texto fonte foi usado;
+45:- `ai_items_rejected`: todos os itens retornados pela IA foram rejeitados pelas salvaguardas do domínio e o texto fonte foi usado;
+46:- `catalog_miss`: não houve referência compatível no catálogo local/TACO para o item processado;
+47:- `generic_nutrition_fallback`: a estimativa nutricional genérica foi efetivamente usada após o miss de catálogo.
+76:Consulta operacional: filtrar `eventType=ai.inference_call` e agrupar por `capability`, `outcome`, provider/modelo efetivo, `callRole`, `fallback.kind` e versão do catálogo. Para degradações locais da refeição, filtrar `eventType=meal.inference_fallback` e agrupar por `reason` e `stage`. Antes de usar os dados em relatórios financeiros, validar volume, cardinalidade, ausência de conteúdo sensível e percentual de custos `null`.

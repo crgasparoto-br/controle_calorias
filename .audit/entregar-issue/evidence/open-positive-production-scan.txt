@@ -1,0 +1,2 @@
+material_head_sha=bc3c807ff8e301b63097e89c0d8434d88e70ec4a
+PASS: no finite positive allowlist or attack literals in production classifier

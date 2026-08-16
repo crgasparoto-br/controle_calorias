@@ -24,6 +24,9 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Presença de embalagem transparente, brilho ou reflexo não é evidência suficiente para classificar automaticamente como água; água só deve ser sugerida com evidência explícita.
 - Em entradas textuais com quantidade explícita, o texto original do segmento alimentar deve ser usado como candidato de busca nutricional antes do nome canônico retornado pela IA. Isso preserva e prioriza marca, linha, versão e tipo/qualificador, por exemplo `requeijão catupiry light`, `leite piracanjuba zero lactose` ou `iogurte grego light danone`.
 - A busca nutricional deve preferir a referência mais específica disponível: alimento + marca + tipo/qualificador, depois alimento + marca, depois alimento + tipo/qualificador e somente então alimento genérico. Quando houver fallback menos específico, o nome original completo deve continuar preservado para exibição, auditoria e comandos posteriores.
+- O cleanup de nomes com recipientes deve distinguir a posição semântica do recipiente: `bolo de pote` não é objeto, enquanto `pote`, `pote vazio` e equivalentes flexionados/plurais continuam sendo ruído.
+- Em `recipiente + de/com + conteúdo`, alimento conhecido é evidência positiva, mas homônimos genéricos como `água`, `óleo`, `pasta`, `creme`, `gel`, `líquido` e `fluido` não podem neutralizar contexto inequivocamente não alimentar (`água sanitária`, `óleo de motor`, `pasta de dente`, por exemplo).
+- A fronteira é de mundo aberto: preparações culinárias ausentes do catálogo continuam revisáveis. A decisão não pode usar ausência em allowlist alimentar nem ausência em denylist de objetos como evidência semântica; descarte exige evidência negativa afirmativa por família/contexto, e regressões devem incluir positivos e negativos inéditos fora das frases codificadas em produção.
 
 ## Compatibilidade semântica de variantes
 

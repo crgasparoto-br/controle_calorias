@@ -1,0 +1,47 @@
+material_head_sha=bc3c807ff8e301b63097e89c0d8434d88e70ec4a
+base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
+merge_preview_sha=07a6abc4279d244d86ca54f7f0cfd05d8a3632df
+control=OPEN-POSITIVE-UNSEEN-001
+(node:2116) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("/tmp/ts-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+POS	PASS	Pote de tiramisu artesanal
+POS	PASS	Tigela de panna cotta de baunilha
+POS	PASS	Travessa com baklava de pistache
+POS	PASS	Marmita de pierogi tradicional
+POS	PASS	Panela com shakshuka picante
+POS	PASS	Copo de lassi salgado
+POS	PASS	Copo de kombucha fermentada
+POS	PASS	Tigela de ramen artesanal
+POS	PASS	Bandeja de falafel assado
+POS	PASS	Copo açaí
+POS	PASS	Pote iogurte
+POS	PASS	Marmita frango arroz
+NEG	PASS	Pote translúcido
+NEG	PASS	Copo rachado
+NEG	PASS	Tigela brilhante
+NEG	PASS	Copo de brinquedo
+NEG	PASS	Pote de tinta
+NEG	PASS	Bandeja de isopor
+NEG	PASS	Panela com cabo
+NEG	PASS	Tigela de parafuso
+NEG	PASS	Pote de cimento
+NEG	PASS	Pote de shampoo anticaspa
+NEG	PASS	Copo de detergente clorado
+NEG	PASS	Tigela de maquiagem mineral
+NEG	PASS	Bandeja de equipamento eletrônico portátil
+NEG	PASS	Travessa de material sintético resistente
+NEG	PASS	Pote de tinta acrílica fosca
+NEG	PASS	Copo de plástico transparente reciclável
+NEG	PASS	Bandeja de isopor branco expandido
+NEG	PASS	Panela com cabo longo removível
+NEG	PASS	Tigela de parafuso metálico sextavado
+NEG	PASS	Pote de cimento branco estrutural
+NEG	PASS	Copo de silicone flexível reutilizável
+NEG	PASS	Travessa de vidro temperado transparente
+NEG	PASS	Marmita com medicamento infantil
+NEG	PASS	Panela com dispositivo eletrônico
+NEG	PASS	Panela de pressão
+NEG	PASS	Pote vazio
+NEG	PASS	Copo descartável
+SUMMARY	PASS	positive=12	negative=27
