@@ -1,1 +1,28 @@
-{"schema_version":1,"head_sha":"0b08697f4ec25465119ed74d6989b0a40feafcc5","requirements":[{"requirement_id":"REQ-986","obligation_ids":["OBL-001"],"risk_families":["concurrency-atomicity","idempotency","reference-liveness","semantic-effect","structural-contract","temporal-consistency","tenant-isolation"],"plausible_wrong_implementation":"Reconhecer somente Crystal por lista fixa, ou zerar macros sem retirar água do pipeline de refeição.","positive_control":{"id":"CTRL-986-POS","status":"passed","head_sha":"0b08697f4ec25465119ed74d6989b0a40feafcc5","evidence":"whatsappWebhook.image.water.test.ts: Crystal sem brand registra 500 ml e não cria refeição"},"negative_controls":[{"id":"CTRL-986-NEG","status":"passed","head_sha":"0b08697f4ec25465119ed74d6989b0a40feafcc5","evidence":"testes: tônica/coco/saborizada fora de hidratação pura e Serra Clara prova ausência de hardcode","sibling_cases":[{"id":"SIB-986-OTHER-BRAND","status":"passed","evidence":"Água Mineral Serra Clara sem brand -> hidratação"},{"id":"SIB-986-NON-WATER","status":"passed","evidence":"Tônica/Coco/Saborizada -> fora de hidratação pura"}]}],"regression_controls":[{"id":"CTRL-986-REG","status":"passed","head_sha":"0b08697f4ec25465119ed74d6989b0a40feafcc5","evidence":"handleWhatsAppWebhook cobre macros 750/30/75/25, portionText, sem volume e idempotência"}]}],"uncovered_requirements":[]}
+{
+  "schema_version": 1,
+  "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d",
+  "requirements": [
+    {
+      "requirement_id": "REQ-986",
+      "obligation_ids": ["OBL-001"],
+      "risk_families": ["concurrency-atomicity", "idempotency", "reference-liveness", "semantic-effect", "structural-contract", "temporal-consistency", "tenant-isolation"],
+      "plausible_wrong_implementation": "Aceitar qualquer desconhecido após um marcador positivo ou reconhecer uma representação que o consumidor downstream não resolve.",
+      "positive_control": {"id": "CTRL-986-POS", "status": "passed", "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d", "evidence": "evidence/issue986-remediation.txt: água mineral com marca embutida e prova semântica registra 500 ml sem refeição"},
+      "negative_controls": [
+        {"id": "OPEN-UNKNOWN-001", "status": "passed", "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d", "evidence": "evidence/issue986-remediation.txt", "sibling_cases": [
+          {"id": "SIB-MIXED-CONNECTOR", "status": "passed", "evidence": "composição explícita com outro componente não entra em hidratação"},
+          {"id": "SIB-UNKNOWN-PROCESSED", "status": "passed", "evidence": "descritor desconhecido com sinal processado permanece nutricional"},
+          {"id": "SIB-NO-POSITIVE-EVIDENCE", "status": "passed", "evidence": "desconhecido sem evidência positiva falha fechado"}
+        ]},
+        {"id": "REP-FANIN-001", "status": "passed", "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d", "evidence": "evidence/issue986-remediation.txt", "sibling_cases": [
+          {"id": "SIB-NAME-ONLY-ML", "status": "passed", "evidence": "volume existe só no nome e é consumido pelo resolver"},
+          {"id": "SIB-CONFLICTING-NAME-VOLUMES", "status": "passed", "evidence": "volumes conflitantes entre nomes falham fechado"}
+        ]}
+      ],
+      "regression_controls": [
+        {"id": "CTRL-986-REG", "status": "passed", "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d", "evidence": "server/whatsappWebhook.image.water.test.ts mantém integração, negativos explícitos e idempotência; fixture agora carrega classificação semântica"}
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}

@@ -1,1 +1,105 @@
-{"schema_version":1,"patterns":[{"control_id":"OPEN-CLASS-BIDIR-001","escape_class":"finite-vocabulary-default-acceptance","trigger_signals":["both semantic classes are open or unbounded","production uses finite literal, stem, regex or catalog discriminators","a default branch decides unknown members"],"risk_families":["structural-contract"],"status":"active"},{"control_id":"OPEN-CLASS-DISTRIBUTION-001","escape_class":"fixed-holdout-threshold-generalization-gap","trigger_signals":["both semantic classes are open or unbounded","a numeric or heuristic discriminator is tuned against a stable fixture set","the same holdout set is reused after material tuning"],"risk_families":["structural-contract"],"status":"active"},{"control_id":"OPEN-CLASS-GATE-001","escape_class":"finite-precondition-open-class-gap","trigger_signals":["an open or extensible semantic class sits behind a finite precondition","an early return or finite key decides whether the main discriminator is reached","withheld fixtures vary only fields after that finite gate"],"risk_families":["structural-contract"],"status":"active"}]}
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "escape_class": "open-set-classification",
+      "source_audit": {
+        "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d",
+        "finding_id": "A-001",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Treat a positive pure-water anchor plus a finite exclusion list as sufficient evidence, so an unseen mixed or processed beverage token is incorrectly routed to hydration.",
+      "sibling_cases": [
+        {
+          "case": "unknown mixed composition outside every finite exclusion remains rejected",
+          "status": "passed",
+          "id": "A-001-S1",
+          "dimension": "unseen open-set member variation",
+          "evidence": "evidence/issue986-remediation.txt"
+        },
+        {
+          "case": "unknown processed descriptor outside every finite exclusion remains rejected",
+          "status": "passed",
+          "id": "A-001-S2",
+          "dimension": "unseen open-set member variation",
+          "evidence": "evidence/issue986-remediation.txt"
+        },
+        {
+          "case": "unknown token without independent positive evidence remains rejected",
+          "status": "passed",
+          "id": "A-001-S3",
+          "dimension": "unseen open-set member variation",
+          "evidence": "evidence/issue986-remediation.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "entregar-issue/references/controller-adversarial-evidence.md + focused contract test",
+        "skill_or_code": "pure-water classifier fail-closed semantic evidence",
+        "control_id": "OPEN-UNKNOWN-001"
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "auditar-issue/references/adversarial-control-design.md + focused contract test",
+        "skill_or_gate": "open-set adversarial control",
+        "control_id": "OPEN-UNKNOWN-001"
+      },
+      "trigger_terms": [
+        "open set",
+        "finite exclusion list",
+        "unknown beverage token",
+        "positive anchor"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "escape_class": "representation-fan-in",
+      "source_audit": {
+        "head_sha": "18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d",
+        "finding_id": "A-002",
+        "validity": "independent"
+      },
+      "plausible_wrong_implementation": "Accept volume embedded in foodName or canonicalName during classification while the downstream hydration resolver consumes only structured quantity fields, so accepted input loses the material volume effect.",
+      "sibling_cases": [
+        {
+          "case": "required value present exclusively in a free-text representation reaches the material effect",
+          "status": "passed",
+          "id": "A-002-S1",
+          "dimension": "representation fan-in variation",
+          "evidence": "evidence/issue986-remediation.txt"
+        },
+        {
+          "case": "conflicting accepted representations fail closed rather than selecting silently",
+          "status": "passed",
+          "id": "A-002-S2",
+          "dimension": "representation fan-in variation",
+          "evidence": "evidence/issue986-remediation.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "entregar-issue/references/controller-adversarial-evidence.md + focused contract test",
+        "skill_or_code": "producer-consumer representation parity",
+        "control_id": "REP-FANIN-001"
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "auditar-issue/references/adversarial-control-design.md + focused contract test",
+        "skill_or_gate": "representation fan-in adversarial control",
+        "control_id": "REP-FANIN-001"
+      },
+      "trigger_terms": [
+        "representation fan-in",
+        "embedded value",
+        "free text",
+        "structured field",
+        "downstream resolver"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ]
+    }
+  ]
+}

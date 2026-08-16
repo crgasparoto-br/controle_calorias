@@ -1,1 +1,24 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"repository":"crgasparoto-br/controle_calorias","issue":982,"finding_id":"A-011","affected_head_sha":"5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a"},"generalized_learning":{"escape_class":"finite-precondition-open-class-gap","generalized_failure_pattern":"An open or extensible semantic decision is placed behind a finite precondition, so unseen precondition values can short-circuit before the transferable discriminator runs.","plausible_wrong_implementation":"Generalize downstream members and holdouts while retaining a finite outer key, prefix, head or type switch whose miss returns a default result before the open-class decision.","trigger_signals":["open or extensible semantic classes","finite precondition before the main discriminator","early return on unknown gate values","withheld tests vary only downstream fields"],"risk_families":["structural-contract"],"reusable_control":"OPEN-CLASS-GATE-001","prevention_rule":"For every open-class boundary, enumerate finite preconditions and execute withheld values outside each gate, including at least two sibling gate dimensions plus an opposite-class abstention control.","detection_rule":"Inspect early returns, finite keys, heads, prefixes, type switches and allowlists before an open-class decision; independently vary the gate itself, not only fields after it, at the real boundary.","transfer_cases":[{"surface":"extensible parser classification behind a finite record-kind prefix","status":"passed","evidence":"generic prevention contract test requires withheld gate values"},{"surface":"extensible routing decision behind a finite adapter/type switch","status":"passed","evidence":"generic detection contract test requires independent gate variation"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","skill":"entregar-issue","before_sha256":"69646323a19915c5e20a417ee746f2cf3eee2094850b54046209b3e7d5ac2c6f","after_sha256":"e96a37e58da6638ed2b73df72f10be661d367f59a9863de776ab9a56bd248217","status":"passed","evidence":"evidence/skill-control-tests.txt"},{"role":"detection","skill":"auditar-issue","before_sha256":"d966ce430fe91c429374a2a53dc5e8d08ca8607029e4b1673c6cf2500246561f","after_sha256":"91c997c7649598936ec54e3c3ded00f6396e9e0fb4e9ff459c1ae7466a5ac43c","status":"passed","evidence":"evidence/skill-control-tests.txt"}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {"type":"independent-rejection","findings":["A-001","A-002"],"candidate_head_sha":"18201e1d20b91f8aabb99e869f25ff3a6ce5ff9d"},
+  "generalized_learning": {
+    "escape_class": "open-set-and-representation-fan-in",
+    "generalized_failure_pattern": "A permissive classifier may accept unknown members using finite exclusions, while downstream consumers may support fewer representations than the classifier accepts.",
+    "plausible_wrong_implementation": "Use a positive anchor plus a denylist as proof for arbitrary unknown values, or accept a free-text representation without teaching the final resolver to consume it.",
+    "trigger_signals": ["unknown token tolerance","finite exclusion list","same material value available in structured and free-text forms"],
+    "risk_families": ["structural-contract","semantic-effect"],
+    "reusable_control": ["OPEN-UNKNOWN-001","REP-FANIN-001"],
+    "prevention_rule": "Require independent positive evidence or fail closed for unknown members, and require consumer parity for every accepted representation.",
+    "detection_rule": "Attack unseen members absent from every denylist and place required values exclusively in each accepted representation, including conflicting representations.",
+    "transfer_cases": [
+      {"surface":"routing-classifier","case":"unseen member with a positive anchor but no independent eligibility signal","status":"passed"},
+      {"surface":"request-decoder","case":"identifier accepted from either a structured field or embedded text and consumed by the final resolver","status":"passed"}
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {"role":"prevention","path":"entregar-issue/references/controller-adversarial-evidence.md","status":"passed","evidence":"focused contract test + ecosystem suite + genericity validator"},
+    {"role":"detection","path":"auditar-issue/references/adversarial-control-design.md","status":"passed","evidence":"focused contract test + ecosystem suite + genericity validator"}
+  ]
+}
