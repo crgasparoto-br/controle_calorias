@@ -1,8 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
-  "issue": 982,
-  "pr": 983,
-  "base": "develop",
-  "summary": "Neutral packet contains canonical specification identity, exact material diff identity and raw validation evidence only."
-}
+{"schema_version":1,"material_head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","issue":982,"pr":983,"base":"develop","summary":"Neutral packet contains canonical specification identity, material diff identity and raw validation evidence only.","implementation_conclusions_included":false,"implementation_narrative_included":false}

@@ -1,145 +1,21 @@
-> prevention focused tests
-.......                                                                  [100%]
-7 passed in 2.08s
-> prevention genericity
-READY: skill permanent assets are free of obvious issue-number coupling
-> detection focused tests
-.....                                                                    [100%]
-5 passed in 1.13s
-> detection genericity
-READY: skill permanent assets are free of obvious issue-number coupling
-> ecosystem
-[PASS] entregar-issue/tests/test_composition_contract.py (4s)
-[PASS] entregar-issue/tests/test_controller_context.py (6s)
-[PASS] entregar-issue/tests/test_deterministic_planning.py (1s)
-[PASS] entregar-issue/tests/test_ecosystem_contracts.py (3s)
-[PASS] entregar-issue/tests/test_internal_delegation_ownership.py (1s)
-[PASS] entregar-issue/tests/test_single_invocation_controller.py (1s)
-[PASS] entregar-issue/tests/test_state_and_packet.py (3s)
-[PASS] entregar-issue/tests/test_throughput_quality_contract.py (1s)
-[PASS] auditar-issue/tests/test_controller_mode_contract.py (2s)
-[PASS] auditar-issue/tests/test_input_parser_audit_contract.py (0s)
-[PASS] auditar-issue/tests/test_report_order_contract.py (1s)
-[PASS] revisar-issue/tests/test_delivery_contract.py (1s)
-[PASS] documentacao-repositorio/tests/test_delivery_contract.py (1s)
-[PASS] design-interface/tests/test_contract_sync.py (1s)
-[PASS] fluxos-conversacionais/tests/test_delivery_contract.py (0s)
-report=/mnt/data/skill-ecosystem-report-final.txt
-summary: profile=fast passed=15 failed=0 files=15 elapsed=26s
-{
-  "schema_version": 2,
-  "profile": "fast",
-  "generated_at": "2026-08-16T00:02:46.337391Z",
-  "skills_root": "/home/oai/skills",
-  "elapsed_seconds": 26,
-  "test_files": 15,
-  "passed": 15,
-  "failed": 0,
-  "results": [
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_composition_contract.py",
-      "elapsed_seconds": 4,
-      "summary": "6 passed in 3.67s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_controller_context.py",
-      "elapsed_seconds": 6,
-      "summary": "3 passed in 5.33s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_deterministic_planning.py",
-      "elapsed_seconds": 1,
-      "summary": "12 passed in 0.11s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_ecosystem_contracts.py",
-      "elapsed_seconds": 3,
-      "summary": "3 passed in 1.32s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_internal_delegation_ownership.py",
-      "elapsed_seconds": 1,
-      "summary": "2 passed in 0.01s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_single_invocation_controller.py",
-      "elapsed_seconds": 1,
-      "summary": "4 passed in 0.60s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_state_and_packet.py",
-      "elapsed_seconds": 3,
-      "summary": "2 passed in 1.69s "
-    },
-    {
-      "status": "passed",
-      "skill": "entregar-issue",
-      "test_file": "tests/test_throughput_quality_contract.py",
-      "elapsed_seconds": 1,
-      "summary": "4 passed in 0.01s "
-    },
-    {
-      "status": "passed",
-      "skill": "auditar-issue",
-      "test_file": "tests/test_controller_mode_contract.py",
-      "elapsed_seconds": 2,
-      "summary": "4 passed in 0.71s "
-    },
-    {
-      "status": "passed",
-      "skill": "auditar-issue",
-      "test_file": "tests/test_input_parser_audit_contract.py",
-      "elapsed_seconds": 0,
-      "summary": "1 passed in 0.00s "
-    },
-    {
-      "status": "passed",
-      "skill": "auditar-issue",
-      "test_file": "tests/test_report_order_contract.py",
-      "elapsed_seconds": 1,
-      "summary": "3 passed in 0.01s "
-    },
-    {
-      "status": "passed",
-      "skill": "revisar-issue",
-      "test_file": "tests/test_delivery_contract.py",
-      "elapsed_seconds": 1,
-      "summary": "2 passed in 0.00s "
-    },
-    {
-      "status": "passed",
-      "skill": "documentacao-repositorio",
-      "test_file": "tests/test_delivery_contract.py",
-      "elapsed_seconds": 1,
-      "summary": "2 passed in 0.00s "
-    },
-    {
-      "status": "passed",
-      "skill": "design-interface",
-      "test_file": "tests/test_contract_sync.py",
-      "elapsed_seconds": 1,
-      "summary": "1 passed in 0.00s "
-    },
-    {
-      "status": "passed",
-      "skill": "fluxos-conversacionais",
-      "test_file": "tests/test_delivery_contract.py",
-      "elapsed_seconds": 0,
-      "summary": "2 passed in 0.00s "
-    }
-  ]
-}
+A-011 systemic audit-escape prevention/detection promotion
+control_id=OPEN-CLASS-GATE-001
+
+prevention skill=entregar-issue
+before_sha256=69646323a19915c5e20a417ee746f2cf3eee2094850b54046209b3e7d5ac2c6f
+after_sha256=e96a37e58da6638ed2b73df72f10be661d367f59a9863de776ab9a56bd248217
+change=generic rule requires varying finite preconditions/early-return gates before open-class discriminators
+
+detection skill=auditar-issue
+before_sha256=d966ce430fe91c429374a2a53dc5e8d08ca8607029e4b1673c6cf2500246561f
+after_sha256=91c997c7649598936ec54e3c3ded00f6396e9e0fb4e9ff459c1ae7466a5ac43c
+change=generic adversarial rule attacks finite keys/heads/prefixes/type switches and verifies the real boundary is reached
+
+validation:
+- validate_skill_genericity.py entregar-issue: PASS
+- validate_skill_genericity.py auditar-issue: PASS
+- focused contract tests: 2 passed
+- ecosystem tests: 15/15 passed
+- promoted rules/tests contain no repository, issue, PR, branch, SHA or product-specific dependency
+
+- ecosystem_report_sha256=18d0992019bb06e60ed6c1bda861747fcb037ce5dba842ad28a897c829d9db82

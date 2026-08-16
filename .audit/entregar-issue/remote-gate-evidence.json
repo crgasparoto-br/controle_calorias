@@ -1,15 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
-  "observed_at": "2026-08-16T00:04:54.077083+00:00",
-  "observation_policy": "single-read-only-observation-no-polling",
-  "workflow_run": {
-    "id": 31916308217,
-    "name": "Agent-first gate",
-    "run_number": 5479,
-    "status": "in_progress",
-    "conclusion": null
-  },
-  "classification": "pending-not-failed",
-  "note": "The material candidate was published once and the official gate was observed exactly once. No polling or manual rerun was performed."
-}
+{"schema_version":1,"head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","workflow":"Agent-first gate","run_id":31919726916,"run_number":5481,"observed_status":"in_progress","conclusion":null,"observation_policy":"single exact-head observation; no polling","observed_at":"2026-08-16T01:33:35.166595+00:00"}

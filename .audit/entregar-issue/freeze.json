@@ -1,13 +1,1 @@
-{
-  "schema_version": 1,
-  "status": "frozen",
-  "material_head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
-  "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
-  "material_merge_preview_sha": "cb027210585482db3f1aba28e91833b1f894a4d7",
-  "created_at": "2026-08-16T00:04:11.119057+00:00",
-  "material_paths": [
-    "server/mealContainerNoise.ts",
-    "server/mealContainerSemanticEvidence.ts",
-    "server/mealContainerOpenClass.issue982.test.ts"
-  ]
-}
+{"schema_version":1,"status":"frozen","material_head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45","base_sha":"61886031ddc314c085b17bed9b0b14b766f9c9f1","material_merge_preview_sha":"49be66933b85f616b098b561d1d27c325a1fc6bb","created_at":"2026-08-16T01:33:35.166595+00:00","material_paths":["server/mealContainerNoise.ts","server/mealContainerOpenClass.issue982.test.ts"]}
