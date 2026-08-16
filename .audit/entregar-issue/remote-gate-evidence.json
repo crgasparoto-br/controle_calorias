@@ -1,42 +1,43 @@
 {
   "schema_version": 1,
-  "head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
-  "ci_state": "green",
-  "observed_at": "2026-08-16T06:40:44.342886+00:00",
-  "workflows": [
+  "head_sha": "c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b",
+  "ci_state": "pending-no-failure-observed",
+  "observation_policy": "single exact-head observation; no polling or manual rerun",
+  "observed_at": "2026-08-16T16:05:30+00:00",
+  "runs": [
     {
       "name": "Agent-first gate",
-      "run_id": 31931417600,
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "name": "Billing persistence TiDB gate",
-      "run_id": 31931417596,
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "name": "WhatsApp context TiDB gate",
-      "run_id": 31931417623,
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "name": "Onboarding activation TiDB gate",
-      "run_id": 31931417617,
-      "status": "completed",
-      "conclusion": "success"
+      "run_id": 31957581068,
+      "status": "in_progress",
+      "conclusion": null
     },
     {
       "name": "Professional persistence TiDB gate",
-      "run_id": 31931417611,
-      "status": "completed",
-      "conclusion": "success"
+      "run_id": 31957581072,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Billing persistence TiDB gate",
+      "run_id": 31957581058,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 31957581049,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Onboarding activation TiDB gate",
+      "run_id": 31957581051,
+      "status": "in_progress",
+      "conclusion": null
     },
     {
       "name": "AI provider live smoke",
-      "run_id": 31931417608,
+      "run_id": 31957581046,
       "status": "completed",
       "conclusion": "skipped"
     }

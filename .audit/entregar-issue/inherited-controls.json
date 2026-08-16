@@ -1,6 +1,24 @@
 {
   "schema_version": 1,
-  "head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
-  "controls": [],
+  "head_sha": "c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b",
+  "controls": [
+    {
+      "id": "RISK-FAMILY-APPLICABILITY-001",
+      "status": "passed",
+      "head_sha": "c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b",
+      "evidence": "evidence/issue-897-remediation-controls.txt",
+      "source_audits": [
+        {
+          "finding_id": "A-001",
+          "validity": "independent",
+          "status": "closed"
+        }
+      ],
+      "risk_families": [
+        "rollback",
+        "historical-immutability"
+      ]
+    }
+  ],
   "unresolved_controls": []
 }

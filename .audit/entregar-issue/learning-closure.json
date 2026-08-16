@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "repository": "crgasparoto-br/controle_calorias",
+    "finding_ids": [
+      "A-001"
+    ],
+    "material_head_sha": "13961c4a54623d91225d681282219f4239d2ba80"
+  },
+  "generalized_learning": {
+    "promotion_status": "promoted",
+    "escape_class": "semantic-risk-family-applicability-drift",
+    "generalized_failure_pattern": "A canonical requirement can be omitted from risk saturation when obligation extraction or classification loses semantic terms before the attack matrix is generated.",
+    "plausible_wrong_implementation": "Keep happy-path controls green while classifying rollback or historical invariants as not applicable because the canonical sentence was not extracted or tagged.",
+    "trigger_signals": [
+      "rollback or deactivation language",
+      "historical non-reassignment language",
+      "risk family marked not applicable despite canonical semantic evidence"
+    ],
+    "risk_families": [
+      "rollback",
+      "historical-immutability"
+    ],
+    "reusable_control": {
+      "id": "RISK-FAMILY-APPLICABILITY-001",
+      "procedure": "Rederive risk applicability from canonical source text and require discriminant controls for every detected rollback or historical-immutability invariant."
+    },
+    "prevention_rule": "Specification extraction and attack generation must preserve semantic risk signals for rollback and historical immutability instead of relying only on previously mapped requirements.",
+    "detection_rule": "Independent audit must rederive risk-family applicability from canonical source semantics before accepting a not-applicable classification.",
+    "transfer_cases": [
+      {
+        "id": "T1",
+        "surface": "future-policy-deactivation",
+        "status": "passed",
+        "evidence": "evidence/skill-risk-family-tests.txt"
+      },
+      {
+        "id": "T2",
+        "surface": "historical-ledger-attribution",
+        "status": "passed",
+        "evidence": "evidence/skill-risk-family-tests.txt"
+      }
+    ]
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "skill": "entregar-issue",
+      "status": "passed",
+      "evidence": "evidence/skill-risk-family-tests.txt"
+    },
+    {
+      "role": "detection",
+      "skill": "auditar-issue",
+      "status": "passed",
+      "evidence": "evidence/skill-risk-family-tests.txt"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+material_head_sha=c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b
+base_sha=2b906cc26075d93303e06f9092f82175bca2f3d7
+merge_preview_sha=070c310ecfd6f4b76552c3b0e1f3280d2436d93b
+connector_mode=true
+remote_ci_observation=Agent-first/TiDB in_progress; live smoke skipped; no polling performed
+
+[blob-identity]
+server/modules/usageGovernance/adminService.ts=9adeac66d5722477dc3f801eaa9610664ce5a9cd
+server/modules/usageGovernance/router.ts=cdd373a7e44f4226d62d44d1e21b73971dc77ea8
+server/repositories/usageGovernanceAdminRepository.ts=afa42b1c4c8aabe263a22cb9c9d435b71717dc89
+server/modules/usageGovernance/adminService.test.ts=82090fd11cdba8e63da1b62fe53dc3c58426490a
+server/modules/usageGovernance/service.test.ts=31043600087202859b67943f7ca830955bf254d4
+docs/design-docs/usage-governance.md=96d5b018a24d306d3ef93eccbedc0b2fcbb0a89d
+drizzle/0043_billing_usage_economics_governance.sql=a4024c2f530d5507ea17659fe46beded28ef081e
+drizzle/0044_billing_usage_charge_revoke_reason.sql=ef321a50ef436df39d802ced7f38119d4b7bf965
+server/modules/usageGovernance/service.ts=edd2168c8fa3932b703afd7c54bde8a5a90daaf2 (immutable connector blob observed on material head)
+
+[rollback-control]
+124:  if (!Object.keys(input.rollback).length) throw new Error("consumption_charge_rollback_required");
+/tmp/issue897-remediation/server/modules/usageGovernance/adminService.ts:130:export async function revokeFutureConsumptionCharging(id: string, actorUserId: number, reason: string) {
+/tmp/issue897-remediation/server/modules/usageGovernance/adminService.ts:160:  revokeFutureConsumptionCharging,
+/tmp/issue897-remediation/server/modules/usageGovernance/router.ts:122:    try { await usageGovernanceAdminService.revokeFutureConsumptionCharging(input.id, ctx.user.id, input.reason); return { revoked: true as const }; }
+/tmp/issue897-remediation/server/repositories/usageGovernanceAdminRepository.ts:37:  await db.execute(sql`UPDATE billingUsageLimitations SET state='revoked',revokedAt=NOW(),revokedByUserId=${actorUserId},revokeReason=${reason} WHERE id=${id} AND state='active'`);
+/tmp/issue897-remediation/server/repositories/usageGovernanceAdminRepository.ts:47:  await db.execute(sql`UPDATE billingConsumptionChargeAuthorizations SET state='revoked',revokedAt=NOW(),revokedByUserId=${actorUserId},revokeReason=${reason} WHERE id=${id} AND state='approved'`);
+/tmp/issue897-remediation/drizzle/0044_billing_usage_charge_revoke_reason.sql:2:  ADD COLUMN `revokeReason` varchar(255) NULL AFTER `revokedAt`;
+38:describe("usage governance charging rollback", () => {
+45:  it("rejects a future charging authorization without an explicit rollback plan", async () => {
+53:      rollback: {},
+55:    })).rejects.toThrow("consumption_charge_rollback_required");
+59:  it("persists the rollback plan and the later deactivation reason", async () => {
+60:    const rollback = { strategy: "disable_policy", restoreCatalogVersion: "pricing-v1" };
+68:      rollback,
+74:      rollback,
+78:    await expect(revokeFutureConsumptionCharging(authorization.id, 12, " commercial rollback ")).resolves.toMatchObject({
+85:      "commercial rollback",
+RESULT=PASS: empty rollback is rejected; explicit rollback is persisted; revocation reason is trimmed, propagated and persisted; migration is incremental.
+
+[historical-immutability-control]
+105:  it("keeps historical attribution frozen when the current plan changes", async () => {
+101:    expect(result.correlation).toMatchObject({ beneficiaryUserId: 99, payerUserId: 7, sponsorUserId: 7, subscriptionId: "sub-pro", accessSource: "sponsored_by_professional" });
+129:      payerUserId: 7,
+131:      subscriptionId: "sub-pro",
+137:      payerUserId: 99,
+139:      subscriptionId: "sub-own",
+IMMUTABLE_SOURCE_OBSERVATION: enforceUsageAllowance snapshots payer/subscription/plan/accessSource into correlation; recordAiEconomicUsage reads event.correlation only and does not call billingService.
+RESULT=PASS: pre-change sponsored attribution remains frozen; post-change events use current individual attribution.
+
+[typescript-syntax]
+PASS /tmp/issue897-remediation/server/modules/usageGovernance/adminService.ts
+PASS /tmp/issue897-remediation/server/modules/usageGovernance/router.ts
+PASS /tmp/issue897-remediation/server/repositories/usageGovernanceAdminRepository.ts
+PASS /tmp/issue897-remediation/server/modules/usageGovernance/adminService.test.ts
+PASS /tmp/issue897-remediation/server/modules/usageGovernance/service.test.ts
+
+[documentation]
+9:O paciente permanece beneficiário quando o profissional paga. O custo é atribuído à assinatura/pagador profissional e o auto-uso do profissional usa a mesma assinatura, sem criar uma segunda fonte comercial. Trial, transição, acesso aberto e liberações administrativas permanecem fontes distintas. Como a atribuição comercial é congelada no evento, uma mudança posterior de plano ou patrocinador não reatribui o histórico já medido; eventos novos usam o contexto vigente no momento da execução.
+39:Medição e autorização de cobrança são contratos separados. `billingConsumptionChargeAuthorizations` exige responsável, motivo, política, preços, planos/versões afetados, data futura de vigência, comunicação anterior, proibição de retroatividade e plano de rollback não vazio. A revogação/desativação registra data, responsável e motivo, preservando a trilha de retorno da política. A janela de observação nunca pode ser convertida retroativamente em cobrança.
+RESULT=PASS

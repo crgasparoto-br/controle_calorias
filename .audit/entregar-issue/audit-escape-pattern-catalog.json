@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "control_id": "RISK-FAMILY-APPLICABILITY-001",
+      "escape_class": "semantic-risk-family-applicability-drift",
+      "trigger_signals": [
+        "canonical text contains rollback/reversal semantics",
+        "canonical text freezes historical attribution or forbids rewriting history",
+        "risk saturation marks such a family not applicable"
+      ],
+      "risk_families": [
+        "rollback",
+        "historical-immutability"
+      ],
+      "status": "active"
+    }
+  ]
+}

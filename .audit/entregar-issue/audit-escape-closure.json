@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "semantic-risk-family-applicability-drift",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-001",
+        "validity": "independent",
+        "affected_head_sha": "e20bb26847025abe8ba6ac82dac5fca0573d7958"
+      },
+      "plausible_wrong_implementation": "Drop or under-extract contractual semantics so rollback and historical immutability are classified as not applicable while nominal feature tests remain green.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-remediation-controls.txt",
+        "procedure": "Rederive canonical obligations and verify rollback plus historical immutability are active and backed by product controls."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "status": "passed",
+          "evidence": "evidence/skill-risk-family-tests.txt",
+          "dimension": "generic future-policy deactivation text must activate rollback risk"
+        },
+        {
+          "id": "A-001-S2",
+          "status": "passed",
+          "evidence": "evidence/skill-risk-family-tests.txt",
+          "dimension": "generic later-membership-change text must activate historical-immutability risk"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "RISK-FAMILY-APPLICABILITY-001",
+        "evidence": "evidence/skill-risk-family-tests.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "RISK-FAMILY-APPLICABILITY-001",
+        "evidence": "evidence/skill-risk-family-tests.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "rollback",
+        "historical-immutability"
+      ]
+    }
+  ]
+}

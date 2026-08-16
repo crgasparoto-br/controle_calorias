@@ -3,12 +3,14 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 897,
   "pr": 985,
-  "material_head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
-  "base_sha": "2b906cc26075d93303e06f9092f82175bca2f3d7",
-  "merge_preview_sha": "42e8bd33512982d6494a705ceebda597c3becaa3",
-  "scope": "Neutral handoff packet for independent audit; contains no audit conclusion.",
+  "base": "develop",
+  "material_head_sha": "c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b",
+  "scope": "Neutral handoff packet for independent audit; contains canonical sources, immutable identities, raw controls and remote gate state without an audit conclusion.",
+  "implementation_conclusions_included": false,
+  "implementation_narrative_included": false,
   "evidence": [
     "remote-gate-evidence.json",
-    "evidence/issue-897-controls.txt"
+    "evidence/issue-897-remediation-controls.txt",
+    "evidence/skill-risk-family-tests.txt"
   ]
 }

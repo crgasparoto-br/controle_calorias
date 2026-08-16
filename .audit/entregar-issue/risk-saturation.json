@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "head_sha": "13961c4a54623d91225d681282219f4239d2ba80",
+  "head_sha": "c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-NO-AUTO-BILLING",
+        "CHARGE-ROLLBACK-001",
         "NEG-TEST-COVERAGE"
       ],
       "status": "passed"
@@ -31,7 +31,7 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-NO-AUTO-BILLING",
+        "CHARGE-ROLLBACK-001",
         "NEG-REPORTING-PRIVACY"
       ],
       "status": "passed"
@@ -41,9 +41,9 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
+        "CHARGE-ROLLBACK-001",
         "NEG-ABUSE-GOVERNANCE",
         "NEG-ECONOMICS",
-        "NEG-NO-AUTO-BILLING",
         "NEG-REPORTING-PRIVACY",
         "NEG-RETENTION-PRIVACY"
       ],
@@ -54,8 +54,8 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
+        "CHARGE-ROLLBACK-001",
         "NEG-ECONOMICS",
-        "NEG-NO-AUTO-BILLING",
         "NEG-REPORTING-PRIVACY"
       ],
       "status": "passed"
@@ -72,24 +72,28 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-METERING-ATTRIBUTION",
+        "HIST-ATTRIBUTION-IMMUTABILITY-001",
         "NEG-TEST-COVERAGE"
       ],
       "status": "passed"
     },
     {
       "family": "rollback",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Canonical specification requires a persisted rollback/deactivation contract for future charging.",
+      "control_ids": [
+        "CHARGE-ROLLBACK-001"
+      ],
+      "status": "passed"
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Canonical specification forbids later plan changes from reattributing historical consumption.",
+      "control_ids": [
+        "HIST-ATTRIBUTION-IMMUTABILITY-001"
+      ],
+      "status": "passed"
     },
     {
       "family": "structural-contract",
