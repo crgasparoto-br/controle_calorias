@@ -1,8 +1,8 @@
-material_head_sha=c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b
+material_head_sha=46af7f0e9b0769433c24dd3ddc7cf29aed26131e
 base_sha=2b906cc26075d93303e06f9092f82175bca2f3d7
-merge_preview_sha=070c310ecfd6f4b76552c3b0e1f3280d2436d93b
+merge_preview_sha=unavailable-after-identity-refresh
 connector_mode=true
-remote_ci_observation=Agent-first/TiDB in_progress; live smoke skipped; no polling performed
+remote_ci_observation=pending-no-run on refreshed material head; prior identical-tree material had in-progress gates; no polling performed
 
 [blob-identity]
 server/modules/usageGovernance/adminService.ts=9adeac66d5722477dc3f801eaa9610664ce5a9cd
@@ -56,3 +56,9 @@ PASS /tmp/issue897-remediation/server/modules/usageGovernance/service.test.ts
 9:O paciente permanece beneficiário quando o profissional paga. O custo é atribuído à assinatura/pagador profissional e o auto-uso do profissional usa a mesma assinatura, sem criar uma segunda fonte comercial. Trial, transição, acesso aberto e liberações administrativas permanecem fontes distintas. Como a atribuição comercial é congelada no evento, uma mudança posterior de plano ou patrocinador não reatribui o histórico já medido; eventos novos usam o contexto vigente no momento da execução.
 39:Medição e autorização de cobrança são contratos separados. `billingConsumptionChargeAuthorizations` exige responsável, motivo, política, preços, planos/versões afetados, data futura de vigência, comunicação anterior, proibição de retroatividade e plano de rollback não vazio. A revogação/desativação registra data, responsável e motivo, preservando a trilha de retorno da política. A janela de observação nunca pode ser convertida retroativamente em cobrança.
 RESULT=PASS
+
+[identity-refresh]
+previous_material_head=c9e2ca1aac3f448ab25b5d147f86ea9f92e68c5b
+current_material_head=46af7f0e9b0769433c24dd3ddc7cf29aed26131e
+tree_identity=79c7cdb6f15affb16893b7dadd9f6507fa3a4376
+result=PASS: refreshed head has identical tree bytes; product evidence reused by exact blob identity.
