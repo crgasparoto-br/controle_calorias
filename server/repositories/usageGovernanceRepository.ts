@@ -283,49 +283,21 @@ export async function listMonthlyEconomicAggregates(input: { from: Date; to: Dat
   );
 }
 
-export async function insertGovernanceRecord(table: "billingUsagePolicies" | "billingUsageAllowanceGrants" | "billingUsageAbuseCases" | "billingUsageLimitations" | "billingConsumptionChargeAuthorizations" | "billingUsageLegalHolds", values: Record<string, string | number | boolean | Date | null | object>) {
-  const db = await requireDb();
-  const columns = Object.keys(values);
-  const escaped = columns.map(column => `\`${column}\``).join(", ");
-  const placeholders = columns.map(() => "?").join(", ");
-  const args = Object.values(values).map(value => value instanceof Date ? value : typeof value === "object" && value !== null ? JSON.stringify(value) : value);
-  await db.execute(sql.raw(`INSERT INTO \`${table}\` (${escaped}) VALUES (${placeholders})`), args as never);
-}
-
-export async function revokeGovernanceRecord(table: "billingUsageAllowanceGrants" | "billingUsageLimitations" | "billingConsumptionChargeAuthorizations" | "billingUsageLegalHolds", id: string, actorUserId: number, reason?: string) {
-  const db = await requireDb();
-  if (table === "billingUsageLimitations") {
-    await db.execute(sql`UPDATE billingUsageLimitations SET state='revoked', revokedAt=NOW(), revokedByUserId=${actorUserId}, revokeReason=${reason ?? "revoked"} WHERE id=${id} AND state='active'`);
-    return;
-  }
-  if (table === "billingUsageAllowanceGrants") {
-    await db.execute(sql`UPDATE billingUsageAllowanceGrants SET state='revoked', revokedAt=NOW(), revokedByUserId=${actorUserId} WHERE id=${id} AND state='active'`);
-    return;
-  }
-  if (table === "billingConsumptionChargeAuthorizations") {
-    await db.execute(sql`UPDATE billingConsumptionChargeAuthorizations SET state='revoked', revokedAt=NOW(), revokedByUserId=${actorUserId} WHERE id=${id} AND state='approved'`);
-    return;
-  }
-  await db.execute(sql`UPDATE billingUsageLegalHolds SET activeScopeKey=NULL, revokedAt=NOW(), revokedByUserId=${actorUserId} WHERE id=${id} AND revokedAt IS NULL`);
-}
-
 export async function getAbuseCase(id: string) {
   const db = await requireDb();
-  return resultRows<Record<string, unknown>>(await db.execute(sql`SELECT * FROM billingUsageAbuseCases WHERE id=${id} LIMIT 1`))[0] ?? null;
+  return resultRows<Record<string, unknown>>(
+    await db.execute(sql`SELECT * FROM billingUsageAbuseCases WHERE id=${id} LIMIT 1`),
+  )[0] ?? null;
 }
 
-export async function reviewAbuseCase(input: { id: string; reviewerUserId: number; outcome: string; reason: string; impact: Record<string, unknown>; systemFailuresExcluded: boolean; legitimateGrowthReviewed: boolean }) {
-  const db = await requireDb();
-  await db.execute(sql`
-    UPDATE billingUsageAbuseCases SET state='reviewed', reviewedByUserId=${input.reviewerUserId},
-      reviewOutcome=${input.outcome}, reviewReason=${input.reason}, impactJson=${JSON.stringify(input.impact)},
-      systemFailuresExcluded=${input.systemFailuresExcluded}, legitimateGrowthReviewed=${input.legitimateGrowthReviewed},
-      reviewedAt=NOW()
-    WHERE id=${input.id} AND state='open'
-  `);
-}
-
-export async function purgeUsageGovernanceRetention(input: { now: Date; detailedCutoff: Date; dailyCutoff: Date; monthlyCutoff: Date; ruleVersion: string; auditId: string }) {
+export async function purgeUsageGovernanceRetention(input: {
+  now: Date;
+  detailedCutoff: Date;
+  dailyCutoff: Date;
+  monthlyCutoff: Date;
+  ruleVersion: string;
+  auditId: string;
+}) {
   const db = await requireDb();
   await db.transaction(async tx => {
     await tx.execute(sql`
@@ -336,7 +308,10 @@ export async function purgeUsageGovernanceRetention(input: { now: Date; detailed
             OR (h.scopeType='subscription' AND h.scopeId=e.subscriptionId))
       WHERE e.occurredAt < ${input.detailedCutoff} AND e.legalHold=false AND h.id IS NULL
     `);
-    await tx.execute(sql`DELETE FROM billingUsageDailyAggregates WHERE usageDate < DATE(${input.dailyCutoff})`);
+    await tx.execute(sql`
+      DELETE FROM billingUsageDailyAggregates
+      WHERE usageDate < DATE(${input.dailyCutoff})
+    `);
     await tx.execute(sql`
       DELETE m FROM billingEconomicMonthlyAggregates m
       LEFT JOIN billingUsageLegalHolds h
@@ -345,8 +320,13 @@ export async function purgeUsageGovernanceRetention(input: { now: Date; detailed
       WHERE m.competenceMonth < DATE(${input.monthlyCutoff}) AND h.id IS NULL
     `);
     await tx.execute(sql`
-      INSERT INTO billingUsageRetentionAudit (id, runAt, detailedCutoff, dailyCutoff, monthlyCutoff, ruleVersion, status, detail)
-      VALUES (${input.auditId}, ${input.now}, ${input.detailedCutoff}, DATE(${input.dailyCutoff}), DATE(${input.monthlyCutoff}), ${input.ruleVersion}, 'success', 'automatic retention completed with active legal holds preserved')
+      INSERT INTO billingUsageRetentionAudit (
+        id, runAt, detailedCutoff, dailyCutoff, monthlyCutoff, ruleVersion, status, detail
+      ) VALUES (
+        ${input.auditId}, ${input.now}, ${input.detailedCutoff}, DATE(${input.dailyCutoff}),
+        DATE(${input.monthlyCutoff}), ${input.ruleVersion}, 'success',
+        'automatic retention completed with active legal holds preserved'
+      )
     `);
   });
 }
