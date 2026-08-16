@@ -1,0 +1,28 @@
+material_head_sha=74f59b930ad5433966f662f03c68cb5c2ec0461c
+SEM-EVIDENCE-001=passed
+OPEN-UNKNOWN-001=passed
+REP-FANIN-001=passed
+
+Focused executable harness on product classifier/resolver:
+core: expected=true observed=true
+crystal: expected=true observed=true
+serra: expected=true observed=true
+compound-brand-e: expected=true observed=true
+compound-brand-ou: expected=true observed=true
+lemon-same-nova: expected=false observed=false
+mint-same-nova: expected=false observed=false
+composition-contradiction: expected=false observed=false
+nova-only-no-purity: expected=false observed=false
+volume-structured: expected=500 observed=500
+volume-portion: expected=500 observed=500
+volume-embedded: expected=500 observed=500
+volume-conflict: expected=null observed=null
+split: waterVolumeMl=500 remaining=0 missing=false
+
+Producer/consumer coverage:
+- meal extraction JSON schema requires foodClassification.isPlainWater for provider output
+- MealDraftItem preserves classification through catalog/heuristic builders
+- water classifier consumes isPlainWater independently from NOVA processingLevel
+- webhook integration fixture propagates isPlainWater and keeps flavored NOVA-equivalent items out of hydration
+Local syntax: 7 changed TypeScript files transpile with zero syntax diagnostics.
+Full repository typecheck was not locally executable because dependency type roots are absent in artifact-bundle runtime; automatic Agent-first gate is the authoritative full gate and was observed in_progress exactly once.

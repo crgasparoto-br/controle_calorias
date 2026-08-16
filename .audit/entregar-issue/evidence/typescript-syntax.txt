@@ -1,0 +1,9 @@
+server/mealAiExtraction.test.ts: syntax_errors=0
+server/mealAiExtraction.ts: syntax_errors=0
+server/mealItemBuilders.classification.test.ts: syntax_errors=0
+server/modules/whatsapp/waterItemClassification.test.ts: syntax_errors=0
+server/modules/whatsapp/waterItemClassification.ts: syntax_errors=0
+server/nutritionEngineTypes.ts: syntax_errors=0
+server/whatsappWebhook.image.water.test.ts: syntax_errors=0
+
+Global tsc was not considered a valid local gate in this artifact bundle because project dependency type definitions (node, vite/client) are not installed.
