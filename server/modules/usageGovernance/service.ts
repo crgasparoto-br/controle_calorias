@@ -15,7 +15,7 @@ import { hasActiveUsageExemption } from "../../repositories/usageGovernancePolic
 import { purgeUsageGovernanceRetention } from "../../repositories/usageGovernanceRetentionRepository";
 import { billingService } from "../billing/service";
 
-export const USAGE_RULE_VERSION = "2026-08-16.3";
+export const USAGE_RULE_VERSION = "2026-08-16.4";
 export const USAGE_RETENTION_POLICY = {
   detailedUsageMonths: 13,
   dailyAggregateMonths: 24,
@@ -350,25 +350,41 @@ export async function refreshEconomicAggregates(now = new Date()) {
     const costMicros = Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
     if (costMicros <= 0) continue;
     const usageCurrency = row.currency == null ? null : String(row.currency);
+    const usageVersionCode = row.versionCode == null ? null : String(row.versionCode);
+    const dimensionCandidates = Array.from(buckets.entries()).filter(([key, bucket]) => {
+      if (!key.startsWith(`${monthKey}|${row.payerUserId}|`)) return false;
+      if (String(row.subscriptionId ?? "") !== String(bucket.subscriptionId ?? "")) return false;
+      if (usageVersionCode && usageVersionCode !== String(bucket.versionCode ?? "")) return false;
+      return true;
+    });
+    const candidateVersions = new Set(
+      dimensionCandidates.map(([, bucket]) => String(bucket.versionCode ?? "")),
+    );
+    const ambiguousVersion = usageVersionCode === null && candidateVersions.size > 1;
     let matchedComparableBucket = false;
 
-    for (const [key, bucket] of buckets) {
-      if (!key.startsWith(`${monthKey}|${row.payerUserId}|`)) continue;
-      if (String(row.subscriptionId ?? "") !== String(bucket.subscriptionId ?? "")) continue;
-      if (String(row.versionCode ?? "") !== String(bucket.versionCode ?? "")) continue;
-      if (usageCurrency && usageCurrency === String(bucket.currency)) {
-        bucket.variableCostMicros = Number(bucket.variableCostMicros) + costMicros;
-        matchedComparableBucket = true;
-      } else {
+    if (ambiguousVersion) {
+      for (const [, bucket] of dimensionCandidates) {
         bucket.hasUnconvertedVariableCost = true;
+      }
+    } else {
+      for (const [, bucket] of dimensionCandidates) {
+        if (usageCurrency && usageCurrency === String(bucket.currency)) {
+          bucket.variableCostMicros = Number(bucket.variableCostMicros) + costMicros;
+          matchedComparableBucket = true;
+        } else {
+          bucket.hasUnconvertedVariableCost = true;
+        }
       }
     }
 
     if (usageCurrency && !matchedComparableBucket) {
-      const key = [monthKey, row.payerUserId, row.subscriptionId ?? "", row.versionCode ?? "", usageCurrency].join("|");
+      const inferredVersionCode = usageVersionCode
+        ?? (candidateVersions.size === 1 ? Array.from(candidateVersions)[0] || null : null);
+      const key = [monthKey, row.payerUserId, row.subscriptionId ?? "", inferredVersionCode ?? "", usageCurrency].join("|");
       const bucket = buckets.get(key) ?? {
         month, payerUserId: Number(row.payerUserId), subscriptionId: row.subscriptionId ? String(row.subscriptionId) : null,
-        productCode: row.productCode ? String(row.productCode) : null, versionCode: row.versionCode ? String(row.versionCode) : null,
+        productCode: row.productCode ? String(row.productCode) : null, versionCode: inferredVersionCode,
         billingCycle: row.billingCycle ? String(row.billingCycle) : null, currency: usageCurrency, contract_revenue: 0,
         discount: 0, coupon: 0, credit: 0, refund: 0, chargeback: 0, revenue_tax: 0, receipt_fee: 0, financial_cost: 0,
         estimatedFacts: 0, effectiveFacts: 0, variableCostMicros: 0, hasUnconvertedVariableCost: false,
