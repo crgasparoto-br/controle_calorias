@@ -1,39 +1,30 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-16T01:42:44.299610+00:00",
+  "created_at": "2026-08-16T06:37:54.979909+00:00",
   "identity": {
-    "head_sha": "8fb8df49d91ff6f1cbe52845d3169515d8177f45",
-    "material_head_sha": "8fb8df49d91ff6f1cbe52845d3169515d8177f45",
-    "base_sha": "61886031ddc314c085b17bed9b0b14b766f9c9f1",
-    "merge_preview_sha": "49be66933b85f616b098b561d1d27c325a1fc6bb",
-    "material_merge_preview_sha": "49be66933b85f616b098b561d1d27c325a1fc6bb"
+    "head_sha": "0b08697f4ec25465119ed74d6989b0a40feafcc5",
+    "material_head_sha": "0b08697f4ec25465119ed74d6989b0a40feafcc5",
+    "base_sha": "2b906cc26075d93303e06f9092f82175bca2f3d7",
+    "merge_preview_sha": null,
+    "material_merge_preview_sha": null
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
-      ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
-      ".audit/entregar-issue/evidence/open-class-gate-evidence.txt",
-      ".audit/entregar-issue/evidence/skill-control-tests.txt",
-      ".audit/entregar-issue/evidence/unaffected-revalidation.txt",
-      ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
-      ".audit/entregar-issue/learning-closure.json",
-      ".audit/entregar-issue/neutral-packet.json",
-      ".audit/entregar-issue/remote-gate-evidence.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/source-manifest.json",
-      ".audit/entregar-issue/specification-snapshot.json"
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-986.txt"
     ]
   },
   "contract_version": "2026-08-06.2",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "e96a37e58da6638ed2b73df72f10be661d367f59a9863de776ab9a56bd248217"
+    "skill_sha256": "1c757aee73b7bae78c5e62c636cc2c954e110a418704438acb9b66c00ab44ea9"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
@@ -46,32 +37,24 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "c99a2cc5ab93f2e14b52fc5634a6c6a7b1e02749f70629d800475ed77953e7bc"
+      "sha256": "c50083f99f578bde1caf83f1821878b2a1d970b924805e16a3852a8b92012108"
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "3917d912b98b8af57b200ad42f17b6b15218320000e22f7f01236e8072b322ce"
+      "sha256": "9f101c688674e059b14adba3439cbb1af920bdd23e46c5aef80244547354e2bf"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "973ff0bc3a99fbbd742803140680ac4fd14786dee14c433d9313db720083e6da"
+      "sha256": "cb2359a23f7a9f6c465829176fb7a5ac53b8f3f554cd1fc26788ee2539b407fb"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "8db84a54c587a35857156a7b67849f326f80c28a6f374c862fa7c690cad7831a"
+      "sha256": "be63cc65f7dfad5b6ec39df7d7c8dca93dac335fff9ce6517c039cb5d2fdc032"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "4dc3089552ec9b0acce323d986a538d8366b1e55b00d35475d890d386b92a942"
-    },
-    "audit_escape_closure": {
-      "name": "audit-escape-closure.json",
-      "sha256": "9a0a93772985bb32f717d865542316fd870f4cee6fc2a1379d48ccc849667dff"
-    },
-    "learning_closure": {
-      "name": "learning-closure.json",
-      "sha256": "7b497bcffd7cd63a5a1ef7be5361ae87bf45ce21058e1db0240f4696e84d3d20"
+      "sha256": "85bb3045e5641d779892032b8425039071202bfbc85c53ae22bd46285142a840"
     }
   },
-  "previous_independent_rejection": true
+  "previous_independent_rejection": false
 }
