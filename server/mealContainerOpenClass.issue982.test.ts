@@ -87,4 +87,32 @@ describe("open container-content classes issue #982", () => {
     expect(siblingPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
   });
 
+  it("rejeita objetos com cabeçalhos externos inéditos sem enumerar o substantivo", () => {
+    const unseenObjectHeads = [
+      "Caneca descartável",
+      "Garrafa vazia",
+      "Pires quebrado",
+      "Espátula de silicone",
+      "Jarra reutilizável",
+      "Ralador metálico",
+      "Duas canecas descartáveis",
+      "3 garrafas vazias",
+    ];
+
+    expect(unseenObjectHeads.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
+  });
+
+  it("preserva conteúdo culinário quando o cabeçalho externo também é inédito", () => {
+    const unseenServingHeads = [
+      "Caneca de café",
+      "Garrafa de kombucha artesanal",
+      "Jarra de lassi salgado",
+      "Frasco de kefir",
+      "Börek vermelho",
+      "Duas garrafas de kombucha artesanal",
+    ];
+
+    expect(unseenServingHeads.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+  });
+
 });

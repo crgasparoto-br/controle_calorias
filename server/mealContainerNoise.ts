@@ -141,7 +141,7 @@ const STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS = [
   // Conectividade, controle e interfaces de dispositivos.
   /^(?:bluetooth|digital|hdmi|inteligent|laser|multimidi|remot|usb|wifi|wireless)/,
   // Estado, acabamento, materialidade ou propriedade tipica de artefato.
-  /^(?:brilhant|descartav|dobrav|fosco|metal|nitril|plast|portat|protet|quebrad|rachad|recicl|resistent|reutiliz|sextavad|sintetic|temperad|transluc|transparent)/,
+  /^(?:brilhant|descartav|dobrav|fosco|metal|nitril|plast|portat|protet|quebrad|rachad|recicl|resistent|reutiliz|sextavad|sintetic|temperad|transluc|transparent|vazi)/,
 ];
 
 const AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS = [
@@ -149,11 +149,17 @@ const AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS = [
   /^(?:azul|branc|cinza|dourad|grau|long|pret|redond|verd|vermelh)/,
 ];
 
+function hasExplicitStrongNonFoodContextModifier(contentTokens: string[]) {
+  if (contentTokens.length < 2) return false;
+  return contentTokens.slice(1)
+    .some(token => tokenMatchesAnyPattern(token, STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS));
+}
+
 function hasStrongNonFoodContextModifier(contentTokens: string[]) {
   if (contentTokens.length < 2) return false;
 
   const modifiers = contentTokens.slice(1);
-  if (modifiers.some(token => tokenMatchesAnyPattern(token, STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS))) {
+  if (hasExplicitStrongNonFoodContextModifier(contentTokens)) {
     return true;
   }
 
@@ -249,6 +255,23 @@ function shouldNonFoodEvidenceOverrideFoodSignal(contentTokens: string[]) {
       || hasAmbiguousHeadWithNonFoodContext(contentTokens));
 }
 
+function hasAffirmativeNonFoodPhraseEvidence(tokens: string[]) {
+  const semanticTokens = tokens.filter(token => !NON_FOOD_CONNECTORS.has(token));
+  if (!semanticTokens.length) return false;
+
+  const phrase = semanticTokens.join(" ");
+  const knownFood = hasKnownFoodSignal(phrase);
+  const strongNonFood = hasStrongNonFoodEvidence(semanticTokens)
+    || hasExplicitStrongNonFoodContextModifier(semanticTokens)
+    || hasHighConfidenceNonFoodLexicalEvidence(phrase);
+
+  // Uma classe aberta nao pode depender de o primeiro substantivo estar numa
+  // lista de recipientes/objetos. Fora da lista, so descartamos com evidencia
+  // negativa afirmativa; ausencia de match alimentar continua sendo abstencao.
+  if (knownFood && !strongNonFood) return false;
+  return strongNonFood;
+}
+
 export function isContainerObjectOnlyDescription(value: string) {
   const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
   if (!normalized) return false;
@@ -256,7 +279,9 @@ export function isContainerObjectOnlyDescription(value: string) {
 
   const tokens = normalized.split(/\s+/).filter(Boolean);
   const objectHead = findObjectHead(tokens);
-  if (!objectHead) return false;
+  if (!objectHead) {
+    return hasAffirmativeNonFoodPhraseEvidence(tokens);
+  }
 
   const { head, headIndex } = objectHead;
 
