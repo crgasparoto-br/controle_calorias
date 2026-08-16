@@ -58,6 +58,8 @@ Exemplos principais:
 - `design-docs/professional-ai-assistance.md`
 - `design-docs/billing-foundation.md`
 - `design-docs/billing-subscription-lifecycle.md`
+- `design-docs/billing-professional-coverage.md`
+- `design-docs/billing-asaas-adapter.md`
 
 ## Testes e regressão
 
@@ -74,7 +76,7 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 | `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
 | `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
 | `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
-| `runbooks/`       | Runbooks operacionais. O rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
+| `runbooks/`       | Runbooks operacionais. Billing Asaas está em `runbooks/billing-asaas.md`; o rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
 
 ### IA multi-provider e benchmark
 

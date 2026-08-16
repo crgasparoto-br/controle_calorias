@@ -1,0 +1,21 @@
+> python3 /home/oai/skills/entregar-issue/scripts/validate_specification_coverage.py --specification-snapshot .audit/entregar-issue/specification-snapshot.json --requirement-closure .audit/entregar-issue/requirement-closure.json
+READY: canonical specification coverage is complete
+> python3 /home/oai/skills/entregar-issue/scripts/validate_requirement_attack_matrix.py --requirement-closure .audit/entregar-issue/requirement-closure.json --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json
+READY: every covered requirement has positive, adversarial and regression evidence
+> python3 /home/oai/skills/entregar-issue/scripts/validate_risk_saturation.py --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json --risk-saturation .audit/entregar-issue/risk-saturation.json
+READY: canonical risk families are explicitly saturated
+> python3 /home/oai/skills/entregar-issue/scripts/validate_inherited_controls.py --inherited-controls .audit/entregar-issue/inherited-controls.json --head-sha 5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a --previous-independent-rejection
+READY: cumulative inherited audit controls are closed
+> python3 /home/oai/skills/entregar-issue/scripts/validate_learning_closure.py --learning-closure .audit/entregar-issue/learning-closure.json
+READY: rejection learning is closed and generalized
+> python3 /home/oai/skills/entregar-issue/scripts/validate_handoff_readiness.py --requirement-closure .audit/entregar-issue/requirement-closure.json --attack-matrix .audit/entregar-issue/requirement-attack-matrix.json --risk-saturation .audit/entregar-issue/risk-saturation.json --inherited-controls .audit/entregar-issue/inherited-controls.json --audit-escape-closure .audit/entregar-issue/audit-escape-closure.json --previous-independent-rejection
+READY: requirement attacks, risk saturation, inherited controls, structural invariants and audit escapes are closed
+> python3 /home/oai/skills/entregar-issue/scripts/validate_skill_genericity.py --skill-root /home/oai/skills/entregar-issue
+READY: skill permanent assets are free of obvious issue-number coupling
+> python3 /home/oai/skills/entregar-issue/scripts/validate_skill_genericity.py --skill-root /home/oai/skills/auditar-issue
+READY: skill permanent assets are free of obvious issue-number coupling
+> product diff check
+READY: product diff has no whitespace errors
+> remote CI single observation
+Agent-first gate run_id=31916308217 run_number=5479 status=in_progress conclusion=null classification=pending-not-failed
+No polling or manual rerun performed.

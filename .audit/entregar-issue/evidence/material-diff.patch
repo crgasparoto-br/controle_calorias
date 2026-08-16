@@ -1,0 +1,149 @@
+diff --git a/server/mealContainerNoise.ts b/server/mealContainerNoise.ts
+index 6601b2e6..b378c16b 100644
+--- a/server/mealContainerNoise.ts
++++ b/server/mealContainerNoise.ts
+@@ -1,6 +1,6 @@
+ import { normalizeForMatching } from "./mealTextParsing";
+ import { findTacoFood } from "./tacoLookup";
+-import { hasHighConfidenceNonFoodLexicalEvidence } from "./mealContainerSemanticEvidence";
++import { hasHighConfidenceNonFoodLexicalEvidence, scoreContainerContentFoodLikelihood } from "./mealContainerSemanticEvidence";
+ 
+ const NON_FOOD_OBJECT_TERMS = new Set([
+   "prato",
+@@ -129,6 +129,45 @@ const CLEARLY_NON_FOOD_NOUN_STEM_PATTERNS = [
+   /^(?:areia|diamant|joia|lixo|moeda|racao|rotulo)/,
+ ];
+ 
++// Modificadores contextuais descrevem finalidade, estado, tecnologia ou acabamento
++// do objeto, em vez de enumerar o substantivo principal. Eles sao avaliados antes
++// do classificador lexical para impedir que um score incidentalmente alimentar
++// transforme "recipiente + objeto qualificado" em refeicao. O conjunto e formado
++// por familias/stems transferiveis; alimentos conhecidos continuam prevalecendo.
++const NON_FOOD_CONTEXT_HEAD_MAX_FOOD_PROBABILITY = 0.65;
++const STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS = [
++  // Uso institucional, tecnico ou funcional.
++  /^(?:academ|administrativ|automotiv|cientif|corporativ|didat|domestic|eletric|eletron|escolar|esportiv|hospitalar|mecanic|medic|militar|oficial|profission|sanitari|tecnic)/,
++  // Conectividade, controle e interfaces de dispositivos.
++  /^(?:bluetooth|digital|hdmi|inteligent|laser|multimidi|remot|usb|wifi|wireless)/,
++  // Estado, acabamento, materialidade ou propriedade tipica de artefato.
++  /^(?:brilhant|descartav|dobrav|fosco|metal|nitril|plast|portat|protet|quebrad|rachad|recicl|resistent|reutiliz|sextavad|sintetic|temperad|transluc|transparent)/,
++];
++
++const AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS = [
++  // Cores, dimensoes e relacoes fisicas tambem podem qualificar alimentos.
++  /^(?:azul|branc|cinza|dourad|grau|long|pret|redond|verd|vermelh)/,
++];
++
++function hasStrongNonFoodContextModifier(contentTokens: string[]) {
++  if (contentTokens.length < 2) return false;
++
++  const modifiers = contentTokens.slice(1);
++  if (modifiers.some(token => tokenMatchesAnyPattern(token, STRONG_NON_FOOD_CONTEXT_MODIFIER_PATTERNS))) {
++    return true;
++  }
++
++  const hasAmbiguousObjectModifier = modifiers.some(token =>
++    tokenMatchesAnyPattern(token, AMBIGUOUS_OBJECT_CONTEXT_MODIFIER_PATTERNS),
++  );
++  if (!hasAmbiguousObjectModifier) return false;
++
++  // Cores e dimensoes so vetam a leitura alimentar quando o nucleo nao traz
++  // sinal lexical forte de comida. Isso preserva "curry vermelho" e semelhantes,
++  // mas continua removendo descricoes como "caneta azul" sem enumerar o objeto.
++  return scoreContainerContentFoodLikelihood(contentTokens[0]) < NON_FOOD_CONTEXT_HEAD_MAX_FOOD_PROBABILITY;
++}
++
+ function canonicalObjectTerm(token: string) {
+   return OBJECT_TERM_ALIASES.get(token) ?? token;
+ }
+@@ -256,13 +295,16 @@ export function isContainerObjectOnlyDescription(value: string) {
+   if (strongNonFood) {
+     return true;
+   }
++  if (hasStrongNonFoodContextModifier(contentTokens)) {
++    return true;
++  }
+   if (hasHighConfidenceNonFoodLexicalEvidence(content)) {
+     return true;
+   }
+ 
+-  // No mundo aberto, o modelo lexical funciona somente como evidência negativa
+-  // afirmativa de alta confiança. Conteúdo incerto permanece revisável, evitando
+-  // transformar ausência no catálogo ou em qualquer vocabulário finito numa
+-  // decisão semântica por default.
++  // No mundo aberto, somente evidencia negativa afirmativa e de alta margem
++  // descarta o item. O classificador lexical e um sinal auxiliar, nao um default
++  // semantico: conteudo incerto permanece revisavel para preservar preparacoes
++  // novas sem depender de catalogo finito ou calibracao contra fixtures fixos.
+   return false;
+ }
+diff --git a/server/mealContainerOpenClass.issue982.test.ts b/server/mealContainerOpenClass.issue982.test.ts
+index b47b17f4..c5a27952 100644
+--- a/server/mealContainerOpenClass.issue982.test.ts
++++ b/server/mealContainerOpenClass.issue982.test.ts
+@@ -48,4 +48,43 @@ describe("open container-content classes issue #982", () => {
+ 
+     expect(withheldPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
+   });
++
++  it("fecha a regressão de generalização encontrada na auditoria independente", () => {
++    const independentNegatives = [
++      "Pote de óculos de grau",
++      "Copo de caneta azul",
++      "Tigela com roteador wifi",
++    ];
++    const independentPositives = [
++      "Prato de bibimbap",
++      "Tigela de ramen caseiro",
++      "Travessa de paella vegetariana",
++      "Bandeja de croissant recheado",
++    ];
++
++    expect(independentNegatives.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
++    expect(independentPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
++  });
++
++  it("exercita famílias irmãs sem depender dos substantivos do finding", () => {
++    const siblingNegatives = [
++      "Pote de scanner portátil",
++      "Copo de capacete vermelho",
++      "Tigela com manual técnico",
++      "Travessa de documento oficial",
++      "Marmita de brinquedo digital",
++    ];
++    const siblingPositives = [
++      "Copo de skyr artesanal",
++      "Prato de börek recheado",
++      "Pote de dosa masala",
++      "Tigela de harira marroquina",
++      "Travessa de khachapuri assado",
++      "Copo de curry vermelho",
++    ];
++
++    expect(siblingNegatives.every(foodName => cleanMealItems([item(foodName)]).length === 0)).toBe(true);
++    expect(siblingPositives.every(foodName => cleanMealItems([item(foodName)]).length === 1)).toBe(true);
++  });
++
+ });
+diff --git a/server/mealContainerSemanticEvidence.ts b/server/mealContainerSemanticEvidence.ts
+index c85bcf5a..ec7744ac 100644
+--- a/server/mealContainerSemanticEvidence.ts
++++ b/server/mealContainerSemanticEvidence.ts
+@@ -1,13 +1,13 @@
+ // Deterministic local lexical evidence for ambiguous container content.
+-// Used only as affirmative negative evidence after positive catalog and explicit
+-// semantic guards. Uncertain scores remain revisable; catalog absence alone does
+-// not reject. Holdout controls are absent from production literals and branches.
++// Used only as high-margin affirmative negative evidence after positive catalog,
++// explicit semantic guards and contextual object evidence. Mid-confidence scores
++// abstain: catalog absence or a fixed calibration set never decides by default.
+ const CHAR_DIMENSION = 512;
+ const WORD_DIMENSION = 128;
+ const MODEL_DIMENSION = CHAR_DIMENSION + WORD_DIMENSION;
+ const MODEL_SCALE = 1000;
+ const MODEL_INTERCEPT = 104;
+-const NON_FOOD_MAX_FOOD_PROBABILITY = 0.44;
++const NON_FOOD_MAX_FOOD_PROBABILITY = 0.1;
+ const MODEL_WEIGHTS_BASE64 = "OQcy+8sDC/4J/iv37ABN/c//rgKKAKcByP5a/bj+LvyVAgH6HABuAQQCIP3o/pn7GwUiAtcGLv/z/CUCrAIJBA8BowN9/Sj+SwQr+Pz9MAPjA3UAlwekBckBUv5P/pf6UwBm/vUE+fgHBMr4zANpAckBT/qh/kEDUvoK/U7+2QGkBLoCvAS0/vIAPgdK/ZYCBf3z//H+Hf6b/doBfQac/UkEiwNzAA/+pP0b9osD7PqS+978CQB9/vcD1P5/AS0GCv3y/oYBFAFU+wsF3/yM/5AAsgCXBGf+j/2//w8AuQam/p8B+vwX/Q7/ywIj++YGfACs/pIHGQNUAtH9CwBk/tP8swJK/9f2FAPJ/1cEMwOrAcr7eQKu/20CIwRJAL3/lAOvATsATftEAXcA1QKlALH6h/8TAkD6TACp/KkAJP1d/poCPvz7/9X+tf4c/DUAwgJEAqcCEfyhBeb5WwKu+MT/bgDv/3wCPwQy/2f71AKw/UQFiAS3AIQC8QZzAdj9IPsQBboCfQPTBbv8zv3iA8gGuABM/bf6JgBrBg4A8gDr+9AAPP3MArT/lAHbAmj+VgG1AP0AuQDb+V/8xv/FAVT/zv4WA6ABpAG8AVEBQAXrAMQBrQF1Af0CUf8IAKz/iwLv/MgCDAbB/sP+pf1RAxr+cwJnANkA4Pu+/p8AYPmNAHQAjgIw/f8AJAeLAA36EPyJ+hgDPAJjAzD/P/4U/F3/cAAeAE7/Q/9L/fQDnv2LAxoItgDpAov5mvnD++4Cv/5TABb4D/sLAhz/tAA3/sMCjQLyBET7TgAn/5z38P7eA/T+/f7uAHv5awTF/5b9bP5ZANb/B/8bAOIBBP34A4QCpgJPB737BQBcCDYBu/2M/g/+Kwgf/l4DKAOHAdADuwQtAk3+APzq/h375AJSBCUDhQD8AzcC+AEtANED7QFHAGz90Pl1A18EugiL/nUFNfs/9uf+dACeBZv8RQSYAkz/6AORAXz+nPya/CEC3AS6+q4Cu/3mBnL5XAXrAED/Dv989BwCZQE+/XP12QPVAb8BFQWWBFkDVQCvAxD+af3e/5j6ZviFATL8w/rcAZb8iPl2Aw8DDABd/37+ggFAA4YEogCTA4gDPwHaAsL9mgOz/HD83P5L/+n91AE8/JsAzv85/ysDqQMoA7MDPPqOCpP9xf45/KL+gvw2/vb/9gBuAzX9cAKs/AkCSAex/vL7PwLw/w7/IftsACv+lgQxAc8A9frUA7sAIfshAIoCyAOY/z8DWv6L/UYCp//pA38AyAFM++n7OAFaA/v82ADq/ccAkv9q/R4E5vxeA574ov/y/9j7xP82+kQCS/wcAA8B+P36A9YCGQk0ALkGwv8GAiMCuf61/9//Pv1iAvH+Rf52BcMBrQE7A5kAQgKIAC8A/QFK/0oBCP0SAsD6ZvzAAZD6igOWAQgFaPyeAPX+ygB9BfUDSQL+AJL9VwA//Kr8dwCBB0/6EP7vAEsEyvy1AIb8YP/y/8EGDf0X/bv/SgFFAXwDogAs/FkBZAKdADT8+/8hAOz/sf2I/FoAAf3t/JcG8P13/5sFLwB8BBwEEACF/GcD+gG1/ej7uP9QBaEDPAFqAC0ETAG3Aaj/FAEpAwkCDQYAAAj+QQAA/XT7yP8yAcT9tP/jApACBQB6AqD+R//nAUwA2gW3/Jz5R/4tA+z96fl7/psBnQVfALQBXAE=";
+ function loadWeights() {
+   const bytes = Buffer.from(MODEL_WEIGHTS_BASE64, "base64");

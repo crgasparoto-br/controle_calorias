@@ -1,0 +1,10 @@
+repository=crgasparoto-br/controle_calorias
+issue=982
+material_head_sha=5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a
+base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
+status=focused-local-green
+A-010_LITERAL=A010_LITERAL_PASS
+VERSIONED_FOCUSED=ALL_FOCUSED_CASES_PASS
+FRESH_DISTRIBUTION=OPEN_CLASS_DISTRIBUTION_FINAL_PASS
+unaffected_requirements=blob-stable-revalidated
+runtime_note=immutable bundle lacks node_modules and package installation is unavailable; full repository CI will be observed read-only once after material publication.

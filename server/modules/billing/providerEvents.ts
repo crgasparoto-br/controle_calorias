@@ -1,12 +1,27 @@
 const ALLOWED_METADATA_KEYS = [
   "objectId",
+  "operationReference",
   "status",
   "reason",
   "currency",
   "amountMinor",
+  "unitAmountMinor",
+  "discountDurationCharges",
+  "payerUserId",
   "planCode",
+  "paymentMethod",
+  "trialChoice",
+  "couponCode",
+  "billingCycle",
+  "correlationId",
+  "contractReference",
   "subscriptionReference",
   "customerReference",
+  "authorizationReference",
+  "publicReference",
+  "dueDate",
+  "chargePurpose",
+  "transitionAccessUntil",
   "providerCreatedAt",
 ] as const;
 
@@ -31,7 +46,7 @@ function normalizeMetadataValue(value: unknown) {
 
 /**
  * Billing never persists the provider's raw webhook payload. Providers must map
- * only the normalized, non-sensitive metadata required for replay diagnostics.
+ * only normalized, non-sensitive metadata required for replay and diagnostics.
  */
 export function sanitizeBillingProviderEventMetadata(
   input: Record<string, unknown> | null | undefined

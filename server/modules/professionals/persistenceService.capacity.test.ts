@@ -6,7 +6,8 @@ const mocks = vi.hoisted(() => ({
   getAuthorizationById: vi.fn(),
   transitionAuthorization: vi.fn(),
   withCapacityReservation: vi.fn(),
-  releaseCapacityReservation: vi.fn(),
+  handleCoverageConfirmed: vi.fn(),
+  handleClinicalCoverageLoss: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
@@ -29,9 +30,14 @@ vi.mock("../../repositories/professionalRepository", () => ({
     migrateAllLegacyData: vi.fn(),
   }),
 }));
+vi.mock("../billing/professionalCoverageService", () => ({
+  professionalCoverageService: {
+    handleCoverageConfirmed: mocks.handleCoverageConfirmed,
+    handleClinicalCoverageLoss: mocks.handleClinicalCoverageLoss,
+  },
+}));
 vi.mock("./entitlementService", () => ({
   withProfessionalCapacityReservation: mocks.withCapacityReservation,
-  releaseProfessionalCapacityReservation: mocks.releaseCapacityReservation,
 }));
 
 import { professionalRepository } from "./persistenceService";
@@ -53,7 +59,11 @@ beforeEach(() => {
   mocks.withCapacityReservation.mockImplementation(
     async (_input: unknown, operation: () => Promise<unknown>) => operation()
   );
-  mocks.releaseCapacityReservation.mockResolvedValue({ released: true });
+  mocks.handleCoverageConfirmed.mockResolvedValue({ status: "not_applicable" });
+  mocks.handleClinicalCoverageLoss.mockResolvedValue({
+    transition: "granted",
+    release: { released: true },
+  });
 });
 
 describe("professional authorization capacity boundary", () => {
@@ -103,11 +113,11 @@ describe("professional authorization capacity boundary", () => {
     } as any);
 
     expect(mocks.withCapacityReservation).not.toHaveBeenCalled();
-    expect(mocks.releaseCapacityReservation).not.toHaveBeenCalled();
+    expect(mocks.handleClinicalCoverageLoss).not.toHaveBeenCalled();
     expect(mocks.transitionAuthorization).toHaveBeenCalledTimes(1);
   });
 
-  it("releases the central coverage after patient revocation", async () => {
+  it("delegates central coverage release and transition repair after patient revocation", async () => {
     mocks.getAuthorizationById.mockResolvedValueOnce({
       ...pendingAuthorization,
       status: "approved",
@@ -126,14 +136,15 @@ describe("professional authorization capacity boundary", () => {
       } as any)
     ).resolves.toMatchObject({ status: "revoked" });
 
-    expect(mocks.releaseCapacityReservation).toHaveBeenCalledWith({
+    expect(mocks.handleClinicalCoverageLoss).toHaveBeenCalledWith({
       professionalUserId: 10,
       patientUserId: 20,
       coverageKey: "professional-authorization:authorization-1",
+      causeKey: "authorization-revoked:authorization-1",
     });
   });
 
-  it("does not undo or block revocation when central release must be retried", async () => {
+  it("does not undo or block revocation when central repair must be retried", async () => {
     mocks.getAuthorizationById.mockResolvedValueOnce({
       ...pendingAuthorization,
       status: "approved",
@@ -142,10 +153,8 @@ describe("professional authorization capacity boundary", () => {
       ...pendingAuthorization,
       status: "revoked",
     });
-    mocks.releaseCapacityReservation.mockResolvedValueOnce({
-      released: false,
-      reason: "unavailable",
-    });
+    const billingUnavailable = new Error("billing unavailable");
+    mocks.handleClinicalCoverageLoss.mockRejectedValueOnce(billingUnavailable);
 
     await expect(
       professionalRepository.transitionAuthorization({
@@ -155,5 +164,10 @@ describe("professional authorization capacity boundary", () => {
         responseOrigin: "web",
       } as any)
     ).resolves.toMatchObject({ status: "revoked" });
+
+    expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+      "billing_professional_coverage_loss",
+      billingUnavailable
+    );
   });
 });

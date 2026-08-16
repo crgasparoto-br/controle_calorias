@@ -1,0 +1,18 @@
+POS PASS Bolo de pote -> 1
+POS PASS Copo de açaí -> 1
+POS PASS Copo de smoothie de pitaya -> 1
+POS PASS Tigela com bubble tea -> 1
+POS PASS Pote de sobremesa artesanal -> 1
+POS PASS Bandeja de sushi vegano -> 1
+POS PASS Travessa com lasanha caseira -> 1
+POS PASS Panela com curry tailandês -> 1
+NEG PASS Pote -> 0
+NEG PASS Pote translúcido -> 0
+NEG PASS Copo rachado -> 0
+NEG PASS Tigela brilhante -> 0
+NEG PASS Tigela de plástico -> 0
+NEG PASS Copo com tampa -> 0
+NEG PASS Pote de vidro -> 0
+NEG PASS Bandeja de alumínio -> 0
+NEG PASS Panela de pressão -> 0
+NEG PASS Mesa redonda -> 0

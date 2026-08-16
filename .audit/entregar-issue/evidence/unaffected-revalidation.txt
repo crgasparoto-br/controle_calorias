@@ -1,0 +1,6 @@
+material_head_sha=8fb8df49d91ff6f1cbe52845d3169515d8177f45
+new material diff is restricted to server/mealContainerNoise.ts and server/mealContainerOpenClass.issue982.test.ts.
+REQ-PLUM-LOCAL, REQ-PRECEDENCE, REQ-OBSERVABILITY and their implementation paths are unchanged from material head 5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a, whose official Agent-first gate completed successfully.
+REQ-DOCUMENTATION canonical sources are unchanged by A-011; the existing world-open contract remains aligned with the repaired runtime.
+REQ-BASE revalidated from PR metadata: base=develop, base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1.
+The new exact-head Agent-first run 31919726916 was observed once as in_progress and was not polled.

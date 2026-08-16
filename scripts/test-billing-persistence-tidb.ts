@@ -9,6 +9,7 @@ import {
 } from "../server/modules/billing/catalogPolicy";
 import { createBillingCatalogRepository } from "../server/repositories/billingCatalogRepository";
 import { createDrizzleBillingRepository } from "../server/repositories/billingRepository";
+import { createDrizzleAsaasOperationStore } from "../server/modules/billing/asaas/operationStore";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -30,6 +31,7 @@ const ids = {
   authorizationA: "billing-test-authorization-a",
   authorizationB: "billing-test-authorization-b",
   providerEvent: "billing-test-provider-event",
+  asaasOperation: "billing-test-asaas-monotonic-operation",
   couponCode: "BILLINGTESTLIMIT1",
   authDeniedProductCode: "billing-test-admin-auth-denied",
   authLockedProductCode: "billing-test-admin-auth-locked",
@@ -80,6 +82,10 @@ async function main() {
     await pool.query("DELETE FROM billingProviderEvents WHERE provider = ?", [
       "integration-test",
     ]);
+    await pool.query(
+      "DELETE FROM billingProviderEvents WHERE provider = 'asaas' AND JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.operationReference')) = ?",
+      [ids.asaasOperation]
+    );
     await pool.query(
       "DELETE FROM billingCouponRedemptions WHERE userId IN (?, ?)",
       [ids.couponUserA, ids.couponUserB]
@@ -368,6 +374,25 @@ async function main() {
           now,
           now,
           now,
+          now,
+          now,
+        ]
+      );
+      await pool.query(
+        `INSERT INTO professionalPatientTrackings (
+          id, authorizationId, professionalUserId, patientUserId, status,
+          startedAt, lastTransitionAt, lastTransitionByUserId,
+          lastTransitionReason, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
+        [
+          `billing-test-tracking-${authorizationId}`,
+          authorizationId,
+          ids.professional,
+          patientUserId,
+          now,
+          now,
+          ids.professional,
+          "Billing integration active tracking",
           now,
           now,
         ]
@@ -787,6 +812,33 @@ async function main() {
     assert.equal(payload.includes("token"), false);
     assert.equal(payload.includes("411111"), false);
 
+    const asaasStore = createDrizzleAsaasOperationStore();
+    await asaasStore.prepare({
+      kind: "reconciliation",
+      operationKey: ids.asaasOperation,
+      externalReference: "billing-test-contract",
+    });
+    await asaasStore.markCreated({
+      kind: "reconciliation",
+      operationKey: ids.asaasOperation,
+      externalId: "billing-test-remote-object",
+      externalReference: "billing-test-contract",
+    });
+    await asaasStore.markOutcomeUnknown("reconciliation", ids.asaasOperation);
+    assert.equal(
+      (await asaasStore.get("reconciliation", ids.asaasOperation))?.state,
+      "created"
+    );
+    await asaasStore.markFailed(
+      "reconciliation",
+      ids.asaasOperation,
+      "late_transport_failure"
+    );
+    assert.equal(
+      (await asaasStore.get("reconciliation", ids.asaasOperation))?.state,
+      "created"
+    );
+
     const [auditRows] = await pool.query<mysql.RowDataPacket[]>(
       "SELECT action, COUNT(*) AS total FROM billingAccessAuditEvents WHERE subjectUserId IN (?, ?) GROUP BY action",
       [ids.patientA, ids.patientB]
@@ -805,6 +857,7 @@ async function main() {
         event: "billing.persistence.integration.passed",
         concurrentReservations: competing,
         providerEventIdempotent: true,
+        asaasConfirmedOperationMonotonic: true,
         durableOverrideLookup: true,
         canonicalAdminAnalytics: true,
         auditTotals,
