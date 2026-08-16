@@ -1,1 +1,15 @@
-{"schema_version":1,"head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","workflow":"Agent-first gate","run_id":31909705270,"job_id":95072816063,"observed_status":"completed","conclusion":"success","observation_policy":"post-ci-refreeze exact-head evidence","observed_at":"2026-08-15T21:40:36+00:00"}
+{
+  "schema_version": 1,
+  "material_head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+  "observed_at": "2026-08-16T00:04:54.077083+00:00",
+  "observation_policy": "single-read-only-observation-no-polling",
+  "workflow_run": {
+    "id": 31916308217,
+    "name": "Agent-first gate",
+    "run_number": 5479,
+    "status": "in_progress",
+    "conclusion": null
+  },
+  "classification": "pending-not-failed",
+  "note": "The material candidate was published once and the official gate was observed exactly once. No polling or manual rerun was performed."
+}

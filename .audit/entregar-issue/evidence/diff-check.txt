@@ -1,7 +1,4 @@
-material_head_sha=bc3c807ff8e301b63097e89c0d8434d88e70ec4a
-changed_paths:
-server/mealContainerNoise.ts
-server/mealItemCleanup.issue982.test.ts
-remote_blobs:
-server/mealContainerNoise.ts bedb89302fbf07ab9699a9e70cbf9aafe8588d8e
-server/mealItemCleanup.issue982.test.ts 3d3278065946eff4800de342d61b83f535598cbe
+material_head_sha=5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a
+base_sha=61886031ddc314c085b17bed9b0b14b766f9c9f1
+command=git diff --check 9834615ca7d58011f57e84c642f455dc7df220a1 -- server/mealContainerNoise.ts server/mealContainerSemanticEvidence.ts server/mealContainerOpenClass.issue982.test.ts
+result=passed

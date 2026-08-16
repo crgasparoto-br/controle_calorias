@@ -1,1 +1,8 @@
-{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":982,"primary_source":"specification-sources/SRC-GITHUB-ISSUE-982.txt","source_sha256":"7876756ca09e9cdcc6f5f32a13c00e7f8e255dece5282cd91be741a4e4ec70a8","material_head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e"}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 982,
+  "primary_source": "specification-sources/SRC-GITHUB-ISSUE-982.txt",
+  "source_sha256": "7876756ca09e9cdcc6f5f32a13c00e7f8e255dece5282cd91be741a4e4ec70a8",
+  "material_head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a"
+}

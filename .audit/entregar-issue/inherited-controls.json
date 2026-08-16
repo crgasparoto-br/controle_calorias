@@ -1,1 +1,103 @@
-{"schema_version":1,"head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","controls":[{"id":"OPEN-SET-NEGATIVE-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-POSITIVE-CATALOG-INDEPENDENCE-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-SET-NESTED-CONTEXT-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-SET-NESTED-CARDINALITY-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-CROSS-DIMENSION-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"REQ-PLUM-LOCAL-NEG","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"REQ-PRECEDENCE-NEG","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"REQ-OBSERVABILITY-NEG","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"REQ-BASE-NEG","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-POSITIVE-UNSEEN-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-BIDIRECTIONAL-UNSEEN-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/remediation-evidence.txt"},{"id":"OPEN-CLASS-BIDIR-001","status":"passed","head_sha":"937cfcd94400cf6ae0b2c65bd248f7a433b36b2e","evidence":"evidence/open-class-bidirectional-evidence.txt"}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+  "controls": [
+    {
+      "id": "OPEN-SET-NEGATIVE-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-POSITIVE-CATALOG-INDEPENDENCE-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-SET-NESTED-CONTEXT-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-SET-NESTED-CARDINALITY-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-CROSS-DIMENSION-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "REQ-PLUM-LOCAL-NEG",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/unaffected-revalidation.txt"
+    },
+    {
+      "id": "REQ-PRECEDENCE-NEG",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/unaffected-revalidation.txt"
+    },
+    {
+      "id": "REQ-OBSERVABILITY-NEG",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/unaffected-revalidation.txt"
+    },
+    {
+      "id": "REQ-BASE-NEG",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/unaffected-revalidation.txt"
+    },
+    {
+      "id": "OPEN-POSITIVE-UNSEEN-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-BIDIRECTIONAL-UNSEEN-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "OPEN-CLASS-BIDIR-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-bidirectional-evidence.txt"
+    },
+    {
+      "id": "OPEN-CLASS-DISTRIBUTION-001",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/open-class-distribution-evidence.txt"
+    },
+    {
+      "id": "REQ-DOCUMENTATION-NEG",
+      "status": "passed",
+      "head_sha": "5ede0cff53d1eebf5b5f0bc7f9765bd5b4d8f13a",
+      "evidence": "evidence/unaffected-revalidation.txt"
+    }
+  ],
+  "unresolved_controls": [],
+  "source_audits": [
+    {
+      "finding_id": "A-009",
+      "validity": "independent",
+      "status": "closed"
+    },
+    {
+      "finding_id": "A-010",
+      "validity": "independent",
+      "status": "closed"
+    }
+  ]
+}
