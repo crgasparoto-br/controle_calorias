@@ -573,6 +573,66 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
     expect(processed.items).toHaveLength(2);
   });
 
+  it("faz evidência semântica negativa prevalecer mesmo quando todos os nomes parecem água pura", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "controle SEM-NEGATIVE-001",
+      items: [waterItem({
+        foodName: "Água Mineral 500 ml",
+        canonicalName: "Água Mineral",
+        brand: "Serra Clara",
+        classification: {
+          processingLevel: "natural_or_minimally_processed",
+          isFruit: false,
+          isVegetable: false,
+          fiberGrams: 0,
+          isPlainWater: false,
+        },
+      })],
+      totals: { calories: 10, protein: 0, carbs: 2, fat: 0 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-explicit-negative") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("não persiste hidratação quando representações aceitas contradizem o volume", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "controle REP-RECONCILE-001",
+      items: [waterItem({
+        foodName: "Água Mineral 1 l",
+        canonicalName: "Água Mineral",
+        quantity: 500,
+        unit: "ml",
+        portionText: "500 ml",
+      })],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-volume-conflict") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(findFetchCallByBody("Preciso do volume da água")).toBeTruthy();
+  });
+
   it("não trata água tônica nem água saborizada como hidratação de água pura", async () => {
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",

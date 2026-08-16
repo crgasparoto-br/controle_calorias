@@ -98,6 +98,12 @@ export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonica
     return false;
   }
 
+  // Evidência semântica negativa explícita é autoritativa para todas as
+  // representações do nome, inclusive quando a gramática textual parece água.
+  if (item.classification?.isPlainWater === false) {
+    return false;
+  }
+
   return candidates.some(tokens => {
     if (!tokens.length || !tokens.includes("agua")) {
       return false;
@@ -140,30 +146,32 @@ function parseVolumeMlFromText(value?: string) {
 }
 
 export function resolveWaterVolumeMl(item: Pick<MealDraftItem, "foodName" | "canonicalName"> & Partial<Pick<MealDraftItem, "quantity" | "unit" | "portionText">>) {
+  const representedVolumes: number[] = [];
+
   if (typeof item.quantity === "number" && item.quantity > 0 && item.unit) {
     const unit = item.unit.trim().toLowerCase();
     if (unit === "ml") {
-      return item.quantity;
+      representedVolumes.push(item.quantity);
     }
     if (unit === "l") {
-      return item.quantity * 1000;
+      representedVolumes.push(item.quantity * 1000);
     }
   }
 
   const portionTextVolume = parseVolumeMlFromText(item.portionText);
   if (portionTextVolume != null) {
-    return portionTextVolume;
+    representedVolumes.push(portionTextVolume);
   }
 
-  const embeddedVolumes = [item.foodName, item.canonicalName]
+  representedVolumes.push(...[item.foodName, item.canonicalName]
     .map(parseVolumeMlFromText)
-    .filter((volume): volume is number => volume != null);
-  if (!embeddedVolumes.length) {
+    .filter((volume): volume is number => volume != null));
+  if (!representedVolumes.length) {
     return null;
   }
 
-  const uniqueVolumes = new Set(embeddedVolumes);
-  return uniqueVolumes.size === 1 ? embeddedVolumes[0] : null;
+  const uniqueVolumes = new Set(representedVolumes);
+  return uniqueVolumes.size === 1 ? representedVolumes[0] : null;
 }
 
 export type WaterHydrationSplit = {

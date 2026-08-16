@@ -84,6 +84,17 @@ describe("waterItemClassification", () => {
       canonicalName: "Água Saborizada",
       classification: processedBeverageClassification,
     })).toBe(false);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral 500 ml",
+      canonicalName: "Água Mineral",
+      classification: naturalNonPlainWaterClassification,
+    })).toBe(false);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral",
+      canonicalName: "Água Mineral 500 ml",
+      brand: "Serra Clara",
+      classification: naturalNonPlainWaterClassification,
+    })).toBe(false);
   });
 
   it("falha fechado para desconhecidos sem evidência positiva e para composições explícitas", () => {
@@ -161,6 +172,45 @@ describe("waterItemClassification", () => {
       foodName: "Água Mineral 500 ml",
       canonicalName: "Água Mineral 1 l",
     })).toBeNull();
+  });
+
+  it("reconcilia todas as representações de volume e falha fechado em contradições", () => {
+    expect(resolveWaterVolumeMl({
+      foodName: "Água Mineral 500 ml",
+      canonicalName: "Água Mineral",
+      quantity: 350,
+      unit: "ml",
+    })).toBeNull();
+    expect(resolveWaterVolumeMl({
+      foodName: "Água Mineral",
+      canonicalName: "Água Mineral 1 l",
+      quantity: 500,
+      unit: "ml",
+      portionText: "500 ml",
+    })).toBeNull();
+    expect(resolveWaterVolumeMl({
+      foodName: "Água Mineral 500 ml",
+      canonicalName: "Água Mineral 500 ml",
+      quantity: 0.5,
+      unit: "l",
+      portionText: "500 ml",
+    })).toBe(500);
+  });
+
+  it("não hidrata quando representações de volume da água pura se contradizem", () => {
+    const split = splitMealItemsForWaterHydration([
+      waterItem({
+        foodName: "Água Mineral 1 l",
+        canonicalName: "Água Mineral",
+        quantity: 500,
+        unit: "ml",
+        portionText: "500 ml",
+      }),
+    ]);
+
+    expect(split.waterVolumeMl).toBe(0);
+    expect(split.remainingItems).toEqual([]);
+    expect(split.hasWaterWithoutVolume).toBe(true);
   });
 
   it("prioriza água pura sobre macros nutricionais já preenchidos", () => {
