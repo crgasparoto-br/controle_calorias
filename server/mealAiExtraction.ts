@@ -53,6 +53,7 @@ const mealExtractionSchema = z.object({
       isFruit: z.boolean(),
       isVegetable: z.boolean(),
       fiberGrams: z.number().min(0).max(100),
+      isPlainWater: z.boolean().optional(),
     }),
   })),
 });
@@ -106,8 +107,9 @@ const mealExtractionJsonSchema = {
               isFruit: { type: "boolean" },
               isVegetable: { type: "boolean" },
               fiberGrams: { type: "number", minimum: 0, maximum: 100 },
+              isPlainWater: { type: "boolean" },
             },
-            required: ["processingLevel", "isFruit", "isVegetable", "fiberGrams"],
+            required: ["processingLevel", "isFruit", "isVegetable", "fiberGrams", "isPlainWater"],
           },
         },
         required: [
@@ -279,6 +281,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         "Se houver tabela nutricional visível no rótulo, extraia os valores textuais com precisão de OCR — leia cada número individualmente e use-os diretamente em estimatedCalories e estimatedMacros sem arredondamentos desnecessários.",
         "Para cada item, preencha foodClassification usando a classificação NOVA de processamento de alimentos:",
         FOOD_CLASSIFICATION_NOVA_GUIDE,
+        PLAIN_WATER_CLASSIFICATION_GUIDE,
       ].join("\n"),
     },
   ];
@@ -302,6 +305,12 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
   const instructions = "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado. Separe marcas explícitas em brand e use null quando a marca não estiver clara.";
   return runMealExtractionWithPolicy(capability, instructions, aiInput);
 }
+
+const PLAIN_WATER_CLASSIFICATION_GUIDE = [
+  "No campo foodClassification.isPlainWater, marque true somente quando o item for água potável pura, com ou sem gás e independentemente da marca.",
+  "Marque false para água com sabor, aroma, infusão, fruta, erva, eletrólitos, açúcar, adoçante, álcool ou qualquer outro ingrediente/composição adicionada, mesmo quando o nível NOVA ainda for natural_or_minimally_processed.",
+  "O nível de processamento NOVA não prova pureza da água: isPlainWater deve ser decidido separadamente pela identidade visual/textual do produto.",
+].join("\n");
 
 const FOOD_CLASSIFICATION_NOVA_GUIDE = [
   "Classifique o alimento usando a classificação NOVA de processamento:",
