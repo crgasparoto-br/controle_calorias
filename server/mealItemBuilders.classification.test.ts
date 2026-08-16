@@ -22,6 +22,7 @@ const novaClassification = {
   isFruit: false,
   isVegetable: false,
   fiberGrams: 0.4,
+  isPlainWater: false,
 };
 
 function buildLlmItem(overrides: Partial<LlmItem> = {}): LlmItem {

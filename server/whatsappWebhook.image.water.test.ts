@@ -169,6 +169,7 @@ function waterItem(overrides: Partial<Record<string, unknown>> = {}) {
       isFruit: false,
       isVegetable: false,
       fiberGrams: 0,
+      isPlainWater: true,
     },
     ...overrides,
   };
@@ -522,6 +523,54 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
     const [, , processed] = createPendingMealInferenceMock.mock.calls[0];
     expect(processed.items).toHaveLength(1);
     expect(processed.items[0].canonicalName).toBe("Água de Coco");
+  });
+
+  it("não trata sabor ou infusão inéditos como água pura mesmo com NOVA natural", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "controle OPEN-UNKNOWN-001",
+      items: [
+        waterItem({
+          foodName: "Água Mineral Limão 500 ml",
+          canonicalName: "Água Mineral Limão",
+          calories: 10,
+          classification: {
+            processingLevel: "natural_or_minimally_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+            isPlainWater: false,
+          },
+        }),
+        waterItem({
+          foodName: "Água Mineral Hortelã 500 ml",
+          canonicalName: "Água Mineral Hortelã",
+          calories: 5,
+          classification: {
+            processingLevel: "natural_or_minimally_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+            isPlainWater: false,
+          },
+        }),
+      ],
+      totals: { calories: 15, protein: 0, carbs: 0, fat: 0 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-open-class-negative") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+    const [, , processed] = createPendingMealInferenceMock.mock.calls[0];
+    expect(processed.items).toHaveLength(2);
   });
 
   it("não trata água tônica nem água saborizada como hidratação de água pura", async () => {

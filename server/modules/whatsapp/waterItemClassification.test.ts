@@ -8,6 +8,7 @@ const plainWaterClassification: FoodClassificationEstimate = {
   isFruit: false,
   isVegetable: false,
   fiberGrams: 0,
+  isPlainWater: true,
 };
 
 const processedBeverageClassification: FoodClassificationEstimate = {
@@ -15,6 +16,15 @@ const processedBeverageClassification: FoodClassificationEstimate = {
   isFruit: false,
   isVegetable: false,
   fiberGrams: 0,
+  isPlainWater: false,
+};
+
+const naturalNonPlainWaterClassification: FoodClassificationEstimate = {
+  processingLevel: "natural_or_minimally_processed",
+  isFruit: false,
+  isVegetable: false,
+  fiberGrams: 0,
+  isPlainWater: false,
 };
 
 function waterItem(overrides: Partial<MealDraftItem> = {}): MealDraftItem {
@@ -48,6 +58,12 @@ describe("waterItemClassification", () => {
     expect(isPureWaterItem({
       foodName: "Água Mineral Serra Clara 500 ml",
       canonicalName: "Água Mineral Serra Clara",
+      classification: plainWaterClassification,
+    })).toBe(true);
+
+    expect(isPureWaterItem({
+      foodName: "Água Mineral Fonte e Vida 500 ml",
+      canonicalName: "Água Mineral Fonte e Vida",
       classification: plainWaterClassification,
     })).toBe(true);
   });
@@ -89,6 +105,29 @@ describe("waterItemClassification", () => {
       foodName: "Água Mineral Hibisco 500 ml",
       canonicalName: "Água Mineral Hibisco",
       classification: processedBeverageClassification,
+    })).toBe(false);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral Limão 500 ml",
+      canonicalName: "Água Mineral Limão",
+      classification: naturalNonPlainWaterClassification,
+    })).toBe(false);
+    expect(isPureWaterItem({
+      foodName: "Água Mineral Hortelã 500 ml",
+      canonicalName: "Água Mineral Hortelã",
+      classification: naturalNonPlainWaterClassification,
+    })).toBe(false);
+  });
+
+  it("não usa nível NOVA como substituto da evidência de água pura", () => {
+    expect(isPureWaterItem({
+      foodName: "Água Mineral Marca Inédita 500 ml",
+      canonicalName: "Água Mineral Marca Inédita",
+      classification: {
+        processingLevel: "natural_or_minimally_processed",
+        isFruit: false,
+        isVegetable: false,
+        fiberGrams: 0,
+      },
     })).toBe(false);
   });
 

@@ -57,7 +57,7 @@ function isWaterMeasurementToken(token: string) {
 }
 
 function hasPlainWaterClassificationEvidence(item: Pick<MealDraftItem, "classification">) {
-  return item.classification?.processingLevel === "natural_or_minimally_processed";
+  return item.classification?.isPlainWater === true;
 }
 
 function unknownTokensFormBoundaryBrandCandidate(tokens: string[], brandTokens: Set<string>) {
@@ -70,14 +70,19 @@ function unknownTokensFormBoundaryBrandCandidate(tokens: string[], brandTokens: 
     return true;
   }
 
-  if (unknownIndexes.some(index => WATER_COMPOSITION_CONNECTOR_TOKENS.has(significantTokens[index]))) {
-    return false;
-  }
-
   const firstUnknownIndex = unknownIndexes[0];
   const lastUnknownIndex = unknownIndexes[unknownIndexes.length - 1];
   const contiguous = unknownIndexes.every((index, offset) => index === firstUnknownIndex + offset);
   if (!contiguous) {
+    return false;
+  }
+
+  // Um conector na borda do bloco desconhecido indica composição (ex.:
+  // "água mineral e vodka"). Conectores internos continuam permitidos para
+  // marcas compostas como "Fonte e Vida" quando há evidência semântica
+  // independente de água potável pura.
+  if (WATER_COMPOSITION_CONNECTOR_TOKENS.has(significantTokens[firstUnknownIndex])
+    || WATER_COMPOSITION_CONNECTOR_TOKENS.has(significantTokens[lastUnknownIndex])) {
     return false;
   }
 
@@ -90,12 +95,6 @@ export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonica
   const candidates = candidateNames.map(normalizeWaterTokens);
 
   if (candidates.some(tokens => tokens.some(token => WATER_EXCLUSION_TOKENS.has(token)))) {
-    return false;
-  }
-
-  if (candidates.some(tokens => tokens.some(token => (
-    WATER_COMPOSITION_CONNECTOR_TOKENS.has(token) && !brandTokens.has(token)
-  )))) {
     return false;
   }
 
@@ -114,10 +113,11 @@ export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonica
       return true;
     }
 
-    // Marca embutida sem `brand` e uma representacao ambigua. Ela so pode ser
-    // tolerada quando o item ainda traz evidencia semantica positiva de agua
-    // minimamente processada e os tokens desconhecidos formam um bloco de
-    // borda (prefixo/sufixo), em vez de alterar a gramatica interna da bebida.
+    // Marca embutida sem `brand` e uma representação ambígua. Ela só pode ser
+    // tolerada quando o extrator declarou separadamente que a identidade é
+    // água potável pura; o nível NOVA de processamento não serve como prova
+    // de pureza. Os tokens desconhecidos ainda precisam formar um bloco de
+    // borda para não alterar a gramática interna da bebida.
     return tokens.some(token => PURE_WATER_ANCHOR_TOKENS.has(token))
       && hasPlainWaterClassificationEvidence(item)
       && unknownTokensFormBoundaryBrandCandidate(tokens, brandTokens);
