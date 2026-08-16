@@ -13,6 +13,7 @@ A página `/goals` carregou corretamente após a aplicação da migração de me
 
 ## Valores observados na interface
 
+
 | Indicador | Valor |
 |---|---|
 | Calorias semanais | 15400 kcal |
