@@ -79,7 +79,6 @@ export const applyUsageLimitationSchema = z.object({
   emergencySecurity: z.boolean().default(false),
   communicatedAt: isoDate.optional(),
   appealOfferedAt: isoDate.optional(),
-  secondApprovedByUserId: z.number().int().positive().optional(),
 });
 
 export const revokeUsageLimitationSchema = z.object({ id, reason });

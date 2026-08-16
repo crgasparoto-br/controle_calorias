@@ -98,7 +98,6 @@ export const usageGovernanceRouter = router({
         endsAt: new Date(input.endsAt),
         communicatedAt: input.communicatedAt ? new Date(input.communicatedAt) : null,
         appealOfferedAt: input.appealOfferedAt ? new Date(input.appealOfferedAt) : null,
-        secondApprovedByUserId: input.secondApprovedByUserId ?? null,
         approvedByUserId: ctx.user.id,
       });
     } catch (error) { governanceError(error); }

@@ -6,15 +6,16 @@ import {
   listEconomicFacts,
   listMonthlyEconomicAggregates,
   listUsageEvents,
-  purgeUsageGovernanceRetention,
   recordEconomicFact,
   recordUsageEvent,
   refreshUsageDailyAggregates,
   upsertMonthlyEconomicAggregate,
 } from "../../repositories/usageGovernanceRepository";
+import { hasActiveUsageExemption } from "../../repositories/usageGovernancePolicyRepository";
+import { purgeUsageGovernanceRetention } from "../../repositories/usageGovernanceRetentionRepository";
 import { billingService } from "../billing/service";
 
-export const USAGE_RULE_VERSION = "2026-08-16.2";
+export const USAGE_RULE_VERSION = "2026-08-16.3";
 export const USAGE_RETENTION_POLICY = {
   detailedUsageMonths: 13,
   dailyAggregateMonths: 24,
@@ -66,12 +67,19 @@ export async function enforceUsageAllowance(input: AiUsageGateInput): Promise<Ai
   const payerUserId = sponsored ? access.sponsorUserId! : input.userId;
   const now = new Date();
 
-  const limitations = await getActiveUsageLimitation(input.userId, now);
-  const active = limitations.find(item => operationMatches(item.operations, input));
-  if (active) {
-    throw new AiUsageTemporarilyLimitedError(
-      Math.max(1, Math.ceil((active.endsAt.getTime() - now.getTime()) / 1000)),
-    );
+  const exempt = await hasActiveUsageExemption({
+    userId: input.userId,
+    professionalId: sponsored ? access.sponsorUserId! : status.professionalSubscription ? input.userId : null,
+    now,
+  });
+  if (!exempt) {
+    const limitations = await getActiveUsageLimitation(input.userId, now);
+    const active = limitations.find(item => operationMatches(item.operations, input));
+    if (active) {
+      throw new AiUsageTemporarilyLimitedError(
+        Math.max(1, Math.ceil((active.endsAt.getTime() - now.getTime()) / 1000)),
+      );
+    }
   }
 
   return {
@@ -246,6 +254,64 @@ function addMonths(value: Date, months: number) {
 function subtractMonths(value: Date, months: number) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() - months, value.getUTCDate(), value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds()));
 }
+function monthOrdinal(value: Date) {
+  return value.getUTCFullYear() * 12 + value.getUTCMonth();
+}
+
+export type EconomicSeriesRow = {
+  competenceMonth: Date | string;
+  payerUserId: number;
+  subscriptionId?: string | null;
+  versionCode?: string | null;
+  currency: string;
+  recognizedContractRevenueMinor: number;
+  netEconomicRevenueMinor: number;
+  variableCostMicros: number;
+  variableCostRatioBps: number | null;
+  measurementCoverageBps: number;
+};
+
+export function decorateEconomicDecisionSeries(rows: EconomicSeriesRow[]) {
+  const groups = new Map<string, EconomicSeriesRow[]>();
+  for (const row of rows) {
+    const key = [row.payerUserId, row.subscriptionId ?? "", row.versionCode ?? "", row.currency].join("|");
+    const group = groups.get(key) ?? [];
+    group.push(row);
+    groups.set(key, group);
+  }
+
+  const decorated = new Map<EconomicSeriesRow, {
+    rolling3MonthVariableCostRatioBps: number | null;
+    rolling3MonthHealth: ReturnType<typeof economicHealthBand> | "mandatory_review";
+    mandatoryReviewRequired: boolean;
+  }>();
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => new Date(a.competenceMonth).getTime() - new Date(b.competenceMonth).getTime());
+    const rolling: Array<number | null> = [];
+    for (let index = 0; index < group.length; index += 1) {
+      const window = group.slice(Math.max(0, index - 2), index + 1);
+      const ordinals = window.map(item => monthOrdinal(startOfMonth(new Date(item.competenceMonth))));
+      const consecutive = window.length === 3 && ordinals[1] === ordinals[0] + 1 && ordinals[2] === ordinals[1] + 1;
+      const currenciesComparable = window.every(item => item.variableCostRatioBps !== null);
+      const rollingRatio = consecutive && currenciesComparable
+        ? calculateVariableCostRatioBps(
+          window.reduce((sum, item) => sum + item.variableCostMicros, 0),
+          window.reduce((sum, item) => sum + item.netEconomicRevenueMinor, 0),
+        )
+        : null;
+      rolling[index] = rollingRatio;
+      const mandatoryReviewRequired = rollingRatio !== null && rollingRatio > 3000
+        && index > 0 && rolling[index - 1] !== null && Number(rolling[index - 1]) > 3000;
+      decorated.set(group[index], {
+        rolling3MonthVariableCostRatioBps: rollingRatio,
+        rolling3MonthHealth: mandatoryReviewRequired ? "mandatory_review" : economicHealthBand(rollingRatio),
+        mandatoryReviewRequired,
+      });
+    }
+  }
+  return decorated;
+}
 
 export async function refreshEconomicAggregates(now = new Date()) {
   const from = addMonths(startOfMonth(now), -2);
@@ -253,7 +319,7 @@ export async function refreshEconomicAggregates(now = new Date()) {
   await refreshUsageDailyAggregates(from, to, USAGE_RULE_VERSION);
   const facts = await listEconomicFacts({ from, to });
   const usage = await listUsageEvents({ from, to });
-  const buckets = new Map<string, Record<string, number | string | null | Date>>();
+  const buckets = new Map<string, Record<string, number | string | null | Date | boolean>>();
 
   for (let month = new Date(from); month < to; month = addMonths(month, 1)) {
     const next = addMonths(month, 1);
@@ -268,7 +334,7 @@ export async function refreshEconomicAggregates(now = new Date()) {
         productCode: fact.productCode ? String(fact.productCode) : null, versionCode: fact.versionCode ? String(fact.versionCode) : null,
         billingCycle: fact.billingCycle ? String(fact.billingCycle) : null, currency: String(fact.currency), contract_revenue: 0,
         discount: 0, coupon: 0, credit: 0, refund: 0, chargeback: 0, revenue_tax: 0, receipt_fee: 0, financial_cost: 0,
-        estimatedFacts: 0, effectiveFacts: 0, variableCostMicros: 0,
+        estimatedFacts: 0, effectiveFacts: 0, variableCostMicros: 0, hasUnconvertedVariableCost: false,
       };
       const factType = String(fact.factType);
       bucket[factType] = Number(bucket[factType] ?? 0) + value;
@@ -280,11 +346,35 @@ export async function refreshEconomicAggregates(now = new Date()) {
 
   for (const row of usage) {
     const month = startOfMonth(new Date(String(row.occurredAt)));
-    const keyPrefix = month.toISOString().slice(0, 10);
+    const monthKey = month.toISOString().slice(0, 10);
+    const costMicros = Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
+    if (costMicros <= 0) continue;
+    const usageCurrency = row.currency == null ? null : String(row.currency);
+    let matchedComparableBucket = false;
+
     for (const [key, bucket] of buckets) {
-      if (!key.startsWith(`${keyPrefix}|${row.payerUserId}|`)) continue;
-      if (bucket.subscriptionId && String(row.subscriptionId ?? "") !== bucket.subscriptionId) continue;
-      bucket.variableCostMicros = Number(bucket.variableCostMicros) + Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
+      if (!key.startsWith(`${monthKey}|${row.payerUserId}|`)) continue;
+      if (String(row.subscriptionId ?? "") !== String(bucket.subscriptionId ?? "")) continue;
+      if (String(row.versionCode ?? "") !== String(bucket.versionCode ?? "")) continue;
+      if (usageCurrency && usageCurrency === String(bucket.currency)) {
+        bucket.variableCostMicros = Number(bucket.variableCostMicros) + costMicros;
+        matchedComparableBucket = true;
+      } else {
+        bucket.hasUnconvertedVariableCost = true;
+      }
+    }
+
+    if (usageCurrency && !matchedComparableBucket) {
+      const key = [monthKey, row.payerUserId, row.subscriptionId ?? "", row.versionCode ?? "", usageCurrency].join("|");
+      const bucket = buckets.get(key) ?? {
+        month, payerUserId: Number(row.payerUserId), subscriptionId: row.subscriptionId ? String(row.subscriptionId) : null,
+        productCode: row.productCode ? String(row.productCode) : null, versionCode: row.versionCode ? String(row.versionCode) : null,
+        billingCycle: row.billingCycle ? String(row.billingCycle) : null, currency: usageCurrency, contract_revenue: 0,
+        discount: 0, coupon: 0, credit: 0, refund: 0, chargeback: 0, revenue_tax: 0, receipt_fee: 0, financial_cost: 0,
+        estimatedFacts: 0, effectiveFacts: 0, variableCostMicros: 0, hasUnconvertedVariableCost: false,
+      };
+      bucket.variableCostMicros = Number(bucket.variableCostMicros) + costMicros;
+      buckets.set(key, bucket);
     }
   }
 
@@ -297,6 +387,9 @@ export async function refreshEconomicAggregates(now = new Date()) {
     const variableCostMicros = Number(bucket.variableCostMicros);
     const estimated = Number(bucket.estimatedFacts);
     const effective = Number(bucket.effectiveFacts);
+    const variableCostRatioBps = Boolean(bucket.hasUnconvertedVariableCost)
+      ? null
+      : calculateVariableCostRatioBps(variableCostMicros, net);
     await upsertMonthlyEconomicAggregate({
       aggregateKey: crypto.createHash("sha256").update(key).digest("hex"), competenceMonth: bucket.month as Date,
       payerUserId: Number(bucket.payerUserId), subscriptionId: bucket.subscriptionId as string | null,
@@ -305,7 +398,7 @@ export async function refreshEconomicAggregates(now = new Date()) {
       recognizedContractRevenueMinor: Number(bucket.contract_revenue), discountMinor: Number(bucket.discount), couponMinor: Number(bucket.coupon),
       creditMinor: Number(bucket.credit), refundMinor: Number(bucket.refund), chargebackMinor: Number(bucket.chargeback), taxMinor: Number(bucket.revenue_tax),
       receiptFeeMinor: Number(bucket.receipt_fee), financialCostMinor: Number(bucket.financial_cost), netEconomicRevenueMinor: net,
-      variableCostMicros, variableCostRatioBps: calculateVariableCostRatioBps(variableCostMicros, net),
+      variableCostMicros, variableCostRatioBps,
       estimatedFactCount: estimated, effectiveFactCount: effective, measurementCoverageBps: effective + estimated ? Math.round(effective / (effective + estimated) * 10_000) : 0,
       ruleVersion: USAGE_RULE_VERSION,
     });
@@ -314,7 +407,13 @@ export async function refreshEconomicAggregates(now = new Date()) {
 
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
   const usage = await listUsageEvents(input);
-  const economics = await listMonthlyEconomicAggregates({ from: startOfMonth(input.from), to: addMonths(startOfMonth(input.to), 1), payerUserId: input.userId });
+  const requestedFrom = startOfMonth(input.from);
+  const requestedTo = addMonths(startOfMonth(input.to), 1);
+  const economics = await listMonthlyEconomicAggregates({
+    from: addMonths(requestedFrom, -3),
+    to: requestedTo,
+    payerUserId: input.userId,
+  });
   const byOperation = new Map<string, { operation: string; channel: string; calls: number; units: number; estimatedCostMicros: number; effectiveCostMicros: number; retries: number; failures: number }>();
   for (const row of usage) {
     const key = `${row.operation}|${row.channel}`;
@@ -323,12 +422,25 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
     current.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0); if (row.attemptRole === "retry") current.retries += 1;
     if (row.eventState !== "success") current.failures += 1; byOperation.set(key, current);
   }
-  const monthly = economics.map(row => ({
-    competenceMonth: row.competenceMonth, payerUserId: Number(row.payerUserId), versionCode: row.versionCode, currency: row.currency,
+  const normalized: EconomicSeriesRow[] = economics.map(row => ({
+    competenceMonth: new Date(String(row.competenceMonth)),
+    payerUserId: Number(row.payerUserId), subscriptionId: row.subscriptionId == null ? null : String(row.subscriptionId),
+    versionCode: row.versionCode == null ? null : String(row.versionCode), currency: String(row.currency),
     recognizedContractRevenueMinor: Number(row.recognizedContractRevenueMinor), netEconomicRevenueMinor: Number(row.netEconomicRevenueMinor),
     variableCostMicros: Number(row.variableCostMicros), variableCostRatioBps: row.variableCostRatioBps == null ? null : Number(row.variableCostRatioBps),
-    health: economicHealthBand(row.variableCostRatioBps == null ? null : Number(row.variableCostRatioBps)), measurementCoverageBps: Number(row.measurementCoverageBps),
+    measurementCoverageBps: Number(row.measurementCoverageBps),
   }));
+  const decisions = decorateEconomicDecisionSeries(normalized);
+  const monthly = normalized
+    .filter(row => {
+      const month = startOfMonth(new Date(row.competenceMonth));
+      return month >= requestedFrom && month < requestedTo;
+    })
+    .map(row => ({
+      ...row,
+      health: economicHealthBand(row.variableCostRatioBps),
+      ...decisions.get(row),
+    }));
   return { window: input, policy: { fairUse: FAIR_USE_POLICY, retention: USAGE_RETENTION_POLICY }, byOperation: Array.from(byOperation.values()), monthlyEconomics: monthly, generatedAt: new Date() };
 }
 

@@ -20,19 +20,19 @@ Receita econômica líquida:
 
 `receita contratual reconhecida - descontos - cupons - créditos - reembolsos - chargebacks - impostos sobre receita - tarifas efetivas de recebimento`.
 
-Custo de antecipação de recebíveis fica separado como custo financeiro e não entra no denominador do KPI. Moedas permanecem separadas; conversão futura exige regra de FX explicitamente versionada.
+Custo de antecipação de recebíveis fica separado como custo financeiro e não entra no denominador do KPI. Moedas permanecem separadas: custo variável somente entra no KPI de um bucket econômico quando sua moeda coincide com a moeda da receita. Se existir custo em outra moeda e não houver regra de FX versionada, o KPI daquele bucket fica indisponível em vez de converter ou somar silenciosamente valores incompatíveis; o custo permanece visível em um bucket próprio de sua moeda mesmo quando não existe receita correspondente.
 
-O KPI de custo variável é `custos variáveis diretos / receita econômica líquida`. Faixas mensais e para média móvel de três meses: até 20% saudável; acima de 20% até 25% atenção; acima de 25% revisão; acima de 30% por dois meses consecutivos exige revisão administrativa. A faixa **nunca limita usuário automaticamente**.
+O KPI de custo variável é `custos variáveis diretos / receita econômica líquida`. A leitura mensal continua disponível. Para decisões comerciais, o backend calcula média móvel ponderada de três meses por pagador/assinatura/versão/moeda: até 20% saudável; acima de 20% até 25% atenção; acima de 25% revisão; acima de 30% por dois meses móveis consecutivos exige revisão administrativa. Uma janela com mês economicamente incomparável por moeda também fica indisponível. A faixa **nunca limita usuário automaticamente**.
 
 ## Fair use e abuso
 
 O lançamento não cobra excedente, créditos ou pacotes. A política prevê 90 dias de observação e alertas configuráveis em 70/85/100% do orçamento esperado. Atingir 100% apenas abre sinal operacional.
 
-Alto custo isolado não é abuso. Sinais automáticos podem abrir caso, mas limitação normal exige revisão humana com evidência sanitizada, exclusão de falhas/retries do sistema, revisão de crescimento legítimo, operações afetadas, aprovação administrativa, comunicação e oferta de revisão/apelação. A primeira limitação é de até sete dias. Extensão, quando implementada, exige segundo responsável e mais no máximo sete dias. Proteção emergencial de segurança pode durar até 24 horas antes da revisão.
+Alto custo isolado não é abuso. Sinais automáticos podem abrir caso, mas limitação normal exige revisão humana com evidência sanitizada, exclusão de falhas/retries do sistema, revisão de crescimento legítimo, operações afetadas, aprovação administrativa, comunicação e oferta de revisão/apelação. A primeira limitação é de até sete dias. Existe no máximo uma extensão normal adicional de até sete dias para o mesmo caso, iniciada exatamente no término da janela inicial e executada por um segundo administrador autenticado distinto; uma janela revogada não pode ser estendida. Proteção emergencial de segurança pode durar até 24 horas antes da revisão, exige sinal de segurança reconhecido e `securityRiskConfirmed=true` na evidência sanitizada, e não pode ser encadeada repetidamente no mesmo caso.
 
-Limitações atingem somente operações pesadas explicitamente listadas; login, leitura, exportação e registros manuais não são retirados. O executor comum de IA consulta apenas uma limitação administrativa ativa antes de chamar provider. Orçamento, KPI, plano ou feature flag não produzem bloqueio por conta própria.
+Limitações atingem somente operações pesadas explicitamente listadas; login, leitura, exportação e registros manuais não são retirados. O executor comum de IA consulta somente uma limitação administrativa ativa antes de chamar provider. Orçamento, KPI, plano ou feature flag não produzem bloqueio por conta própria.
 
-`billingUsageAllowanceGrants` permite franquia adicional ou isenção temporária para usuário/profissional, com início, fim, motivo, responsável e revogação. Esses registros não criam cobrança, assinatura ou evento financeiro no Asaas.
+`billingUsageAllowanceGrants` permite franquia adicional ou isenção temporária para usuário/profissional, com início, fim, motivo, responsável e revogação. Uma `temporary_exemption` ativa é consultada pelo gate de execução e prevalece sobre uma limitação administrativa durante a sua vigência; para paciente patrocinado, a isenção do profissional patrocinador também se aplica. Esses registros não criam cobrança, assinatura ou evento financeiro no Asaas.
 
 ## Cobrança futura por consumo
 
@@ -42,18 +42,18 @@ Medição e autorização de cobrança são contratos separados. `billingConsump
 
 `billingUsageDailyAggregates` mantém consumo por dia e dimensões comerciais. `billingEconomicMonthlyAggregates` mantém competência, receita reconhecida, deduções, receita líquida, custo variável, KPI e qualidade da medição. Assim consultas históricas não precisam varrer indefinidamente o ledger detalhado.
 
-O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI e retorna uso operacional e economia mensal. Valores econômicos são gerenciais até homologação contábil/fiscal apropriada.
+O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI e retorna uso operacional, economia mensal, média móvel de três meses e indicação explícita de revisão obrigatória quando a média permanece acima de 30% por dois meses consecutivos. Valores econômicos são gerenciais até homologação contábil/fiscal apropriada.
 
 ## Retenção e legal hold
 
-Política `2026-08-16.2`:
+Política `2026-08-16.3`:
 
 - eventos detalhados de consumo: **13 meses**;
 - agregados diários: **24 meses**;
 - agregados financeiros/econômicos mensais: **5 anos**;
 - trilhas de decisão, autorização e limitação: **5 anos**.
 
-O ciclo automático registra `billingUsageRetentionAudit`. `billingUsageLegalHolds` suspende eliminação somente para escopo documentado enquanto estiver ativo. Agregados preservados não contêm conteúdo conversacional bruto e não devem permitir reconstruí-lo.
+O ciclo automático registra `billingUsageRetentionAudit`. `billingUsageLegalHolds` suspende eliminação de eventos detalhados, agregados diários e agregados econômicos enquanto o hold estiver ativo, respeitando início/fim e os escopos global, usuário/pagador/patrocinador e assinatura. Agregados preservados não contêm conteúdo conversacional bruto e não devem permitir reconstruí-lo.
 
 ## Privacidade
 
