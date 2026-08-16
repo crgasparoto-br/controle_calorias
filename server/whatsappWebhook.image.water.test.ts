@@ -164,6 +164,12 @@ function waterItem(overrides: Partial<Record<string, unknown>> = {}) {
     fat: 0,
     confidence: 0.9,
     source: "catalog" as const,
+    classification: {
+      processingLevel: "natural_or_minimally_processed" as const,
+      isFruit: false,
+      isVegetable: false,
+      fiberGrams: 0,
+    },
     ...overrides,
   };
 }

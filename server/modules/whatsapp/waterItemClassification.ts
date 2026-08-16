@@ -41,6 +41,8 @@ const WATER_EXCLUSION_TOKENS = new Set([
   "aromatizado",
 ]);
 
+const WATER_COMPOSITION_CONNECTOR_TOKENS = new Set(["e", "ou"]);
+
 function normalizeWaterTokens(value: string) {
   return normalizeText(value)
     .replace(/-/g, " ")
@@ -54,12 +56,46 @@ function isWaterMeasurementToken(token: string) {
   return token === "ml" || token === "l" || /^\d+(?:ml|l)?$/.test(token);
 }
 
-export function isPureWaterItem(item: { foodName: string; canonicalName?: string; brand?: string | null }) {
+function hasPlainWaterClassificationEvidence(item: Pick<MealDraftItem, "classification">) {
+  return item.classification?.processingLevel === "natural_or_minimally_processed";
+}
+
+function unknownTokensFormBoundaryBrandCandidate(tokens: string[], brandTokens: Set<string>) {
+  const significantTokens = tokens.filter(token => !isWaterMeasurementToken(token));
+  const unknownIndexes = significantTokens.flatMap((token, index) => (
+    !CORE_WATER_TOKENS.has(token) && !brandTokens.has(token) ? [index] : []
+  ));
+
+  if (!unknownIndexes.length) {
+    return true;
+  }
+
+  if (unknownIndexes.some(index => WATER_COMPOSITION_CONNECTOR_TOKENS.has(significantTokens[index]))) {
+    return false;
+  }
+
+  const firstUnknownIndex = unknownIndexes[0];
+  const lastUnknownIndex = unknownIndexes[unknownIndexes.length - 1];
+  const contiguous = unknownIndexes.every((index, offset) => index === firstUnknownIndex + offset);
+  if (!contiguous) {
+    return false;
+  }
+
+  return firstUnknownIndex === 0 || lastUnknownIndex === significantTokens.length - 1;
+}
+
+export function isPureWaterItem(item: Pick<MealDraftItem, "foodName" | "canonicalName" | "brand" | "classification">) {
   const brandTokens = new Set(item.brand ? normalizeWaterTokens(item.brand) : []);
   const candidateNames = [item.canonicalName, item.foodName].filter((name): name is string => Boolean(name));
   const candidates = candidateNames.map(normalizeWaterTokens);
 
   if (candidates.some(tokens => tokens.some(token => WATER_EXCLUSION_TOKENS.has(token)))) {
+    return false;
+  }
+
+  if (candidates.some(tokens => tokens.some(token => (
+    WATER_COMPOSITION_CONNECTOR_TOKENS.has(token) && !brandTokens.has(token)
+  )))) {
     return false;
   }
 
@@ -78,30 +114,32 @@ export function isPureWaterItem(item: { foodName: string; canonicalName?: string
       return true;
     }
 
-    // Marcas e qualificadores podem vir embutidos em foodName/canonicalName sem
-    // preencher `brand`. Só relaxamos tokens desconhecidos quando a descrição
-    // ainda traz um marcador inequívoco de água potável, evitando transformar
-    // qualquer expressão que apenas contenha "água" em hidratação.
-    return tokens.some(token => PURE_WATER_ANCHOR_TOKENS.has(token));
+    // Marca embutida sem `brand` e uma representacao ambigua. Ela so pode ser
+    // tolerada quando o item ainda traz evidencia semantica positiva de agua
+    // minimamente processada e os tokens desconhecidos formam um bloco de
+    // borda (prefixo/sufixo), em vez de alterar a gramatica interna da bebida.
+    return tokens.some(token => PURE_WATER_ANCHOR_TOKENS.has(token))
+      && hasPlainWaterClassificationEvidence(item)
+      && unknownTokensFormBoundaryBrandCandidate(tokens, brandTokens);
   });
 }
 
-function parseVolumeMlFromPortionText(portionText?: string) {
-  if (!portionText) {
+function parseVolumeMlFromText(value?: string) {
+  if (!value) {
     return null;
   }
-  const match = portionText.match(/(\d+(?:[.,]\d+)?)\s*(ml|l)\b/i);
+  const match = value.match(/(\d+(?:[.,]\d+)?)\s*(ml|l)\b/i);
   if (!match) {
     return null;
   }
-  const value = Number(match[1].replace(",", "."));
-  if (!Number.isFinite(value) || value <= 0) {
+  const numericValue = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
     return null;
   }
-  return match[2].toLowerCase() === "l" ? value * 1000 : value;
+  return match[2].toLowerCase() === "l" ? numericValue * 1000 : numericValue;
 }
 
-export function resolveWaterVolumeMl(item: Pick<MealDraftItem, "quantity" | "unit" | "portionText">) {
+export function resolveWaterVolumeMl(item: Pick<MealDraftItem, "foodName" | "canonicalName"> & Partial<Pick<MealDraftItem, "quantity" | "unit" | "portionText">>) {
   if (typeof item.quantity === "number" && item.quantity > 0 && item.unit) {
     const unit = item.unit.trim().toLowerCase();
     if (unit === "ml") {
@@ -112,7 +150,20 @@ export function resolveWaterVolumeMl(item: Pick<MealDraftItem, "quantity" | "uni
     }
   }
 
-  return parseVolumeMlFromPortionText(item.portionText);
+  const portionTextVolume = parseVolumeMlFromText(item.portionText);
+  if (portionTextVolume != null) {
+    return portionTextVolume;
+  }
+
+  const embeddedVolumes = [item.foodName, item.canonicalName]
+    .map(parseVolumeMlFromText)
+    .filter((volume): volume is number => volume != null);
+  if (!embeddedVolumes.length) {
+    return null;
+  }
+
+  const uniqueVolumes = new Set(embeddedVolumes);
+  return uniqueVolumes.size === 1 ? embeddedVolumes[0] : null;
 }
 
 export type WaterHydrationSplit = {
