@@ -25,6 +25,7 @@ import {
   type AiObservabilityContext,
   type AiObservabilitySink,
 } from "./observability";
+import { enforceAiUsageGate } from "./usageGate";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
   provider: AiProvider;
@@ -79,11 +80,44 @@ function requireTarget(
   return target;
 }
 
+async function applyUsageGovernance(
+  config: ResolvedCapabilityConfig,
+  observability?: AiObservabilityContext,
+): Promise<AiObservabilityContext | undefined> {
+  const rawCorrelation = observability?.correlation ?? {};
+  const userId = rawCorrelation.userId;
+  if (typeof userId !== "number" || !Number.isInteger(userId) || userId <= 0) {
+    return observability;
+  }
+
+  const rawConversationId = rawCorrelation.conversationId;
+  const usage = await enforceAiUsageGate({
+    userId,
+    capability: config.capability,
+    origin: observability?.origin,
+    flow: observability?.flow,
+    conversationId:
+      typeof rawConversationId === "string" && rawConversationId.trim()
+        ? rawConversationId
+        : null,
+  });
+
+  const { conversationId: _discardedConversationId, ...safeCorrelation } = rawCorrelation;
+  return {
+    ...observability,
+    correlation: {
+      ...safeCorrelation,
+      ...(usage?.correlation ?? {}),
+    },
+  };
+}
+
 /**
  * Canonical execution boundary for a resolved capability. It binds the
  * provider and model selected by `resolveCapabilityConfig` to the adapter used
  * by every primary, retry and fallback attempt, then delegates sequencing to
- * the common policy executor.
+ * the common policy executor. When a user attribution is present, the shared
+ * usage gate runs before any provider adapter is created or called.
  */
 export async function executeResolvedCapability<T>(
   config: ResolvedCapabilityConfig,
@@ -97,6 +131,7 @@ export async function executeResolvedCapability<T>(
     onAttemptComplete,
     ...policyOptions
   } = options;
+  const effectiveObservability = await applyUsageGovernance(config, observability);
   const attemptCompletions: AiObservedAttemptCompletion<T>[] = [];
   const providerCalls = new Map<string, AiProviderCallObservation>();
   const executionStartedAt = performance.now();
@@ -202,9 +237,9 @@ export async function executeResolvedCapability<T>(
     const events = buildAiInferenceEvents({
       config,
       attempts: attemptCompletions,
-      context: observability && executionSucceeded && observability.degradationOnFailure
-        ? { ...observability, degradationOnFailure: undefined }
-        : observability,
+      context: effectiveObservability && executionSucceeded && effectiveObservability.degradationOnFailure
+        ? { ...effectiveObservability, degradationOnFailure: undefined }
+        : effectiveObservability,
       totalLatencyMs: performance.now() - executionStartedAt,
     });
     await emitAiInferenceEvents(events, observabilitySink === undefined ? undefined : observabilitySink);
