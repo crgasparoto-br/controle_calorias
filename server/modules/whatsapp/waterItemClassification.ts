@@ -18,11 +18,25 @@ const CORE_WATER_TOKENS = new Set([
   "potavel",
 ]);
 
+const PURE_WATER_ANCHOR_TOKENS = new Set([
+  "mineral",
+  "gas",
+  "gaseificada",
+  "gaseificado",
+  "garrafa",
+  "natural",
+  "pura",
+  "puro",
+  "potavel",
+]);
+
 const WATER_EXCLUSION_TOKENS = new Set([
   "coco",
   "tonica",
+  "sabor",
   "saborizada",
   "saborizado",
+  "aroma",
   "aromatizada",
   "aromatizado",
 ]);
@@ -36,19 +50,39 @@ function normalizeWaterTokens(value: string) {
     .filter(Boolean);
 }
 
+function isWaterMeasurementToken(token: string) {
+  return token === "ml" || token === "l" || /^\d+(?:ml|l)?$/.test(token);
+}
+
 export function isPureWaterItem(item: { foodName: string; canonicalName?: string; brand?: string | null }) {
   const brandTokens = new Set(item.brand ? normalizeWaterTokens(item.brand) : []);
   const candidateNames = [item.canonicalName, item.foodName].filter((name): name is string => Boolean(name));
+  const candidates = candidateNames.map(normalizeWaterTokens);
 
-  return candidateNames.some(name => {
-    const tokens = normalizeWaterTokens(name);
+  if (candidates.some(tokens => tokens.some(token => WATER_EXCLUSION_TOKENS.has(token)))) {
+    return false;
+  }
+
+  return candidates.some(tokens => {
     if (!tokens.length || !tokens.includes("agua")) {
       return false;
     }
-    if (tokens.some(token => WATER_EXCLUSION_TOKENS.has(token))) {
-      return false;
+
+    const unknownTokens = tokens.filter(token => (
+      !CORE_WATER_TOKENS.has(token)
+      && !brandTokens.has(token)
+      && !isWaterMeasurementToken(token)
+    ));
+
+    if (!unknownTokens.length) {
+      return true;
     }
-    return tokens.every(token => CORE_WATER_TOKENS.has(token) || brandTokens.has(token));
+
+    // Marcas e qualificadores podem vir embutidos em foodName/canonicalName sem
+    // preencher `brand`. Só relaxamos tokens desconhecidos quando a descrição
+    // ainda traz um marcador inequívoco de água potável, evitando transformar
+    // qualquer expressão que apenas contenha "água" em hidratação.
+    return tokens.some(token => PURE_WATER_ANCHOR_TOKENS.has(token));
   });
 }
 

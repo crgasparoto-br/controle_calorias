@@ -307,24 +307,111 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
   });
 
-  it("registra água com marca no nome como água pura", async () => {
+  it("trata Água Mineral com Gás Crystal 500 ml como hidratação mesmo sem brand estruturada", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Ceia",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "teste de regressão #986",
+      items: [waterItem({
+        foodName: "Água Mineral com Gás Crystal 500 ml",
+        canonicalName: "Água Mineral com Gás Crystal 500 ml",
+        brand: undefined,
+        calories: 750,
+        protein: 30,
+        carbs: 75,
+        fat: 25,
+      })],
+      totals: { calories: 750, protein: 30, carbs: 75, fat: 25 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-brand-embedded-crystal") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(123, expect.objectContaining({ amountMl: 500 }));
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(findFetchCallByBody("Água registrada")).toBeTruthy();
+    expect(findFetchCallByBody("750 kcal")).toBeFalsy();
+  });
+
+  it("aceita outra marca embutida sem depender de lista fixa de marcas", async () => {
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
       sourceText: "",
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "teste",
-      items: [waterItem({ foodName: "água crystal", canonicalName: "Água Mineral Crystal", brand: "Crystal" })],
+      items: [waterItem({
+        foodName: "Água Mineral Serra Clara 500ml",
+        canonicalName: "Água Mineral Serra Clara",
+        brand: undefined,
+      })],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     });
     setupFetchForImageFlow(1);
 
-    const req = { body: createMetaImagePayload("wamid.water-brand") };
+    const req = { body: createMetaImagePayload("wamid.water-brand-embedded-other") };
     const res = createResponse();
 
     await handleWhatsAppWebhook(req as never, res as never);
 
     expect(createUserWaterLogMock).toHaveBeenCalledWith(123, expect.objectContaining({ amountMl: 500 }));
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+  });
+
+  it("continua aceitando marca recebida no campo estruturado", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "teste",
+      items: [waterItem({ foodName: "água crystal", canonicalName: "Água Crystal", brand: "Crystal" })],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-brand-structured") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(123, expect.objectContaining({ amountMl: 500 }));
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+  });
+
+  it("resolve o volume pelo portionText quando quantity/unit não vierem estruturados", async () => {
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "teste",
+      items: [waterItem({
+        foodName: "Água Mineral com Gás Serra Clara",
+        canonicalName: "Água Mineral Serra Clara",
+        brand: undefined,
+        quantity: undefined,
+        unit: undefined,
+        portionText: "500 ml",
+      })],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    });
+    setupFetchForImageFlow(1);
+
+    const req = { body: createMetaImagePayload("wamid.water-brand-portion-text") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(123, expect.objectContaining({ amountMl: 500 }));
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
   });
 
   it("registra hidratação e refeição separadas quando há água e alimento na imagem", async () => {
@@ -360,7 +447,14 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "teste",
-      items: [waterItem({ portionText: "", quantity: undefined, unit: undefined })],
+      items: [waterItem({
+        foodName: "Água Mineral com Gás Serra Clara",
+        canonicalName: "Água Mineral com Gás Serra Clara",
+        brand: undefined,
+        portionText: "",
+        quantity: undefined,
+        unit: undefined,
+      })],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     });
     setupFetchForImageFlow(1);
@@ -484,7 +578,11 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "teste",
-      items: [waterItem()],
+      items: [waterItem({
+        foodName: "Água Mineral com Gás Serra Clara 500 ml",
+        canonicalName: "Água Mineral com Gás Serra Clara",
+        brand: undefined,
+      })],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     });
     setupFetchForImageFlow(1);
