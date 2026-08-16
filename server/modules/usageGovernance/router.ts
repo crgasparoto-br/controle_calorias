@@ -33,7 +33,7 @@ const economicFactSchema = z.object({
   competenceEnd: z.string().datetime(),
   effectiveAt: z.string().datetime().optional(),
   reason: z.string().trim().max(255).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 function governanceError(error: unknown): never {
