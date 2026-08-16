@@ -2,6 +2,13 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadService";
 import {
+  getInternalUsageAnalytics,
+} from "../usageGovernance/service";
+import {
+  internalUsageAnalyticsSchema,
+  resolveInternalUsageAnalyticsWindow,
+} from "../usageGovernance/schemas";
+import {
   billingAdminCatalogListSchema,
   billingAdminCreateCouponRevisionSchema,
   billingAdminCreateProductSchema,
@@ -248,4 +255,9 @@ export const billingRouter = router({
       }
     }),
   adminAnalytics: adminProcedure.query(() => billingService.getAdminAnalytics()),
+  adminUsageAnalytics: adminProcedure
+    .input(internalUsageAnalyticsSchema)
+    .query(({ input }) =>
+      getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input))
+    ),
 });
