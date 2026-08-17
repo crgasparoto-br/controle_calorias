@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { getUserIdByWhatsappPhone } from "../../db";
 import { recordUsageEvent } from "../../repositories/usageGovernanceRepository";
-import { billingService } from "../billing/service";
 import { USAGE_RULE_VERSION } from "./service";
 
 function opaqueProviderRef(value: string) {
@@ -24,6 +23,10 @@ export async function recordMetaWhatsAppOutboundUsage(input: {
   const resolvedUserId = input.userId ?? (input.recipientPhone ? await getUserIdByWhatsappPhone(input.recipientPhone) : null);
   if (!resolvedUserId) return { created: false, reason: "unattributed" as const };
 
+  // Billing carrega dependencias de persistencia amplas. Mantemos esse boundary
+  // lazy para que importar o transporte do WhatsApp nao inicialize o modulo de
+  // billing em fluxos que apenas reutilizam/mocam o DB.
+  const { billingService } = await import("../billing/service");
   const status = await billingService.getUserSubscriptionStatus(resolvedUserId);
   const access = status.access;
   const sponsored = access.reason === "sponsored_by_professional" && Boolean(access.sponsorUserId);
@@ -32,7 +35,7 @@ export async function recordMetaWhatsAppOutboundUsage(input: {
   const payerUserId = sponsorUserId ?? resolvedUserId;
   const effectivePlanCode = access.planCode ?? effectiveSubscription?.planCode ?? status.subscription?.planCode ?? null;
   const correlationRef = opaqueProviderRef(sourceMessageId);
-  // A posição lógica é a identidade do envio. Fallback não pode criar uma segunda
+  // A posicao logica e a identidade do envio. Fallback nao pode criar uma segunda
   // chave em um reprocessamento da mesma mensagem inbound.
   const physicalMessageKey = opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}`);
 
