@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { getUserIdByWhatsappPhone } from "../../db";
 import { recordUsageEvent } from "../../repositories/usageGovernanceRepository";
-import { USAGE_RULE_VERSION } from "./service";
 
 function opaqueProviderRef(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, 40);
@@ -23,10 +22,13 @@ export async function recordMetaWhatsAppOutboundUsage(input: {
   const resolvedUserId = input.userId ?? (input.recipientPhone ? await getUserIdByWhatsappPhone(input.recipientPhone) : null);
   if (!resolvedUserId) return { created: false, reason: "unattributed" as const };
 
-  // Billing carrega dependencias de persistencia amplas. Mantemos esse boundary
-  // lazy para que importar o transporte do WhatsApp nao inicialize o modulo de
-  // billing em fluxos que apenas reutilizam/mocam o DB.
-  const { billingService } = await import("../billing/service");
+  // WhatsApp transport is imported by flows that do not need billing. Keep both
+  // heavy dependencies behind the attributable-event boundary so importing the
+  // transport cannot initialize billing persistence through usage governance.
+  const [{ billingService }, { USAGE_RULE_VERSION }] = await Promise.all([
+    import("../billing/service"),
+    import("./service"),
+  ]);
   const status = await billingService.getUserSubscriptionStatus(resolvedUserId);
   const access = status.access;
   const sponsored = access.reason === "sponsored_by_professional" && Boolean(access.sponsorUserId);

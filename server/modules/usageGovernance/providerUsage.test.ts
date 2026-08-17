@@ -4,14 +4,41 @@ const mocks = vi.hoisted(() => ({
   getUserIdByWhatsappPhone: vi.fn(),
   recordUsageEvent: vi.fn(),
   getUserSubscriptionStatus: vi.fn(),
+  billingModuleLoads: 0,
+  serviceModuleLoads: 0,
 }));
 
 vi.mock("../../db", () => ({ getUserIdByWhatsappPhone: mocks.getUserIdByWhatsappPhone }));
 vi.mock("../../repositories/usageGovernanceRepository", () => ({ recordUsageEvent: mocks.recordUsageEvent }));
-vi.mock("../billing/service", () => ({ billingService: { getUserSubscriptionStatus: mocks.getUserSubscriptionStatus } }));
-vi.mock("./service", () => ({ USAGE_RULE_VERSION: "test-rule" }));
+vi.mock("../billing/service", () => {
+  mocks.billingModuleLoads += 1;
+  return { billingService: { getUserSubscriptionStatus: mocks.getUserSubscriptionStatus } };
+});
+vi.mock("./service", () => {
+  mocks.serviceModuleLoads += 1;
+  return { USAGE_RULE_VERSION: "test-rule" };
+});
 
 import { recordMetaWhatsAppOutboundUsage } from "./providerUsage";
+
+describe("Meta WhatsApp usage metering import isolation", () => {
+  it("does not initialize billing persistence or the broad governance service before an attributable event", async () => {
+    expect(mocks.billingModuleLoads).toBe(0);
+    expect(mocks.serviceModuleLoads).toBe(0);
+
+    await expect(recordMetaWhatsAppOutboundUsage({
+      userId: 42,
+      sourceMessageId: "   ",
+      sequenceIndex: 0,
+      messageType: "text",
+      role: "primary",
+      usedFallback: false,
+    })).resolves.toEqual({ created: false, reason: "missing_correlation" });
+
+    expect(mocks.billingModuleLoads).toBe(0);
+    expect(mocks.serviceModuleLoads).toBe(0);
+  });
+});
 
 describe("Meta WhatsApp usage metering", () => {
   beforeEach(() => {
@@ -36,6 +63,8 @@ describe("Meta WhatsApp usage metering", () => {
       occurredAt: new Date("2026-08-17T01:00:00.000Z"),
     });
 
+    expect(mocks.billingModuleLoads).toBe(1);
+    expect(mocks.serviceModuleLoads).toBe(1);
     expect(mocks.recordUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
       beneficiaryUserId: 42,
       patientUserId: 42,
@@ -52,6 +81,7 @@ describe("Meta WhatsApp usage metering", () => {
       effectiveCostMicros: null,
       currency: null,
       eventState: "success",
+      ruleVersion: "test-rule",
     }));
   });
 
