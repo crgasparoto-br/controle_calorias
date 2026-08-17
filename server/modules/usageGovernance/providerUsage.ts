@@ -32,7 +32,9 @@ export async function recordMetaWhatsAppOutboundUsage(input: {
   const payerUserId = sponsorUserId ?? resolvedUserId;
   const effectivePlanCode = access.planCode ?? effectiveSubscription?.planCode ?? status.subscription?.planCode ?? null;
   const correlationRef = opaqueProviderRef(sourceMessageId);
-  const physicalMessageKey = opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}:${input.usedFallback ? "fallback" : "original"}`);
+  // A posição lógica é a identidade do envio. Fallback não pode criar uma segunda
+  // chave em um reprocessamento da mesma mensagem inbound.
+  const physicalMessageKey = opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}`);
 
   return recordUsageEvent({
     id: crypto.randomUUID(),
