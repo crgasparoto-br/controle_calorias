@@ -1,5 +1,6 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
+  catalogMatchesExplicitBrand,
   findCatalogFood,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
@@ -139,6 +140,8 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
     addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
   }
   if (item.brand) {
+    addCatalogCandidate(candidates, `${item.foodName} ${item.brand} ${item.portionText}`);
+    addCatalogCandidate(candidates, `${item.brand} ${item.foodName} ${item.portionText}`);
     addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
     addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
   }
@@ -161,6 +164,32 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
+
+  if (item.brand) {
+    const normalizedBrand = normalizeForMatching(item.brand).trim();
+    const brandedCandidates = candidates.filter(candidate => (
+      normalizeForMatching(candidate).includes(` ${normalizedBrand} `)
+    ));
+
+    for (const candidate of brandedCandidates) {
+      const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
+      if (
+        catalog
+        && catalogMatchesExplicitBrand(catalog, item.brand)
+        && isCatalogFoodSemanticallyCompatible(catalog, candidate)
+      ) return catalog;
+    }
+
+    const specificIdentity = brandedCandidates[0];
+    if (specificIdentity && item.foodClassification?.isPlainWater !== true) {
+      const catalog = await findCatalogFoodSemantic(specificIdentity, { allowSpecificNutritionSearch: true }) ?? undefined;
+      if (
+        catalog
+        && catalogMatchesExplicitBrand(catalog, item.brand)
+        && isCatalogFoodSemanticallyCompatible(catalog, specificIdentity)
+      ) return catalog;
+    }
+  }
 
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;

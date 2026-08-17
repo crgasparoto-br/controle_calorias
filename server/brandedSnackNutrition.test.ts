@@ -177,4 +177,134 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(embeddingsCreateMock).toHaveBeenCalledTimes(2);
   });
+
+  it("usa NUTRITION_SEARCH uma única vez para produto industrializado com marca antes do genérico", async () => {
+    createTextResponseMock
+      .mockResolvedValueOnce({
+        id: "resp_branded_beverage",
+        outputText: JSON.stringify({
+          mealLabel: "Jantar",
+          confidence: 0.91,
+          reasoning: "Rótulo comercial legível, sem tabela nutricional visível.",
+          items: [{
+            foodName: "cerveja lager original",
+            brand: "Cervejaria Horizonte",
+            quantity: 1,
+            unit: "garrafa",
+            portionText: "1 garrafa (330 ml)",
+            servings: 1,
+            estimatedGrams: 330,
+            estimatedCalories: 135,
+            estimatedMacros: { protein: 1, carbs: 10, fat: 0 },
+            confidence: 0.88,
+            foodClassification: { processingLevel: "ultra_processed", isFruit: false, isVegetable: false, fiberGrams: 0, isPlainWater: false },
+          }],
+        }),
+        raw: { mocked: true },
+      })
+      .mockResolvedValueOnce({
+        id: "resp_branded_beverage_source",
+        outputText: JSON.stringify({
+          found: true,
+          matchedProductName: "Cerveja Lager Original Cervejaria Horizonte 330 ml",
+          brandName: "Cervejaria Horizonte",
+          servingLabel: "1 garrafa (330 ml)",
+          gramsPerServing: 330,
+          calories: 122,
+          protein: 1.2,
+          carbs: 9.4,
+          fat: 0,
+          confidence: 0.91,
+          sourceUrl: "https://example.test/horizonte-original-330",
+          evidence: "A garrafa de 330 ml contém 122 kcal, proteínas 1,2 g, carboidratos 9,4 g e gorduras totais 0 g.",
+        }),
+        webSearch: {
+          executed: true,
+          sources: [{
+            url: "https://example.test/horizonte-original-330",
+            supportingText: ["A garrafa de 330 ml contém 122 kcal, proteínas 1,2 g, carboidratos 9,4 g e gorduras totais 0 g."],
+          }],
+        },
+        raw: { mocked: true },
+      });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,aG9yaXpvbnRl" });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Cerveja Lager Original Cervejaria Horizonte",
+      canonicalName: "Cerveja Lager Original Cervejaria Horizonte 330 Ml",
+      brand: "Cervejaria Horizonte",
+      calories: 122,
+      carbs: 9.4,
+      source: "catalog",
+    }));
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
+    expect(createTextResponseMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      tools: [{ type: "web_search" }],
+    }));
+  });
+
+  it("rejeita fonte externa de outra marca e mantém a identidade reconhecida no fallback", async () => {
+    createTextResponseMock
+      .mockResolvedValueOnce({
+        id: "resp_branded_beverage_mismatch",
+        outputText: JSON.stringify({
+          mealLabel: "Jantar",
+          confidence: 0.89,
+          reasoning: "Rótulo comercial legível, sem tabela nutricional visível.",
+          items: [{
+            foodName: "cerveja weissbier",
+            brand: "Cervejaria Aurora",
+            quantity: 1,
+            unit: "garrafa",
+            portionText: "1 garrafa (500 ml)",
+            servings: 1,
+            estimatedGrams: 500,
+            estimatedCalories: 230,
+            estimatedMacros: { protein: 2, carbs: 18, fat: 0 },
+            confidence: 0.84,
+            foodClassification: { processingLevel: "ultra_processed", isFruit: false, isVegetable: false, fiberGrams: 0, isPlainWater: false },
+          }],
+        }),
+        raw: { mocked: true },
+      })
+      .mockResolvedValueOnce({
+        id: "resp_branded_beverage_wrong_brand",
+        outputText: JSON.stringify({
+          found: true,
+          matchedProductName: "Cerveja Weissbier Outra Marca 500 ml",
+          brandName: "Outra Marca",
+          servingLabel: "1 garrafa (500 ml)",
+          gramsPerServing: 500,
+          calories: 190,
+          protein: 1,
+          carbs: 14,
+          fat: 0,
+          confidence: 0.95,
+          sourceUrl: "https://example.test/outra-marca-weissbier",
+          evidence: "A garrafa de 500 ml contém 190 kcal, proteínas 1 g, carboidratos 14 g e gorduras totais 0 g.",
+        }),
+        webSearch: {
+          executed: true,
+          sources: [{
+            url: "https://example.test/outra-marca-weissbier",
+            supportingText: ["A garrafa de 500 ml contém 190 kcal, proteínas 1 g, carboidratos 14 g e gorduras totais 0 g."],
+          }],
+        },
+        raw: { mocked: true },
+      });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,YXVyb3Jh" });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Cerveja Weissbier Cervejaria Aurora",
+      brand: "Cervejaria Aurora",
+    }));
+    expect(result.items[0].canonicalName).not.toContain("Outra Marca");
+    expect(result.items[0].calories).not.toBe(190);
+    expect(result.items[0].source).not.toBe("catalog");
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
+  });
 });

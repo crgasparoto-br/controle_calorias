@@ -306,6 +306,64 @@ describe("whatsappWebhook image inbound", () => {
     }));
   });
 
+  it("persiste e responde com a mesma identidade comercial e os mesmos nutrientes resolvidos", async () => {
+    confirmPendingMealMock.mockImplementationOnce(async (input: Record<string, unknown>) => ({
+      id: 456,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      items: input.items as Array<Record<string, unknown>>,
+    }));
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Jantar",
+      sourceText: "",
+      imageUrl: "data:image/jpeg;base64,aXNzdWU5ODc=",
+      confidence: 0.92,
+      needsConfirmation: true,
+      reasoning: "Marca e variante reconhecidas no rótulo.",
+      items: [{
+        foodName: "Cerveja Weissbier Cervejaria Aurora",
+        canonicalName: "Cerveja Weissbier Cervejaria Aurora 500 Ml",
+        brand: "Cervejaria Aurora",
+        quantity: 1,
+        unit: "garrafa",
+        portionText: "1 garrafa (500 ml)",
+        servings: 1,
+        estimatedGrams: 500,
+        calories: 219,
+        protein: 2.1,
+        carbs: 17.4,
+        fat: 0,
+        confidence: 0.9,
+        source: "catalog" as const,
+      }],
+      totals: { calories: 219, protein: 2.1, carbs: 17.4, fat: 0 },
+    });
+
+    const req = { body: createMetaImagePayload("wamid.image-commercial-identity") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({
+        items: [expect.objectContaining({
+          foodName: "Cerveja Weissbier Cervejaria Aurora",
+          brand: "Cervejaria Aurora",
+          calories: 219,
+          carbs: 17.4,
+        })],
+        totals: { calories: 219, protein: 2.1, carbs: 17.4, fat: 0 },
+      }),
+      expect.any(Array),
+    );
+    const responseCall = findFetchCallByBody("Cerveja Weissbier Cervejaria Aurora");
+    expect(responseCall?.[1]).toEqual(expect.objectContaining({
+      body: expect.stringContaining("219 kcal"),
+    }));
+  });
+
   it("envia imagem anotada quando o overlay local retorna URL", async () => {
     createLocalMealPhotoOverlayMock.mockResolvedValueOnce({
       url: "https://storage.test/generated/meal-support/annotated.png",

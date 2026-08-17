@@ -56,7 +56,7 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 ### Fronteira dos consumidores #923
 
-`QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. Cada tentativa dessa fronteira executa exatamente uma chamada ao provider; recuperação, retry e fallback pertencem exclusivamente a `executeResolvedCapability`. Fonte ausente, URL-only ou evidência nutricional insuficiente degrada localmente sem probe oculto. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
+`QUESTION` (assistente de perguntas do WhatsApp) e `NUTRITION_SEARCH` (`findCommercialProductByWebSearch`, sobre o entrypoint histórico `findPackagedSnackByWebSearch`) também recebem respostas por `_core/ai/domainTextResponse.ts`, com a mesma remoção de `raw`/`usage.raw` e a mesma taxonomia fail-closed. Cada tentativa dessa fronteira executa exatamente uma chamada ao provider; recuperação, retry e fallback pertencem exclusivamente a `executeResolvedCapability`. O motor executa no máximo uma operação de pesquisa específica por item com marca antes de degradar ao catálogo/fallback local. Fonte ausente, URL-only, evidência nutricional insuficiente ou identidade comercial incompatível degrada localmente sem probe oculto. `EMBEDDING` continua inelegível no Gemini por ausência do método `embeddings` no adapter, o que torna cross-provider fallback indisponível para essa capacidade independentemente de opt-in.
 
 ### Fronteira de transcrição #924
 

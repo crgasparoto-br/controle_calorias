@@ -6,7 +6,9 @@ import {
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
   formatFoodNameTitleCase,
+  normalizeForMatching,
   normalizeText,
+  normalizedTokenIncludes,
   normalizeUnit,
   parseFoodText,
   parseQuantityUnitFromPortionText,
@@ -54,6 +56,12 @@ export function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function buildCommercialDisplayName(foodName: string, brand: string | null) {
+  const formattedFoodName = formatFoodNameTitleCase(foodName);
+  if (!brand || normalizedTokenIncludes(normalizeForMatching(formattedFoodName), brand)) return formattedFoodName;
+  return `${formattedFoodName} ${brand}`;
+}
+
 export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
@@ -71,10 +79,11 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
   const brand = inferItemBrand(food, llmItem.foodName, llmItem.brand);
+  const explicitBrand = normalizeBrandName(llmItem.brand);
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
   return {
-    foodName: formatFoodNameTitleCase(llmItem.foodName),
+    foodName: buildCommercialDisplayName(llmItem.foodName, explicitBrand),
     canonicalName: formatFoodNameTitleCase(food.name),
     brand,
     portionText,
@@ -102,12 +111,14 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     ? roundNutritionValue(llmQuantity)
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
-  const foodName = formatFoodNameTitleCase(llmItem.foodName);
+  const brand = normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName);
+  const normalizedFoodName = formatFoodNameTitleCase(llmItem.foodName);
+  const foodName = buildCommercialDisplayName(llmItem.foodName, normalizeBrandName(llmItem.brand));
 
   return {
     foodName,
-    canonicalName: foodName,
-    brand: normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName),
+    canonicalName: normalizedFoodName,
+    brand,
     portionText: llmItem.portionText,
     quantity,
     unit,

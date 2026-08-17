@@ -22,6 +22,10 @@ const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
 
 type PackagedSnackCategory = "chocolate" | "cookie";
 
+export type SemanticCatalogSearchOptions = {
+  allowSpecificNutritionSearch?: boolean;
+};
+
 type SearchedNutritionResult = {
   found: boolean;
   matchedProductName: string;
@@ -217,14 +221,15 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "bolacha", "bolachas", "bombom", "bombons", "chocolate", "cookie", "cookies",
   "da", "das", "de", "do", "dos", "doce", "doces", "e", "embalado", "embalada",
   "embalagem", "em", "g", "gr", "grama", "gramas", "kg", "l", "ml", "mg",
-  "o", "os", "pacote", "pacotes", "porcao", "produto", "sabor", "unidade",
+  "garrafa", "garrafas", "lata", "latas", "o", "os", "pacote", "pacotes", "porcao", "produto", "sabor", "unidade",
   "unidades", "wafer", "wafers",
 ]);
 
 const COMMERCIAL_VARIANT_TOKENS = new Set([
   "amargo", "avela", "baunilha", "branco", "caramelo", "coco", "dark",
   "diet", "duo", "integral", "laranja", "light", "limao", "maxi", "menta",
-  "mini", "morango", "recheado", "recheada", "trufa", "trufado", "trufada", "zero",
+  "mini", "morango", "original", "pilsen", "lager", "weissbier", "recheado", "recheada",
+  "trufa", "trufado", "trufada", "zero", "alcool", "lactose",
 ]);
 
 function normalizeCommercialText(value: string) {
@@ -472,9 +477,12 @@ function numericClaimsSupportResult(text: string, result: Partial<SearchedNutrit
   if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return false;
 
   const calorieValues = extractUnitValues(text, "kcal|calorias?");
-  const gramValues = extractUnitValues(text, "g|gramas?");
+  const servingValues = [
+    ...extractUnitValues(text, "g|gramas?"),
+    ...extractUnitValues(text, "ml|mililitros?"),
+  ];
   if (!calorieValues.some(value => approximatelyEqual(value, result.calories as number))) return false;
-  if (!gramValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
+  if (!servingValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
 
   const labelledClaims: Array<[string, number | undefined]> = [
     ["prote[ií]nas?|proteins?", result.protein],
@@ -596,7 +604,7 @@ function parseSearchedNutritionResult(
 
 export async function findPackagedSnackByWebSearch(
   foodName: string,
-  category: PackagedSnackCategory,
+  category?: PackagedSnackCategory,
 ): Promise<CatalogFood | null> {
   const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
@@ -612,7 +620,7 @@ export async function findPackagedSnackByWebSearch(
           {
             model: attempt.model,
             instructions: [
-              "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
+              "Você pesquisa informações nutricionais de alimentos e bebidas industrializados no Brasil.",
               "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
               "Prefira página oficial da marca, varejo com tabela nutricional ou banco nutricional reconhecido.",
               "Não use média genérica quando houver dúvida sobre o SKU, sabor, peso ou marca; nesse caso retorne found=false.",
@@ -624,7 +632,7 @@ export async function findPackagedSnackByWebSearch(
                 type: "input_text",
                 text: [
                   `Alimento reconhecido: ${foodName}`,
-                  `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
+                  `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : category === "cookie" ? "biscoito doce embalado" : "produto industrializado com marca"}`,
                   "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
                   "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
                   "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
@@ -657,6 +665,11 @@ export async function findPackagedSnackByWebSearch(
   } catch {
     return null;
   }
+}
+
+/** Nome de domínio para o uso generalizado; preserva o entrypoint histórico do smoke #923. */
+export async function findCommercialProductByWebSearch(foodName: string, category?: PackagedSnackCategory) {
+  return findPackagedSnackByWebSearch(foodName, category);
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -772,13 +785,21 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
  */
 export async function findCatalogFoodSemantic(
   foodName: string,
+  options: SemanticCatalogSearchOptions = {},
 ): Promise<CatalogFood | null> {
   const packagedSnackCategory = detectPackagedSnackCategory(foodName);
   if (packagedSnackCategory) {
-    const candidate = await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
+    const candidate = await findCommercialProductByWebSearch(foodName, packagedSnackCategory)
       ?? await findCatalogFoodByEmbedding(foodName)
       ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
     return candidateIsCompatible(foodName, candidate) ? candidate : null;
+  }
+
+
+  if (options.allowSpecificNutritionSearch) {
+    const candidate = await findCommercialProductByWebSearch(foodName)
+      ?? await findCatalogFoodByEmbedding(foodName);
+    return candidate && candidateIsCompatible(foodName, candidate) ? candidate : null;
   }
 
   return findCatalogFoodByEmbedding(foodName);

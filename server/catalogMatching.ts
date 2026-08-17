@@ -40,6 +40,12 @@ const CRITICAL_VARIATION_TERMS = [
   "sem adicao de acucar",
   "sem adição de açúcar",
   "tradicional",
+  "original",
+  "pilsen",
+  "lager",
+  "weissbier",
+  "sem alcool",
+  "sem álcool",
   "proteico",
   "grego",
   "natural",
@@ -290,4 +296,10 @@ export function findCatalogFood(foodName: string, userId?: number): CatalogFood 
 
 export function inferItemBrand(food: CatalogFood, foodName: string, explicitBrand?: string | null) {
   return food.brandName?.trim() || normalizeBrandName(explicitBrand) || detectKnownBrand(foodName);
+}
+
+export function catalogMatchesExplicitBrand(food: CatalogFood, explicitBrand: string) {
+  const normalizedCatalogBrand = normalizeForMatching(food.brandName ?? "").trim();
+  const normalizedExplicitBrand = normalizeForMatching(explicitBrand).trim();
+  return Boolean(normalizedCatalogBrand && normalizedCatalogBrand === normalizedExplicitBrand);
 }
