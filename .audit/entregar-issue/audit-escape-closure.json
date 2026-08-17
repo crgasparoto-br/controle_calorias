@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
+  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
   "escapes": [
     {
       "escape_id": "B1",
@@ -15,7 +15,7 @@
       "literal_case": {
         "procedure": "Request Marca Aurora 330 ml while provider returns brandName Marca Eclipse with matchedProductName echoing Marca Aurora 330 ml.",
         "status": "passed",
-        "evidence": "evidence/issue987-audit-remediation.txt"
+        "evidence": "evidence/issue987-post-write-refreeze.txt"
       },
       "sibling_cases": [
         {
@@ -23,14 +23,14 @@
           "surface": "nutrition-reference",
           "dimension": "structured-portion-consistency",
           "status": "passed",
-          "evidence": "evidence/issue987-audit-remediation.txt"
+          "evidence": "evidence/issue987-post-write-refreeze.txt"
         },
         {
           "id": "cross-field-grounding",
           "surface": "nutrition-reference",
           "dimension": "grounding-commercial-identity",
           "status": "passed",
-          "evidence": "evidence/issue987-audit-remediation.txt"
+          "evidence": "evidence/issue987-post-write-refreeze.txt"
         }
       ],
       "required_attack_dimensions": [
@@ -54,13 +54,13 @@
         "skill_or_code": "entregar-issue provider-call governance plus strict branded nutrition validator",
         "control_id": "PROVIDER-EVIDENCE-CONSISTENCY-001",
         "status": "passed",
-        "evidence": "evidence/issue987-audit-remediation.txt"
+        "evidence": "evidence/issue987-post-write-refreeze.txt"
       },
       "detection_change": {
         "skill_or_gate": "auditar-issue provider-call and secret audit contract",
         "control_id": "PROVIDER-EVIDENCE-CONSISTENCY-001",
         "status": "passed",
-        "evidence": "evidence/issue987-audit-remediation.txt"
+        "evidence": "evidence/issue987-post-write-refreeze.txt"
       },
       "reusable_control": "PROVIDER-EVIDENCE-CONSISTENCY-001",
       "trigger_terms": [

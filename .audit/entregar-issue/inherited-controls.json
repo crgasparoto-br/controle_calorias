@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
+  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
   "controls": [
     {
       "id": "PROVIDER-EVIDENCE-CONSISTENCY-001",
       "status": "passed",
-      "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
-      "evidence": "evidence/issue987-audit-remediation.txt",
+      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
+      "evidence": "evidence/issue987-post-write-refreeze.txt",
       "source": "independent audit remediation",
       "scope": "provider structured-output and grounding cross-field consistency"
     }

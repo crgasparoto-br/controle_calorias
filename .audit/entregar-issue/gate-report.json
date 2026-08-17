@@ -1,22 +1,25 @@
 {
   "schema_version": 1,
-  "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
-  "status": "focused-controls-passed-remote-full-gate-in-progress",
-  "command": "focused harness + TypeScript syntax transpile + skill contract/genericity validators",
+  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
+  "status": "remote-exact-head-full-gate-passed",
+  "command": "GitHub Actions Agent-first gate (exact-head full suite) + prior focused controls reused where unchanged",
   "started_at": "2026-08-17T19:41:08.384027+00:00",
   "finished_at": "2026-08-17T19:41:08.384027+00:00",
   "exit_code": 0,
   "tests": {
+    "remote_agent_first_full_suite": "passed",
     "focused_provider_cases": 5,
-    "skill_contract_tests": 8,
+    "inherited_provider_evidence_control": "passed-via-full-suite",
     "status": "passed"
   },
   "local_full_gate": {
-    "status": "not-run",
-    "reason": "dependency installation unavailable in runtime"
+    "status": "reused-remote-exact-head",
+    "reason": "connector-only recovery; exact-head Agent-first gate executed full repository suite successfully",
+    "run_id": 32066043667,
+    "job_id": 95498291978
   },
   "evidence": {
     "attestation": "evidence/final-gate-attestation.json",
-    "remediation": "evidence/issue987-audit-remediation.txt"
+    "post_write_refreeze": "evidence/issue987-post-write-refreeze.txt"
   }
 }
