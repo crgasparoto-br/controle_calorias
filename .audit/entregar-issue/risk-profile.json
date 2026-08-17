@@ -1,0 +1,783 @@
+{
+  "schema_version": 1,
+  "flags": {
+    "multi_entity": false,
+    "input_parser": true,
+    "multi_step": true,
+    "persistence": true,
+    "durable_persistence_required": true,
+    "authorization": true,
+    "privacy": true,
+    "visual": false,
+    "data_migration": true,
+    "fallback_paths": true,
+    "documentation_impact": true,
+    "read_model_closure": true,
+    "canonical_source_consistency": true,
+    "documentation_contract_transition": true,
+    "runtime_policy": true,
+    "adapter_contract": true,
+    "request_translation": true,
+    "legacy_compatibility": true,
+    "documentation_claims": true,
+    "multiple_entrypoints": [
+      "server/whatsappWebhook.image.test.ts"
+    ]
+  },
+  "signals": {
+    "input_parser": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(xml|sgml|ofx|csv|yaml|toml|encoding|bom|raw bytes?|conteudo bruto|conteúdo bruto)\\b",
+        "match": "Conteúdo bruto",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(parser|parse(?:d|s|r|ing)?|decoder|decode|deserializ\\w*|lexer|tokenizer)\\b",
+        "match": "parser",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "code combines parser operation with structured/raw input format",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(parser|parse(?:d|s|r|ing)?|decoder|decode|deserializ\\w*|lexer|tokenizer)\\b",
+        "match": "parse",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "code combines parser operation with structured/raw input format",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(parser|parse(?:d|s|r|ing)?|decoder|decode|deserializ\\w*|lexer|tokenizer)\\b",
+        "match": "parsed",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(parser|parse(?:d|s|r|ing)?|decoder|decode|deserializ\\w*|lexer|tokenizer)\\b",
+        "match": "parsed",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealItemBuilders.ts",
+        "reason": "matched \\b(parser|parse(?:d|s|r|ing)?|decoder|decode|deserializ\\w*|lexer|tokenizer)\\b",
+        "match": "parsed",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff combines parser operation with structured/raw input format",
+        "confidence": "high"
+      }
+    ],
+    "runtime_policy": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "Retry",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/brandedSnackNutrition.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/nutritionEngine.brand.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/nutritionEngine.brandTypeSpecificity.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/nutritionEngine.issue987.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(resolver|executor|retry|fallback|timeout|abortsignal|deadline|cancel(?:lation|amento)?|max[_ -]?attempts)\\b",
+        "match": "fallback",
+        "confidence": "high"
+      }
+    ],
+    "adapter_contract": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "capacidade",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "capacidade",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "capacidade",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      },
+      {
+        "path": "server/nutritionEngine.brand.test.ts",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "Provider",
+        "confidence": "high"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(capabilit(?:y|ies)|capacidade|support matrix|matriz de suporte|adapter|provider)\\b",
+        "match": "provider",
+        "confidence": "high"
+      }
+    ],
+    "request_translation": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "multimodal",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "web_search",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "multimodal",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "Structured Output",
+        "confidence": "high"
+      },
+      {
+        "path": "server/brandedSnackNutrition.test.ts",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "embedding",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "webSearch",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "embedding",
+        "confidence": "high"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "imageGeneration",
+        "confidence": "high"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(tools?|web[_ -]?search|structured output|responsejsonschema|response schema|multimodal|embedding|transcription|image[_ -]?(generation|edit)|mime)\\b",
+        "match": "multimodal",
+        "confidence": "high"
+      }
+    ],
+    "legacy_compatibility": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "legacy",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "preservar",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "preservar",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "legado",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "Preserve",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.ts",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "preservar",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "preservar",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(legacy|legado|compatib|preserv(?:e|ar)|unchanged consumer|consumidor.*n[aã]o migrado|no observable change|sem mudan[cç]a observ[aá]vel)\\b",
+        "match": "preserve",
+        "confidence": "medium"
+      }
+    ],
+    "documentation_claims": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "nunca",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "nunca",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "preserva",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "nunca",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "rejeita",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "Preserve",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.brand.test.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "preserva",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.brandTypeSpecificity.test.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "preserva",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.issue987.test.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "preserva",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "never",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(supports?|suporta|guarantees?|garante|rejects?|rejeita|preserves?|preserva|never|nunca|always|sempre|before any (call|network)|antes de qualquer chamada|end[- ]to[- ]end|ponta a ponta)\\b",
+        "match": "preserva",
+        "confidence": "medium"
+      }
+    ],
+    "persistence": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(prisma|drizzle|sequelize|typeorm|mongoose|repository|database|db\\.|sql|redis|storage|persist|transaction)\\b",
+        "match": "storage",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(prisma|drizzle|sequelize|typeorm|mongoose|repository|database|db\\.|sql|redis|storage|persist|transaction)\\b",
+        "match": "repository",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(insert|update|delete|upsert|commit|rollback|migration)\\b",
+        "match": "delete",
+        "confidence": "high"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(prisma|drizzle|sequelize|typeorm|mongoose|repository|database|db\\.|sql|redis|storage|persist|transaction)\\b",
+        "match": "storage",
+        "confidence": "high"
+      }
+    ],
+    "fallback_paths": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "Retry",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/brandedSnackNutrition.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogMatching.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "catch",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "catch",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "catch",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.brand.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.brandTypeSpecificity.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.issue987.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "catch",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/whatsappWebhook.image.test.ts",
+        "reason": "matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(fallback|degrad|in[- ]?memory|memory store|cache|retry|circuit breaker|catch)\\b",
+        "match": "fallback",
+        "confidence": "medium"
+      }
+    ],
+    "authorization": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(auth\\w*|authoriz\\w*|permission\\w*|role\\w*|entitlement\\w*|access control|acl|rbac)\\b",
+        "match": "entitlement",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(auth\\w*|authoriz\\w*|permission\\w*|role\\w*|entitlement\\w*|access control|acl|rbac)\\b",
+        "match": "entitlement",
+        "confidence": "high"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(auth\\w*|authoriz\\w*|permission\\w*|role\\w*|entitlement\\w*|access control|acl|rbac)\\b",
+        "match": "role",
+        "confidence": "high"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(auth\\w*|authoriz\\w*|permission\\w*|role\\w*|entitlement\\w*|access control|acl|rbac)\\b",
+        "match": "role",
+        "confidence": "high"
+      }
+    ],
+    "privacy": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(tenant|pii|personal data|sensitive|privacy|non[- ]?enumeration|isolation)\\b",
+        "match": "privacy",
+        "confidence": "high"
+      }
+    ],
+    "multi_step": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(webhook|callback|queue|job|pending|continuation|conversation|state machine|event handler)\\b",
+        "match": "pending",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(webhook|callback|queue|job|pending|continuation|conversation|state machine|event handler)\\b",
+        "match": "Callback",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(webhook|callback|queue|job|pending|continuation|conversation|state machine|event handler)\\b",
+        "match": "callback",
+        "confidence": "medium"
+      }
+    ],
+    "data_migration": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(migration|backfill|legacy|historical|schema version|compatibility)\\b",
+        "match": "legacy",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(migration|backfill|legacy|historical|schema version|compatibility)\\b",
+        "match": "migration",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(migration|backfill|legacy|historical|schema version|compatibility)\\b",
+        "match": "backfill",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(migration|backfill|legacy|historical|schema version|compatibility)\\b",
+        "match": "compatibility",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(migration|backfill|legacy|historical|schema version|compatibility)\\b",
+        "match": "compatibility",
+        "confidence": "medium"
+      }
+    ],
+    "read_model_closure": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(history|historical|timeline|version|versioning|pagination|authorship|origin|supersession|vigency|previous records)\\b",
+        "match": "history",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "paginação",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "versão",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "versão",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(history|historical|timeline|version|versioning|pagination|authorship|origin|supersession|vigency|previous records)\\b",
+        "match": "origin",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.brandTypeSpecificity.test.ts",
+        "reason": "matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "versao",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.issue987.test.ts",
+        "reason": "matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "origem",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(hist[oó]ric|linha do tempo|vers[aã]o|vers[oõ]es|pagina[cç][aã]o|autoria|origem|supersess[aã]o|vig[eê]ncia|registros anteriores)\\b",
+        "match": "versões",
+        "confidence": "medium"
+      }
+    ],
+    "canonical_source_consistency": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(can[oô]nic|fonte de verdade|mesmo campo sem[aâ]ntico|consistente entre|coerente com)\\b",
+        "match": "fonte de verdade",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(canonical|source of truth|same semantic field|consistent across|coherent with)\\b",
+        "match": "canonical",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealAiExtraction.ts",
+        "reason": "matched \\b(canonical|source of truth|same semantic field|consistent across|coherent with)\\b",
+        "match": "canonical",
+        "confidence": "medium"
+      },
+      {
+        "path": "<git-diff>",
+        "reason": "diff matched \\b(canonical|source of truth|same semantic field|consistent across|coherent with)\\b",
+        "match": "canonical",
+        "confidence": "medium"
+      }
+    ],
+    "documentation_contract_transition": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "legacy",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "workspace",
+        "confidence": "medium"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "matched \\b(rota|redirecion|legado|obsoleto|aposent|substitu|renome|workspace)\\b",
+        "match": "legado",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.test.ts",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "redirect",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/catalogSemanticSearch.ts",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "replace",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/mealItemBuilders.ts",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "replace",
+        "confidence": "medium"
+      },
+      {
+        "path": "server/nutritionEngine.ts",
+        "reason": "matched \\b(route|redirect|legacy|deprecated|retire|replace|rename|workspace)\\b",
+        "match": "replace",
+        "confidence": "medium"
+      }
+    ],
+    "visual": [],
+    "multiple_entrypoints": [],
+    "documentation_impact": [
+      {
+        "path": "docs/PRIVACY_LGPD.md",
+        "reason": "documentation file changed",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "reason": "documentation file changed",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "reason": "documentation file changed",
+        "confidence": "high"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "reason": "documentation file changed",
+        "confidence": "high"
+      }
+    ]
+  },
+  "high_confidence": {
+    "input_parser": true,
+    "runtime_policy": true,
+    "adapter_contract": true,
+    "request_translation": true,
+    "legacy_compatibility": false,
+    "documentation_claims": false,
+    "persistence": true,
+    "fallback_paths": false,
+    "authorization": true,
+    "privacy": true,
+    "multi_step": false,
+    "data_migration": false,
+    "read_model_closure": false,
+    "canonical_source_consistency": false,
+    "documentation_contract_transition": false,
+    "visual": false,
+    "multiple_entrypoints": false,
+    "documentation_impact": true
+  },
+  "changed_files": [
+    "docs/PRIVACY_LGPD.md",
+    "docs/RELIABILITY.md",
+    "docs/design-docs/nutrition-engine.md",
+    "docs/product-specs/meal-registration.md",
+    "server/brandedSnackNutrition.test.ts",
+    "server/catalogMatching.ts",
+    "server/catalogSemanticSearch.test.ts",
+    "server/catalogSemanticSearch.ts",
+    "server/mealAiExtraction.ts",
+    "server/mealItemBuilders.ts",
+    "server/nutritionEngine.brand.test.ts",
+    "server/nutritionEngine.brandTypeSpecificity.test.ts",
+    "server/nutritionEngine.issue987.test.ts",
+    "server/nutritionEngine.ts",
+    "server/whatsappWebhook.image.test.ts"
+  ]
+}

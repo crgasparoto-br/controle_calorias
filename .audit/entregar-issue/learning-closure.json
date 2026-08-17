@@ -2,37 +2,41 @@
   "schema_version": 1,
   "classification": "systemic-escape",
   "source_event": {
-    "type": "independent-rejection",
-    "findings": [
-      "A-001-cycle3"
-    ],
-    "candidate_head_sha": "89332dd9d71812f43cf12067afd94870d4cb4b5c"
+    "type": "independent-audit-rejection",
+    "finding_id": "B1",
+    "candidate_head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
+    "repository": "crgasparoto-br/controle_calorias"
   },
   "generalized_learning": {
-    "escape_class": "open-class-token-position-restriction",
-    "generalized_failure_pattern": "Open identity accepted only at boundary without contractual ordering.",
-    "plausible_wrong_implementation": "Gate identity on token position.",
+    "escape_class": "provider-cross-field-evidence-compensation",
+    "generalized_failure_pattern": "A provider response is accepted by comparing a blended textual identity, so a correct-looking field can compensate for a contradictory structured field or cited source.",
+    "plausible_wrong_implementation": "Treat concatenated provider output as one identity string and accept it when any representation echoes the request, without reconciling authoritative fields independently.",
     "trigger_signals": [
-      "open-class identity",
-      "multiple token orders"
+      "multiple provider identity fields",
+      "exact-source acceptance",
+      "grounded or cited evidence",
+      "fallback after provider rejection"
     ],
     "risk_families": [
       "structural-contract"
     ],
-    "reusable_control": [
-      "OPEN-POSITION-001"
-    ],
-    "prevention_rule": "Do not impose position unless ordering is semantic.",
-    "detection_rule": "Permute identity positions with negative siblings.",
+    "reusable_control": "PROVIDER-EVIDENCE-CONSISTENCY-001",
+    "prevention_rule": "Before accepting an exact provider-backed result, validate each authoritative structured identity field independently, reject cross-field contradictions, and require cited evidence to support the discriminating identity rather than only numeric payloads.",
+    "detection_rule": "Adversarial controls must vary at least two independent provider fields and the evidence source so that echoed free text cannot hide a conflicting structured value.",
     "transfer_cases": [
       {
-        "surface": "address-parser",
-        "case": "organization positions",
+        "surface": "commerce-provider-result",
+        "dimension": "sku-versus-brand-field",
         "status": "passed"
       },
       {
-        "surface": "device-parser",
-        "case": "vendor positions",
+        "surface": "document-grounding",
+        "dimension": "citation-versus-structured-entity",
+        "status": "passed"
+      },
+      {
+        "surface": "measurement-provider-result",
+        "dimension": "display-label-versus-normalized-value",
         "status": "passed"
       }
     ],
@@ -41,15 +45,17 @@
   "skill_changes": [
     {
       "role": "prevention",
-      "path": "entregar-issue/references/requirement-attack-matrix.md",
+      "skill": "entregar-issue",
+      "path": "references/implementation-provider-call-governance.md",
       "status": "passed",
-      "evidence": "existing sibling control"
+      "evidence": "targeted contract tests and genericity validator"
     },
     {
       "role": "detection",
-      "path": "entregar-issue/references/audit-escape-closure.md",
+      "skill": "auditar-issue",
+      "path": "references/provider-call-and-secret-audit.md",
       "status": "passed",
-      "evidence": "existing class closure"
+      "evidence": "targeted contract tests and genericity validator"
     }
   ]
 }

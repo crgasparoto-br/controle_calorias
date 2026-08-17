@@ -1,0 +1,103 @@
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure, router } from "../../_core/trpc";
+import { professionalMessagesProcedure } from "./entitledProcedure";
+import {
+  patientProfessionalMessageListSchema,
+  professionalMessageCreateSchema,
+  professionalMessageListSchema,
+  professionalMessageRetrySchema,
+} from "./schemas";
+import {
+  createProfessionalMessage,
+  retryProfessionalMessage,
+  listPatientProfessionalMessages,
+  listProfessionalMessages,
+  ProfessionalMessageIdempotencyConflictError,
+  ProfessionalMessageSupersessionConflictError,
+} from "./messageService";
+import {
+  assertProfessionalMessageRetryAccess,
+  ProfessionalMessageAccessUnavailableError,
+} from "./messageRetryAccess";
+import { getProfessionalSettingsSnapshot } from "./settingsService";
+import { listProfessionalAccesses } from "./service";
+
+export const professionalMessageRouter = router({
+  templates: professionalMessagesProcedure.query(async ({ ctx }) => {
+    const snapshot = await getProfessionalSettingsSnapshot(ctx.user.id);
+    return snapshot.preferences.messageTemplates;
+  }),
+  recipients: professionalMessagesProcedure.query(async ({ ctx }) => {
+    const accesses = await listProfessionalAccesses(ctx.user.id);
+    return accesses
+      .filter(access => access.status === "approved")
+      .map(access => ({
+        patientUserId: access.patientUserId,
+        status: "approved" as const,
+        patient: access.patient
+          ? {
+              name: access.patient.name,
+              email: access.patient.email,
+            }
+          : null,
+      }));
+  }),
+  list: professionalMessagesProcedure
+    .input(professionalMessageListSchema)
+    .query(({ ctx, input }) => listProfessionalMessages(ctx.user.id, input)),
+  create: professionalMessagesProcedure
+    .input(professionalMessageCreateSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createProfessionalMessage(ctx.user.id, input);
+      } catch (error) {
+        if (
+          error instanceof ProfessionalMessageIdempotencyConflictError ||
+          error instanceof ProfessionalMessageSupersessionConflictError
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: error.message,
+          });
+        }
+        if (error instanceof ProfessionalMessageAccessUnavailableError) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    }),
+  retry: professionalMessagesProcedure
+    .input(professionalMessageRetrySchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await assertProfessionalMessageRetryAccess(ctx.user.id, input.messageId);
+        const result = await retryProfessionalMessage(
+          input.messageId,
+          ctx.user.id
+        );
+        if (result.status === "unchanged") {
+          await assertProfessionalMessageRetryAccess(
+            ctx.user.id,
+            input.messageId
+          );
+        }
+        return result;
+      } catch (error) {
+        if (error instanceof ProfessionalMessageAccessUnavailableError) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    }),
+  patientList: protectedProcedure
+    .input(patientProfessionalMessageListSchema)
+    .query(({ ctx, input }) =>
+      listPatientProfessionalMessages(ctx.user.id, input)
+    ),
+});

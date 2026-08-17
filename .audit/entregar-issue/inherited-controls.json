@@ -1,75 +1,15 @@
 {
   "schema_version": 1,
-  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
   "controls": [
     {
-      "id": "OPEN-UNKNOWN-001",
+      "id": "PROVIDER-EVIDENCE-CONSISTENCY-001",
       "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "REP-FANIN-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "SEM-EVIDENCE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "SEM-NEGATIVE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "REP-RECONCILE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "OPEN-POSITION-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle3-remediation.txt"
+      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
+      "evidence": "evidence/issue987-post-write-refreeze.txt",
+      "source": "independent audit remediation",
+      "scope": "provider structured-output and grounding cross-field consistency"
     }
   ],
-  "unresolved_controls": [],
-  "source_audits": [
-    {
-      "finding_id": "A-001",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-002",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-003",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-001-cycle2",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-002-cycle2",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-001-cycle3",
-      "validity": "independent",
-      "status": "closed"
-    }
-  ]
+  "unresolved_controls": []
 }

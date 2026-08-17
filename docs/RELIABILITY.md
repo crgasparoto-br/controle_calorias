@@ -55,6 +55,7 @@ pnpm db:check-integrity
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
 - Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
+- Para produto industrializado com marca reconhecida, miss do catálogo local pode produzir no máximo uma pesquisa nutricional específica por item antes do fallback. Fonte de outra marca, variante ou porção deve ser rejeitada sem segunda consulta oculta; falha/indisponibilidade preserva a identidade comercial e degrada para a referência heurística canônica.
 - Para `IMAGE_ANNOTATION`, testes devem distinguir `local`, `external` e `off`, provar ausência de rede no default local, preservar os bytes originais, limitar uma chamada por tentativa e manter falhas locais/externas não bloqueantes.
 
 ## Pendências multietapas do WhatsApp

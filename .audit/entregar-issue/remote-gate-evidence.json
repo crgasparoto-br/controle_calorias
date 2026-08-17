@@ -1,11 +1,53 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "repository": "crgasparoto-br/controle_calorias",
+  "pull_request": 991,
+  "material_head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
   "observation_mode": "read-only-single-observation",
   "observed_runs": [
-    { "name": "Agent-first gate", "run_id": 31956480869, "status": "in_progress", "conclusion": null },
-    { "name": "WhatsApp context TiDB gate", "run_id": 31956480866, "status": "in_progress", "conclusion": null }
+    {
+      "name": "Agent-first gate",
+      "run_id": 32066043667,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 32066043675,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+    },
+    {
+      "name": "AI provider live smoke",
+      "run_id": 32066043688,
+      "status": "completed",
+      "conclusion": "skipped",
+      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+    }
   ],
+  "agent_first_job": {
+    "job_id": 95498291978,
+    "conclusion": "success",
+    "passed_steps": [
+      "TypeScript check",
+      "Tests",
+      "Architecture check",
+      "Documentation check",
+      "Build",
+      "Agent check",
+      "CI gate docs check",
+      "Create exact-head verification manifest",
+      "Create exact-head repository bundle"
+    ],
+    "database_integrity_check": "skipped-by-gate-policy-with-successful-skip-step"
+  },
+  "exact_head_repository_artifact": {
+    "artifact_id": 9300207070,
+    "name": "agent-first-repository-afa5e534273a06fd5937b22aa0dd68b8294fc844",
+    "sha256": "a61f4b36d8eeb242d194f2b31c5ca146795cce74358312b505a35cf027a07bae"
+  },
   "rerun_or_dispatch_performed": false,
-  "observation_disposition": "remote gates observed once; result-only handoff proceeds while runs are in progress"
+  "observation_disposition": "Exact-head mandatory repository gate completed successfully; no polling, rerun, dispatch, cancel or approval performed."
 }

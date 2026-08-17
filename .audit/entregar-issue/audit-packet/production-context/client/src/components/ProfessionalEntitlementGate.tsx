@@ -1,0 +1,161 @@
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { parseProfessionalPatientRoute } from "@/lib/professionalRoutes";
+import { trpc } from "@/lib/trpc";
+import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
+import React, { type ReactNode, useEffect } from "react";
+import { useLocation } from "wouter";
+
+export type ProfessionalRouteEntitlement =
+  | "professional_dashboard"
+  | "professional_portfolio"
+  | "professional_record"
+  | "professional_messages"
+  | "professional_reports"
+  | "professional_settings";
+
+export default function ProfessionalEntitlementGate({
+  children,
+  resource,
+}: {
+  children: ReactNode;
+  resource: ProfessionalRouteEntitlement;
+}) {
+  const [location, setLocation] = useLocation();
+  const query = trpc.professionalRecord.settings.entitlements.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchOnWindowFocus: true,
+      staleTime: 30_000,
+    }
+  );
+  const basicSettingsAvailableDuringSuspension = Boolean(
+    resource === "professional_settings" &&
+      query.data?.allowed &&
+      query.data.commercialState === "suspended"
+  );
+  const resourceEnabled = Boolean(
+    query.data?.allowed &&
+      (query.data.enabledResources.includes(resource) ||
+        basicSettingsAvailableDuringSuspension)
+  );
+  const verificationUnavailable = Boolean(
+    !query.isLoading &&
+      !query.isError &&
+      query.data &&
+      !query.data.allowed &&
+      query.data.commercialState === "unavailable"
+  );
+  const patientRoute = parseProfessionalPatientRoute(location);
+  const revokedPatientRoute = Boolean(
+    !query.isLoading &&
+      !query.isError &&
+      query.data &&
+      !verificationUnavailable &&
+      !resourceEnabled &&
+      patientRoute.kind === "patient"
+  );
+
+  useEffect(() => {
+    if (!revokedPatientRoute) return;
+    setLocation("/professional/patients?notice=patient-access-unavailable");
+  }, [revokedPatientRoute, setLocation]);
+
+  if (query.isLoading) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground"
+      >
+        Verificando acesso profissional...
+      </div>
+    );
+  }
+
+  if (query.isError || verificationUnavailable) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle
+              role="heading"
+              aria-level={1}
+              className="flex items-center gap-2"
+            >
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Não foi possível verificar o acesso
+            </CardTitle>
+            <CardDescription>
+              Nenhuma operação profissional foi iniciada. Verifique sua conexão e
+              tente novamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => void query.refetch()}>
+              <RefreshCw className="h-4 w-4" />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (revokedPatientRoute) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground"
+      >
+        Removendo o contexto indisponível...
+      </div>
+    );
+  }
+
+  if (!resourceEnabled) {
+    const settingsDenied = resource === "professional_settings";
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle role="heading" aria-level={1}>
+              Recurso profissional indisponível
+            </CardTitle>
+            <CardDescription>
+              Este recurso não está disponível no seu acesso atual. Seus pacientes,
+              prontuários e histórico foram preservados.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Plano atual: {query.data?.planName ?? "Não informado"}
+            </p>
+            <Button
+              onClick={() =>
+                setLocation(
+                  settingsDenied
+                    ? "/settings?tab=profissional"
+                    : "/professional/settings"
+                )
+              }
+            >
+              <Settings className="h-4 w-4" />
+              {settingsDenied
+                ? "Voltar às configurações pessoais"
+                : "Ver configurações e acesso"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
