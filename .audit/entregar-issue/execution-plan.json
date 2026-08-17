@@ -1,0 +1,359 @@
+{
+  "schema_version": 2,
+  "contract_version": "2026-08-06.2",
+  "controller_context_id": "delivery-29afcd17-5546-4248-9213-30b95771fb3b",
+  "controller_revision": 1,
+  "controller_cycle": 1,
+  "profile": "critical",
+  "risk_signals": [
+    "fallback",
+    "provider"
+  ],
+  "applicable_skills": [
+    "fluxos-conversacionais"
+  ],
+  "required_gates": [
+    "contract",
+    "critical-risk-family",
+    "documentation",
+    "final-suite",
+    "focused-tests",
+    "identity",
+    "negative-controls",
+    "regression",
+    "working-tree"
+  ],
+  "domain_requests": [
+    {
+      "skill": "fluxos-conversacionais",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": [
+        "server/whatsappImageIdempotencyWebhook.test.ts",
+        "server/whatsappWebhook.image.test.ts",
+        "server/whatsappWebhook.image.water.test.ts"
+      ],
+      "reason": "domain-impact",
+      "input_fingerprint": "a20b7596745c30bee8c42ef6d87d64b401511efc579c04ec121d1910a979ae9a"
+    }
+  ],
+  "execution_order": [
+    "preflight",
+    "contract",
+    "implementation",
+    "documentation",
+    "domain-validation",
+    "hygiene",
+    "final-gate",
+    "freeze",
+    "remote-gate",
+    "audit",
+    "decision"
+  ],
+  "stages": {
+    "preflight": {
+      "fingerprint": "80b946ca1e4ccfd53616192ae4d46a25546a162cf5fe84b2c3b739e8e4b74cfa",
+      "input_fingerprint": "b7bf1b5f80ceb5bd7a9cfa50711c649187c0941509c3f124a4468754ab8d314f",
+      "depends_on": [],
+      "dependency_fingerprints": {},
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "contract": {
+      "fingerprint": "49b302fdcc03e1f40383783368a1e8558c2b9352728caab500715ad39c5c7230",
+      "input_fingerprint": "25c1bc9ef3de5777161a8ecc752703c13f9d00919f63760cbeeeeae7b745e47d",
+      "depends_on": [
+        "preflight"
+      ],
+      "dependency_fingerprints": {
+        "preflight": "80b946ca1e4ccfd53616192ae4d46a25546a162cf5fe84b2c3b739e8e4b74cfa"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "implementation": {
+      "fingerprint": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333",
+      "input_fingerprint": "b2ad27b8a78afa3805cf5202d5fc2755dfaf28c59e93930f91cc43c4a517ed1f",
+      "depends_on": [
+        "contract"
+      ],
+      "dependency_fingerprints": {
+        "contract": "49b302fdcc03e1f40383783368a1e8558c2b9352728caab500715ad39c5c7230"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "documentation": {
+      "fingerprint": "34dddb0928d4c3f1cd61e40222e82975b467263dc6d2cae5556d4f4ba71a5f50",
+      "input_fingerprint": "f291d871aaf6c419f81e83d0e9bf10452d72c24812042d3d69d24eb44887e9ec",
+      "depends_on": [
+        "contract",
+        "implementation"
+      ],
+      "dependency_fingerprints": {
+        "contract": "49b302fdcc03e1f40383783368a1e8558c2b9352728caab500715ad39c5c7230",
+        "implementation": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "domain-validation": {
+      "fingerprint": "4233eb126be520fb4f62f82e5d340b80d82a07a53e17ba401220452d139033da",
+      "input_fingerprint": "55b7ff6b5396587707cb984befedbdef33e484c73bfb735b9e9c16a3d312b008",
+      "depends_on": [
+        "contract",
+        "implementation"
+      ],
+      "dependency_fingerprints": {
+        "contract": "49b302fdcc03e1f40383783368a1e8558c2b9352728caab500715ad39c5c7230",
+        "implementation": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "hygiene": {
+      "fingerprint": "5101f671e0263466c5f29ba308cd5319ec8108c764d1ae86ce5daa293952ca61",
+      "input_fingerprint": "9498e1335ac0b65f305ca5b9ccc2048a7735cd4507f509c722fc2d48e56074d1",
+      "depends_on": [
+        "implementation"
+      ],
+      "dependency_fingerprints": {
+        "implementation": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "final-gate": {
+      "fingerprint": "8b9fe6b808cbc674aff62e84f8c5316ff4382287419d92c3f90c4e17e9439a6b",
+      "input_fingerprint": "eef301774673f4b72c85523801f72c1c82dd15d6a67208f07741d111d00cff46",
+      "depends_on": [
+        "implementation",
+        "documentation",
+        "domain-validation",
+        "hygiene"
+      ],
+      "dependency_fingerprints": {
+        "implementation": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333",
+        "documentation": "34dddb0928d4c3f1cd61e40222e82975b467263dc6d2cae5556d4f4ba71a5f50",
+        "domain-validation": "4233eb126be520fb4f62f82e5d340b80d82a07a53e17ba401220452d139033da",
+        "hygiene": "5101f671e0263466c5f29ba308cd5319ec8108c764d1ae86ce5daa293952ca61"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "freeze": {
+      "fingerprint": "0a6acf0f7d5490598a5160697f572108728b540707c56485b6a818936df13c48",
+      "input_fingerprint": "2425ba7602d35c8baa1c49cbeacb375a3c2566bed930fa75fe31f85e2890dcfc",
+      "depends_on": [
+        "final-gate"
+      ],
+      "dependency_fingerprints": {
+        "final-gate": "8b9fe6b808cbc674aff62e84f8c5316ff4382287419d92c3f90c4e17e9439a6b"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "remote-gate": {
+      "fingerprint": "14cbe36d9d43cb0dd8375b56dbbeaa941e87d8f91e491a1da218b9fb8cca1ad5",
+      "input_fingerprint": "46f71e5fc890def8069c1788df5f657bae0080dae1af21eba9a94be02d88afff",
+      "depends_on": [
+        "freeze"
+      ],
+      "dependency_fingerprints": {
+        "freeze": "0a6acf0f7d5490598a5160697f572108728b540707c56485b6a818936df13c48"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "audit": {
+      "fingerprint": "ce7358a6c145150f004d9d9b682bd1c274ac04dc5e5822fe877901aeb96cc8d6",
+      "input_fingerprint": "eb6e03ab3caabda56fb51274c4f1340830191bf26cca4da1847511e5de59076c",
+      "depends_on": [
+        "freeze",
+        "remote-gate"
+      ],
+      "dependency_fingerprints": {
+        "freeze": "0a6acf0f7d5490598a5160697f572108728b540707c56485b6a818936df13c48",
+        "remote-gate": "14cbe36d9d43cb0dd8375b56dbbeaa941e87d8f91e491a1da218b9fb8cca1ad5"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    },
+    "decision": {
+      "fingerprint": "eccf7374c92f0af766f0be2f5119f2f8e06b725b3c8e4ea9c38593d846b49aa0",
+      "input_fingerprint": "c1b2ce5f65811fea55d64f18e3f0fec49929f1429f79e58f02b9f99d539f7be2",
+      "depends_on": [
+        "audit"
+      ],
+      "dependency_fingerprints": {
+        "audit": "ce7358a6c145150f004d9d9b682bd1c274ac04dc5e5822fe877901aeb96cc8d6"
+      },
+      "reused": false,
+      "invalidated_by": [
+        "no-previous-plan"
+      ]
+    }
+  },
+  "reusable_stages": [],
+  "invalidated_stages": [
+    "preflight",
+    "contract",
+    "implementation",
+    "documentation",
+    "domain-validation",
+    "hygiene",
+    "final-gate",
+    "freeze",
+    "remote-gate",
+    "audit",
+    "decision"
+  ],
+  "context_fingerprints": {
+    "identity": "00199fe03160829a4d1c960df3f57d34edbf54fe99b59b5ceefebc2a42b63a4c",
+    "sources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "baseline": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "workflows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "policy": "464005f5dce18eada07739655487b50b9ed611380d9574a579d8389cfb6df292",
+    "permissions": "8cad637165caac7131dd2a3c662a20c99d576d14f871f198232f3cb73b5669de"
+  },
+  "change_classification": {
+    "docs_only": false,
+    "assets_only": false,
+    "generated_only": false,
+    "test_only": false,
+    "code_touched": false,
+    "runtime_config_touched": false,
+    "behavioral_change": true,
+    "hygiene_applicable": false
+  },
+  "work_items": [],
+  "work_item_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "internal_plan": [
+    {
+      "stage": "implementation",
+      "action": "run",
+      "reason": "internal implementation work for the current contract",
+      "input_fingerprint": "8127c5b3acabdf8be3889686c8d570085fadc06f386e7641898cc88e3749e333",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-FALLBACK",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-IDENTITY",
+        "REQ-987-REFERENCE",
+        "REQ-987-STRUCTURE",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": [
+        "docs/PRIVACY_LGPD.md",
+        "docs/RELIABILITY.md",
+        "docs/design-docs/nutrition-engine.md",
+        "docs/product-specs/meal-registration.md",
+        "server/catalogSemanticSearch.test.ts",
+        "server/catalogSemanticSearch.ts",
+        "server/mealAiExtraction.ts",
+        "server/mealItemBuilders.ts",
+        "server/nutritionEngine.issue987.test.ts",
+        "server/nutritionEngine.ts",
+        "server/whatsappWebhook.image.test.ts"
+      ],
+      "write_owner": "entregar-issue"
+    },
+    {
+      "stage": "documentation-delta",
+      "action": "run",
+      "reason": "small documentation updates remain inside the delivery controller",
+      "input_fingerprint": "34dddb0928d4c3f1cd61e40222e82975b467263dc6d2cae5556d4f4ba71a5f50",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-FALLBACK",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-IDENTITY",
+        "REQ-987-REFERENCE",
+        "REQ-987-STRUCTURE",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": [],
+      "write_owner": "entregar-issue"
+    },
+    {
+      "stage": "hygiene",
+      "action": "not-applicable",
+      "reason": "no eligible executable code outside generated or test-only paths",
+      "input_fingerprint": "5101f671e0263466c5f29ba308cd5319ec8108c764d1ae86ce5daa293952ca61",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-FALLBACK",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-IDENTITY",
+        "REQ-987-REFERENCE",
+        "REQ-987-STRUCTURE",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": [],
+      "write_owner": "entregar-issue"
+    }
+  ],
+  "skill_plan": [
+    {
+      "skill": "fluxos-conversacionais",
+      "action": "run",
+      "reason": "domain-impact",
+      "input_fingerprint": "0d5dc700f5c46edb54836314b8e718614a0f5d89eac8d4eaea919b54985578b2",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": [
+        "server/whatsappImageIdempotencyWebhook.test.ts",
+        "server/whatsappWebhook.image.test.ts",
+        "server/whatsappWebhook.image.water.test.ts"
+      ]
+    },
+    {
+      "skill": "revisar-issue",
+      "action": "conditional",
+      "reason": "run only when readiness has a material decision gap",
+      "input_fingerprint": "f6eac5192c4c37c2c0995fa099d6e17164389b6529a1b2dd890cfb9af511e471",
+      "requirements": [
+        "REQ-987-CONSISTENCY",
+        "REQ-987-FALLBACK",
+        "REQ-987-IDEMPOTENCY",
+        "REQ-987-IDENTITY",
+        "REQ-987-REFERENCE",
+        "REQ-987-STRUCTURE",
+        "REQ-987-WATER-PRECEDENCE"
+      ],
+      "paths": []
+    }
+  ],
+  "publication": {
+    "allowed": false,
+    "reason": "requires material change and local green gates"
+  },
+  "plan_fingerprint": "9f30972e2932bf137a9397f6c9486f10f60ed7784c5012f34788c444c9d73c53",
+  "generated_at": "2026-08-17T17:26:13.927555Z"
+}

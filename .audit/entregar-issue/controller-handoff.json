@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 987,
+  "pull_request": 991,
+  "branch": "fix/987-branded-product-nutrition",
+  "cycle": 1,
+  "implementation_context_id": "delivery-29afcd17-5546-4248-9213-30b95771fb3b",
+  "identity": {
+    "material_head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
+    "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+    "material_merge_preview_sha": "29c694c10e4ee8bae46f97114b13383581ad2e49"
+  },
+  "status": "ready-for-controller-audit",
+  "independent_approval": null,
+  "artifacts": {
+    "specification_snapshot": "specification-snapshot.json",
+    "requirement_closure": "requirement-closure.json",
+    "attack_matrix": "requirement-attack-matrix.json",
+    "risk_saturation": "risk-saturation.json",
+    "inherited_controls": "inherited-controls.json",
+    "certificate": "handoff-ready.json",
+    "gate_attestation": "evidence/final-gate-attestation.json",
+    "remote_gate": "remote-gate-evidence.json",
+    "audit_packet": "audit-packet/manifest.json"
+  },
+  "limitations": ["Remote automatically started PR gates were queued at the single allowed observation."],
+  "data": {"controller_disposition":"ready-for-controller-audit"}
+}

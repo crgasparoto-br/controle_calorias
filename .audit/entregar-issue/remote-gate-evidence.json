@@ -1,11 +1,14 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "repository": "crgasparoto-br/controle_calorias",
+  "pull_request": 991,
+  "material_head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
   "observation_mode": "read-only-single-observation",
   "observed_runs": [
-    { "name": "Agent-first gate", "run_id": 31956480869, "status": "in_progress", "conclusion": null },
-    { "name": "WhatsApp context TiDB gate", "run_id": 31956480866, "status": "in_progress", "conclusion": null }
+    {"name":"Agent-first gate","run_id":32052619471,"status":"queued","conclusion":null,"head_sha":"0c949162725f64168d362e17cc264ff1658599d9"},
+    {"name":"WhatsApp context TiDB gate","run_id":32052619503,"status":"queued","conclusion":null,"head_sha":"0c949162725f64168d362e17cc264ff1658599d9"},
+    {"name":"AI provider live smoke","run_id":32052619485,"status":"completed","conclusion":"skipped","head_sha":"0c949162725f64168d362e17cc264ff1658599d9"}
   ],
   "rerun_or_dispatch_performed": false,
-  "observation_disposition": "remote gates observed once; result-only handoff proceeds while runs are in progress"
+  "observation_disposition": "Remote gates observed once; result-only handoff proceeds while automatically started runs are queued."
 }

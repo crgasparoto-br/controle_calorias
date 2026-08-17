@@ -1,50 +1,44 @@
 {
   "schema_version": 3,
   "specification_snapshot": {
-    "path": "/tmp/delivery986/specification-snapshot.json",
-    "sha256": "d0423840181c0ab711ef633f1c685fe2b47b0b7b0d6da88abdba5610e837c5b0"
+    "path": "/tmp/issue-987-Sagthz/.audit/entregar-issue/specification-snapshot.json",
+    "sha256": "55054349fe46636559049e004d19dfa3a4987875705c6d975446aac69cd55969"
   },
-  "primary_issue_source_id": "SRC-ISSUE-986",
+  "primary_issue_source_id": "SRC-ISSUE-987",
   "obligations": [
     {
       "id": "OBL-001",
-      "candidate_key": "dff4e10d439f5d8629caba45a932ab9638e758b16dfdbddb55c85752c9ed2f56",
-      "source_id": "SRC-ISSUE-986",
-      "source_sha256": "e0e5145f18ace21353143ae884af59306f94517618b0b9c4ea03d9723a69697a",
+      "candidate_key": "0bc73fa2de318bca799191803f37c5107058e3284b97f4e8c814ffc25c71a4c1",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "9f4eb7ad5d79df57eeee3d22fc886c6ff306796ec363718b0ca99e4ccfdf23b7",
       "source_line": 1,
+      "source_text": "Issue #987: no fluxo real de imagem do WhatsApp, preservar brand estruturada e termos semanticamente relevantes de produto/variação até o item persistido e a resposta; marca e variante devem participar da identidade e da seleção da referência nutricional com precedência produto+marca+variação+embalagem, produto+marca+variação, produto+marca, produto+variação e somente então fallback genérico rastreável; referências específicas distintas da mesma categoria devem manter seus próprios macros, uma referência genérica não pode ser apresentada como específica, e fonte externa canônica NUTRITION_SEARCH só pode ser aceita com evidência verificável compatível em produto, marca, variante e porção; sem referência confiável, preservar identidade comercial e confiança/origem heurística sem inventar marca; persistência, totais e resposta devem derivar da mesma referência selecionada; reentrega do mesmo message.id permanece idempotente; água potável pura com marca mantém precedência absoluta do split canônico de hidratação antes de persistência/resposta; must_reuse brand, matching/catálogo e NUTRITION_SEARCH existentes, must_be_single_source para item/totais/resposta, must_not criar lista fixa de marcas/cervejas, segunda inferência visual ou FOOD_CLASSIFICATION adicional, cruzar versões regulares/zero ou aceitar fonte de outra marca/variante; exigir testes com marcas sintéticas fora de qualquer lista, duas referências da mesma categoria com macros distintos, variantes regular/zero, fonte externa incompatível, fallback preservando identidade, rótulo ambíguo, imagem ponta a ponta, idempotência e água mineral de marca.",
       "flags": [
         "exhaustive",
         "observable",
         "negative",
         "temporal",
-        "freshness",
         "atomicity",
-        "aftermath",
         "review-surface",
         "source-catalog",
         "structural",
-        "forbidden-implementation",
         "precedence",
         "semantic-effect"
       ],
       "disposition": "covered",
-      "requirement_ids": [
-        "REQ-986"
-      ],
+      "requirement_ids": ["REQ-987"],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Contrato canônico da issue e remediação cumulativa dos três escapes independentes cobertos no candidato material."
+      "rationale": "A implementação e os controles devem cobrir toda a cadeia imagem -> extração -> matching/pesquisa -> item -> persistência/totais/resposta, incluindo invariantes estruturais e casos negativos."
     }
   ],
   "source_coverage": [
     {
-      "source_id": "SRC-ISSUE-986",
-      "source_sha256": "e0e5145f18ace21353143ae884af59306f94517618b0b9c4ea03d9723a69697a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "9f4eb7ad5d79df57eeee3d22fc886c6ff306796ec363718b0ca99e4ccfdf23b7",
       "candidate_count": 1,
-      "obligation_ids": [
-        "OBL-001"
-      ],
+      "obligation_ids": ["OBL-001"],
       "unmapped_candidate_keys": []
     }
   ],
@@ -52,63 +46,110 @@
   "observable_assertions": [],
   "structural_invariant_closures": {
     "status": "passed",
-    "applicability_reason": "Precedência de hidratação, classificação fail-closed e paridade de representações são contratuais.",
+    "applicability_reason": "Identidade comercial, precedência de referência, fonte única, hidratação e implementações proibidas são invariantes estruturais explícitos.",
     "entries": [
       {
-        "id": "STRUCT-986-001",
-        "kind": "canonical-path-parity",
-        "requirement_ids": [
-          "REQ-986"
-        ],
-        "obligation_ids": [
-          "OBL-001"
-        ],
+        "id": "STRUCT-987-001",
+        "kind": "precedence-and-canonical-path",
+        "requirement_ids": ["REQ-987"],
+        "obligation_ids": ["OBL-001"],
         "evidence_ids": [
-          "OPEN-UNKNOWN-001",
-          "REP-FANIN-001",
-          "SEM-EVIDENCE-001",
-          "SEM-NEGATIVE-001",
-          "REP-RECONCILE-001",
-          "OPEN-POSITION-001"
+          "IDENTITY-987-001",
+          "REFERENCE-987-001",
+          "WATER-987-001",
+          "CONSISTENCY-987-001",
+          "FORBIDDEN-987-001"
         ],
         "negative_control_evidence": [
-          "evidence/issue986-cycle2-remediation.txt",
-          "server/modules/whatsapp/waterItemClassification.test.ts",
+          "evidence/final-gate-stdout.log",
+          "server/nutritionEngine.issue987.test.ts",
           "server/whatsappWebhook.image.water.test.ts",
-          "server/mealAiExtraction.test.ts"
+          "server/whatsappWebhook.image.test.ts"
         ],
         "scenario_ids": [
-          "OPEN-UNKNOWN-001",
-          "REP-FANIN-001",
-          "SEM-EVIDENCE-001",
-          "SEM-NEGATIVE-001",
-          "REP-RECONCILE-001",
-          "OPEN-POSITION-001"
+          "specific-before-generic",
+          "brand-variant-preservation",
+          "water-brand-hydration",
+          "persisted-reply-parity",
+          "open-brand-world"
         ],
-        "canonical_path": "water item classification -> water split -> webhook hydration persistence",
+        "canonical_path": "MEAL_VISION -> matching/catálogo -> NUTRITION_SEARCH -> fallback -> split de hidratação -> persistência/resposta",
         "competing_paths": [
-          "anchor + finite denylist accepts unknown beverage",
-          "auxiliary processing classification is mistaken for independent purity evidence",
-          "classifier accepts embedded volume but downstream resolver ignores it"
+          "categoria genérica antes de referência branded",
+          "marca somente em metadado",
+          "água de marca persistida como refeição",
+          "tabela fixa de marcas"
         ],
-        "plausible_wrong_implementation": "Aceitar token desconhecido após marcador de água usando nível de processamento correlacionado como prova de pureza, ou reconhecer uma representação sem consumi-la downstream."
+        "plausible_wrong_implementation": "Uma tabela fixa passa os exemplos, um catálogo genérico encerra a busca cedo e água mineral de marca permanece na refeição enquanto a resposta mascara a divergência."
       }
     ],
     "unresolved_invariants": []
   },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "O item persistido e a resposta consomem o mesmo MealProcessingResult reconciliado.",
+    "entries": [
+      {
+        "id": "READ-987-001",
+        "producer": "nutritionEngine.processMealInput",
+        "consumers": [
+          "createPendingMealInference",
+          "confirmPendingMeal",
+          "buildWhatsAppMealReplyMessage"
+        ],
+        "evidence": "server/whatsappWebhook.image.test.ts"
+      }
+    ],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "Matching local, pesquisa canônica e fallback compartilham o mesmo contrato de identidade comercial.",
+    "entries": [
+      {
+        "id": "CANON-987-001",
+        "sources": ["brand", "foodName", "portionText"],
+        "consumers": [
+          "catalogMatching",
+          "catalogSemanticSearch",
+          "mealItemBuilders"
+        ],
+        "evidence": "server/nutritionEngine.issue987.test.ts"
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "As fontes canônicas de refeição, nutrição, privacidade e confiabilidade foram atualizadas no mesmo delta.",
+    "old_contract_terms": [],
+    "new_contract_terms": [],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "pnpm docs:check",
+      "docs/product-specs/meal-registration.md",
+      "docs/design-docs/nutrition-engine.md",
+      "docs/PRIVACY_LGPD.md",
+      "docs/RELIABILITY.md"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
   "pass_c": {
     "status": "passed",
-    "requirement_ids": [
-      "REQ-986"
-    ],
-    "obligation_ids": [
-      "OBL-001"
-    ],
+    "requirement_ids": ["REQ-987"],
+    "obligation_ids": ["OBL-001"],
     "evidence": [
-      "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence/issue986-cycle3-remediation.txt",
-      "server/modules/whatsapp/waterItemClassification.ts",
-      "server/modules/whatsapp/waterItemClassification.test.ts",
+      "0c949162725f64168d362e17cc264ff1658599d9",
+      "evidence/final-gate-attestation.json",
+      "server/nutritionEngine.issue987.test.ts",
+      "server/whatsappWebhook.image.test.ts",
       "server/whatsappWebhook.image.water.test.ts"
     ],
     "rederived_without_pr_description": true,

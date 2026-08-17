@@ -1,16 +1,10 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-  "base_sha": "2b906cc26075d93303e06f9092f82175bca2f3d7",
-  "material_merge_preview_sha": "167e67702f0e51c15709de9c50400a2fab5e6e71",
+  "material_head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "material_merge_preview_sha": "29c694c10e4ee8bae46f97114b13383581ad2e49",
   "status": "frozen",
-  "local_controls": [
-    "OPEN-UNKNOWN-001",
-    "REP-FANIN-001",
-    "SEM-EVIDENCE-001",
-    "SEM-NEGATIVE-001",
-    "REP-RECONCILE-001",
-    "OPEN-POSITION-001"
-  ],
-  "previous_independent_rejection": true
+  "local_controls": ["IDENTITY-987-001","REFERENCE-987-001","WATER-987-001","CONSISTENCY-987-001","FORBIDDEN-987-001","IDEM-INBOUND-987-001","IDEM-PERSIST-987-001","DOCS-987-001"],
+  "previous_independent_rejection": false,
+  "gate_attestation": "evidence/final-gate-attestation.json"
 }

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "controller_context_id": "delivery-29afcd17-5546-4248-9213-30b95771fb3b",
+  "controller_revision": 1,
+  "controller_cycle": 1,
+  "controller_cycle_limit": 10,
+  "repository": "crgasparoto-br/controle_calorias",
+  "repository_path": "/tmp/issue-987-Sagthz",
+  "issue": 987,
+  "base_ref": "develop",
+  "branch": "fix/987-branded-product-nutrition",
+  "pull_request": null,
+  "identity": {
+    "head_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+    "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+    "merge_preview_sha": null,
+    "captured_at": "2026-08-17T17:22:40.352710Z",
+    "observed_at": "2026-08-17T17:22:40.352710Z"
+  },
+  "permissions": {
+    "may_write_code": true,
+    "may_update_issue": false,
+    "may_merge": false,
+    "may_execute_destructive_actions": false
+  },
+  "workflow_policy": {
+    "workflow_change_authorized": false,
+    "manual_approval_workflow_authorized": false,
+    "remote_action_mode": "observe-only",
+    "publish_policy": "single-final-candidate"
+  },
+  "workflow_inventory": [],
+  "baseline": {},
+  "source_manifest": {},
+  "metrics": {
+    "issue_full_reads": 0,
+    "documentation_full_scans": 0,
+    "subskill_calls": 0,
+    "full_suites": 0,
+    "freezes": 0,
+    "remote_collections": 0,
+    "reused_stages": 0,
+    "avoidable_invalidations": 0
+  },
+  "created_at": "2026-08-17T17:22:40.352710Z",
+  "updated_at": "2026-08-17T17:22:40.352710Z"
+}

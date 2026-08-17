@@ -1,0 +1,8 @@
+[
+  {
+    "importer": "server/_core/vite.ts",
+    "specifier": "../../vite.config",
+    "reason": "local-import-unresolved",
+    "strategy": "relative"
+  }
+]

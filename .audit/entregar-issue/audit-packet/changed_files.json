@@ -1,0 +1,77 @@
+[
+  {
+    "status": "M",
+    "path": "docs/PRIVACY_LGPD.md",
+    "class": "doc"
+  },
+  {
+    "status": "M",
+    "path": "docs/RELIABILITY.md",
+    "class": "doc"
+  },
+  {
+    "status": "M",
+    "path": "docs/design-docs/nutrition-engine.md",
+    "class": "doc"
+  },
+  {
+    "status": "M",
+    "path": "docs/product-specs/meal-registration.md",
+    "class": "doc"
+  },
+  {
+    "status": "M",
+    "path": "server/brandedSnackNutrition.test.ts",
+    "class": "test"
+  },
+  {
+    "status": "M",
+    "path": "server/catalogMatching.ts",
+    "class": "production"
+  },
+  {
+    "status": "M",
+    "path": "server/catalogSemanticSearch.test.ts",
+    "class": "test"
+  },
+  {
+    "status": "M",
+    "path": "server/catalogSemanticSearch.ts",
+    "class": "production"
+  },
+  {
+    "status": "M",
+    "path": "server/mealAiExtraction.ts",
+    "class": "production"
+  },
+  {
+    "status": "M",
+    "path": "server/mealItemBuilders.ts",
+    "class": "production"
+  },
+  {
+    "status": "M",
+    "path": "server/nutritionEngine.brand.test.ts",
+    "class": "test"
+  },
+  {
+    "status": "M",
+    "path": "server/nutritionEngine.brandTypeSpecificity.test.ts",
+    "class": "test"
+  },
+  {
+    "status": "A",
+    "path": "server/nutritionEngine.issue987.test.ts",
+    "class": "test"
+  },
+  {
+    "status": "M",
+    "path": "server/nutritionEngine.ts",
+    "class": "production"
+  },
+  {
+    "status": "M",
+    "path": "server/whatsappWebhook.image.test.ts",
+    "class": "test"
+  }
+]

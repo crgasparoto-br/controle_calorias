@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-06.2",
+  "skill": "fluxos-conversacionais",
+  "mode": "internal-verification",
+  "status": "no-change",
+  "summary": "Verified existing inbound and persistence idempotency controls for branded image processing.",
+  "findings": [],
+  "validations": [{"command":"pnpm test","status":"passed","evidence":"../evidence/final-gate-stdout.log"}],
+  "artifacts": [],
+  "changed_files": [],
+  "limitations": [],
+  "requires_refreeze": false,
+  "input_fingerprint": "0d5dc700f5c46edb54836314b8e718614a0f5d89eac8d4eaea919b54985578b2",
+  "reused": false,
+  "skip_reason": "The supporting skill was used for internal verification; the primary implementation already owned the WhatsApp test changes."
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "final-agent-gate",
+  "command": "env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm test && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm architecture:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm docs:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 CI_SHARDED_TESTS_COMPLETE=1 ./node_modules/.bin/pnpm agent:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm build",
+  "cwd": "/tmp/issue-987-Sagthz",
+  "exit_code": 0,
+  "started_at": "2026-08-17T17:40:07.564649Z",
+  "finished_at": "2026-08-17T17:44:19.648178Z",
+  "head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
+  "stdout_sha256": "3bed6d7429db855a7c76c4deb4e8d20e0f85e38fbd5d50bc6caf49385b724904",
+  "stderr_sha256": "76b46615584d2a4ed89e25db542f0e02c13990346988be7753c30ca23d58a5e8",
+  "stdout_path": "/tmp/issue987-gates-r2/stdout.log",
+  "stderr_path": "/tmp/issue987-gates-r2/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}
