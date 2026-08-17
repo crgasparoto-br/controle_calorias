@@ -4,6 +4,7 @@
 
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
+import { getCurrentAiUsageScope } from "./_core/ai/usageContext";
 import { notifyStorageObjectPersisted } from "./storagePersistenceCorrelation";
 
 type ForgeStorageConfig = { baseUrl: string; apiKey: string };
@@ -21,6 +22,7 @@ type StorageConfig =
 
 type StoragePutOptions = {
   publicRead?: boolean;
+  usage?: { userId: number; correlationId?: string };
 };
 
 const R2_REQUIRED_ENV = [
@@ -246,10 +248,51 @@ export async function storagePut(
 ): Promise<{ key: string; url: string }> {
   const storage = getStorageConfig();
   const sourceKey = normalizeKey(relKey);
-  const stored = storage.provider === "r2"
-    ? await putToR2Storage(storage.config, buildOpaqueR2Key(sourceKey, options.publicRead), data, contentType, options)
-    : await putToForgeStorage(storage.config, buildForgeStorageKey(sourceKey), data, contentType);
+  const usage = options.usage ?? getCurrentAiUsageScope();
+  const destinationKey = storage.provider === "r2"
+    ? buildOpaqueR2Key(sourceKey, options.publicRead)
+    : buildForgeStorageKey(sourceKey);
+  const { createHash } = await import("node:crypto");
+  const usageKey = `storage:put:${createHash("sha256").update(destinationKey).digest("hex").slice(0, 40)}`;
+  const scopedConversation = getCurrentAiUsageScope()?.conversationId;
+  const byteLength = typeof data === "string" ? Buffer.byteLength(data) : data.byteLength;
+  if (usage?.userId) {
+    const { recordDirectProcessingUsage } = await import("./modules/usageGovernance/service");
+    await recordDirectProcessingUsage({
+      userId: usage.userId,
+      idempotencyKey: usageKey,
+      operation: "storage_write",
+      channel: "storage",
+      unitType: "bytes",
+      unitCount: byteLength,
+      correlationId: options.usage?.correlationId ?? (scopedConversation ? `storage:${createHash("sha256").update(scopedConversation).digest("hex").slice(0, 40)}` : usageKey),
+      provider: storage.provider,
+      eventState: "provider_dispatch_reserved",
+      metadata: { provider: storage.provider, contentClass: contentType.split("/")[0] || "unknown", measurementState: "reserved_before_provider_call" },
+    });
+    if (process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE !== "memory") {
+      const { claimUsageProviderDispatch } = await import("./repositories/usageProviderDispatchRepository");
+      const claim = await claimUsageProviderDispatch(usageKey);
+      if (!claim.claimed) throw new Error("usage_storage_dispatch_not_claimed");
+    }
+  }
+  let stored: {key:string;url:string};
+  try {
+    stored = storage.provider === "r2"
+      ? await putToR2Storage(storage.config, destinationKey, data, contentType, options)
+      : await putToForgeStorage(storage.config, destinationKey, data, contentType);
+  } catch (error) {
+    if (usage?.userId && process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE !== "memory") {
+      const { finalizeUsageProviderDispatch } = await import("./repositories/usageProviderDispatchRepository");
+      await finalizeUsageProviderDispatch({idempotencyKey:usageKey,eventState:"failure",operation:"storage_write",attemptRole:"primary",metadata:{provider:storage.provider,measurementState:"finalized"}}).catch(()=>undefined);
+    }
+    throw error;
+  }
   await notifyStorageObjectPersisted(sourceKey, stored.key, contentType);
+  if (usage?.userId && process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE !== "memory") {
+    const { finalizeUsageProviderDispatch } = await import("./repositories/usageProviderDispatchRepository");
+    await finalizeUsageProviderDispatch({idempotencyKey:usageKey,eventState:"success",operation:"storage_write",attemptRole:"primary",unitType:"bytes",unitCount:byteLength,provider:storage.provider,metadata:{provider:storage.provider,contentClass:contentType.split("/")[0]||"unknown",measurementState:"finalized"}}).catch(()=>undefined);
+  }
   return stored;
 }
 
@@ -270,7 +313,25 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 export async function storageRead(relKey: string): Promise<{ key: string; data: Buffer; contentType: string }> {
   const storage = getStorageConfig();
   const key = normalizeKey(relKey);
-  return storage.provider === "r2"
+  const result = storage.provider === "r2"
     ? readFromR2Storage(storage.config, key)
     : readFromForgeStorage(storage.config, key);
+  const read = await result;
+  const usage = getCurrentAiUsageScope();
+  if (usage?.userId) {
+    const { createHash } = await import("node:crypto");
+    const { recordDirectProcessingUsage } = await import("./modules/usageGovernance/service");
+    const readUsageKey = `storage:read:${createHash("sha256").update(`${key}:${usage.conversationId ?? "request"}`).digest("hex").slice(0, 40)}`;
+    await recordDirectProcessingUsage({
+      userId: usage.userId,
+      idempotencyKey: readUsageKey,
+      operation: "storage_traffic_read",
+      channel: "storage",
+      unitType: "bytes",
+      unitCount: read.data.byteLength,
+      correlationId: readUsageKey,
+      metadata: { provider: storage.provider, contentClass: read.contentType.split("/")[0] || "unknown" },
+    });
+  }
+  return read;
 }

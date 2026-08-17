@@ -73,11 +73,18 @@ export async function claimUsageProviderDispatch(idempotencyKey: string, now = n
 
 export async function finalizeUsageProviderDispatch(input: {
   idempotencyKey: string;
-  eventState: "success" | "failure";
+  eventState: string;
   operation: string;
   attemptRole: string;
   retryRootKey?: string | null;
   metadata: Record<string, unknown>;
+  provider?: string | null;
+  model?: string | null;
+  unitType?: string;
+  unitCount?: number;
+  estimatedCostMicros?: number | null;
+  effectiveCostMicros?: number | null;
+  currency?: string | null;
 }) {
   const db = await requireDb();
   const result = await db.execute(sql`
@@ -86,6 +93,13 @@ export async function finalizeUsageProviderDispatch(input: {
         operation = ${input.operation},
         attemptRole = ${input.attemptRole},
         retryRootKey = ${input.retryRootKey ?? null},
+        provider = COALESCE(${input.provider ?? null}, provider),
+        model = COALESCE(${input.model ?? null}, model),
+        unitType = COALESCE(${input.unitType ?? null}, unitType),
+        unitCount = COALESCE(${input.unitCount ?? null}, unitCount),
+        estimatedCostMicros = ${input.estimatedCostMicros ?? null},
+        effectiveCostMicros = ${input.effectiveCostMicros ?? null},
+        currency = COALESCE(${input.currency ?? null}, currency),
         metadataJson = ${JSON.stringify(input.metadata)}
     WHERE idempotencyKey = ${input.idempotencyKey}
       AND invalidatedAt IS NULL

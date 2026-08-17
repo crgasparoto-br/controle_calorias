@@ -21,6 +21,36 @@ export async function purgeUsageGovernanceRetention(input: {
   const db = await requireDb();
   await db.transaction(async tx => {
     await tx.execute(sql`
+      UPDATE billingUsageLimitations
+      SET state='expired'
+      WHERE state='active' AND endsAt <= ${input.now}
+    `);
+    await tx.execute(sql`
+      UPDATE billingUsageAbuseCases
+      SET state='dismissed', closedAt=COALESCE(closedAt, reviewedAt)
+      WHERE reviewOutcome='dismissed' AND closedAt IS NULL
+    `);
+    await tx.execute(sql`
+      UPDATE billingUsageAbuseCases c
+      JOIN (
+        SELECT abuseCaseId, MAX(COALESCE(revokedAt, endsAt)) AS terminalAt
+        FROM billingUsageLimitations
+        GROUP BY abuseCaseId
+      ) lifecycle ON lifecycle.abuseCaseId=c.id
+      SET c.state='closed', c.closedAt=COALESCE(c.closedAt, lifecycle.terminalAt)
+      WHERE c.reviewOutcome='limitation_approved'
+        AND c.closedAt IS NULL
+        AND lifecycle.terminalAt <= ${input.now}
+        AND NOT EXISTS (
+          SELECT 1 FROM billingUsageLimitations active
+          WHERE active.abuseCaseId=c.id AND active.state='active' AND active.endsAt>${input.now}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM billingUsageLimitationAppeals appeal
+          WHERE appeal.abuseCaseId=c.id AND appeal.state='pending'
+        )
+    `);
+    await tx.execute(sql`
       DELETE e FROM billingUsageEvents e
       LEFT JOIN billingUsageLegalHolds h
         ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
@@ -62,11 +92,12 @@ export async function purgeUsageGovernanceRetention(input: {
       WHERE COALESCE(g.revokedAt, g.endsAt) < ${input.governanceCutoff} AND h.id IS NULL
     `);
     await tx.execute(sql`
-      DELETE c FROM billingUsageAbuseCases c
+      DELETE appeal FROM billingUsageLimitationAppeals appeal
+      LEFT JOIN billingUsageAbuseCases c ON c.id=appeal.abuseCaseId
       LEFT JOIN billingUsageLegalHolds h
         ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
-       AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(c.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
-      WHERE c.closedAt < ${input.governanceCutoff} AND h.id IS NULL
+       AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(appeal.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
+      WHERE COALESCE(appeal.reviewedAt, appeal.submittedAt) < ${input.governanceCutoff} AND h.id IS NULL
     `);
     await tx.execute(sql`
       DELETE l FROM billingUsageLimitations l
@@ -75,6 +106,13 @@ export async function purgeUsageGovernanceRetention(input: {
         ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
        AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(l.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
       WHERE COALESCE(l.revokedAt, l.endsAt) < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE c FROM billingUsageAbuseCases c
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(c.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
+      WHERE c.closedAt < ${input.governanceCutoff} AND h.id IS NULL
     `);
     await tx.execute(sql`
       DELETE a FROM billingConsumptionChargeAuthorizations a

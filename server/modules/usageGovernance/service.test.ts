@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   listEconomicFacts: vi.fn(),
   listMonthlyEconomicAggregates: vi.fn(),
   listUsageEvents: vi.fn(),
+  listUsageDailyAggregatesPage: vi.fn(),
   purgeUsageGovernanceRetention: vi.fn(),
   refreshUsageDailyAggregates: vi.fn(),
   upsertMonthlyEconomicAggregate: vi.fn(),
@@ -20,9 +21,10 @@ vi.mock("../../repositories/usageGovernanceRepository", () => ({
   getActiveUsageLimitation: mocks.getActiveUsageLimitation,
   recordUsageEvent: mocks.recordUsageEvent,
   recordEconomicFact: mocks.recordEconomicFact,
-  listEconomicFacts: mocks.listEconomicFacts,
+  listEconomicFactsPage: ({ cursor: _cursor, limit: _limit, ...input }: Record<string, unknown>) => mocks.listEconomicFacts(input),
   listMonthlyEconomicAggregates: mocks.listMonthlyEconomicAggregates,
-  listUsageEvents: mocks.listUsageEvents,
+  listUsageEventsPage: ({ cursor: _cursor, limit: _limit, ...input }: Record<string, unknown>) => mocks.listUsageEvents(input),
+  listUsageDailyAggregatesPage: (input: unknown) => mocks.listUsageDailyAggregatesPage(input),
   refreshUsageDailyAggregates: mocks.refreshUsageDailyAggregates,
   upsertMonthlyEconomicAggregate: mocks.upsertMonthlyEconomicAggregate,
 }));
@@ -125,6 +127,14 @@ describe("usage governance", () => {
     mocks.listEconomicFacts.mockResolvedValue([]);
     mocks.listMonthlyEconomicAggregates.mockResolvedValue([]);
     mocks.listUsageEvents.mockResolvedValue([]);
+    mocks.listUsageDailyAggregatesPage.mockImplementation(async (input: unknown) => (await mocks.listUsageEvents(input)).map((row: Record<string, unknown>, index: number) => ({
+      ...row,
+      aggregateKey: row.aggregateKey ?? `aggregate-${index}`,
+      eventCount: row.eventCount ?? 1,
+      retryCount: row.retryCount ?? (row.attemptRole === "retry" || row.attemptRole === "fallback" ? 1 : 0),
+      failureCount: row.failureCount ?? (row.eventState && row.eventState !== "success" ? 1 : 0),
+      recognizedCostMicros: row.recognizedCostMicros ?? row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0,
+    })));
     mocks.refreshUsageDailyAggregates.mockResolvedValue(undefined);
     mocks.upsertMonthlyEconomicAggregate.mockResolvedValue(undefined);
   });
@@ -459,6 +469,45 @@ describe("usage governance", () => {
     ]);
     const result = await getInternalUsageAnalytics({ from: new Date("2026-08-01T00:00:00.000Z"), to: new Date("2026-08-31T23:59:59.000Z"), userId: 7 });
     expect(result.monthlyEconomics[0]).toMatchObject({ rolling3MonthVariableCostRatioBps: null, rolling3MonthHealth: "unavailable", mandatoryReviewRequired: false });
+  });
+
+  it.each([50_000, 50_001])("paginates %i aggregate rows without silent truncation", async total => {
+    mocks.listUsageDailyAggregatesPage.mockImplementation(async (input: { cursor?: string | null; limit: number }) => {
+      const start = input.cursor ? Number(input.cursor.split("-")[1]) + 1 : 0;
+      const size = Math.min(input.limit, total - start);
+      return Array.from({ length: Math.max(0, size) }, (_, offset) => ({
+        aggregateKey: `row-${String(start + offset).padStart(6, "0")}`,
+        usageDate: "2026-08-01", beneficiaryUserId: 7, patientUserId: null,
+        sponsorUserId: null, payerUserId: 7, subscriptionId: "sub-1",
+        productCode: "individual", versionCode: "v1", billingCycle: "monthly",
+        accessSource: "active_subscription", operation: "meal_text", channel: "web",
+        provider: "openai", model: "model", currency: "USD", eventCount: 1,
+        unitCount: 1, successCount: 1, failureCount: 0, retryCount: 0,
+        estimatedCostMicros: 1, effectiveCostMicros: 0, recognizedCostMicros: 1,
+      }));
+    });
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2026-08-01T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    expect(result.byOperation).toEqual([expect.objectContaining({ calls: total, units: total })]);
+    expect(result.coverage.usage).toMatchObject({ state: "complete", truncated: false, source: "daily_aggregates" });
+    expect(mocks.listUsageDailyAggregatesPage).toHaveBeenCalledTimes(Math.ceil(total / 5000) + (total % 5000 === 0 ? 1 : 0));
+  });
+
+  it("reports partial coverage when the requested usage window spans detailed aggregate retention", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T00:00:00.000Z"));
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2021-08-01T00:00:00.000Z"),
+      to: new Date("2026-08-17T00:00:00.000Z"),
+    });
+    expect(result.coverage.usage).toMatchObject({
+      state: "partial",
+      availableFrom: new Date("2024-08-17T00:00:00.000Z"),
+      truncated: false,
+    });
+    expect(result.coverage.economics).toMatchObject({ state: "complete", retentionYears: 5 });
   });
 
   it("retains detail 13 months, daily aggregates 24 months and monthly economics/audit five years", async () => {

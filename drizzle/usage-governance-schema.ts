@@ -16,6 +16,7 @@ const count = (name: string) => bigint(name, { mode: "number" });
 export const billingUsageEvents = mysqlTable("billingUsageEvents", {
   id: varchar("id", { length: 64 }).primaryKey(),
   idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  payloadFingerprint: varchar("payloadFingerprint", { length: 64 }).notNull(),
   beneficiaryUserId: int("beneficiaryUserId").notNull(),
   patientUserId: int("patientUserId"),
   sponsorUserId: int("sponsorUserId"),
@@ -61,6 +62,7 @@ export const billingUsageDailyAggregates = mysqlTable("billingUsageDailyAggregat
   aggregateKey: varchar("aggregateKey", { length: 191 }).primaryKey(),
   usageDate: date("usageDate").notNull(),
   beneficiaryUserId: int("beneficiaryUserId").notNull(),
+  patientUserId: int("patientUserId"),
   sponsorUserId: int("sponsorUserId"), payerUserId: int("payerUserId").notNull(),
   subscriptionId: varchar("subscriptionId", { length: 64 }), productCode: varchar("productCode", { length: 120 }),
   versionCode: varchar("versionCode", { length: 191 }), billingCycle: varchar("billingCycle", { length: 32 }),
@@ -69,6 +71,7 @@ export const billingUsageDailyAggregates = mysqlTable("billingUsageDailyAggregat
   currency: varchar("currency", { length: 3 }), eventCount: count("eventCount").default(0).notNull(), unitCount: count("unitCount").default(0).notNull(),
   successCount: count("successCount").default(0).notNull(), failureCount: count("failureCount").default(0).notNull(), retryCount: count("retryCount").default(0).notNull(),
   estimatedCostMicros: count("estimatedCostMicros").default(0).notNull(), effectiveCostMicros: count("effectiveCostMicros").default(0).notNull(),
+  recognizedCostMicros: count("recognizedCostMicros").default(0).notNull(),
   unpricedCount: count("unpricedCount").default(0).notNull(), ruleVersion: varchar("ruleVersion", { length: 64 }).notNull(), updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 }, table => ({
   dateIdx: index("billingUsageDailyAggregates_date_idx").on(table.usageDate),
@@ -78,6 +81,7 @@ export const billingUsageDailyAggregates = mysqlTable("billingUsageDailyAggregat
 
 export const billingEconomicFacts = mysqlTable("billingEconomicFacts", {
   id: varchar("id", { length: 64 }).primaryKey(), idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  supersedesFactId: varchar("supersedesFactId", { length: 64 }), supersededByFactId: varchar("supersededByFactId", { length: 64 }), supersededAt: timestamp("supersededAt"), payloadFingerprint: varchar("payloadFingerprint", { length: 64 }).notNull(),
   subscriptionId: varchar("subscriptionId", { length: 64 }), payerUserId: int("payerUserId").notNull(), productCode: varchar("productCode", { length: 120 }),
   versionCode: varchar("versionCode", { length: 191 }), billingCycle: varchar("billingCycle", { length: 32 }), factType: varchar("factType", { length: 64 }).notNull(),
   amountMinor: count("amountMinor").notNull(), currency: varchar("currency", { length: 3 }).notNull(), valueKind: varchar("valueKind", { length: 16 }).notNull(),
@@ -87,6 +91,8 @@ export const billingEconomicFacts = mysqlTable("billingEconomicFacts", {
   legalHold: boolean("legalHold").default(false).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
   idempotencyUq: uniqueIndex("billingEconomicFacts_idempotency_uq").on(table.idempotencyKey),
+  supersedesUq: uniqueIndex("billingEconomicFacts_supersedes_uq").on(table.supersedesFactId),
+  activeCompetenceIdx: index("billingEconomicFacts_active_competence_idx").on(table.supersededAt, table.competenceStart, table.competenceEnd),
   subscriptionCompetenceIdx: index("billingEconomicFacts_subscription_competence_idx").on(table.subscriptionId, table.competenceStart),
   payerCompetenceIdx: index("billingEconomicFacts_payer_competence_idx").on(table.payerUserId, table.competenceStart),
   typeCompetenceIdx: index("billingEconomicFacts_type_competence_idx").on(table.factType, table.competenceStart),
@@ -135,10 +141,17 @@ export const billingUsageAbuseCases = mysqlTable("billingUsageAbuseCases", {
 export const billingUsageLimitations = mysqlTable("billingUsageLimitations", {
   id: varchar("id", { length: 64 }).primaryKey(), abuseCaseId: varchar("abuseCaseId", { length: 64 }).notNull(), subjectUserId: int("subjectUserId").notNull(),
   operationsJson: json("operationsJson").notNull(), reason: varchar("reason", { length: 255 }).notNull(), startsAt: timestamp("startsAt").notNull(), endsAt: timestamp("endsAt").notNull(),
-  emergencySecurity: boolean("emergencySecurity").default(false).notNull(), approvedByUserId: int("approvedByUserId").notNull(), secondApprovedByUserId: int("secondApprovedByUserId"),
+  emergencySecurity: boolean("emergencySecurity").default(false).notNull(), lifecycleKind: varchar("lifecycleKind", { length: 24 }).notNull(), approvedByUserId: int("approvedByUserId").notNull(), secondApprovedByUserId: int("secondApprovedByUserId"),
   communicatedAt: timestamp("communicatedAt"), appealOfferedAt: timestamp("appealOfferedAt"), state: varchar("state", { length: 24 }).default("active").notNull(),
   revokedAt: timestamp("revokedAt"), revokedByUserId: int("revokedByUserId"), revokeReason: varchar("revokeReason", { length: 255 }), createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, table => ({ subjectStateIdx: index("billingUsageLimitations_subject_state_idx").on(table.subjectUserId, table.state, table.endsAt), caseIdx: index("billingUsageLimitations_case_idx").on(table.abuseCaseId) }));
+}, table => ({ subjectStateIdx: index("billingUsageLimitations_subject_state_idx").on(table.subjectUserId, table.state, table.endsAt), caseIdx: index("billingUsageLimitations_case_idx").on(table.abuseCaseId), caseLifecycleUq: uniqueIndex("billingUsageLimitations_case_lifecycle_uq").on(table.abuseCaseId, table.lifecycleKind) }));
+
+export const billingUsageLimitationAppeals = mysqlTable("billingUsageLimitationAppeals", {
+  id: varchar("id", { length: 64 }).primaryKey(), limitationId: varchar("limitationId", { length: 64 }).notNull(), abuseCaseId: varchar("abuseCaseId", { length: 64 }).notNull(),
+  subjectUserId: int("subjectUserId").notNull(), submittedByUserId: int("submittedByUserId").notNull(), rationale: varchar("rationale", { length: 1000 }).notNull(),
+  state: varchar("state", { length: 24 }).default("pending").notNull(), submittedAt: timestamp("submittedAt").notNull(), reviewedByUserId: int("reviewedByUserId"),
+  reviewRationale: varchar("reviewRationale", { length: 1000 }), result: varchar("result", { length: 24 }), reviewedAt: timestamp("reviewedAt"), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ limitationUq: uniqueIndex("billingUsageLimitationAppeals_limitation_uq").on(table.limitationId), caseStateIdx: index("billingUsageLimitationAppeals_case_state_idx").on(table.abuseCaseId, table.state, table.submittedAt) }));
 
 export const billingConsumptionChargeAuthorizations = mysqlTable("billingConsumptionChargeAuthorizations", {
   id: varchar("id", { length: 64 }).primaryKey(), state: varchar("state", { length: 24 }).default("approved").notNull(), policyVersion: varchar("policyVersion", { length: 64 }).notNull(),

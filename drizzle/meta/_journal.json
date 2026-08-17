@@ -316,6 +316,13 @@
       "when": 1786924980000,
       "tag": "0046_billing_usage_provider_dispatch_state",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1786925040000,
+      "tag": "0047_usage_governance_audit_closure",
+      "breakpoints": true
     }
   ]
 }

@@ -127,8 +127,7 @@ describe("usage governance charging rollback", () => {
       approvedByUserId: 22,
     }))).resolves.toMatchObject({ state: "active" });
     expect(mocks.createLimitation).toHaveBeenCalledWith(expect.objectContaining({
-      approvedByUserId: 11,
-      secondApprovedByUserId: 22,
+      approvedByUserId: 22,
     }));
   });
 

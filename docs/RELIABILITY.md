@@ -57,6 +57,14 @@ pnpm db:check-integrity
 - Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
 - Para `IMAGE_ANNOTATION`, testes devem distinguir `local`, `external` e `off`, provar ausência de rede no default local, preservar os bytes originais, limitar uma chamada por tentativa e manter falhas locais/externas não bloqueantes.
 
+## Governança de uso e custo
+
+- Toda tentativa potencialmente faturável de provider deve reservar uma posição idempotente durável antes do efeito externo. Falha na reserva impede a chamada; falha na finalização preserva a posição pendente para reconciliação e nunca repete o efeito.
+- Fatos econômicos estimados e efetivos permanecem separados. O efetivo referencia e substitui explicitamente a estimativa compatível; receita e KPIs consideram apenas a versão ativa.
+- Reuso conflitante de chave idempotente falha fechado. Retry equivalente é um no-op verificável pelo fingerprint normalizado.
+- Analytics percorre fatos por paginação interna e expõe cobertura, fonte, intervalo disponível e retenção. Um limite interno de lote nunca pode ser apresentado como histórico completo.
+- Limitações, extensões, recursos e encerramentos usam transações e invariantes de banco. O job de retenção só remove casos terminais anteriores a cinco anos e respeita legal hold ativo.
+
 ## Pendências multietapas do WhatsApp
 
 - Persistir a operação pendente antes de emitir pergunta, botão ou solicitação cuja resposta dependa do contexto salvo.

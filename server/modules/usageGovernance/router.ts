@@ -1,11 +1,10 @@
-import crypto from "node:crypto";
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { usageGovernanceAdminService } from "./adminService";
 import { reconcileUsageCost } from "./costReconciliation";
 import { configureUsagePolicy, resolveFairUsePolicy } from "./policyService";
 import { getInternalUsageAnalytics, registerEconomicFact } from "./service";
+import { governanceError } from "./publicBoundary";
 import {
   applyUsageLimitationSchema,
   authorizeConsumptionChargingSchema,
@@ -20,14 +19,14 @@ import {
   revokeUsageAllowanceSchema,
   revokeUsageLegalHoldSchema,
   revokeUsageLimitationSchema,
+  reviewUsageLimitationAppealSchema,
+  submitUsageLimitationAppealSchema,
   usageLegalHoldSchema,
 } from "./schemas";
 
-const API_UNEXPECTED_ERROR = "API_UNEXPECTED_ERROR";
-const API_UNEXPECTED_ERROR_MESSAGE = "Não foi possível atualizar a governança de consumo.";
-
 const economicFactSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(191),
+  supersedesIdempotencyKey: z.string().trim().min(8).max(191).optional(),
   payerUserId: z.number().int().positive(),
   subscriptionId: z.string().trim().max(64).optional(),
   productCode: z.string().trim().max(120).optional(),
@@ -43,38 +42,6 @@ const economicFactSchema = z.object({
   reason: z.string().trim().max(255).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
-
-type PublicResponseHeaders = {
-  setHeader(name: string, value: string): unknown;
-};
-
-function isExpectedGovernanceError(code: string) {
-  const infrastructureFailure = /(?:persistence|database|sql|adapter|unavailable|timeout|connection|internal|unexpected)/i.test(code);
-  if (infrastructureFailure) return false;
-  return code.startsWith("usage_") || code.startsWith("consumption_charge_") || code.startsWith("economic_fact_");
-}
-
-function governanceError(error: unknown, response: PublicResponseHeaders): never {
-  const code = error instanceof Error ? error.message : "usage_governance_error";
-  if (isExpectedGovernanceError(code)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: code,
-    });
-  }
-
-  const correlationId = crypto.randomUUID();
-  response.setHeader("x-error-code", API_UNEXPECTED_ERROR);
-  response.setHeader("x-correlation-id", correlationId);
-  console.error("Unexpected usage-governance public-boundary failure", {
-    correlationId,
-    errorName: error instanceof Error ? error.name : typeof error,
-  });
-  throw new TRPCError({
-    code: "INTERNAL_SERVER_ERROR",
-    message: API_UNEXPECTED_ERROR_MESSAGE,
-  });
-}
 
 export const usageGovernanceRouter = router({
   analytics: adminProcedure.input(internalUsageAnalyticsSchema).query(async ({ ctx, input }) => {
@@ -172,6 +139,14 @@ export const usageGovernanceRouter = router({
   }),
   revokeLimitation: adminProcedure.input(revokeUsageLimitationSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeUsageLimitation(input.id, ctx.user.id, input.reason); return { revoked: true as const }; }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  submitLimitationAppeal: protectedProcedure.input(submitUsageLimitationAppealSchema).mutation(async ({ ctx, input }) => {
+    try { return await usageGovernanceAdminService.submitUsageLimitationAppeal({ ...input, subjectUserId: ctx.user.id }); }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  reviewLimitationAppeal: adminProcedure.input(reviewUsageLimitationAppealSchema).mutation(async ({ ctx, input }) => {
+    try { return await usageGovernanceAdminService.resolveUsageLimitationAppeal({ ...input, reviewerUserId: ctx.user.id }); }
     catch (error) { governanceError(error, ctx.res); }
   }),
 

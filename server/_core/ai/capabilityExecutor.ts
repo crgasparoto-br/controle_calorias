@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AiProvider } from "../aiProvider";
 import type { ResolvedCapabilityConfig, ResolvedProviderModel } from "./configResolver";
 import {
@@ -147,6 +148,8 @@ export async function executeResolvedCapability<T>(
   const attemptCompletions: AiObservedAttemptCompletion<T>[] = [];
   const providerCalls = new Map<string, AiProviderCallObservation>();
   const executionStartedAt = performance.now();
+  const usageExecutionId = randomUUID();
+  const usageReservations = new Map<string, import("../../modules/usageGovernance/service").AiProviderUsageReservation>();
   let executionSucceeded = false;
   let primaryAdapter: AiProvider | null = null;
   let fallbackAdapter: AiProvider | null = null;
@@ -169,6 +172,25 @@ export async function executeResolvedCapability<T>(
         observation ??= current;
       },
     });
+
+    const callRole = effectiveObservability?.callRole === "escalation"
+      ? "escalation" as const
+      : context.source === "fallback"
+        ? "fallback" as const
+        : context.attempt > 1 ? "retry" as const : "primary" as const;
+    const { prepareAiProviderAttemptUsage } = await import("../../modules/usageGovernance/service");
+    const reservation = await prepareAiProviderAttemptUsage({
+      executionId: usageExecutionId,
+      capability: config.capability,
+      flow: effectiveObservability?.flow ?? config.capability.toLowerCase(),
+      origin: effectiveObservability?.origin ?? "system",
+      provider: providerId,
+      model,
+      callRole,
+      attemptIndex: context.source === "fallback" ? config.maxAttempts + 1 : context.attempt,
+      correlation: effectiveObservability?.correlation ?? {},
+    });
+    if (reservation) usageReservations.set(key, reservation);
 
     try {
       const value = await operation({
@@ -231,6 +253,21 @@ export async function executeResolvedCapability<T>(
           ...completion,
           ...(providerCalls.get(key) ? { providerCall: providerCalls.get(key) } : {}),
         });
+        const reservation = usageReservations.get(key);
+        if (reservation) {
+          const events = buildAiInferenceEvents({
+            config,
+            attempts: attemptCompletions,
+            context: effectiveObservability,
+            totalLatencyMs: performance.now() - executionStartedAt,
+            executionId: usageExecutionId,
+          });
+          const event = events.at(-1);
+          if (event) {
+            const { finalizeAiProviderAttemptUsage } = await import("../../modules/usageGovernance/service");
+            await finalizeAiProviderAttemptUsage(reservation, event);
+          }
+        }
         if (onAttemptComplete) await onAttemptComplete(completion);
       },
     });
@@ -253,6 +290,7 @@ export async function executeResolvedCapability<T>(
         ? { ...effectiveObservability, degradationOnFailure: undefined }
         : effectiveObservability,
       totalLatencyMs: performance.now() - executionStartedAt,
+      executionId: usageExecutionId,
     });
     await emitAiInferenceEvents(events, observabilitySink === undefined ? undefined : observabilitySink);
   }

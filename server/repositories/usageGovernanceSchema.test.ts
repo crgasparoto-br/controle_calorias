@@ -4,15 +4,16 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("usage governance canonical Drizzle installation", () => {
-  it("keeps migrations 0043-0046 journaled and represented by the canonical schema snapshot", () => {
+  it("keeps migrations 0043-0047 journaled and represented by the canonical schema", () => {
     const journal = JSON.parse(read("drizzle/meta/_journal.json")) as {
       entries: Array<{ idx: number; tag: string }>;
     };
-    expect(journal.entries.slice(-4).map(entry => entry.tag)).toEqual([
+    expect(journal.entries.slice(-5).map(entry => entry.tag)).toEqual([
       "0043_billing_usage_economics_governance",
       "0044_billing_usage_charge_revoke_reason",
       "0045_billing_usage_cost_reconciliation",
       "0046_billing_usage_provider_dispatch_state",
+      "0047_usage_governance_audit_closure",
     ]);
 
     const snapshot = JSON.parse(read("drizzle/meta/0046_snapshot.json")) as {
@@ -37,6 +38,7 @@ describe("usage governance canonical Drizzle installation", () => {
     }
     expect(snapshot.tables.billingUsageEvents.columns).toHaveProperty("providerDispatchStartedAt");
     expect(snapshot.tables.billingConsumptionChargeAuthorizations.columns).toHaveProperty("revokeReason");
+    expect(read("drizzle/0047_usage_governance_audit_closure.sql")).toContain("billingUsageLimitationAppeals");
   });
 
   it("keeps every governance migration represented in the configured TypeScript schema", () => {

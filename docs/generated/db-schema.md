@@ -77,14 +77,15 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingTrialEligibilityAuditEvents` | `billingTrialEligibilityAuditEvents` | 9 | Requer atenção |
 | `billingSubscriptionFacts` | `billingSubscriptionFacts` | 19 | Requer atenção |
 | `billingSubscriptionLifecycleAuditEvents` | `billingSubscriptionLifecycleAuditEvents` | 8 | Requer atenção |
-| `billingUsageEvents` | `billingUsageEvents` | 29 | Requer atenção |
-| `billingUsageDailyAggregates` | `billingUsageDailyAggregates` | 8 | Requer atenção |
-| `billingEconomicFacts` | `billingEconomicFacts` | 6 | Requer atenção |
+| `billingUsageEvents` | `billingUsageEvents` | 30 | Requer atenção |
+| `billingUsageDailyAggregates` | `billingUsageDailyAggregates` | 9 | Requer atenção |
+| `billingEconomicFacts` | `billingEconomicFacts` | 7 | Requer atenção |
 | `billingEconomicMonthlyAggregates` | `billingEconomicMonthlyAggregates` | 4 | Requer atenção |
 | `billingUsagePolicies` | `billingUsagePolicies` | 5 | Requer atenção |
 | `billingUsageAllowanceGrants` | `billingUsageAllowanceGrants` | 4 | Requer atenção |
 | `billingUsageAbuseCases` | `billingUsageAbuseCases` | 6 | Requer atenção |
 | `billingUsageLimitations` | `billingUsageLimitations` | 5 | Requer atenção |
+| `billingUsageLimitationAppeals` | `billingUsageLimitationAppeals` | 4 | Requer atenção |
 | `billingConsumptionChargeAuthorizations` | `billingConsumptionChargeAuthorizations` | 5 | Requer atenção |
 | `billingUsageLegalHolds` | `billingUsageLegalHolds` | 3 | Requer atenção |
 | `billingUsageRetentionAudit` | `billingUsageRetentionAudit` | 2 | Requer atenção |
@@ -159,6 +160,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 - `billingUsageAllowanceGrants` via export `billingUsageAllowanceGrants`.
 - `billingUsageAbuseCases` via export `billingUsageAbuseCases`.
 - `billingUsageLimitations` via export `billingUsageLimitations`.
+- `billingUsageLimitationAppeals` via export `billingUsageLimitationAppeals`.
 - `billingConsumptionChargeAuthorizations` via export `billingConsumptionChargeAuthorizations`.
 - `billingUsageLegalHolds` via export `billingUsageLegalHolds`.
 - `billingUsageRetentionAudit` via export `billingUsageRetentionAudit`.
@@ -225,6 +227,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingSubscriptionFacts` | `payloadJson` |
 | `billingSubscriptionLifecycleAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
 | `billingUsageEvents` | `patientUserId`, `metadataJson`, `occurredAt` |
+| `billingUsageDailyAggregates` | `patientUserId` |
 | `billingEconomicMonthlyAggregates` | `measurementCoverageBps` |
 | `billingUsageAbuseCases` | `signalsJson` |
 | `billingUsageLimitations` | `operationsJson` |

@@ -126,6 +126,17 @@ export const applyUsageLimitationSchema = z.object({
 
 export const revokeUsageLimitationSchema = z.object({ id, reason });
 
+export const submitUsageLimitationAppealSchema = z.object({
+  limitationId: id,
+  rationale: z.string().trim().min(3).max(1000),
+});
+
+export const reviewUsageLimitationAppealSchema = z.object({
+  appealId: id,
+  result: z.enum(["approved", "denied"]),
+  rationale: z.string().trim().min(3).max(1000),
+});
+
 export const authorizeConsumptionChargingSchema = z.object({
   policyVersion: z.string().trim().min(1).max(64),
   reason,

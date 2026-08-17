@@ -4,6 +4,7 @@ import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadServic
 import {
   getInternalUsageAnalytics,
 } from "../usageGovernance/service";
+import { governanceError } from "../usageGovernance/publicBoundary";
 import {
   internalUsageAnalyticsSchema,
   resolveInternalUsageAnalyticsWindow,
@@ -257,7 +258,11 @@ export const billingRouter = router({
   adminAnalytics: adminProcedure.query(() => billingService.getAdminAnalytics()),
   adminUsageAnalytics: adminProcedure
     .input(internalUsageAnalyticsSchema)
-    .query(({ input }) =>
-      getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input))
-    ),
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input));
+      } catch (error) {
+        governanceError(error, ctx.res);
+      }
+    }),
 });

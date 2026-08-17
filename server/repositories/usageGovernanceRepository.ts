@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { resultRows } from "./billingRepositorySupport";
@@ -47,16 +48,31 @@ export type UsageEventInput = {
 
 export async function recordUsageEvent(input: UsageEventInput) {
   const db = await requireDb();
+  const canonical = JSON.stringify({
+    idempotencyKey: input.idempotencyKey, beneficiaryUserId: input.beneficiaryUserId,
+    patientUserId: input.patientUserId ?? null, sponsorUserId: input.sponsorUserId ?? null,
+    payerUserId: input.payerUserId, subscriptionId: input.subscriptionId ?? null,
+    productCode: input.productCode ?? null, versionCode: input.versionCode ?? null,
+    billingCycle: input.billingCycle ?? null, accessSource: input.accessSource,
+    operation: input.operation, channel: input.channel, provider: input.provider ?? null,
+    model: input.model ?? null, unitType: input.unitType, unitCount: input.unitCount,
+    estimatedCostMicros: input.estimatedCostMicros ?? null, effectiveCostMicros: input.effectiveCostMicros ?? null,
+    currency: input.currency ?? null, eventState: input.eventState, attemptRole: input.attemptRole,
+    retryRootKey: input.retryRootKey ?? null, correlationId: input.correlationId,
+    environment: input.environment, ruleVersion: input.ruleVersion,
+    metadata: input.metadata ?? null,
+  });
+  const payloadFingerprint = crypto.createHash("sha256").update(canonical).digest("hex");
   const result = await db.execute(sql`
     INSERT IGNORE INTO billingUsageEvents (
-      id, idempotencyKey, beneficiaryUserId, patientUserId, sponsorUserId,
+      id, idempotencyKey, payloadFingerprint, beneficiaryUserId, patientUserId, sponsorUserId,
       payerUserId, subscriptionId, productCode, versionCode, billingCycle,
       accessSource, operation, channel, provider, model, unitType, unitCount,
       estimatedCostMicros, effectiveCostMicros, currency, eventState, attemptRole,
       retryRootKey, correlationId, environment, ruleVersion, metadataJson,
       occurredAt, competenceDate
     ) VALUES (
-      ${input.id}, ${input.idempotencyKey}, ${input.beneficiaryUserId},
+      ${input.id}, ${input.idempotencyKey}, ${payloadFingerprint}, ${input.beneficiaryUserId},
       ${input.patientUserId ?? null}, ${input.sponsorUserId ?? null},
       ${input.payerUserId}, ${input.subscriptionId ?? null},
       ${input.productCode ?? null}, ${input.versionCode ?? null},
@@ -71,7 +87,12 @@ export async function recordUsageEvent(input: UsageEventInput) {
     )
   `);
   const affectedRows = Number((result as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0);
-  return { created: affectedRows > 0 };
+  if (affectedRows > 0) return { created: true };
+  const existing = resultRows<Record<string, unknown>>(await db.execute(sql`
+    SELECT payloadFingerprint FROM billingUsageEvents WHERE idempotencyKey=${input.idempotencyKey} LIMIT 1
+  `))[0];
+  if (!existing || String(existing.payloadFingerprint) !== payloadFingerprint) throw new Error("usage_event_idempotency_conflict");
+  return { created: false };
 }
 
 export async function getActiveUsageLimitation(userId: number, now: Date) {
@@ -108,6 +129,8 @@ export async function getActiveUsageLimitation(userId: number, now: Date) {
 export async function recordEconomicFact(input: {
   id: string;
   idempotencyKey: string;
+  supersedesIdempotencyKey?: string | null;
+  payloadFingerprint: string;
   subscriptionId?: string | null;
   payerUserId: number;
   productCode?: string | null;
@@ -127,42 +150,117 @@ export async function recordEconomicFact(input: {
   metadata?: Record<string, unknown> | null;
 }) {
   const db = await requireDb();
-  const result = await db.execute(sql`
-    INSERT IGNORE INTO billingEconomicFacts (
-      id, idempotencyKey, subscriptionId, payerUserId, productCode, versionCode,
-      billingCycle, factType, amountMinor, currency, valueKind, competenceStart,
-      competenceEnd, effectiveAt, ruleVersion, reason, actorUserId, correlationId,
-      metadataJson
-    ) VALUES (
-      ${input.id}, ${input.idempotencyKey}, ${input.subscriptionId ?? null},
-      ${input.payerUserId}, ${input.productCode ?? null}, ${input.versionCode ?? null},
-      ${input.billingCycle ?? null}, ${input.factType}, ${input.amountMinor},
-      ${input.currency}, ${input.valueKind}, DATE(${input.competenceStart}),
-      DATE(${input.competenceEnd}), ${input.effectiveAt}, ${input.ruleVersion},
-      ${input.reason ?? null}, ${input.actorUserId ?? null}, ${input.correlationId},
-      ${input.metadata ? JSON.stringify(input.metadata) : null}
-    )
-  `);
-  const affectedRows = Number((result as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0);
-  return { created: affectedRows > 0 };
+  return db.transaction(async tx => {
+    const existingBeforeInsert = resultRows<Record<string, unknown>>(
+      await tx.execute(sql`
+        SELECT id, payloadFingerprint
+        FROM billingEconomicFacts
+        WHERE idempotencyKey = ${input.idempotencyKey}
+        LIMIT 1 FOR UPDATE
+      `),
+    )[0];
+    if (existingBeforeInsert) {
+      if (String(existingBeforeInsert.payloadFingerprint) !== input.payloadFingerprint) {
+        throw new Error("economic_fact_idempotency_conflict");
+      }
+      return { created: false, id: String(existingBeforeInsert.id), superseded: false };
+    }
+    const predecessorKey = input.supersedesIdempotencyKey ?? null;
+    const predecessor = predecessorKey
+      ? resultRows<Record<string, unknown>>(
+          await tx.execute(sql`
+            SELECT id, payerUserId, subscriptionId, productCode, versionCode,
+                   billingCycle, factType, currency, valueKind, competenceStart,
+                   competenceEnd, supersededAt
+            FROM billingEconomicFacts
+            WHERE idempotencyKey = ${predecessorKey}
+              AND invalidatedAt IS NULL
+            LIMIT 1 FOR UPDATE
+          `),
+        )[0]
+      : null;
+
+    if (predecessorKey) {
+      const same = input.valueKind === "effective"
+        && predecessor
+        && String(predecessor.valueKind) === "estimated"
+        && predecessor.supersededAt == null
+        && Number(predecessor.payerUserId) === input.payerUserId
+        && String(predecessor.subscriptionId ?? "") === String(input.subscriptionId ?? "")
+        && String(predecessor.productCode ?? "") === String(input.productCode ?? "")
+        && String(predecessor.versionCode ?? "") === String(input.versionCode ?? "")
+        && String(predecessor.billingCycle ?? "") === String(input.billingCycle ?? "")
+        && String(predecessor.factType) === input.factType
+        && String(predecessor.currency) === input.currency
+        && asDate(predecessor.competenceStart).toISOString().slice(0, 10) === input.competenceStart.toISOString().slice(0, 10)
+        && asDate(predecessor.competenceEnd).toISOString().slice(0, 10) === input.competenceEnd.toISOString().slice(0, 10);
+      if (!same) throw new Error("economic_fact_supersession_mismatch");
+    }
+
+    const result = await tx.execute(sql`
+      INSERT IGNORE INTO billingEconomicFacts (
+        id, idempotencyKey, supersedesFactId, payloadFingerprint, subscriptionId,
+        payerUserId, productCode, versionCode, billingCycle, factType, amountMinor,
+        currency, valueKind, competenceStart, competenceEnd, effectiveAt,
+        ruleVersion, reason, actorUserId, correlationId, metadataJson
+      ) VALUES (
+        ${input.id}, ${input.idempotencyKey}, ${predecessor ? String(predecessor.id) : null},
+        ${input.payloadFingerprint}, ${input.subscriptionId ?? null}, ${input.payerUserId},
+        ${input.productCode ?? null}, ${input.versionCode ?? null}, ${input.billingCycle ?? null},
+        ${input.factType}, ${input.amountMinor}, ${input.currency}, ${input.valueKind},
+        DATE(${input.competenceStart}), DATE(${input.competenceEnd}), ${input.effectiveAt},
+        ${input.ruleVersion}, ${input.reason ?? null}, ${input.actorUserId ?? null},
+        ${input.correlationId}, ${input.metadata ? JSON.stringify(input.metadata) : null}
+      )
+    `);
+    const inserted = Number((result as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0) > 0;
+    if (!inserted) {
+      const existing = resultRows<Record<string, unknown>>(
+        await tx.execute(sql`
+          SELECT id, payloadFingerprint
+          FROM billingEconomicFacts
+          WHERE idempotencyKey = ${input.idempotencyKey}
+          LIMIT 1 FOR UPDATE
+        `),
+      )[0];
+      if (existing && String(existing.payloadFingerprint) === input.payloadFingerprint) {
+        return { created: false, id: String(existing.id), superseded: false };
+      }
+      throw new Error("economic_fact_idempotency_conflict");
+    }
+
+    if (predecessor) {
+      const updated = await tx.execute(sql`
+        UPDATE billingEconomicFacts
+        SET supersededByFactId = ${input.id}, supersededAt = ${input.effectiveAt}
+        WHERE id = ${String(predecessor.id)} AND supersededAt IS NULL
+      `);
+      if (Number((updated as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0) !== 1) {
+        throw new Error("economic_fact_supersession_conflict");
+      }
+    }
+    return { created: true, id: input.id, superseded: Boolean(predecessor) };
+  });
 }
 
-export async function listEconomicFacts(input: { from: Date; to: Date; payerUserId?: number }) {
+export async function listEconomicFactsPage(input: { from: Date; to: Date; payerUserId?: number; cursor?: string | null; limit?: number }) {
   const db = await requireDb();
   return resultRows<Record<string, unknown>>(
     await db.execute(sql`
       SELECT * FROM billingEconomicFacts
       WHERE invalidatedAt IS NULL
+        AND supersededAt IS NULL
         AND competenceStart < DATE(${input.to})
         AND competenceEnd >= DATE(${input.from})
         ${input.payerUserId === undefined ? sql`` : sql`AND payerUserId = ${input.payerUserId}`}
-      ORDER BY competenceStart, id
-      LIMIT 50000
+        ${input.cursor ? sql`AND id > ${input.cursor}` : sql``}
+      ORDER BY id
+      LIMIT ${Math.min(Math.max(input.limit ?? 5000, 1), 10000)}
     `),
   );
 }
 
-export async function listUsageEvents(input: { from: Date; to: Date; userId?: number }) {
+export async function listUsageEventsPage(input: { from: Date; to: Date; userId?: number; cursor?: string | null; limit?: number }) {
   const db = await requireDb();
   return resultRows<Record<string, unknown>>(
     await db.execute(sql`
@@ -171,8 +269,9 @@ export async function listUsageEvents(input: { from: Date; to: Date; userId?: nu
         AND occurredAt >= ${input.from}
         AND occurredAt < ${input.to}
         ${input.userId === undefined ? sql`` : sql`AND beneficiaryUserId = ${input.userId}`}
-      ORDER BY occurredAt, id
-      LIMIT 50000
+        ${input.cursor ? sql`AND id > ${input.cursor}` : sql``}
+      ORDER BY id
+      LIMIT ${Math.min(Math.max(input.limit ?? 5000, 1), 10000)}
     `),
   );
 }
@@ -186,28 +285,29 @@ export async function refreshUsageDailyAggregates(from: Date, to: Date, ruleVers
     `);
     await tx.execute(sql`
       INSERT INTO billingUsageDailyAggregates (
-        aggregateKey, usageDate, beneficiaryUserId, sponsorUserId, payerUserId,
+        aggregateKey, usageDate, beneficiaryUserId, patientUserId, sponsorUserId, payerUserId,
         subscriptionId, productCode, versionCode, billingCycle, accessSource,
         operation, channel, provider, model, currency, eventCount, unitCount,
         successCount, failureCount, retryCount, estimatedCostMicros,
-        effectiveCostMicros, unpricedCount, ruleVersion, updatedAt
+        effectiveCostMicros, recognizedCostMicros, unpricedCount, ruleVersion, updatedAt
       )
       SELECT
-        SHA2(CONCAT_WS('|', DATE(occurredAt), beneficiaryUserId, COALESCE(sponsorUserId, ''),
+        SHA2(CONCAT_WS('|', DATE(occurredAt), beneficiaryUserId, COALESCE(patientUserId, ''), COALESCE(sponsorUserId, ''),
           payerUserId, COALESCE(subscriptionId, ''), COALESCE(versionCode, ''), accessSource,
           operation, channel, COALESCE(provider, ''), COALESCE(model, ''), COALESCE(currency, '')), 256),
-        DATE(occurredAt), beneficiaryUserId, sponsorUserId, payerUserId, subscriptionId,
+        DATE(occurredAt), beneficiaryUserId, patientUserId, sponsorUserId, payerUserId, subscriptionId,
         productCode, versionCode, billingCycle, accessSource, operation, channel, provider,
         model, currency, COUNT(*), SUM(unitCount),
         SUM(CASE WHEN eventState = 'success' THEN 1 ELSE 0 END),
         SUM(CASE WHEN eventState = 'success' THEN 0 ELSE 1 END),
         SUM(CASE WHEN attemptRole = 'retry' THEN 1 ELSE 0 END),
         SUM(COALESCE(estimatedCostMicros, 0)), SUM(COALESCE(effectiveCostMicros, 0)),
+        SUM(COALESCE(effectiveCostMicros, estimatedCostMicros, 0)),
         SUM(CASE WHEN estimatedCostMicros IS NULL AND effectiveCostMicros IS NULL THEN 1 ELSE 0 END),
         ${ruleVersion}, NOW()
       FROM billingUsageEvents
       WHERE invalidatedAt IS NULL AND occurredAt >= ${from} AND occurredAt < ${to}
-      GROUP BY DATE(occurredAt), beneficiaryUserId, sponsorUserId, payerUserId, subscriptionId,
+      GROUP BY DATE(occurredAt), beneficiaryUserId, patientUserId, sponsorUserId, payerUserId, subscriptionId,
         productCode, versionCode, billingCycle, accessSource, operation, channel, provider, model, currency
     `);
   });
@@ -278,7 +378,26 @@ export async function listMonthlyEconomicAggregates(input: { from: Date; to: Dat
       WHERE competenceMonth >= DATE(${input.from}) AND competenceMonth < DATE(${input.to})
         ${input.payerUserId === undefined ? sql`` : sql`AND payerUserId = ${input.payerUserId}`}
       ORDER BY competenceMonth, payerUserId, currency
-      LIMIT 50000
+    `),
+  );
+}
+
+export async function listUsageDailyAggregatesPage(input: {
+  from: Date;
+  to: Date;
+  userId?: number;
+  cursor?: string | null;
+  limit?: number;
+}) {
+  const db = await requireDb();
+  return resultRows<Record<string, unknown>>(
+    await db.execute(sql`
+      SELECT * FROM billingUsageDailyAggregates
+      WHERE usageDate >= DATE(${input.from}) AND usageDate < DATE(${input.to})
+        ${input.userId === undefined ? sql`` : sql`AND beneficiaryUserId = ${input.userId}`}
+        ${input.cursor ? sql`AND aggregateKey > ${input.cursor}` : sql``}
+      ORDER BY aggregateKey
+      LIMIT ${Math.min(Math.max(input.limit ?? 5000, 1), 10000)}
     `),
   );
 }

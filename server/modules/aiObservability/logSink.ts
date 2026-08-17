@@ -4,7 +4,6 @@ import {
   setAiObservabilitySink,
   type AiInferenceEvent,
 } from "../../_core/ai/observability";
-import { recordAiEconomicUsage } from "../usageGovernance/service";
 
 function logOrigin(event: AiInferenceEvent): "web" | "whatsapp" | "admin" {
   if (event.origin === "whatsapp") return "whatsapp";
@@ -27,9 +26,8 @@ function attributedUserId(event: AiInferenceEvent) {
  * Operational logs and the durable economic ledger intentionally remain
  * separate. Both consume the same sanitized/versioned inference event, so no
  * prompt, response, media or raw conversation identifier is copied for usage
- * measurement. Economic persistence is best-effort for product availability;
- * failures stay observable through a bounded warning and never create a
- * retroactive charge.
+ * measurement. The capability executor owns durable economic accounting before
+ * each provider attempt; this sink cannot create a second, post-effect ledger.
  */
 export function configureAiObservabilityLogging(): void {
   setAiObservabilitySink(async event => {
@@ -40,15 +38,5 @@ export function configureAiObservabilityLogging(): void {
       eventType: "ai.inference_call",
       detail: serializeAiInferenceEvent(event),
     });
-    try {
-      await recordAiEconomicUsage(event);
-    } catch (error) {
-      console.warn("[Usage governance] Economic usage persistence failed", {
-        capability: event.capability,
-        origin: event.origin,
-        outcome: event.outcome,
-        errorType: error instanceof Error ? error.name : "unknown",
-      });
-    }
   });
 }

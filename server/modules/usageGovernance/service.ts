@@ -3,9 +3,10 @@ import type { AiInferenceEvent } from "../../_core/ai/observability";
 import type { AiUsageGateInput, AiUsageGateResult } from "../../_core/ai/usageGate";
 import {
   getActiveUsageLimitation,
-  listEconomicFacts,
+  listEconomicFactsPage,
   listMonthlyEconomicAggregates,
-  listUsageEvents,
+  listUsageDailyAggregatesPage,
+  listUsageEventsPage,
   recordEconomicFact,
   recordUsageEvent,
   refreshUsageDailyAggregates,
@@ -124,11 +125,8 @@ export async function recordAiEconomicUsage(event: AiInferenceEvent) {
   if (!beneficiaryUserId) return { created: false, reason: "unattributed" as const };
   const payerUserId = safePositiveInt(event.correlation.payerUserId ?? event.correlation.billedUserId) ?? beneficiaryUserId;
   const sponsorUserId = safePositiveInt(event.correlation.sponsorUserId);
-  const conversationRef = correlationString(event, "conversationRef");
   const units = usageUnits(event);
-  const idempotencyKey = conversationRef
-    ? `ai:${conversationRef}:${event.capability}:${event.callRole}:${event.attemptIndex}`
-    : `ai:${event.executionId}:${event.callRole}:${event.attemptIndex}`;
+  const idempotencyKey = `ai:${event.executionId}:${event.callRole}:${event.attemptIndex}`;
   const costMicros = event.estimatedCostUsd == null ? null : Math.max(0, Math.round(event.estimatedCostUsd * 1_000_000));
   const occurredAt = new Date(event.occurredAt);
 
@@ -168,6 +166,130 @@ export async function recordAiEconomicUsage(event: AiInferenceEvent) {
   });
 }
 
+export type AiProviderUsageReservation = {
+  idempotencyKey: string;
+  correlationId: string;
+};
+
+function testDispatchStates() {
+  const key = Symbol.for("controle_calorias.usageProviderDispatchTestState");
+  const root = globalThis as Record<PropertyKey, unknown>;
+  if (!(root[key] instanceof Map)) root[key] = new Map<string, { state: string }>();
+  return root[key] as Map<string, { state: string }>;
+}
+
+export async function prepareAiProviderAttemptUsage(input: {
+  executionId: string;
+  capability: string;
+  flow: string;
+  origin: string;
+  provider: string;
+  model: string;
+  callRole: "primary" | "retry" | "fallback" | "escalation";
+  attemptIndex: number;
+  correlation: Record<string, string | number | boolean | null | undefined>;
+}) : Promise<AiProviderUsageReservation | null> {
+  const beneficiaryUserId = safePositiveInt(input.correlation.beneficiaryUserId ?? input.correlation.userId);
+  if (!beneficiaryUserId) return null;
+  const payerUserId = safePositiveInt(input.correlation.payerUserId ?? input.correlation.billedUserId) ?? beneficiaryUserId;
+  const sponsorUserId = safePositiveInt(input.correlation.sponsorUserId);
+  const idempotencyKey = `ai:${input.executionId}:${input.callRole}:${input.attemptIndex}`;
+  if (process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE === "memory") {
+    testDispatchStates().set(idempotencyKey, { state: "provider_dispatch_started" });
+    return { idempotencyKey, correlationId: input.executionId };
+  }
+  await recordUsageEvent({
+    id: crypto.randomUUID(), idempotencyKey, beneficiaryUserId,
+    patientUserId: sponsorUserId ? beneficiaryUserId : null, sponsorUserId, payerUserId,
+    subscriptionId: typeof input.correlation.subscriptionId === "string" ? input.correlation.subscriptionId : null,
+    versionCode: typeof input.correlation.planCode === "string" ? input.correlation.planCode : null,
+    billingCycle: typeof input.correlation.billingCycle === "string" ? input.correlation.billingCycle : null,
+    accessSource: typeof input.correlation.accessSource === "string" ? input.correlation.accessSource : "unknown",
+    operation: input.flow || input.capability, channel: input.origin, provider: input.provider, model: input.model,
+    unitType: "operation", unitCount: 1, estimatedCostMicros: null, effectiveCostMicros: null, currency: null,
+    eventState: "provider_dispatch_reserved", attemptRole: input.callRole,
+    retryRootKey: input.callRole === "primary" ? null : input.executionId,
+    correlationId: input.executionId, environment: process.env.NODE_ENV ?? "development", ruleVersion: USAGE_RULE_VERSION,
+    metadata: { capability: input.capability, measurementState: "reserved_before_provider_call", pricingState: "pending_observation" },
+    occurredAt: new Date(),
+  });
+  const { claimUsageProviderDispatch } = await import("../../repositories/usageProviderDispatchRepository");
+  const claim = await claimUsageProviderDispatch(idempotencyKey);
+  if (!claim.claimed) throw new Error("usage_provider_dispatch_not_claimed");
+  return { idempotencyKey, correlationId: input.executionId };
+}
+
+export async function finalizeAiProviderAttemptUsage(reservation: AiProviderUsageReservation, event: AiInferenceEvent) {
+  if (process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE === "memory") {
+    testDispatchStates().set(reservation.idempotencyKey, { state: event.outcome });
+    return { finalized: true as const, state: event.outcome };
+  }
+  const units = usageUnits(event);
+  const { finalizeUsageProviderDispatch } = await import("../../repositories/usageProviderDispatchRepository");
+  return finalizeUsageProviderDispatch({
+    idempotencyKey: reservation.idempotencyKey,
+    eventState: event.outcome,
+    operation: event.flow || event.capability,
+    attemptRole: event.callRole,
+    retryRootKey: event.callRole === "primary" ? null : event.executionId,
+    provider: event.effectiveProvider,
+    model: event.effectiveModel,
+    unitType: units.type,
+    unitCount: Math.max(0, Math.round(units.count)),
+    estimatedCostMicros: event.estimatedCostUsd == null ? null : Math.max(0, Math.round(event.estimatedCostUsd * 1_000_000)),
+    effectiveCostMicros: null,
+    currency: event.estimatedCostUsd == null ? null : "USD",
+    metadata: {
+      capability: event.capability,
+      pricingCatalogVersion: event.pricingCatalogVersion,
+      pricingEffectiveDate: event.pricingEffectiveDate,
+      fallbackKind: event.fallback.kind,
+      degradation: event.degradation,
+      measurementState: "finalized",
+    },
+  });
+}
+
+export async function recordDirectProcessingUsage(input: {
+  userId: number;
+  idempotencyKey: string;
+  operation: string;
+  channel: string;
+  unitType: string;
+  unitCount: number;
+  correlationId: string;
+  metadata?: Record<string, unknown>;
+  occurredAt?: Date;
+  eventState?: string;
+  provider?: string;
+}) {
+  if (process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE === "memory") {
+    testDispatchStates().set(input.idempotencyKey, { state: "success" });
+    return { created: true };
+  }
+  const status = await billingService.getUserSubscriptionStatus(input.userId);
+  const access = status.access;
+  const sponsored = access.reason === "sponsored_by_professional" && Boolean(access.sponsorUserId);
+  const sponsorUserId = sponsored ? Number(access.sponsorUserId) : null;
+  const subscription = sponsored ? status.professionalSubscription : status.subscription;
+  return recordUsageEvent({
+    id: crypto.randomUUID(), idempotencyKey: input.idempotencyKey,
+    beneficiaryUserId: input.userId, patientUserId: sponsorUserId ? input.userId : null,
+    sponsorUserId, payerUserId: sponsorUserId ?? input.userId,
+    subscriptionId: subscription?.id ?? null,
+    versionCode: access.planCode ?? subscription?.planCode ?? null,
+    billingCycle: subscription?.billingCycle ?? null,
+    accessSource: access.reason, operation: input.operation, channel: input.channel,
+    provider: input.provider ?? "local", model: null, unitType: input.unitType,
+    unitCount: Math.max(0, Math.round(input.unitCount)), estimatedCostMicros: null,
+    effectiveCostMicros: null, currency: null, eventState: input.eventState ?? "success", attemptRole: "primary",
+    retryRootKey: null, correlationId: input.correlationId,
+    environment: process.env.NODE_ENV ?? "development", ruleVersion: USAGE_RULE_VERSION,
+    metadata: { ...(input.metadata ?? {}), pricingState: "unpriced_direct_measurement" },
+    occurredAt: input.occurredAt ?? new Date(),
+  });
+}
+
 export type EconomicFactType =
   | "contract_revenue"
   | "discount"
@@ -182,6 +304,7 @@ export type EconomicFactType =
 
 export async function registerEconomicFact(input: {
   idempotencyKey: string;
+  supersedesIdempotencyKey?: string | null;
   payerUserId: number;
   subscriptionId?: string | null;
   productCode?: string | null;
@@ -200,9 +323,37 @@ export async function registerEconomicFact(input: {
 }) {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor < 0) throw new Error("economic_fact_amount_invalid");
   if (input.competenceEnd.getTime() <= input.competenceStart.getTime()) throw new Error("economic_fact_competence_invalid");
+  const canonicalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (value && typeof value === "object" && !(value instanceof Date)) {
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalize(nested)]));
+    }
+    return value instanceof Date ? value.toISOString() : value;
+  };
+  const payloadFingerprint = crypto.createHash("sha256").update(JSON.stringify(canonicalize({
+    idempotencyKey: input.idempotencyKey,
+    supersedesIdempotencyKey: input.supersedesIdempotencyKey ?? null,
+    subscriptionId: input.subscriptionId ?? null,
+    payerUserId: input.payerUserId,
+    productCode: input.productCode ?? null,
+    versionCode: input.versionCode ?? null,
+    billingCycle: input.billingCycle ?? null,
+    factType: input.factType,
+    amountMinor: input.amountMinor,
+    currency: input.currency,
+    valueKind: input.valueKind,
+    competenceStart: input.competenceStart,
+    competenceEnd: input.competenceEnd,
+    effectiveAt: input.effectiveAt ?? null,
+    reason: input.reason ?? null,
+    metadata: input.metadata ?? null,
+  }))).digest("hex");
   const recorded = await recordEconomicFact({
     ...input,
     id: crypto.randomUUID(),
+    payloadFingerprint,
     effectiveAt: input.effectiveAt ?? new Date(),
     ruleVersion: USAGE_RULE_VERSION,
     correlationId: crypto.randomUUID(),
@@ -213,6 +364,22 @@ export async function registerEconomicFact(input: {
     refreshDailyUsage: false,
   });
   return recorded;
+}
+
+async function collectPages(
+  read: (cursor: string | null) => Promise<Record<string, unknown>[]>,
+  cursorField: string,
+) {
+  const rows: Record<string, unknown>[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    const page = await read(cursor);
+    rows.push(...page);
+    if (page.length < 5000) return rows;
+    const next = String(page.at(-1)?.[cursorField] ?? "");
+    if (!next || next === cursor) throw new Error("usage_analytics_pagination_stalled");
+    cursor = next;
+  }
 }
 
 export function prorateMinorUnits(amountMinor: number, serviceStart: Date, serviceEnd: Date, sliceStart: Date, sliceEnd: Date) {
@@ -363,10 +530,15 @@ export async function refreshEconomicAggregatesForRange(input: {
   if (to <= from) return;
   const now = input.now ?? new Date();
   if (input.refreshDailyUsage) await refreshUsageDailyAggregates(from, to, USAGE_RULE_VERSION);
-  const facts = await listEconomicFacts({ from, to });
+  const facts = await collectPages(
+    cursor => listEconomicFactsPage({ from, to, cursor, limit: 5000 }),
+    "id",
+  );
   const completeDetailFrom = firstFullyRetainedUsageMonth(now);
   const usageFrom = from < completeDetailFrom ? completeDetailFrom : from;
-  const usage = usageFrom < to ? await listUsageEvents({ from: usageFrom, to }) : [];
+  const usage = usageFrom < to
+    ? await collectPages(cursor => listUsageEventsPage({ from: usageFrom, to, cursor, limit: 5000 }), "id")
+    : [];
   const historicalTo = to < completeDetailFrom ? to : completeDetailFrom;
   const historicalAggregates = from < historicalTo
     ? await listMonthlyEconomicAggregates({ from, to: historicalTo })
@@ -535,7 +707,7 @@ function nullableString(value: unknown) {
 }
 
 function usageCostMicros(row: Record<string, unknown>) {
-  return Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
+  return Number(row.recognizedCostMicros ?? row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
 }
 
 function percentile(values: number[], quantile: number) {
@@ -584,7 +756,7 @@ function summarizeProfessionalPortfolios(usage: Record<string, unknown>[]) {
     const cost = usageCostMicros(row);
     current.patientCosts.set(patientUserId, (current.patientCosts.get(patientUserId) ?? 0) + cost);
     current.totalCostMicros += cost;
-    current.calls += 1;
+    current.calls += Number(row.eventCount ?? 1);
     portfolios.set(key, current);
   }
   const summaries = Array.from(portfolios.values()).map(portfolio => {
@@ -627,7 +799,14 @@ function summarizeProfessionalPortfolios(usage: Record<string, unknown>[]) {
 }
 
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
-  const usage = await listUsageEvents(input);
+  const dailyDetailCutoff = subtractMonths(new Date(), USAGE_RETENTION_POLICY.dailyAggregateMonths);
+  const usageFrom = input.from < dailyDetailCutoff ? dailyDetailCutoff : input.from;
+  const usage = usageFrom < input.to
+    ? await collectPages(
+        cursor => listUsageDailyAggregatesPage({ from: usageFrom, to: input.to, userId: input.userId, cursor, limit: 5000 }),
+        "aggregateKey",
+      )
+    : [];
   const requestedFrom = startOfMonth(input.from);
   const requestedTo = addMonths(startOfMonth(input.to), 1);
   const economics = await listMonthlyEconomicAggregates({
@@ -640,9 +819,9 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
   for (const row of usage) {
     const key = `${row.operation}|${row.channel}`;
     const current = byOperation.get(key) ?? { operation: String(row.operation), channel: String(row.channel), calls: 0, units: 0, estimatedCostMicros: 0, effectiveCostMicros: 0, retries: 0, failures: 0 };
-    current.calls += 1; current.units += Number(row.unitCount ?? 0); current.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
-    current.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0); if (row.attemptRole === "retry") current.retries += 1;
-    if (row.eventState !== "success") current.failures += 1; byOperation.set(key, current);
+    current.calls += Number(row.eventCount ?? 0); current.units += Number(row.unitCount ?? 0); current.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
+    current.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0); current.retries += Number(row.retryCount ?? 0);
+    current.failures += Number(row.failureCount ?? 0); byOperation.set(key, current);
 
     const dimensions = {
       beneficiaryUserId: Number(row.beneficiaryUserId),
@@ -668,12 +847,12 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
       retries: 0,
       failures: 0,
     };
-    dimensionSummary.calls += 1;
+    dimensionSummary.calls += Number(row.eventCount ?? 0);
     dimensionSummary.units += Number(row.unitCount ?? 0);
     dimensionSummary.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
     dimensionSummary.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0);
-    if (row.attemptRole === "retry" || row.attemptRole === "fallback") dimensionSummary.retries += 1;
-    if (row.eventState !== "success") dimensionSummary.failures += 1;
+    dimensionSummary.retries += Number(row.retryCount ?? 0);
+    dimensionSummary.failures += Number(row.failureCount ?? 0);
     byDimensions.set(dimensionKey, dimensionSummary);
   }
   const normalized: EconomicSeriesRow[] = economics.map(row => ({
@@ -699,6 +878,27 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
   return {
     window: input,
     policy: { fairUse: FAIR_USE_POLICY, retention: USAGE_RETENTION_POLICY },
+    coverage: {
+      usage: {
+        source: "daily_aggregates" as const,
+        state: input.from < dailyDetailCutoff ? "partial" as const : "complete" as const,
+        requestedFrom: input.from,
+        availableFrom: usageFrom,
+        availableTo: input.to,
+        retentionMonths: USAGE_RETENTION_POLICY.dailyAggregateMonths,
+        truncated: false,
+      },
+      economics: {
+        source: "monthly_aggregates" as const,
+        state: "complete" as const,
+        requestedFrom,
+        availableFrom: requestedFrom,
+        availableTo: requestedTo,
+        retentionYears: USAGE_RETENTION_POLICY.monthlyEconomicYears,
+        truncated: false,
+      },
+      pagination: { internalKeysetPagination: true, pageSize: 5000 },
+    },
     byOperation: Array.from(byOperation.values()),
     byDimensions: Array.from(byDimensions.values()),
     professionalPortfolio,

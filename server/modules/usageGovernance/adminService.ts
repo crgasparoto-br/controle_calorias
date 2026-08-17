@@ -12,6 +12,8 @@ import {
   revokeConsumptionChargeAuthorization,
   revokeLegalHold,
   revokeLimitation,
+  reviewLimitationAppeal,
+  submitLimitationAppeal,
 } from "../../repositories/usageGovernanceAdminRepository";
 import {
   getUsageAbuseSignalValidationError,
@@ -109,7 +111,7 @@ export async function reviewUsageAbuseCase(input: {
     ...input,
     impact: { ...input.impact, affectedOperations },
   });
-  return { id: input.id, state: "reviewed" as const, outcome: input.outcome };
+  return { id: input.id, state: input.outcome === "dismissed" ? "dismissed" as const : "reviewed" as const, outcome: input.outcome };
 }
 
 export async function applyUsageLimitation(input: {
@@ -135,8 +137,6 @@ export async function applyUsageLimitation(input: {
     throw new Error("usage_limitation_abuse_case_required");
   }
   const priorLimitations = await listUsageLimitationsForCase(input.abuseCaseId);
-  let originalApproverUserId: number | null = null;
-  let extensionApproverUserId: number | null = null;
 
   if (input.emergencySecurity) {
     if (duration > FAIR_USE_POLICY.emergencySecurityHours * HOUR_MS) throw new Error("usage_emergency_limit_duration_invalid");
@@ -168,19 +168,28 @@ export async function applyUsageLimitation(input: {
       if ((previous.state && previous.state !== "active") || previous.revokedAt) throw new Error("usage_limitation_extension_initial_not_active");
       if (input.startsAt.getTime() !== previous.endsAt.getTime()) throw new Error("usage_limitation_extension_must_follow_initial");
       if (input.approvedByUserId === previous.approvedByUserId) throw new Error("usage_limitation_second_admin_required");
-      originalApproverUserId = previous.approvedByUserId;
-      extensionApproverUserId = input.approvedByUserId;
     }
   }
   const id = crypto.randomUUID();
-  await createLimitation({
+  const admitted = await createLimitation({
     ...input,
     operations: requestedOperations,
     id,
-    approvedByUserId: originalApproverUserId ?? input.approvedByUserId,
-    secondApprovedByUserId: extensionApproverUserId,
+    approvedByUserId: input.approvedByUserId,
   });
-  return { id, state: "active" as const, endsAt: input.endsAt };
+  return { id, state: "active" as const, endsAt: input.endsAt, ...admitted };
+}
+
+export async function submitUsageLimitationAppeal(input:{limitationId:string;subjectUserId:number;rationale:string}) {
+  const rationale=input.rationale.trim();
+  if (!rationale) throw new Error("usage_limitation_appeal_rationale_required");
+  return submitLimitationAppeal({id:crypto.randomUUID(),limitationId:input.limitationId,subjectUserId:input.subjectUserId,rationale,submittedAt:new Date()});
+}
+
+export async function resolveUsageLimitationAppeal(input:{appealId:string;reviewerUserId:number;result:"approved"|"denied";rationale:string}) {
+  const rationale=input.rationale.trim();
+  if (!rationale) throw new Error("usage_limitation_appeal_review_rationale_required");
+  return reviewLimitationAppeal({...input,rationale,reviewedAt:new Date()});
 }
 
 export async function authorizeFutureConsumptionCharging(input: {
@@ -232,6 +241,8 @@ export const usageGovernanceAdminService = {
   reviewUsageAbuseCase,
   applyUsageLimitation,
   revokeUsageLimitation: revokeLimitation,
+  submitUsageLimitationAppeal,
+  resolveUsageLimitationAppeal,
   authorizeFutureConsumptionCharging,
   revokeFutureConsumptionCharging,
   placeUsageLegalHold,

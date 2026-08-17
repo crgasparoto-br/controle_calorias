@@ -19,6 +19,7 @@ vi.mock("../../db", async importOriginal => {
 });
 
 import { usageGovernanceRouter } from "./router";
+import { billingRouter } from "../billing/router";
 
 const adminUser = {
   id: 1,
@@ -32,7 +33,7 @@ const adminUser = {
   lastSignedIn: new Date("2026-08-01T00:00:00.000Z"),
 } as TrpcContext["user"];
 
-const publicRouter = router({ usageGovernance: usageGovernanceRouter });
+const publicRouter = router({ usageGovernance: usageGovernanceRouter, billing: billingRouter });
 
 async function withPublicTrpcServer<T>(run: (baseUrl: string) => Promise<T>) {
   const app = express();
@@ -177,6 +178,26 @@ describe("usage governance public boundary", () => {
       expect(response.headers.get("x-correlation-id")).toMatch(/^[0-9a-f-]{36}$/i);
     });
   });
+
+  it.each(["usageGovernance.analytics", "billing.adminUsageAnalytics"])(
+    "sanitizes sensitive adapter markers through the %s alias",
+    async path => {
+      mocks.getDb.mockResolvedValue({
+        execute: vi.fn(async () => { throw new Error("SQL raw marker secret-fp idempotencyKey=idem-secret amountMinor=98765"); }),
+      });
+      await withPublicTrpcServer(async baseUrl => {
+        const { response, body, error } = await requestTrpc(baseUrl, path, {
+          from: "2026-08-01T00:00:00.000Z",
+          to: "2026-08-02T00:00:00.000Z",
+        }, "GET");
+        expect(response.status).toBe(500);
+        expect(error?.message).toBe("Não foi possível atualizar a governança de consumo.");
+        const projection=JSON.stringify(body);
+        for(const marker of ["secret-fp","idempotencyKey","idem-secret","98765","SQL raw"]) expect(projection).not.toContain(marker);
+        expect(response.headers.get("x-error-code")).toBe("API_UNEXPECTED_ERROR");
+      });
+    },
+  );
 
   it("keeps expected domain validation errors as controlled 4xx without unexpected-error headers", async () => {
     mocks.getDb.mockResolvedValue({ execute: vi.fn(), transaction: vi.fn() });

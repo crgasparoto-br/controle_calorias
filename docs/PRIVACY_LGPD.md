@@ -73,6 +73,12 @@ Billing persiste somente dados comerciais necessários: produto/versão contrata
 
 Payload bruto de pagamento não é persistido. O provider futuro deve normalizar o webhook e enviar apenas metadata allowlisted; cartão, CVV, token, segredo, endereço, e-mail, telefone ou objetos aninhados são descartados. Encerrar assinatura, cobertura ou override não apaga histórico nutricional ou clínico; exportação e exclusão seguem os contratos do titular e as obrigações legais aplicáveis à trilha comercial.
 
+### Governança de uso e custos
+
+O ledger operacional registra somente atribuição interna, capacidade, provider/modelo normalizados, tipo e quantidade de unidade, valor econômico, estado da tentativa e correlações opacas. Texto, foto, áudio, transcrição, prompt, resposta, URL e chave de storage não são copiados para essa trilha. Correlações derivadas de mídia ou objetos são hasheadas antes da persistência.
+
+Casos de abuso, decisões, limitações e recursos formam uma trilha administrativa com ator, instante e justificativa. Esses registros são eliminados automaticamente após cinco anos do encerramento, salvo legal hold ativo. Aprovação de recurso encerra e reverte limitações ativas; negação preserva resultado e fundamento até o fim da retenção.
+
 ## Exportação e exclusão
 
 A especificação funcional está em `docs/product-specs/privacy-export-deletion.md`.
