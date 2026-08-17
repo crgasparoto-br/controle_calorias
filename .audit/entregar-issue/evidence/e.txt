@@ -1,42 +1,63 @@
-issue=897
+Issue 897 independent-audit remediation evidence
 repository=crgasparoto-br/controle_calorias
-material_head_sha=5f5e6c3081c0f340b2e337a6037b3a640be563a0
+pr=985
+branch=feat/897-usage-governance
+base_branch=develop
 base_sha=6b735b34fdfbe46c3c65856aba62a1c44830a729
-previous_published_head_sha=ab5880b3b5b45537bc801de804e5cbff30a5f903
-previous_material_head_sha=a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9
-mode=connector-only-independent-audit-remediation
+previous_material_head_sha=c121453f1fd060092c0d6fad855c617148844121
+material_head_sha=dda1a53c582191cd27cf455c9317822c9269c375
+material_tree_sha=7d75a0829cd194df482cf69379461c3acf03abc2
+material_merge_preview_sha=a749ad6a5ea8d07246523da9928b2b83982c9934
 
-[material-delta]
-commit=5f5e6c3081c0f340b2e337a6037b3a640be563a0
-paths=server/modules/usageGovernance/service.ts;server/modules/usageGovernance/service.test.ts;docs/design-docs/usage-governance.md
-RESULT=PASS: remediation is limited to economic competence aggregation, its regression tests, and the matching design contract.
+Material remediation scope (17 paths):
+- docs/design-docs/usage-governance.md
+- drizzle/0046_billing_usage_provider_dispatch_state.sql
+- server/modules/usageGovernance/abusePolicy.ts
+- server/modules/usageGovernance/adminService.auditRemediation.test.ts
+- server/modules/usageGovernance/adminService.test.ts
+- server/modules/usageGovernance/adminService.ts
+- server/modules/usageGovernance/providerUsage.auditRemediation.test.ts
+- server/modules/usageGovernance/providerUsage.ts
+- server/modules/usageGovernance/schemas.auditRemediation.test.ts
+- server/modules/usageGovernance/schemas.ts
+- server/modules/whatsapp/processingAcknowledgementDelivery.ts
+- server/modules/whatsapp/processingAcknowledgementDelivery.usageDurability.test.ts
+- server/modules/whatsapp/replyTransport.ts
+- server/modules/whatsapp/replyTransport.usageDurability.test.ts
+- server/repositories/usageProviderDispatchRepository.test.ts
+- server/repositories/usageProviderDispatchRepository.ts
+- server/testSetupAiDefaults.ts
 
-[escape-TEMP-SPAN-001]
-source_finding=A-001
-class=temporal-allocation-boundary-and-conservation-gap
-literal=2026-08-15T00:00:00Z..2026-09-14T00:00:00Z amount=10000
-observed=2026-08:5667;2026-09:4333;sum=10000
-sibling-long-span=2026-01-15T00:00:00Z..2027-01-15T00:00:00Z amount=120000 sum=120000
-RESULT=PASS: exact canonical end is preserved and cumulative rounding conserves the original amount.
+Exact-source local controls executed on the material tree:
+- git write-tree == 7d75a0829cd194df482cf69379461c3acf03abc2: PASS (matches remote commit tree).
+- git diff --cached --check: PASS.
+- admin-abuse-controls: PASS. Exercises high_cost-only rejection, unknown-signal rejection, supported combination, required non-empty reviewed scope, unreviewed-operation rejection, reviewed subset acceptance, and legacy empty-scope fail-closed.
+- provider-durability-controls: PASS. Exercises durable reserve before provider claim, provider success followed by finalization persistence failure, replay without a second provider call, and preparation failure with zero provider calls.
+- provider-dispatch-lease-controls: PASS. Exercises one atomic claim, stale started lease -> provider_dispatch_uncertain without reacquisition, and recent in-flight lease not stolen.
+- inherited-historical-attribution: PASS static invariant probe on current source.
+- inherited-economic-temporal-currency: PASS static invariant probe on current source.
+- inherited-authorization-chain: PASS static invariant probe on current source.
+- inherited-charging-rollback: PASS static invariant probe on current source.
+- inherited-cost-reconciliation: PASS static invariant probe on current source.
+- inherited-public-boundary: PASS static invariant probe on current source.
+- inherited-retention-legal-hold: PASS static invariant probe on current source.
+- inherited-configurable-nonblocking-policy: PASS static invariant probe on current source.
+- inherited-documentation-freshness: PASS static invariant probe on current source.
 
-[escape-TEMP-RETRO-001]
-source_finding=A-002
-literal=current=2026-08-16 retroactive_competence=2026-03-01..2026-04-01
-observed=registerEconomicFact recomputes the affected competence range immediately outside the rolling scheduler window.
-sibling-retained-derived=current=2026-08-16 competence=2025-06-01..2025-07-01; raw usage detail is outside complete retention; prior monthly variableCostMicros=20000000 is preserved while revenue is recomputed from canonical economic facts.
-sibling-idempotent-repair=recordEconomicFact created=false still recomputes derived aggregates so a retry can heal failure after canonical persistence.
-RESULT=PASS: retroactive changes propagate through current-detail, derived-only and idempotent-repair states.
+Remote exact-head snapshot (observe-only, one collection) for dda1a53c582191cd27cf455c9317822c9269c375:
+- Agent-first gate run 32053424185: in_progress at observation. Job 95458004234 TypeScript check step completed/success; Tests step was in_progress; later steps not claimed.
+- Professional persistence TiDB gate run 32053424396: in_progress.
+- Billing persistence TiDB gate run 32053424115: in_progress.
+- WhatsApp context TiDB gate run 32053424159: in_progress.
+- Onboarding activation TiDB gate run 32053424042: in_progress.
+- AI provider live smoke run 32053424158: completed/skipped and is not claimed as execution evidence.
 
-[currency-and-version-regression]
-RESULT=PASS-BY-UNCHANGED-INVARIANT: same-currency unique-version reconciliation, cross-currency separation, and ambiguous-version fail-closed logic remain structurally unchanged inside the extracted range aggregator.
+Audit finding closures on this material head:
+- A-001 REVIEW-SCOPE-BIND-001: human-reviewed affectedOperations is non-empty for limitation approval and applyUsageLimitation accepts only a subset of that persisted scope. Siblings: empty reviewed scope and operation outside reviewed scope both reject.
+- A-002 PROVIDER-METER-DURABILITY-001: usage position is reserved and atomically claimed before Meta; post-provider persistence failure leaves durable provider_dispatch_started, replay does not resend, and stale leases become provider_dispatch_uncertain without reacquiring provider rights. Siblings: processing acknowledgement uses same prepare/claim/finalize barrier; original+fallback share one claim and one idempotent position.
+- A-003 ABUSE-SIGNAL-POLICY-001: high_cost alone and arbitrary signals reject; supported multi-signal combinations pass; one security signal requires securityRiskConfirmed=true. Siblings: public schema rejects the same invalid shapes and service validation fails closed independently.
 
-[remote-ci-single-snapshot]
-material_head_sha=5f5e6c3081c0f340b2e337a6037b3a640be563a0
-WhatsApp-context-TiDB=queued run=31981950318
-AI-provider-live-smoke=completed/skipped run=31981950314
-Onboarding-activation-TiDB=queued run=31981950321
-Billing-persistence-TiDB=queued run=31981950339
-Professional-persistence-TiDB=queued run=31981950338
-Agent-first=queued run=31981950362
-state=pending
-note=single exact-head observation; no polling/rerun/dispatch.
+Limitations recorded truthfully:
+- Full local Vitest/build were not executed because the recovered exact-head bundle contains no node_modules and the container cannot resolve the package registry.
+- Remote full tests/gates were still in_progress in the single allowed snapshot; only the exact-head TypeScript success step is claimed.
+- No workflow was dispatched, rerun, cancelled or approved.

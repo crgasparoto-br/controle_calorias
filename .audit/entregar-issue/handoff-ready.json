@@ -1,19 +1,19 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-17T16:54:25.187515+00:00",
+  "created_at": "2026-08-17T18:18:54.835469+00:00",
   "identity": {
-    "head_sha": "c121453f1fd060092c0d6fad855c617148844121",
-    "material_head_sha": "c121453f1fd060092c0d6fad855c617148844121",
+    "head_sha": "dda1a53c582191cd27cf455c9317822c9269c375",
+    "material_head_sha": "dda1a53c582191cd27cf455c9317822c9269c375",
     "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
-    "merge_preview_sha": "f9cd6ee4c6054940e1ea29128a15f63855b62123",
-    "material_merge_preview_sha": "f9cd6ee4c6054940e1ea29128a15f63855b62123"
+    "merge_preview_sha": "a749ad6a5ea8d07246523da9928b2b83982c9934",
+    "material_merge_preview_sha": "a749ad6a5ea8d07246523da9928b2b83982c9934"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/evidence/issue-897-refreeze-c121453.txt",
+      ".audit/entregar-issue/evidence/e.txt",
       ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
@@ -51,23 +51,23 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "113ba9ff1f5159b5b49dad22ada3c835f192579591b3e8ba395f5f6325911a36"
+      "sha256": "67f6810460c55c69b7c212892b4bd9771ee5d7e85488780761cc6480f5132efa"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "04969e64a25980de5f9f74ed1c59aa368a531566af5d4d6fab6b20795eecc2cb"
+      "sha256": "06b0828ba282f2a3fe8dee201ea387711ba1c83857a0e036d10dff35a0fabe7d"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "775381c6cf8a8d652e4da276abc14e6ca4d5c12abc636b34c72ce8f293fc544c"
+      "sha256": "0f5324a1008b8f2a625586413c993490fce02a946e1ecbe79bfa7d330c7870c4"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "a930dddd7f8f2d90a31dde134a2fe87ecf8f98b2113b3d17e4fdde15f53be7df"
+      "sha256": "e352cac9454d906fdb88d2278cbd8b574e4213904b7f7b5fc618ff3181be3e23"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "cb8145c315ac03498c33d69af020321c1943d6c4b2ee9e1916801ac1dd77453c"
+      "sha256": "9ae6c6b7c89484fcc7c6134be9b12abacfcee4a7b32fc2581d306621e9754d61"
     }
   },
   "previous_independent_rejection": true
