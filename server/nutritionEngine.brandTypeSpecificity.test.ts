@@ -121,7 +121,7 @@ describe("nutritionEngine brand and type specificity", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Requeijão Catupiry Light",
-      canonicalName: "Requeijão",
+      canonicalName: "Requeijão Catupiry",
       brand: "Catupiry",
       calories: 110,
       protein: 5,

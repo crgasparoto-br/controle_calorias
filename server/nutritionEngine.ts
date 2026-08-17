@@ -129,18 +129,24 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const normalizedFoodName = normalizeForMatching(item.foodName);
+  const normalizedBrand = normalizeForMatching(item.brand ?? "").trim();
+  const commercialIdentity = normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
+    ? `${item.foodName} ${item.brand}`
+    : item.foodName;
 
   addCatalogCandidate(candidates, sourceFoodName);
+  if (item.brand) {
+    addCatalogCandidate(candidates, `${commercialIdentity} ${item.portionText}`);
+    addCatalogCandidate(candidates, commercialIdentity);
+    addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
+  }
   if (
     Number.isFinite(item.estimatedGrams)
     && item.estimatedGrams > 0
     && !/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/iu.test(item.foodName)
   ) {
     addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
-  }
-  if (item.brand) {
-    addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
-    addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
   }
   addCatalogCandidate(candidates, item.foodName);
 
@@ -161,18 +167,32 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
+  let genericFallback: ReturnType<typeof findCatalogFood>;
 
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
-    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
+    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
+    if (item.brand && !catalog.brandName) {
+      genericFallback ??= catalog;
+      continue;
+    }
+    return catalog;
   }
 
-  for (const candidate of candidates) {
-    const catalog = await findCatalogFoodSemantic(candidate) ?? undefined;
-    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
+  for (const [index, candidate] of candidates.entries()) {
+    const catalog = await findCatalogFoodSemantic(candidate, {
+      searchSpecificProduct: Boolean(item.brand) && index === 0,
+      skipNutritionSearch: index > 0,
+    }) ?? undefined;
+    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
+    if (item.brand && !catalog.brandName) {
+      genericFallback ??= catalog;
+      continue;
+    }
+    return catalog;
   }
 
-  return undefined;
+  return genericFallback;
 }
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
@@ -330,10 +350,11 @@ function reasoningMentionsNutritionLabel(reasoning?: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-  if (/\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\b[^.]{0,60}\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/.test(normalized)) return false;
-  if (/\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b[^.]{0,60}\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\b/.test(normalized)) return false;
+  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
+  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
+  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
 
-  return /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/i.test(normalized);
+  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
 }
 
 function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {

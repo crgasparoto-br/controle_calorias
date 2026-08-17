@@ -89,6 +89,8 @@ O assistente alimentar não deve enviar nome, e-mail ou identificador interno do
 
 Foto, áudio e transcrição podem envolver serviços externos de transcrição, visão ou LLM. Sempre que o fluxo usar mídia com IA, mantenha o comportamento documentado, evite retenção acidental e prefira URLs com expiração quando houver necessidade de acesso externo.
 
+Quando uma imagem produzir marca/variante estruturada e o catálogo local não tiver referência exata, `NUTRITION_SEARCH` pode receber somente a descrição comercial necessária (produto, marca, variante e porção) para localizar uma fonte nutricional verificável. A pesquisa não recebe nome, telefone, identificador do usuário nem a foto novamente; rejeição de fonte e fallback não adicionam logs do texto consultado ou da evidência bruta.
+
 ### Transcrição de áudio e benchmark (#924)
 
 A finalidade do envio de áudio é produzir texto para o fluxo solicitado pelo próprio usuário. O envio ocorre somente ao provider efetivamente resolvido para `TRANSCRIPTION`; o baseline permanece OpenAI + `whisper-1`. A configuração de visão, texto ou outra capacidade não autoriza envio de áudio.

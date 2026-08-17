@@ -6,6 +6,7 @@ import {
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
   formatFoodNameTitleCase,
+  normalizeForMatching,
   normalizeText,
   normalizeUnit,
   parseFoodText,
@@ -54,6 +55,19 @@ export function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function formatRecognizedProductIdentity(foodName: string, brand: string | null) {
+  const formattedFoodName = formatFoodNameTitleCase(foodName);
+  if (!brand) return formattedFoodName;
+
+  const normalizedFoodName = normalizeForMatching(formattedFoodName);
+  const normalizedBrand = normalizeForMatching(brand).trim();
+  if (!normalizedBrand || normalizedFoodName.includes(` ${normalizedBrand} `)) {
+    return formattedFoodName;
+  }
+
+  return `${formattedFoodName} ${brand}`;
+}
+
 export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
@@ -74,7 +88,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
   return {
-    foodName: formatFoodNameTitleCase(llmItem.foodName),
+    foodName: formatRecognizedProductIdentity(llmItem.foodName, brand),
     canonicalName: formatFoodNameTitleCase(food.name),
     brand,
     portionText,
@@ -102,12 +116,13 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     ? roundNutritionValue(llmQuantity)
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
-  const foodName = formatFoodNameTitleCase(llmItem.foodName);
+  const brand = normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName);
+  const foodName = formatRecognizedProductIdentity(llmItem.foodName, brand);
 
   return {
     foodName,
     canonicalName: foodName,
-    brand: normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName),
+    brand,
     portionText: llmItem.portionText,
     quantity,
     unit,

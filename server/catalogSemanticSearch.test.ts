@@ -750,6 +750,79 @@ describe("findCatalogFoodSemantic — NUTRITION_SEARCH web fallback (packaged sn
     expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
     expect(createTextResponseMock).toHaveBeenCalledTimes(1);
   });
+
+  it("uses the canonical nutrition search for a branded beverage and accepts a traced zero-calorie variant", async () => {
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "NUTRITION_SEARCH" ? READY_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Cerveja Zero 330 ml",
+      brandName: "Marca Aurora",
+      servingLabel: "1 garrafa (330 ml)",
+      gramsPerServing: 330,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      confidence: 0.93,
+      sourceUrl: "https://fabricante.example/aurora-zero",
+      evidence: "Porção de 330 ml: 0 kcal, proteínas 0 g, carboidratos 0 g e gorduras totais 0 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://fabricante.example/aurora-zero",
+        supportingText: ["Porção de 330 ml: 0 kcal, proteínas 0 g, carboidratos 0 g e gorduras totais 0 g."],
+      }],
+    });
+
+    const result = await findCatalogFoodSemantic(
+      "cerveja zero Marca Aurora 330 ml",
+      { searchSpecificProduct: true },
+    );
+
+    expect(result).toEqual(expect.objectContaining({
+      name: "Cerveja Zero 330 ml",
+      brandName: "Marca Aurora",
+      calories: 0,
+      isBrandedProduct: true,
+    }));
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an external source for another brand or variant", async () => {
+    resolveCapabilityConfigMock.mockImplementation((capability: string) =>
+      capability === "NUTRITION_SEARCH" ? READY_POLICY : DISABLED_EMBEDDING_POLICY,
+    );
+    createTextResponseMock.mockResolvedValue({});
+    mockExecuteWithOutput(JSON.stringify({
+      found: true,
+      matchedProductName: "Cerveja Original 330 ml",
+      brandName: "Marca Eclipse",
+      servingLabel: "1 garrafa (330 ml)",
+      gramsPerServing: 330,
+      calories: 130,
+      protein: 1,
+      carbs: 10,
+      fat: 0,
+      confidence: 0.95,
+      sourceUrl: "https://fabricante.example/eclipse-original",
+      evidence: "Porção de 330 ml: 130 kcal, proteínas 1 g, carboidratos 10 g e gorduras totais 0 g.",
+    }), {
+      executed: true,
+      sources: [{
+        url: "https://fabricante.example/eclipse-original",
+        supportingText: ["Porção de 330 ml: 130 kcal, proteínas 1 g, carboidratos 10 g e gorduras totais 0 g."],
+      }],
+    });
+
+    await expect(findCatalogFoodSemantic(
+      "cerveja zero Marca Aurora 330 ml",
+      { searchSpecificProduct: true },
+    )).resolves.toBeNull();
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("findCatalogFoodSemantic — EMBEDDING capability (catalog embedding search)", () => {

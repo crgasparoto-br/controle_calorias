@@ -20,7 +20,8 @@ import type { AiWebSearchResult } from "./_core/aiProvider";
 const SIMILARITY_THRESHOLD = 0.82;
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
 
-type PackagedSnackCategory = "chocolate" | "cookie";
+type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
+type PackagedSnackCategory = Exclude<NutritionSearchCategory, "branded_product">;
 
 type SearchedNutritionResult = {
   found: boolean;
@@ -358,7 +359,7 @@ function parseNutritionAttemptOutput(outputText: string): SearchedNutritionResul
   }
   if (
     !isPositiveNumber(result.gramsPerServing)
-    || !isPositiveNumber(result.calories)
+    || !isNonNegativeNumber(result.calories)
     || !isNonNegativeNumber(result.protein)
     || !isNonNegativeNumber(result.carbs)
     || !isNonNegativeNumber(result.fat)
@@ -469,12 +470,12 @@ function extractLabelledGramValues(text: string, labelPattern: string): number[]
 }
 
 function numericClaimsSupportResult(text: string, result: Partial<SearchedNutritionResult>): boolean {
-  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return false;
+  if (!isPositiveNumber(result.gramsPerServing) || !isNonNegativeNumber(result.calories)) return false;
 
   const calorieValues = extractUnitValues(text, "kcal|calorias?");
-  const gramValues = extractUnitValues(text, "g|gramas?");
+  const servingValues = extractUnitValues(text, "g|gramas?|ml|mililitros?");
   if (!calorieValues.some(value => approximatelyEqual(value, result.calories as number))) return false;
-  if (!gramValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
+  if (!servingValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
 
   const labelledClaims: Array<[string, number | undefined]> = [
     ["prote[ií]nas?|proteins?", result.protein],
@@ -558,7 +559,7 @@ function parseSearchedNutritionResult(
   if (!result?.found || result.confidence === undefined || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) {
     return null;
   }
-  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return null;
+  if (!isPositiveNumber(result.gramsPerServing) || !isNonNegativeNumber(result.calories)) return null;
   if (!isNonNegativeNumber(result.protein) || !isNonNegativeNumber(result.carbs) || !isNonNegativeNumber(result.fat)) return null;
 
   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
@@ -596,7 +597,7 @@ function parseSearchedNutritionResult(
 
 export async function findPackagedSnackByWebSearch(
   foodName: string,
-  category: PackagedSnackCategory,
+  category: NutritionSearchCategory,
 ): Promise<CatalogFood | null> {
   const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
@@ -624,7 +625,11 @@ export async function findPackagedSnackByWebSearch(
                 type: "input_text",
                 text: [
                   `Alimento reconhecido: ${foodName}`,
-                  `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
+                  `Categoria provável: ${category === "chocolate"
+                    ? "chocolate/bombom/wafer embalado"
+                    : category === "cookie"
+                      ? "biscoito doce embalado"
+                      : "produto alimentício ou bebida industrializada com marca"}`,
                   "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
                   "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
                   "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
@@ -772,13 +777,22 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
  */
 export async function findCatalogFoodSemantic(
   foodName: string,
+  options: { searchSpecificProduct?: boolean; skipNutritionSearch?: boolean } = {},
 ): Promise<CatalogFood | null> {
   const packagedSnackCategory = detectPackagedSnackCategory(foodName);
-  if (packagedSnackCategory) {
+  if (packagedSnackCategory && !options.skipNutritionSearch) {
     const candidate = await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
       ?? await findCatalogFoodByEmbedding(foodName)
       ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
     return candidateIsCompatible(foodName, candidate) ? candidate : null;
+  }
+
+  if (packagedSnackCategory) return findCatalogFoodByEmbedding(foodName);
+
+  if (options.searchSpecificProduct) {
+    const candidate = await findPackagedSnackByWebSearch(foodName, "branded_product")
+      ?? await findCatalogFoodByEmbedding(foodName);
+    return candidate && candidateIsCompatible(foodName, candidate) ? candidate : null;
   }
 
   return findCatalogFoodByEmbedding(foodName);

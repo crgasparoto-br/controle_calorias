@@ -16,10 +16,13 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - Toda inferência nutricional deve ser tratada como rascunho até confirmação explícita ou fluxo conversacional equivalente.
 - O usuário deve conseguir entender quais alimentos foram identificados e quais valores foram estimados.
 - Alimentos reconhecidos por imagem com segurança, mas sem tabela nutricional visível ou macros confiáveis, devem usar valores estimados em vez de manter calorias e macronutrientes zerados.
+- Em imagens de produtos industrializados, marca e termos relevantes de linha, versão, estilo ou sabor visíveis no rótulo fazem parte da identidade nutricional. A seleção deve preferir referência compatível de produto + marca + variante + embalagem/porção; um resultado genérico nunca pode ser apresentado como se fosse específico da marca.
+- Quando não houver referência interna exata para um produto com marca reconhecida, o fluxo pode usar a capacidade canônica `NUTRITION_SEARCH` uma vez para buscar fonte rastreável. Produto, marca, variante e porção precisam ser compatíveis; caso contrário, o item preserva a identidade reconhecida e degrada para a estimativa genérica/heurística existente.
 - Bebidas gaseificadas explicitamente identificadas como `zero`, `zero açúcar`, `sem açúcar` ou `diet` devem priorizar uma referência nutricional específica e semanticamente compatível do catálogo. Quando essa referência não existir e a IA não fornecer nutrição utilizável, o fallback heurístico usa `0 kcal`, `0 g` de proteína, `0 g` de carboidratos e `0 g` de gordura, preservando o nome/marca informado e a quantidade em ml.
 - A heurística de bebida zero não se aplica a alimentos sólidos apenas por conterem `zero açúcar`, nem a bebidas regulares sem marcador explícito. Se a IA estiver indisponível, uma bebida zero reconhecida pelo texto continua usando esse fallback específico em vez da referência genérica de alimento sólido.
 - Refeições confirmadas devem aparecer nos relatórios, dashboard e totais diários.
 - Texto original, transcrição e mídia são dados sensíveis; usar apenas pelo tempo necessário e evitar logs crus.
+- Água potável pura continua obedecendo ao split de hidratação antes da persistência da refeição, mesmo quando marca ou embalagem forem reconhecidas na imagem.
 - Todo item sem correspondência no catálogo de alimentos deve receber uma classificação de processamento (NOVA), fibra estimada e sinalização de fruta/vegetal a partir da própria análise de IA, e essa classificação deve ser persistida no catálogo para reaproveitamento em relatórios futuros — não deve depender de curadoria manual para deixar de aparecer como "não classificado".
 
 ## Classificação automática de alimentos (pipeline)

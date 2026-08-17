@@ -214,7 +214,7 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
       continue;
     }
 
-    const aliasWords = getSignificantWords(alias);
+    const aliasWords = getSignificantWords(alias).filter(word => !brandWords.has(word));
     if (aliasWords.length > 1 && aliasWords.every(word => queryWordSet.has(word))) {
       bestScore = Math.max(bestScore, 600 + alias.length);
       continue;

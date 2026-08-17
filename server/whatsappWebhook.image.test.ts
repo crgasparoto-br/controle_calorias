@@ -196,7 +196,13 @@ describe("whatsappWebhook image inbound", () => {
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
-    confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
+    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 456,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: input.items as Array<Record<string, unknown>>,
+    }));
     processMealInputMock.mockImplementation(async (input) => ({
       detectedMealLabel: "Almoço",
       sourceText: "",
@@ -304,6 +310,60 @@ describe("whatsappWebhook image inbound", () => {
       occurredAt: expect.any(Date),
       timeZone: "America/Sao_Paulo",
     }));
+  });
+
+  it("persiste e responde com a mesma identidade e os mesmos nutrientes do produto com marca", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      confidence: 0.93,
+      needsConfirmation: true,
+      reasoning: "Marca e variante reconhecidas no rótulo.",
+      items: [{
+        foodName: "Cerveja Weissbier Marca Aurora",
+        canonicalName: "Cerveja Marca Aurora Weissbier",
+        brand: "Marca Aurora",
+        portionText: "1 garrafa (500 ml)",
+        quantity: 500,
+        unit: "ml",
+        servings: 1,
+        estimatedGrams: 500,
+        calories: 211,
+        protein: 2.4,
+        carbs: 17.3,
+        fat: 0,
+        confidence: 0.92,
+        source: "catalog" as const,
+      }],
+      totals: { calories: 211, protein: 2.4, carbs: 17.3, fat: 0 },
+    });
+
+    const req = { body: createMetaImagePayload("wamid.image-brand-consistency") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({
+        items: [expect.objectContaining({
+          foodName: "Cerveja Weissbier Marca Aurora",
+          brand: "Marca Aurora",
+          calories: 211,
+          protein: 2.4,
+          carbs: 17.3,
+          fat: 0,
+        })],
+        totals: { calories: 211, protein: 2.4, carbs: 17.3, fat: 0 },
+      }),
+      expect.any(Array),
+    );
+    const replyCall = findFetchCallByBody("Cerveja Weissbier Marca Aurora");
+    expect(replyCall?.[1]).toEqual(expect.objectContaining({
+      body: expect.stringContaining("211 kcal | P 2,4 g | C 17,3 g | G 0 g"),
+    }));
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
   });
 
   it("envia imagem anotada quando o overlay local retorna URL", async () => {

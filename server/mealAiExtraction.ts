@@ -256,6 +256,8 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': quantity deve ser 140, unit deve ser 'g', foodName deve ser apenas 'Carne moída suína' e portionText deve ser derivado como '140 g'.",
         "Separe marca em brand quando ela estiver explícita no texto, foto, rótulo ou etiqueta; use null quando não houver evidência clara de marca.",
+        "Em fotos de produtos embalados, preserve em foodName a categoria e todos os termos visíveis que diferenciam linha, versão, estilo ou sabor (por exemplo Original, Pilsen, Lager, Weissbier, Zero, Light ou Sem lactose), mesmo quando brand estiver preenchida separadamente.",
+        "Não invente marca ou variante a partir de cor, formato da embalagem ou semelhança visual quando o texto do rótulo estiver ilegível ou ambíguo.",
         "Não invente marca por inferência genérica. Não trate sabor, unidade, quantidade, tipo do alimento ou ingrediente como marca.",
         "Para exemplos como '80g iogurte grego light Danone', '100ml leite integral Piracanjuba' e '18g whey proten doce de leite Growth', preencha brand com Danone, Piracanjuba e Growth respectivamente.",
         "Para exemplos como 'pão com mel', 'banana' ou 'arroz e feijão', preencha brand como null.",

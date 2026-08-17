@@ -123,8 +123,8 @@ describe("nutritionEngine branded catalog selection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Whey Proten Doce de Leite",
-      canonicalName: "Whey Proten Doce de Leite",
+      foodName: "Whey Proten Doce de Leite Growth",
+      canonicalName: "Whey Proten Doce de Leite Growth",
       brand: "Growth",
       quantity: 18,
       unit: "g",
