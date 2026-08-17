@@ -1,15 +1,22 @@
 {
   "schema_version": 1,
-  "head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
-  "status": "passed",
-  "command": "pnpm check && pnpm test && pnpm architecture:check && pnpm docs:check && CI_SHARDED_TESTS_COMPLETE=1 pnpm agent:check && pnpm build",
-  "started_at": "2026-08-17T17:40:07Z",
-  "finished_at": "2026-08-17T17:44:19Z",
+  "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
+  "status": "focused-controls-passed-remote-full-gate-in-progress",
+  "command": "focused harness + TypeScript syntax transpile + skill contract/genericity validators",
+  "started_at": "2026-08-17T19:41:08.384027+00:00",
+  "finished_at": "2026-08-17T19:41:08.384027+00:00",
   "exit_code": 0,
-  "tests": {"files":552,"cases":3611,"status":"passed"},
+  "tests": {
+    "focused_provider_cases": 5,
+    "skill_contract_tests": 8,
+    "status": "passed"
+  },
+  "local_full_gate": {
+    "status": "not-run",
+    "reason": "dependency installation unavailable in runtime"
+  },
   "evidence": {
-    "attestation":"evidence/final-gate-attestation.json",
-    "stdout":"evidence/final-gate-stdout.log",
-    "stderr":"evidence/final-gate-stderr.log"
+    "attestation": "evidence/final-gate-attestation.json",
+    "remediation": "evidence/issue987-audit-remediation.txt"
   }
 }

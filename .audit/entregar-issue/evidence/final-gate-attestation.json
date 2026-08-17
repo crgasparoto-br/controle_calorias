@@ -1,15 +1,44 @@
 {
   "schema_version": 1,
-  "name": "final-agent-gate",
-  "command": "env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm test && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm architecture:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm docs:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 CI_SHARDED_TESTS_COMPLETE=1 ./node_modules/.bin/pnpm agent:check && env -u CI XDG_DATA_HOME=/tmp/xdg-data-987 XDG_CACHE_HOME=/tmp/xdg-cache-987 ./node_modules/.bin/pnpm build",
-  "cwd": "/tmp/issue-987-Sagthz",
-  "exit_code": 0,
-  "started_at": "2026-08-17T17:40:07.564649Z",
-  "finished_at": "2026-08-17T17:44:19.648178Z",
-  "head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
-  "stdout_sha256": "3bed6d7429db855a7c76c4deb4e8d20e0f85e38fbd5d50bc6caf49385b724904",
-  "stderr_sha256": "76b46615584d2a4ed89e25db542f0e02c13990346988be7753c30ca23d58a5e8",
-  "stdout_path": "/tmp/issue987-gates-r2/stdout.log",
-  "stderr_path": "/tmp/issue987-gates-r2/stderr.log",
-  "executor": "entregar-issue/run_attested_gate.py@2"
+  "head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
+  "status": "passed-with-remote-full-gate-in-progress",
+  "created_at": "2026-08-17T19:41:08.384027+00:00",
+  "local_controls": [
+    {
+      "name": "focused branded-provider behavioral harness",
+      "status": "passed",
+      "evidence": "evidence/issue987-audit-remediation.txt"
+    },
+    {
+      "name": "typescript syntax transpile for four changed modules",
+      "status": "passed",
+      "evidence": "evidence/issue987-audit-remediation.txt"
+    },
+    {
+      "name": "git diff --check",
+      "status": "passed",
+      "evidence": "evidence/issue987-audit-remediation.txt"
+    },
+    {
+      "name": "skill prevention/detection contract tests",
+      "status": "passed",
+      "evidence": "evidence/issue987-audit-remediation.txt"
+    },
+    {
+      "name": "skill genericity validators",
+      "status": "passed",
+      "evidence": "evidence/issue987-audit-remediation.txt"
+    }
+  ],
+  "full_local_gate": {
+    "status": "not-run",
+    "reason": "node_modules unavailable and registry.npmjs.org unreachable (EAI_AGAIN)"
+  },
+  "remote_observation": {
+    "mode": "read-only-single-observation",
+    "agent_first_gate": "in_progress",
+    "whatsapp_context_tidb_gate": "success",
+    "ai_provider_live_smoke": "skipped",
+    "rerun_or_dispatch_performed": false
+  }
 }
