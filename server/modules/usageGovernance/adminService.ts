@@ -13,22 +13,17 @@ import {
   revokeLegalHold,
   revokeLimitation,
 } from "../../repositories/usageGovernanceAdminRepository";
+import {
+  getUsageAbuseSignalValidationError,
+  isHeavyUsageOperation,
+  normalizeReviewedOperations,
+  normalizeUsageAbuseSignals,
+  SECURITY_USAGE_ABUSE_SIGNALS,
+} from "./abusePolicy";
 import { FAIR_USE_POLICY, USAGE_RULE_VERSION } from "./service";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-const HEAVY_OPERATIONS = new Set([
-  "ai_heavy_processing",
-  "image_processing",
-  "audio_processing",
-  "whatsapp_processing",
-]);
-const SECURITY_SIGNALS = new Set([
-  "account_sharing",
-  "control_bypass_attempt",
-  "credential_abuse",
-  "security_risk",
-]);
 
 function assertFutureRange(startsAt: Date, endsAt: Date) {
   if (endsAt.getTime() <= startsAt.getTime()) throw new Error("usage_governance_range_invalid");
@@ -80,8 +75,12 @@ export async function openUsageAbuseCase(input: {
   evidence: Record<string, number | string | boolean | null>;
   actorUserId: number;
 }) {
+  const signals = normalizeUsageAbuseSignals(input.signals);
+  const signalError = getUsageAbuseSignalValidationError(signals, input.evidence);
+  if (signalError) throw new Error(signalError);
+
   const id = crypto.randomUUID();
-  await createAbuseCase({ ...input, id });
+  await createAbuseCase({ ...input, signals, id });
   return { id, state: "open" as const };
 }
 
@@ -97,7 +96,19 @@ export async function reviewUsageAbuseCase(input: {
   if (!input.systemFailuresExcluded || !input.legitimateGrowthReviewed) {
     throw new Error("usage_abuse_review_incomplete");
   }
-  await approveAbuseReview(input);
+
+  const affectedOperations = normalizeReviewedOperations(input.impact.affectedOperations);
+  if (affectedOperations.some(operation => !isHeavyUsageOperation(operation))) {
+    throw new Error("usage_abuse_review_operations_invalid");
+  }
+  if (input.outcome === "limitation_approved" && !affectedOperations.length) {
+    throw new Error("usage_abuse_review_operations_required");
+  }
+
+  await approveAbuseReview({
+    ...input,
+    impact: { ...input.impact, affectedOperations },
+  });
   return { id: input.id, state: "reviewed" as const, outcome: input.outcome };
 }
 
@@ -114,7 +125,8 @@ export async function applyUsageLimitation(input: {
   appealOfferedAt?: Date | null;
 }) {
   assertFutureRange(input.startsAt, input.endsAt);
-  if (!input.operations.length || input.operations.some(operation => !HEAVY_OPERATIONS.has(operation) && !operation.startsWith("capability:") && !operation.startsWith("flow:"))) {
+  const requestedOperations = normalizeReviewedOperations(input.operations);
+  if (!requestedOperations.length || requestedOperations.some(operation => !isHeavyUsageOperation(operation))) {
     throw new Error("usage_limitation_operations_invalid");
   }
   const duration = input.endsAt.getTime() - input.startsAt.getTime();
@@ -131,7 +143,7 @@ export async function applyUsageLimitation(input: {
     if (priorLimitations.some(item => item.emergencySecurity)) throw new Error("usage_emergency_limit_already_applied");
     const signals = jsonStringArray(abuseCase.signalsJson);
     const evidence = jsonObject(abuseCase.sanitizedEvidenceJson);
-    if (!signals.some(signal => SECURITY_SIGNALS.has(signal)) || evidence.securityRiskConfirmed !== true) {
+    if (!signals.some(signal => SECURITY_USAGE_ABUSE_SIGNALS.has(signal)) || evidence.securityRiskConfirmed !== true) {
       throw new Error("usage_emergency_security_evidence_required");
     }
   } else {
@@ -140,6 +152,14 @@ export async function applyUsageLimitation(input: {
       throw new Error("usage_limitation_human_review_required");
     }
     if (!input.communicatedAt || !input.appealOfferedAt) throw new Error("usage_limitation_communication_required");
+
+    const impact = jsonObject(abuseCase.impactJson);
+    const reviewedOperations = normalizeReviewedOperations(jsonStringArray(impact.affectedOperations));
+    if (!reviewedOperations.length) throw new Error("usage_limitation_review_scope_missing");
+    const reviewedOperationSet = new Set(reviewedOperations);
+    if (requestedOperations.some(operation => !reviewedOperationSet.has(operation))) {
+      throw new Error("usage_limitation_operation_not_reviewed");
+    }
 
     const normalLimitations = priorLimitations.filter(item => !item.emergencySecurity);
     if (normalLimitations.length >= 2) throw new Error("usage_limitation_extension_limit_reached");
@@ -155,6 +175,7 @@ export async function applyUsageLimitation(input: {
   const id = crypto.randomUUID();
   await createLimitation({
     ...input,
+    operations: requestedOperations,
     id,
     approvedByUserId: originalApproverUserId ?? input.approvedByUserId,
     secondApprovedByUserId: extensionApproverUserId,

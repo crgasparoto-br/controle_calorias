@@ -49,6 +49,7 @@ function reviewedCase(overrides: Record<string, unknown> = {}) {
     legitimateGrowthReviewed: true,
     signalsJson: JSON.stringify(["automation_heavy"]),
     sanitizedEvidenceJson: JSON.stringify({ requestRate: 120 }),
+    impactJson: JSON.stringify({ affectedOperations: ["ai_heavy_processing"] }),
     ...overrides,
   };
 }

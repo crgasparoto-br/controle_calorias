@@ -1,8 +1,17 @@
 import { z } from "zod";
+import {
+  getUsageAbuseSignalValidationError,
+  isHeavyUsageOperation,
+  USAGE_ABUSE_SIGNAL_VALUES,
+} from "./abusePolicy";
 
 const isoDate = z.string().datetime();
 const reason = z.string().trim().min(3).max(255);
 const id = z.string().uuid();
+const heavyUsageOperation = z.string().trim().min(1).max(120).refine(
+  isHeavyUsageOperation,
+  "A operação deve ser uma operação pesada conhecida, capability:* ou flow:*.",
+);
 
 export const internalUsageAnalyticsSchema = z
   .object({
@@ -73,11 +82,14 @@ const sanitizedEvidenceValue = z.union([
 export const openUsageAbuseCaseSchema = z.object({
   subjectUserId: z.number().int().positive(),
   sponsorUserId: z.number().int().positive().optional(),
-  signals: z.array(z.string().trim().min(1).max(80)).min(1).max(20),
+  signals: z.array(z.enum(USAGE_ABUSE_SIGNAL_VALUES)).min(1).max(20),
   evidence: z.record(z.string(), sanitizedEvidenceValue).refine(
     value => !Object.keys(value).some(key => /prompt|content|text|message|transcript|audio|image|media|payload|error|secret|token|url/i.test(key)),
     "Evidências não podem conter conteúdo bruto ou campos sensíveis.",
   ),
+}).superRefine((value, ctx) => {
+  const signalError = getUsageAbuseSignalValidationError(value.signals, value.evidence);
+  if (signalError) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["signals"], message: signalError });
 });
 
 export const reviewUsageAbuseCaseSchema = z.object({
@@ -87,15 +99,23 @@ export const reviewUsageAbuseCaseSchema = z.object({
   systemFailuresExcluded: z.literal(true),
   legitimateGrowthReviewed: z.literal(true),
   impact: z.object({
-    affectedOperations: z.array(z.string().trim().min(1).max(120)).max(20),
+    affectedOperations: z.array(heavyUsageOperation).max(20),
     legitimateGrowthNotes: z.string().trim().max(255).optional(),
   }),
+}).superRefine((value, ctx) => {
+  if (value.outcome === "limitation_approved" && value.impact.affectedOperations.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["impact", "affectedOperations"],
+      message: "usage_abuse_review_operations_required",
+    });
+  }
 });
 
 export const applyUsageLimitationSchema = z.object({
   abuseCaseId: id,
   subjectUserId: z.number().int().positive(),
-  operations: z.array(z.string().trim().min(1).max(120)).min(1).max(20),
+  operations: z.array(heavyUsageOperation).min(1).max(20),
   reason,
   startsAt: isoDate,
   endsAt: isoDate,
