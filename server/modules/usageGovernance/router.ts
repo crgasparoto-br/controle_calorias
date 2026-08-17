@@ -2,13 +2,17 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import { usageGovernanceAdminService } from "./adminService";
+import { reconcileUsageCost } from "./costReconciliation";
+import { configureUsagePolicy, resolveFairUsePolicy } from "./policyService";
 import { getInternalUsageAnalytics, registerEconomicFact } from "./service";
 import {
   applyUsageLimitationSchema,
   authorizeConsumptionChargingSchema,
+  configureUsagePolicySchema,
   grantUsageAllowanceSchema,
   internalUsageAnalyticsSchema,
   openUsageAbuseCaseSchema,
+  reconcileUsageCostSchema,
   resolveInternalUsageAnalyticsWindow,
   reviewUsageAbuseCaseSchema,
   revokeConsumptionChargingSchema,
@@ -25,7 +29,7 @@ const economicFactSchema = z.object({
   productCode: z.string().trim().max(120).optional(),
   versionCode: z.string().trim().max(191).optional(),
   billingCycle: z.string().trim().max(32).optional(),
-  factType: z.enum(["contract_revenue", "discount", "coupon", "credit", "refund", "chargeback", "revenue_tax", "receipt_fee", "financial_cost", "usage_cost_correction"]),
+  factType: z.enum(["contract_revenue", "discount", "coupon", "credit", "refund", "chargeback", "revenue_tax", "receipt_fee", "financial_cost"]),
   amountMinor: z.number().int().nonnegative(),
   currency: z.string().trim().length(3).transform(value => value.toUpperCase()),
   valueKind: z.enum(["estimated", "effective"]),
@@ -46,8 +50,41 @@ function governanceError(error: unknown): never {
 }
 
 export const usageGovernanceRouter = router({
-  analytics: adminProcedure.input(internalUsageAnalyticsSchema).query(({ input }) =>
-    getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input))),
+  analytics: adminProcedure.input(internalUsageAnalyticsSchema).query(async ({ input }) => {
+    const window = resolveInternalUsageAnalyticsWindow(input);
+    const [analytics, fairUse] = await Promise.all([
+      getInternalUsageAnalytics(window),
+      resolveFairUsePolicy({ userId: input.userId }),
+    ]);
+    return {
+      ...analytics,
+      policy: {
+        ...analytics.policy,
+        fairUse,
+      },
+    };
+  }),
+
+  configurePolicy: adminProcedure.input(configureUsagePolicySchema).mutation(async ({ ctx, input }) => {
+    try {
+      return await configureUsagePolicy({
+        ...input,
+        observationStartsAt: new Date(input.observationStartsAt),
+        observationEndsAt: new Date(input.observationEndsAt),
+        actorUserId: ctx.user.id,
+      });
+    } catch (error) { governanceError(error); }
+  }),
+
+  reconcileUsageCost: adminProcedure.input(reconcileUsageCostSchema).mutation(async ({ ctx, input }) => {
+    try {
+      return await reconcileUsageCost({
+        ...input,
+        effectiveAt: input.effectiveAt ? new Date(input.effectiveAt) : undefined,
+        actorUserId: ctx.user.id,
+      });
+    } catch (error) { governanceError(error); }
+  }),
 
   recordEconomicFact: adminProcedure.input(economicFactSchema).mutation(async ({ ctx, input }) => {
     try {
