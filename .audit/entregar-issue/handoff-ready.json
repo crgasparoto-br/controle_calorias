@@ -1,25 +1,29 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-17T01:31:51.507241+00:00",
+  "created_at": "2026-08-17T11:56:08.766997+00:00",
   "identity": {
-    "head_sha": "bf55ebce47e32220b741f011f6fa79463d7862ad",
-    "material_head_sha": "bf55ebce47e32220b741f011f6fa79463d7862ad",
+    "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+    "material_head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
     "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
-    "merge_preview_sha": "41295fbf5dc0150c8d0d1d561e35c44850932cfa",
-    "material_merge_preview_sha": "41295fbf5dc0150c8d0d1d561e35c44850932cfa"
+    "merge_preview_sha": "9126a0afbdf31e6ab3c587eb08a41073166c32ab",
+    "material_merge_preview_sha": "9126a0afbdf31e6ab3c587eb08a41073166c32ab"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/evidence/issue-897-audit-remediation-v4.txt",
+      ".audit/entregar-issue/evidence/issue-897-refreeze-7cc769.txt",
+      ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/neutral-packet.json",
+      ".audit/entregar-issue/remote-gate-evidence.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/source-manifest.json",
       ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
@@ -47,19 +51,19 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "3a2e1d9d81f027299e7234cd5e182e00b2f08fd7f21f7b195da82bcc910f3886"
+      "sha256": "048c711ef9e4bdcdf9a204487dcc085b3903804504bbd877beb3a8fadd68bb5d"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "cf2f4ebe933f67cbcd70cf92180659051b636fab1a7847bf8118d4fff7557d3f"
+      "sha256": "e29ded92181dbe5bd593ed597bf78f678bc45cfeef05c92bdc34b3b6a3460aa7"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "3820153cf81208beb1ea373e4952c4c5cba79de331e19195421f26fa91abc015"
+      "sha256": "8edbca4518a9aec5b2a72d9354884c81a5a169ac8d7d08c2fdb3dee6981e0326"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "538f8e340d432aed1a6e9e18ef3e5dd9a8370ff5c5c36e921a3c05f35db432c8"
+      "sha256": "78d06db598ada44eb5d9e13eacc80e3910ce9c7b9bcb131d040c12fd259051f5"
     },
     "learning_closure": {
       "name": "learning-closure.json",

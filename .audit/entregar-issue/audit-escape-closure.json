@@ -1,1 +1,526 @@
-{"schema_version":1,"escapes":[{"escape_id":"HIST-A001","escape_class":"semantic-risk-family-applicability-drift","status":"passed","source_audit":{"finding_id":"A-001","validity":"independent","affected_head_sha":"e20bb26847025abe8ba6ac82dac5fca0573d7958"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"HIST-A001S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"future-charge-authorization","dimension":"revoke-before-effective-date"},{"id":"HIST-A001S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"usage-attribution-ledger","dimension":"sponsor-change-after-event"}],"required_attack_dimensions":[{"risk_family":"rollback","surface":"future-charge-authorization","dimension":"deactivation-with-persisted-rollback"},{"risk_family":"historical-immutability","surface":"usage-attribution-ledger","dimension":"plan-change-after-event"}],"prevention_change":{"control_id":"RISK-FAMILY-APPLICABILITY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"RISK-FAMILY-APPLICABILITY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["historical-immutability","rollback"]},{"escape_id":"HIST-A002","escape_class":"derived-economic-series-consistency-gap","status":"passed","source_audit":{"finding_id":"A-002","validity":"independent","affected_head_sha":"0a486c091f1a0c02561d0ef1bc85d70c742d5c75"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"HIST-A002S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"rolling-economic-window","dimension":"gap-inside-lookback"},{"id":"HIST-A002S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"economic-currency-bucket","dimension":"unconverted-foreign-cost"}],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"rolling-economic-window","dimension":"lookback-continuity"},{"risk_family":"structural-contract","surface":"economic-currency-bucket","dimension":"comparable-unit-only"}],"prevention_change":{"control_id":"AGG-UNIT-001+TEMP-ROLL-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"AGG-UNIT-001+TEMP-ROLL-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["structural-contract","temporal-consistency"]},{"escape_id":"HIST-A003","escape_class":"persisted-policy-effect-gap","status":"passed","source_audit":{"finding_id":"A-003","validity":"independent","affected_head_sha":"0a486c091f1a0c02561d0ef1bc85d70c742d5c75"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"HIST-A003S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"runtime-exemption","dimension":"professional-sponsor-exemption"},{"id":"HIST-A003S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"retention-legal-hold","dimension":"economic-aggregate-hold"}],"required_attack_dimensions":[{"risk_family":"authorization","surface":"runtime-exemption","dimension":"active-policy-effect"},{"risk_family":"temporal-consistency","surface":"retention-legal-hold","dimension":"derived-representation-preservation"}],"prevention_change":{"control_id":"POLICY-EFFECT-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"POLICY-EFFECT-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["authorization","temporal-consistency"]},{"escape_id":"HIST-A004","escape_class":"bounded-authorization-chain-gap","status":"passed","source_audit":{"finding_id":"A-004","validity":"independent","affected_head_sha":"0a486c091f1a0c02561d0ef1bc85d70c742d5c75"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"HIST-A004S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"limitation-extension","dimension":"same-admin-rejected"},{"id":"HIST-A004S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"emergency-window","dimension":"second-emergency-window"}],"required_attack_dimensions":[{"risk_family":"authorization","surface":"limitation-extension","dimension":"authenticated-distinct-approver"},{"risk_family":"temporal-consistency","surface":"emergency-window","dimension":"anti-chain-and-proof"}],"prevention_change":{"control_id":"AUTH-CHAIN-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"AUTH-CHAIN-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["authorization","temporal-consistency"]},{"escape_id":"TEMP-A001-EXACT-SPAN","escape_class":"temporal-allocation-boundary-and-conservation-gap","status":"passed","source_audit":{"finding_id":"A-001","validity":"independent","affected_head_sha":"a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"TEMP-A001S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"economic-competence-span","dimension":"mid-month-boundary"},{"id":"TEMP-A001S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"economic-competence-span","dimension":"long-span-rounding-conservation"}],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"economic-competence-span","dimension":"exact-end-and-rounding-conservation"},{"risk_family":"temporal-consistency","surface":"economic-competence-span","dimension":"long-span-rounding-conservation"}],"prevention_change":{"control_id":"TEMP-SPAN-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"TEMP-SPAN-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["temporal-consistency"]},{"escape_id":"TEMP-A002-RETRO-RECOMPOSE","escape_class":"retroactive-derived-state-propagation-gap","status":"passed","source_audit":{"finding_id":"A-002","validity":"independent","affected_head_sha":"a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"TEMP-A002S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"retroactive-economic-recomposition","dimension":"retained-derived-preservation"},{"id":"TEMP-A002S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"retroactive-economic-recomposition","dimension":"idempotent-derived-repair"}],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"retroactive-economic-recomposition","dimension":"historical-outside-current-window"},{"risk_family":"temporal-consistency","surface":"retroactive-economic-recomposition","dimension":"retained-derived-preservation"}],"prevention_change":{"control_id":"TEMP-RETRO-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"TEMP-RETRO-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["temporal-consistency"]},{"escape_id":"AUD897-A001-META-METERING","escape_class":"provider-boundary-measurement-gap","status":"passed","source_audit":{"finding_id":"A-001","validity":"independent","affected_head_sha":"63fdd34cceba0e162947e1905d817fc72f10f9ca"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"AUD897-A001S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"meta-provider-boundary","dimension":"successful-text-without-ai"},{"id":"AUD897-A001S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"whatsapp-reprocessing","dimension":"duplicate-callback-same-position"}],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"meta-provider-boundary","dimension":"accepted-non-ai-outbound-metered"},{"risk_family":"idempotency","surface":"whatsapp-reprocessing","dimension":"fallback-outcome-does-not-duplicate-position"}],"prevention_change":{"control_id":"META-USAGE-BOUNDARY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"META-USAGE-BOUNDARY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["idempotency","structural-contract"]},{"escape_id":"AUD897-A002-COST-RECONCILIATION","escape_class":"estimated-effective-reconciliation-gap","status":"passed","source_audit":{"finding_id":"A-002","validity":"independent","affected_head_sha":"63fdd34cceba0e162947e1905d817fc72f10f9ca"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"AUD897-A002S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"usage-cost-ledger","dimension":"prior-effective-value-preserved"},{"id":"AUD897-A002S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"cost-reconciliation","dimension":"same-key-different-value-conflict"}],"required_attack_dimensions":[{"risk_family":"historical-immutability","surface":"usage-cost-ledger","dimension":"estimate-preserved-when-effective-applied"},{"risk_family":"idempotency","surface":"cost-reconciliation","dimension":"same-key-same-value-noop-conflict-rejected"}],"prevention_change":{"control_id":"USAGE-COST-RECONCILE-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"USAGE-COST-RECONCILE-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["historical-immutability","idempotency"]},{"escape_id":"AUD897-A003-CONFIGURABLE-THRESHOLDS","escape_class":"persisted-policy-resolution-gap","status":"passed","source_audit":{"finding_id":"A-003","validity":"independent","affected_head_sha":"63fdd34cceba0e162947e1905d817fc72f10f9ca"},"plausible_wrong_implementation":"A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.","literal_case":{"status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","procedure":"Recheck the original independent finding against the frozen remediation candidate."},"sibling_cases":[{"id":"AUD897-A003S1","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"admin-policy-mutation","dimension":"user-policy-replacement"},{"id":"AUD897-A003S2","status":"passed","evidence":"evidence/issue-897-audit-remediation-v4.txt","surface":"analytics-policy-resolution","dimension":"default-fallback-when-no-active-policy"}],"required_attack_dimensions":[{"risk_family":"authorization","surface":"admin-policy-mutation","dimension":"admin-only-versioned-replacement"},{"risk_family":"structural-contract","surface":"analytics-policy-resolution","dimension":"persisted-thresholds-override-default-without-blocking"}],"prevention_change":{"control_id":"FAIR-USE-POLICY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"entregar-issue"},"detection_change":{"control_id":"FAIR-USE-POLICY-001","evidence":"evidence/issue-897-audit-remediation-v4.txt","skill":"auditar-issue"},"required_risk_families":["authorization","structural-contract"]}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "HIST-A001",
+      "escape_class": "semantic-risk-family-applicability-drift",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-001",
+        "validity": "independent",
+        "affected_head_sha": "e20bb26847025abe8ba6ac82dac5fca0573d7958"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "HIST-A001S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "future-charge-authorization",
+          "dimension": "revoke-before-effective-date"
+        },
+        {
+          "id": "HIST-A001S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "usage-attribution-ledger",
+          "dimension": "sponsor-change-after-event"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "rollback",
+          "surface": "future-charge-authorization",
+          "dimension": "deactivation-with-persisted-rollback"
+        },
+        {
+          "risk_family": "historical-immutability",
+          "surface": "usage-attribution-ledger",
+          "dimension": "plan-change-after-event"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "RISK-FAMILY-APPLICABILITY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "RISK-FAMILY-APPLICABILITY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "historical-immutability",
+        "rollback"
+      ]
+    },
+    {
+      "escape_id": "HIST-A002",
+      "escape_class": "derived-economic-series-consistency-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-002",
+        "validity": "independent",
+        "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "HIST-A002S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "rolling-economic-window",
+          "dimension": "gap-inside-lookback"
+        },
+        {
+          "id": "HIST-A002S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "economic-currency-bucket",
+          "dimension": "unconverted-foreign-cost"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "rolling-economic-window",
+          "dimension": "lookback-continuity"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "economic-currency-bucket",
+          "dimension": "comparable-unit-only"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "AGG-UNIT-001+TEMP-ROLL-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "AGG-UNIT-001+TEMP-ROLL-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "escape_id": "HIST-A003",
+      "escape_class": "persisted-policy-effect-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-003",
+        "validity": "independent",
+        "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "HIST-A003S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "runtime-exemption",
+          "dimension": "professional-sponsor-exemption"
+        },
+        {
+          "id": "HIST-A003S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "retention-legal-hold",
+          "dimension": "economic-aggregate-hold"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "runtime-exemption",
+          "dimension": "active-policy-effect"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "retention-legal-hold",
+          "dimension": "derived-representation-preservation"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "POLICY-EFFECT-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "POLICY-EFFECT-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "authorization",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "escape_id": "HIST-A004",
+      "escape_class": "bounded-authorization-chain-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-004",
+        "validity": "independent",
+        "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "HIST-A004S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "limitation-extension",
+          "dimension": "same-admin-rejected"
+        },
+        {
+          "id": "HIST-A004S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "emergency-window",
+          "dimension": "second-emergency-window"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "limitation-extension",
+          "dimension": "authenticated-distinct-approver"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "emergency-window",
+          "dimension": "anti-chain-and-proof"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "AUTH-CHAIN-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "AUTH-CHAIN-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "authorization",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "escape_id": "TEMP-A001-EXACT-SPAN",
+      "escape_class": "temporal-allocation-boundary-and-conservation-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-001",
+        "validity": "independent",
+        "affected_head_sha": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "TEMP-A001S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "economic-competence-span",
+          "dimension": "mid-month-boundary"
+        },
+        {
+          "id": "TEMP-A001S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "economic-competence-span",
+          "dimension": "long-span-rounding-conservation"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "economic-competence-span",
+          "dimension": "exact-end-and-rounding-conservation"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "economic-competence-span",
+          "dimension": "long-span-rounding-conservation"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "TEMP-SPAN-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "TEMP-SPAN-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "temporal-consistency"
+      ]
+    },
+    {
+      "escape_id": "TEMP-A002-RETRO-RECOMPOSE",
+      "escape_class": "retroactive-derived-state-propagation-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-002",
+        "validity": "independent",
+        "affected_head_sha": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "TEMP-A002S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "retroactive-economic-recomposition",
+          "dimension": "retained-derived-preservation"
+        },
+        {
+          "id": "TEMP-A002S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "retroactive-economic-recomposition",
+          "dimension": "idempotent-derived-repair"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "retroactive-economic-recomposition",
+          "dimension": "historical-outside-current-window"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "retroactive-economic-recomposition",
+          "dimension": "retained-derived-preservation"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "TEMP-RETRO-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "TEMP-RETRO-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "temporal-consistency"
+      ]
+    },
+    {
+      "escape_id": "AUD897-A001-META-METERING",
+      "escape_class": "provider-boundary-measurement-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-001",
+        "validity": "independent",
+        "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "AUD897-A001S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "meta-provider-boundary",
+          "dimension": "successful-text-without-ai"
+        },
+        {
+          "id": "AUD897-A001S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "whatsapp-reprocessing",
+          "dimension": "duplicate-callback-same-position"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "meta-provider-boundary",
+          "dimension": "accepted-non-ai-outbound-metered"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "whatsapp-reprocessing",
+          "dimension": "fallback-outcome-does-not-duplicate-position"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "META-USAGE-BOUNDARY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "META-USAGE-BOUNDARY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "idempotency",
+        "structural-contract"
+      ]
+    },
+    {
+      "escape_id": "AUD897-A002-COST-RECONCILIATION",
+      "escape_class": "estimated-effective-reconciliation-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-002",
+        "validity": "independent",
+        "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "AUD897-A002S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "usage-cost-ledger",
+          "dimension": "prior-effective-value-preserved"
+        },
+        {
+          "id": "AUD897-A002S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "cost-reconciliation",
+          "dimension": "same-key-different-value-conflict"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "historical-immutability",
+          "surface": "usage-cost-ledger",
+          "dimension": "estimate-preserved-when-effective-applied"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "cost-reconciliation",
+          "dimension": "same-key-same-value-noop-conflict-rejected"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "USAGE-COST-RECONCILE-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "USAGE-COST-RECONCILE-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "historical-immutability",
+        "idempotency"
+      ]
+    },
+    {
+      "escape_id": "AUD897-A003-CONFIGURABLE-THRESHOLDS",
+      "escape_class": "persisted-policy-resolution-gap",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-003",
+        "validity": "independent",
+        "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+      },
+      "plausible_wrong_implementation": "A nominal implementation can pass happy-path checks while omitting a material competing invariant at another persistence, temporal, or provider boundary.",
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "procedure": "Recheck the original independent finding against the frozen remediation candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "AUD897-A003S1",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "admin-policy-mutation",
+          "dimension": "user-policy-replacement"
+        },
+        {
+          "id": "AUD897-A003S2",
+          "status": "passed",
+          "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+          "surface": "analytics-policy-resolution",
+          "dimension": "default-fallback-when-no-active-policy"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "admin-policy-mutation",
+          "dimension": "admin-only-versioned-replacement"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "analytics-policy-resolution",
+          "dimension": "persisted-thresholds-override-default-without-blocking"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "FAIR-USE-POLICY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "entregar-issue"
+      },
+      "detection_change": {
+        "control_id": "FAIR-USE-POLICY-001",
+        "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+        "skill": "auditar-issue"
+      },
+      "required_risk_families": [
+        "authorization",
+        "structural-contract"
+      ]
+    }
+  ],
+  "material_head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4"
+}

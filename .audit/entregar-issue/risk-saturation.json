@@ -1,1 +1,259 @@
-{"schema_version":1,"head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","families":[{"family":"authorization","applicable":true,"reason":"Derived from attack matrix.","control_ids":["ba1","ba2","da"],"dimensions":[{"surface":"runtime-exemption","reason":"Material surface.","control_ids":["ba1"],"status":"passed"},{"surface":"limitation-extension","reason":"Material surface.","control_ids":["ba2"],"status":"passed"},{"surface":"admin-policy-mutation","reason":"Material surface.","control_ids":["da"],"status":"passed"}],"status":"passed"},{"family":"tenant-isolation","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":true,"reason":"Derived from attack matrix.","control_ids":["bt1","bt2","bt3","ct1","ct2"],"dimensions":[{"surface":"rolling-economic-window","reason":"Material surface.","control_ids":["bt1"],"status":"passed"},{"surface":"retention-legal-hold","reason":"Material surface.","control_ids":["bt2"],"status":"passed"},{"surface":"emergency-window","reason":"Material surface.","control_ids":["bt3"],"status":"passed"},{"surface":"economic-competence-span","reason":"Material surface.","control_ids":["ct1"],"status":"passed"},{"surface":"retroactive-economic-recomposition","reason":"Material surface.","control_ids":["ct2"],"status":"passed"}],"status":"passed"},{"family":"temporal-destination","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":true,"reason":"Derived from attack matrix.","control_ids":["ai","di"],"dimensions":[{"surface":"whatsapp-reprocessing","reason":"Material surface.","control_ids":["ai"],"status":"passed"},{"surface":"cost-reconciliation","reason":"Material surface.","control_ids":["di"],"status":"passed"}],"status":"passed"},{"family":"rollback","applicable":true,"reason":"Derived from attack matrix.","control_ids":["ar"],"dimensions":[{"surface":"future-charge-authorization","reason":"Material surface.","control_ids":["ar"],"status":"passed"}],"status":"passed"},{"family":"historical-immutability","applicable":true,"reason":"Derived from attack matrix.","control_ids":["ah","dh"],"dimensions":[{"surface":"usage-attribution-ledger","reason":"Material surface.","control_ids":["ah"],"status":"passed"},{"surface":"usage-cost-ledger","reason":"Material surface.","control_ids":["dh"],"status":"passed"}],"status":"passed"},{"family":"structural-contract","applicable":true,"reason":"Derived from attack matrix.","control_ids":["as","bs","ds"],"dimensions":[{"surface":"meta-provider-boundary","reason":"Material surface.","control_ids":["as"],"status":"passed"},{"surface":"economic-currency-bucket","reason":"Material surface.","control_ids":["bs"],"status":"passed"},{"surface":"analytics-policy-resolution","reason":"Material surface.","control_ids":["ds"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":false,"reason":"No current material signal.","control_ids":[],"dimensions":[],"status":"not-applicable"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "ba1",
+        "ba2",
+        "da"
+      ],
+      "dimensions": [
+        {
+          "surface": "runtime-exemption",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ba1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "limitation-extension",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ba2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "admin-policy-mutation",
+          "reason": "Material surface.",
+          "control_ids": [
+            "da"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "bt1",
+        "bt2",
+        "bt3",
+        "ct1",
+        "ct2"
+      ],
+      "dimensions": [
+        {
+          "surface": "rolling-economic-window",
+          "reason": "Material surface.",
+          "control_ids": [
+            "bt1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "retention-legal-hold",
+          "reason": "Material surface.",
+          "control_ids": [
+            "bt2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "emergency-window",
+          "reason": "Material surface.",
+          "control_ids": [
+            "bt3"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "economic-competence-span",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ct1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "retroactive-economic-recomposition",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ct2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "ai",
+        "di"
+      ],
+      "dimensions": [
+        {
+          "surface": "whatsapp-reprocessing",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ai"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "cost-reconciliation",
+          "reason": "Material surface.",
+          "control_ids": [
+            "di"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "ar"
+      ],
+      "dimensions": [
+        {
+          "surface": "future-charge-authorization",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ar"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "ah",
+        "dh"
+      ],
+      "dimensions": [
+        {
+          "surface": "usage-attribution-ledger",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ah"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "usage-cost-ledger",
+          "reason": "Material surface.",
+          "control_ids": [
+            "dh"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from attack matrix.",
+      "control_ids": [
+        "as",
+        "bs",
+        "ds"
+      ],
+      "dimensions": [
+        {
+          "surface": "meta-provider-boundary",
+          "reason": "Material surface.",
+          "control_ids": [
+            "as"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "economic-currency-bucket",
+          "reason": "Material surface.",
+          "control_ids": [
+            "bs"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "analytics-policy-resolution",
+          "reason": "Material surface.",
+          "control_ids": [
+            "ds"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": false,
+      "reason": "No current material signal.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    }
+  ],
+  "material_families_missing_controls": []
+}

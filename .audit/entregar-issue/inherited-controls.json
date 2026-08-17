@@ -1,1 +1,82 @@
-{"schema_version":1,"head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","controls":[{"control_id":"HISTORICAL-ATTRIBUTION-ROLLBACK","status":"passed","head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","evidence":"evidence/issue-897-audit-remediation-v4.txt","reason":"Historical attribution freeze and future-charge rollback controls remain present."},{"control_id":"ECONOMIC-TEMPORAL-CURRENCY","status":"passed","head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","evidence":"evidence/issue-897-audit-remediation-v4.txt","reason":"Rolling-window, currency, exact-span and retroactive-recomposition controls remain present."},{"control_id":"USAGE-GOVERNANCE-AUTHORIZATION","status":"passed","head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","evidence":"evidence/issue-897-audit-remediation-v4.txt","reason":"Exemption, limitation extension, emergency proof and legal-hold controls remain present."},{"control_id":"AUD897-REMEDIATION","status":"passed","head_sha":"bf55ebce47e32220b741f011f6fa79463d7862ad","evidence":"evidence/issue-897-audit-remediation-v4.txt","reason":"Meta metering, cost reconciliation and configurable policy controls are implemented and covered by focused tests."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+  "controls": [
+    {
+      "control_id": "HISTORICAL-ATTRIBUTION-ROLLBACK",
+      "status": "passed",
+      "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+      "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+      "reason": "Historical attribution freeze and future-charge rollback controls remain present."
+    },
+    {
+      "control_id": "ECONOMIC-TEMPORAL-CURRENCY",
+      "status": "passed",
+      "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+      "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+      "reason": "Rolling-window, currency, exact-span and retroactive-recomposition controls remain present."
+    },
+    {
+      "control_id": "USAGE-GOVERNANCE-AUTHORIZATION",
+      "status": "passed",
+      "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+      "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+      "reason": "Exemption, limitation extension, emergency proof and legal-hold controls remain present."
+    },
+    {
+      "control_id": "AUD897-REMEDIATION",
+      "status": "passed",
+      "head_sha": "7cc7692632bf607c4f1b8ad8447cbd61503194e4",
+      "evidence": "evidence/issue-897-refreeze-7cc769.txt",
+      "reason": "Meta metering, cost reconciliation and configurable policy controls are implemented and covered by focused tests."
+    }
+  ],
+  "unresolved_controls": [],
+  "source_audits": [
+    {
+      "finding_id": "A-001",
+      "validity": "independent",
+      "affected_head_sha": "e20bb26847025abe8ba6ac82dac5fca0573d7958"
+    },
+    {
+      "finding_id": "A-002",
+      "validity": "independent",
+      "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+    },
+    {
+      "finding_id": "A-003",
+      "validity": "independent",
+      "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+    },
+    {
+      "finding_id": "A-004",
+      "validity": "independent",
+      "affected_head_sha": "0a486c091f1a0c02561d0ef1bc85d70c742d5c75"
+    },
+    {
+      "finding_id": "A-001",
+      "validity": "independent",
+      "affected_head_sha": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"
+    },
+    {
+      "finding_id": "A-002",
+      "validity": "independent",
+      "affected_head_sha": "a74631a3a7e8d6aeca77d6c24ac05d7b2fe379b9"
+    },
+    {
+      "finding_id": "A-001",
+      "validity": "independent",
+      "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+    },
+    {
+      "finding_id": "A-002",
+      "validity": "independent",
+      "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+    },
+    {
+      "finding_id": "A-003",
+      "validity": "independent",
+      "affected_head_sha": "63fdd34cceba0e162947e1905d817fc72f10f9ca"
+    }
+  ]
+}

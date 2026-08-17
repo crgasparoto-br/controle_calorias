@@ -1,0 +1,58 @@
+Issue #897 post-CI refreeze evidence
+Repository: crgasparoto-br/controle_calorias
+PR: 985
+Branch: feat/897-usage-governance
+Base develop: 6b735b34fdfbe46c3c65856aba62a1c44830a729
+Material head: 7cc7692632bf607c4f1b8ad8447cbd61503194e4
+Material tree: 1fb12b05ddcca462952bc0c322edd58546a9411c
+Material merge preview observed before handoff: 9126a0afbdf31e6ab3c587eb08a41073166c32ab
+
+Reason for refreeze
+- The prior handoff certified bf55ebce47e32220b741f011f6fa79463d7862ad.
+- The exact material delta after that certificate is providerUsage.ts plus providerUsage.test.ts; the intervening ecf53dc0 commit restored handoff artifacts only.
+- Commit 7cc76926 moves both billing/service and usage-governance service loading behind the attributable Meta event boundary and adds a regression test proving neither heavy dependency loads for an event rejected before attribution/correlation.
+- No product code is changed by this refreeze package.
+
+Exact-head GitHub Actions evidence for 7cc7692632bf607c4f1b8ad8447cbd61503194e4
+- Agent-first gate run 32023064882, job 95366601118: completed/success.
+  - TypeScript check: success.
+  - Tests: success. The workflow defines the Tests step as the equivalent of pnpm test split into all 24 sequential Vitest shards; job success means every shard completed successfully.
+  - Architecture check: success.
+  - Documentation check: success.
+  - Build: success.
+  - Agent check: success.
+  - CI gate docs check: success.
+  - Exact-head verification manifest and repository bundle: success.
+- WhatsApp context TiDB gate run 32023064829: completed/success.
+- Billing persistence TiDB gate run 32023064982: completed/success.
+- Professional persistence TiDB gate run 32023065321: completed/success.
+- Onboarding activation TiDB gate run 32023064774: completed/success.
+- AI provider live smoke run 32023064724: completed/skipped by workflow conditions; it was not dispatched or rerun.
+
+Inherited/adversarial controls present in the exact-head Vitest suite that passed
+- server/modules/usageGovernance/providerUsage.test.ts
+  - import isolation before attributable event;
+  - sponsored professional payer attribution while preserving patient beneficiary;
+  - stable Meta idempotency key/correlation when a reprocess changes to fallback.
+- server/modules/usageGovernance/costReconciliation.test.ts
+  - estimated-to-effective reconciliation;
+  - duplicate reconciliation is idempotent and does not recompute aggregates.
+- server/modules/usageGovernance/policyService.test.ts
+  - persisted fair-use thresholds override defaults;
+  - versioned replacement requires three strictly increasing thresholds and remains non-blocking.
+- server/modules/usageGovernance/service.test.ts
+  - sponsored attribution and historical attribution freeze after plan change;
+  - budget thresholds do not block and only an approved active limitation blocks heavy processing;
+  - user/professional temporary exemptions;
+  - exact competence allocation and rounding conservation, including mid-month service end;
+  - retroactive economic recomposition and retained historical variable cost;
+  - currency-separated KPI, three-month rolling economics and consecutive >30% review rule;
+  - retention policy 13 months / 24 months / 5 years with legal hold support and no raw conversational content storage.
+- server/modules/usageGovernance/adminService.test.ts
+  - future charging authorization requires and persists rollback, including later deactivation reason;
+  - limitation extension requires a distinct second administrator and cannot exceed the allowed chain;
+  - emergency protection requires concrete sanitized security evidence and cannot be chained repeatedly.
+
+Remote-action discipline
+- GitHub Actions were observed read-only.
+- No workflow dispatch, rerun, cancel, approval, merge, issue close, production change, secret change or branch-protection change was performed by this delivery refreeze.
