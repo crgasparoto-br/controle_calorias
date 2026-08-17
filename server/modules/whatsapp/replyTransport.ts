@@ -16,6 +16,7 @@
  * Handlers não enviam fallback diretamente e não montam versões paralelas.
  */
 import { safeLogDetail } from "../../privacy";
+import { recordMetaWhatsAppOutboundUsage } from "../usageGovernance/providerUsage";
 import {
   sendWhatsAppImageBufferMessage,
   sendWhatsAppImageMessage,
@@ -35,39 +36,28 @@ import {
 import type { MessageLifecycleHandle } from "./messageLifecycle";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 
-/** Papel físico da mensagem na resposta lógica: a primeira é sempre primária. */
 export type WhatsAppOutboundRole = "primary" | "auxiliary";
-
-/** Categoria da falha original, para observabilidade e decisão de fallback. */
 export type WhatsAppOutboundFailureCategory = "validation" | "config" | "network" | "provider" | "none";
 
 export type WhatsAppOutboundSendResult = {
   message: WhatsAppOutboundMessage;
   role: WhatsAppOutboundRole;
-  /** Tentativa original (payload interativo/CTA nativo) foi aceita. */
   originalOk: boolean;
-  /** Um fallback textual foi tentado para esta posição. */
   usedFallback: boolean;
-  /** Resultado do fallback, quando tentado. */
   fallbackOk?: boolean;
-  /** Sucesso efetivo desta posição: original OU fallback entregue. */
   effectiveOk: boolean;
   category: WhatsAppOutboundFailureCategory;
   sequenceDecision: "continue" | "stop" | "complete";
   providerStatus?: number;
   providerStatusText?: string;
   traceId?: string;
-  /** Compatibilidade com o contrato anterior (issue #781): alias de `effectiveOk`. */
   ok: boolean;
   detail: string;
 };
 
 export type WhatsAppLogicalReplySendResult = {
-  /** Sucesso efetivo de todas as posições da sequência. */
   ok: boolean;
-  /** Alias mantido por compatibilidade: sucesso efetivo da posição primária. */
   primaryOk: boolean;
-  /** Sucesso efetivo da posição primária (original ou fallback entregue). */
   primaryEffectiveOk: boolean;
   sends: WhatsAppOutboundSendResult[];
   recorded: boolean;
@@ -107,7 +97,6 @@ async function sendRawOutboundMessage(to: string, message: WhatsAppOutboundMessa
   }
 }
 
-/** Monta o resultado sanitizado comum a todos os caminhos de envio. */
 function buildSendResult(input: {
   message: WhatsAppOutboundMessage;
   role: WhatsAppOutboundRole;
@@ -139,12 +128,6 @@ function buildSendResult(input: {
   };
 }
 
-/**
- * Envia uma mensagem física com fallback textual central quando aplicável
- * (issue #859). O fallback é tentado no máximo uma vez, derivado da própria
- * mensagem via `buildWhatsAppOutboundFallbackText`; nunca há retry síncrono
- * indefinido. IDs de callback nunca são incluídos no texto do fallback.
- */
 async function sendOutboundMessageWithFallback(
   to: string,
   message: WhatsAppOutboundMessage,
@@ -217,14 +200,6 @@ export type WhatsAppLogicalReplyLifecycleInput = {
   userId: number;
 };
 
-/**
- * Envia a resposta lógica completa. Todas as posições são tentadas de forma
- * independente (issue #859): a falha efetiva da mensagem primária encerra a
- * sequência; depois do sucesso primário, a falha de uma mensagem auxiliar não
- * impede a tentativa de auxiliares posteriores independentes. Dependências reais
- * entre mensagens devem ser declaradas no contrato/plano de entrega, não
- * inferidas pela posição. Nenhuma mutação de domínio é reexecutada aqui.
- */
 export async function sendWhatsAppLogicalReply(
   to: string,
   reply: WhatsAppLogicalReply,
@@ -233,9 +208,35 @@ export async function sendWhatsAppLogicalReply(
 ): Promise<WhatsAppLogicalReplySendResult> {
   const sends: WhatsAppOutboundSendResult[] = [];
   const traceId = options?.traceId ?? getCurrentWhatsappInboundExternalMessageId() ?? undefined;
+  const stableSourceMessageId = traceId
+    ?? (lifecycle?.handle ? `lifecycle:${lifecycle.handle.messageId}` : undefined);
+
   for (let index = 0; index < reply.messages.length; index++) {
     const role: WhatsAppOutboundRole = index === 0 ? "primary" : "auxiliary";
     const baseResult = await sendOutboundMessageWithFallback(to, reply.messages[index], role, options?.origin, traceId);
+
+    if (baseResult.effectiveOk && stableSourceMessageId) {
+      try {
+        await recordMetaWhatsAppOutboundUsage({
+          userId: lifecycle?.userId,
+          recipientPhone: to,
+          sourceMessageId: stableSourceMessageId,
+          sequenceIndex: index,
+          messageType: baseResult.usedFallback ? "text_fallback" : reply.messages[index].type,
+          role,
+          usedFallback: baseResult.usedFallback,
+        });
+      } catch (error) {
+        console.error("[WhatsAppUsageMeter]", safeLogDetail({
+          event: "provider_usage_persistence_failed",
+          messageType: reply.messages[index].type,
+          role,
+          traceId,
+          errorCode: error instanceof Error ? error.message : "unknown",
+        }));
+      }
+    }
+
     const sequenceDecision = role === "primary" && !baseResult.effectiveOk
       ? "stop"
       : index === reply.messages.length - 1
