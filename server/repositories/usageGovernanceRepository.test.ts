@@ -33,6 +33,7 @@ describe("usage governance retention legal holds", () => {
       detailedCutoff: new Date("2025-07-16T12:00:00.000Z"),
       dailyCutoff: new Date("2024-08-16T12:00:00.000Z"),
       monthlyCutoff: new Date("2021-08-16T12:00:00.000Z"),
+      governanceCutoff: new Date("2021-08-16T12:00:00.000Z"),
       ruleVersion: "test",
       auditId: "audit-1",
     });
@@ -54,5 +55,21 @@ describe("usage governance retention legal holds", () => {
     expect(daily).toContain("CAST(d.sponsorUserId AS CHAR)");
     expect(monthly).toContain("CAST(m.payerUserId AS CHAR)");
     expect(monthly).toContain("h.scopeId=m.subscriptionId");
+
+    const governedDeletes = [
+      "DELETE p FROM billingUsagePolicies",
+      "DELETE g FROM billingUsageAllowanceGrants",
+      "DELETE c FROM billingUsageAbuseCases",
+      "DELETE l FROM billingUsageLimitations",
+      "DELETE a FROM billingConsumptionChargeAuthorizations",
+      "DELETE r FROM billingUsageCostReconciliations",
+      "DELETE a FROM billingUsageRetentionAudit",
+      "DELETE held FROM billingUsageLegalHolds",
+    ];
+    for (const deletion of governedDeletes) {
+      const query = queries.find(candidate => candidate.includes(deletion)) ?? "";
+      expect(query).toContain("billingUsageLegalHolds");
+      expect(query).toContain("Aug 16 2021");
+    }
   });
 });

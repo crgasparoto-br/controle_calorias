@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiProvider } from "../../aiProvider";
 import type { ResolvedCapabilityConfig } from "../configResolver";
 import {
@@ -7,6 +7,8 @@ import {
 } from "../capabilityExecutor";
 import type { AiProviderFactoryMap } from "../providerResolver";
 import { AiOperationalError } from "../policyExecutor";
+import { setAiUsageGate } from "../usageGate";
+import { runWithAiUsageScope } from "../usageContext";
 
 function provider(id: string): AiProvider {
   return {
@@ -65,6 +67,30 @@ function config(overrides: Partial<ResolvedCapabilityConfig> = {}): ResolvedCapa
 }
 
 describe("resolved capability executor", () => {
+  afterEach(() => setAiUsageGate(null));
+
+  it("blocks configured provider execution without attribution and propagates request scope into the gate", async () => {
+    const adapters = factories();
+    const gate = vi.fn(async () => ({ correlation: { payerUserId: 73 } }));
+    const operation = vi.fn(async () => "ok");
+    setAiUsageGate(gate);
+
+    await expect(executeResolvedCapability(config(), operation, {
+      providerFactories: adapters.map,
+    })).rejects.toMatchObject({ code: "usage_identity_required" });
+    expect(operation).not.toHaveBeenCalled();
+    expect(adapters.map.openai).not.toHaveBeenCalled();
+
+    await expect(runWithAiUsageScope(
+      { userId: 41, conversationId: "opaque-conversation" },
+      () => executeResolvedCapability(config(), operation, { providerFactories: adapters.map }),
+    )).resolves.toMatchObject({ value: "ok" });
+    expect(gate).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 41,
+      conversationId: "opaque-conversation",
+      capability: "MEAL_TEXT",
+    }));
+  });
   it("binds the resolved primary provider and model through the normalized boundary", async () => {
     const adapters = factories();
     const operation = vi.fn(async ({

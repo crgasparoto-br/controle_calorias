@@ -29,6 +29,7 @@ type MetaWhatsAppUsageBaseInput = {
   sequenceIndex: number;
   messageType: string;
   role: "primary" | "auxiliary";
+  attemptKind?: "original" | "fallback";
   occurredAt?: Date;
 };
 
@@ -74,9 +75,10 @@ async function buildMetaWhatsAppUsageEvent(
   const payerUserId = sponsorUserId ?? resolvedUserId;
   const effectivePlanCode = access.planCode ?? effectiveSubscription?.planCode ?? status.subscription?.planCode ?? null;
   const correlationRef = opaqueProviderRef(sourceMessageId);
-  // A posicao logica e a identidade do envio. Fallback nao pode criar uma segunda
-  // chave em um reprocessamento da mesma mensagem inbound.
-  const physicalMessageKey = opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}`);
+  // The logical root remains stable across replay, while each physical provider
+  // attempt receives its own durable identity and ledger row.
+  const attemptKind = input.attemptKind ?? (usedFallback ? "fallback" : "original");
+  const physicalMessageKey = opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}:${attemptKind}`);
   const idempotencyKey = `meta:whatsapp:${physicalMessageKey}`;
   const correlationId = `meta:whatsapp:${correlationRef}`;
 
@@ -115,6 +117,7 @@ async function buildMetaWhatsAppUsageEvent(
         messageType: input.messageType,
         outboundRole: input.role,
         usedFallback,
+        attemptKind,
         measurementState: state === "provider_dispatch_reserved" ? "reserved_before_provider_call" : "finalized",
         pricingState: "unpriced_pending_provider_reconciliation",
       },
@@ -128,7 +131,11 @@ async function buildMetaWhatsAppUsageEvent(
  * durability. The central WhatsApp transports use prepare/claim/finalize below.
  */
 export async function recordMetaWhatsAppOutboundUsage(input: MetaWhatsAppUsageBaseInput & { usedFallback: boolean }) {
-  const built = await buildMetaWhatsAppUsageEvent(input, "success", input.usedFallback);
+  const built = await buildMetaWhatsAppUsageEvent(
+    { ...input, attemptKind: input.usedFallback ? "fallback" : "original" },
+    "success",
+    input.usedFallback,
+  );
   if (built.ok === false) return { created: false, reason: built.reason };
   return recordUsageEvent(built.event);
 }
@@ -144,7 +151,8 @@ export async function prepareMetaWhatsAppOutboundUsage(
   if (useMemoryProviderDispatchForTests()) {
     const sourceMessageId = input.sourceMessageId.trim();
     if (!sourceMessageId) return { prepared: false, created: false, reason: "missing_correlation" };
-    const idempotencyKey = `meta:whatsapp:${opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}`)}`;
+    const attemptKind = input.attemptKind ?? "original";
+    const idempotencyKey = `meta:whatsapp:${opaqueProviderRef(`${sourceMessageId}:${input.sequenceIndex}:${attemptKind}`)}`;
     const correlationId = `meta:whatsapp:${opaqueProviderRef(sourceMessageId)}`;
     const states = testProviderDispatchState();
     const created = !states.has(idempotencyKey);
@@ -152,7 +160,11 @@ export async function prepareMetaWhatsAppOutboundUsage(
     return { prepared: true, created, idempotencyKey, correlationId };
   }
 
-  const built = await buildMetaWhatsAppUsageEvent(input, "provider_dispatch_reserved", false);
+  const built = await buildMetaWhatsAppUsageEvent(
+    input,
+    "provider_dispatch_reserved",
+    input.attemptKind === "fallback",
+  );
   if (built.ok === false) return { prepared: false, created: false, reason: built.reason };
   const recorded = await recordUsageEvent(built.event);
   return {

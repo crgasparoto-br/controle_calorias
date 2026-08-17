@@ -176,6 +176,7 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
   }
 
   if (message.audio?.id) {
+    const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
     if (storedAudio.savedMedia) {
       prepared.media.push(storedAudio.savedMedia);
@@ -199,6 +200,10 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_voice_transcription",
+        correlation: {
+          ...(usageUserId ? { userId: usageUserId } : {}),
+          conversationId: message.id,
+        },
       },
     });
 

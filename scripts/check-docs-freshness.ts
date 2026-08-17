@@ -38,7 +38,13 @@ for (const doc of requiredDocs) {
 }
 
 if (existsSync(path.join(root, "drizzle/schema.ts")) && existsSync(path.join(root, "docs/generated/db-schema.md"))) {
-  const schema = read("drizzle/schema.ts");
+  const schema = [
+    "drizzle/schema.ts",
+    "drizzle/professional-schema.ts",
+    "drizzle/billing-schema.ts",
+    "drizzle/billing-subscription-lifecycle-schema.ts",
+    "drizzle/usage-governance-schema.ts",
+  ].filter(file => existsSync(path.join(root, file))).map(read).join("\n");
   const dbDoc = read("docs/generated/db-schema.md");
   const tableNames = Array.from(schema.matchAll(/export const (\w+) = mysqlTable\("([^"]+)"/g)).map(match => match[2]);
 

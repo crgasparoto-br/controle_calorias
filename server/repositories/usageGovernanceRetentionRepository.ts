@@ -14,6 +14,7 @@ export async function purgeUsageGovernanceRetention(input: {
   detailedCutoff: Date;
   dailyCutoff: Date;
   monthlyCutoff: Date;
+  governanceCutoff: Date;
   ruleVersion: string;
   auditId: string;
 }) {
@@ -47,12 +48,73 @@ export async function purgeUsageGovernanceRetention(input: {
       WHERE m.competenceMonth < DATE(${input.monthlyCutoff}) AND h.id IS NULL
     `);
     await tx.execute(sql`
+      DELETE p FROM billingUsagePolicies p
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global' OR (h.scopeType=p.scopeType AND h.scopeId=p.scopeId))
+      WHERE p.revokedAt < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE g FROM billingUsageAllowanceGrants g
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global' OR (h.scopeType=g.subjectType AND h.scopeId=g.subjectId))
+      WHERE COALESCE(g.revokedAt, g.endsAt) < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE c FROM billingUsageAbuseCases c
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(c.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
+      WHERE c.closedAt < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE l FROM billingUsageLimitations l
+      LEFT JOIN billingUsageAbuseCases c ON c.id=l.abuseCaseId
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global' OR (h.scopeType='user' AND h.scopeId IN (CAST(l.subjectUserId AS CHAR), CAST(c.sponsorUserId AS CHAR))))
+      WHERE COALESCE(l.revokedAt, l.endsAt) < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE a FROM billingConsumptionChargeAuthorizations a
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND h.scopeType='global'
+      WHERE a.revokedAt < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE r FROM billingUsageCostReconciliations r
+      LEFT JOIN billingUsageEvents e ON e.id=r.usageEventId
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND (h.scopeType='global'
+            OR (h.scopeType='user' AND h.scopeId IN (CAST(e.beneficiaryUserId AS CHAR), CAST(e.payerUserId AS CHAR), CAST(e.sponsorUserId AS CHAR)))
+            OR (h.scopeType='subscription' AND h.scopeId=e.subscriptionId))
+      WHERE r.createdAt < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE a FROM billingUsageRetentionAudit a
+      LEFT JOIN billingUsageLegalHolds h
+        ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
+       AND h.scopeType='global'
+      WHERE a.runAt < ${input.governanceCutoff} AND h.id IS NULL
+    `);
+    await tx.execute(sql`
+      DELETE held FROM billingUsageLegalHolds held
+      LEFT JOIN billingUsageLegalHolds globalHold
+        ON globalHold.id <> held.id AND globalHold.revokedAt IS NULL
+       AND globalHold.startsAt <= ${input.now} AND (globalHold.endsAt IS NULL OR globalHold.endsAt > ${input.now})
+       AND globalHold.scopeType='global'
+      WHERE COALESCE(held.revokedAt, held.endsAt) < ${input.governanceCutoff} AND globalHold.id IS NULL
+    `);
+    await tx.execute(sql`
       INSERT INTO billingUsageRetentionAudit (
         id, runAt, detailedCutoff, dailyCutoff, monthlyCutoff, ruleVersion, status, detail
       ) VALUES (
         ${input.auditId}, ${input.now}, ${input.detailedCutoff}, DATE(${input.dailyCutoff}),
         DATE(${input.monthlyCutoff}), ${input.ruleVersion}, 'success',
-        'automatic retention completed with active legal holds preserved across detail and aggregates'
+        'automatic retention completed across detail, aggregates and five-year governance audit records'
       )
     `);
   });

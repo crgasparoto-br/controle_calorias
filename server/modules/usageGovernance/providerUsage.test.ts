@@ -85,7 +85,7 @@ describe("Meta WhatsApp usage metering", () => {
     }));
   });
 
-  it("derives the same idempotency key for the same response position even if a reprocess falls back", async () => {
+  it("derives distinct attempt identities under the same logical correlation root", async () => {
     const base = {
       userId: 42,
       sourceMessageId: "wamid.inbound-2",
@@ -96,7 +96,10 @@ describe("Meta WhatsApp usage metering", () => {
     await recordMetaWhatsAppOutboundUsage({ ...base, messageType: "text_fallback", usedFallback: true });
     const first = mocks.recordUsageEvent.mock.calls[0][0];
     const second = mocks.recordUsageEvent.mock.calls[1][0];
-    expect(first.idempotencyKey).toBe(second.idempotencyKey);
+    expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
     expect(first.correlationId).toBe(second.correlationId);
+    expect(first.attemptRole).toBe("auxiliary");
+    expect(second.attemptRole).toBe("fallback");
+    expect(second.retryRootKey).toBe(first.correlationId);
   });
 });

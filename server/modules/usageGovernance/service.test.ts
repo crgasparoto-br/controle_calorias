@@ -394,6 +394,65 @@ describe("usage governance", () => {
     expect(result.monthlyEconomics[1]).toMatchObject({ rolling3MonthVariableCostRatioBps: 3100, mandatoryReviewRequired: true, rolling3MonthHealth: "mandatory_review" });
   });
 
+  it("groups every required usage dimension and calculates professional portfolio averages, percentiles and ranges", async () => {
+    mocks.listUsageEvents.mockResolvedValue([
+      {
+        beneficiaryUserId: 99, patientUserId: 99, sponsorUserId: 7, payerUserId: 7,
+        subscriptionId: "sub-pro-a", productCode: "pro", versionCode: "pro-v1", billingCycle: "monthly",
+        accessSource: "sponsored_by_professional", operation: "meal_vision", channel: "whatsapp",
+        provider: "openai", model: "vision-a", unitCount: 10, effectiveCostMicros: 100,
+        estimatedCostMicros: 110, attemptRole: "primary", eventState: "success",
+      },
+      {
+        beneficiaryUserId: 100, patientUserId: 100, sponsorUserId: 7, payerUserId: 7,
+        subscriptionId: "sub-pro-a", productCode: "pro", versionCode: "pro-v1", billingCycle: "monthly",
+        accessSource: "sponsored_by_professional", operation: "transcription", channel: "whatsapp",
+        provider: "openai", model: "audio-b", unitCount: 20, estimatedCostMicros: 300,
+        attemptRole: "fallback", eventState: "failure",
+      },
+      {
+        beneficiaryUserId: 201, patientUserId: 201, sponsorUserId: 8, payerUserId: 8,
+        subscriptionId: "sub-pro-b", productCode: "pro", versionCode: "pro-v2", billingCycle: "yearly",
+        accessSource: "sponsored_by_professional", operation: "question", channel: "web",
+        provider: "gemini", model: "text-c", unitCount: 30, effectiveCostMicros: 500,
+        attemptRole: "primary", eventState: "success",
+      },
+    ]);
+
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2026-08-01T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    });
+
+    expect(result.byDimensions).toHaveLength(3);
+    expect(result.byDimensions).toContainEqual(expect.objectContaining({
+      patientUserId: 99,
+      sponsorUserId: 7,
+      productCode: "pro",
+      versionCode: "pro-v1",
+      billingCycle: "monthly",
+      accessSource: "sponsored_by_professional",
+      operation: "meal_vision",
+      channel: "whatsapp",
+      provider: "openai",
+      model: "vision-a",
+    }));
+    expect(result.professionalPortfolio.portfolios).toContainEqual(expect.objectContaining({
+      sponsorUserId: 7,
+      activePatientCount: 2,
+      portfolioRange: "1-10",
+      totalCostMicros: 400,
+      averageCostPerActivePatientMicros: 200,
+      patientCostPercentilesMicros: { p50: 200, p75: 250, p90: 280, p95: 290 },
+    }));
+    expect(result.professionalPortfolio.distribution).toContainEqual(expect.objectContaining({
+      portfolioRange: "1-10",
+      portfolioCount: 2,
+      activePatientCount: 3,
+      totalCostMicros: 900,
+    }));
+  });
+
   it("marks the rolling decision unavailable when any month is not currency-comparable", async () => {
     mocks.listMonthlyEconomicAggregates.mockResolvedValue([
       economicRow("2026-06", 2000), economicRow("2026-07", null), economicRow("2026-08", 2000),
@@ -409,6 +468,7 @@ describe("usage governance", () => {
     expect(input.detailedCutoff.toISOString().slice(0, 7)).toBe("2025-07");
     expect(input.dailyCutoff.toISOString().slice(0, 7)).toBe("2024-08");
     expect(input.monthlyCutoff.toISOString().slice(0, 7)).toBe("2021-08");
+    expect(input.governanceCutoff.toISOString().slice(0, 7)).toBe("2021-08");
     expect(USAGE_RETENTION_POLICY).toMatchObject({ detailedUsageMonths: 13, dailyAggregateMonths: 24, monthlyEconomicYears: 5, governanceAuditYears: 5, rawConversationalContentStored: false, legalHoldSupported: true });
   });
 });

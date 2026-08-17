@@ -20,7 +20,6 @@ import {
   claimMetaWhatsAppOutboundUsageDispatch,
   finalizeMetaWhatsAppOutboundUsage,
   prepareMetaWhatsAppOutboundUsage,
-  type MetaWhatsAppUsageReservation,
 } from "../usageGovernance/providerUsage";
 import {
   sendWhatsAppImageBufferMessage,
@@ -68,12 +67,11 @@ export type WhatsAppLogicalReplySendResult = {
   recorded: boolean;
 };
 
-type ProviderDispatchGateResult =
-  | { action: "send" }
-  | { action: "deduplicated_success"; detail: string }
-  | { action: "blocked"; detail: string };
-
-type ProviderDispatchGate = () => Promise<ProviderDispatchGateResult>;
+type GuardedProviderCall = (
+  attemptKind: "original" | "fallback",
+  messageType: string,
+  call: () => Promise<WhatsAppProviderSendResult>,
+) => Promise<WhatsAppProviderSendResult>;
 
 const URL_IN_DETAIL_PATTERN = /https?:\/\/[^\s)\]}]+/gi;
 
@@ -111,18 +109,13 @@ async function sendRawOutboundMessage(to: string, message: WhatsAppOutboundMessa
 
 async function runGuardedProviderCall(
   call: () => Promise<WhatsAppProviderSendResult>,
-  beforeProviderAttempt?: ProviderDispatchGate,
+  guardedProviderCall: GuardedProviderCall | undefined,
+  attemptKind: "original" | "fallback",
+  messageType: string,
 ): Promise<WhatsAppProviderSendResult> {
-  if (beforeProviderAttempt) {
-    const gate = await beforeProviderAttempt();
-    if (gate.action === "deduplicated_success") {
-      return { ok: true, detail: gate.detail };
-    }
-    if (gate.action === "blocked") {
-      return { ok: false, failureCategory: "network", detail: gate.detail };
-    }
-  }
-  return call();
+  return guardedProviderCall
+    ? guardedProviderCall(attemptKind, messageType, call)
+    : call();
 }
 
 function buildSendResult(input: {
@@ -162,13 +155,18 @@ async function sendOutboundMessageWithFallback(
   role: WhatsAppOutboundRole,
   origin?: string,
   traceId?: string,
-  beforeProviderAttempt?: ProviderDispatchGate,
+  guardedProviderCall?: GuardedProviderCall,
 ): Promise<Omit<WhatsAppOutboundSendResult, "sequenceDecision">> {
   const validationErrors = validateWhatsAppOutboundMessage(message);
   const localValidationFailed = validationErrors.length > 0;
   const original: WhatsAppProviderSendResult = localValidationFailed
     ? { ok: false, detail: `Mensagem rejeitada por validação do contrato: ${validationErrors.map(error => error.detail).join(" ")}` }
-    : await runGuardedProviderCall(() => sendRawOutboundMessage(to, message), beforeProviderAttempt);
+    : await runGuardedProviderCall(
+        () => sendRawOutboundMessage(to, message),
+        guardedProviderCall,
+        "original",
+        message.type,
+      );
 
   if (original.ok) {
     return buildSendResult({
@@ -206,7 +204,9 @@ async function sendOutboundMessageWithFallback(
 
   const fallback = await runGuardedProviderCall(
     () => sendWhatsAppTextMessage(to, fallbackText),
-    beforeProviderAttempt,
+    guardedProviderCall,
+    "fallback",
+    "text_fallback",
   );
   const detail = fallback.ok
     ? `Envio original falhou (${original.detail}); fallback textual entregue com sucesso.`
@@ -245,71 +245,87 @@ export async function sendWhatsAppLogicalReply(
 
   for (let index = 0; index < reply.messages.length; index++) {
     const role: WhatsAppOutboundRole = index === 0 ? "primary" : "auxiliary";
-    let reservation: MetaWhatsAppUsageReservation | null = null;
-    let dispatchClaimed = false;
-    let terminalGate: ProviderDispatchGateResult | null = null;
-
-    const beforeProviderAttempt: ProviderDispatchGate | undefined = stableSourceMessageId
-      ? async () => {
-          if (dispatchClaimed) return { action: "send" };
-          if (terminalGate) return terminalGate;
-
+    const guardedProviderCall: GuardedProviderCall | undefined = stableSourceMessageId
+      ? async (attemptKind, messageType, providerCall) => {
           try {
             const prepared = await prepareMetaWhatsAppOutboundUsage({
               userId: lifecycle?.userId,
               recipientPhone: to,
               sourceMessageId: stableSourceMessageId,
               sequenceIndex: index,
-              messageType: reply.messages[index].type,
+              messageType,
               role,
+              attemptKind,
             });
             if (prepared.prepared === false) {
-              terminalGate = {
-                action: "blocked",
+              const blocked = {
+                ok: false as const,
+                failureCategory: "network" as const,
                 detail: "Medição de consumo indisponível; envio não realizado para evitar efeito externo sem trilha auditável.",
               };
               console.error("[WhatsAppUsageMeter]", safeLogDetail({
                 event: "provider_usage_preparation_blocked",
                 reason: prepared.reason,
-                messageType: reply.messages[index].type,
+                messageType,
                 role,
+                attemptKind,
                 traceId,
               }));
-              return terminalGate;
+              return blocked;
             }
 
-            reservation = prepared;
             const claim = await claimMetaWhatsAppOutboundUsageDispatch(prepared);
-            if (claim.claimed) {
-              dispatchClaimed = true;
-              return { action: "send" };
-            }
             if (claim.state === "success") {
-              terminalGate = {
-                action: "deduplicated_success",
+              return {
+                ok: true,
                 detail: "Envio já concluído para esta posição idempotente; chamada à Meta não repetida.",
               };
-              return terminalGate;
+            }
+            if (!claim.claimed) {
+              return {
+                ok: false,
+                failureCategory: "network",
+                detail: "Envio anterior possui estado de medição pendente ou terminal; chamada à Meta não repetida.",
+              };
             }
 
-            terminalGate = {
-              action: "blocked",
-              detail: "Envio anterior possui estado de medição pendente ou terminal; chamada à Meta não repetida.",
-            };
-            return terminalGate;
+            const providerResult = await providerCall();
+            try {
+              await finalizeMetaWhatsAppOutboundUsage({
+                reservation: prepared,
+                messageType,
+                role,
+                usedFallback: attemptKind === "fallback",
+                effectiveOk: providerResult.ok,
+                providerStatus: providerResult.status,
+                providerStatusText: providerResult.statusText,
+              });
+            } catch (error) {
+              console.error("[WhatsAppUsageMeter]", safeLogDetail({
+                event: "provider_usage_finalization_pending",
+                messageType,
+                role,
+                attemptKind,
+                traceId,
+                errorCode: error instanceof Error ? error.message : "unknown",
+              }));
+            }
+            return providerResult;
           } catch (error) {
-            terminalGate = {
-              action: "blocked",
+            const blocked = {
+              ok: false as const,
+              failureCategory: "network" as const,
               detail: "Medição de consumo indisponível; envio não realizado para evitar efeito externo sem trilha auditável.",
             };
             console.error("[WhatsAppUsageMeter]", safeLogDetail({
               event: "provider_usage_preparation_failed",
-              messageType: reply.messages[index].type,
+              messageType,
               role,
+              attemptKind,
               traceId,
               errorCode: error instanceof Error ? error.message : "unknown",
             }));
-            return terminalGate;
+            return blocked;
           }
         }
       : undefined;
@@ -320,33 +336,8 @@ export async function sendWhatsAppLogicalReply(
       role,
       options?.origin,
       traceId,
-      beforeProviderAttempt,
+      guardedProviderCall,
     );
-
-    if (dispatchClaimed && reservation) {
-      try {
-        await finalizeMetaWhatsAppOutboundUsage({
-          reservation,
-          messageType: baseResult.usedFallback ? "text_fallback" : reply.messages[index].type,
-          role,
-          usedFallback: baseResult.usedFallback,
-          effectiveOk: baseResult.effectiveOk,
-          providerStatus: baseResult.providerStatus,
-          providerStatusText: baseResult.providerStatusText,
-        });
-      } catch (error) {
-        // The pre-provider reservation remains durable as
-        // `provider_dispatch_started`; analytics/reconciliation can observe the
-        // uncertainty and a reprocess will not create another provider effect.
-        console.error("[WhatsAppUsageMeter]", safeLogDetail({
-          event: "provider_usage_finalization_pending",
-          messageType: reply.messages[index].type,
-          role,
-          traceId,
-          errorCode: error instanceof Error ? error.message : "unknown",
-        }));
-      }
-    }
 
     const sequenceDecision = role === "primary" && !baseResult.effectiveOk
       ? "stop"

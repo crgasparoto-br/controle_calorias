@@ -509,6 +509,123 @@ export async function refreshEconomicAggregates(now = new Date()) {
   });
 }
 
+type UsageDimensionSummary = {
+  beneficiaryUserId: number;
+  patientUserId: number | null;
+  sponsorUserId: number | null;
+  payerUserId: number;
+  productCode: string | null;
+  versionCode: string | null;
+  billingCycle: string | null;
+  accessSource: string;
+  operation: string;
+  channel: string;
+  provider: string | null;
+  model: string | null;
+  calls: number;
+  units: number;
+  estimatedCostMicros: number;
+  effectiveCostMicros: number;
+  retries: number;
+  failures: number;
+};
+
+function nullableString(value: unknown) {
+  return value == null ? null : String(value);
+}
+
+function usageCostMicros(row: Record<string, unknown>) {
+  return Number(row.effectiveCostMicros ?? row.estimatedCostMicros ?? 0);
+}
+
+function percentile(values: number[], quantile: number) {
+  if (values.length === 0) return 0;
+  const ordered = [...values].sort((left, right) => left - right);
+  const rank = (ordered.length - 1) * quantile;
+  const lower = Math.floor(rank);
+  const upper = Math.ceil(rank);
+  if (lower === upper) return ordered[lower];
+  return Math.round(ordered[lower] + (ordered[upper] - ordered[lower]) * (rank - lower));
+}
+
+function portfolioRange(activePatients: number) {
+  if (activePatients <= 10) return "1-10" as const;
+  if (activePatients <= 25) return "11-25" as const;
+  if (activePatients <= 50) return "26-50" as const;
+  return "51+" as const;
+}
+
+function summarizeProfessionalPortfolios(usage: Record<string, unknown>[]) {
+  const portfolios = new Map<string, {
+    sponsorUserId: number;
+    payerUserId: number;
+    subscriptionId: string | null;
+    versionCode: string | null;
+    patientCosts: Map<number, number>;
+    totalCostMicros: number;
+    calls: number;
+  }>();
+  for (const row of usage) {
+    const sponsorUserId = Number(row.sponsorUserId ?? 0);
+    const patientUserId = Number(row.patientUserId ?? 0);
+    if (!sponsorUserId || !patientUserId) continue;
+    const subscriptionId = nullableString(row.subscriptionId);
+    const versionCode = nullableString(row.versionCode);
+    const key = `${sponsorUserId}|${subscriptionId ?? ""}|${versionCode ?? ""}`;
+    const current = portfolios.get(key) ?? {
+      sponsorUserId,
+      payerUserId: Number(row.payerUserId),
+      subscriptionId,
+      versionCode,
+      patientCosts: new Map<number, number>(),
+      totalCostMicros: 0,
+      calls: 0,
+    };
+    const cost = usageCostMicros(row);
+    current.patientCosts.set(patientUserId, (current.patientCosts.get(patientUserId) ?? 0) + cost);
+    current.totalCostMicros += cost;
+    current.calls += 1;
+    portfolios.set(key, current);
+  }
+  const summaries = Array.from(portfolios.values()).map(portfolio => {
+    const patientCosts = Array.from(portfolio.patientCosts.values());
+    const activePatientCount = patientCosts.length;
+    return {
+      sponsorUserId: portfolio.sponsorUserId,
+      payerUserId: portfolio.payerUserId,
+      subscriptionId: portfolio.subscriptionId,
+      versionCode: portfolio.versionCode,
+      activePatientCount,
+      portfolioRange: portfolioRange(activePatientCount),
+      calls: portfolio.calls,
+      totalCostMicros: portfolio.totalCostMicros,
+      averageCostPerActivePatientMicros: activePatientCount
+        ? Math.round(portfolio.totalCostMicros / activePatientCount)
+        : 0,
+      patientCostPercentilesMicros: {
+        p50: percentile(patientCosts, 0.5),
+        p75: percentile(patientCosts, 0.75),
+        p90: percentile(patientCosts, 0.9),
+        p95: percentile(patientCosts, 0.95),
+      },
+    };
+  });
+  const distribution = new Map<string, { portfolioRange: string; portfolioCount: number; activePatientCount: number; totalCostMicros: number }>();
+  for (const portfolio of summaries) {
+    const current = distribution.get(portfolio.portfolioRange) ?? {
+      portfolioRange: portfolio.portfolioRange,
+      portfolioCount: 0,
+      activePatientCount: 0,
+      totalCostMicros: 0,
+    };
+    current.portfolioCount += 1;
+    current.activePatientCount += portfolio.activePatientCount;
+    current.totalCostMicros += portfolio.totalCostMicros;
+    distribution.set(portfolio.portfolioRange, current);
+  }
+  return { portfolios: summaries, distribution: Array.from(distribution.values()) };
+}
+
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
   const usage = await listUsageEvents(input);
   const requestedFrom = startOfMonth(input.from);
@@ -519,12 +636,45 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
     payerUserId: input.userId,
   });
   const byOperation = new Map<string, { operation: string; channel: string; calls: number; units: number; estimatedCostMicros: number; effectiveCostMicros: number; retries: number; failures: number }>();
+  const byDimensions = new Map<string, UsageDimensionSummary>();
   for (const row of usage) {
     const key = `${row.operation}|${row.channel}`;
     const current = byOperation.get(key) ?? { operation: String(row.operation), channel: String(row.channel), calls: 0, units: 0, estimatedCostMicros: 0, effectiveCostMicros: 0, retries: 0, failures: 0 };
     current.calls += 1; current.units += Number(row.unitCount ?? 0); current.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
     current.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0); if (row.attemptRole === "retry") current.retries += 1;
     if (row.eventState !== "success") current.failures += 1; byOperation.set(key, current);
+
+    const dimensions = {
+      beneficiaryUserId: Number(row.beneficiaryUserId),
+      patientUserId: row.patientUserId == null ? null : Number(row.patientUserId),
+      sponsorUserId: row.sponsorUserId == null ? null : Number(row.sponsorUserId),
+      payerUserId: Number(row.payerUserId),
+      productCode: nullableString(row.productCode),
+      versionCode: nullableString(row.versionCode),
+      billingCycle: nullableString(row.billingCycle),
+      accessSource: String(row.accessSource),
+      operation: String(row.operation),
+      channel: String(row.channel),
+      provider: nullableString(row.provider),
+      model: nullableString(row.model),
+    };
+    const dimensionKey = JSON.stringify(dimensions);
+    const dimensionSummary = byDimensions.get(dimensionKey) ?? {
+      ...dimensions,
+      calls: 0,
+      units: 0,
+      estimatedCostMicros: 0,
+      effectiveCostMicros: 0,
+      retries: 0,
+      failures: 0,
+    };
+    dimensionSummary.calls += 1;
+    dimensionSummary.units += Number(row.unitCount ?? 0);
+    dimensionSummary.estimatedCostMicros += Number(row.estimatedCostMicros ?? 0);
+    dimensionSummary.effectiveCostMicros += Number(row.effectiveCostMicros ?? 0);
+    if (row.attemptRole === "retry" || row.attemptRole === "fallback") dimensionSummary.retries += 1;
+    if (row.eventState !== "success") dimensionSummary.failures += 1;
+    byDimensions.set(dimensionKey, dimensionSummary);
   }
   const normalized: EconomicSeriesRow[] = economics.map(row => ({
     competenceMonth: new Date(String(row.competenceMonth)),
@@ -545,7 +695,16 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
       health: economicHealthBand(row.variableCostRatioBps),
       ...decisions.get(row),
     }));
-  return { window: input, policy: { fairUse: FAIR_USE_POLICY, retention: USAGE_RETENTION_POLICY }, byOperation: Array.from(byOperation.values()), monthlyEconomics: monthly, generatedAt: new Date() };
+  const professionalPortfolio = summarizeProfessionalPortfolios(usage);
+  return {
+    window: input,
+    policy: { fairUse: FAIR_USE_POLICY, retention: USAGE_RETENTION_POLICY },
+    byOperation: Array.from(byOperation.values()),
+    byDimensions: Array.from(byDimensions.values()),
+    professionalPortfolio,
+    monthlyEconomics: monthly,
+    generatedAt: new Date(),
+  };
 }
 
 export async function runUsageRetention(now = new Date()) {
@@ -554,6 +713,7 @@ export async function runUsageRetention(now = new Date()) {
     detailedCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.detailedUsageMonths),
     dailyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths),
     monthlyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.monthlyEconomicYears * 12),
+    governanceCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.governanceAuditYears * 12),
     ruleVersion: USAGE_RULE_VERSION,
     auditId: crypto.randomUUID(),
   });

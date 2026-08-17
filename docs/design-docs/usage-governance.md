@@ -12,7 +12,7 @@ Eventos de IA derivam do evento normalizado de observabilidade. A chave idempote
 
 Envios físicos pela WhatsApp Cloud API usam a própria posição idempotente do ledger como barreira durável **antes** da primeira chamada ao provider. O transporte cria `provider_dispatch_reserved` e faz um claim atômico para `provider_dispatch_started`; somente quem obteve o claim pode chamar a Meta. Um callback/reprocessamento que encontre `success` reutiliza o resultado lógico sem nova chamada, e um estado `provider_dispatch_started` impede repetir um efeito externo cujo resultado pode estar incerto. Se a reserva ou o claim não puderem ser persistidos, o envio falha fechado antes da Meta.
 
-Depois da tentativa, o mesmo evento é finalizado como `success` ou `failure`, preservando a posição original mesmo quando houve fallback textual. Se a finalização pós-provider ficar indisponível, `provider_dispatch_started` permanece no ledger como evidência durável da tentativa e como lacuna observável de qualidade; ela não desaparece nem autoriza uma chamada duplicada. O claim registra `providerDispatchStartedAt`; ao repetir o mesmo entrypoint depois do lease de cinco minutos, o estado pendente é encerrado como `provider_dispatch_uncertain`, ainda sem nova chamada ao provider, evitando ficar indefinidamente em processamento. A correlação deriva do inbound/lifecycle e da posição física da resposta. Esses eventos preservam paciente e patrocinador, usam `provider=meta`, `channel=whatsapp` e permanecem `unpriced` até a conciliação efetiva do provider; nenhum preço da Meta é inferido pelo produto.
+Cada tentativa física — original, retry ou fallback textual — possui chave durável própria sob uma raiz lógica estável. Assim, a falha original e o fallback ficam em linhas distintas e continuam mensuráveis sem que replay/callback duplicado repita nenhuma delas. Depois de cada tentativa, sua linha é finalizada como `success` ou `failure`. Se a finalização pós-provider ficar indisponível, `provider_dispatch_started` permanece no ledger como evidência durável da tentativa e como lacuna observável de qualidade; ela não desaparece nem autoriza uma chamada duplicada. O claim registra `providerDispatchStartedAt`; ao repetir o mesmo entrypoint depois do lease de cinco minutos, o estado pendente é encerrado como `provider_dispatch_uncertain`, ainda sem nova chamada ao provider, evitando ficar indefinidamente em processamento. A correlação deriva do inbound/lifecycle e da posição lógica da resposta. Esses eventos preservam paciente e patrocinador, usam `provider=meta`, `channel=whatsapp` e permanecem `unpriced` até a conciliação efetiva do provider; nenhum preço da Meta é inferido pelo produto.
 
 ## Reconciliação de custo
 
@@ -58,7 +58,7 @@ Medição e autorização de cobrança são contratos separados. `billingConsump
 
 `billingUsageDailyAggregates` mantém consumo por dia e dimensões comerciais. `billingEconomicMonthlyAggregates` mantém competência, receita reconhecida, deduções, receita líquida, custo variável, KPI e qualidade da medição. Assim consultas históricas não precisam varrer indefinidamente o ledger detalhado.
 
-O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI e retorna uso operacional, economia mensal, média móvel de três meses e indicação explícita de revisão obrigatória quando a média permanece acima de 30% por dois meses consecutivos. Valores econômicos são gerenciais até homologação contábil/fiscal apropriada.
+O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI e retorna uso por beneficiário/paciente, patrocinador/pagador, produto, versão, ciclo, origem, operação, canal e provider/modelo. Para planos profissionais, também retorna custo total, custo médio por paciente ativo, percentis p50/p75/p90/p95 e distribuição das carteiras nas faixas 1–10, 11–25, 26–50 e 51+ pacientes. A economia mensal, a média móvel de três meses e a indicação explícita de revisão obrigatória quando a média permanece acima de 30% por dois meses consecutivos continuam separadas. Valores econômicos são gerenciais até homologação contábil/fiscal apropriada.
 
 ## Retenção e legal hold
 
@@ -69,7 +69,7 @@ Política `2026-08-16.5`:
 - agregados financeiros/econômicos mensais: **5 anos**;
 - trilhas de decisão, autorização e limitação: **5 anos**.
 
-O ciclo automático registra `billingUsageRetentionAudit`. `billingUsageLegalHolds` suspende eliminação de eventos detalhados, agregados diários e agregados econômicos enquanto o hold estiver ativo, respeitando início/fim e os escopos global, usuário/pagador/patrocinador e assinatura. Agregados preservados não contêm conteúdo conversacional bruto e não devem permitir reconstruí-lo.
+O ciclo automático registra `billingUsageRetentionAudit`. O cutoff de cinco anos também é aplicado automaticamente a políticas revogadas, concessões encerradas, casos fechados, limitações encerradas, autorizações de cobrança revogadas, reconciliações, execuções de retenção e legal holds encerrados. `billingUsageLegalHolds` suspende a eliminação aplicável enquanto o hold estiver ativo, respeitando início/fim e os escopos global, usuário/pagador/patrocinador e assinatura. Agregados preservados não contêm conteúdo conversacional bruto e não devem permitir reconstruí-lo.
 
 ## Privacidade
 

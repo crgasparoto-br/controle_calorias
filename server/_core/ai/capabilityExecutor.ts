@@ -25,7 +25,7 @@ import {
   type AiObservabilityContext,
   type AiObservabilitySink,
 } from "./observability";
-import { enforceAiUsageGate } from "./usageGate";
+import { enforceAiUsageGate, getAiUsageGate } from "./usageGate";
 import { getCurrentAiUsageScope } from "./usageContext";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
@@ -88,12 +88,17 @@ async function applyUsageGovernance(
   const rawCorrelation = observability?.correlation ?? {};
   const scoped = getCurrentAiUsageScope();
   const candidateUserId = rawCorrelation.userId ?? scoped?.userId;
+  if (!getAiUsageGate()) return observability;
   if (
     typeof candidateUserId !== "number" ||
     !Number.isInteger(candidateUserId) ||
     candidateUserId <= 0
   ) {
-    return observability;
+    throw new AiNonRetryableError(
+      "AI provider execution requires an attributed usage identity",
+      undefined,
+      "usage_identity_required",
+    );
   }
 
   const rawConversationId = rawCorrelation.conversationId ?? scoped?.conversationId;

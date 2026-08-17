@@ -68,13 +68,14 @@ describe("Meta provider usage durable dispatch state", () => {
     }));
   });
 
-  it("keeps one idempotent position even when the effective representation changes to fallback", async () => {
+  it("keeps a stable logical root but assigns distinct durable identities to original and fallback attempts", async () => {
     const first = await prepareMetaWhatsAppOutboundUsage({
       userId: 42,
       sourceMessageId: "wamid.inbound-durable-2",
       sequenceIndex: 1,
       messageType: "buttons",
       role: "auxiliary",
+      attemptKind: "original",
     });
     const second = await prepareMetaWhatsAppOutboundUsage({
       userId: 42,
@@ -82,11 +83,20 @@ describe("Meta provider usage durable dispatch state", () => {
       sequenceIndex: 1,
       messageType: "text_fallback",
       role: "auxiliary",
+      attemptKind: "fallback",
     });
     expect(first.prepared && second.prepared).toBe(true);
     if (!first.prepared || !second.prepared) throw new Error("unexpected preparation failure");
-    expect(first.idempotencyKey).toBe(second.idempotencyKey);
+    expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
     expect(first.correlationId).toBe(second.correlationId);
+    expect(mocks.recordUsageEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      attemptRole: "auxiliary",
+      retryRootKey: null,
+    }));
+    expect(mocks.recordUsageEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      attemptRole: "fallback",
+      retryRootKey: first.correlationId,
+    }));
   });
 
   it("claims the reserved position atomically before provider dispatch", async () => {

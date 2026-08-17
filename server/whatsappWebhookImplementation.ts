@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { runWithAiUsageScope } from "./_core/ai/usageContext";
 import type { ImageAnnotationResponse } from "./_core/imageAnnotation";
 import {
   buildSavedMedia,
@@ -761,7 +762,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-      const processed = await processMealInput({
+      const processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
         text: prepared.text,
         transcript: prepared.transcript,
         imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
@@ -769,7 +770,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         habits: await getHabitSnapshots(userId),
         occurredAt,
         timeZone: userTimezone,
-      });
+      }));
 
       if (message.image?.id) {
         const waterSplit = splitMealItemsForWaterHydration(processed.items);

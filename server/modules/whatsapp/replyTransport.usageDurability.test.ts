@@ -90,7 +90,7 @@ describe("WhatsApp provider metering durability", () => {
     expect(mocks.finalize).not.toHaveBeenCalled();
   });
 
-  it("claims once for an original provider attempt plus its textual fallback and finalizes the effective representation", async () => {
+  it("claims and finalizes original and textual fallback as distinct provider attempts", async () => {
     mocks.sendButtons.mockResolvedValueOnce({
       ok: false,
       failureCategory: "provider",
@@ -109,10 +109,19 @@ describe("WhatsApp provider metering durability", () => {
     );
 
     expect(result.primaryEffectiveOk).toBe(true);
-    expect(mocks.claim).toHaveBeenCalledTimes(1);
+    expect(mocks.prepare).toHaveBeenCalledTimes(2);
+    expect(mocks.prepare).toHaveBeenNthCalledWith(1, expect.objectContaining({ attemptKind: "original", messageType: "buttons" }));
+    expect(mocks.prepare).toHaveBeenNthCalledWith(2, expect.objectContaining({ attemptKind: "fallback", messageType: "text_fallback" }));
+    expect(mocks.claim).toHaveBeenCalledTimes(2);
     expect(mocks.sendButtons).toHaveBeenCalledTimes(1);
     expect(mocks.sendText).toHaveBeenCalledTimes(1);
-    expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.finalize).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      reservation,
+      messageType: "buttons",
+      usedFallback: false,
+      effectiveOk: false,
+    }));
+    expect(mocks.finalize).toHaveBeenNthCalledWith(2, expect.objectContaining({
       reservation,
       messageType: "text_fallback",
       usedFallback: true,

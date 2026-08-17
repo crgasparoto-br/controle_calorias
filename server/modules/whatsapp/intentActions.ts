@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import {
   handleCoffeeSugarRegistrationIntent,
   isCoffeeSugarRegistrationText,
@@ -267,7 +268,7 @@ async function executeResumedFoodRegistration(
     : null;
 }
 
-export async function executeWhatsappTextIntent(
+async function executeWhatsappTextIntentAttributed(
   userId: number,
   input: WhatsappIntentInput
 ): Promise<WhatsappIntentResult | null> {
@@ -486,4 +487,14 @@ export async function executeWhatsappTextIntent(
   }
 
   return handlePeriodReportIntent(userId, reportPeriod, userTimeZone);
+}
+
+export async function executeWhatsappTextIntent(
+  userId: number,
+  input: WhatsappIntentInput,
+): Promise<WhatsappIntentResult | null> {
+  return runWithAiUsageScope(
+    { userId, conversationId: input.messageId ?? getCurrentWhatsappInboundExternalMessageId() },
+    () => executeWhatsappTextIntentAttributed(userId, input),
+  );
 }
