@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import type { MealProcessingResult } from "../../nutritionEngine";
+import { buildWhatsAppMealReplyMessage } from "./replyMessages";
+
+const REMOVED_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
+type Source = "heuristic" | "hybrid" | "catalog";
+
+function food(foodName: string, source: Source, calories = 147) {
+  return {
+    foodName,
+    canonicalName: foodName,
+    quantity: 49,
+    unit: "g",
+    portionText: "49 g",
+    servings: 0.49,
+    estimatedGrams: 49,
+    calories,
+    protein: 3.92,
+    carbs: 27.44,
+    fat: 1.96,
+    confidence: 0.72,
+    source,
+  };
+}
+
+function buildProcessedItems(sources: Source[]): MealProcessingResult {
+  const items = sources.map((source, index) => food(`Alimento ${index + 1}`, source, 100 + index * 10));
+  return {
+    detectedMealLabel: "Lanche",
+    sourceText: "refeição mista",
+    imageUrl: undefined,
+    audioUrl: undefined,
+    transcript: undefined,
+    confidence: 0.82,
+    needsConfirmation: sources.some(source => source !== "catalog"),
+    reasoning: "Teste de origens nutricionais.",
+    items,
+    totals: items.reduce((totals, item) => ({
+      calories: totals.calories + item.calories,
+      protein: totals.protein + item.protein,
+      carbs: totals.carbs + item.carbs,
+      fat: totals.fat + item.fat,
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
+  };
+}
+
+describe("buildWhatsAppMealReplyMessage estimated nutrition", () => {
+  it.each([
+    [["catalog"]],
+    [["heuristic"]],
+    [["hybrid"]],
+    [["catalog", "hybrid", "heuristic"]],
+    [["heuristic", "hybrid", "heuristic"]],
+  ] as Array<[Source[]]>)("não exibe aviso visual para origens %j", sources => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(sources));
+
+    expect(reply).not.toContain(REMOVED_WARNING);
+    sources.forEach((_, index) => {
+      expect(reply).toContain(`Alimento ${index + 1}`);
+    });
+  });
+
+  it("preserva os itens estimados e seus totais nutricionais", () => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedItems(["heuristic", "hybrid"]));
+
+    expect(reply).toContain("Alimento 1");
+    expect(reply).toContain("Alimento 2");
+    expect(reply).toContain("210 kcal");
+    expect(reply).not.toContain(REMOVED_WARNING);
+  });
+});

@@ -1,0 +1,439 @@
+import {
+  ProfessionalAsyncState,
+  ProfessionalLoadingState,
+} from "@/components/professional/ProfessionalUi";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { professionalPatientPath } from "@/lib/professionalRoutes";
+import { trpc } from "@/lib/trpc";
+import { AlertTriangle, Bot, FileText, Save, Sparkles } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
+
+const modeLabels = {
+  summary: "Resumir período",
+  comparison: "Comparar com período anterior",
+  question: "Fazer pergunta",
+  draft: "Preparar rascunho",
+} as const;
+const draftLabels = {
+  guidance: "Orientação",
+  reminder: "Lembrete",
+  weigh_in_request: "Pedido de pesagem",
+  record_request: "Pedido de registro",
+  administrative: "Mensagem administrativa",
+  follow_up_summary: "Resumo de acompanhamento",
+} as const;
+
+type AiMode = keyof typeof modeLabels;
+type DraftType = keyof typeof draftLabels;
+type SourceSignal = {
+  key: string;
+  label: string;
+  value: string;
+  period?: "current" | "previous";
+};
+type ProfessionalAiResult = {
+  title: string;
+  summary: string;
+  summarySourceKeys?: string[];
+  facts?: string[];
+  factSourceKeys?: string[][];
+  interpretations?: string[];
+  interpretationSourceKeys?: string[][];
+  missingData?: string[];
+  cautions?: string[];
+  draft?: { content: string; messageType: DraftType } | null;
+  educationalNotice?: string;
+  fallbackUsed?: boolean;
+  sourceSignals?: SourceSignal[];
+};
+
+function SourceReferences({
+  keys,
+  sourceSignals,
+}: {
+  keys?: string[];
+  sourceSignals: SourceSignal[];
+}) {
+  const labels = (keys ?? [])
+    .map(key => sourceSignals.find(signal => signal.key === key)?.label)
+    .filter((label): label is string => Boolean(label));
+  if (!labels.length) return null;
+  return (
+    <p className="mt-1 text-xs text-muted-foreground">
+      Fontes: {labels.join("; ")}
+    </p>
+  );
+}
+
+export default function ProfessionalAiAssistant({
+  patient,
+  periodRange,
+}: {
+  patient: { patientId: number; displayName: string };
+  periodRange: { start: string; end: string };
+}) {
+  const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const entitlements =
+    trpc.professionalRecord.settings.entitlements.useQuery(undefined, {
+      retry: false,
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+    });
+  const [mode, setMode] = useState<AiMode>("summary");
+  const [question, setQuestion] = useState("");
+  const [draftType, setDraftType] =
+    useState<DraftType>("follow_up_summary");
+  const [resultState, setResultState] = useState<{
+    signature: string;
+    data: ProfessionalAiResult;
+  } | null>(null);
+  const [draftContent, setDraftContent] = useState("");
+  const activeSignatureRef = useRef("");
+  const generate = trpc.professionalRecord.ai.generate.useMutation();
+  const saveDraft = trpc.professionalRecord.messages.create.useMutation({
+    onSuccess: async (_result, variables) => {
+      await utils.professionalRecord.messages.list
+        .invalidate()
+        .catch(() => undefined);
+      setLocation(professionalPatientPath(variables.patientId, "messages"));
+    },
+  });
+
+  const signature = useMemo(
+    () =>
+      [
+        patient.patientId,
+        periodRange.start,
+        periodRange.end,
+        mode,
+        draftType,
+        question.trim(),
+      ].join(":"),
+    [
+      draftType,
+      mode,
+      patient.patientId,
+      periodRange.end,
+      periodRange.start,
+      question,
+    ]
+  );
+  const result =
+    resultState?.signature === signature ? resultState.data : null;
+
+  useEffect(() => {
+    activeSignatureRef.current = signature;
+    setResultState(null);
+    setDraftContent("");
+  }, [signature]);
+
+  const requestAssistance = () => {
+    const requestSignature = signature;
+    setResultState(null);
+    generate.mutate(
+      {
+        patientId: patient.patientId,
+        startDate: periodRange.start,
+        endDate: periodRange.end,
+        mode,
+        question: mode === "question" ? question.trim() : undefined,
+        draftType: mode === "draft" ? draftType : undefined,
+      },
+      {
+        onSuccess: data => {
+          if (activeSignatureRef.current !== requestSignature) return;
+          setResultState({
+            signature: requestSignature,
+            data: data as ProfessionalAiResult,
+          });
+          setDraftContent(data.draft?.content ?? "");
+        },
+      }
+    );
+  };
+
+  if (entitlements.isLoading) {
+    return (
+      <ProfessionalLoadingState label="Verificando acesso à assistência por IA..." />
+    );
+  }
+  if (entitlements.isError) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        title="Não foi possível verificar a assistência por IA"
+        description="O relatório continua disponível. Tente verificar novamente somente esta capacidade."
+        onRetry={() => void entitlements.refetch()}
+      />
+    );
+  }
+
+  const enabledResources = entitlements.data?.enabledResources ?? [];
+  const aiEnabled = Boolean(
+    entitlements.data?.allowed &&
+      enabledResources.includes("professional_ai_assistance")
+  );
+  const messagesEnabled = Boolean(
+    entitlements.data?.allowed &&
+      enabledResources.includes("professional_messages")
+  );
+
+  if (!aiEnabled) {
+    return (
+      <ProfessionalAsyncState
+        variant="panel"
+        icon="empty"
+        title="Assistência por IA indisponível"
+        description="Esta capacidade não está incluída no acesso profissional atual. O relatório autorizado permanece disponível."
+      />
+    );
+  }
+
+  const sourceSignals = result?.sourceSignals ?? [];
+  const facts = result?.facts ?? [];
+  const interpretations = result?.interpretations ?? [];
+  const missingData = result?.missingData ?? [];
+  const cautions = result?.cautions ?? [];
+
+  return (
+    <section aria-labelledby="professional-ai-title" className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle
+            id="professional-ai-title"
+            className="flex items-center gap-2"
+          >
+            <Bot className="h-5 w-5" />
+            Assistência por IA
+          </CardTitle>
+          <CardDescription>
+            Resuma, compare, pergunte ou prepare um rascunho para {patient.displayName}. A IA não envia mensagens nem altera dados automaticamente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="rounded-xl bg-muted p-3 text-sm">
+            Período analisado: <strong>{periodRange.start}</strong> a{" "}
+            <strong>{periodRange.end}</strong>
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">Tipo de assistência</span>
+              <select
+                className="h-10 rounded-md border bg-background px-3"
+                value={mode}
+                onChange={event => setMode(event.target.value as AiMode)}
+              >
+                {Object.entries(modeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {mode === "draft" ? (
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium">Tipo de rascunho</span>
+                <select
+                  className="h-10 rounded-md border bg-background px-3"
+                  value={draftType}
+                  onChange={event =>
+                    setDraftType(event.target.value as DraftType)
+                  }
+                >
+                  {Object.entries(draftLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+          {mode === "question" ? (
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">
+                Pergunta sobre os dados autorizados
+              </span>
+              <textarea
+                className="min-h-28 rounded-md border bg-background p-3"
+                value={question}
+                maxLength={1_000}
+                onChange={event => setQuestion(event.target.value)}
+                placeholder="Ex.: O que mudou na frequência de registros neste período?"
+              />
+            </label>
+          ) : null}
+          <Button
+            disabled={
+              generate.isPending || (mode === "question" && !question.trim())
+            }
+            onClick={requestAssistance}
+          >
+            <Sparkles className="h-4 w-4" />
+            {generate.isPending ? "Analisando..." : "Gerar assistência"}
+          </Button>
+          {generate.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              Não foi possível gerar a assistência. Tente novamente sem alterar o período ou o paciente.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {result ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {result.title}
+            </CardTitle>
+            <CardDescription>
+              {result.fallbackUsed
+                ? "Não foi possível usar a análise assistida completa. Confira o resumo baseado nos dados disponíveis antes de decidir qualquer conduta."
+                : "Conteúdo assistido com fontes conferíveis. Revise antes de usar."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div>
+              <p className="whitespace-pre-wrap text-sm leading-6">
+                {result.summary}
+              </p>
+              <SourceReferences
+                keys={result.summarySourceKeys}
+                sourceSignals={sourceSignals}
+              />
+            </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div>
+                <h3 className="font-semibold">Fatos calculados</h3>
+                <ul className="mt-2 list-disc space-y-2 pl-5 text-sm">
+                  {facts.map((fact, index) => (
+                    <li key={`${fact}-${index}`}>
+                      {fact}
+                      <SourceReferences
+                        keys={result.factSourceKeys?.[index]}
+                        sourceSignals={sourceSignals}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold">Interpretações assistidas</h3>
+                <ul className="mt-2 list-disc space-y-2 pl-5 text-sm">
+                  {interpretations.map((interpretation, index) => (
+                    <li key={`${interpretation}-${index}`}>
+                      {interpretation}
+                      <SourceReferences
+                        keys={result.interpretationSourceKeys?.[index]}
+                        sourceSignals={sourceSignals}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            {missingData.length ? (
+              <div className="rounded-2xl border p-4">
+                <h3 className="font-semibold">Dados ausentes</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {missingData.map(item => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {sourceSignals.length ? (
+              <div className="rounded-2xl border bg-muted/30 p-4">
+                <h3 className="font-semibold">Fontes conferíveis</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  O catálogo contém todos os sinais usados nesta resposta. Cada resumo, fato e interpretação identifica as fontes correspondentes.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {sourceSignals.map(signal => (
+                    <div key={signal.key} className="rounded-lg bg-background p-3">
+                      <p className="text-xs text-muted-foreground">
+                        {signal.label}
+                      </p>
+                      <p className="text-sm font-medium">{signal.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {cautions.length ? (
+              <div className="rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 dark:bg-amber-950/20">
+                <h3 className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="h-4 w-4" />
+                  Pontos para revisar
+                </h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-200">
+                  {cautions.map(item => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {result.draft ? (
+              <div className="space-y-3 rounded-2xl border p-4">
+                <h3 className="font-semibold">Rascunho editável</h3>
+                <textarea
+                  aria-label="Rascunho editável"
+                  className="min-h-36 w-full rounded-md border bg-background p-3 text-sm"
+                  value={draftContent}
+                  onChange={event => setDraftContent(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Salvar cria apenas um rascunho. O envio exige uma nova ação explícita na conversa.
+                </p>
+                {messagesEnabled ? (
+                  <Button
+                    disabled={!draftContent.trim() || saveDraft.isPending}
+                    onClick={() =>
+                      saveDraft.mutate({
+                        patientId: patient.patientId,
+                        content: draftContent.trim(),
+                        messageType: result.draft!.messageType,
+                        origin: "ai_suggested",
+                        action: "save_draft",
+                        idempotencyKey: crypto.randomUUID(),
+                      })
+                    }
+                  >
+                    <Save className="h-4 w-4" />
+                    {saveDraft.isPending
+                      ? "Salvando..."
+                      : "Salvar e abrir conversa"}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Salvar este rascunho em uma conversa exige a capacidade de mensagens profissionais.
+                  </p>
+                )}
+                {saveDraft.isError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    Não foi possível salvar o rascunho. O texto continua disponível para revisão; tente novamente antes de sair desta página.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {result.educationalNotice ? (
+              <p className="text-xs text-muted-foreground">
+                {result.educationalNotice}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+    </section>
+  );
+}

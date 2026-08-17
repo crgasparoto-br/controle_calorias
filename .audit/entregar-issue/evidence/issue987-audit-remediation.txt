@@ -1,0 +1,37 @@
+Issue #987 independent-audit remediation evidence
+Material head: 726de55d6d9116baaf85769b139acb65e797a2e2
+Prior rejected material head: 0c949162725f64168d362e17cc264ff1658599d9
+
+Scope of remediation
+- Reject provider output when the structured brand contradicts the requested branded product even if matchedProductName echoes the request.
+- Reject provider output when servingLabel or gramsPerServing contradicts the requested portion even if matchedProductName echoes the requested measure.
+- Reject web grounding whose commercial identity contradicts the structured/requested brand even when nutrient numbers match.
+- Route specific branded NUTRITION_SEARCH through one strict validator, then fall back to embedding/local paths with skipNutritionSearch=true so rejection cannot trigger a second external nutrition lookup.
+
+Focused behavioral harness (actual server/brandedNutritionSearch.ts transpiled; provider/runtime mocked only at capability boundaries)
+positive true
+wrong-brand true
+wrong-serving true
+wrong-grams true
+wrong-grounding true
+
+Static/syntax validation
+- server/brandedNutritionSearch.ts: syntax-pass
+- server/catalogSemanticSearch.ts: syntax-pass
+- server/brandedNutritionSearch.test.ts: syntax-pass
+- server/catalogSemanticSearchCore.ts: syntax-pass
+- git diff --check: passed
+- server/catalogSemanticSearchCore.ts blob equals original semantic-search blob 96ca47fc05e2eec7d29e1937eaed5b8559dc948f, preserving the prior embedding and generic packaged-snack implementation unchanged behind the facade.
+
+Skill-level generalized prevention/detection
+- entregar-issue provider governance contract tests: passed
+- auditar-issue provider audit contract tests: passed
+- combined targeted skill tests: 8 passed
+- entregar-issue genericity validator: READY
+- auditar-issue genericity validator: READY
+- reusable control: PROVIDER-EVIDENCE-CONSISTENCY-001
+
+Environment limitation
+- Full local pnpm gate could not be executed because the checkout has no node_modules and Corepack cannot reach registry.npmjs.org in this runtime (EAI_AGAIN).
+- The automatically triggered GitHub Actions workflows were observed exactly once for the material head: WhatsApp context TiDB gate=success, AI provider live smoke=skipped by policy, Agent-first gate=in_progress at observation. No rerun, dispatch, cancellation, or polling was performed.
+- Existing idempotency, hydration, documentation and end-to-end controls are unchanged by this four-path material delta; the remote Agent-first gate is the authoritative full-suite execution for the published material head when it reaches terminal state.

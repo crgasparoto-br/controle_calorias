@@ -1,0 +1,146 @@
+import { describe, expect, it } from "vitest";
+import {
+  professionalGoalSuggestionSchema,
+  professionalMealSuggestionSchema,
+  professionalProfileSchema,
+  requestPatientAccessSchema,
+  professionalPortfolioSchema,
+  professionalPortfolioReportSchema,
+} from "./schemas";
+
+describe("professional schemas", () => {
+  it("defaults professional profile to active when omitted", () => {
+    const result = professionalProfileSchema.parse({
+      displayName: "Dra. Ana",
+      registrationNumber: "CRN 12345",
+    });
+
+    expect(result.active).toBe(true);
+  });
+
+  it("accepts an inactive professional profile", () => {
+    const result = professionalProfileSchema.parse({
+      displayName: "Dra. Ana",
+      active: false,
+    });
+
+    expect(result.active).toBe(false);
+  });
+
+  it("accepts patient access requests by email or phone contact", () => {
+    expect(
+      requestPatientAccessSchema.parse({
+        patientContact: "paciente@example.com",
+        reason: "Acompanhamento semanal",
+      }).patientContact
+    ).toBe("paciente@example.com");
+
+    expect(
+      requestPatientAccessSchema.parse({
+        patientContact: "+55 (11) 99999-9999",
+        reason: "Acompanhamento semanal",
+      }).patientContact
+    ).toBe("+55 (11) 99999-9999");
+  });
+
+  it("keeps the previous patientEmail field for compatibility", () => {
+    const result = requestPatientAccessSchema.parse({
+      patientEmail: "paciente@example.com",
+      reason: "Acompanhamento semanal",
+    });
+
+    expect(result.patientEmail).toBe("paciente@example.com");
+  });
+
+  it("defaults professional goal suggestions to sent status", () => {
+    const result = professionalGoalSuggestionSchema.parse({
+      patientId: 2,
+      rationale: "Ajuste para nova fase do acompanhamento.",
+      goal: {
+        defaultGoal: {
+          calories: 1800,
+          proteinGrams: 120,
+          carbsGrams: 190,
+          fatGrams: 55,
+        },
+        exceptions: [],
+      },
+    });
+
+    expect(result.status).toBe("sent");
+  });
+
+  it("defaults professional meal suggestions to sent status", () => {
+    const result = professionalMealSuggestionSchema.parse({
+      patientId: 2,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      description: "Arroz, feijão, frango grelhado e salada.",
+      rationale: "Ajustar saciedade e proteína no almoço.",
+    });
+
+    expect(result.status).toBe("sent");
+  });
+
+  it("limits the configurable portfolio report period to 90 inclusive days", () => {
+    expect(
+      professionalPortfolioSchema.parse({
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toMatchObject({
+      reportStartDate: "2026-07-01",
+      reportEndDate: "2026-07-20",
+    });
+    expect(() =>
+      professionalPortfolioSchema.parse({
+        reportStartDate: "2026-01-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toThrow("Escolha um período de até 90 dias");
+    expect(() =>
+      professionalPortfolioSchema.parse({ reportStartDate: "2026-07-20" })
+    ).toThrow("Informe o início e o fim");
+    expect(() =>
+      professionalPortfolioSchema.parse({ reportRecords: "with_records" })
+    ).toThrow("Informe o período usado para filtrar os registros");
+
+    expect(
+      professionalPortfolioSchema.parse({
+        reportRecords: "without_records",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+        nextWeighing: "overdue",
+      })
+    ).toMatchObject({
+      reportRecords: "without_records",
+      nextWeighing: "overdue",
+    });
+  });
+
+  it("requires a bounded period only for the activity report block", () => {
+    expect(
+      professionalPortfolioReportSchema.parse({
+        block: "activity",
+        reportStartDate: "2026-07-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toMatchObject({ block: "activity" });
+    expect(() =>
+      professionalPortfolioReportSchema.parse({ block: "activity" })
+    ).toThrow("Informe o início e o fim");
+    expect(() =>
+      professionalPortfolioReportSchema.parse({
+        block: "activity",
+        reportStartDate: "2026-01-01",
+        reportEndDate: "2026-07-20",
+      })
+    ).toThrow("Escolha um período de até 90 dias");
+    expect(
+      professionalPortfolioReportSchema.parse({ block: "schedule" })
+    ).toEqual({ block: "schedule" });
+    expect(
+      professionalPortfolioReportSchema.parse({ block: "tracking" })
+    ).toEqual({ block: "tracking" });
+  });
+});

@@ -1,0 +1,316 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { getLoginUrl } from "@/const";
+import { useIsMobile } from "@/hooks/useMobile";
+import {
+  Apple,
+  BarChart3,
+  CreditCard,
+  Database,
+  Goal,
+  HeartPulse,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  MessageSquareMore,
+  Shield,
+  Stethoscope,
+  UserRound,
+} from "lucide-react";
+import React, { useMemo } from "react";
+import { useLocation } from "wouter";
+import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_calorie_control_2.png";
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+import { Button } from "./ui/button";
+
+function ProductIcon({ className = "h-11 w-11" }: { className?: string }) {
+  return (
+    <img
+      src={calorieControlIcon}
+      alt="Controle de Calorias"
+      className={`${className} rounded-2xl object-cover shadow-sm ring-1 ring-white/20`}
+    />
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-card-foreground shadow-sm">
+          <div className="space-y-3 text-center">
+            <ProductIcon className="mx-auto h-16 w-16" />
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Entre para acessar sua jornada nutricional
+            </h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Faça login para registrar refeições, acompanhar metas calóricas,
+              revisar sugestões e visualizar seu painel diário e semanal.
+            </p>
+          </div>
+          <Button
+            className="mt-8 h-11 w-full"
+            onClick={() => {
+              window.location.href = getLoginUrl();
+            }}
+          >
+            Fazer login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarProvider>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </SidebarProvider>
+  );
+}
+
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+  const [location, setLocation] = useLocation();
+  const isMobile = useIsMobile();
+
+  const isTodayRoute = location === "/" || location === "/today";
+  const isRegisterRoute =
+    location === "/record" ||
+    location === "/log-meal" ||
+    location === "/registrar";
+  const isRecordsRoute = location === "/meals";
+  const isReportsRoute = location === "/reports";
+  const isSettingsRoute =
+    location === "/settings" || location === "/onboarding";
+  const hasActiveProfessionalProfile = Boolean(
+    user?.professionalProfileActive
+  );
+
+  const menuItems = useMemo(() => {
+    const baseItems = [
+      { icon: LayoutDashboard, label: "Hoje", path: "/today" },
+      { icon: MessageSquareMore, label: "Registrar", path: "/registrar" },
+      { icon: ListChecks, label: "Registros", path: "/meals" },
+      { icon: BarChart3, label: "Relatórios", path: "/reports" },
+      { icon: Apple, label: "Alimentos", path: "/foods" },
+      { icon: Goal, label: "Metas nutricionais", path: "/goals" },
+      {
+        icon: HeartPulse,
+        label: "Integrações",
+        path: "/health-integrations",
+      },
+      {
+        icon: Database,
+        label: "Dados sincronizados",
+        path: "/synced-health-data",
+      },
+      { icon: CreditCard, label: "Plano e acesso", path: "/billing" },
+    ];
+
+    if (hasActiveProfessionalProfile) {
+      baseItems.push({
+        icon: Stethoscope,
+        label: "Área profissional",
+        path: "/professional",
+      });
+    }
+
+    if (user?.role === "admin") {
+      baseItems.push({
+        icon: Shield,
+        label: "Administração",
+        path: "/admin",
+      });
+      baseItems.push({
+        icon: CreditCard,
+        label: "Billing e acesso",
+        path: "/admin/billing",
+      });
+    }
+
+    baseItems.push({
+      icon: UserRound,
+      label: "Configurações",
+      path: "/settings",
+    });
+
+    return baseItems;
+  }, [hasActiveProfessionalProfile, user?.role]);
+
+  const activeItem = menuItems.find(item => {
+    if (item.path === "/today") {
+      return isTodayRoute;
+    }
+
+    if (item.path === "/registrar") {
+      return isRegisterRoute;
+    }
+
+    if (item.path === "/settings") {
+      return isSettingsRoute;
+    }
+
+    return item.path === location;
+  });
+
+  return (
+    <>
+      <Sidebar
+        collapsible="icon"
+        className="border-r border-sidebar-border/70 bg-sidebar"
+      >
+        <SidebarHeader className="border-b border-sidebar-border/70 px-4 py-5">
+          <div className="flex items-center gap-3">
+            <ProductIcon />
+            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-medium text-sidebar-foreground/70">
+                Controle de Calorias
+              </p>
+              <h1 className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">
+                Nutrição inteligente
+              </h1>
+            </div>
+          </div>
+        </SidebarHeader>
+
+        <SidebarContent className="px-3 py-4">
+          <SidebarMenu>
+            {menuItems.map(item => {
+              const isActive =
+                (item.path === "/today" && isTodayRoute) ||
+                (item.path === "/registrar" && isRegisterRoute) ||
+                (item.path === "/settings" && isSettingsRoute) ||
+                item.path === location;
+
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    isActive={isActive}
+                    tooltip={item.label}
+                    className="h-11 rounded-xl"
+                    onClick={() => setLocation(item.path)}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarContent>
+
+        <SidebarFooter className="border-t border-sidebar-border/70 p-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+                <Avatar className="h-10 w-10 border border-sidebar-border bg-background">
+                  <AvatarFallback>
+                    {(user?.name || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                  <p className="truncate text-sm font-medium text-sidebar-foreground">
+                    {user?.name || "Usuário"}
+                  </p>
+                  <p className="truncate text-xs text-sidebar-foreground/70">
+                    {hasActiveProfessionalProfile
+                      ? "Conta pessoal + profissional"
+                      : user?.role === "admin"
+                        ? "Administrador"
+                        : "Conta pessoal"}
+                  </p>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={logout}
+                className="cursor-pointer text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sair</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarFooter>
+      </Sidebar>
+
+      <SidebarInset>
+        <div className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                  Controle de Calorias
+                </p>
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  {activeItem?.label || "Hoje"}
+                </h2>
+              </div>
+            </div>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <Button
+                type="button"
+                variant={isRegisterRoute ? "default" : "outline"}
+                className="h-10 rounded-full px-4"
+                onClick={() => setLocation("/registrar")}
+              >
+                Ir para registrar
+              </Button>
+              <Button
+                type="button"
+                variant={isRecordsRoute ? "default" : "outline"}
+                className="h-10 rounded-full px-4"
+                onClick={() => setLocation("/meals")}
+              >
+                Ver registros
+              </Button>
+              {!isMobile ? (
+                <Button
+                  type="button"
+                  variant={isReportsRoute ? "default" : "outline"}
+                  className="h-10 rounded-full px-4"
+                  onClick={() => setLocation("/reports")}
+                >
+                  Ver relatórios
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-muted/20 p-4 sm:p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </>
+  );
+}

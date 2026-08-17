@@ -1,1 +1,22 @@
-{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":982,"primary_source":"specification-sources/SRC-GITHUB-ISSUE-982.txt","source_sha256":"7876756ca09e9cdcc6f5f32a13c00e7f8e255dece5282cd91be741a4e4ec70a8","material_head_sha":"8fb8df49d91ff6f1cbe52845d3169515d8177f45"}
+{
+  "schema_version": 1,
+  "complete": true,
+  "sources": [
+    {"id":"SRC-ISSUE-987","kind":"github-issue","locator":"https://github.com/crgasparoto-br/controle_calorias/issues/987","sha256":"9f4eb7ad5d79df57eeee3d22fc886c6ff306796ec363718b0ca99e4ccfdf23b7"},
+    {"id":"SRC-AGENTS","kind":"repository-instructions","locator":"AGENTS.md","sha256":"638438e2a0d90e39258a7bd43e320f11dffaef76d114171773c5e3c1b7ba37f3"},
+    {"id":"SRC-DOCS-INDEX","kind":"canonical-documentation","locator":"docs/README.md","sha256":"9f8740c8dd682a26566d963e7b9f68c1c024a47c96ab41dfbfe086e3ac5d5104"},
+    {"id":"SRC-ARCHITECTURE","kind":"architecture","locator":"ARCHITECTURE.md","sha256":"aeb3052e622775de453903b852b5bec347dce344b27dbc26f3030d39d0d852ce"},
+    {"id":"SRC-MEAL-SPEC","kind":"product-specification","locator":"docs/product-specs/meal-registration.md","sha256":"da9bc2a5c324ecf7bb9182b539fbcae08d1a6cafad170f9fe1eb31a76dd8995c"},
+    {"id":"SRC-NUTRITION-DESIGN","kind":"technical-design","locator":"docs/design-docs/nutrition-engine.md","sha256":"eb8a2918542fb8a08a8404090d17f6f4eb19ede4e4697a6969f762290a1a0118"}
+  ],
+  "discovery": {
+    "commands": ["gh issue view 987 --repo crgasparoto-br/controle_calorias", "rg --files docs server"],
+    "roots": [".", "docs", "server"],
+    "discovered_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
+    "declared_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
+    "omitted_sources": [],
+    "stale_claim_queries": ["snack", "brand", "hydration", "NUTRITION_SEARCH"],
+    "unresolved_stale_claims": [],
+    "state_transition": true
+  }
+}

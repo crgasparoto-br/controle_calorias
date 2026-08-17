@@ -1,0 +1,440 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { professionalContentRepository } from "./contentPersistenceService";
+import { professionalRepository } from "./persistenceService";
+import {
+  _forTestOnly_setProfessionalSyntheticUserLookup,
+  approvePatientAccess,
+  buildPhoneLookupCandidates,
+  getProfessionalPatientPeriodBundle,
+  getProfessionalPatientTimeZone,
+  getProfessionalProfile,
+  listPatientAccessRequests,
+  listProfessionalAccesses,
+  ProfessionalProfileConsistencyError,
+  requestPatientAccess,
+  suggestGoalAdjustment,
+  suggestMealPlan,
+  transitionPatientTracking,
+  upsertProfessionalProfile,
+} from "./service";
+
+_forTestOnly_setProfessionalSyntheticUserLookup(true);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function goalInput(calories = 1800) {
+  return {
+    defaultGoal: {
+      calories,
+      proteinGrams: 120,
+      carbsGrams: 190,
+      fatGrams: 55,
+    },
+    exceptions: [],
+  };
+}
+
+describe("professional profile", () => {
+  it("returns the saved active profile state", async () => {
+    const professionalUserId = 24110;
+
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      registrationNumber: "Registro 12345",
+      active: true,
+    });
+
+    await expect(
+      getProfessionalProfile(professionalUserId)
+    ).resolves.toMatchObject({
+      userId: professionalUserId,
+      displayName: "Marina Souza",
+      registrationNumber: "Registro 12345",
+      active: true,
+    });
+  });
+
+  it("keeps an inactive professional profile inactive", async () => {
+    const professionalUserId = 24111;
+
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Camila Pereira",
+      active: false,
+    });
+
+    await expect(
+      getProfessionalProfile(professionalUserId)
+    ).resolves.toMatchObject({
+      userId: professionalUserId,
+      displayName: "Camila Pereira",
+      active: false,
+    });
+  });
+
+  it("removes a newly created profile when audit history fails", async () => {
+    const professionalUserId = 24112;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toBeNull();
+  });
+
+  it("restores the previous profile when audit history fails", async () => {
+    const professionalUserId = 24113;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins Atualizada",
+        registrationNumber: "CRN 200",
+        active: true,
+      })
+    ).rejects.toThrow("history unavailable");
+
+    await expect(getProfessionalProfile(professionalUserId)).resolves.toMatchObject({
+      displayName: "Ana Martins",
+      registrationNumber: "CRN 100",
+      active: false,
+    });
+  });
+
+  it("surfaces an explicit consistency error when compensation also fails", async () => {
+    const professionalUserId = 24114;
+    vi.spyOn(professionalContentRepository, "appendHistory").mockRejectedValueOnce(
+      new Error("history unavailable")
+    );
+    vi.spyOn(professionalRepository, "deleteProfile").mockRejectedValueOnce(
+      new Error("compensation unavailable")
+    );
+
+    await expect(
+      upsertProfessionalProfile(professionalUserId, {
+        displayName: "Ana Martins",
+        active: true,
+      })
+    ).rejects.toBeInstanceOf(ProfessionalProfileConsistencyError);
+  });
+});
+
+describe("professional access contact lookup", () => {
+  it("adds Brazilian phone variants when contact is typed without country code", () => {
+    expect(buildPhoneLookupCandidates("1599604601")).toEqual(
+      expect.arrayContaining([
+        "1599604601",
+        "+1599604601",
+        "551599604601",
+        "+551599604601",
+      ])
+    );
+  });
+
+  it("also searches the national format when contact is typed with Brazil country code", () => {
+    expect(buildPhoneLookupCandidates("+55 (15) 99604-601")).toEqual(
+      expect.arrayContaining([
+        "551599604601",
+        "+551599604601",
+        "1599604601",
+        "+1599604601",
+      ])
+    );
+  });
+});
+
+describe("professional access requests", () => {
+  it("lists the same pending request for professional and patient", async () => {
+    const professionalUserId = 24120;
+    const patientUserId = 24121;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: access.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+        }),
+      ])
+    );
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: access.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+          professional: expect.objectContaining({
+            displayName: "Marina Souza",
+          }),
+        }),
+      ])
+    );
+  });
+
+  it("keeps the approved status visible for both sides", async () => {
+    const professionalUserId = 24130;
+    const patientUserId = 24131;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Camila Pereira",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: access.id, status: "approved" }),
+      ])
+    );
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: access.id, status: "approved" }),
+      ])
+    );
+  });
+
+  it("reconcilia cópia do paciente ao reenviar solicitação de acesso existente", async () => {
+    const professionalUserId = 24150;
+    const patientUserId = 24151;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Rafael Mendes",
+      active: true,
+    });
+
+    const first = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Primeira solicitação",
+    });
+
+    const second = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Reenvio",
+    });
+
+    expect(second.id).toBe(first.id);
+
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          professionalUserId,
+          patientUserId,
+          status: "pending",
+        }),
+      ])
+    );
+  });
+});
+
+describe("professional patient timezone", () => {
+  it("bloqueia a leitura sem vínculo aprovado", async () => {
+    const professionalUserId = 24160;
+    const patientUserId = 24161;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).rejects.toThrow("Acesso profissional não autorizado");
+  });
+
+  it("expõe somente a resolução temporal após autorização", async () => {
+    const professionalUserId = 24170;
+    const patientUserId = 24171;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).resolves.toMatchObject({
+      timeZone: expect.any(String),
+      source: expect.any(String),
+    });
+  });
+});
+
+describe("professional goal suggestions", () => {
+  it("blocks goal suggestions when patient access is not approved", async () => {
+    const professionalUserId = 24210;
+    const patientUserId = 24211;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    await expect(
+      suggestGoalAdjustment(professionalUserId, {
+        patientId: patientUserId,
+        rationale: "Ajuste inicial de acompanhamento.",
+        status: "sent",
+        goal: goalInput(),
+      })
+    ).rejects.toThrow(
+      "Acesso profissional não autorizado pela pessoa acompanhada."
+    );
+  });
+
+  it("creates a sent goal suggestion for an approved patient", async () => {
+    const professionalUserId = 24220;
+    const patientUserId = 24221;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    const suggestion = await suggestGoalAdjustment(professionalUserId, {
+      patientId: patientUserId,
+      rationale: "Reduzir calorias mantendo proteína alta.",
+      status: "sent",
+      goal: goalInput(1750),
+    });
+
+    expect(suggestion).toMatchObject({
+      professionalUserId,
+      patientUserId,
+      status: "sent",
+      rationale: "Reduzir calorias mantendo proteína alta.",
+      goal: goalInput(1750),
+    });
+    expect(suggestion.sentAt).toEqual(expect.any(Number));
+    expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("professional meal suggestions", () => {
+  it("blocks meal suggestions when patient access is not approved", async () => {
+    const professionalUserId = 24310;
+    const patientUserId = 24311;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Camila Pereira",
+      active: true,
+    });
+
+    await expect(
+      suggestMealPlan(professionalUserId, {
+        patientId: patientUserId,
+        mealLabel: "Jantar",
+        title: "Jantar leve",
+        description: "Omelete com legumes e salada.",
+        rationale: "Melhorar saciedade à noite.",
+        status: "sent",
+      })
+    ).rejects.toThrow(
+      "Acesso profissional não autorizado pela pessoa acompanhada."
+    );
+  });
+
+  it("creates a sent meal suggestion for an approved patient", async () => {
+    const professionalUserId = 24320;
+    const patientUserId = 24321;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Camila Pereira",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    const suggestion = await suggestMealPlan(professionalUserId, {
+      patientId: patientUserId,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      description: "Arroz, feijão, frango grelhado e salada.",
+      rationale: "Ajustar proteína e saciedade no almoço.",
+      notes: "Usar azeite com moderação.",
+      status: "sent",
+    });
+
+    expect(suggestion).toMatchObject({
+      professionalUserId,
+      patientUserId,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      status: "sent",
+      notes: "Usar azeite com moderação.",
+    });
+    expect(suggestion.sentAt).toEqual(expect.any(Number));
+    expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("ended professional tracking", () => {
+  it("blocks patient data surfaces while preserving the separate audit history contract", async () => {
+    const professionalUserId = 24980;
+    const patientUserId = 24981;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Nutricionista Auditora",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await transitionPatientTracking(professionalUserId, {
+      accessId: access.id,
+      status: "ended",
+    });
+
+    await expect(
+      getProfessionalPatientTimeZone(professionalUserId, patientUserId)
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+    await expect(
+      getProfessionalPatientPeriodBundle(professionalUserId, patientUserId, {
+        startDate: "2026-07-01",
+        endDate: "2026-07-07",
+      })
+    ).rejects.toThrow(
+      "O acompanhamento foi encerrado. Somente o histórico profissional permanece disponível."
+    );
+  });
+});
