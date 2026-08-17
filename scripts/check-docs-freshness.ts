@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -23,6 +23,7 @@ const requiredDocs = [
   "docs/design-docs/nutrition-engine.md",
   "docs/design-docs/whatsapp-ingestion.md",
   "docs/design-docs/database-persistence.md",
+  "docs/design-docs/usage-governance.md",
   "docs/generated/db-schema.md",
   "docs/generated/trpc-routes.md",
   "docs/PRIVACY_LGPD.md",
@@ -64,6 +65,47 @@ const agents = existsSync(path.join(root, "AGENTS.md")) ? read("AGENTS.md") : ""
 for (const referencedDoc of ["ARCHITECTURE.md", "docs/PRIVACY_LGPD.md", "docs/generated/db-schema.md", "docs/generated/trpc-routes.md"]) {
   if (!agents.includes(referencedDoc)) {
     fail(`AGENTS.md deve apontar para ${referencedDoc}`);
+  }
+}
+
+function collectMarkdownFiles(relativePath: string): string[] {
+  const absolutePath = path.join(root, relativePath);
+  if (!existsSync(absolutePath)) return [];
+  if (!statSync(absolutePath).isDirectory()) {
+    return absolutePath.endsWith(".md") ? [relativePath] : [];
+  }
+  const ignoredDirectories = new Set([".git", ".audit", "node_modules", "dist", "coverage"]);
+  const entries = readdirSync(absolutePath, { withFileTypes: true });
+  return entries.flatMap(entry => {
+    if (entry.isDirectory() && ignoredDirectories.has(entry.name)) return [];
+    const child = path.join(relativePath, entry.name);
+    if (entry.isDirectory()) return collectMarkdownFiles(child);
+    return entry.isFile() && entry.name.endsWith(".md") ? [child] : [];
+  });
+}
+
+const staleUsageGovernanceClaims = [
+  {
+    label: "governança de consumo marcada como ausente/pendente",
+    pattern: /(?:gest[aã]o|governan[cç]a)\s+de\s+(?:uso|consumo)\s+de\s+IA.{0,160}(?:n[aã]o\s+implementad[ao]|pendente|indispon[ií]vel)/i,
+  },
+  {
+    label: "rota usageGovernance marcada como inexistente/indisponível",
+    pattern: /usageGovernance.{0,160}(?:n[aã]o\s+existe|n[aã]o\s+implementad[ao]|indispon[ií]vel|pendente)/i,
+  },
+  {
+    label: "fair use descrito como cobrança ou bloqueio automático",
+    pattern: /(?:fair\s+use|or[cç]amento|threshold).{0,160}(?:bloque(?:ia|io)\s+automaticamente|cobra(?:n[cç]a)?\s+automaticamente|cobran[cç]a\s+autom[aá]tica)/i,
+  },
+];
+
+for (const doc of ["README.md", "ARCHITECTURE.md", "AGENTS.md", ...collectMarkdownFiles("docs")]) {
+  if (!existsSync(path.join(root, doc))) continue;
+  const normalized = read(doc).replace(/\s+/g, " ");
+  for (const staleClaim of staleUsageGovernanceClaims) {
+    if (staleClaim.pattern.test(normalized)) {
+      fail(`Alegação documental obsoleta (${staleClaim.label}): ${doc}`);
+    }
   }
 }
 

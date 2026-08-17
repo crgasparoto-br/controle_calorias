@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
@@ -22,6 +23,9 @@ import {
   usageLegalHoldSchema,
 } from "./schemas";
 
+const API_UNEXPECTED_ERROR = "API_UNEXPECTED_ERROR";
+const API_UNEXPECTED_ERROR_MESSAGE = "Não foi possível atualizar a governança de consumo.";
+
 const economicFactSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(191),
   payerUserId: z.number().int().positive(),
@@ -40,29 +44,56 @@ const economicFactSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-function governanceError(error: unknown): never {
+type PublicResponseHeaders = {
+  setHeader(name: string, value: string): unknown;
+};
+
+function isExpectedGovernanceError(code: string) {
+  const infrastructureFailure = /(?:persistence|database|sql|adapter|unavailable|timeout|connection|internal|unexpected)/i.test(code);
+  if (infrastructureFailure) return false;
+  return code.startsWith("usage_") || code.startsWith("consumption_charge_") || code.startsWith("economic_fact_");
+}
+
+function governanceError(error: unknown, response: PublicResponseHeaders): never {
   const code = error instanceof Error ? error.message : "usage_governance_error";
-  const safe = code.startsWith("usage_") || code.startsWith("consumption_charge_") || code.startsWith("economic_fact_");
+  if (isExpectedGovernanceError(code)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: code,
+    });
+  }
+
+  const correlationId = crypto.randomUUID();
+  response.setHeader("x-error-code", API_UNEXPECTED_ERROR);
+  response.setHeader("x-correlation-id", correlationId);
+  console.error("Unexpected usage-governance public-boundary failure", {
+    correlationId,
+    errorName: error instanceof Error ? error.name : typeof error,
+  });
   throw new TRPCError({
-    code: safe ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
-    message: safe ? code : "Não foi possível atualizar a governança de consumo.",
+    code: "INTERNAL_SERVER_ERROR",
+    message: API_UNEXPECTED_ERROR_MESSAGE,
   });
 }
 
 export const usageGovernanceRouter = router({
-  analytics: adminProcedure.input(internalUsageAnalyticsSchema).query(async ({ input }) => {
-    const window = resolveInternalUsageAnalyticsWindow(input);
-    const [analytics, fairUse] = await Promise.all([
-      getInternalUsageAnalytics(window),
-      resolveFairUsePolicy({ userId: input.userId }),
-    ]);
-    return {
-      ...analytics,
-      policy: {
-        ...analytics.policy,
-        fairUse,
-      },
-    };
+  analytics: adminProcedure.input(internalUsageAnalyticsSchema).query(async ({ ctx, input }) => {
+    try {
+      const window = resolveInternalUsageAnalyticsWindow(input);
+      const [analytics, fairUse] = await Promise.all([
+        getInternalUsageAnalytics(window),
+        resolveFairUsePolicy({ userId: input.userId }),
+      ]);
+      return {
+        ...analytics,
+        policy: {
+          ...analytics.policy,
+          fairUse,
+        },
+      };
+    } catch (error) {
+      governanceError(error, ctx.res);
+    }
   }),
 
   configurePolicy: adminProcedure.input(configureUsagePolicySchema).mutation(async ({ ctx, input }) => {
@@ -73,7 +104,7 @@ export const usageGovernanceRouter = router({
         observationEndsAt: new Date(input.observationEndsAt),
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
 
   reconcileUsageCost: adminProcedure.input(reconcileUsageCostSchema).mutation(async ({ ctx, input }) => {
@@ -83,7 +114,7 @@ export const usageGovernanceRouter = router({
         effectiveAt: input.effectiveAt ? new Date(input.effectiveAt) : undefined,
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
 
   recordEconomicFact: adminProcedure.input(economicFactSchema).mutation(async ({ ctx, input }) => {
@@ -100,7 +131,7 @@ export const usageGovernanceRouter = router({
         reason: input.reason ?? null,
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
 
   grantAllowance: adminProcedure.input(grantUsageAllowanceSchema).mutation(async ({ ctx, input }) => {
@@ -112,20 +143,20 @@ export const usageGovernanceRouter = router({
         endsAt: new Date(input.endsAt),
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
   revokeAllowance: adminProcedure.input(revokeUsageAllowanceSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeTemporaryAllowance(input.id, ctx.user.id); return { revoked: true as const }; }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
 
   openAbuseCase: adminProcedure.input(openUsageAbuseCaseSchema).mutation(async ({ ctx, input }) => {
     try { return await usageGovernanceAdminService.openUsageAbuseCase({ ...input, sponsorUserId: input.sponsorUserId ?? null, actorUserId: ctx.user.id }); }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
   reviewAbuseCase: adminProcedure.input(reviewUsageAbuseCaseSchema).mutation(async ({ ctx, input }) => {
     try { return await usageGovernanceAdminService.reviewUsageAbuseCase({ ...input, reviewerUserId: ctx.user.id }); }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
   applyLimitation: adminProcedure.input(applyUsageLimitationSchema).mutation(async ({ ctx, input }) => {
     try {
@@ -137,11 +168,11 @@ export const usageGovernanceRouter = router({
         appealOfferedAt: input.appealOfferedAt ? new Date(input.appealOfferedAt) : null,
         approvedByUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
   revokeLimitation: adminProcedure.input(revokeUsageLimitationSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeUsageLimitation(input.id, ctx.user.id, input.reason); return { revoked: true as const }; }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
 
   authorizeConsumptionCharging: adminProcedure.input(authorizeConsumptionChargingSchema).mutation(async ({ ctx, input }) => {
@@ -152,11 +183,11 @@ export const usageGovernanceRouter = router({
         communicationAt: new Date(input.communicationAt),
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
   revokeConsumptionCharging: adminProcedure.input(revokeConsumptionChargingSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeFutureConsumptionCharging(input.id, ctx.user.id, input.reason); return { revoked: true as const }; }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
 
   placeLegalHold: adminProcedure.input(usageLegalHoldSchema).mutation(async ({ ctx, input }) => {
@@ -167,10 +198,10 @@ export const usageGovernanceRouter = router({
         endsAt: input.endsAt ? new Date(input.endsAt) : null,
         actorUserId: ctx.user.id,
       });
-    } catch (error) { governanceError(error); }
+    } catch (error) { governanceError(error, ctx.res); }
   }),
   revokeLegalHold: adminProcedure.input(revokeUsageLegalHoldSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeUsageLegalHold(input.id, ctx.user.id); return { revoked: true as const }; }
-    catch (error) { governanceError(error); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
 });
