@@ -54,17 +54,35 @@ async function withPublicTrpcServer<T>(run: (baseUrl: string) => Promise<T>) {
   }
 }
 
-async function postTrpc(baseUrl: string, path: string, input: unknown) {
-  const response = await fetch(`${baseUrl}/api/trpc/${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
+type TrpcWireError = {
+  message?: string;
+  data?: { code?: string };
+};
+
+async function requestTrpc(
+  baseUrl: string,
+  path: string,
+  input: unknown,
+  method: "GET" | "POST" = "POST",
+) {
+  const serializedInput = JSON.stringify({ json: input });
+  const endpoint = method === "GET"
+    ? `${baseUrl}/api/trpc/${path}?input=${encodeURIComponent(serializedInput)}`
+    : `${baseUrl}/api/trpc/${path}`;
+  const response = await fetch(endpoint, {
+    method,
+    ...(method === "POST"
+      ? {
+          headers: { "content-type": "application/json" },
+          body: serializedInput,
+        }
+      : {}),
   });
   const body = await response.json() as {
-    error?: { message?: string; data?: { code?: string } };
+    error?: { json?: TrpcWireError };
     result?: unknown;
   };
-  return { response, body };
+  return { response, body, error: body.error?.json };
 }
 
 const validPolicyInput = {
@@ -118,9 +136,9 @@ describe("usage governance public boundary", () => {
     mocks.getDb.mockResolvedValue(db);
 
     await withPublicTrpcServer(async baseUrl => {
-      const { response, body } = await postTrpc(baseUrl, "usageGovernance.configurePolicy", validPolicyInput);
+      const { response, body, error } = await requestTrpc(baseUrl, "usageGovernance.configurePolicy", validPolicyInput);
       expect(response.status).toBe(500);
-      expect(body.error).toMatchObject({
+      expect(error).toMatchObject({
         message: "Não foi possível atualizar a governança de consumo.",
         data: { code: "INTERNAL_SERVER_ERROR" },
       });
@@ -145,12 +163,12 @@ describe("usage governance public boundary", () => {
   it("treats persistence unavailability as a generic 5xx instead of exposing an internal usage_* code", async () => {
     mocks.getDb.mockResolvedValue(null);
     await withPublicTrpcServer(async baseUrl => {
-      const { response, body } = await postTrpc(baseUrl, "usageGovernance.analytics", {
+      const { response, body, error } = await requestTrpc(baseUrl, "usageGovernance.analytics", {
         from: "2026-08-01T00:00:00.000Z",
         to: "2026-08-02T00:00:00.000Z",
-      });
+      }, "GET");
       expect(response.status).toBe(500);
-      expect(body.error).toMatchObject({
+      expect(error).toMatchObject({
         message: "Não foi possível atualizar a governança de consumo.",
         data: { code: "INTERNAL_SERVER_ERROR" },
       });
@@ -163,13 +181,13 @@ describe("usage governance public boundary", () => {
   it("keeps expected domain validation errors as controlled 4xx without unexpected-error headers", async () => {
     mocks.getDb.mockResolvedValue({ execute: vi.fn(), transaction: vi.fn() });
     await withPublicTrpcServer(async baseUrl => {
-      const { response, body } = await postTrpc(baseUrl, "usageGovernance.configurePolicy", {
+      const { response, error } = await requestTrpc(baseUrl, "usageGovernance.configurePolicy", {
         ...validPolicyInput,
         observationStartsAt: "2026-11-01T00:00:00.000Z",
         observationEndsAt: "2026-08-01T00:00:00.000Z",
       });
       expect(response.status).toBe(400);
-      expect(body.error).toMatchObject({
+      expect(error).toMatchObject({
         message: "usage_policy_observation_range_invalid",
         data: { code: "BAD_REQUEST" },
       });
