@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "focused-controls",
+  "command": "./node_modules/.bin/vitest run server/nutritionEngine.issue987.test.ts server/brandedSnackNutrition.test.ts server/nutritionEngine.brand.test.ts server/nutritionEngine.brandTypeSpecificity.test.ts server/catalogSemanticSearch.test.ts server/whatsappWebhook.image.test.ts server/whatsappWebhook.image.water.test.ts",
+  "cwd": "/tmp/issue987.Ap940Z/repo",
+  "exit_code": 0,
+  "started_at": "2026-08-17T13:55:24.908455Z",
+  "finished_at": "2026-08-17T13:55:35.241983Z",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+  "stdout_sha256": "767b9cc9c7bcf817f165a074ca674ba842ab249592c55e7642ffd8b8be18e1e7",
+  "stderr_sha256": "8a61f1da6f5c602675f961df91a04569c362b1bae8f11a97f9318872f16964ef",
+  "stdout_path": "/tmp/issue987-focused-evidence/stdout.log",
+  "stderr_path": "/tmp/issue987-focused-evidence/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}

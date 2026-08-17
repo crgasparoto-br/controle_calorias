@@ -1,0 +1,271 @@
+## Objetivo
+
+Corrigir o fluxo de reconhecimento nutricional por imagem para que **marca, produto e variação visíveis no rótulo façam parte da identidade nutricional do item**, evitando que produtos diferentes da mesma categoria sejam reduzidos a uma referência genérica com as mesmas calorias/macros.
+
+A implementação deve usar a branch `develop` como base.
+
+> Neste contexto, “classificação” significa **identidade nutricional do produto e seleção da referência nutricional**. Não se trata da classificação NOVA de processamento dos alimentos.
+
+## Evidência observada
+
+Foram enviados exemplos de cervejas de marcas diferentes, cujos rótulos permitem distinguir o produto:
+
+- **Stella Artois**, garrafa de **330 ml**;
+- **Paulaner Weissbier**, garrafa de **500 ml**;
+- **Antarctica Original**, garrafa de **300 ml**;
+- **Heineken Original**, garrafa de **330 ml**.
+
+No cenário com Stella Artois + Paulaner, o WhatsApp respondeu:
+
+```text
+Cerveja — 1 garrafa (330ml)
+135 kcal | P 1 g | C 10 g | G 0 g
+
+Cerveja Weissbier — 1 garrafa (500ml)
+230 kcal | P 2 g | C 18 g | G 0 g
+```
+
+O primeiro item perdeu a identidade **Stella Artois** e foi apresentado apenas como `Cerveja`. Isso impede saber se a referência nutricional usada é realmente do produto reconhecido ou uma referência genérica.
+
+O problema não é exclusivo de cerveja: produtos industrializados da mesma categoria podem ter formulações e valores nutricionais diferentes conforme **marca, linha, versão, sabor, teor alcoólico, embalagem ou variante**.
+
+## Contratos anteriores já concluídos
+
+Esta issue deve ser tratada como regressão/lacuna de cobertura de contratos já existentes, e não como criação de um sistema paralelo de marcas.
+
+Referências relevantes:
+
+- #661 — extrair marca do alimento/produto em campo estruturado, inclusive quando aparece em foto/rótulo;
+- #742 — marca e qualificação devem influenciar a referência nutricional mais específica;
+- #407 — produtos com marca devem buscar fonte nutricional específica e rastreável antes de usar alimento genérico/estimativa;
+- #186 — cervejas de marcas diferentes devem permanecer separadas por identidade do produto;
+- #171 — marca faz parte da equivalência do item e cervejas de marcas diferentes não devem ser tratadas como o mesmo produto.
+
+## Estado atual relevante da `develop`
+
+A implementação atual já possui parte da infraestrutura necessária:
+
+- `mealAiExtraction.ts` inclui `brand` no schema estruturado de `MEAL_VISION`/`MEAL_TEXT` e orienta explicitamente a separar marca quando ela estiver visível em texto, foto, rótulo ou etiqueta;
+- `nutritionEngine.ts` monta candidatos de catálogo combinando `foodName` e `brand` e tenta selecionar a referência mais específica;
+- `mealItemBuilders.ts` preserva `brand` e reduz confiança quando existe marca mencionada mas a referência usada é genérica;
+- `catalogMatching.ts` diferencia produtos com `brandName` e contém lógica de compatibilidade por variação;
+- `NUTRITION_SEARCH` existe como capacidade própria para pesquisa nutricional rastreável.
+
+A investigação deve descobrir em qual etapa a identidade específica está sendo perdida ou ignorada no fluxo de imagem.
+
+## Hipóteses técnicas a validar
+
+Não assumir a causa antes de reproduzir o payload real de `MEAL_VISION` e o `MealDraftItem` final.
+
+Validar pelo menos estas possibilidades:
+
+1. `MEAL_VISION` reconhece `cerveja`, mas deixa `brand=null` mesmo com marca claramente legível;
+2. a marca é extraída em `brand`, porém `foodName`/`canonicalName` ficam genéricos e a resposta final não recompõe a identidade do produto;
+3. a marca chega corretamente ao motor nutricional, mas um match genérico de catálogo/embedding vence antes de uma referência específica;
+4. não existe referência exata no catálogo e o fluxo cai em estimativa genérica sem tentar a estratégia de fonte específica prevista para produtos com marca;
+5. a pesquisa nutricional específica está limitada a determinadas categorias de produto e não cobre bebidas industrializadas com marca;
+6. marca e variante são reconhecidas, mas não são usadas juntas para validar a compatibilidade da fonte nutricional;
+7. o produto correto é resolvido internamente, mas o formatter/persistência perde a marca no nome exibido ou na identidade final.
+
+A correção deve atuar sobre a **classe do problema**, sem hardcode para Stella Artois, Antarctica, Heineken, Paulaner ou para cerveja em geral.
+
+## Regra funcional principal
+
+Quando houver evidência confiável de marca/produto/variação em uma imagem, a seleção nutricional deve seguir a maior especificidade disponível:
+
+1. produto + marca + variação/linha/versão + embalagem/porção compatível;
+2. produto + marca + variação, quando embalagem não fizer parte da identidade nutricional;
+3. produto + marca;
+4. produto + variação;
+5. produto genérico somente como fallback rastreável quando não houver referência mais específica confiável.
+
+Uma referência genérica **não pode ser apresentada como se fosse específica da marca**.
+
+## Escopo
+
+- Preservar marca reconhecida visualmente no `brand` estruturado e na identidade exibida do item.
+- Preservar termos relevantes do produto/variação, como `Original`, `Pilsen`, `Lager`, `Weissbier`, `Zero`, `Light`, `Sem lactose`, etc., quando visíveis e semanticamente relevantes.
+- Usar marca e variação na seleção/match de catálogo e de fonte nutricional.
+- Evitar que um match genérico de categoria substitua um match específico confiável.
+- Quando não houver referência específica no catálogo, usar o mecanismo canônico de pesquisa nutricional/fonte rastreável quando ele for aplicável a produto industrializado com marca.
+- Validar marca, produto, variação, volume/peso e porção antes de aceitar uma fonte externa como exata.
+- Manter o cálculo proporcional à quantidade consumida informada ou reconhecida.
+- Garantir que persistência, totais da refeição e resposta do WhatsApp usem a mesma referência nutricional selecionada.
+- Adicionar cobertura de regressão no caminho real de imagem do WhatsApp.
+
+## Fora de escopo
+
+- Cadastrar manualmente valores nutricionais fixos para Stella, Antarctica, Heineken ou Paulaner nesta issue.
+- Criar lista fixa de marcas de cerveja para resolver o problema.
+- Assumir que todas as cervejas Pilsen/Lager possuem os mesmos valores nutricionais.
+- Consultar fonte sem rastreabilidade e tratá-la como exata.
+- Alterar a classificação NOVA ou criar uma segunda chamada `FOOD_CLASSIFICATION` para a mesma refeição.
+- Fazer uma segunda análise visual apenas para descobrir a marca; `MEAL_VISION` já possui saída estruturada para isso.
+- Corrigir retroativamente refeições antigas.
+- Revisar o catálogo inteiro de bebidas/alimentos.
+- Alterar o contrato de água pura como hidratação definido em #758 e reforçado pela #986.
+
+## Requisitos funcionais
+
+1. **Marca visível deve ser preservada**
+   - Uma foto em que `Stella Artois`, `Heineken`, `Antarctica` ou outra marca esteja legível não deve resultar apenas em `Cerveja` quando a marca foi reconhecida com confiança suficiente.
+   - O campo estruturado `brand` deve permanecer disponível até a persistência e formatação da resposta.
+
+2. **Marca deve afetar a referência nutricional**
+   - Dois produtos da mesma categoria, mesma unidade e mesma quantidade podem ter valores diferentes.
+   - Se existirem referências específicas diferentes para duas marcas, cada item deve usar sua própria referência.
+   - A categoria genérica não pode vencer apenas porque possui match textual mais simples.
+
+3. **Variação também deve participar da identidade**
+   - `Heineken Original` não deve ser confundida com uma eventual versão `Zero`.
+   - `Paulaner Weissbier` não deve ser reduzida a uma Pilsen genérica.
+   - `Antarctica Original` deve preservar `Original` quando esse termo for necessário para selecionar a referência correta.
+
+4. **Fonte específica antes de fallback genérico**
+   - Quando a base interna não tiver uma referência exata para um produto industrializado com marca, aplicar a estratégia canônica de busca nutricional específica prevista pelo domínio, quando disponível/configurada.
+   - A fonte só pode ser aceita como exata se produto, marca, variação e porção forem compatíveis e a evidência for verificável.
+
+5. **Fallback seguro**
+   - Se não houver fonte específica confiável, preservar marca e nome completo do produto.
+   - Usar fallback genérico/estimado apenas conforme as regras atuais do domínio, com origem/confiança coerentes.
+   - Não afirmar nem exibir implicitamente que os macros são “da marca X” quando foram obtidos de referência genérica.
+
+6. **Ausência ou ambiguidade de marca**
+   - Não inventar marca quando o rótulo estiver ilegível ou quando houver múltiplos candidatos plausíveis.
+   - Marca incerta não pode ser usada para selecionar silenciosamente um SKU específico.
+
+7. **Consistência ponta a ponta**
+   - O item persistido, os totais e a mensagem do WhatsApp devem refletir a mesma identidade e a mesma referência nutricional.
+   - Reentrega do mesmo `message.id` deve manter a idempotência atual.
+
+8. **Preservar precedência de hidratação para água pura**
+   - Esta issue só governa itens que permanecem no pipeline nutricional.
+   - Se um item satisfizer o contrato canônico de água pura de #758/#986, a presença de marca, variante ou referência nutricional não pode fazê-lo ser persistido como refeição.
+   - A correção da #987 não deve transformar água mineral de marca em “produto embalado” nutricional apenas porque a identidade comercial foi reconhecida.
+
+## Relação com #986 e precedência de domínio
+
+As issues #987 e #986 compartilham o trecho inicial de identidade visual, mas possuem destinos diferentes e **devem permanecer implementações independentes/coordenadas**:
+
+- #987: identidade comercial + seleção da referência nutricional para alimentos/bebidas que permanecem no domínio nutricional.
+- #986: reconhecimento de água potável pura e roteamento para hidratação, removendo o item da refeição.
+
+A #987 **não bloqueia nem substitui** a #986. Da mesma forma, resolver a #986 não satisfaz os critérios nutricionais da #987.
+
+**Precedência obrigatória para persistência e resposta:** se o item for classificado como água pura pelo contrato canônico de #758/#986, a decisão de hidratação prevalece sobre qualquer match de catálogo, embedding, `NUTRITION_SEARCH`, fallback ou metadado de marca que tenha sido produzido anteriormente. A referência nutricional eventualmente calculada deve ser descartada para o resultado persistido desse item.
+
+## Invariantes estruturais
+
+- `must_behave`: marca/variação reconhecidas devem participar da identidade e da escolha da referência dos itens nutricionais.
+- `must_not_behave`: reconhecimento de marca não pode fazer água pura sobreviver como item nutricional; também não pode apresentar referência genérica como específica da marca.
+- `must_reuse`: reutilizar `brand` estruturado, matching/catálogo existentes e a capacidade canônica `NUTRITION_SEARCH` quando aplicável; não criar sistema paralelo de marcas/fontes.
+- `must_be_single_source`: o resultado nutricional persistido, os totais e a resposta devem derivar da mesma referência selecionada para o item.
+- `precedence_invariants`: referência específica compatível vence referência genérica; para água pura, o roteamento de hidratação de #758/#986 vence qualquer referência nutricional antes da persistência e resposta.
+- `forbidden_implementation`: lista fixa de cervejas/marcas, segunda inferência visual para descobrir marca, cruzamento silencioso de versão regular/zero ou aceitação de fonte de outra marca/variação.
+
+Implementação plausível errada que ainda poderia passar nos exemplos de cerveja: adicionar `Stella`, `Heineken`, `Antarctica` e `Paulaner` a uma tabela fixa e mapear macros específicos. Controle discriminante: fixtures com marcas não presentes em lista fixa e duas referências da mesma categoria com macros distintos devem selecionar pelo contrato de identidade, não pelo nome hardcoded.
+
+Outra implementação plausível errada: generalizar todo item com marca como produto nutricional e fazer uma água mineral de marca virar `mealItem` com 0 kcal. Controle discriminante: teste cruzado com água pura + marca deve confirmar hidratação e ausência de persistência nutricional, em alinhamento com #986.
+
+## Cenários obrigatórios
+
+| Cenário | Resultado esperado |
+|---|---|
+| Foto de Stella Artois 330 ml com marca legível | mantém `brand=Stella Artois` (ou forma canônica equivalente), exibe a marca e tenta referência específica compatível |
+| Foto de Heineken Original 330 ml | mantém Heineken + variante Original e não usa referência de outra cerveja apenas por categoria |
+| Foto de Antarctica Original 300 ml | mantém Antarctica + Original e usa referência específica se disponível |
+| Foto de Paulaner Weissbier 500 ml | preserva Paulaner + Weissbier; não reduz para Pilsen/cerveja genérica |
+| Duas cervejas de marcas diferentes e mesmo volume | permanecem itens nutricionalmente distintos; não compartilham referência específica incorreta |
+| Duas fixtures de catálogo com mesma categoria e valores diferentes por marca | cada imagem seleciona os valores da marca correspondente |
+| Marca reconhecida, catálogo sem SKU exato, `NUTRITION_SEARCH` disponível | tenta fonte específica rastreável antes do fallback genérico, conforme política canônica |
+| Marca reconhecida, nenhuma fonte específica confiável | preserva marca, usa fallback rastreável e não apresenta o resultado como valor exato da marca |
+| Rótulo ilegível/ambíguo | não inventa marca nem SKU |
+| Produto `Zero` vs versão regular da mesma marca | não cruza referências entre variantes incompatíveis |
+| Água mineral pura com marca reconhecida | permanece no contrato de hidratação de #758/#986; não vira item nutricional por causa da marca |
+
+## Critérios de aceite
+
+- [ ] O cenário observado deixa de exibir a Stella Artois apenas como `Cerveja` quando a marca estiver reconhecível.
+- [ ] `brand` reconhecida em `MEAL_VISION` chega ao item final, persistência e resposta sem ser descartada.
+- [ ] Marca e variação influenciam a escolha da referência nutricional, não apenas o texto de exibição.
+- [ ] Duas referências de teste da mesma categoria com marcas distintas e macros distintos resultam nos macros correspondentes a cada marca.
+- [ ] Um match genérico não substitui uma referência específica compatível disponível.
+- [ ] Produto com marca ausente do catálogo pode acionar a estratégia canônica de fonte nutricional específica quando aplicável.
+- [ ] Fonte externa ambígua, de outra marca, outra versão ou outra porção não é aceita como exata.
+- [ ] Sem fonte específica confiável, o nome/marca completos permanecem preservados e o fallback fica explicitamente rastreável como genérico/heurístico.
+- [ ] A solução não contém hardcode de Stella, Antarctica, Heineken, Paulaner nem tabela específica de cervejas criada apenas para o teste.
+- [ ] `FOOD_CLASSIFICATION` continua reservada e não é criada uma segunda inferência visual/NOVA.
+- [ ] O teste de regressão passa pelo fluxo real de imagem/`handleWhatsAppWebhook` ou entrypoint produtivo equivalente, e não apenas por helper isolado.
+- [ ] Reentrega do mesmo inbound continua idempotente.
+- [ ] A resposta final contém valores coerentes com o item efetivamente persistido.
+- [ ] Água pura com marca reconhecida continua sendo retirada do pipeline de refeição conforme #758/#986, mesmo que a #987 passe a resolver melhor identidade comercial e fontes nutricionais.
+
+## Testes esperados
+
+Adicionar ou reforçar testes cobrindo, no mínimo:
+
+1. `MEAL_VISION` com `foodName="Cerveja"`, `brand="Stella Artois"`, 330 ml;
+2. marca incorporada em `foodName` e `brand` também estruturada, sem duplicação no nome final;
+3. Heineken Original vs produto da mesma categoria com outra marca;
+4. Antarctica Original preservando variante;
+5. Paulaner Weissbier preservando estilo/variação;
+6. duas entradas de catálogo da mesma categoria e com valores nutricionais diferentes por marca, validando seleção discriminante;
+7. marca específica sem referência interna, validando uso do mecanismo de fonte específica quando configurado;
+8. fonte externa retornando marca/variação incompatível e sendo rejeitada;
+9. fallback genérico sem perda da identidade visual reconhecida;
+10. rótulo ambíguo sem invenção de marca;
+11. produto regular vs `Zero`/outra variante;
+12. persistência + totalização + formatter do WhatsApp usando os mesmos nutrientes;
+13. idempotência do inbound de imagem;
+14. controle cruzado com água mineral pura + marca, confirmando que reconhecimento comercial não contorna o split de hidratação definido em #758/#986.
+
+Os testes devem usar fixtures controladas para os valores nutricionais esperados; não devem depender de números hardcoded obtidos informalmente das fotos desta issue.
+
+## Arquivos provavelmente envolvidos
+
+- `server/mealAiExtraction.ts`
+- `server/nutritionEngine.ts`
+- `server/catalogMatching.ts`
+- `server/mealItemBuilders.ts`
+- `server/catalogSemanticSearch.ts`, se a investigação confirmar lacuna na pesquisa específica de produtos com marca
+- testes de `nutritionEngine`/catálogo
+- testes do fluxo de imagem do WhatsApp
+- formatter/persistência do WhatsApp apenas se a perda de identidade ocorrer depois da resolução nutricional
+
+## Validação
+
+Executar os gates definidos pelo repositório para mudança em fluxo nutricional/WhatsApp, incluindo pelo menos:
+
+```bash
+pnpm check
+pnpm test
+pnpm architecture:check
+pnpm docs:check
+pnpm agent:check
+pnpm build
+```
+
+Além dos gates globais, executar teste focado do fluxo de imagem com produtos de marcas diferentes e o controle cruzado de água pura com marca.
+
+Na PR, registrar:
+
+- a causa raiz encontrada;
+- em qual etapa a marca/variação era perdida ou ignorada;
+- por que as coberturas anteriores de #661, #742 e #407 não detectaram este cenário de imagem;
+- como a solução impede que outra categoria de produto industrializado repita o mesmo erro;
+- como foi preservada a precedência do contrato de hidratação de #758/#986.
+
+## Referências
+
+- #661 — marca estruturada em texto/foto/rótulo
+- #742 — marca + tipo na referência nutricional
+- #407 — busca de tabela específica para produto com marca
+- #186 — identidade de cervejas por marca
+- #171 — marca na equivalência/deduplicação de itens
+- #923 — capacidade `NUTRITION_SEARCH` e validação de produto/fonte
+- #758 — água identificada em imagem como hidratação
+- #986 — regressão de água mineral com gás por imagem; relacionada e não bloqueante
+
+## Prontidão
+
+**Pronta para implementação.** O comportamento esperado está consistente com os contratos anteriores e agora explicita a fronteira com #986: marca/variação refinam a referência somente para itens que permanecem no domínio nutricional, enquanto água pura continua obedecendo ao roteamento canônico de hidratação.

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "production-build",
+  "command": "npm run build",
+  "cwd": "/tmp/issue987.Ap940Z/repo",
+  "exit_code": 0,
+  "started_at": "2026-08-17T13:55:24.917577Z",
+  "finished_at": "2026-08-17T13:55:36.777755Z",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+  "stdout_sha256": "fcafe4c2e1ab8577168434d775c3f42cedc7cf4d481117a07455118c55001161",
+  "stderr_sha256": "24b34c2c79b89a99284ab85707da281b21412c1ab4987da8fd1b65893e88b29d",
+  "stdout_path": "/tmp/issue987-build-evidence/stdout.log",
+  "stderr_path": "/tmp/issue987-build-evidence/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}

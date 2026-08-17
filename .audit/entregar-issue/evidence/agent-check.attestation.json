@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "agent-check",
+  "command": "env XDG_DATA_HOME=/tmp/issue987-xdg-data XDG_CACHE_HOME=/tmp/issue987-xdg-cache XDG_STATE_HOME=/tmp/issue987-xdg-state GITHUB_SHA=50fbe1f95dc849b2ab42577a7624ef13834ce4e5 GITHUB_RUN_ID=987 GITHUB_WORKFLOW=issue-987-final npm run agent:check",
+  "cwd": "/tmp/issue987.Ap940Z/repo",
+  "exit_code": 0,
+  "started_at": "2026-08-17T13:51:18.258678Z",
+  "finished_at": "2026-08-17T13:55:14.517477Z",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+  "stdout_sha256": "9da0662e3ba56a6af2a0d8f54db64bcada584bb79c145ac291d693b1f1415ca4",
+  "stderr_sha256": "72ed03193d418a012d122369f3670caef7243502f5befc46c83a810dad4d9930",
+  "stdout_path": "/tmp/issue987-evidence/stdout.log",
+  "stderr_path": "/tmp/issue987-evidence/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}

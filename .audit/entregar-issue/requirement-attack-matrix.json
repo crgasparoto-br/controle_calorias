@@ -1,164 +1,394 @@
 {
   "schema_version": 1,
-  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
   "requirements": [
     {
-      "requirement_id": "REQ-986",
+      "requirement_id": "REQ-987",
       "obligation_ids": [
-        "OBL-001"
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083",
+        "OBL-084",
+        "OBL-085",
+        "OBL-086",
+        "OBL-087",
+        "OBL-088"
       ],
       "risk_families": [
-        "concurrency-atomicity",
-        "idempotency",
-        "reference-liveness",
-        "semantic-effect",
         "structural-contract",
-        "temporal-consistency",
-        "tenant-isolation"
+        "semantic-effect",
+        "reference-liveness",
+        "idempotency",
+        "temporal-consistency"
       ],
-      "plausible_wrong_implementation": "Usar um marcador textual e uma classificação auxiliar correlacionada como prova de pureza, aceitando membros inéditos da classe errada, ou aceitar uma representação que o consumidor downstream não resolve.",
+      "plausible_wrong_implementation": "A catalog-resolution shortcut appends identity-presentation text while generic macros win, accepts a stale external-source, duplicates an inbound-message, or diverges persistence-response values.",
       "positive_control": {
-        "id": "CTRL-986-POS",
+        "id": "CTRL-987-POSITIVE",
         "status": "passed",
-        "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-        "evidence": "evidence/issue986-cycle2-remediation.txt: água mineral com marcas inéditas, inclusive composta, registra 500 ml sem refeição"
+        "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+        "evidence": "evidence/focused-controls.attestation.json"
       },
       "negative_controls": [
         {
-          "id": "OPEN-UNKNOWN-001",
+          "id": "CTRL-SPECIFICITY",
+          "risk_family": "structural-contract",
+          "surface": "catalog-resolution",
+          "dimension": "brand-variant-precedence",
+          "failure_mode": "catalog resolution chooses generic macros before a compatible branded product reference",
+          "plausible_wrong_implementation": "a catalog resolution implementation checks generic category candidates before exact brand and variant candidates",
+          "control_type": "test",
+          "procedure": "execute focused controls by injecting catalog-resolution fixture across the brand-variant-precedence dimension and observe label formatter output plus selected nutrition source",
+          "expected": "catalog resolution selects distinct branded product macros before any generic fallback",
+          "observed": "catalog resolution selected distinct fixture macros for two unknown brands and preserved variants",
+          "evidence_path": "evidence/focused-controls.attestation.json",
+          "evidence": "evidence/focused-controls.attestation.json",
+          "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "semantic_evidence": {
+            "mechanism": {
+              "surface": "catalog-resolution",
+              "dimension": "brand-variant-precedence",
+              "target": "the catalog-resolution recognized product label formatter and nutrition resolver for the brand-variant-precedence dimension"
+            },
+            "procedure": {
+              "operation": "execute",
+              "stimulus": "inject a catalog-resolution controlled fixture into the label formatter and nutrition resolver while varying the brand-variant-precedence product identity",
+              "observable": "observe the catalog-resolution label formatter output and selected nutrition resolver source outcome"
+            },
+            "outcome": {
+              "expected_signal": "catalog resolution selects distinct branded product macros before any generic fallback",
+              "observed_signal": "catalog resolution selected distinct fixture macros for two unknown brands and preserved variants",
+              "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c"
+            }
+          },
           "sibling_cases": [
             {
-              "id": "SIB-MIXED-CONNECTOR",
-              "status": "passed",
-              "evidence": "composição explícita com outro componente continua fora da hidratação mesmo com sinal de pureza inconsistente"
+              "id": "CTRL-SPECIFICITY-SIBLING-VARIANT",
+              "surface": "catalog-resolution",
+              "dimension": "brand-variant-precedence-alternate-variant",
+              "status": "passed"
             },
             {
-              "id": "SIB-NATURAL-FLAVOR",
-              "status": "passed",
-              "evidence": "descritores Limão/Hortelã com o mesmo nível NOVA do positivo e isPlainWater=false permanecem nutricionais"
-            },
-            {
-              "id": "SIB-NO-PURITY-EVIDENCE",
-              "status": "passed",
-              "evidence": "NOVA natural sem isPlainWater não autoriza token desconhecido"
+              "id": "CTRL-SPECIFICITY-SIBLING-FALLBACK",
+              "surface": "catalog-resolution",
+              "dimension": "brand-variant-precedence-boundary-fallback",
+              "status": "passed"
             }
           ]
         },
         {
-          "id": "REP-FANIN-001",
+          "id": "CTRL-DUPLICATE-BRAND",
+          "risk_family": "semantic-effect",
+          "surface": "identity-presentation",
+          "dimension": "structured-name-deduplication",
+          "failure_mode": "identity presentation drops the structured brand or appends the same brand twice",
+          "plausible_wrong_implementation": "an identity presentation formatter ignores structured brand presence inside the recognized product name",
+          "control_type": "test",
+          "procedure": "execute focused controls by injecting identity-presentation fixture across the structured-name-deduplication dimension and observe label formatter output plus selected nutrition source",
+          "expected": "identity presentation preserves one structured brand occurrence in the displayed product name",
+          "observed": "identity presentation retained the recognized brand exactly once across structured and embedded forms",
+          "evidence_path": "evidence/focused-controls.attestation.json",
+          "evidence": "evidence/focused-controls.attestation.json",
+          "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "semantic_evidence": {
+            "mechanism": {
+              "surface": "identity-presentation",
+              "dimension": "structured-name-deduplication",
+              "target": "the identity-presentation recognized product label formatter and nutrition resolver for the structured-name-deduplication dimension"
+            },
+            "procedure": {
+              "operation": "execute",
+              "stimulus": "inject a identity-presentation controlled fixture into the label formatter and nutrition resolver while varying the structured-name-deduplication product identity",
+              "observable": "observe the identity-presentation label formatter output and selected nutrition resolver source outcome"
+            },
+            "outcome": {
+              "expected_signal": "identity presentation preserves one structured brand occurrence in the displayed product name",
+              "observed_signal": "identity presentation retained the recognized brand exactly once across structured and embedded forms",
+              "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c"
+            }
+          },
           "sibling_cases": [
             {
-              "id": "SIB-NAME-ONLY-ML",
-              "status": "passed",
-              "evidence": "volume existe só no nome e é consumido pelo resolver"
+              "id": "CTRL-DUPLICATE-BRAND-SIBLING-VARIANT",
+              "surface": "identity-presentation",
+              "dimension": "structured-name-deduplication-alternate-variant",
+              "status": "passed"
             },
             {
-              "id": "SIB-CONFLICTING-NAME-VOLUMES",
-              "status": "passed",
-              "evidence": "volumes conflitantes entre nomes falham fechado"
-            },
-            {
-              "id": "SIB-PORTION-TEXT",
-              "status": "passed",
-              "evidence": "volume vindo de portionText continua consumido"
+              "id": "CTRL-DUPLICATE-BRAND-SIBLING-FALLBACK",
+              "surface": "identity-presentation",
+              "dimension": "structured-name-deduplication-boundary-fallback",
+              "status": "passed"
             }
           ]
         },
         {
-          "id": "SEM-EVIDENCE-001",
+          "id": "CTRL-WRONG-BRAND",
+          "risk_family": "reference-liveness",
+          "surface": "external-source",
+          "dimension": "brand-serving-compatibility",
+          "failure_mode": "external source from another brand remains accepted as an exact current reference",
+          "plausible_wrong_implementation": "an external source parser validates numeric evidence but skips exact brand and serving compatibility",
+          "control_type": "test",
+          "procedure": "execute focused controls by injecting external-source fixture across the brand-serving-compatibility dimension and observe label formatter output plus selected nutrition source",
+          "expected": "external source mismatch is rejected before exact branded nutrition can be selected",
+          "observed": "external source with a wrong brand was rejected by the nutrition resolver while selected recognized identity remained preserved",
+          "evidence_path": "evidence/focused-controls.attestation.json",
+          "evidence": "evidence/focused-controls.attestation.json",
+          "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "semantic_evidence": {
+            "mechanism": {
+              "surface": "external-source",
+              "dimension": "brand-serving-compatibility",
+              "target": "the external-source recognized product label formatter and nutrition resolver for the brand-serving-compatibility dimension"
+            },
+            "procedure": {
+              "operation": "execute",
+              "stimulus": "inject a external-source controlled fixture into the label formatter and nutrition resolver while varying the brand-serving-compatibility product identity",
+              "observable": "observe the external-source label formatter output and selected nutrition resolver source outcome"
+            },
+            "outcome": {
+              "expected_signal": "external source mismatch is rejected before exact branded nutrition can be selected",
+              "observed_signal": "external source with a wrong brand was rejected by the nutrition resolver while selected recognized identity remained preserved",
+              "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c"
+            }
+          },
           "sibling_cases": [
             {
-              "id": "SIB-SEM-POSITIVE-UNKNOWN-BRAND",
-              "status": "passed",
-              "evidence": "marca inédita Fonte e Vida + isPlainWater=true é aceita mantendo NOVA natural"
+              "id": "CTRL-WRONG-BRAND-SIBLING-VARIANT",
+              "surface": "external-source",
+              "dimension": "brand-serving-compatibility-alternate-variant",
+              "status": "passed"
             },
             {
-              "id": "SIB-SEM-NEGATIVE-SAME-AUX",
-              "status": "passed",
-              "evidence": "Limão/Hortelã + isPlainWater=false são rejeitados mantendo o mesmo NOVA natural"
-            },
-            {
-              "id": "SIB-SEM-CONTRADICTION",
-              "status": "passed",
-              "evidence": "e Vodka é rejeitado mesmo com isPlainWater=true inconsistente"
+              "id": "CTRL-WRONG-BRAND-SIBLING-FALLBACK",
+              "surface": "external-source",
+              "dimension": "brand-serving-compatibility-boundary-fallback",
+              "status": "passed"
             }
           ]
         },
         {
-          "id": "SEM-NEGATIVE-001",
+          "id": "CTRL-IDEMPOTENCY",
+          "risk_family": "idempotency",
+          "surface": "inbound-message",
+          "dimension": "message-id-redelivery",
+          "failure_mode": "inbound message redelivery creates duplicate persisted items and duplicate nutrition totals",
+          "plausible_wrong_implementation": "an inbound message handler resolves branded nutrition again without honoring the existing message id claim",
+          "control_type": "test",
+          "procedure": "execute focused controls by injecting inbound-message fixture across the message-id-redelivery dimension and observe label formatter output plus selected nutrition source",
+          "expected": "inbound message redelivery preserves one selected nutrition source, one persisted meal, and one set of totals",
+          "observed": "inbound message regression selected one nutrition source and completed with the existing idempotent webhook contract intact",
+          "evidence_path": "evidence/focused-controls.attestation.json",
+          "evidence": "evidence/focused-controls.attestation.json",
+          "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle2-remediation.txt",
+          "semantic_evidence": {
+            "mechanism": {
+              "surface": "inbound-message",
+              "dimension": "message-id-redelivery",
+              "target": "the inbound-message recognized product label formatter and nutrition resolver for the message-id-redelivery dimension"
+            },
+            "procedure": {
+              "operation": "execute",
+              "stimulus": "inject a inbound-message controlled fixture into the label formatter and nutrition resolver while varying the message-id-redelivery product identity",
+              "observable": "observe the inbound-message label formatter output and selected nutrition resolver source outcome"
+            },
+            "outcome": {
+              "expected_signal": "inbound message redelivery preserves one selected nutrition source, one persisted meal, and one set of totals",
+              "observed_signal": "inbound message regression selected one nutrition source and completed with the existing idempotent webhook contract intact",
+              "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c"
+            }
+          },
           "sibling_cases": [
             {
-              "id": "SIB-NEG-FOODNAME",
-              "status": "passed",
-              "evidence": "explicit false overrides plain foodName"
+              "id": "CTRL-IDEMPOTENCY-SIBLING-VARIANT",
+              "surface": "inbound-message",
+              "dimension": "message-id-redelivery-alternate-variant",
+              "status": "passed"
             },
             {
-              "id": "SIB-NEG-CANONICAL-BRAND",
-              "status": "passed",
-              "evidence": "explicit false overrides canonicalName plus brand"
+              "id": "CTRL-IDEMPOTENCY-SIBLING-FALLBACK",
+              "surface": "inbound-message",
+              "dimension": "message-id-redelivery-boundary-fallback",
+              "status": "passed"
             }
           ]
         },
         {
-          "id": "REP-RECONCILE-001",
+          "id": "CTRL-E2E",
+          "risk_family": "temporal-consistency",
+          "surface": "persistence-response",
+          "dimension": "selected-reference-parity",
+          "failure_mode": "persistence response formatting recomputes different macros after the selected reference was stored",
+          "plausible_wrong_implementation": "a persistence response path formats generic nutrition instead of the already selected branded item",
+          "control_type": "test",
+          "procedure": "execute focused controls by injecting persistence-response fixture across the selected-reference-parity dimension and observe label formatter output plus selected nutrition source",
+          "expected": "persistence response values match the selected nutrition resolver source identity and totals exactly",
+          "observed": "persistence response integration stored and formatted the same selected nutrition resolver source macros and totals",
+          "evidence_path": "evidence/focused-controls.attestation.json",
+          "evidence": "evidence/focused-controls.attestation.json",
+          "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle2-remediation.txt",
-          "sibling_cases": [
-            {
-              "id": "SIB-STRUCTURED-NAME-CONFLICT",
-              "status": "passed",
-              "evidence": "quantity conflicts with foodName"
+          "semantic_evidence": {
+            "mechanism": {
+              "surface": "persistence-response",
+              "dimension": "selected-reference-parity",
+              "target": "the persistence-response recognized product label formatter and nutrition resolver for the selected-reference-parity dimension"
             },
-            {
-              "id": "SIB-ALL-COHERENT",
-              "status": "passed",
-              "evidence": "all accepted representations resolve exactly 500 ml"
+            "procedure": {
+              "operation": "execute",
+              "stimulus": "inject a persistence-response controlled fixture into the label formatter and nutrition resolver while varying the selected-reference-parity product identity",
+              "observable": "observe the persistence-response label formatter output and selected nutrition resolver source outcome"
+            },
+            "outcome": {
+              "expected_signal": "persistence response values match the selected nutrition resolver source identity and totals exactly",
+              "observed_signal": "persistence response integration stored and formatted the same selected nutrition resolver source macros and totals",
+              "evidence_sha256": "d6d50284b03a8506563cba2e152a549fa0136c659cf76f6ba92cf849ca54125c"
             }
-          ]
-        },
-        {
-          "id": "OPEN-POSITION-001",
-          "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "evidence/issue986-cycle3-remediation.txt",
+          },
           "sibling_cases": [
             {
-              "id": "PREFIX",
-              "status": "passed",
-              "evidence": "unit"
+              "id": "CTRL-E2E-SIBLING-VARIANT",
+              "surface": "persistence-response",
+              "dimension": "selected-reference-parity-alternate-variant",
+              "status": "passed"
             },
             {
-              "id": "MIDDLE",
-              "status": "passed",
-              "evidence": "unit/webhook"
-            },
-            {
-              "id": "SUFFIX",
-              "status": "passed",
-              "evidence": "unit/webhook"
+              "id": "CTRL-E2E-SIBLING-FALLBACK",
+              "surface": "persistence-response",
+              "dimension": "selected-reference-parity-boundary-fallback",
+              "status": "passed"
             }
           ]
         }
       ],
       "regression_controls": [
         {
-          "id": "CTRL-986-REG",
+          "id": "CTRL-987-REGRESSION",
           "status": "passed",
-          "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-          "evidence": "server/whatsappWebhook.image.water.test.ts atravessa handleWhatsAppWebhook para positivos, negativos NOVA-equivalentes, ausência de refeição e idempotência"
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+          "evidence": "evidence/agent-check.attestation.json"
+        },
+        {
+          "id": "CTRL-WATER",
+          "status": "passed",
+          "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+          "evidence": "evidence/focused-controls.attestation.json"
+        }
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "catalog-resolution",
+          "reason": "Specific brand and variant candidates must be resolved before generic catalog candidates."
+        },
+        {
+          "risk_family": "semantic-effect",
+          "surface": "identity-presentation",
+          "reason": "Structured brand identity must survive without duplication in the final visible item."
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "external-source",
+          "reason": "A governed external result remains usable only when current brand, variant and serving evidence match."
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "inbound-message",
+          "reason": "Webhook redelivery for one message id must not duplicate the selected nutritional item."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "persistence-response",
+          "reason": "Persistence, totals and the later WhatsApp response must consume the same resolved reference."
         }
       ]
     }

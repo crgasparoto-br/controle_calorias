@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "diff-check",
+  "command": "git diff 6b735b34fdfbe46c3c65856aba62a1c44830a729..50fbe1f95dc849b2ab42577a7624ef13834ce4e5 --check",
+  "cwd": "/tmp/issue987.Ap940Z/repo",
+  "exit_code": 0,
+  "started_at": "2026-08-17T13:55:24.910899Z",
+  "finished_at": "2026-08-17T13:55:24.932945Z",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_path": "/tmp/issue987-diff-evidence/stdout.log",
+  "stderr_path": "/tmp/issue987-diff-evidence/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}

@@ -1,75 +1,14 @@
 {
   "schema_version": 1,
-  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
   "controls": [
     {
-      "id": "OPEN-UNKNOWN-001",
+      "id": "CTRL-WATER",
       "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "REP-FANIN-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "SEM-EVIDENCE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "SEM-NEGATIVE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "REP-RECONCILE-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle2-remediation.txt"
-    },
-    {
-      "id": "OPEN-POSITION-001",
-      "status": "passed",
-      "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence": "evidence/issue986-cycle3-remediation.txt"
+      "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+      "evidence": "evidence/focused-controls.attestation.json"
     }
   ],
   "unresolved_controls": [],
-  "source_audits": [
-    {
-      "finding_id": "A-001",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-002",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-003",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-001-cycle2",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-002-cycle2",
-      "validity": "independent",
-      "status": "closed"
-    },
-    {
-      "finding_id": "A-001-cycle3",
-      "validity": "independent",
-      "status": "closed"
-    }
-  ]
+  "source_audits": []
 }

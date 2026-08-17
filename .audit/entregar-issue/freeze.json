@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
-  "base_sha": "2b906cc26075d93303e06f9092f82175bca2f3d7",
-  "material_merge_preview_sha": "167e67702f0e51c15709de9c50400a2fab5e6e71",
+  "material_head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "material_merge_preview_sha": null,
   "status": "frozen",
   "local_controls": [
-    "OPEN-UNKNOWN-001",
-    "REP-FANIN-001",
-    "SEM-EVIDENCE-001",
-    "SEM-NEGATIVE-001",
-    "REP-RECONCILE-001",
-    "OPEN-POSITION-001"
+    "CTRL-SPECIFICITY",
+    "CTRL-DUPLICATE-BRAND",
+    "CTRL-WRONG-BRAND",
+    "CTRL-IDEMPOTENCY",
+    "CTRL-E2E",
+    "CTRL-WATER"
   ],
-  "previous_independent_rejection": true
+  "previous_independent_rejection": false
 }

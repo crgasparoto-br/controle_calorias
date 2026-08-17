@@ -1,11 +1,27 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "material_head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
   "observation_mode": "read-only-single-observation",
   "observed_runs": [
-    { "name": "Agent-first gate", "run_id": 31956480869, "status": "in_progress", "conclusion": null },
-    { "name": "WhatsApp context TiDB gate", "run_id": 31956480866, "status": "in_progress", "conclusion": null }
+    {
+      "name": "Agent-first gate",
+      "run_id": 32037238399,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 32037238444,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "AI provider live smoke",
+      "run_id": 32037238394,
+      "status": "completed",
+      "conclusion": "skipped"
+    }
   ],
   "rerun_or_dispatch_performed": false,
-  "observation_disposition": "remote gates observed once; result-only handoff proceeds while runs are in progress"
+  "observation_disposition": "PR check rollup was observed once on the frozen material SHA; two repository gates were in progress and the optional live-provider matrix was skipped. REST comment collection was unavailable with HTTP 404 and no retry or dispatch was performed."
 }

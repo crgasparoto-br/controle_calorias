@@ -1,49 +1,1758 @@
 {
   "schema_version": 3,
   "specification_snapshot": {
-    "path": "/tmp/delivery986/specification-snapshot.json",
-    "sha256": "d0423840181c0ab711ef633f1c685fe2b47b0b7b0d6da88abdba5610e837c5b0"
+    "path": "/tmp/issue987.Ap940Z/repo/.audit/entregar-issue/specification-snapshot.json",
+    "sha256": "79a6a495f4d4f0ada0d4953fde4b9e4d8ceeded72a4dc18c0e54b3e17e3b59d0"
   },
-  "primary_issue_source_id": "SRC-ISSUE-986",
+  "primary_issue_source_id": "SRC-ISSUE-987",
   "obligations": [
     {
       "id": "OBL-001",
-      "candidate_key": "dff4e10d439f5d8629caba45a932ab9638e758b16dfdbddb55c85752c9ed2f56",
-      "source_id": "SRC-ISSUE-986",
-      "source_sha256": "e0e5145f18ace21353143ae884af59306f94517618b0b9c4ea03d9723a69697a",
-      "source_line": 1,
-      "flags": [
-        "exhaustive",
-        "observable",
-        "negative",
-        "temporal",
-        "freshness",
-        "atomicity",
-        "aftermath",
-        "review-surface",
-        "source-catalog",
-        "structural",
-        "forbidden-implementation",
-        "precedence",
-        "semantic-effect"
-      ],
+      "candidate_key": "e0b58286b3966b9e71e3b1cf0b43e58d967c22b860ddc0dbb23d378f2a5ee14b",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 3,
+      "source_text": "Corrigir o fluxo de reconhecimento nutricional por imagem para que **marca, produto e variação visíveis no rótulo façam parte da identidade nutricional do item**, evitando que produtos diferentes da mesma categoria sejam reduzidos a uma referência genérica com as mesmas calorias/macros.",
+      "flags": [],
       "disposition": "covered",
       "requirement_ids": [
-        "REQ-986"
+        "REQ-987"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Contrato canônico da issue e remediação cumulativa dos três escapes independentes cobertos no candidato material."
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "64b1cb6225b1aa5ad70148f783f17447813894e670fb4d5c4da492e398320517",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 5,
+      "source_text": "A implementação deve usar a branch `develop` como base.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "89efd6b74beaf5f911f53e2ac30c54c2eb2d005ffda7c21971a74038e7766774",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 7,
+      "source_text": "> Neste contexto, “classificação” significa **identidade nutricional do produto e seleção da referência nutricional**. Não se trata da classificação NOVA de processamento dos alimentos.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "2591110df59e44f6b07fb6d32870923f45cf7b9c238fb9d0f344f604826fa03f",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 11,
+      "source_text": "Foram enviados exemplos de cervejas de marcas diferentes, cujos rótulos permitem distinguir o produto:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "8062c01008cb927ed0876dc81866f41e25ad711703d0550e0394ecbe27477187",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 28,
+      "source_text": "O primeiro item perdeu a identidade **Stella Artois** e foi apresentado apenas como `Cerveja`. Isso impede saber se a referência nutricional usada é realmente do produto reconhecido ou uma referência genérica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "b291cc388e5cfe9787a1766daa69ce6fd5c9f72ccfe4efab670f212916156c82",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 34,
+      "source_text": "Esta issue deve ser tratada como regressão/lacuna de cobertura de contratos já existentes, e não como criação de um sistema paralelo de marcas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "f9911602935636e69f398600e8de535d6853ba2dbeba8fca323fbe2f20014414",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 46,
+      "source_text": "A implementação atual já possui parte da infraestrutura necessária:",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "ed22db0f977469661c45820d5f2b238df2941834fe8c55a3d1afa07918628194",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 50,
+      "source_text": "`mealItemBuilders.ts` preserva `brand` e reduz confiança quando existe marca mencionada mas a referência usada é genérica;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "a772e6d55ec52001454dde3ee50349c8fcffe375909d6fd5d710106b7bec6406",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 51,
+      "source_text": "`catalogMatching.ts` diferencia produtos com `brandName` e contém lógica de compatibilidade por variação;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "a725058a303114fdae6528e4019c510dc817b74a9ad93cb2cdd279a4df14b148",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 54,
+      "source_text": "A investigação deve descobrir em qual etapa a identidade específica está sendo perdida ou ignorada no fluxo de imagem.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "98e673bfe078883d372d2431537fd2af626b3c9ac2c03f1456eef74effa8c12c",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 60,
+      "source_text": "Validar pelo menos estas possibilidades:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "6ceedda0909223b12edb368c2816b4438230f9cc574955d4ef09e7e78ce5aa90",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 67,
+      "source_text": "marca e variante são reconhecidas, mas não são usadas juntas para validar a compatibilidade da fonte nutricional;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "b8ed8972c99c59af34a8b7fa36e184f735df75dbca462375d7b0d0d9bef30141",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 68,
+      "source_text": "o produto correto é resolvido internamente, mas o formatter/persistência perde a marca no nome exibido ou na identidade final.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "d062879de124a64000d05a70c2ced6af36a77d200c5fc8dedd34b1b50bb211c7",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 70,
+      "source_text": "A correção deve atuar sobre a **classe do problema**, sem hardcode para Stella Artois, Antarctica, Heineken, Paulaner ou para cerveja em geral.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "1a178c2bd47f169b17f7e44fae3fcd3772f0fb4403f68bc2e3eeb892c9db683f",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 74,
+      "source_text": "Quando houver evidência confiável de marca/produto/variação em uma imagem, a seleção nutricional deve seguir a maior especificidade disponível:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "533fb1fa619ab28fc236dd79caa156423015b6328e1ef9da2e9eb2d2abaa7bd6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 80,
+      "source_text": "produto genérico somente como fallback rastreável quando não houver referência mais específica confiável.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "168419a9095ec0b08c7e89220e80262360016c3030444038cd0bae002d664452",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 82,
+      "source_text": "Uma referência genérica **não pode ser apresentada como se fosse específica da marca**.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "996544b7b2de91ea0cddd72006f4cac1ffa06d9c61b745d9671532dd372478f5",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 86,
+      "source_text": "Preservar marca reconhecida visualmente no `brand` estruturado e na identidade exibida do item.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "84ceaece051b0e6770445ab04dd84e28c0008b344c4801cf36b03520277ab7dc",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 87,
+      "source_text": "Preservar termos relevantes do produto/variação, como `Original`, `Pilsen`, `Lager`, `Weissbier`, `Zero`, `Light`, `Sem lactose`, etc., quando visíveis e semanticamente relevantes.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "1bd7bc0977b508883fbacce78f2b9db99a49c90a994b61e300cde4ac9ea35fc0",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 88,
+      "source_text": "Usar marca e variação na seleção/match de catálogo e de fonte nutricional.",
+      "flags": [
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "0b67504103aee7e499c889912026b6441141f13911b984ff01e55a83fc9fc821",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 89,
+      "source_text": "Evitar que um match genérico de categoria substitua um match específico confiável.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "fe650a48755595bf1846e945c35518b0968f52ade926d93b418637e1e7376fa1",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 90,
+      "source_text": "Quando não houver referência específica no catálogo, usar o mecanismo canônico de pesquisa nutricional/fonte rastreável quando ele for aplicável a produto industrializado com marca.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "3a664399c36f4ebc48822232614bee8b55a620b4c378f1e55615774c29fe78e1",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 91,
+      "source_text": "Validar marca, produto, variação, volume/peso e porção antes de aceitar uma fonte externa como exata.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "1834e0fb246dc99423b16e6a42c4ca1699514b4f439a941f52797e03bf95d091",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 92,
+      "source_text": "Manter o cálculo proporcional à quantidade consumida informada ou reconhecida.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "613fa68c4e5d5f098952fa3f4216f8b98f9d6019f8d7107767641761785bfae7",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 93,
+      "source_text": "Garantir que persistência, totais da refeição e resposta do WhatsApp usem a mesma referência nutricional selecionada.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "9f9c12162a90a5150b05f7a50f4ef06fe1fe681efd8b6327a4e4a9fb9e224bc5",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 100,
+      "source_text": "Assumir que todas as cervejas Pilsen/Lager possuem os mesmos valores nutricionais.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "4dfc7fa9bd87d27e12197fca7d28270715bbe6e50650a4e1204f6dff5bf6e702",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 103,
+      "source_text": "Fazer uma segunda análise visual apenas para descobrir a marca; `MEAL_VISION` já possui saída estruturada para isso.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "96f5526c52a028240641b0b3a070358584ec616ccc5d068865bcf40eac99ea89",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 105,
+      "source_text": "Revisar o catálogo inteiro de bebidas/alimentos.",
+      "flags": [
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "e37e3c79d767e7d73db8b381d7193e21cfc3fcf99a2352af82fe1a3c1b0b2b9b",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 110,
+      "source_text": "**Marca visível deve ser preservada**",
+      "flags": [
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "76eb53391abb2a94612b508487c303f2c46d746748d19cfc47ee47b9c0c4f44a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 111,
+      "source_text": "Uma foto em que `Stella Artois`, `Heineken`, `Antarctica` ou outra marca esteja legível não deve resultar apenas em `Cerveja` quando a marca foi reconhecida com confiança suficiente.",
+      "flags": [
+        "observable",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "8bfc7d634e05aecb7a336ad7482d25eaae127298b641ef3251a013e2ce3eae25",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 112,
+      "source_text": "O campo estruturado `brand` deve permanecer disponível até a persistência e formatação da resposta.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "cc52ef1c78a93811c28e1b4a3cf632cd9c2da668aabaf0b62b288fbf48fcd94a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 114,
+      "source_text": "**Marca deve afetar a referência nutricional**",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "491718397521329133d4e5964e398e627cd385625dd1905ebec00de0caabab59",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 116,
+      "source_text": "Se existirem referências específicas diferentes para duas marcas, cada item deve usar sua própria referência.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "57cc0971619da1ce48c2dc65f1509b097be3e2f9496ad43e00c4ab4950f85b01",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 117,
+      "source_text": "A categoria genérica não pode vencer apenas porque possui match textual mais simples.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "f722320b75be6f0a0ee375fc3287f78c4ae214e4b2887d1b17a43609a0a16778",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 119,
+      "source_text": "**Variação também deve participar da identidade**",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "4cbf6d5d3965e843f04b782a5fe9b80062080e30b590a4539208bd2f540bc1e2",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 120,
+      "source_text": "`Heineken Original` não deve ser confundida com uma eventual versão `Zero`.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "3cfcbfb007a9e377d67f1880b01645efffc6f9f060e06abec986b2e1c1d80fb1",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 121,
+      "source_text": "`Paulaner Weissbier` não deve ser reduzida a uma Pilsen genérica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "d12cf0cbb69e3ecc9752004ed81e428afb29d4f7276474e807d254be83709c35",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 122,
+      "source_text": "`Antarctica Original` deve preservar `Original` quando esse termo for necessário para selecionar a referência correta.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "b12bb951b3dc854a35017b80f798c302ccf0258f445b9e57ea9edfd83c5a20f7",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 125,
+      "source_text": "Quando a base interna não tiver uma referência exata para um produto industrializado com marca, aplicar a estratégia canônica de busca nutricional específica prevista pelo domínio, quando disponível/configurada.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "4c45770cba1dcb2d7e0625b3397a65e85bb7b8a2c2d61e825876dc6be09ee5d5",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 129,
+      "source_text": "Se não houver fonte específica confiável, preservar marca e nome completo do produto.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "953ce96ad7113eb9c71c4fde7d0b9917b7447fb0c7daae80f32bc67c287652ab",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 130,
+      "source_text": "Usar fallback genérico/estimado apenas conforme as regras atuais do domínio, com origem/confiança coerentes.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "1905463f69aa58de90727509fa3a44005f8fc83aee7f4ecd68e3f26e6d9dd645",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 131,
+      "source_text": "Não afirmar nem exibir implicitamente que os macros são “da marca X” quando foram obtidos de referência genérica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "e0f4478de9f3d15532a9df92e22573a50b27f973dce9dd5b38aea4fd7e263934",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 135,
+      "source_text": "Marca incerta não pode ser usada para selecionar silenciosamente um SKU específico.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "f1ee5422fdf1b846d466377892c8b74d4e3e368788c960c4d7143c8bfb66e0ff",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 138,
+      "source_text": "O item persistido, os totais e a mensagem do WhatsApp devem refletir a mesma identidade e a mesma referência nutricional.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "c7a3845368ab0cf0024395689386bc4d064a5e5e73e2ca5350eb9431ba6261e6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 139,
+      "source_text": "Reentrega do mesmo `message.id` deve manter a idempotência atual.",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "007ea54665233333151a994ea1d66f8b4792daa397df7136fd29f53bb89ba4d7",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 141,
+      "source_text": "**Preservar precedência de hidratação para água pura**",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "2f7de9c9d93ed5af52b7ef0edfb32acd51f741f57c4e2e7db141a5c3689454ae",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 143,
+      "source_text": "Se um item satisfizer o contrato canônico de água pura de #758/#986, a presença de marca, variante ou referência nutricional não pode fazê-lo ser persistido como refeição.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "f7b68349f79097919ce048a8868b5d2e6d14c92de83f6e191a58717db6114138",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 144,
+      "source_text": "A correção da #987 não deve transformar água mineral de marca em “produto embalado” nutricional apenas porque a identidade comercial foi reconhecida.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "0e0765e3db345746510e823a6fbe505aa6dadc3f5c2adb998f31f846d0d8513a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 148,
+      "source_text": "As issues #987 e #986 compartilham o trecho inicial de identidade visual, mas possuem destinos diferentes e **devem permanecer implementações independentes/coordenadas**:",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "39c0b84e30610ab16c9471833aae3ede2cbaf8dde5a6a9c6e533804194c4c5e0",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 153,
+      "source_text": "A #987 **não bloqueia nem substitui** a #986. Da mesma forma, resolver a #986 não satisfaz os critérios nutricionais da #987.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "5ab51eaa007096a8b4c194b5143f2fe506b845b482022c3ace3a8e94c1062899",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 155,
+      "source_text": "**Precedência obrigatória para persistência e resposta:** se o item for classificado como água pura pelo contrato canônico de #758/#986, a decisão de hidratação prevalece sobre qualquer match de catálogo, embedding, `NUTRITION_SEARCH`, fallback ou metadado de marca que tenha sido produzido anteriormente. A referência nutricional eventualmente calculada deve ser descartada para o resultado persistido desse item.",
+      "flags": [
+        "exhaustive",
+        "atomicity",
+        "source-catalog",
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "0ce6e710000aa9038ea85d55d5792b96cbd9644e55dbae7d100016fc12194ab6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 159,
+      "source_text": "`must_behave`: marca/variação reconhecidas devem participar da identidade e da escolha da referência dos itens nutricionais.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "b2ff680bee8fc370b65b148e472c48ba66beaa8fe8499344b16a2cec3fae7d2e",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 160,
+      "source_text": "`must_not_behave`: reconhecimento de marca não pode fazer água pura sobreviver como item nutricional; também não pode apresentar referência genérica como específica da marca.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "9a2989d25b14444d3dd32dd57ae4d0ef2170cdfcddb41c23d4e614a1e2fe03e6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 161,
+      "source_text": "`must_reuse`: reutilizar `brand` estruturado, matching/catálogo existentes e a capacidade canônica `NUTRITION_SEARCH` quando aplicável; não criar sistema paralelo de marcas/fontes.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "source-catalog",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "fc45fc9ee5bf72b6ff0669b328ca72b6f83e8b26abacee25ef97c91997cc43d9",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 162,
+      "source_text": "`must_be_single_source`: o resultado nutricional persistido, os totais e a resposta devem derivar da mesma referência selecionada para o item.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "93b6824d1c6122e78bf2ca6145fee3827c99885cfefe0fe90253c40d30965fc0",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 166,
+      "source_text": "Implementação plausível errada que ainda poderia passar nos exemplos de cerveja: adicionar `Stella`, `Heineken`, `Antarctica` e `Paulaner` a uma tabela fixa e mapear macros específicos. Controle discriminante: fixtures com marcas não presentes em lista fixa e duas referências da mesma categoria com macros distintos devem selecionar pelo contrato de identidade, não pelo nome hardcoded.",
+      "flags": [
+        "exhaustive",
+        "observable",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "c0278dae0189a8deb32c408be99127ca759fc63922ad54da58755aaa6d94b98d",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 168,
+      "source_text": "Outra implementação plausível errada: generalizar todo item com marca como produto nutricional e fazer uma água mineral de marca virar `mealItem` com 0 kcal. Controle discriminante: teste cruzado com água pura + marca deve confirmar hidratação e ausência de persistência nutricional, em alinhamento com #986.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "3efad04d277e783b842e744f90eb87ced0fd140040620caf76d3f229799ac535",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 174,
+      "source_text": "Foto de Stella Artois 330 ml com marca legível | mantém `brand=Stella Artois` (ou forma canônica equivalente), exibe a marca e tenta referência específica compatível",
+      "flags": [
+        "exhaustive",
+        "observable",
+        "atomicity",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "f1f0a78c4ea3afa780ffdbbb897e8579f19d0f5e03c42df7d1be04e06fd9d60a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 175,
+      "source_text": "Foto de Heineken Original 330 ml | mantém Heineken + variante Original e não usa referência de outra cerveja apenas por categoria",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "22386f23181ca5af5545ae418ea6faed39a7a8a70c530d4bddc41a0a1af20b80",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 176,
+      "source_text": "Foto de Antarctica Original 300 ml | mantém Antarctica + Original e usa referência específica se disponível",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "1886f2145b367c3d167d79075f4958f26d8e0c571c3dd9330a12b849cf7eb287",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 177,
+      "source_text": "Foto de Paulaner Weissbier 500 ml | preserva Paulaner + Weissbier; não reduz para Pilsen/cerveja genérica",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "a1c458cdeccc400de329b67bf59f7856a3b0d0f41566081c196a27a96bd8719e",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 181,
+      "source_text": "Marca reconhecida, nenhuma fonte específica confiável | preserva marca, usa fallback rastreável e não apresenta o resultado como valor exato da marca",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "4d0a72ad492cea44690e021e10c3333548671c51a55f3b06eb210f86ef2850bc",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 188,
+      "source_text": "[ ] O cenário observado deixa de exibir a Stella Artois apenas como `Cerveja` quando a marca estiver reconhecível.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "59f6b12c4b309a8af1a6840dead6b98731fa3d1ea0a5a311f21360c4b9378117",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 189,
+      "source_text": "[ ] `brand` reconhecida em `MEAL_VISION` chega ao item final, persistência e resposta sem ser descartada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "9daa2cb8b97d9bfa264441b13e7bb2699eebf5f3af5a004091a6601eef84c18c",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 190,
+      "source_text": "[ ] Marca e variação influenciam a escolha da referência nutricional, não apenas o texto de exibição.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "d8a1c5059989460c8d82e021e1d088c690bbd33a083b1cbbf12a6b17fbf88ad6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 191,
+      "source_text": "[ ] Duas referências de teste da mesma categoria com marcas distintas e macros distintos resultam nos macros correspondentes a cada marca.",
+      "flags": [
+        "exhaustive",
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "ef6f6bab6f1ad8baf80877b87c0de67009b390e13223bf8ce637de281877f1dc",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 192,
+      "source_text": "[ ] Um match genérico não substitui uma referência específica compatível disponível.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "2c2714608f16ef1230ded3a98f958d9f6ac7b3bf8e5b189bba1f0941018b25d4",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 193,
+      "source_text": "[ ] Produto com marca ausente do catálogo pode acionar a estratégia canônica de fonte nutricional específica quando aplicável.",
+      "flags": [
+        "atomicity",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "0a04f10eb3120a22b2d1fafc2519b3fdf29bf7b0f75fe366c92a1d0f2fc9f5d6",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 194,
+      "source_text": "[ ] Fonte externa ambígua, de outra marca, outra versão ou outra porção não é aceita como exata.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "a56491611ee95d8c5a55a537d23c24acff5b44d31bb76cc9a8ee9c3e8a2fdb28",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 195,
+      "source_text": "[ ] Sem fonte específica confiável, o nome/marca completos permanecem preservados e o fallback fica explicitamente rastreável como genérico/heurístico.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "99097048e261a8cc10163fbd1cb7e346756c9c924d83e441ef980c2a546bfcd9",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 196,
+      "source_text": "[ ] A solução não contém hardcode de Stella, Antarctica, Heineken, Paulaner nem tabela específica de cervejas criada apenas para o teste.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "a46de038e449fb480da8e0237f8dbab1b125b1417ca5b8abde40d1ef428e2f06",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 197,
+      "source_text": "[ ] `FOOD_CLASSIFICATION` continua reservada e não é criada uma segunda inferência visual/NOVA.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "967fda337f4841a850dcf989faf1f820e5dcd5c503a37692c4267d251f981d06",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 198,
+      "source_text": "[ ] O teste de regressão passa pelo fluxo real de imagem/`handleWhatsAppWebhook` ou entrypoint produtivo equivalente, e não apenas por helper isolado.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "isolation",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "386a3e91be255ba390af495dc2b98ddda91b5138857c90d7a39c0660efedc704",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 199,
+      "source_text": "[ ] Reentrega do mesmo inbound continua idempotente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "5a3dcc067a95c3c722105b25bb1079e61c9d81a8eb0347f5b528906ecb23413e",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 200,
+      "source_text": "[ ] A resposta final contém valores coerentes com o item efetivamente persistido.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "28c51ce9872f71a00f6cfc6f7c6d2194875909c7ac6b46b2d6ef7035fcc5ee8e",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 201,
+      "source_text": "[ ] Água pura com marca reconhecida continua sendo retirada do pipeline de refeição conforme #758/#986, mesmo que a #987 passe a resolver melhor identidade comercial e fontes nutricionais.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "249e84d47dd8e94cd5d97a51e5268e52689e45cc17260cf26b51a478544c9542",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 210,
+      "source_text": "Antarctica Original preservando variante;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "6ff98a548da483fea889853dd93a4656ff26cd28b8f0cbb590224f5a8c6001e8",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 211,
+      "source_text": "Paulaner Weissbier preservando estilo/variação;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "1310c11e43bfea6d6f8c4413572a4f6ffb83fef8be107ff4a807b3f7b5497819",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 212,
+      "source_text": "duas entradas de catálogo da mesma categoria e com valores nutricionais diferentes por marca, validando seleção discriminante;",
+      "flags": [
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-080",
+      "candidate_key": "6485957bf7ae8010dbf7c025efdfc4da610406881147e13b3aea485e49a78ceb",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 213,
+      "source_text": "marca específica sem referência interna, validando uso do mecanismo de fonte específica quando configurado;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-081",
+      "candidate_key": "75469833e533d349774218498f15b0a7fbb807d4d52da5d6820ad2eec9c5b9ac",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 218,
+      "source_text": "persistência + totalização + formatter do WhatsApp usando os mesmos nutrientes;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-082",
+      "candidate_key": "fb0151084f7d3f6e6d18be6899ea622bf30d8dd01abdc58146088187964c1bce",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 222,
+      "source_text": "Os testes devem usar fixtures controladas para os valores nutricionais esperados; não devem depender de números hardcoded obtidos informalmente das fotos desta issue.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-083",
+      "candidate_key": "82bea85997056a1e1277b79da0f4856a350a81d68dbaaf2d461b4f85bb42a43f",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 228,
+      "source_text": "`server/catalogMatching.ts`",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-084",
+      "candidate_key": "d0098bf5f5900a616d70b500c4018503f9fc4d41ba089af6ba6fca38b7c597e9",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 230,
+      "source_text": "`server/catalogSemanticSearch.ts`, se a investigação confirmar lacuna na pesquisa específica de produtos com marca",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-085",
+      "candidate_key": "22f831e56288bda01e4b2bc5ff9bd4e4e0b3bcf19b781d6a5b489353d4a81a9a",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 233,
+      "source_text": "formatter/persistência do WhatsApp apenas se a perda de identidade ocorrer depois da resolução nutricional",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-086",
+      "candidate_key": "7cd1c92bcf4e44748e30705f437860d8c4f1163f5fc1e61f6fc526e0a3c413db",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 255,
+      "source_text": "como a solução impede que outra categoria de produto industrializado repita o mesmo erro;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-087",
+      "candidate_key": "f19dbc0c615a7c36bee119c73dc6abbcf3b6c4d2af649768d15ea42658bd5569",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 256,
+      "source_text": "como foi preservada a precedência do contrato de hidratação de #758/#986.",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
+    },
+    {
+      "id": "OBL-088",
+      "candidate_key": "804476bec34786e52076b8b71a9111100f9d978c94f9250acadb9b50c7502cce",
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "source_line": 271,
+      "source_text": "**Pronta para implementação.** O comportamento esperado está consistente com os contratos anteriores e agora explicita a fronteira com #986: marca/variação refinam a referência somente para itens que permanecem no domínio nutricional, enquanto água pura continua obedecendo ao roteamento canônico de hidratação.",
+      "flags": [
+        "observable",
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-987"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo candidato material e pelos controles discriminantes vinculados ao SHA congelado."
     }
   ],
   "source_coverage": [
     {
-      "source_id": "SRC-ISSUE-986",
-      "source_sha256": "e0e5145f18ace21353143ae884af59306f94517618b0b9c4ea03d9723a69697a",
-      "candidate_count": 1,
+      "source_id": "SRC-ISSUE-987",
+      "source_sha256": "46e90aaada9a1e8e300f40f1cf05ddf3a163781c76e368c59ffce3baa7d4b34d",
+      "candidate_count": 88,
       "obligation_ids": [
-        "OBL-001"
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083",
+        "OBL-084",
+        "OBL-085",
+        "OBL-086",
+        "OBL-087",
+        "OBL-088"
       ],
       "unmapped_candidate_keys": []
     }
@@ -52,46 +1761,126 @@
   "observable_assertions": [],
   "structural_invariant_closures": {
     "status": "passed",
-    "applicability_reason": "Precedência de hidratação, classificação fail-closed e paridade de representações são contratuais.",
+    "applicability_reason": "Especificidade antes do genérico, identidade ponta a ponta e precedência de hidratação são invariantes contratuais.",
     "entries": [
       {
-        "id": "STRUCT-986-001",
+        "id": "STRUCT-987-001",
         "kind": "canonical-path-parity",
         "requirement_ids": [
-          "REQ-986"
+          "REQ-987"
         ],
         "obligation_ids": [
-          "OBL-001"
+          "OBL-001",
+          "OBL-002",
+          "OBL-003",
+          "OBL-004",
+          "OBL-005",
+          "OBL-006",
+          "OBL-007",
+          "OBL-008",
+          "OBL-009",
+          "OBL-010",
+          "OBL-011",
+          "OBL-012",
+          "OBL-013",
+          "OBL-014",
+          "OBL-015",
+          "OBL-016",
+          "OBL-017",
+          "OBL-018",
+          "OBL-019",
+          "OBL-020",
+          "OBL-021",
+          "OBL-022",
+          "OBL-023",
+          "OBL-024",
+          "OBL-025",
+          "OBL-026",
+          "OBL-027",
+          "OBL-028",
+          "OBL-029",
+          "OBL-030",
+          "OBL-031",
+          "OBL-032",
+          "OBL-033",
+          "OBL-034",
+          "OBL-035",
+          "OBL-036",
+          "OBL-037",
+          "OBL-038",
+          "OBL-039",
+          "OBL-040",
+          "OBL-041",
+          "OBL-042",
+          "OBL-043",
+          "OBL-044",
+          "OBL-045",
+          "OBL-046",
+          "OBL-047",
+          "OBL-048",
+          "OBL-049",
+          "OBL-050",
+          "OBL-051",
+          "OBL-052",
+          "OBL-053",
+          "OBL-054",
+          "OBL-055",
+          "OBL-056",
+          "OBL-057",
+          "OBL-058",
+          "OBL-059",
+          "OBL-060",
+          "OBL-061",
+          "OBL-062",
+          "OBL-063",
+          "OBL-064",
+          "OBL-065",
+          "OBL-066",
+          "OBL-067",
+          "OBL-068",
+          "OBL-069",
+          "OBL-070",
+          "OBL-071",
+          "OBL-072",
+          "OBL-073",
+          "OBL-074",
+          "OBL-075",
+          "OBL-076",
+          "OBL-077",
+          "OBL-078",
+          "OBL-079",
+          "OBL-080",
+          "OBL-081",
+          "OBL-082",
+          "OBL-083",
+          "OBL-084",
+          "OBL-085",
+          "OBL-086",
+          "OBL-087",
+          "OBL-088"
         ],
         "evidence_ids": [
-          "OPEN-UNKNOWN-001",
-          "REP-FANIN-001",
-          "SEM-EVIDENCE-001",
-          "SEM-NEGATIVE-001",
-          "REP-RECONCILE-001",
-          "OPEN-POSITION-001"
+          "CTRL-SPECIFICITY",
+          "CTRL-E2E",
+          "CTRL-WATER"
         ],
         "negative_control_evidence": [
-          "evidence/issue986-cycle2-remediation.txt",
-          "server/modules/whatsapp/waterItemClassification.test.ts",
-          "server/whatsappWebhook.image.water.test.ts",
-          "server/mealAiExtraction.test.ts"
+          "CTRL-WRONG-BRAND",
+          "CTRL-DUPLICATE-BRAND",
+          "CTRL-WATER"
         ],
         "scenario_ids": [
-          "OPEN-UNKNOWN-001",
-          "REP-FANIN-001",
-          "SEM-EVIDENCE-001",
-          "SEM-NEGATIVE-001",
-          "REP-RECONCILE-001",
-          "OPEN-POSITION-001"
+          "SCN-DISTINCT-BRANDS",
+          "SCN-WRONG-BRAND",
+          "SCN-WATER"
         ],
-        "canonical_path": "water item classification -> water split -> webhook hydration persistence",
+        "canonical_path": "MEAL_VISION brand/variant -> exact catalog or governed specific search -> one MealDraftItem -> persistence/totals/WhatsApp",
         "competing_paths": [
-          "anchor + finite denylist accepts unknown beverage",
-          "auxiliary processing classification is mistaken for independent purity evidence",
-          "classifier accepts embedded volume but downstream resolver ignores it"
+          "generic category catalog result wins before specific identity",
+          "external source from another brand is accepted as exact",
+          "branded pure water survives hydration split"
         ],
-        "plausible_wrong_implementation": "Aceitar token desconhecido após marcador de água usando nível de processamento correlacionado como prova de pureza, ou reconhecer uma representação sem consumi-la downstream."
+        "plausible_wrong_implementation": "Append the brand only in presentation while generic macros still win, or route every branded item into nutrition including pure water."
       }
     ],
     "unresolved_invariants": []
@@ -99,17 +1888,103 @@
   "pass_c": {
     "status": "passed",
     "requirement_ids": [
-      "REQ-986"
+      "REQ-987"
     ],
     "obligation_ids": [
-      "OBL-001"
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-056",
+      "OBL-057",
+      "OBL-058",
+      "OBL-059",
+      "OBL-060",
+      "OBL-061",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-076",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079",
+      "OBL-080",
+      "OBL-081",
+      "OBL-082",
+      "OBL-083",
+      "OBL-084",
+      "OBL-085",
+      "OBL-086",
+      "OBL-087",
+      "OBL-088"
     ],
     "evidence": [
-      "4df504eb65f94304be658fd18f21e55761e7b589",
-      "evidence/issue986-cycle3-remediation.txt",
-      "server/modules/whatsapp/waterItemClassification.ts",
-      "server/modules/whatsapp/waterItemClassification.test.ts",
-      "server/whatsappWebhook.image.water.test.ts"
+      "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
+      "evidence/agent-check.attestation.json",
+      "evidence/focused-controls.attestation.json",
+      "server/whatsappWebhook.image.test.ts"
     ],
     "rederived_without_pr_description": true,
     "reviewed_user_visible_semantics": true,

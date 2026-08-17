@@ -1,111 +1,145 @@
 {
   "schema_version": 1,
-  "head_sha": "4df504eb65f94304be658fd18f21e55761e7b589",
+  "head_sha": "50fbe1f95dc849b2ab42577a7624ef13834ce4e5",
   "families": [
     {
       "family": "authorization",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
-      "applicable": true,
-      "reason": "Derived from the current requirement attack matrix and revalidated on the material head.",
-      "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001"
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "reference-liveness",
       "applicable": true,
-      "reason": "Derived from the current requirement attack matrix and revalidated on the material head.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001"
+        "CTRL-WRONG-BRAND"
+      ],
+      "dimensions": [
+        {
+          "surface": "external-source",
+          "reason": "A governed external result remains usable only when current brand, variant and serving evidence match.",
+          "control_ids": [
+            "CTRL-WRONG-BRAND"
+          ],
+          "status": "passed"
+        }
       ],
       "status": "passed"
     },
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "reason": "Derived from the current requirement attack matrix and revalidated on the material head.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001"
+        "CTRL-E2E"
+      ],
+      "dimensions": [
+        {
+          "surface": "persistence-response",
+          "reason": "Persistence, totals and the later WhatsApp response must consume the same resolved reference.",
+          "control_ids": [
+            "CTRL-E2E"
+          ],
+          "status": "passed"
+        }
       ],
       "status": "passed"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": true,
-      "reason": "Derived from the current requirement attack matrix and revalidated on the material head.",
-      "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001"
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "idempotency",
       "applicable": true,
-      "reason": "Derived from the current requirement attack matrix and revalidated on the material head.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001"
+        "CTRL-IDEMPOTENCY"
+      ],
+      "dimensions": [
+        {
+          "surface": "inbound-message",
+          "reason": "Webhook redelivery for one message id must not duplicate the selected nutritional item.",
+          "control_ids": [
+            "CTRL-IDEMPOTENCY"
+          ],
+          "status": "passed"
+        }
       ],
       "status": "passed"
     },
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Classificação aberta, precedência de hidratação e paridade produtor-consumidor exigem controles discriminantes independentes.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "OPEN-UNKNOWN-001",
-        "REP-FANIN-001",
-        "SEM-EVIDENCE-001",
-        "SEM-NEGATIVE-001",
-        "REP-RECONCILE-001",
-        "OPEN-POSITION-001"
+        "CTRL-SPECIFICITY"
+      ],
+      "dimensions": [
+        {
+          "surface": "catalog-resolution",
+          "reason": "Specific brand and variant candidates must be resolved before generic catalog candidates.",
+          "control_ids": [
+            "CTRL-SPECIFICITY"
+          ],
+          "status": "passed"
+        }
       ],
       "status": "passed"
     },
     {
       "family": "documentation",
       "applicable": false,
-      "reason": "No current contract or material diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
+      "dimensions": [],
       "status": "not-applicable"
     }
   ],
