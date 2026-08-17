@@ -1,0 +1,43 @@
+Issue 897 post-write refreeze evidence
+repository=crgasparoto-br/controle_calorias
+pr=985
+branch=feat/897-usage-governance
+base_branch=develop
+base_sha=6b735b34fdfbe46c3c65856aba62a1c44830a729
+previous_material_head_sha=7cc7692632bf607c4f1b8ad8447cbd61503194e4
+material_head_sha=c121453f1fd060092c0d6fad855c617148844121
+merge_preview_sha=f9cd6ee4c6054940e1ea29128a15f63855b62123
+
+Identity reconciliation:
+- GitHub branch ref resolved to c121453f1fd060092c0d6fad855c617148844121.
+- PR 985 is open against develop and GitHub reports mergeable=true, mergeable_state=clean.
+- Compare from 7cc7692632bf607c4f1b8ad8447cbd61503194e4 to current head is ahead by five commits.
+- The old result-only child was followed by material commits, so the previous handoff certificate was correctly classified stale.
+- Material changes after the old freeze strengthen audit coverage: documentation freshness checks and real HTTP/tRPC public-boundary tests; subsequent commits preserve DB exports in the mock and use the canonical tRPC wire protocol.
+
+Remote exact-head workflow snapshot for c121453f1fd060092c0d6fad855c617148844121:
+- WhatsApp context TiDB gate run 32037081374: completed/success.
+- Onboarding activation TiDB gate run 32037081400: completed/success.
+- Billing persistence TiDB gate run 32037081366: completed/success.
+- Professional persistence TiDB gate run 32037081433: completed/success.
+- Agent-first gate run 32037081391: completed/success.
+- AI provider live smoke run 32037081406: completed/skipped; no live provider credential evidence is claimed.
+
+Inherited functional controls:
+- provider-boundary metering and WhatsApp retry/idempotency controls remain covered;
+- estimated-to-effective reconciliation preserves historical estimate and rejects conflicting replay;
+- configurable fair-use policy remains persisted and non-blocking by threshold alone;
+- historical attribution, rollback, economic temporal/currency, retention/legal-hold, authorization-chain, exact-span and retroactive recomposition controls remain applicable.
+The current Agent-first gate is successful on the exact material head, and no product runtime file was changed by the last three public-boundary test-only commits.
+
+New post-freeze material surfaces:
+- public-boundary: real Express/tRPC transport verifies generic 5xx sanitization, correlation headers, rollback and controlled 4xx behavior without internal leakage;
+- documentation: the docs freshness gate detects stale claims that usage governance is absent or that fair-use thresholds automatically block/charge.
+
+Skill/ecosystem learning closure:
+- Before amendment, test_post_ci_refreeze_contract.py failed because corrigir-ci/SKILL.md did not contain the canonical literal reason=post-ci-refreeze.
+- Prevention amendment added the generic composition envelope return_control_to=entregar-issue + reason=post-ci-refreeze + previous_frozen_sha/current_head_sha to corrigir-ci/SKILL.md.
+- Focused skill contract suite after amendment: 11 passed.
+- validate_skill_genericity.py for corrigir-ci: READY.
+- entregar-issue fast ecosystem report: 5 test modules passed, 0 failed (test_ecosystem_contracts, test_internal_delegation_ownership, test_single_invocation_controller, test_state_and_packet, test_throughput_quality_contract).
+- The outer container call returned ClientError after the ecosystem runner had already written a complete passing report; the report itself records passed=5, failed=0 and is the retained evidence.
