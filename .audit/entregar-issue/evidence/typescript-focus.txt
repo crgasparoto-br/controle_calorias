@@ -1,4 +1,4 @@
 status=not-run-on-current-material
-reason=connector-only runtime could not resolve github.com for a complete checkout; no network retry was performed
-prior_material_typecheck=historical-only
-current_exact-head_ci=single snapshot pending
+reason=connector-only runtime cannot resolve github.com for a complete checkout and dependencies; no repeated clone/install attempt was made
+current_exact-head_ci=single snapshot queued
+focused_deterministic_harness=passed

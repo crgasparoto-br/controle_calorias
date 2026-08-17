@@ -1,12 +1,8 @@
-[coverage]
-READY: canonical specification coverage is complete
-[attack]
-READY: every covered requirement has cross-surface adversarial and regression evidence
-[risk]
-READY: canonical risk families, attack surfaces and audit-escape dimensions are saturated
-[inherited]
-READY: cumulative inherited audit controls are closed
-[learning]
-READY: rejection learning is closed and generalized
-[handoff-readiness]
-READY: requirement attacks, risk saturation, inherited controls, structural invariants and audit escapes are closed
+validate_specification_coverage=PASS
+validate_requirement_attack_matrix=PASS
+validate_risk_saturation=PASS
+validate_inherited_controls=PASS
+validate_learning_closure=PASS
+validate_handoff_readiness=PASS
+contract_version=2026-08-06.2
+material_head_sha=5f5e6c3081c0f340b2e337a6037b3a640be563a0
