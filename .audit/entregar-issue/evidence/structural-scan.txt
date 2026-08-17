@@ -1,0 +1,6 @@
+
+--- structural scan ---
+293:  const rawMode = process.env.AI_QUESTION_WEB_SEARCH_MODE?.trim().toLowerCase();
+346:  const result = await executeResolvedCapability(
+357:          ...(webSearchMode === "auto" ? { tools: [{ type: "web_search" as const }] } : {}),
+459:  const policy = resolveCapabilityConfig("QUESTION");

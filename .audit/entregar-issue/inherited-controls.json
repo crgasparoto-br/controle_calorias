@@ -1,15 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
-  "controls": [
-    {
-      "id": "PROVIDER-EVIDENCE-CONSISTENCY-001",
-      "status": "passed",
-      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
-      "evidence": "evidence/issue987-post-write-refreeze.txt",
-      "source": "independent audit remediation",
-      "scope": "provider structured-output and grounding cross-field consistency"
-    }
-  ],
+  "head_sha": "7321fb4626f32c3ee43d54651c5b3979956e0161",
+  "controls": [],
   "unresolved_controls": []
 }

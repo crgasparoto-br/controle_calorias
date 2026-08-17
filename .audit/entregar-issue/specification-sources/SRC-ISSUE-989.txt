@@ -1,0 +1,41 @@
+# Issue 989 - Reduzir latência das perguntas e respostas no fluxo conversacional
+
+Branch base: `develop`. specification_version: 2.
+
+## Objetivo
+Medir e reduzir a latência fim a fim de perguntas textuais cuja resposta usa `QUESTION`, priorizando perguntas simples sem remover capacidades obrigatórias nem degradar comportamento funcional.
+
+## Instrumentação
+- Instrumentar `total_ms`, `db_ms`, `context_ms`, `llm_ms`, `persist_ms` e `time_to_first_token_ms` quando aplicável.
+- Correlacionar as etapas da mesma requisição e registrar de forma sanitizada capacidade, provider/modelo efetivos, tentativas, retry/fallback, erro/timeout e pesquisa web.
+- Não registrar pergunta, resposta bruta, credenciais ou PII.
+
+## Caminho crítico e contexto
+- Remover do caminho crítico somente trabalho auxiliar que não seja necessário para resposta, consistência, persistência contratual, deduplicação, autorização, auditoria ou segurança.
+- Revisar consultas sequenciais, leituras repetidas, histórico excessivo e contexto desnecessário.
+- Perguntas simples devem enviar somente contexto necessário; follow-ups e casos que dependam de contexto devem preservar informação suficiente.
+- Avaliar roteamento determinístico por complexidade quando seguro.
+
+## IA e invariantes estruturais
+- `QUESTION` deve continuar usando resolução/execução/política multi-provider central; é proibido caminho direto ao SDK/provider.
+- Timeout, tentativas e fallback continuam na fonte central existente.
+- A operação de pesquisa web exigida por `QUESTION` não pode ser removida para reduzir latência.
+- Não responder antes de operação obrigatória para consistência apenas para reduzir `total_ms`.
+
+## Benchmark
+- Criar coorte fixa, versionada e sintética em `docs/benchmarks/question-latency/`, sem PII.
+- Baseline e candidato usam exatamente os mesmos fixtures, perfil/concurrency e ambiente; registrar provider, modelo, timeout, tentativas, fallback e SHAs.
+- Executar no mínimo 30 observações bem-sucedidas por lado; erros/timeouts são registrados separadamente e não podem ser excluídos seletivamente.
+- Calcular p50/p90/p95 sobre a mesma definição de `total_ms`.
+- O candidato precisa melhorar p90 ou p95 em >=20%, sem regressão >5% em p50/p90/p95 e sem aumento de erros/timeouts.
+- TTFT <=2s quando mensurável; se o contrato/canal não expuser TTFT, documentar a restrição sem inventar a métrica.
+- É proibido alterar fixtures entre lados, excluir amostras lentas/falhas ou reduzir capacidade funcional para fabricar ganho.
+
+## Aceite
+- Instrumentação fim a fim e correlação sanitizada existem.
+- Consultas/carregamentos excessivos encontrados são otimizados.
+- Perguntas simples não carregam/enviam contexto claramente desnecessário.
+- `QUESTION` preserva executor multi-provider, política central e web search.
+- O benchmark versionado satisfaz identidade de coorte, >=30 execuções por lado, percentis e gate relativo.
+- Testes cobrem seleção/redução de contexto, caminho central, web search, privacidade da telemetria e invariantes estruturais.
+- Testes existentes permanecem verdes e não há regressão funcional coberta.

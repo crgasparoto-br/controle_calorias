@@ -1,0 +1,53 @@
+
+--- telemetry scan ---
+69:  attempts: number | null;
+338:  attempts: number;
+376:    attempts: result.attempts,
+403:    eventType: "whatsapp.ai_question.latency",
+409:      total_ms: roundLatency(totalMs),
+410:      db_ms: roundLatency(state.dbMs),
+411:      context_ms: roundLatency(state.contextMs),
+412:      llm_ms: roundLatency(state.llmMs),
+413:      persist_ms: null,
+414:      time_to_first_token_ms: null,
+417:      configured_provider: policy.primary?.provider ?? null,
+419:      effective_provider: effectiveTarget?.provider ?? null,
+421:      attempts: state.attempts,
+422:      retry_occurred: typeof state.attempts === "number"
+423:        ? state.attempts - (state.usedFallback ? 1 : 0) > 1
+425:      fallback_occurred: state.usedFallback,
+426:      web_search_available: resolveQuestionWebSearchMode() === "auto",
+427:      web_search_executed: state.webSearchExecuted,
+483:    attempts: null,
+521:    latencyState.attempts = answer.attempts;
+299:function buildQuestionInput(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
+330:  question: string,
+NOTE: question variable references exist outside the latency payload; verify payload-specific scan below.
+    eventType: "whatsapp.ai_question.latency",
+    detail: JSON.stringify({
+      schemaVersion: 1,
+      requestId: state.requestId,
+      capability: "QUESTION",
+      flow: "whatsapp_question",
+      total_ms: roundLatency(totalMs),
+      db_ms: roundLatency(state.dbMs),
+      context_ms: roundLatency(state.contextMs),
+      llm_ms: roundLatency(state.llmMs),
+      persist_ms: null,
+      time_to_first_token_ms: null,
+      context_scope: state.contextScope,
+      context_sections: sections,
+      configured_provider: policy.primary?.provider ?? null,
+      configured_model: policy.primary?.model ?? null,
+      effective_provider: effectiveTarget?.provider ?? null,
+      effective_model: effectiveTarget?.model ?? null,
+      attempts: state.attempts,
+      retry_occurred: typeof state.attempts === "number"
+        ? state.attempts - (state.usedFallback ? 1 : 0) > 1
+        : null,
+      fallback_occurred: state.usedFallback,
+      web_search_available: resolveQuestionWebSearchMode() === "auto",
+      web_search_executed: state.webSearchExecuted,
+      outcome,
+      error_code: errorCode,
+    }),

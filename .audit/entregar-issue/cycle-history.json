@@ -1,7 +1,0 @@
-{
-  "schema_version": 1,
-  "append_only": true,
-  "cycles": [
-    {"cycle":1,"implementation_context_id":"delivery-29afcd17-5546-4248-9213-30b95771fb3b","material_head_sha":"0c949162725f64168d362e17cc264ff1658599d9","finding_fingerprints":[],"status":"internally-verified"}
-  ]
-}
