@@ -55,17 +55,15 @@ describe("Meta WhatsApp usage metering", () => {
     }));
   });
 
-  it("derives the same idempotency key for the same physical response position", async () => {
-    const input = {
+  it("derives the same idempotency key for the same response position even if a reprocess falls back", async () => {
+    const base = {
       userId: 42,
       sourceMessageId: "wamid.inbound-2",
       sequenceIndex: 1,
-      messageType: "buttons",
       role: "auxiliary" as const,
-      usedFallback: false,
     };
-    await recordMetaWhatsAppOutboundUsage(input);
-    await recordMetaWhatsAppOutboundUsage(input);
+    await recordMetaWhatsAppOutboundUsage({ ...base, messageType: "buttons", usedFallback: false });
+    await recordMetaWhatsAppOutboundUsage({ ...base, messageType: "text_fallback", usedFallback: true });
     const first = mocks.recordUsageEvent.mock.calls[0][0];
     const second = mocks.recordUsageEvent.mock.calls[1][0];
     expect(first.idempotencyKey).toBe(second.idempotencyKey);
