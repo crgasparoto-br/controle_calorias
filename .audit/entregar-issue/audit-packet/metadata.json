@@ -1,0 +1,26 @@
+{
+  "schema_version": 3,
+  "repository_path": "/tmp/issue987-packet-fGAtUs",
+  "base_ref": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "merge_base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "head_ref": "0c949162725f64168d362e17cc264ff1658599d9",
+  "head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
+  "dirty": false,
+  "changed_file_count": 15,
+  "production_file_count": 5,
+  "test_file_count": 6,
+  "doc_file_count": 4,
+  "runtime_context_file_count": 1434,
+  "unchanged_runtime_dependency_count": 1429,
+  "reverse_caller_count": 3331,
+  "dependency_edge_count": 6662,
+  "unresolved_local_import_count": 1,
+  "runtime_graph_complete": false,
+  "instruction_files": [
+    "AGENTS.md",
+    "CONTRIBUTING.md"
+  ],
+  "specification_snapshot_sha256": "55054349fe46636559049e004d19dfa3a4987875705c6d975446aac69cd55969",
+  "specification_source_count": 1
+}

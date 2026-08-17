@@ -1,15 +1,27 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
+  "material_head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
+  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+  "material_merge_preview_sha": "75f477ba2f4ba9e64a8fb505b1906b96a1024bcd",
   "status": "frozen",
-  "created_at": "2026-08-17T19:20:13Z",
-  "identity": {
-    "material_head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
-    "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
-    "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
-    "material_merge_preview_sha": "63a8ca61b4b6931fb6c94f160a34a0d1b6278e35",
-    "merge_preview_sha": "63a8ca61b4b6931fb6c94f160a34a0d1b6278e35"
-  },
-  "reason": "post-CI refreeze after exact-head test identity remediation",
-  "previous_material_head_sha": "dda1a53c582191cd27cf455c9317822c9269c375",
-  "remote_gate": "completed-success"
+  "local_controls": [
+    "IDENTITY-987-001",
+    "REFERENCE-987-001",
+    "WATER-987-001",
+    "CONSISTENCY-987-001",
+    "FORBIDDEN-987-001",
+    "IDEM-INBOUND-987-001",
+    "IDEM-PERSIST-987-001",
+    "DOCS-987-001",
+    "PROVIDER-EVIDENCE-CONSISTENCY-001"
+  ],
+  "previous_independent_rejection": true,
+  "gate_attestation": "evidence/final-gate-attestation.json",
+  "remote_gate_evidence": "remote-gate-evidence.json",
+  "post_write_refreeze": {
+    "reason": "handoff-stale",
+    "previous_material_head_sha": "726de55d6d9116baaf85769b139acb65e797a2e2",
+    "evidence": "evidence/issue987-post-write-refreeze.txt",
+    "product_changes_in_recovery": false
+  }
 }

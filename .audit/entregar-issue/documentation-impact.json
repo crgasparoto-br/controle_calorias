@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "complete": true,
+  "updated": ["docs/PRIVACY_LGPD.md", "docs/RELIABILITY.md", "docs/design-docs/nutrition-engine.md", "docs/product-specs/meal-registration.md"],
+  "generated_contracts": [],
+  "reason": "The MEAL_VISION identity, traced nutrition-search fallback, privacy minimization and reliability contract changed; no schema or tRPC route changed.",
+  "validation": {"command":"pnpm docs:check","status":"passed","evidence":"evidence/final-gate-stdout.log"}
+}

@@ -1,0 +1,1040 @@
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > processa uma mensagem recebida pelo número fixo, identifica o usuário pelo telefone de origem e responde com o Phone Number ID oficial
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > registra hidratação pela intenção nova e não delega para criação de refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > não registra refeição quando imagem retorna item sem identidade alimentar confiável
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > normaliza o nome exibido quando apenas o canonicalName é confiável
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > mantém contexto quando imagem identifica alimento sem quantidade e conclui com 30g
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > registra warning explícito quando a resposta automática do WhatsApp falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > solicita confirmação antes de reclassificar registros históricos via WhatsApp e só aplica a mudança após resposta afirmativa
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.test.ts > whatsappWebhook > pede esclarecimento quando o comando de mudança de refeição é ambíguo e não cria novo alimento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > água + alimento na mesma mensagem compõe uma única resposta funcional diferida (#785)
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > registra peso pela intenção textual e não delega para criação de refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > pede esclarecimento para peso sem valor e não delega para criação de refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > pede esclarecimento para água sem quantidade e não delega para criação de refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > ajusta refeição existente e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > envia botão de edição rápida ao ajustar refeição existente por texto
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > diminui gramas de alimento registrado em refeição anterior à última
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > soma gramas ao alimento existente e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > aumenta gramas na refeição citada pelo nome mesmo quando não é a última
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > mantém adição de alimento com refeição nomeada no fluxo de adição, sem tratar como incremento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > substitui gramas do alimento existente e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > troca alimento existente, recalcula macros e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > adiciona café sem açúcar à refeição existente e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > envia sugestão de lanche e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > envia relatório do período considerando calorias gastas em exercícios
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > interpreta Resumo sem período como relatório de hoje
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > mantém contexto de resumo para pedidos ambíguos que não sejam apenas Resumo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'empty' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > mantém bebida com volume explícito no fluxo normal de inferência
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.test.ts > handleWhatsAppWebhookWithTextIntent > mantém texto comum de refeição no fluxo normal de inferência
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > atualiza a meta padrão com exceções e reflete a regra efetiva no dashboard
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > bloqueia metas nutricionais extremas antes de salvar
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > salva metas com alerta e expõe avisos de segurança nutricional
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > conclui onboarding, persiste perfil e cria meta nutricional inicial
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > cobre o fluxo principal: onboarding, meta, alimento, refeição, edição, cópia, dashboard e relatórios
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > simula entrada por WhatsApp e confirma a refeição revisada
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > registra água na data relativa indicada pelo texto
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > pede quantidade quando entende água sem valor explícito
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > reduz gramas do alimento informado na última refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > soma gramas ao alimento informado na última refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > substitui a quantidade anterior pelo peso informado para o alimento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > substitui o alimento identificado por outro informado pelo usuário e recalcula os macros
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > interpreta correção do último alimento como substituição contextual
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > usa o último item da última refeição quando o alimento não é citado
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > adiciona café sem açúcar à refeição indicada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > adiciona alimento em gramas à refeição indicada no dia relativo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > pede esclarecimento quando não encontra a refeição para adicionar café
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > envia sugestão de lanche quando o usuário pede uma ideia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > envia relatório do período solicitado
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > pede período quando o usuário solicita relatório sem período
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > interpreta ajuste de quantidade para múltiplos alimentos na mesma mensagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > interpreta ajuste de redução para três alimentos distintos na mesma mensagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > interpreta incremento de quantidade para múltiplos alimentos na mesma mensagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > aplica o verbo inicial corretamente para todos os alimentos listados
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > mantém quantidade e unidade associadas corretamente a cada alimento na mensagem multi-alimento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > retorna confirmação listando cada ajuste aplicado separadamente
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > reconhece café em cápsula L'Or pela forma curta '1 café lor'
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > reconhece café em cápsula L'Or com apóstrofo '1 café l'or'
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > aplica múltiplas substituições em uma mensagem separadas por vírgula
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > não absorve o segundo par de substituição como nome do alimento destino
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.test.ts > executeWhatsappTextIntent > retorna null quando o texto não é uma ação conhecida
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > simula entrada por WhatsApp e confirma a refeição revisada
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > busca alimentos e prioriza favoritos
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > calcula indicadores de qualidade alimentar no dashboard e na semana
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > agrupa dashboard, semana e pesos por data local perto da meia-noite
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > concede badges saudáveis de consistência e permite desativar gamificação
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > permite editar alimento criado pelo usuário
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > calcula totais da refeição e totais do dia sem duplicar regra de soma
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > agrega progresso semanal com dias sem registro e comparação com meta ajustada
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > copia refeição anterior e reutiliza refeição favorita
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > analisa foto, permite corrigir sugestões e só cria refeição após confirmação
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > analisa foto, permite corrigir sugestões e só cria refeição após confirmação
+[ImageGeneration] OpenAI image generation failed; using local fallback image. 401 Incorrect API key provided: test-ope***-key. You can find your API key at https://platform.openai.com/account/api-keys.
+[ImageGeneration] Local fallback image was created but storage upload failed; sending buffer when possible. Storage credentials missing: configure R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_PUBLIC_BASE_URL, or set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/nutritionRouter.test.ts > nutrition router > permite rejeitar análise de foto sem criar refeição
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > permite rejeitar análise de foto sem criar refeição
+[ImageGeneration] OpenAI image generation failed; using local fallback image. 401 Incorrect API key provided: test-ope***-key. You can find your API key at https://platform.openai.com/account/api-keys.
+[ImageGeneration] Local fallback image was created but storage upload failed; sending buffer when possible. Storage credentials missing: configure R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_PUBLIC_BASE_URL, or set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > conecta, sincroniza e desconecta integração de saúde com origem dos dados
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > bloqueia dados de paciente sem consentimento e libera após aprovação com comentários
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_professional_coverage_loss: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > expõe o status do WhatsApp fixo e permite vincular o telefone de origem ao usuário autenticado
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > impede vincular o número oficial fixo da solução como telefone de usuário
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/nutritionRouter.test.ts > nutrition router > cria, lista e remove exercícios refletindo o saldo líquido diário e semanal
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > registra hidratação e não cria refeição quando a imagem tem apenas água com volume válido
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > converte litros para mililitros
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > registra água com gás como água pura
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > trata Água Mineral com Gás Crystal 500 ml como hidratação mesmo sem brand estruturada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > aceita outra marca embutida sem depender de lista fixa de marcas
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > aceita marca embutida no meio da gramática pelo caminho real da imagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > continua aceitando marca recebida no campo estruturado
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > resolve o volume pelo portionText quando quantity/unit não vierem estruturados
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > registra hidratação e refeição separadas quando há água e alimento na imagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não cria hidratação nem refeição quando a água aparece sem volume válido
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > soma volumes de mais de um recipiente de água em um único registro
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não trata água de coco como hidratação de água pura
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não trata sabor ou infusão inéditos como água pura mesmo com NOVA natural
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > faz evidência semântica negativa prevalecer mesmo quando todos os nomes parecem água pura
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não persiste hidratação quando representações aceitas contradizem o volume
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não trata água tônica nem água saborizada como hidratação de água pura
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > não confirma hidratação quando o registro de água falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.water.test.ts > whatsappWebhook image inbound - água como hidratação > é idempotente para o mesmo message.id
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > salva a imagem original e a anotada junto à refeição e devolve a anotada no WhatsApp
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > mantém a foto original e a resposta textual sem gerar ou persistir imagem anotada quando desabilitada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > mantém registro, foto original e texto quando a leitura da preferência falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > isola preferências habilitada e desabilitada entre dois usuários
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > consolida a foto na refeição lógica existente do mesmo dia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > envia por upload a imagem editada quando ela existe só em buffer
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > envia o card de fallback local quando houver buffer utilizável
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > mantém somente a resposta nutricional quando a imagem anotada não pode ser gerada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[WhatsAppAnnotatedImage] Local annotation failed without blocking the meal flow. { code: 'local_annotation_failed' }
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > responde com erro controlado quando a análise da imagem falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[WhatsAppAnnotatedImage] Image webhook processing failed. provider timeout
+
+stderr | server/whatsappAnnotatedImageWebhook.test.ts > handleWhatsAppWebhookWithTextIntent annotated image flow > usa o estado persistido ao responder uma refeição nova criada por imagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > processa um payload inbound realista de texto sem depender da Meta, de banco externo ou de token real
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > registra água como hidratação sem criar refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > registra peso atual sem criar refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > registra peso atual quando o texto vem como número seguido de peso
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > registra peso atual com variação de texto: '69.5 peso atual'
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > registra peso atual com variação de texto: 'peso atual 69,5'
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > processa áudio inbound com transcrição mockada e sem chamada externa real ao provider
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.smoke.test.ts > whatsappWebhook smoke > transcreve e registra áudio mesmo quando o storage da mídia falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/messageRouter.interactiveCallback.test.ts > messageRouter — resolução central de callbacks interativos (issues #782/#858) > seleção ambígua de item (issues #783/#858) > ajuste de gramas ambíguo com dois candidatos usa botões e aplica a opção escolhida
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/messageRouter.interactiveCallback.test.ts > messageRouter — resolução central de callbacks interativos (issues #782/#858) > seleção ambígua de item (issues #783/#858) > reentrega/clique duplo na mesma seleção só aplica a mutação uma vez
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/messageRouter.interactiveCallback.test.ts > messageRouter — resolução central de callbacks interativos (issues #782/#858) > autorização profissional por botões > autorizar por botão aplica a decisão uma única vez; repetir o clique não muda a decisão consumida
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > envia a imagem inline para a IA e persiste apenas a URL do storage
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > usa legenda da imagem como texto para preservar quantidade exata enviada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > persiste e responde com a mesma identidade e os mesmos nutrientes do produto com marca
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > envia imagem anotada quando o overlay local retorna URL
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > não envia imagem quando o overlay local falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[WhatsAppAnnotatedImage] Local annotation failed without blocking the meal flow. { code: 'local_annotation_failed' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > analisa e registra imagem mesmo quando o storage da mídia falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.image.test.ts > whatsappWebhook image inbound > ignora reentrega do mesmo wamid sem reenviar respostas nem criar refeição duplicada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappResponseBaseline.characterization.test.ts > Baseline do contrato de respostas do WhatsApp (issue #780) > imagem de refeição: fast path sem ack, sequência física ordenada e uma resposta gravada
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappResponseBaseline.characterization.test.ts > Baseline do contrato de respostas do WhatsApp (issue #780) > texto nutricional pelo fallback: fast path sem ack e gravação única
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappResponseBaseline.characterization.test.ts > Baseline do contrato de respostas do WhatsApp (issue #780) > água por texto: intent responde sem ack, registra hidratação uma vez e reentrega não repete efeitos
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/whatsappResponseBaseline.characterization.test.ts > Baseline do contrato de respostas do WhatsApp (issue #780) > solicitação informativa (peso sem valor): responde clarificação sem criar registro de domínio
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappResponseBaseline.characterization.test.ts > Baseline do contrato de respostas do WhatsApp (issue #780) > falha de envio: domínio executa uma vez, nada é gravado como resposta e a reentrega não reprocessa como refeição
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/billing/asaas/pixInitialPaymentCorrelation.test.ts > Asaas Pix Automático initial payment correlation > WEBHOOK-PERSIST-BEFORE-CORRELATION-001 rejects missing event identity with zero Pix mutation
+[Billing/Asaas] webhook rejected { error: 'asaas_webhook_missing_identity' }
+
+stderr | server/modules/whatsapp/service.test.ts > simulateWhatsappInbound > aplica correção clara de quantidade sem criar nova refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > executes real boundaries and observes retry, fallback, blocked cross-provider and deterministic no-call
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > reduz gramas usando nome parcial do item salvo com nome completo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > builds a sanitized report from measured observations and keeps production changes disabled
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > substitui quantidade usando alvo com pequeno erro de digitacao
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > pede esclarecimento com opcoes quando alvo generico de gramas e ambiguo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > mantem item claro pendente quando outro alvo do ajuste multiplo e ambiguo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > procura incremento em outra refeicao do mesmo dia quando nao encontra na ultima
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > mantem ambiguidade da ultima refeicao antes de procurar no restante do dia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > substitui alimento usando alvo parcial do item salvo com nome completo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > substitui alimento usando alvo com pequeno erro de digitacao
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > mantem troca clara pendente quando outra troca da mesma mensagem e ambigua
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > pede esclarecimento com opcoes quando substituicao tem alvo generico ambiguo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > substitui alimento em outra refeicao do mesmo dia quando nao encontra na ultima
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > encontra pera sem acento quando o item salvo usa acento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatcher.test.ts > executeWhatsappTextIntent meal item target matching > ajusta alvo generico quando existe apenas um candidato compativel
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > blocks promotion when a capability gate fails
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > rejects a report whose decisions or metrics differ from deterministic regeneration
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > rejects a report whose decisions or metrics differ from deterministic regeneration
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > rejects metadata that is not bound to the exact report bytes
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > runs the full smoke and emits an exact-head report for publication
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | scripts/issue-927-multi-provider-benchmark.test.ts > issue 927 executable multi-provider benchmark > runs the full smoke and emits an exact-head report for publication
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | server/whatsappPersistentContextWebhook.test.ts > WhatsApp persistent multichannel entrypoint > preserva texto, imagem e áudio entre reinícios e duas instâncias e deduplica reentregas
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappPersistentContextWebhook.test.ts > WhatsApp persistent multichannel entrypoint > preserva texto, imagem e áudio entre reinícios e duas instâncias e deduplica reentregas
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/whatsappPersistentContextWebhook.test.ts > WhatsApp persistent multichannel entrypoint > não repete domínio quando o envio da resposta falha depois da persistência
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > responde pela IA uma pergunta real com prefixo / e não processa refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > reconhece o prefixo / mesmo com espaços antes da barra
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > orienta o usuário quando a mensagem é apenas / ou barras sem conteúdo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > prevalece sobre confirmação pendente de reclassificação de refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > usa a resposta controlada quando a IA está indisponível ou falha, sem cair no fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > registra falha de envio sem reclassificar ou persistir a mensagem como refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > é idempotente para reentrega do mesmo message.id
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.aiQuestion.test.ts > handleWhatsAppWebhook slash AI question routing (webhook real) > mantém o fluxo alimentar normal para mensagens sem /
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/professionals/service.test.ts > professional profile > surfaces an explicit consistency error when compensation also fails
+[Database] professional_profile_upsert_compensation: Error: compensation unavailable
+
+stderr | server/modules/professionals/service.test.ts > professional access requests > keeps the approved status visible for both sides
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/service.test.ts > professional patient timezone > expõe somente a resolução temporal após autorização
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/professionals/service.test.ts > professional goal suggestions > creates a sent goal suggestion for an approved patient
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/service.test.ts > professional meal suggestions > creates a sent meal suggestion for an approved patient
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/service.test.ts > ended professional tracking > blocks patient data surfaces while preserving the separate audit history contract
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_professional_coverage_loss: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/entitlementService.test.ts > professional entitlement service > uses the open-mode fallback when the provider fails
+[Database] professional_entitlement_provider: Error: provider unavailable
+
+stderr | server/modules/professionals/entitlementService.test.ts > professional entitlement service > does not block patient revocation when central release is unavailable
+[Database] professional_capacity_reservation_release: Error: billing unavailable
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > processa decisão profissional antes dos fluxos de nutrição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > responde lista de refeições antes do LLM e do fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > normaliza comando curto de resumo antes do fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > mantem texto com verbo de registro explícito no fluxo nutricional sem chamar a camada LLM
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > encaminha mensagem ambígua sem verbo de registro para o LLM classificador
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.llm.test.ts > handleWhatsAppWebhookWithTextIntent com LLM contextual > encaminha pergunta nutricional para o LLM classificador sem registrar alimento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/contextualFoodReplacementIntent.test.ts > executeWhatsappContextualFoodReplacementIntent > substitui alimento encontrado em refeição recente que não é a última e envia resumo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/contextualFoodReplacementIntent.test.ts > executeWhatsappContextualFoodReplacementIntent > usa referência textual de primeira imagem para escolher a refeição correta
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/contextualFoodReplacementIntent.test.ts > executeWhatsappContextualFoodReplacementIntent > substitui o último alimento e aplica quantidade na mesma mensagem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/contextualFoodReplacementIntent.test.ts > executeWhatsappContextualFoodReplacementIntent > recalcula a correção completa do último alimento pelo fluxo canônico
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.mediaIntent.test.ts > handleWhatsAppWebhook media text intents > interpreta áudio transcrito como hidratação e não chama inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.mediaIntent.test.ts > handleWhatsAppWebhook media text intents > interpreta áudio transcrito como incremento de gramas e não chama inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.mediaIntent.test.ts > handleWhatsAppWebhook media text intents > mantém caption de imagem no fluxo multimodal normal
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.mediaIntent.test.ts > handleWhatsAppWebhook media text intents > mantém caption de imagem no fluxo multimodal normal
+[WhatsAppAnnotatedImage] Local annotation failed without blocking the meal flow. { code: 'local_annotation_failed' }
+
+stderr | server/whatsappWebhook.audioTranscription.test.ts > whatsappWebhook audio transcription failures > não chama processMealInput quando áudio puro falha na transcrição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.audioTranscription.test.ts > whatsappWebhook audio transcription failures > trata transcrição vazia de áudio puro como falha bloqueante
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.audioTranscription.test.ts > whatsappWebhook audio transcription failures > continua processando o texto quando texto e áudio chegam juntos e o áudio falha
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.audioTranscription.test.ts > whatsappWebhook audio transcription failures > roteia exclusao transcrita pelo gate destrutivo antes da inferencia nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/_core/imageAnnotation.test.ts > generateExternalImageAnnotation > does not send to a second provider when cross-provider is not explicitly enabled
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | server/whatsappMealIntentDecisionWebhook.issue899.test.ts > issue #899 — cadeia HTTP real da decisão consumo x sugestão > preserva 200 ml e registra uma única vez ao clicar Registrar
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappMealIntentDecisionWebhook.issue899.test.ts > issue #899 — cadeia HTTP real da decisão consumo x sugestão > preserva 200 ml e registra uma única vez ao clicar Registrar
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappMealIntentDecisionWebhook.issue899.test.ts > issue #899 — cadeia HTTP real da decisão consumo x sugestão > produz o mesmo efeito ao responder Registrar por texto
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappImageIdempotencyWebhook.test.ts > handleWhatsAppWebhookWithImageIdempotency > delegates the first image delivery and absorbs duplicate image retries
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappImageIdempotencyWebhook.test.ts > handleWhatsAppWebhookWithImageIdempotency > registra água quando imagem tem legenda com quantidade
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappImageIdempotencyWebhook.test.ts > handleWhatsAppWebhookWithImageIdempotency > não trata imagem sem legenda de água como hidratação e delega para o fluxo normal
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappImageIdempotencyWebhook.test.ts > handleWhatsAppWebhookWithImageIdempotency > deduplica calorias de exercícios Strava repetidos no contexto da meta do WhatsApp
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/issue858AuditRegressions.test.ts > regressões discriminantes da auditoria da issue #858 > transcrição dentro do escopo persistente resolve a pendência pelo gate antes dos parsers
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/issue858AuditRegressions.test.ts > regressões discriminantes da auditoria da issue #858 > Registrar alimento retoma o texto original quando ele já contém dados suficientes para uma clarificação específica
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/issue858AuditRegressions.test.ts > regressões discriminantes da auditoria da issue #858 > rótulo textual Registrar alimento resolve a pendência em vez de substituí-la como novo comando
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.delete.test.ts > handleWhatsAppWebhookWithTextIntent delete guard > bloqueia exclusao de refeicao antes de qualquer fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.delete.test.ts > handleWhatsAppWebhookWithTextIntent delete guard > roteia Excluir o Registrar pelo executor destrutivo no payload HTTP real
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.delete.test.ts > handleWhatsAppWebhookWithTextIntent delete guard > quando a Meta rejeita o componente interativo da confirmação, o transporte central envia fallback textual utilizável pelo webhook real (issue #859)
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.reply.test.ts > whatsappWebhook detailed replies > envia lista de alimentos com macronutrientes por item e comparação com a meta
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.reply.test.ts > whatsappWebhook detailed replies > usa os itens persistidos como fonte de verdade ao responder uma refeição nova
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/healthIntegrations/service.test.ts > healthIntegrationService Strava > importa atividades apenas quando a sincronização manual é chamada
+[TimeZone] Effective timezone fallback applied { reason: 'empty' }
+
+stderr | server/modules/healthIntegrations/service.test.ts > healthIntegrationService Strava > não duplica exercício e preserva calorias confiáveis já importadas
+[TimeZone] Effective timezone fallback applied { reason: 'empty' }
+
+stderr | server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts > meal item selection — ambiguidades encadeadas > não escreve na primeira escolha e aplica todas as ações somente após a última
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts > meal item selection — ambiguidades encadeadas > preserva a ordem original em ações sobre o mesmo item
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts > meal item selection — ambiguidades encadeadas > mantém a identidade após renomeação anterior do mesmo item
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/professionals/whatsappAuthorization.test.ts > professional WhatsApp authorization > envia autorização ao WhatsApp do paciente e aprova a resposta recebida
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/whatsapp/webhookMediaPipeline.issue924.test.ts > issue #924 WhatsApp transcription continuity > does not download, transcribe or mutate again for a duplicate callback
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > lista alimentos da refeição por label e data relativa de hoje usando o bloco central de item/total
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > lista alimentos da refeição por label e data relativa de ontem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > lista alimentos da última refeição explicitamente solicitada sem horário
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > lista comandos genéricos de alimentos agrupados por refeição do dia com totais atuais
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > trata 'o que comi hoje' como consulta de alimentos do dia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > retorna estado vazio para listagem genérica sem registros no dia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > pede esclarecimento quando não encontra a refeição solicitada
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealListIntent.test.ts > executeWhatsappMealListIntent > ignora textos que não pedem lista de alimentos
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > registra ajuste claro concluído sem ambiguidade pendente
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > registra ambiguidade em ajuste de gramas quando existem varios candidatos
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > ajusta item encontrado fora da última refeição e preserva o mealId correto
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > mantém ações claras pendentes quando ajuste múltiplo contém alvo ambíguo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > registra alvo e item escolhido em troca de alimento
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > registra ambiguidade em troca de alimento quando existem varios candidatos
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActionsTargetMatchDetails.test.ts > executeWhatsappTextIntent target matching details > mantém substituições claras pendentes quando a mesma mensagem contém ambiguidade
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.interactiveCallback.test.ts > webhook real: reconhece button_reply e resolve o callback central (issue #782) > pede confirmação por botões via texto e executa a exclusão ao receber o button_reply real do webhook
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.interactiveCallback.test.ts > webhook real: reconhece button_reply e resolve o callback central (issue #782) > reentrega do mesmo message.id de um clique não repete a exclusão
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/periodReportClarification.test.ts > clarificação interativa de período (issues #782/#784/#858) > seleção por lista resolve a pendência e responde com o resumo do período escolhido
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/periodReportClarification.test.ts > clarificação interativa de período (issues #782/#784/#858) > reentrega/clique duplo na mesma seleção retorna indisponível sem repetir a resolução
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/periodReportClarification.test.ts > clarificação interativa de período (issues #782/#784/#858) > callback de outro usuário não consome a pendência de período
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.mealList.test.ts > handleWhatsAppWebhookWithTextIntent meal list routing > responde consulta textual de alimentos sem cair no erro genérico de mídia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.mealList.test.ts > handleWhatsAppWebhookWithTextIntent meal list routing > responde consulta textual de alimentos sem cair no erro genérico de mídia
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappIntentWebhook.issue970.test.ts > issue #970 - webhook textual real > trata a frase original pela cadeia textual canônica sem fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.quantityCorrection.test.ts > executeWhatsappTextIntent short quantity correction > corrige item unico de 330ml para 600ml
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.quantityCorrection.test.ts > executeWhatsappTextIntent short quantity correction > corrige ultimo item compativel com frase nao e
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.quantityCorrection.test.ts > executeWhatsappTextIntent short quantity correction > pede confirmacao quando dois itens possuem 330ml
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.quantityCorrection.test.ts > executeWhatsappTextIntent short quantity correction > pede esclarecimento quando nao encontra item recente com 330ml
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/professionals/service.canonicalIntegration.test.ts > service.ts writes through to the canonical professional persistence > creates the canonical authorization when a request is sent and a canonical tracking on approval
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/service.canonicalIntegration.test.ts > service.ts writes through to the canonical professional persistence > pauses, resumes and ends tracking recording actor and reason, and stops after revocation
+[Database] billing_professional_coverage_confirmation: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_professional_coverage_loss: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/whatsappIntentWebhook.selection.test.ts > text webhook persisted delete selection > executa excluir chocolate -> o segundo -> sim somente após confirmação
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappUnknownFoodWebhook.test.ts > handleWhatsAppWebhookWithTextIntent unknown food reply > alimento inventado sem quantidade explícita passa pelo LLM classificador antes de desistir
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappUnknownFoodWebhook.test.ts > handleWhatsAppWebhookWithTextIntent unknown food reply > alimento inventado sem quantidade explícita passa pelo LLM classificador antes de desistir
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappUnknownFoodWebhook.test.ts > handleWhatsAppWebhookWithTextIntent unknown food reply > alimento com unidade de medida explícita é delegado ao fluxo nutricional sem passar pelo LLM
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappFoodAssistantWebhook.test.ts > handleWhatsAppWebhookWithTextIntent food assistant > responde orientação alimentar e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappFoodAssistantWebhook.test.ts > handleWhatsAppWebhookWithTextIntent food assistant > responde orientação alimentar e não delega para inferência nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappAudioHydrationWebhook.test.ts > whatsappWebhook audio hydration > registra hidratação transcrita do áudio e não cai na inferência de alimentos
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/interactionTransitionTelemetry.issue858.test.ts > telemetria de transição entre interações da issue #858 > preserva a nova pendência alimentar e registra a clarificação textual como origem consumida
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/interactionTransitionTelemetry.issue858.test.ts > telemetria de transição entre interações da issue #858 > preserva a nova pendência alimentar e registra o callback como origem consumida
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/whatsappWebhook.quantityExpressionClarification.test.ts > whatsappWebhook quantity expression clarification > responde com orientação clara e não registra refeição quando a conta da quantidade é inválida
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.netQuantity.test.ts > executeWhatsappTextIntent com quantidade liquida > registra alimento com conta de gramas sem cair no fallback nutricional
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.netQuantity.test.ts > executeWhatsappTextIntent com quantidade liquida > pede esclarecimento quando a conta resulta em zero ou negativo
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/interactionTextTelemetry.issue858.test.ts > telemetria textual das interações da issue #858 > marca resolução textual de período como consumed
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/mealContextContract.test.ts > issue #783 — bloco canônico de contexto da refeição > reutiliza o mesmo bloco na consulta da refeição
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/modules/whatsapp/intentActions.multipleItems.test.ts > executeWhatsappTextIntent multiple food additions > adiciona dois itens distintos com marcas ao jantar de ontem
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | scripts/issue-927-rollback-readiness.test.ts > issue 927 rollback readiness > publishes the rollback contract in every promotion decision
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+stderr | server/_core/imageGeneration.fallback.test.ts > generateImage fallback > gera uma imagem PNG local quando o provider de imagem não está configurado
+[ImageGeneration] OpenAI image generation is not configured; using local fallback image.
+
+stderr | server/modules/professionals/requestAccessPublicBoundary.integration.test.ts > nutrition.professionals.requestAccess public caller > keeps malformed input as a validation failure before target lookup
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+[Database] professional_entitlement_provider: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/professionals/requestAccessPublicBoundary.integration.test.ts > nutrition.professionals.requestAccess public caller > does not acknowledge requests from an inactive professional profile
+[Database] billing_entitlements: BillingPersistenceUnavailableError: A persistência de billing está temporariamente indisponível.
+
+stderr | server/modules/whatsapp/intentClarificationResumeSafety.issue858.test.ts > segurança da retomada Registrar alimento da issue #858 > não executa exclusão quando o texto original pertence a outro domínio
+[TimeZone] Effective timezone fallback applied { reason: 'profile_missing' }
+
+stderr | server/analyticsService.test.ts > AnalyticsService > does not throw when the provider fails
+[Analytics] Tracking skipped { event: 'meal_created', reason: 'provider unavailable' }
+
+stderr | client/src/components/ProfessionalLayout.test.tsx > ProfessionalLayout > keeps the patient shell and local state mounted while a different route entitlement is revalidated
+A component suspended inside an `act` scope, but the `act` call was not awaited. When testing React components that depend on asynchronous data, you must await the result:
+
+await act(() => ...)
+
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+[ImageAnnotation] External annotation failed without blocking the meal flow. { code: 'network' }
+
+  dist/index.js  2.7mb ⚠️
+
+⚡ Done in 125ms

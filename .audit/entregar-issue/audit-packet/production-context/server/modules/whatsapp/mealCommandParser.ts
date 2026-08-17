@@ -1,0 +1,590 @@
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
+import { normalizeWhatsAppIntentText, stripDiacritics } from "./webhookUtils";
+import { joinUnitWords } from "./quantityUnitVocabulary";
+
+export type MealCommandIntent =
+  | "add_items_to_meal"
+  | "replace_quantity"
+  | "correct_quantity"
+  | "remove_item"
+  | "replace_item"
+  | "update_brand"
+  | "unknown";
+
+export type ParsedMealCommandItem = {
+  foodName: string | null;
+  brand: string | null;
+  quantity: number | null;
+  unit: string | null;
+  confidence: number;
+  missingFields: string[];
+  quantityExpression?: {
+    leftQuantity: number;
+    rightQuantity: number;
+    operator: "-" | "+";
+    unit: string;
+    result: number;
+    raw: string;
+  };
+};
+
+export type ParsedMealCommand = {
+  intent: MealCommandIntent;
+  mealType: string | null;
+  date: Date | null;
+  items: ParsedMealCommandItem[];
+  previousQuantity?: number | null;
+  previousUnit?: string | null;
+  nextQuantity?: number | null;
+  nextUnit?: string | null;
+  confidence: number;
+  missingFields: string[];
+};
+
+export type MealCommandContext = {
+  referenceDate?: Date;
+  recentMealType?: string | null;
+  recentDate?: Date | null;
+  timeZone?: string;
+};
+const QUANTITY_UNIT_PATTERN = joinUnitWords([
+  "gramas",
+  "quilos",
+  "miligramas",
+  "mililitros",
+  "litros",
+  "unidades",
+  "fatias",
+  "colheresSopa",
+  "colheresCha",
+  "xicarasAccented",
+  "copos",
+  "doses",
+  "scoops",
+  "longNeck",
+  "latas",
+  "garrafas",
+  "porcoesAccented",
+]);
+const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
+const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
+const ADD_ITEMS_ACTION_PATTERN_SOURCE = "(?:adicionar|adiciona|adicione|incluir|inclui|inclua|colocar|coloca|coloque|registrar|registra|registre|acrescentar|acrescenta|acrescente|lan[cç]ar|lan[cç]a|lance)";
+const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|desjejum|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
+const MEAL_DESTINATION_PATTERN_SOURCE = `(?:${MEAL_PATTERN_SOURCE}|caf[eé])`;
+const MEAL_PREPOSITION_PATTERN_SOURCE = "(?:a|ao|à|no|na|para\\s+(?:o|a))";
+
+const MEAL_TYPES = [
+  "cafe da manha",
+  "café da manhã",
+  "desjejum",
+  "almoco",
+  "almoço",
+  "jantar",
+  "lanche da tarde",
+  "lanche",
+  "ceia",
+  "pre treino",
+  "pre-treino",
+  "pré treino",
+  "pré-treino",
+  "pos treino",
+  "pos-treino",
+  "pós treino",
+  "pós-treino",
+];
+
+const KNOWN_BRANDS = [
+  "Elma Chips",
+  "Budweiser",
+];
+
+type ParsedQuantity = {
+  quantity: number;
+  unit: string;
+  index: number;
+  raw: string;
+};
+
+type QuantityExpressionParseResult =
+  | {
+      kind: "valid";
+      quantity: number;
+      unit: string;
+      index: number;
+      raw: string;
+      expression: NonNullable<ParsedMealCommandItem["quantityExpression"]>;
+    }
+  | {
+      kind: "invalid";
+      index: number;
+      raw: string;
+      reason: "incompatible_units" | "missing_unit" | "non_positive_result";
+    };
+
+function emptyCommand(intent: MealCommandIntent, missingFields: string[] = []): ParsedMealCommand {
+  return {
+    intent,
+    mealType: null,
+    date: null,
+    items: [],
+    confidence: intent === "unknown" ? 0 : 0.55,
+    missingFields,
+  };
+}
+
+function normalizeText(value: string) {
+  return normalizeWhatsAppIntentText(value);
+}
+
+function normalizeSpaces(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function stripTrailingDate(value: string) {
+  return value.replace(/\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã])\s*$/i, "").trim();
+}
+
+function resolveCommandDate(input: string, context: MealCommandContext) {
+  const referenceDate = context.referenceDate ?? new Date();
+  const normalized = normalizeText(input);
+  const timeZone = context.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const referenceParts = getZonedParts(referenceDate, timeZone);
+
+  if (/\banteontem\b/.test(normalized)) {
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2), timeZone);
+  }
+  if (/\bontem\b/.test(normalized)) {
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1), timeZone);
+  }
+  if (/\bamanha\b/.test(normalized)) {
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, 1), timeZone);
+  }
+  if (/\bhoje\b/.test(normalized)) {
+    return referenceDate;
+  }
+
+  return context.recentDate ?? referenceDate;
+}
+
+function normalizeMealType(value: string) {
+  const normalized = normalizeText(value);
+  if (normalized === "cafe da manha" || normalized === "desjejum" || normalized === "cafe") {
+    return "café da manhã";
+  }
+  if (normalized === "almoco") {
+    return "almoço";
+  }
+  if (/^pre[\s-]?treino$/.test(normalized)) {
+    return "pré-treino";
+  }
+  if (/^pos[\s-]?treino$/.test(normalized)) {
+    return "pós-treino";
+  }
+  return normalized;
+}
+
+function hasShortCoffeeMealDestination(normalizedInput: string) {
+  const relativeDatePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?";
+  const destinationAtEnd = new RegExp(
+    `(?:^|\\s)(?:a|ao|no|na|para\\s+(?:o|a))\\s+(?:refeicao\\s+)?cafe${relativeDatePattern}\\s*[.,;:!?-]*\\s*$`,
+    "i",
+  );
+  const destinationBeforeAction = new RegExp(
+    `^cafe\\s*[,;:]\\s*${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b`,
+    "i",
+  );
+  const destinationAfterAction = new RegExp(
+    `\\b${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b\\s+cafe\\s*[:;,]`,
+    "i",
+  );
+  return destinationAtEnd.test(normalizedInput)
+    || destinationBeforeAction.test(normalizedInput)
+    || destinationAfterAction.test(normalizedInput);
+}
+
+function findMealType(input: string, context: MealCommandContext) {
+  const normalized = normalizeText(input);
+  const mealType = MEAL_TYPES.find(candidate => normalized.includes(normalizeText(candidate)));
+  if (mealType) {
+    return normalizeMealType(mealType);
+  }
+  if (hasShortCoffeeMealDestination(normalized)) {
+    return "café da manhã";
+  }
+  return context.recentMealType ?? null;
+}
+
+function normalizeUnit(unit: string) {
+  return normalizeMeasurementUnit(stripDiacritics(unit));
+}
+
+function parseDecimalQuantity(value: string) {
+  const normalized = normalizeText(value);
+  if (normalized === "um" || normalized === "uma") {
+    return 1;
+  }
+  return Number(value.replace(",", "."));
+}
+
+function parseQuantity(value: string): ParsedQuantity | null {
+  const match = value.match(new RegExp(`(${QUANTITY_VALUE_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
+  if (!match) {
+    return null;
+  }
+
+  return {
+    quantity: parseDecimalQuantity(match[1]),
+    unit: normalizeUnit(match[2]),
+    index: match.index ?? 0,
+    raw: match[0],
+  };
+}
+
+function parseUnitlessLeadingQuantity(value: string): ParsedQuantity | null {
+  const match = value.match(new RegExp(`^\\s*(${QUANTITY_VALUE_PATTERN})\\b(?!\\s*(?:${QUANTITY_UNIT_PATTERN})\\b)`, "i"));
+  if (!match) {
+    return null;
+  }
+
+  return {
+    quantity: parseDecimalQuantity(match[1]),
+    unit: "unidade",
+    index: match.index ?? 0,
+    raw: match[0],
+  };
+}
+
+function unitsAreCompatible(firstUnit: string, secondUnit: string) {
+  return normalizeUnit(firstUnit) === normalizeUnit(secondUnit);
+}
+
+function parseQuantityExpression(value: string): QuantityExpressionParseResult | null {
+  const expressionPattern = new RegExp(
+    `(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})?\\s*([-+])\\s*(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})?\\b`,
+    "i",
+  );
+  const match = value.match(expressionPattern);
+  if (!match) {
+    return null;
+  }
+
+  const leftQuantity = parseDecimalQuantity(match[1]);
+  const rightQuantity = parseDecimalQuantity(match[4]);
+  const leftUnit = match[2] ? normalizeUnit(match[2]) : null;
+  const rightUnit = match[5] ? normalizeUnit(match[5]) : null;
+  const raw = match[0];
+  const index = match.index ?? 0;
+  const unit = leftUnit ?? rightUnit;
+
+  if (!unit) {
+    return { kind: "invalid", index, raw, reason: "missing_unit" };
+  }
+  if (leftUnit && rightUnit && !unitsAreCompatible(leftUnit, rightUnit)) {
+    return { kind: "invalid", index, raw, reason: "incompatible_units" };
+  }
+
+  const result = match[3] === "-"
+    ? leftQuantity - rightQuantity
+    : leftQuantity + rightQuantity;
+  if (!Number.isFinite(result) || result <= 0) {
+    return { kind: "invalid", index, raw, reason: "non_positive_result" };
+  }
+
+  return {
+    kind: "valid",
+    quantity: Number(result.toFixed(3)),
+    unit,
+    index,
+    raw,
+    expression: {
+      leftQuantity,
+      rightQuantity,
+      operator: match[3] as "-" | "+",
+      unit,
+      result: Number(result.toFixed(3)),
+      raw,
+    },
+  };
+}
+
+function detectBrand(foodName: string) {
+  return KNOWN_BRANDS.find(brand => normalizeText(foodName).includes(normalizeText(brand))) ?? null;
+}
+
+function removeBrand(foodName: string, brand: string | null) {
+  if (!brand) {
+    return foodName;
+  }
+
+  return normalizeSpaces(foodName.replace(new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), ""));
+}
+
+function cleanFoodName(value: string) {
+  return normalizeSpaces(
+    stripTrailingDate(value)
+      .replace(new RegExp(`^${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*[,;:]?\\s*`, "i"), "")
+      .replace(/^(?:de|do|da|dos|das)\s+/i, "")
+      .replace(/[.,;:!?]+$/g, ""),
+  );
+}
+
+function buildItem(
+  foodNameInput: string,
+  quantity: number | null,
+  unit: string | null,
+  quantityExpression?: ParsedMealCommandItem["quantityExpression"],
+): ParsedMealCommandItem {
+  const rawFoodName = cleanFoodName(foodNameInput);
+  const brand = detectBrand(rawFoodName);
+  const foodName = removeBrand(rawFoodName, brand) || rawFoodName || null;
+  const missingFields = [
+    ...(foodName ? [] : ["foodName"]),
+    ...(quantity ? [] : ["quantity"]),
+    ...(unit ? [] : ["unit"]),
+  ];
+
+  return {
+    foodName,
+    brand,
+    quantity,
+    unit,
+    confidence: missingFields.length ? 0.55 : brand ? 0.88 : quantityExpression ? 0.9 : 0.82,
+    missingFields,
+    ...(quantityExpression ? { quantityExpression } : {}),
+  };
+}
+
+function splitItemParts(value: string) {
+  return value
+    .split(/\s*[;]\s*|\s*(?<!\d),(?!\d)\s*|\s+\be\s+(?=\d)/i)
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function buildItemFromPart(part: string) {
+  const quantityExpression = parseQuantityExpression(part);
+  if (quantityExpression) {
+    const foodName = normalizeSpaces(`${part.slice(0, quantityExpression.index)} ${part.slice(quantityExpression.index + quantityExpression.raw.length)}`);
+    if (quantityExpression.kind === "valid") {
+      return buildItem(foodName, quantityExpression.quantity, quantityExpression.unit, quantityExpression.expression);
+    }
+    return buildItem(foodName, null, null);
+  }
+
+  const quantity = parseQuantity(part) ?? parseUnitlessLeadingQuantity(part);
+  if (!quantity) {
+    return buildItem(part, null, null);
+  }
+  const foodName = normalizeSpaces(`${part.slice(0, quantity.index)} ${part.slice(quantity.index + quantity.raw.length)}`);
+  return buildItem(foodName, quantity.quantity, quantity.unit);
+}
+
+function parseAddItemsCommand(input: string, context: MealCommandContext): ParsedMealCommand | null {
+  const actionMatch = input.match(new RegExp(`\\b${ADD_ITEMS_ACTION_PATTERN_SOURCE}\\b`, "i"));
+  if (!actionMatch) {
+    return null;
+  }
+
+  const mealType = findMealType(input, context);
+  const date = resolveCommandDate(input, context);
+  const afterAction = input.slice((actionMatch.index ?? 0) + actionMatch[0].length);
+  const datePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?";
+  const mealPrefixPattern = `${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}${datePattern}`;
+  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)(?:\\s*[,;-]\\s*|\\s+)${mealPrefixPattern}\\s*$`, "i"));
+  const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:-]\\s*|\\s+)(.+)$`, "i"))
+    ?? afterAction.match(new RegExp(`^\\s*${MEAL_PATTERN_SOURCE}${datePattern}\\s*[:;,]\\s*(.+)$`, "i"))
+    ?? afterAction.match(/^\s*caf[eé]\s*[:;,]\s*(.+)$/i);
+  const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
+  const items = splitItemParts(itemsText).map(buildItemFromPart);
+  const missingFields = [
+    ...(mealType ? [] : ["mealType"]),
+    ...(items.length ? [] : ["items"]),
+  ];
+
+  return {
+    intent: "add_items_to_meal",
+    mealType,
+    date,
+    items,
+    confidence: missingFields.length || items.some(item => item.missingFields.length) ? 0.62 : 0.86,
+    missingFields,
+  };
+}
+
+function parseQuantityReplacement(input: string): ParsedMealCommand | null {
+  const quantityPattern = `(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})`;
+  const swapMatch = input.match(new RegExp(`\\b(?:trocar|troque|troca|mudar|alterar|corrigir)\\b\\s+${quantityPattern}\\s+(?:por|para)\\s+${quantityPattern}\\b`, "i"));
+  if (swapMatch) {
+    return {
+      ...emptyCommand("replace_quantity"),
+      previousQuantity: parseDecimalQuantity(swapMatch[1]),
+      previousUnit: normalizeUnit(swapMatch[2]),
+      nextQuantity: parseDecimalQuantity(swapMatch[3]),
+      nextUnit: normalizeUnit(swapMatch[4]),
+      confidence: 0.84,
+      missingFields: [],
+    };
+  }
+
+  const notThenCorrectMatch = input.match(new RegExp(`\\bn[aã]o\\s+(?:é|e|era)\\s+${quantityPattern}\\s*(?:,?\\s*)?(?:é|e|era)\\s+${quantityPattern}\\b`, "i"));
+  if (notThenCorrectMatch) {
+    return {
+      ...emptyCommand("correct_quantity"),
+      previousQuantity: parseDecimalQuantity(notThenCorrectMatch[1]),
+      previousUnit: normalizeUnit(notThenCorrectMatch[2]),
+      nextQuantity: parseDecimalQuantity(notThenCorrectMatch[3]),
+      nextUnit: normalizeUnit(notThenCorrectMatch[4]),
+      confidence: 0.84,
+      missingFields: [],
+    };
+  }
+
+  const correctThenNotMatch = input.match(new RegExp(`\\bera\\s+${quantityPattern}\\s*,?\\s*n[aã]o\\s+${quantityPattern}\\b`, "i"));
+  if (correctThenNotMatch) {
+    return {
+      ...emptyCommand("correct_quantity"),
+      previousQuantity: parseDecimalQuantity(correctThenNotMatch[3]),
+      previousUnit: normalizeUnit(correctThenNotMatch[4]),
+      nextQuantity: parseDecimalQuantity(correctThenNotMatch[1]),
+      nextUnit: normalizeUnit(correctThenNotMatch[2]),
+      confidence: 0.84,
+      missingFields: [],
+    };
+  }
+
+  return null;
+}
+
+function parseShortQuantityCorrection(input: string, context: MealCommandContext): ParsedMealCommand | null {
+  const match = input.match(new RegExp(`\\b(?:corrigir\\s+para|corrija\\s+para|ajustar\\s+para|ajuste\\s+para)\\s+(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
+  if (!match) {
+    return null;
+  }
+
+  return {
+    ...emptyCommand("correct_quantity"),
+    mealType: context.recentMealType ?? null,
+    date: context.recentDate ?? context.referenceDate ?? null,
+    nextQuantity: parseDecimalQuantity(match[1]),
+    nextUnit: normalizeUnit(match[2]),
+    confidence: context.recentMealType || context.recentDate ? 0.74 : 0.66,
+    missingFields: ["previousQuantity"],
+  };
+}
+
+function parseItemReplacement(input: string): ParsedMealCommand | null {
+  const match = input.match(/\b(?:trocar|troque|troca|substituir|substitua|mudar|alterar)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i)
+    ?? input.match(/\bn[aã]o\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
+  if (!match || /\d/.test(match[1]) || /\d/.test(match[2])) {
+    return null;
+  }
+
+  return {
+    ...emptyCommand("replace_item"),
+    items: [buildItem(match[2], null, null)],
+    confidence: 0.72,
+    missingFields: [],
+  };
+}
+
+function parseRemoveItem(input: string): ParsedMealCommand | null {
+  const match = input.match(/\b(?:remover|remove|remova|tirar|tira|excluir|exclui)\b\s+(?:o|a|os|as|de|do|da)?\s*(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    ...emptyCommand("remove_item"),
+    items: [buildItem(match[1], null, null)],
+    confidence: 0.68,
+    missingFields: [],
+  };
+}
+
+/**
+ * Reconhece adições implícitas de alimento quando a mensagem contém uma
+ * expressão aritmética de porção (ex: "120g - 30g") junto de um tipo de
+ * refeição, mas SEM verbo de ação explícito.
+ *
+ * Exemplos cobertos:
+ *   "120g - 30g frango ao almoço"         → 90g de frango no almoço
+ *   "frango 120g - 30g no jantar"          → 90g de frango no jantar
+ *   "150g + 50g de arroz no almoço"        → 200g de arroz no almoço
+ *
+ * Exige obrigatoriamente:
+ *   1. Uma expressão aritmética válida (resultado > 0, unidades compatíveis)
+ *   2. Um tipo de refeição identificável na mensagem
+ *
+ * Sem o tipo de refeição a mensagem é ambígua (pode ser correção de item
+ * existente) e deve ser tratada por outro handler ou pelo LLM.
+ */
+function parseImplicitFoodAdditionCommand(input: string, context: MealCommandContext): ParsedMealCommand | null {
+  const mealType = findMealType(input, context);
+  if (!mealType) return null;
+
+  const quantityExpression = parseQuantityExpression(input);
+  if (!quantityExpression || quantityExpression.kind !== "valid") return null;
+
+  // Extrai o nome do alimento removendo a expressão aritmética e o tipo de refeição
+  const withoutExpression = normalizeSpaces(
+    `${input.slice(0, quantityExpression.index)} ${input.slice(quantityExpression.index + quantityExpression.raw.length)}`,
+  );
+  const withoutMeal = normalizeSpaces(
+    withoutExpression
+      .replace(new RegExp(`\\s*${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
+      .replace(new RegExp(`${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*`, "i"), " "),
+  );
+  const foodNameRaw = cleanFoodName(withoutMeal);
+  if (!foodNameRaw) return null;
+
+  const date = resolveCommandDate(input, context);
+  const item = buildItem(foodNameRaw, quantityExpression.quantity, quantityExpression.unit, quantityExpression.expression);
+
+  return {
+    intent: "add_items_to_meal",
+    mealType,
+    date,
+    items: [item],
+    confidence: item.missingFields.length ? 0.62 : 0.88,
+    missingFields: item.missingFields.length ? ["foodName"] : [],
+  };
+}
+
+function parseBrandUpdate(input: string): ParsedMealCommand | null {
+  const match = input.match(/\b(?:marca|brand)\b\s+(?:é|e|para|correta\s+é)\s+(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    ...emptyCommand("update_brand"),
+    items: [{
+      foodName: null,
+      brand: normalizeSpaces(match[1]),
+      quantity: null,
+      unit: null,
+      confidence: 0.7,
+      missingFields: ["foodName"],
+    }],
+    confidence: 0.7,
+    missingFields: ["foodName"],
+  };
+}
+
+export function parseMealCommandFromWhatsApp(input: string, context: MealCommandContext = {}): ParsedMealCommand {
+  const text = normalizeSpaces(input);
+  if (!text) {
+    return emptyCommand("unknown", ["intent"]);
+  }
+
+  return parseAddItemsCommand(text, context)
+    ?? parseQuantityReplacement(text)
+    ?? parseShortQuantityCorrection(text, context)
+    ?? parseRemoveItem(text)
+    ?? parseItemReplacement(text)
+    ?? parseImplicitFoodAdditionCommand(text, context)
+    ?? parseBrandUpdate(text)
+    ?? emptyCommand("unknown", ["intent"]);
+}

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const workflowPath = resolve(process.cwd(), ".github/workflows/ai-provider-live-smoke.yml");
 const smokeScriptPath = resolve(process.cwd(), "scripts/issue-923-live-provider-smoke.ts");
-const catalogSearchPath = resolve(process.cwd(), "server/catalogSemanticSearch.ts");
+const brandedNutritionSearchPath = resolve(process.cwd(), "server/brandedNutritionSearch.ts");
 
 function readWorkflow() {
   return readFileSync(workflowPath, "utf8");
@@ -14,8 +14,8 @@ function readSmokeScript() {
   return readFileSync(smokeScriptPath, "utf8");
 }
 
-function readCatalogSearch() {
-  return readFileSync(catalogSearchPath, "utf8");
+function readBrandedNutritionSearch() {
+  return readFileSync(brandedNutritionSearchPath, "utf8");
 }
 
 describe("issue 923 live-provider smoke security boundary", () => {
@@ -99,17 +99,16 @@ describe("issue 923 live-provider smoke security boundary", () => {
   });
 
   it("keeps the production path single-attempt and rejects source-less results", () => {
-    const catalogSearch = readCatalogSearch();
-    const start = catalogSearch.indexOf("export async function findPackagedSnackByWebSearch");
-    const end = catalogSearch.indexOf("function cosineSimilarity", start);
-    const productionBlock = catalogSearch.slice(start, end);
+    const brandedSearch = readBrandedNutritionSearch();
+    const start = brandedSearch.indexOf("export async function findBrandedNutritionByWebSearch");
+    const productionBlock = brandedSearch.slice(start);
 
     expect(start).toBeGreaterThan(0);
-    expect(end).toBeGreaterThan(start);
+    expect(productionBlock.match(/resolveCapabilityConfig\(/g)).toHaveLength(1);
     expect(productionBlock.match(/executeResolvedCapability\(/g)).toHaveLength(1);
     expect(productionBlock.match(/createDomainTextResponse\(/g)).toHaveLength(1);
     expect(productionBlock).not.toMatch(/\bfor\s*\(|\bwhile\s*\(/);
-    expect(catalogSearch).toContain("if (!sourceUrl || !evidence) return null;");
-    expect(catalogSearch).toContain("const sourceUrl = findVerifiedNutritionSource");
+    expect(brandedSearch).toContain("if (!sourceUrl || !result.evidence.trim()) return null;");
+    expect(brandedSearch).toContain("const sourceUrl = findVerifiedSource(webSearch, foodName, result);");
   });
 });

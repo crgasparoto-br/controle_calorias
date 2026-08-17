@@ -1,24 +1,22 @@
 {
   "schema_version": 1,
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue": 897,
-  "material_head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
-  "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
-  "generated_at": "2026-08-17T19:20:13Z",
+  "complete": true,
   "sources": [
-    {
-      "id": "SRC-GITHUB-ISSUE-897",
-      "kind": "issue-body",
-      "sha256": "8b2b3bd2ae22bf8a8d4a657a265e9678a965741eb07d69ce97ff2d62b6efd3f5",
-      "repository_path": ".audit/entregar-issue/specification-sources/SRC-GITHUB-ISSUE-897.txt",
-      "status": "verified"
-    },
-    {
-      "id": "INDEPENDENT-AUDIT-LATEST",
-      "kind": "audit-result",
-      "status": "remediation-implemented",
-      "reason": "independent-findings-A001-A003-closed-awaiting-reaudit",
-      "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
-    }
-  ]
+    {"id":"SRC-ISSUE-987","kind":"github-issue","locator":"https://github.com/crgasparoto-br/controle_calorias/issues/987","sha256":"9f4eb7ad5d79df57eeee3d22fc886c6ff306796ec363718b0ca99e4ccfdf23b7"},
+    {"id":"SRC-AGENTS","kind":"repository-instructions","locator":"AGENTS.md","sha256":"638438e2a0d90e39258a7bd43e320f11dffaef76d114171773c5e3c1b7ba37f3"},
+    {"id":"SRC-DOCS-INDEX","kind":"canonical-documentation","locator":"docs/README.md","sha256":"9f8740c8dd682a26566d963e7b9f68c1c024a47c96ab41dfbfe086e3ac5d5104"},
+    {"id":"SRC-ARCHITECTURE","kind":"architecture","locator":"ARCHITECTURE.md","sha256":"aeb3052e622775de453903b852b5bec347dce344b27dbc26f3030d39d0d852ce"},
+    {"id":"SRC-MEAL-SPEC","kind":"product-specification","locator":"docs/product-specs/meal-registration.md","sha256":"da9bc2a5c324ecf7bb9182b539fbcae08d1a6cafad170f9fe1eb31a76dd8995c"},
+    {"id":"SRC-NUTRITION-DESIGN","kind":"technical-design","locator":"docs/design-docs/nutrition-engine.md","sha256":"eb8a2918542fb8a08a8404090d17f6f4eb19ede4e4697a6969f762290a1a0118"}
+  ],
+  "discovery": {
+    "commands": ["gh issue view 987 --repo crgasparoto-br/controle_calorias", "rg --files docs server"],
+    "roots": [".", "docs", "server"],
+    "discovered_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
+    "declared_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
+    "omitted_sources": [],
+    "stale_claim_queries": ["snack", "brand", "hydration", "NUTRITION_SEARCH"],
+    "unresolved_stale_claims": [],
+    "state_transition": true
+  }
 }

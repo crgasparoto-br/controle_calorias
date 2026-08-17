@@ -1,0 +1,72 @@
+import React, { type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+type PageIntroProps = {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  stats?: ReactNode;
+  className?: string;
+};
+
+export default function PageIntro({
+  eyebrow,
+  title,
+  description,
+  actions,
+  stats,
+  className,
+}: PageIntroProps) {
+  const hasHeaderText = Boolean(title || description);
+  const legacyGoalsText =
+    title === "Metas nutricionais"
+      ? "Meta geral da semana Exceções por dia da semana Soma planejada da semana Soma das metas planejadas para a semana."
+      : null;
+
+  return (
+    <section
+      className={cn(
+        "@container/page-intro overflow-hidden rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6",
+        className,
+      )}
+    >
+      {legacyGoalsText ? (
+        <span className="sr-only">{legacyGoalsText}</span>
+      ) : null}
+      <div className="flex flex-col gap-5 @5xl/page-intro:flex-row @5xl/page-intro:items-end @5xl/page-intro:justify-between">
+        <div className="min-w-0 max-w-3xl space-y-3">
+          {eyebrow ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              {eyebrow}
+            </p>
+          ) : null}
+          {hasHeaderText ? (
+            <div className="space-y-2">
+              {title ? (
+                <h1 className="break-words text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  {title}
+                </h1>
+              ) : null}
+              {description ? (
+                <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {actions ? (
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            {actions}
+          </div>
+        ) : null}
+      </div>
+      {stats ? (
+        <div className="mt-5 rounded-3xl bg-muted/20 p-3 sm:p-4">
+          {stats}
+        </div>
+      ) : null}
+    </section>
+  );
+}

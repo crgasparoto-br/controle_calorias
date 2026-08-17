@@ -1,0 +1,474 @@
+import { z } from "zod";
+import { goalSchema } from "../goals/schemas";
+import { boundedReportDateRangeSchema } from "../insights/schemas";
+
+const patientContactSchema = z
+  .string()
+  .trim()
+  .min(3, "Informe o e-mail ou celular do paciente.")
+  .max(320);
+const professionalSuggestionStatusSchema = z.enum([
+  "draft",
+  "sent",
+  "accepted",
+  "refused",
+  "cancelled",
+]);
+const optionalRecordText = z.string().trim().max(4000).optional();
+const dateKeySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data no formato AAAA-MM-DD.")
+  .refine(value => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    );
+  }, "Informe uma data de vigência válida.");
+
+export const professionalProfileSchema = z.object({
+  displayName: z.string().trim().min(2).max(120),
+  registrationNumber: z.string().trim().min(2).max(80).optional(),
+  active: z.boolean().default(true),
+});
+
+export const requestPatientAccessSchema = z
+  .object({
+    patientContact: patientContactSchema.optional(),
+    patientEmail: z
+      .string()
+      .trim()
+      .email("Informe um e-mail válido do paciente.")
+      .optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine(input => Boolean(input.patientContact || input.patientEmail), {
+    message: "Informe o e-mail ou celular do paciente.",
+    path: ["patientContact"],
+  });
+
+export const accessIdSchema = z.object({ accessId: z.string().min(1) });
+
+export const professionalTrackingTransitionSchema = accessIdSchema.extend({
+  status: z.enum(["active", "paused", "ended"]),
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const patientIdSchema = z.object({
+  patientId: z.number().int().positive(),
+  weekOffset: z.number().int().optional().default(0),
+});
+
+export const professionalRecordSchema = z.object({
+  patientId: z.number().int().positive(),
+  page: z.number().int().min(1).optional().default(1),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+
+const professionalRecordTimestampSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .nullable();
+const professionalRecordPatientSchema = z
+  .object({
+    id: z.number().int().positive(),
+    authorizationId: z.string().min(1).optional(),
+    name: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    authorizationStatus: z.literal("approved"),
+    trackingStatus: z.enum(["not_started", "active", "paused", "ended"]),
+  })
+  .strict();
+const professionalAssessmentSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    version: z.number().int().positive(),
+    objective: z.string(),
+    assessedAt: professionalRecordTimestampSchema,
+    nextReviewAt: professionalRecordTimestampSchema,
+    createdAt: professionalRecordTimestampSchema,
+    authorName: z.string(),
+  })
+  .strict();
+
+export const professionalRecordOutputSchema = z
+  .object({
+    patient: professionalRecordPatientSchema,
+    latestAssessment: professionalAssessmentSummarySchema
+      .extend({
+        weightKg: z.number().nullable(),
+        heightCm: z.number().nullable(),
+        routineAndSchedule: z.string().nullable(),
+        physicalActivity: z.string().nullable(),
+        foodPreferences: z.string().nullable(),
+        restrictionsAndAllergies: z.string().nullable(),
+        reportedDifficulties: z.string().nullable(),
+        relevantHabits: z.string().nullable(),
+        professionalObservations: z.string().nullable(),
+      })
+      .nullable(),
+    assessmentHistory: z.array(professionalAssessmentSummarySchema),
+    notes: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          content: z.string(),
+          createdAt: professionalRecordTimestampSchema,
+          updatedAt: professionalRecordTimestampSchema,
+          authorName: z.string(),
+        })
+        .strict()
+    ),
+    guidances: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          version: z.number().int().positive(),
+          title: z.string(),
+          content: z.string(),
+          visibility: z.string(),
+          deliveryStatus: z.string(),
+          authorName: z.string(),
+          supersedesGuidanceId: z.string().nullable(),
+          createdAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    timeline: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          eventType: z.string().min(1),
+          label: z.string().min(1),
+          occurredAt: professionalRecordTimestampSchema,
+        })
+        .strict()
+    ),
+    pagination: z
+      .object({
+        page: z.number().int().positive(),
+        pageSize: z.number().int().positive(),
+        totals: z
+          .object({
+            assessments: z.number().int().nonnegative(),
+            notes: z.number().int().nonnegative(),
+            guidances: z.number().int().nonnegative(),
+            timeline: z.number().int().nonnegative(),
+          })
+          .strict(),
+        hasMore: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const professionalAssessmentSchema = z.object({
+  patientId: z.number().int().positive(),
+  objective: z.string().trim().min(3).max(4000),
+  weightKg: z.number().positive().max(700).optional(),
+  heightCm: z.number().positive().max(300).optional(),
+  routineAndSchedule: optionalRecordText,
+  physicalActivity: optionalRecordText,
+  foodPreferences: optionalRecordText,
+  restrictionsAndAllergies: optionalRecordText,
+  reportedDifficulties: optionalRecordText,
+  relevantHabits: optionalRecordText,
+  professionalObservations: optionalRecordText,
+  assessedAt: z.number().int().positive(),
+  nextReviewAt: z.number().int().positive().optional(),
+});
+
+export const professionalNoteSchema = z.object({
+  patientId: z.number().int().positive(),
+  content: z.string().trim().min(1).max(8000),
+});
+
+export const professionalGuidanceSchema = z.object({
+  patientId: z.number().int().positive(),
+  title: z.string().trim().min(3).max(160),
+  content: z.string().trim().min(3).max(8000),
+  deliveryStatus: z
+    .enum(["draft", "pending", "sent", "failed"])
+    .default("draft"),
+  supersedesGuidanceId: z.string().min(1).optional(),
+});
+
+export const professionalMessageTypeSchema = z.enum([
+  "guidance",
+  "reminder",
+  "weigh_in_request",
+  "record_request",
+  "administrative",
+  "follow_up_summary",
+]);
+export const professionalMessageOriginSchema = z.enum([
+  "automatic",
+  "ai_suggested",
+  "professional",
+]);
+export const professionalMessageStateSchema = z.enum([
+  "draft",
+  "pending",
+  "sent",
+  "failed",
+  "received",
+]);
+export const professionalMessageListSchema = z.object({
+  patientId: z.number().int().positive().optional(),
+  search: z.string().trim().max(160).optional(),
+  state: professionalMessageStateSchema.optional(),
+  cursor: z
+    .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
+    .optional(),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+export const professionalMessageCreateSchema = z.object({
+  patientId: z.number().int().positive(),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Escreva a mensagem antes de salvar.")
+    .max(8000),
+  messageType: professionalMessageTypeSchema,
+  origin: professionalMessageOriginSchema.default("professional"),
+  action: z
+    .enum(["save_draft", "send_web", "send_whatsapp"])
+    .default("save_draft"),
+  idempotencyKey: z.string().trim().min(8).max(191),
+  relatedGuidanceId: z.string().uuid().optional(),
+  supersedesMessageId: z.string().uuid().optional(),
+});
+export const professionalMessageRetrySchema = z.object({
+  messageId: z.string().uuid(),
+});
+export const patientProfessionalMessageListSchema = z.object({
+  cursor: z
+    .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
+    .optional(),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+
+export const professionalOfficialGoalSchema = z.object({
+  patientId: z.number().int().positive(),
+  expectedVersion: z.number().int().positive().optional(),
+  effectiveFrom: dateKeySchema,
+  justification: z.string().trim().min(3).max(2000),
+  goal: goalSchema.omit({ startDate: true }),
+});
+
+export const professionalGoalNotificationRetrySchema = z.object({
+  goalId: z.string().uuid(),
+});
+
+export const patientProfessionalGoalReviewSchema = z.object({
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const patientAdoptProfessionalGoalSchema = z.object({
+  goalId: z.string().uuid(),
+});
+
+export const professionalPortfolioSchema = z
+  .object({
+    search: z.string().trim().max(160).optional().default(""),
+    authorizationStatus: z
+      .enum(["all", "pending", "approved", "rejected", "revoked"])
+      .optional()
+      .default("all"),
+    trackingStatus: z
+      .enum(["all", "not_started", "active", "paused", "ended"])
+      .optional()
+      .default("all"),
+    activity: z
+      .enum(["all", "recent", "inactive", "unavailable"])
+      .optional()
+      .default("all"),
+    reportRecords: z
+      .enum(["all", "with_records", "without_records"])
+      .optional()
+      .default("all"),
+    nextReview: z
+      .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+      .optional()
+      .default("all"),
+    nextWeighing: z
+      .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+      .optional()
+      .default("all"),
+    page: z.number().int().min(1).optional().default(1),
+    pageSize: z.number().int().min(10).max(50).optional().default(20),
+    reportStartDate: dateKeySchema.optional(),
+    reportEndDate: dateKeySchema.optional(),
+    includeHistoricalActivity: z.boolean().optional().default(true),
+  })
+  .refine(
+    input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate),
+    {
+      message: "Informe o início e o fim do período da carteira.",
+    }
+  )
+  .refine(
+    input =>
+      input.reportRecords === "all" ||
+      Boolean(input.reportStartDate && input.reportEndDate),
+    {
+      message: "Informe o período usado para filtrar os registros.",
+      path: ["reportRecords"],
+    }
+  )
+  .refine(
+    input =>
+      !input.reportStartDate ||
+      !input.reportEndDate ||
+      input.reportStartDate <= input.reportEndDate,
+    {
+      message: "O fim do período deve ser igual ou posterior ao início.",
+    }
+  )
+  .refine(
+    input => {
+      if (!input.reportStartDate || !input.reportEndDate) return true;
+      const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+      const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+      return (end.getTime() - start.getTime()) / 86_400_000 + 1 <= 90;
+    },
+    { message: "Escolha um período de até 90 dias." }
+  );
+
+export const professionalPortfolioReportSchema = z
+  .object({
+    block: z.enum(["activity", "schedule", "tracking"]),
+    reportStartDate: dateKeySchema.optional(),
+    reportEndDate: dateKeySchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.block !== "activity") return;
+    if (!input.reportStartDate || !input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informe o início e o fim do período da carteira.",
+      });
+      return;
+    }
+    if (input.reportStartDate > input.reportEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "O fim do período deve ser igual ou posterior ao início.",
+      });
+      return;
+    }
+    const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+    const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+    if ((end.getTime() - start.getTime()) / 86_400_000 + 1 > 90) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Escolha um período de até 90 dias.",
+      });
+    }
+  });
+
+export const patientPeriodBundleSchema =
+  boundedReportDateRangeSchema.safeExtend({
+    patientId: z.number().int().positive(),
+  });
+
+export const professionalCommentSchema = z.object({
+  patientId: z.number().int().positive(),
+  comment: z.string().trim().min(1).max(1000),
+});
+
+export const professionalGoalSuggestionStatusSchema =
+  professionalSuggestionStatusSchema;
+export const professionalGoalSuggestionSchema = z.object({
+  patientId: z.number().int().positive(),
+  rationale: z.string().trim().min(3).max(1000),
+  status: professionalGoalSuggestionStatusSchema.default("sent"),
+  goal: goalSchema,
+});
+export const goalSuggestionDecisionSchema = z.object({
+  suggestionId: z.string().min(1),
+  decision: z.enum(["accepted", "refused"]),
+});
+export const professionalMealSuggestionStatusSchema =
+  professionalSuggestionStatusSchema;
+export const professionalMealSuggestionSchema = z.object({
+  patientId: z.number().int().positive(),
+  mealLabel: z.string().trim().min(2).max(80),
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(3).max(1500),
+  rationale: z.string().trim().min(3).max(1000),
+  notes: z.string().trim().max(1000).optional(),
+  status: professionalMealSuggestionStatusSchema.default("sent"),
+});
+
+export type ProfessionalProfileInput = z.infer<
+  typeof professionalProfileSchema
+>;
+export type RequestPatientAccessInput = z.infer<
+  typeof requestPatientAccessSchema
+>;
+export type AccessIdInput = z.infer<typeof accessIdSchema>;
+export type ProfessionalTrackingTransitionInput = z.infer<
+  typeof professionalTrackingTransitionSchema
+>;
+export type PatientIdInput = z.infer<typeof patientIdSchema>;
+export type ProfessionalRecordInput = z.infer<typeof professionalRecordSchema>;
+export type ProfessionalAssessmentInput = z.infer<
+  typeof professionalAssessmentSchema
+>;
+export type ProfessionalNoteInput = z.infer<typeof professionalNoteSchema>;
+export type ProfessionalGuidanceInput = z.infer<
+  typeof professionalGuidanceSchema
+>;
+export type ProfessionalMessageListInput = z.infer<
+  typeof professionalMessageListSchema
+>;
+export type ProfessionalMessageCreateInput = z.infer<
+  typeof professionalMessageCreateSchema
+>;
+export type ProfessionalMessageRetryInput = z.infer<
+  typeof professionalMessageRetrySchema
+>;
+export type PatientProfessionalMessageListInput = z.infer<
+  typeof patientProfessionalMessageListSchema
+>;
+export type ProfessionalOfficialGoalInput = z.infer<
+  typeof professionalOfficialGoalSchema
+>;
+export type ProfessionalGoalNotificationRetryInput = z.infer<
+  typeof professionalGoalNotificationRetrySchema
+>;
+export type PatientProfessionalGoalReviewInput = z.infer<
+  typeof patientProfessionalGoalReviewSchema
+>;
+export type PatientAdoptProfessionalGoalInput = z.infer<
+  typeof patientAdoptProfessionalGoalSchema
+>;
+export type ProfessionalPortfolioInput = z.infer<
+  typeof professionalPortfolioSchema
+>;
+export type ProfessionalPortfolioReportInput = z.infer<
+  typeof professionalPortfolioReportSchema
+>;
+export type PatientPeriodBundleInput = z.infer<
+  typeof patientPeriodBundleSchema
+>;
+export type ProfessionalCommentInput = z.infer<
+  typeof professionalCommentSchema
+>;
+export type ProfessionalGoalSuggestionInput = z.infer<
+  typeof professionalGoalSuggestionSchema
+>;
+export type ProfessionalGoalSuggestionStatus = z.infer<
+  typeof professionalGoalSuggestionStatusSchema
+>;
+export type GoalSuggestionDecisionInput = z.infer<
+  typeof goalSuggestionDecisionSchema
+>;
+export type ProfessionalMealSuggestionInput = z.infer<
+  typeof professionalMealSuggestionSchema
+>;
+export type ProfessionalMealSuggestionStatus = z.infer<
+  typeof professionalMealSuggestionStatusSchema
+>;

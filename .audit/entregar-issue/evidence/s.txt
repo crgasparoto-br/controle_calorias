@@ -1,5 +1,0 @@
-$ python3 validate_skill_genericity.py --skill-root <skill-root>
-READY: skill permanent assets are free of obvious issue-number coupling
-$ python3 -m pytest -q focused skill contract tests
-...................                                                      [100%]
-19 passed in 9.74s

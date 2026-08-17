@@ -1,4 +1,0 @@
-[focused-temporal-harness]
-result=PASS
-stdout_stderr_sha256=b504adcbd0ab7ced58dde25b001578b192a6204733da7b2b709e4a9448150503
-observed=PASS temporal allocation exact-end, rounding conservation, retroactive range, historical cost preservation

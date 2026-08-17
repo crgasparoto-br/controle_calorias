@@ -1,0 +1,959 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  clearAllProfessionalPatientDraftSnapshots,
+  clearProfessionalPatientDraftsForAuthorization,
+} from "@/lib/professionalPatientDraftStore";
+import {
+  parseProfessionalPatientRoute,
+  professionalPatientResourceForRoute,
+} from "@/lib/professionalRoutes";
+import { trpc } from "@/lib/trpc";
+import { useProfessionalAccessRevocationStream } from "@/hooks/useProfessionalAccessRevocationStream";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  BarChart3,
+  BriefcaseMedical,
+  ChevronLeft,
+  LayoutDashboard,
+  MessageSquareText,
+  RefreshCw,
+  Settings,
+  UsersRound,
+} from "lucide-react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useLocation } from "wouter";
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+
+export type ProfessionalPatientContext = {
+  patientId: number;
+  authorizationId?: string;
+  displayName: string;
+  authorizationStatus?: "approved";
+  lastActivityAt?: number | null;
+  lastActivityLabel?: string | null;
+  nextReviewAt?: number | null;
+  trackingStatus: "not_started" | "active" | "paused" | "ended";
+};
+
+type ProfessionalWorkspaceContextValue = {
+  selectedPatient: ProfessionalPatientContext | null;
+  clearPatient: () => void;
+  routeAccessStatus: "ready" | "validating" | "error";
+  retryRouteAccess: () => void;
+};
+
+const ProfessionalWorkspaceContext =
+  createContext<ProfessionalWorkspaceContextValue | null>(null);
+
+export function useProfessionalWorkspace() {
+  const context = useContext(ProfessionalWorkspaceContext);
+  if (!context) {
+    throw new Error(
+      "useProfessionalWorkspace must be used inside ProfessionalLayout"
+    );
+  }
+  return context;
+}
+
+const professionalNavigation = [
+  { label: "Início", path: "/professional", icon: LayoutDashboard },
+  { label: "Pacientes", path: "/professional/patients", icon: UsersRound },
+  {
+    label: "Mensagens",
+    path: "/professional/messages",
+    icon: MessageSquareText,
+  },
+  { label: "Relatórios", path: "/professional/reports", icon: BarChart3 },
+  { label: "Configurações", path: "/professional/settings", icon: Settings },
+];
+
+const professionalPatientQueryPaths = new Set([
+  "nutrition.professionals.patientTimeZone",
+  "nutrition.professionals.patientDashboard",
+  "nutrition.professionals.patientPeriodBundle",
+  "professionalRecord.context",
+  "professionalRecord.get",
+  "professionalRecord.messages.list",
+  "professionalRecord.operationalAlerts.list",
+  "professionalRecord.ai.priorities",
+  "professionalRecord.officialGoal.professionalState",
+]);
+
+const professionalPatientMutationPaths = new Set([
+  "professionalRecord.saveAssessment",
+  "professionalRecord.createNote",
+  "professionalRecord.createGuidance",
+  "professionalRecord.transitionTracking",
+  "professionalRecord.messages.create",
+  "professionalRecord.messages.retry",
+  "professionalRecord.officialGoal.activate",
+  "professionalRecord.officialGoal.retryNotification",
+  "professionalRecord.operationalAlerts.close",
+  "professionalRecord.operationalAlerts.evaluate",
+  "professionalRecord.ai.generate",
+]);
+
+function operationPath(operationKey: unknown) {
+  if (!Array.isArray(operationKey)) return null;
+  const candidate = Array.isArray(operationKey[0])
+    ? operationKey[0]
+    : operationKey;
+  return candidate.every(item => typeof item === "string")
+    ? candidate.join(".")
+    : null;
+}
+
+function patientIdFromOperation(value: unknown, depth = 0): number | null {
+  if (depth > 5 || value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const patientId = patientIdFromOperation(item, depth + 1);
+      if (patientId !== null) return patientId;
+    }
+    return null;
+  }
+  if (typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.patientId === "number" &&
+    Number.isSafeInteger(record.patientId) &&
+    record.patientId > 0
+  ) {
+    return record.patientId;
+  }
+  for (const item of Object.values(record)) {
+    const patientId = patientIdFromOperation(item, depth + 1);
+    if (patientId !== null) return patientId;
+  }
+  return null;
+}
+
+export function isProfessionalPatientQueryKey(queryKey: readonly unknown[]) {
+  const path = operationPath(queryKey);
+  return Boolean(path && professionalPatientQueryPaths.has(path));
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return "";
+}
+
+function errorCode(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const record = error as Record<string, unknown>;
+  const candidates = [record.data, record.shape];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const candidateRecord = candidate as Record<string, unknown>;
+    if (typeof candidateRecord.code === "string") return candidateRecord.code;
+    if (
+      candidateRecord.data &&
+      typeof candidateRecord.data === "object" &&
+      typeof (candidateRecord.data as Record<string, unknown>).code === "string"
+    ) {
+      return String((candidateRecord.data as Record<string, unknown>).code);
+    }
+  }
+  return null;
+}
+
+export function isProfessionalPatientAccessUnavailableError(error: unknown) {
+  if (errorCode(error) === "FORBIDDEN") return true;
+  const message = errorMessage(error).toLocaleLowerCase("pt-BR");
+  return [
+    "o acesso a este paciente não está mais disponível",
+    "acesso profissional não autorizado",
+    "não autorizado pela pessoa acompanhada",
+    "autorização do paciente foi revogada",
+    "patient access unavailable",
+  ].some(fragment => message.includes(fragment));
+}
+
+function pathnameFromLocation(location: string) {
+  return location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+}
+
+function isActiveRoute(location: string, path: string) {
+  const pathname = pathnameFromLocation(location);
+  if (path === "/professional") return pathname === path;
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function useRetainedSuccessfulValidation(
+  resetKey: string | null,
+  succeeded: boolean
+) {
+  const [validatedKey, setValidatedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!resetKey) {
+      setValidatedKey(null);
+      return;
+    }
+    if (succeeded) setValidatedKey(resetKey);
+  }, [resetKey, succeeded]);
+
+  return Boolean(resetKey && (succeeded || validatedKey === resetKey));
+}
+
+function routeTitle(location: string) {
+  const patientRoute = parseProfessionalPatientRoute(location);
+  if (patientRoute.kind === "patient") {
+    const titles = {
+      record: "Prontuário",
+      assessment: "Avaliação",
+      goals: "Metas",
+      guidance: "Orientações",
+      notes: "Anotações",
+      history: "Histórico",
+      reports: "Relatórios",
+      messages: "Mensagens",
+    } as const;
+    return titles[patientRoute.section];
+  }
+
+  return (
+    professionalNavigation.find(item => isActiveRoute(location, item.path))
+      ?.label ?? "Área Profissional"
+  );
+}
+
+function ProtectedState({
+  description,
+  onRetry,
+  title,
+}: {
+  description: string;
+  onRetry?: () => void;
+  title: string;
+}) {
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-6">
+      <div
+        role="alert"
+        className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm"
+      >
+        <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+        <h1 className="mt-4 text-xl font-semibold">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+        {onRetry ? (
+          <Button className="mt-6" onClick={onRetry}>
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export default function ProfessionalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { loading: authLoading, refresh: refreshAuth, user } = useAuth();
+  const [location, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
+  const mainRef = useRef<HTMLElement | null>(null);
+  const previousPatientIdRef = useRef<number | null>(null);
+  const activeAuthorizationIdRef = useRef<string | null>(null);
+  const transitionGenerationRef = useRef(0);
+  const revocationInProgressRef = useRef(false);
+  const patientReadyAtRef = useRef(0);
+  const [readyPatientId, setReadyPatientId] = useState<number | null>(null);
+
+  const patientRoute = useMemo(
+    () => parseProfessionalPatientRoute(location),
+    [location]
+  );
+  const routePatientId =
+    patientRoute.kind === "patient" ? patientRoute.patientId : null;
+  const patientResource = professionalPatientResourceForRoute(patientRoute);
+
+  const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
+    enabled: Boolean(user),
+    retry: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+  });
+  const hasActiveProfile = Boolean(
+    user?.professionalProfileActive && profile.data?.active
+  );
+  const contextInput =
+    routePatientId && patientResource
+      ? { patientId: routePatientId, resource: patientResource }
+      : { patientId: 1, resource: "professional_record" as const };
+  const patientContext = trpc.professionalRecord.context.useQuery(
+    contextInput,
+    {
+      enabled: Boolean(hasActiveProfile && routePatientId && patientResource),
+      retry: false,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      refetchInterval: 30_000,
+    }
+  );
+
+  const profileValidationKey = user ? `user:${user.id}` : null;
+  const profileValidationSucceeded = Boolean(
+    profile.isSuccess &&
+      profile.isFetchedAfterMount &&
+      !profile.isFetching &&
+      profile.data !== undefined
+  );
+  const profileValidated = useRetainedSuccessfulValidation(
+    profileValidationKey,
+    profileValidationSucceeded
+  );
+  const patientContextValidationKey =
+    user && routePatientId && patientResource
+      ? `user:${user.id}:patient:${routePatientId}:resource:${patientResource}`
+      : null;
+  const patientContextValidationSucceeded = Boolean(
+    routePatientId &&
+      patientContext.isSuccess &&
+      patientContext.isFetchedAfterMount &&
+      !patientContext.isFetching &&
+      patientContext.data !== undefined &&
+      patientContext.data.patientId === routePatientId
+  );
+  const patientContextValidated = useRetainedSuccessfulValidation(
+    patientContextValidationKey,
+    patientContextValidationSucceeded
+  );
+  const patientIdentityKey =
+    user && routePatientId
+      ? `user:${user.id}:patient:${routePatientId}`
+      : null;
+  const patientShellValidated = useRetainedSuccessfulValidation(
+    patientIdentityKey,
+    patientContextValidationSucceeded
+  );
+  const [retainedPatientContext, setRetainedPatientContext] = useState<{
+    key: string;
+    patient: ProfessionalPatientContext;
+  } | null>(null);
+  const patientContextAccessRevoked = Boolean(
+    routePatientId &&
+      patientContext.isError &&
+      isProfessionalPatientAccessUnavailableError(patientContext.error)
+  );
+
+  const currentPatientContext = useMemo<ProfessionalPatientContext | null>(
+    () =>
+      patientContextValidationSucceeded && patientContext.data
+        ? {
+            patientId: patientContext.data.patientId,
+            authorizationId: patientContext.data.authorizationId,
+            displayName: patientContext.data.displayName,
+            authorizationStatus: patientContext.data.authorizationStatus,
+            lastActivityAt: patientContext.data.lastActivityAt,
+            lastActivityLabel: patientContext.data.lastActivityLabel,
+            nextReviewAt: patientContext.data.nextReviewAt,
+            trackingStatus: patientContext.data.trackingStatus,
+          }
+        : null,
+    [patientContext.data, patientContextValidationSucceeded]
+  );
+
+  useEffect(() => {
+    if (!patientIdentityKey || !currentPatientContext) return;
+    setRetainedPatientContext(previous => {
+      if (
+        previous?.key === patientIdentityKey &&
+        previous.patient.patientId === currentPatientContext.patientId &&
+        previous.patient.authorizationId ===
+          currentPatientContext.authorizationId &&
+        previous.patient.displayName === currentPatientContext.displayName &&
+        previous.patient.authorizationStatus ===
+          currentPatientContext.authorizationStatus &&
+        previous.patient.lastActivityAt ===
+          currentPatientContext.lastActivityAt &&
+        previous.patient.lastActivityLabel ===
+          currentPatientContext.lastActivityLabel &&
+        previous.patient.nextReviewAt === currentPatientContext.nextReviewAt &&
+        previous.patient.trackingStatus ===
+          currentPatientContext.trackingStatus
+      ) {
+        return previous;
+      }
+      return {
+        key: patientIdentityKey,
+        patient: currentPatientContext,
+      };
+    });
+  }, [currentPatientContext, patientIdentityKey]);
+
+  const patientShellContext =
+    currentPatientContext ??
+    (patientIdentityKey && retainedPatientContext?.key === patientIdentityKey
+      ? retainedPatientContext.patient
+      : null);
+
+  const selectedPatient = useMemo<ProfessionalPatientContext | null>(() => {
+    if (
+      !hasActiveProfile ||
+      !routePatientId ||
+      !patientShellValidated ||
+      patientContextAccessRevoked ||
+      readyPatientId !== routePatientId ||
+      !patientShellContext
+    ) {
+      return null;
+    }
+    return patientShellContext;
+  }, [
+    hasActiveProfile,
+    patientContextAccessRevoked,
+    patientShellContext,
+    patientShellValidated,
+    readyPatientId,
+    routePatientId,
+  ]);
+
+  useEffect(() => {
+    if (selectedPatient?.authorizationId) {
+      activeAuthorizationIdRef.current = selectedPatient.authorizationId;
+    }
+  }, [selectedPatient?.authorizationId]);
+
+  const clearPatientQueries = useCallback(async () => {
+    await Promise.all([
+      utils.nutrition.professionals.patientTimeZone.cancel(),
+      utils.nutrition.professionals.patientDashboard.cancel(),
+      utils.nutrition.professionals.patientPeriodBundle.cancel(),
+      utils.professionalRecord.context.cancel(),
+      utils.professionalRecord.get.cancel(),
+      utils.professionalRecord.messages.list.cancel(),
+      utils.professionalRecord.operationalAlerts.list.cancel(),
+      utils.professionalRecord.ai.priorities.cancel(),
+      utils.professionalRecord.officialGoal.professionalState.cancel(),
+    ]);
+    queryClient.removeQueries({
+      predicate: query => isProfessionalPatientQueryKey(query.queryKey),
+    });
+  }, [queryClient, utils]);
+
+  const invalidatePatientContext = useCallback(() => {
+    transitionGenerationRef.current += 1;
+    patientReadyAtRef.current = 0;
+    setReadyPatientId(null);
+    setRetainedPatientContext(null);
+  }, []);
+
+  const revokePatientContext = useCallback(() => {
+    if (revocationInProgressRef.current) return;
+    revocationInProgressRef.current = true;
+    clearProfessionalPatientDraftsForAuthorization(
+      activeAuthorizationIdRef.current
+    );
+    invalidatePatientContext();
+    void clearPatientQueries().finally(() => {
+      activeAuthorizationIdRef.current = null;
+      previousPatientIdRef.current = null;
+      setLocation("/professional/patients?notice=patient-access-unavailable");
+      revocationInProgressRef.current = false;
+    });
+  }, [clearPatientQueries, invalidatePatientContext, setLocation]);
+
+  useProfessionalAccessRevocationStream({
+    enabled: Boolean(selectedPatient),
+    patientId: routePatientId,
+    resource: patientResource,
+    onRevoked: revokePatientContext,
+  });
+
+  const clearPatient = useCallback(() => {
+    clearProfessionalPatientDraftsForAuthorization(
+      activeAuthorizationIdRef.current
+    );
+    activeAuthorizationIdRef.current = null;
+    invalidatePatientContext();
+    if (routePatientId ?? previousPatientIdRef.current) {
+      void clearPatientQueries();
+    }
+    if (patientRoute.kind !== "none") {
+      setLocation("/professional/patients");
+    }
+  }, [
+    clearPatientQueries,
+    invalidatePatientContext,
+    patientRoute.kind,
+    routePatientId,
+    setLocation,
+  ]);
+
+  useEffect(() => {
+    if (!routePatientId) return;
+    const queryTargetsCurrentPatient = (queryKey: readonly unknown[]) =>
+      isProfessionalPatientQueryKey(queryKey) &&
+      patientIdFromOperation(queryKey) === routePatientId;
+    const mutationTargetsCurrentPatient = (mutation: {
+      options?: { mutationKey?: unknown };
+      state?: { error?: unknown; submittedAt?: number; variables?: unknown };
+    }) => {
+      const variablePatientId = patientIdFromOperation(
+        mutation.state?.variables
+      );
+      if (variablePatientId !== null)
+        return variablePatientId === routePatientId;
+      const path = operationPath(mutation.options?.mutationKey);
+      return Boolean(
+        path &&
+          professionalPatientMutationPaths.has(path) &&
+          patientReadyAtRef.current > 0 &&
+          Number(mutation.state?.submittedAt ?? 0) >= patientReadyAtRef.current
+      );
+    };
+    const unsubscribeQueries = queryClient.getQueryCache().subscribe(event => {
+      if (
+        event.type === "updated" &&
+        queryTargetsCurrentPatient(event.query.queryKey) &&
+        isProfessionalPatientAccessUnavailableError(event.query.state.error)
+      ) {
+        revokePatientContext();
+      }
+    });
+    const unsubscribeMutations = queryClient
+      .getMutationCache()
+      .subscribe(event => {
+        if (
+          event.type === "updated" &&
+          mutationTargetsCurrentPatient(event.mutation) &&
+          isProfessionalPatientAccessUnavailableError(
+            event.mutation.state.error
+          )
+        ) {
+          revokePatientContext();
+        }
+      });
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [queryClient, revokePatientContext, routePatientId]);
+
+  useEffect(() => {
+    const refreshAccess = () => {
+      void Promise.all([
+        refreshAuth(),
+        profile.refetch(),
+        routePatientId && hasActiveProfile
+          ? patientContext.refetch()
+          : Promise.resolve(),
+      ]);
+    };
+    window.addEventListener("focus", refreshAccess);
+    return () => window.removeEventListener("focus", refreshAccess);
+  }, [hasActiveProfile, patientContext, profile, refreshAuth, routePatientId]);
+
+  useEffect(() => {
+    const generation = transitionGenerationRef.current + 1;
+    transitionGenerationRef.current = generation;
+    const previousPatientId = previousPatientIdRef.current;
+    previousPatientIdRef.current = routePatientId;
+    patientReadyAtRef.current = 0;
+    setReadyPatientId(null);
+
+    if (!routePatientId) {
+      if (previousPatientId) void clearPatientQueries();
+      return;
+    }
+
+    const preparePatientContext = async () => {
+      if (previousPatientId && previousPatientId !== routePatientId) {
+        await clearPatientQueries();
+      }
+      if (
+        patientShellValidated &&
+        transitionGenerationRef.current === generation &&
+        previousPatientIdRef.current === routePatientId
+      ) {
+        patientReadyAtRef.current = Date.now();
+        setReadyPatientId(routePatientId);
+      }
+    };
+
+    void preparePatientContext();
+  }, [
+    clearPatientQueries,
+    patientShellValidated,
+    routePatientId,
+  ]);
+
+  useEffect(() => {
+    if (
+      routePatientId &&
+      patientContext.isError &&
+      isProfessionalPatientAccessUnavailableError(patientContext.error)
+    ) {
+      revokePatientContext();
+    }
+  }, [
+    patientContext.error,
+    patientContext.isError,
+    revokePatientContext,
+    routePatientId,
+  ]);
+
+  useEffect(() => {
+    if (routePatientId && profileValidated && !hasActiveProfile) {
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
+      invalidatePatientContext();
+      void clearPatientQueries();
+    }
+  }, [
+    clearPatientQueries,
+    hasActiveProfile,
+    invalidatePatientContext,
+    profileValidated,
+    routePatientId,
+  ]);
+
+  useEffect(() => {
+    if (!user || (profileValidated && !hasActiveProfile)) {
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
+    }
+  }, [hasActiveProfile, profileValidated, user]);
+
+  useEffect(() => {
+    document.title = `${routeTitle(location)} | Área Profissional`;
+    mainRef.current?.focus({ preventScroll: true });
+  }, [location]);
+
+  useEffect(
+    () => () => {
+      transitionGenerationRef.current += 1;
+      patientReadyAtRef.current = 0;
+      clearAllProfessionalPatientDraftSnapshots();
+      activeAuthorizationIdRef.current = null;
+      if (previousPatientIdRef.current) void clearPatientQueries();
+      previousPatientIdRef.current = null;
+    },
+    [clearPatientQueries]
+  );
+
+  if ((authLoading && !user) || (user && !profileValidated && !profile.isError)) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-md rounded-3xl border bg-card p-8 text-center shadow-sm">
+          <h1 className="text-xl font-semibold">Sessão necessária</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Entre novamente para acessar a Área Profissional.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.isError && !profileValidated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div
+          role="alert"
+          className="max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm"
+        >
+          <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+          <h1 className="mt-4 text-xl font-semibold">
+            Não foi possível confirmar seu acesso
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Verifique sua conexão e tente novamente. Nenhum dado profissional
+            foi exibido.
+          </p>
+          <Button className="mt-6" onClick={() => void profile.refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasActiveProfile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm">
+          <BriefcaseMedical className="mx-auto h-10 w-10 text-muted-foreground" />
+          <h1 className="mt-4 text-xl font-semibold">
+            Área Profissional indisponível
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Ative e salve seu perfil profissional em Configurações antes de
+            acessar este ambiente.
+          </p>
+          <Button
+            className="mt-6"
+            onClick={() => setLocation("/settings?tab=profissional")}
+          >
+            Ir para Configurações
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const revokedPatientAccess = patientContextAccessRevoked;
+  const patientAccessUnavailable = Boolean(
+    routePatientId &&
+      patientContext.isError &&
+      !revokedPatientAccess &&
+      !patientContextValidated &&
+      !selectedPatient
+  );
+  const backgroundAccessValidationError = Boolean(
+    (profile.isError && profileValidated) ||
+      (routePatientId &&
+        patientContext.isError &&
+        !revokedPatientAccess &&
+        Boolean(selectedPatient))
+  );
+  const patientContextLoading = Boolean(
+    routePatientId &&
+      !patientAccessUnavailable &&
+      !revokedPatientAccess &&
+      (!profileValidated ||
+        !patientShellValidated ||
+        readyPatientId !== routePatientId)
+  );
+  const routeAccessStatus: ProfessionalWorkspaceContextValue["routeAccessStatus"] =
+    !routePatientId || patientContextValidated
+      ? "ready"
+      : patientContext.isError && !revokedPatientAccess
+        ? "error"
+        : "validating";
+  const contextValue: ProfessionalWorkspaceContextValue = {
+    selectedPatient,
+    clearPatient,
+    routeAccessStatus,
+    retryRouteAccess: () => {
+      void patientContext.refetch();
+    },
+  };
+  const invalidPatientRoute = patientRoute.kind === "invalid";
+  const accessNotice = new URLSearchParams(location.split("?")[1] ?? "").get(
+    "notice"
+  );
+
+  return (
+    <ProfessionalWorkspaceContext.Provider value={contextValue}>
+      <SidebarProvider>
+        <Sidebar
+          collapsible="icon"
+          className="border-r border-sidebar-border/70 bg-sidebar"
+        >
+          <SidebarHeader className="border-b border-sidebar-border/70 px-4 py-5">
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setLocation("/professional")}
+              aria-label="Ir para o início da Área Profissional"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <BriefcaseMedical className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="truncate text-sm font-semibold">
+                  Área Profissional
+                </p>
+                <p className="truncate text-xs text-sidebar-foreground/70">
+                  Gestão de pacientes
+                </p>
+              </div>
+            </button>
+          </SidebarHeader>
+
+          <SidebarContent className="px-2 py-4">
+            <nav aria-label="Navegação da Área Profissional">
+              <SidebarMenu>
+                {professionalNavigation.map(item => {
+                  const active = isActiveRoute(location, item.path);
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.label}
+                        onClick={() => setLocation(item.path)}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </nav>
+          </SidebarContent>
+
+          <SidebarFooter className="border-t border-sidebar-border/70 p-3">
+            <Button
+              type="button"
+              data-professional-navigation
+              variant="ghost"
+              className="w-full justify-start group-data-[collapsible=icon]:justify-center"
+              onClick={() => {
+                invalidatePatientContext();
+                if (routePatientId) void clearPatientQueries();
+                setLocation("/today");
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="group-data-[collapsible=icon]:hidden">
+                Minha alimentação
+              </span>
+            </Button>
+          </SidebarFooter>
+        </Sidebar>
+
+        <SidebarInset>
+          <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
+            <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <SidebarTrigger
+                  className="h-9 w-9 shrink-0 rounded-xl border bg-background shadow-sm"
+                  aria-label="Abrir ou recolher navegação profissional"
+                />
+                <div className="min-w-0" aria-live="polite">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Contexto profissional
+                  </p>
+                  <p className="truncate text-sm font-semibold">
+                    {selectedPatient
+                      ? `Paciente: ${selectedPatient.displayName}`
+                      : "Nenhum paciente selecionado"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main
+            ref={mainRef}
+            tabIndex={-1}
+            aria-label={routeTitle(location)}
+            className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20 p-4 outline-none sm:p-6"
+          >
+            {accessNotice === "patient-access-unavailable" ? (
+              <div
+                role="status"
+                className="mb-4 rounded-2xl border bg-card p-4 text-sm"
+              >
+                O acesso a esse paciente não está mais disponível. A carteira
+                foi atualizada e nenhum dado anterior permaneceu visível.
+              </div>
+            ) : null}
+
+            {backgroundAccessValidationError ? (
+              <div
+                role="status"
+                className="mb-4 flex flex-col gap-3 rounded-2xl border bg-card p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span>
+                  Não foi possível atualizar a validação de acesso agora. O
+                  contexto já validado permanece aberto.
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    void Promise.all([
+                      profile.refetch(),
+                      routePatientId && hasActiveProfile
+                        ? patientContext.refetch()
+                        : Promise.resolve(),
+                    ])
+                  }
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : null}
+
+            {invalidPatientRoute ? (
+              <div className="space-y-4">
+                <ProtectedState
+                  title="Endereço de paciente inválido"
+                  description="O identificador informado não é válido. Nenhuma consulta de paciente foi realizada."
+                />
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocation("/professional/patients")}
+                  >
+                    Voltar à carteira
+                  </Button>
+                </div>
+              </div>
+            ) : patientContextLoading ? (
+              <div
+                role="status"
+                className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
+              >
+                Preparando o contexto seguro do paciente...
+              </div>
+            ) : patientAccessUnavailable ? (
+              <ProtectedState
+                title="Não foi possível confirmar a autorização do paciente"
+                description="O contexto foi protegido. Tente novamente antes de continuar o acompanhamento."
+                onRetry={() => void patientContext.refetch()}
+              />
+            ) : routePatientId && !selectedPatient ? (
+              <div
+                role="status"
+                className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
+              >
+                Removendo o contexto indisponível...
+              </div>
+            ) : (
+              children
+            )}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </ProfessionalWorkspaceContext.Provider>
+  );
+}

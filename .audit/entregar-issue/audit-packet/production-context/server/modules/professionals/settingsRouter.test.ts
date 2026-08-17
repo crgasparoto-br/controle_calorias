@@ -1,0 +1,193 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getProfessionalEntitlements: vi.fn(),
+  getProfessionalProfile: vi.fn(),
+  getProfessionalSettingsSnapshot: vi.fn(),
+  listPatientVisibleProfessionalProfiles: vi.fn(),
+  setProfessionalProfileActive: vi.fn(),
+  updateProfessionalIdentitySettings: vi.fn(),
+  updateProfessionalPreferencesSettings: vi.fn(),
+}));
+
+vi.mock("./entitlementService", () => ({
+  getProfessionalEntitlements: mocks.getProfessionalEntitlements,
+}));
+
+vi.mock("./service", () => ({
+  getProfessionalProfile: mocks.getProfessionalProfile,
+}));
+
+vi.mock("./settingsService", () => ({
+  getProfessionalSettingsSnapshot: mocks.getProfessionalSettingsSnapshot,
+  listPatientVisibleProfessionalProfiles:
+    mocks.listPatientVisibleProfessionalProfiles,
+  setProfessionalProfileActive: mocks.setProfessionalProfileActive,
+  updateProfessionalIdentitySettings: mocks.updateProfessionalIdentitySettings,
+  updateProfessionalPreferencesSettings:
+    mocks.updateProfessionalPreferencesSettings,
+}));
+
+import { professionalSettingsRouter } from "./settingsRouter";
+
+const context = {
+  user: {
+    id: 77,
+    email: "professional@example.com",
+    name: "Profissional",
+    role: "user" as const,
+  },
+} as any;
+
+function caller() {
+  return professionalSettingsRouter.createCaller(context);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getProfessionalProfile.mockResolvedValue({ active: true });
+  mocks.getProfessionalEntitlements.mockResolvedValue({
+    allowed: true,
+    commercialState: "active",
+    enabledResources: ["professional_settings"],
+  });
+  mocks.getProfessionalSettingsSnapshot.mockResolvedValue({ profile: null });
+  mocks.updateProfessionalIdentitySettings.mockResolvedValue({ success: true });
+  mocks.updateProfessionalPreferencesSettings.mockResolvedValue({ success: true });
+  mocks.setProfessionalProfileActive.mockResolvedValue({ active: false });
+  mocks.listPatientVisibleProfessionalProfiles.mockResolvedValue([]);
+});
+
+describe("professional settings router entitlement", () => {
+  it("blocks settings reads and mutations when another resource is allowed", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
+
+    await expect(caller().get()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller().updateIdentity({
+        displayName: "Nutricionista Ana",
+        registrationNumber: "CRN 123",
+        contactEmail: "ana@example.com",
+        contactPhone: "+55 15 99999-9999",
+        patientFacingBio: "Atendimento individual.",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller().updatePreferences({
+        defaultReviewIntervalDays: 30,
+        messageTemplates: [],
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller().setActive({ active: false })).resolves.toMatchObject({
+      active: false,
+    });
+
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledTimes(3);
+    for (const call of mocks.getProfessionalEntitlements.mock.calls) {
+      expect(call).toEqual([77]);
+    }
+    expect(mocks.getProfessionalSettingsSnapshot).not.toHaveBeenCalled();
+    expect(mocks.updateProfessionalIdentitySettings).not.toHaveBeenCalled();
+    expect(mocks.updateProfessionalPreferencesSettings).not.toHaveBeenCalled();
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledWith(77, false);
+  });
+
+  it("keeps activation through this route entitlement-protected", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+    });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
+  });
+
+  it("directs reactivation of an inactive profile to personal settings", async () => {
+    mocks.getProfessionalProfile.mockResolvedValue({ active: false });
+
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    expect(mocks.getProfessionalEntitlements).not.toHaveBeenCalled();
+    expect(mocks.setProfessionalProfileActive).not.toHaveBeenCalled();
+  });
+
+  it("keeps the isolated entitlement snapshot available to explain a denial", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      commercialState: "active",
+      enabledResources: ["professional_reports"],
+      planName: "Plano relatórios",
+    });
+
+    await expect(caller().entitlements()).resolves.toMatchObject({
+      enabledResources: ["professional_reports"],
+      planName: "Plano relatórios",
+    });
+
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledWith(77);
+  });
+
+  it("uses the exact settings resource when access is granted", async () => {
+    await caller().get();
+
+    expect(mocks.getProfessionalProfile).toHaveBeenCalledWith(77);
+    expect(mocks.getProfessionalEntitlements).toHaveBeenCalledWith(77);
+    expect(mocks.getProfessionalSettingsSnapshot).toHaveBeenCalledWith(77);
+  });
+
+  it("keeps identity and preference settings available during billing suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      reason: "read_only_access",
+      commercialState: "suspended",
+      enabledResources: ["professional_settings"],
+    });
+
+    await expect(
+      caller().updateIdentity({
+        displayName: "Nutricionista Ana",
+        registrationNumber: "CRN 123",
+        contactEmail: "ana@example.com",
+        contactPhone: "+55 15 99999-9999",
+        patientFacingBio: "Atendimento individual.",
+      })
+    ).resolves.toEqual({ success: true });
+    await expect(
+      caller().updatePreferences({
+        defaultReviewIntervalDays: 30,
+        messageTemplates: [],
+      })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.updateProfessionalIdentitySettings).toHaveBeenCalledTimes(1);
+    expect(mocks.updateProfessionalPreferencesSettings).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("allows deactivation but still rejects reactivation during billing suspension", async () => {
+    mocks.getProfessionalEntitlements.mockResolvedValue({
+      allowed: true,
+      reason: "read_only_access",
+      commercialState: "suspended",
+      enabledResources: ["professional_settings"],
+    });
+
+    await expect(caller().setActive({ active: false })).resolves.toEqual({
+      active: false,
+    });
+    await expect(caller().setActive({ active: true })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledTimes(1);
+    expect(mocks.setProfessionalProfileActive).toHaveBeenCalledWith(77, false);
+  });
+});
