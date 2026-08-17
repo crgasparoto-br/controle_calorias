@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "cohort": "QUESTION/text-only",
+  "timezone": "America/Sao_Paulo",
+  "repetitionsPerFixture": 4,
+  "fixtures": [
+    { "id": "generic-deficit", "question": "o que é déficit calórico?", "expectedScope": "none" },
+    { "id": "generic-fiber", "question": "qual é a recomendação atual de fibras?", "expectedScope": "none" },
+    { "id": "generic-banana", "question": "quantas calorias tem uma banana?", "expectedScope": "none" },
+    { "id": "generic-glycemic", "question": "como funciona o índice glicêmico?", "expectedScope": "none" },
+    { "id": "today-consumption", "question": "como está meu consumo hoje?", "expectedScope": "today" },
+    { "id": "today-water", "question": "como está meu consumo de água hoje?", "expectedScope": "today" },
+    { "id": "today-protein", "question": "quanto eu consumi de proteína hoje?", "expectedScope": "today" },
+    { "id": "week-consumption", "question": "como foi meu consumo esta semana?", "expectedScope": "week" },
+    { "id": "week-exercise", "question": "como foram meus exercícios esta semana?", "expectedScope": "week" },
+    { "id": "follow-up-ambiguous", "question": "e proteína?", "expectedScope": "full" }
+  ]
+}

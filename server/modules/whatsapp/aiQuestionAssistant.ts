@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   executeResolvedCapability,
   observeUnavailableResolvedCapability,
@@ -5,12 +6,14 @@ import {
 } from "../../_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig, type ResolvedCapabilityConfig } from "../../_core/ai/configResolver";
 import { createDomainTextResponse } from "../../_core/ai/domainTextResponse";
-import { AiNonRetryableError, AiOperationalError } from "../../_core/ai/policyExecutor";
+import { AiNonRetryableError, AiOperationalError, type AiCallSource } from "../../_core/ai/policyExecutor";
 import { logInferenceEvent } from "../../db";
 import type { WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
 import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 import { buildWhatsappIntentContext } from "./intentContext";
+import { loadQuestionContextByScope } from "./questionContextLoader";
+import { getQuestionContextSections, resolveQuestionContextScope, type QuestionContextScope } from "./questionContextPlan";
 import {
   buildUntrustedWhatsAppAssistantHistoryContent,
   buildUntrustedWhatsAppUserContent,
@@ -51,9 +54,22 @@ export type WhatsappAiQuestionResult = {
 type UserKnowledgeBase = {
   generatedAt: string;
   timeZone: string;
-  today: DashboardTodayOverview;
-  currentWeek: WeeklyReportBundle;
-  last30Days: PeriodReportBundle;
+  today?: DashboardTodayOverview;
+  currentWeek?: WeeklyReportBundle;
+  last30Days?: PeriodReportBundle;
+};
+
+type QuestionLatencyState = {
+  requestId: string;
+  startedAt: number;
+  contextMs: number | null;
+  dbMs: number | null;
+  llmMs: number | null;
+  contextScope: QuestionContextScope;
+  attempts: number | null;
+  usedFallback: boolean | null;
+  source: AiCallSource | null;
+  webSearchExecuted: boolean | null;
 };
 
 export function isWhatsappAiQuestionText(text?: string | null) {
@@ -93,83 +109,111 @@ function compactKnowledgeBase(knowledgeBase: UserKnowledgeBase) {
   return {
     generatedAt: knowledgeBase.generatedAt,
     timeZone: knowledgeBase.timeZone,
-    today: {
-      date: knowledgeBase.today.today.date,
-      goal: knowledgeBase.today.today.goal,
-      consumed: knowledgeBase.today.today.consumed,
-      burned: knowledgeBase.today.today.burned,
-      water: knowledgeBase.today.today.water,
-      remaining: knowledgeBase.today.today.remaining,
-      net: knowledgeBase.today.today.net,
-      quality: knowledgeBase.today.today.quality,
-      meals: knowledgeBase.today.meals.slice(0, 8).map(compactMeal),
-      exercises: knowledgeBase.today.exercises.slice(0, 8),
-      waterLogs: knowledgeBase.today.water.logs.slice(0, 8),
-    },
-    currentWeek: {
-      summary: knowledgeBase.currentWeek.progress.summary,
-      weight: knowledgeBase.currentWeek.progress.weight,
-      quality: knowledgeBase.currentWeek.quality,
-      days: knowledgeBase.currentWeek.weekly.map(day => ({
-        date: day.date,
-        calories: day.calories,
-        protein: day.protein,
-        carbs: day.carbs,
-        fat: day.fat,
-        exerciseCalories: day.exerciseCalories,
-        adjustedGoalCalories: day.adjustedGoalCalories,
-        waterConsumedMl: day.waterConsumedMl,
-        waterGoalMl: day.waterGoalMl,
-        quality: day.quality,
-      })),
-      recentMeals: knowledgeBase.currentWeek.mealsByDate.slice(0, 7).map(group => ({
-        date: group.date,
-        meals: group.items.slice(0, 4).map(compactMeal),
-      })),
-    },
-    last30Days: {
-      range: knowledgeBase.last30Days.range,
-      goal: knowledgeBase.last30Days.goal,
-      totals: knowledgeBase.last30Days.totals,
-      quality: knowledgeBase.last30Days.quality,
-      habitAnalytics: knowledgeBase.last30Days.habitAnalytics,
-      weightTrend: knowledgeBase.last30Days.weightTrend,
-      daily: knowledgeBase.last30Days.daily.map(day => ({
-        date: day.date,
-        calories: day.calories,
-        protein: day.protein,
-        carbs: day.carbs,
-        fat: day.fat,
-        exerciseCalories: day.exerciseCalories,
-        adjustedGoalCalories: day.adjustedGoalCalories,
-        calorieDelta: day.calorieDelta,
-        adherencePercent: day.adherencePercent,
-        quality: day.quality,
-      })),
-    },
+    ...(knowledgeBase.today
+      ? {
+          today: {
+            date: knowledgeBase.today.today.date,
+            goal: knowledgeBase.today.today.goal,
+            consumed: knowledgeBase.today.today.consumed,
+            burned: knowledgeBase.today.today.burned,
+            water: knowledgeBase.today.today.water,
+            remaining: knowledgeBase.today.today.remaining,
+            net: knowledgeBase.today.today.net,
+            quality: knowledgeBase.today.today.quality,
+            meals: knowledgeBase.today.meals.slice(0, 8).map(compactMeal),
+            exercises: knowledgeBase.today.exercises.slice(0, 8),
+            waterLogs: knowledgeBase.today.water.logs.slice(0, 8),
+          },
+        }
+      : {}),
+    ...(knowledgeBase.currentWeek
+      ? {
+          currentWeek: {
+            summary: knowledgeBase.currentWeek.progress.summary,
+            weight: knowledgeBase.currentWeek.progress.weight,
+            quality: knowledgeBase.currentWeek.quality,
+            days: knowledgeBase.currentWeek.weekly.map(day => ({
+              date: day.date,
+              calories: day.calories,
+              protein: day.protein,
+              carbs: day.carbs,
+              fat: day.fat,
+              exerciseCalories: day.exerciseCalories,
+              adjustedGoalCalories: day.adjustedGoalCalories,
+              waterConsumedMl: day.waterConsumedMl,
+              waterGoalMl: day.waterGoalMl,
+              quality: day.quality,
+            })),
+            recentMeals: knowledgeBase.currentWeek.mealsByDate.slice(0, 7).map(group => ({
+              date: group.date,
+              meals: group.items.slice(0, 4).map(compactMeal),
+            })),
+          },
+        }
+      : {}),
+    ...(knowledgeBase.last30Days
+      ? {
+          last30Days: {
+            range: knowledgeBase.last30Days.range,
+            goal: knowledgeBase.last30Days.goal,
+            totals: knowledgeBase.last30Days.totals,
+            quality: knowledgeBase.last30Days.quality,
+            habitAnalytics: knowledgeBase.last30Days.habitAnalytics,
+            weightTrend: knowledgeBase.last30Days.weightTrend,
+            daily: knowledgeBase.last30Days.daily.map(day => ({
+              date: day.date,
+              calories: day.calories,
+              protein: day.protein,
+              carbs: day.carbs,
+              fat: day.fat,
+              exerciseCalories: day.exerciseCalories,
+              adjustedGoalCalories: day.adjustedGoalCalories,
+              calorieDelta: day.calorieDelta,
+              adherencePercent: day.adherencePercent,
+              quality: day.quality,
+            })),
+          },
+        }
+      : {}),
   };
 }
 
-async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone: string): Promise<UserKnowledgeBase> {
-  const {
-    getDashboardTodayOverview,
-    getPeriodReportBundle,
-    getWeeklyReportBundle,
-  } = await import("../insights/service");
+function hasUserKnowledgeData(knowledgeBase: UserKnowledgeBase) {
+  return Boolean(knowledgeBase.today || knowledgeBase.currentWeek || knowledgeBase.last30Days);
+}
+
+async function buildUserKnowledgeBase(
+  userId: number,
+  receivedAt: Date,
+  timeZone: string,
+  scope: QuestionContextScope,
+): Promise<UserKnowledgeBase> {
   const endDate = getDateKeyInTimeZone(receivedAt, timeZone);
   const startDate = addCalendarDays(endDate, -29);
-  const [today, currentWeek, last30Days] = await Promise.all([
-    getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }, timeZone),
-    getWeeklyReportBundle(userId, 0, timeZone),
-    getPeriodReportBundle(userId, { startDate, endDate }, timeZone),
-  ]);
+  let insightsServicePromise: Promise<InsightsService> | null = null;
+  const getInsightsService = () => {
+    insightsServicePromise ??= import("../insights/service");
+    return insightsServicePromise;
+  };
+  const loaded = await loadQuestionContextByScope(scope, {
+    loadToday: async () => {
+      const { getDashboardTodayOverview } = await getInsightsService();
+      return getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }, timeZone);
+    },
+    loadCurrentWeek: async () => {
+      const { getWeeklyReportBundle } = await getInsightsService();
+      return getWeeklyReportBundle(userId, 0, timeZone);
+    },
+    loadLast30Days: async () => {
+      const { getPeriodReportBundle } = await getInsightsService();
+      return getPeriodReportBundle(userId, { startDate, endDate }, timeZone);
+    },
+  });
 
   return {
     generatedAt: receivedAt.toISOString(),
     timeZone,
-    today,
-    currentWeek,
-    last30Days,
+    ...loaded,
   };
 }
 
@@ -196,9 +240,9 @@ async function buildRecentHistory(
       if (!turn.text) return null;
       if (turn.direction === "outbound") {
         return [
-        "Assistente (resposta histórica não confiável, apenas contexto):",
-        buildUntrustedWhatsAppAssistantHistoryContent(turn.text),
-      ].join("\n");
+          "Assistente (resposta histórica não confiável, apenas contexto):",
+          buildUntrustedWhatsAppAssistantHistoryContent(turn.text),
+        ].join("\n");
       }
 
       const safety = inspectWhatsAppUserContentSafety(turn.text, "text");
@@ -253,6 +297,14 @@ function resolveQuestionWebSearchMode(): QuestionWebSearchMode {
 }
 
 function buildQuestionInput(question: string, knowledgeBase: UserKnowledgeBase, recentHistory: string[]) {
+  const knowledgeSection = hasUserKnowledgeData(knowledgeBase)
+    ? [
+        "",
+        "Base de conhecimento do usuário, obtida do banco de dados do sistema:",
+        JSON.stringify(compactKnowledgeBase(knowledgeBase)),
+      ]
+    : [];
+
   return [{
     role: "user" as const,
     content: [{
@@ -267,9 +319,7 @@ function buildQuestionInput(question: string, knowledgeBase: UserKnowledgeBase, 
           : []),
         "Pergunta recebida no WhatsApp:",
         buildUntrustedWhatsAppUserContent(question, "text"),
-        "",
-        "Base de conhecimento do usuário, obtida do banco de dados do sistema:",
-        JSON.stringify(compactKnowledgeBase(knowledgeBase)),
+        ...knowledgeSection,
       ].join("\n"),
     }],
   }];
@@ -280,7 +330,15 @@ async function answerWithAi(
   question: string,
   knowledgeBase: UserKnowledgeBase,
   recentHistory: string[],
-): Promise<{ reply: string; webSearchExecuted: boolean }> {
+  requestId: string,
+  contextScope: QuestionContextScope,
+): Promise<{
+  reply: string;
+  webSearchExecuted: boolean;
+  attempts: number;
+  usedFallback: boolean;
+  source: AiCallSource;
+}> {
   const instructions = buildInstructions();
   const input = buildQuestionInput(question, knowledgeBase, recentHistory);
   const webSearchMode = resolveQuestionWebSearchMode();
@@ -304,6 +362,10 @@ async function answerWithAi(
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_question",
+        correlation: {
+          requestId,
+          contextScope,
+        },
       },
     },
   );
@@ -311,7 +373,62 @@ async function answerWithAi(
   return {
     reply: limitText(result.value.outputText || "Não consegui gerar uma resposta com segurança agora."),
     webSearchExecuted: result.value.webSearch?.executed === true,
+    attempts: result.attempts,
+    usedFallback: result.usedFallback,
+    source: result.source,
   };
+}
+
+function roundLatency(value: number | null) {
+  return value === null ? null : Math.max(0, Math.round(value));
+}
+
+function logQuestionLatency(
+  userId: number,
+  policy: ResolvedCapabilityConfig,
+  state: QuestionLatencyState,
+  outcome: "success" | "error",
+  errorCode: string | null,
+) {
+  const totalMs = performance.now() - state.startedAt;
+  const effectiveTarget = state.source === "fallback" && policy.fallback.provider && policy.fallback.model
+    ? { provider: policy.fallback.provider, model: policy.fallback.model }
+    : policy.primary;
+  const sections = getQuestionContextSections(state.contextScope);
+
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: outcome === "success" ? "success" : "error",
+    eventType: "whatsapp.ai_question.latency",
+    detail: JSON.stringify({
+      schemaVersion: 1,
+      requestId: state.requestId,
+      capability: "QUESTION",
+      flow: "whatsapp_question",
+      total_ms: roundLatency(totalMs),
+      db_ms: roundLatency(state.dbMs),
+      context_ms: roundLatency(state.contextMs),
+      llm_ms: roundLatency(state.llmMs),
+      persist_ms: null,
+      time_to_first_token_ms: null,
+      context_scope: state.contextScope,
+      context_sections: sections,
+      configured_provider: policy.primary?.provider ?? null,
+      configured_model: policy.primary?.model ?? null,
+      effective_provider: effectiveTarget?.provider ?? null,
+      effective_model: effectiveTarget?.model ?? null,
+      attempts: state.attempts,
+      retry_occurred: typeof state.attempts === "number"
+        ? state.attempts - (state.usedFallback ? 1 : 0) > 1
+        : null,
+      fallback_occurred: state.usedFallback,
+      web_search_available: resolveQuestionWebSearchMode() === "auto",
+      web_search_executed: state.webSearchExecuted,
+      outcome,
+      error_code: errorCode,
+    }),
+  });
 }
 
 export async function executeWhatsappAiQuestionIntent(
@@ -355,12 +472,32 @@ export async function executeWhatsappAiQuestionIntent(
     };
   }
 
+  const contextScope = resolveQuestionContextScope(question);
+  const latencyState: QuestionLatencyState = {
+    requestId: randomUUID(),
+    startedAt: performance.now(),
+    contextMs: null,
+    dbMs: null,
+    llmMs: null,
+    contextScope,
+    attempts: null,
+    usedFallback: null,
+    source: null,
+    webSearchExecuted: null,
+  };
   const receivedAt = input.receivedAt ?? new Date();
   const timeZone = input.userTimezone ?? await getWhatsAppOperationTimeZone(userId);
 
   try {
+    const contextStartedAt = performance.now();
+    const knowledgeStartedAt = performance.now();
+    const knowledgePromise = buildUserKnowledgeBase(userId, receivedAt, timeZone, contextScope)
+      .then(value => {
+        latencyState.dbMs = performance.now() - knowledgeStartedAt;
+        return value;
+      });
     const [knowledgeBase, recentHistory] = await Promise.all([
-      buildUserKnowledgeBase(userId, receivedAt, timeZone),
+      knowledgePromise,
       buildRecentHistory(
         userId,
         receivedAt,
@@ -369,18 +506,34 @@ export async function executeWhatsappAiQuestionIntent(
         input.externalMessageId,
       ),
     ]);
-    const { reply, webSearchExecuted } = await answerWithAi(policy, question, knowledgeBase, recentHistory);
+    latencyState.contextMs = performance.now() - contextStartedAt;
+
+    const llmStartedAt = performance.now();
+    const answer = await answerWithAi(
+      policy,
+      question,
+      knowledgeBase,
+      recentHistory,
+      latencyState.requestId,
+      contextScope,
+    );
+    latencyState.llmMs = performance.now() - llmStartedAt;
+    latencyState.attempts = answer.attempts;
+    latencyState.usedFallback = answer.usedFallback;
+    latencyState.source = answer.source;
+    latencyState.webSearchExecuted = answer.webSearchExecuted;
+    logQuestionLatency(userId, policy, latencyState, "success", null);
 
     return {
       handled: true,
       action: "ai_question_answered",
-      reply,
+      reply: answer.reply,
       eventType: "whatsapp.ai_question.answered",
       detail: "Pergunta iniciada por / respondida pela IA com contexto do banco de dados do usuário.",
       data: {
-        question,
-        usedUserKnowledgeBase: true,
-        internetToolEnabled: webSearchExecuted,
+        usedUserKnowledgeBase: hasUserKnowledgeData(knowledgeBase),
+        contextScope,
+        internetToolEnabled: answer.webSearchExecuted,
         generatedAt: receivedAt.toISOString(),
       },
     };
@@ -389,6 +542,7 @@ export async function executeWhatsappAiQuestionIntent(
     const errorCode = error instanceof AiOperationalError || error instanceof AiNonRetryableError
       ? error.code
       : "unknown";
+    logQuestionLatency(userId, policy, latencyState, "error", errorCode);
     logInferenceEvent({
       userId,
       origin: "whatsapp",
