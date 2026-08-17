@@ -28,6 +28,29 @@ export function resolveInternalUsageAnalyticsWindow(input: { from?: string; to?:
   return { from, to, ...(input.userId ? { userId: input.userId } : {}) };
 }
 
+export const configureUsagePolicySchema = z.object({
+  scopeType: z.enum(["global", "user"]),
+  scopeId: z.string().trim().min(1).max(191),
+  currency: z.string().trim().length(3).transform(value => value.toUpperCase()),
+  expectedBudgetMicros: z.number().int().positive(),
+  alertThresholdPercentages: z.array(z.number().int().min(1).max(100)).length(3).refine(
+    values => values.every((value, index) => index === 0 || value > values[index - 1]),
+    "Os thresholds devem ser estritamente crescentes.",
+  ),
+  observationStartsAt: isoDate,
+  observationEndsAt: isoDate,
+  reason,
+});
+
+export const reconcileUsageCostSchema = z.object({
+  reconciliationKey: z.string().trim().min(8).max(191),
+  usageIdempotencyKey: z.string().trim().min(8).max(191),
+  effectiveCostMicros: z.number().int().nonnegative(),
+  currency: z.string().trim().length(3).transform(value => value.toUpperCase()),
+  effectiveAt: isoDate.optional(),
+  reason,
+});
+
 export const grantUsageAllowanceSchema = z.object({
   subjectType: z.enum(["user", "professional"]),
   subjectId: z.string().trim().min(1).max(191),
