@@ -25,6 +25,16 @@ type SearchedNutritionResult = {
 
 type CommercialMeasure = { kind: "mass" | "volume"; value: number };
 
+export type BrandedNutritionSearchRuntime = {
+  resolveCapabilityConfig: typeof resolveCapabilityConfig;
+  executeResolvedCapability: typeof executeResolvedCapability;
+};
+
+const defaultBrandedNutritionRuntime: BrandedNutritionSearchRuntime = {
+  resolveCapabilityConfig,
+  executeResolvedCapability,
+};
+
 const searchedNutritionJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -236,11 +246,14 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
   };
 }
 
-export async function findBrandedNutritionByWebSearch(foodName: string): Promise<CatalogFood | null> {
-  const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
+export async function findBrandedNutritionByWebSearch(
+  foodName: string,
+  runtime: BrandedNutritionSearchRuntime = defaultBrandedNutritionRuntime,
+): Promise<CatalogFood | null> {
+  const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) return null;
   try {
-    const execution = await executeResolvedCapability(
+    const execution = await runtime.executeResolvedCapability(
       policy,
       async (attempt: ResolvedCapabilityAttemptContext) => {
         const response = await createDomainTextResponse(
