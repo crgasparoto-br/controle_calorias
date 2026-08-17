@@ -4,7 +4,7 @@ import type { ResolvedCapabilityConfig } from "../configResolver";
 import { setAiUsageGate } from "../usageGate";
 
 const mocks = vi.hoisted(() => ({ prepare: vi.fn(), finalize: vi.fn() }));
-vi.mock("../../../modules/usageGovernance/service", () => ({
+vi.mock("../../../modules/usageGovernance/providerAttemptUsage", () => ({
   prepareAiProviderAttemptUsage: mocks.prepare,
   finalizeAiProviderAttemptUsage: mocks.finalize,
 }));

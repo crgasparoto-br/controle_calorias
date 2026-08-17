@@ -178,19 +178,23 @@ export async function executeResolvedCapability<T>(
       : context.source === "fallback"
         ? "fallback" as const
         : context.attempt > 1 ? "retry" as const : "primary" as const;
-    const { prepareAiProviderAttemptUsage } = await import("../../modules/usageGovernance/service");
-    const reservation = await prepareAiProviderAttemptUsage({
-      executionId: usageExecutionId,
-      capability: config.capability,
-      flow: effectiveObservability?.flow ?? config.capability.toLowerCase(),
-      origin: effectiveObservability?.origin ?? "system",
-      provider: providerId,
-      model,
-      callRole,
-      attemptIndex: context.source === "fallback" ? config.maxAttempts + 1 : context.attempt,
-      correlation: effectiveObservability?.correlation ?? {},
-    });
-    if (reservation) usageReservations.set(key, reservation);
+    const usageCorrelation = effectiveObservability?.correlation ?? {};
+    const attributedUserId = usageCorrelation.beneficiaryUserId ?? usageCorrelation.userId;
+    if (typeof attributedUserId === "number" && Number.isInteger(attributedUserId) && attributedUserId > 0) {
+      const { prepareAiProviderAttemptUsage } = await import("../../modules/usageGovernance/providerAttemptUsage");
+      const reservation = await prepareAiProviderAttemptUsage({
+        executionId: usageExecutionId,
+        capability: config.capability,
+        flow: effectiveObservability?.flow ?? config.capability.toLowerCase(),
+        origin: effectiveObservability?.origin ?? "system",
+        provider: providerId,
+        model,
+        callRole,
+        attemptIndex: context.source === "fallback" ? config.maxAttempts + 1 : context.attempt,
+        correlation: usageCorrelation,
+      });
+      if (reservation) usageReservations.set(key, reservation);
+    }
 
     try {
       const value = await operation({
@@ -264,7 +268,7 @@ export async function executeResolvedCapability<T>(
           });
           const event = events.at(-1);
           if (event) {
-            const { finalizeAiProviderAttemptUsage } = await import("../../modules/usageGovernance/service");
+            const { finalizeAiProviderAttemptUsage } = await import("../../modules/usageGovernance/providerAttemptUsage");
             await finalizeAiProviderAttemptUsage(reservation, event);
           }
         }
