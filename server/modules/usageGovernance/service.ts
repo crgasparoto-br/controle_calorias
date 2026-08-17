@@ -18,6 +18,13 @@ import { billingService } from "../billing/service";
 export { prepareAiProviderAttemptUsage, finalizeAiProviderAttemptUsage } from "./providerAttemptUsage";
 export type { AiProviderUsageReservation } from "./providerAttemptUsage";
 
+function directProcessingTestStates() {
+  const key = Symbol.for("controle_calorias.usageProviderDispatchTestState");
+  const root = globalThis as Record<PropertyKey, unknown>;
+  if (!(root[key] instanceof Map)) root[key] = new Map<string, { state: string }>();
+  return root[key] as Map<string, { state: string }>;
+}
+
 export const USAGE_RULE_VERSION = "2026-08-16.5";
 export const USAGE_RETENTION_POLICY = {
   detailedUsageMonths: 13,
@@ -182,7 +189,7 @@ export async function recordDirectProcessingUsage(input: {
   provider?: string;
 }) {
   if (process.env.USAGE_PROVIDER_DISPATCH_TEST_MODE === "memory") {
-    testDispatchStates().set(input.idempotencyKey, { state: "success" });
+    directProcessingTestStates().set(input.idempotencyKey, { state: "success" });
     return { created: true };
   }
   const status = await billingService.getUserSubscriptionStatus(input.userId);
