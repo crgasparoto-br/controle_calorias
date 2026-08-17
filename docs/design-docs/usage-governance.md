@@ -10,6 +10,14 @@ O paciente permanece beneficiário quando o profissional paga. O custo é atribu
 
 Eventos de IA derivam do evento normalizado de observabilidade. A chave idempotente usa a referência opaca da mensagem/conversa quando disponível, evitando duplicação em callbacks/reprocessamentos; retries pagos continuam explicitamente identificados como tentativas adicionais. Prompt, resposta, texto de mensagem, áudio, imagem e transcrição não são copiados para o ledger.
 
+Envios físicos aceitos pela WhatsApp Cloud API também geram eventos no mesmo ledger no transporte central de respostas. A correlação deriva do inbound/lifecycle e da posição física da resposta, de modo que reprocessar a mesma ação lógica não duplica a medição. Esses eventos preservam paciente e patrocinador, usam `provider=meta`, `channel=whatsapp` e começam como `unpriced` quando o custo efetivo do provider ainda não foi conciliado; nenhum preço da Meta é inferido pelo produto.
+
+## Reconciliação de custo
+
+Custo estimado e custo efetivo são estados diferentes do mesmo evento. `billingUsageCostReconciliations` registra cada correção efetiva com chave idempotente, valor estimado anterior, valor efetivo anterior, novo valor efetivo, moeda, data, motivo, responsável, correlação e versão da regra. A reconciliação atualiza `effectiveCostMicros` sem apagar `estimatedCostMicros` e recompõe os agregados diário e mensal afetados. Reusar a mesma chave com outro evento, valor ou moeda é conflito; repetir exatamente a mesma reconciliação é no-op idempotente.
+
+O antigo tipo administrativo `usage_cost_correction` não é aceito como fato econômico de receita/dedução: correção de custo variável deve passar pelo contrato de reconciliação para alterar o numerador do KPI de forma auditável.
+
 ## Economia gerencial
 
 `billingEconomicFacts` registra fatos idempotentes e versionados como receita contratual, desconto, cupom, crédito, reembolso, chargeback, imposto sobre receita, tarifa efetiva de recebimento e custo financeiro. Valores estimados e efetivos não são misturados silenciosamente.
@@ -28,7 +36,7 @@ O KPI de custo variável é `custos variáveis diretos / receita econômica líq
 
 ## Fair use e abuso
 
-O lançamento não cobra excedente, créditos ou pacotes. A política prevê 90 dias de observação e alertas configuráveis em 70/85/100% do orçamento esperado. Atingir 100% apenas abre sinal operacional.
+O lançamento não cobra excedente, créditos ou pacotes. A política padrão prevê 90 dias de observação e alertas em 70/85/100% do orçamento esperado. `billingUsagePolicies` é o contrato persistente e versionado para configurar orçamento, moeda, janela de observação e os três thresholds crescentes por escopo global ou usuário; analytics usa a política específica ativa e recua para a global/padrão quando necessário. Trocar thresholds não habilita bloqueio automático e toda substituição preserva a versão anterior como revogada.
 
 Alto custo isolado não é abuso. Sinais automáticos podem abrir caso, mas limitação normal exige revisão humana com evidência sanitizada, exclusão de falhas/retries do sistema, revisão de crescimento legítimo, operações afetadas, aprovação administrativa, comunicação e oferta de revisão/apelação. A primeira limitação é de até sete dias. Existe no máximo uma extensão normal adicional de até sete dias para o mesmo caso, iniciada exatamente no término da janela inicial e executada por um segundo administrador autenticado distinto; uma janela revogada não pode ser estendida. Proteção emergencial de segurança pode durar até 24 horas antes da revisão, exige sinal de segurança reconhecido e `securityRiskConfirmed=true` na evidência sanitizada, e não pode ser encadeada repetidamente no mesmo caso.
 
@@ -59,4 +67,4 @@ O ciclo automático registra `billingUsageRetentionAudit`. `billingUsageLegalHol
 
 ## Privacidade
 
-A correlação de conversa é SHA-256 truncada antes da persistência econômica. O sanitizador de observabilidade rejeita chaves associadas a prompt, conteúdo, texto, mensagem, transcrição, mídia, erro bruto, segredo, token e URL. A medição armazena somente metadados necessários a custo, atribuição, qualidade e auditoria.
+A correlação de conversa é SHA-256 truncada antes da persistência econômica. IDs usados na medição da Meta também são reduzidos a referências opacas antes de entrar no ledger; telefone e conteúdo da mensagem não são copiados. O sanitizador de observabilidade rejeita chaves associadas a prompt, conteúdo, texto, mensagem, transcrição, mídia, erro bruto, segredo, token e URL. A medição armazena somente metadados necessários a custo, atribuição, qualidade e auditoria.
