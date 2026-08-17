@@ -1,0 +1,12 @@
+(node:1488) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS expected=none observed=none
+PASS expected=none observed=none
+PASS expected=none observed=none
+PASS expected=none observed=none
+PASS expected=today observed=today
+PASS expected=week observed=week
+PASS expected=period observed=period
+PASS expected=full observed=full
+PASS expected=full observed=full
+PASS expected=full observed=full
