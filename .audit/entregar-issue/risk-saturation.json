@@ -1,1 +1,179 @@
-{"schema_version":1,"head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","families":[{"family":"authorization","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"tenant-isolation","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-destination","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"rollback","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"historical-immutability","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"structural-contract","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["CTX-NEG-001","OBS-NEG-001","PERF-NEG-001","REG-NEG-001","STRUCT-NEG-001","STRUCT-NEG-002","STRUCT-NEG-003"],"dimensions":[{"surface":"central-policy","reason":"Timeout, retry and fallback remain owned by the central resolved capability policy rather than a local fast-path policy.","control_ids":["STRUCT-NEG-003"],"status":"passed"},{"surface":"context-scope","reason":"The deterministic scope selector controls which personal aggregates are included while preserving ambiguous conversational context.","control_ids":["CTX-NEG-001"],"status":"passed"},{"surface":"critical-path-context","reason":"Latency improvement depends on removing unnecessary aggregate loads from the synchronous QUESTION critical path.","control_ids":["PERF-NEG-001"],"status":"passed"},{"surface":"legacy-question-contract","reason":"The existing QUESTION reply path, ambiguous-context behavior and success detail must remain compatible while optimization is introduced.","control_ids":["REG-NEG-001"],"status":"passed"},{"surface":"provider-execution","reason":"QUESTION must continue through resolveCapabilityConfig and executeResolvedCapability instead of direct provider SDK calls.","control_ids":["STRUCT-NEG-001"],"status":"passed"},{"surface":"telemetry-payload","reason":"Latency telemetry must expose required stage and execution metadata without embedding raw question or model response content.","control_ids":["OBS-NEG-001"],"status":"passed"},{"surface":"web-search-tool","reason":"The QUESTION request must retain the required web_search tool in auto mode.","control_ids":["STRUCT-NEG-002"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["BENCH-NEG-001"],"dimensions":[{"surface":"benchmark-evidence","reason":"The versioned benchmark evidence is the reviewable contract proving identical cohort, run counts, provenance and percentile gate.","control_ids":["BENCH-NEG-001"],"status":"passed"}],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No issue #989 requirement or current material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from issue #989 requirements and the current material diff.",
+      "control_ids": [
+        "PERF-NEG-001",
+        "CTX-NEG-001",
+        "OBS-NEG-001",
+        "STRUCT-NEG-001",
+        "STRUCT-NEG-002",
+        "STRUCT-NEG-003",
+        "REG-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "central-policy",
+          "reason": "Timeout, retry and fallback policy must remain owned by the central capability configuration.",
+          "control_ids": [
+            "STRUCT-NEG-003"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "context-scope",
+          "reason": "Scope selection must reduce clearly unnecessary personal aggregates while preserving ambiguous conversational context.",
+          "control_ids": [
+            "CTX-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "critical-path-context",
+          "reason": "Latency gain depends on eliminating unnecessary personal aggregate loads from the synchronous QUESTION path.",
+          "control_ids": [
+            "PERF-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "legacy-question-contract",
+          "reason": "The established QUESTION reply path and ambiguous-context behavior must remain compatible after latency optimization.",
+          "control_ids": [
+            "REG-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "provider-execution",
+          "reason": "QUESTION must remain on the central multi-provider resolver/executor path.",
+          "control_ids": [
+            "STRUCT-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "telemetry-payload",
+          "reason": "Latency telemetry must expose stage/execution metadata without leaking user content or credentials.",
+          "control_ids": [
+            "OBS-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "web-search-tool",
+          "reason": "The optimization must not remove the required web_search capability from QUESTION.",
+          "control_ids": [
+            "STRUCT-NEG-002"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from issue #989 requirements and the current material diff.",
+      "control_ids": [
+        "BENCH-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-evidence",
+          "reason": "Reviewable before/after evidence must use an identical versioned cohort with explicit provenance and failure accounting.",
+          "control_ids": [
+            "BENCH-NEG-001"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

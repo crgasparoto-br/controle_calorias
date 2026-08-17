@@ -1,9 +1,0 @@
-base=2c37581bf654f89ebfca6d1d9f5e9250b1954894
-head=7321fb4626f32c3ee43d54651c5b3979956e0161
-status=ahead
-ahead_by=1
-behind_by=0
-changed_files=docs/benchmarks/question-latency/results/2026-08-17-2c37581-summary.json
-change_status=added
-additions=65
-deletions=0

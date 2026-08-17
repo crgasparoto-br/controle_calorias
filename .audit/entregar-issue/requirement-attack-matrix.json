@@ -1,1 +1,389 @@
-{"schema_version":1,"head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","requirements":[{"requirement_id":"RQ-PERF","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"critical-path-context","reason":"Latency improvement depends on removing unnecessary aggregate loads from the synchronous QUESTION critical path."}],"plausible_wrong_implementation":"Keep loading all daily, weekly and 30-day aggregates and only report synthetic gains from unrelated timing changes.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/benchmark-gate.txt","evidence_sha256":"2e3494c4b8fe14c5ec892f7f3e27f39e5302c2bfe269abdf431c1b23d6e39b9c"},"negative_controls":[{"id":"PERF-NEG-001","risk_family":"structural-contract","surface":"critical-path-context","dimension":"unnecessary-load-elimination","failure_mode":"Simple questions still execute the full aggregate load before the model call.","plausible_wrong_implementation":"Optimize only the benchmark double while production keeps scope=full for every question.","control_type":"procedure","procedure":"Run the versioned hermetic benchmark through loadQuestionContextByScope and compare baseline full scope with candidate selected scope.","expected":"At least p90 or p95 improves >=20% with no >5% percentile regression and no error/timeout increase.","observed":"40/40 runs per side; p90 201ms -> 126ms (37.31% better), p50 and p95 do not regress, errors/timeouts remain zero.","status":"passed","evidence_path":".audit/entregar-issue/evidence/benchmark-gate.txt","evidence_sha256":"2e3494c4b8fe14c5ec892f7f3e27f39e5302c2bfe269abdf431c1b23d6e39b9c","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"PERF-SIB-001","surface":"critical-path-context","dimension":"full-follow-up-preservation","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539"}]},{"requirement_id":"RQ-CONTEXT","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"context-scope","reason":"The deterministic scope selector controls which personal aggregates are included while preserving ambiguous conversational context."}],"plausible_wrong_implementation":"Classify every short question as generic and drop user context even when it is a follow-up or explicitly personal.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539"},"negative_controls":[{"id":"CTX-NEG-001","risk_family":"structural-contract","surface":"context-scope","dimension":"ambiguous-follow-up-fallback","failure_mode":"Ambiguous follow-ups lose prior personal context because the fast route chooses none.","plausible_wrong_implementation":"Treat any short question such as e proteína as generic to maximize latency improvement.","control_type":"procedure","procedure":"Execute the pure scope selector against generic, today, week, period and ambiguous follow-up cases.","expected":"Clear generic questions select none; explicit personal periods select one window; ambiguous follow-ups select full.","observed":"All ten smoke cases passed, including e proteína and prior-suggestion follow-up -> full.","status":"passed","evidence_path":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"CTX-SIB-001","surface":"context-scope","dimension":"explicit-period-minimization","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/benchmark-gate.txt","evidence_sha256":"2e3494c4b8fe14c5ec892f7f3e27f39e5302c2bfe269abdf431c1b23d6e39b9c"}]},{"requirement_id":"RQ-OBS","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"telemetry-payload","reason":"Latency telemetry must expose required stage and execution metadata without embedding raw question or model response content."}],"plausible_wrong_implementation":"Emit only total latency or include the raw question in diagnostic JSON because it is convenient for debugging.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/telemetry-scan.txt","evidence_sha256":"2017021f0183c998590ab85c7c3d6c549348b9c0ba4a4d60a25283088309a2ec"},"negative_controls":[{"id":"OBS-NEG-001","risk_family":"structural-contract","surface":"telemetry-payload","dimension":"sensitive-content-exclusion","failure_mode":"Latency event omits required stage fields or embeds raw question/answer content.","plausible_wrong_implementation":"Serialize the full request or response into whatsapp.ai_question.latency while recording a single duration.","control_type":"procedure","procedure":"Inspect the latency event payload source and required fields in the exact QUESTION handler.","expected":"Payload contains total/db/context/llm/persist/TTFT plus provider/model/attempt/retry/fallback/web-search metadata and no raw question/answer field.","observed":"Static payload scan shows all required fields; the latency JSON block contains no question or reply key.","status":"passed","evidence_path":".audit/entregar-issue/evidence/telemetry-scan.txt","evidence_sha256":"2017021f0183c998590ab85c7c3d6c549348b9c0ba4a4d60a25283088309a2ec","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"OBS-SIB-001","surface":"telemetry-payload","dimension":"correlation-and-provider-metadata","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0"}]},{"requirement_id":"RQ-BENCH","risk_families":["documentation"],"risk_surfaces":[{"risk_family":"documentation","surface":"benchmark-evidence","reason":"The versioned benchmark evidence is the reviewable contract proving identical cohort, run counts, provenance and percentile gate."}],"plausible_wrong_implementation":"Change candidate fixtures, discard slow failures, or publish only favorable percentiles without baseline/candidate provenance.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/benchmark-gate.txt","evidence_sha256":"2e3494c4b8fe14c5ec892f7f3e27f39e5302c2bfe269abdf431c1b23d6e39b9c"},"negative_controls":[{"id":"BENCH-NEG-001","risk_family":"documentation","surface":"benchmark-evidence","dimension":"cohort-and-failure-accounting","failure_mode":"Candidate appears faster because fixtures differ or failed/slow samples are silently excluded.","plausible_wrong_implementation":"Run different questions on the candidate or compute percentiles only from selected successful samples.","control_type":"procedure","procedure":"Validate the fixed manifest hash, 40 executions per side, separate zero error/timeout counts, both SHAs and the material-only result delta.","expected":"Same manifest/profile is used on both sides, >=30 successes each, errors/timeouts are explicit, and the result commit changes only evidence.","observed":"Evidence records one manifest hash, 40/40 successes, 0/0 errors and timeouts, base/candidate SHAs, and M1->M2 result-only delta.","status":"passed","evidence_path":".audit/entregar-issue/evidence/benchmark-gate.txt","evidence_sha256":"2e3494c4b8fe14c5ec892f7f3e27f39e5302c2bfe269abdf431c1b23d6e39b9c","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"BENCH-SIB-001","surface":"benchmark-evidence","dimension":"provider-policy-provenance","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/material-result-delta.txt","evidence_sha256":"caa6604def3a3251340dbf280a88613794f6953b7a29accc551d6e5ce0d5dc9b"}]},{"requirement_id":"RQ-STRUCTURAL","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"provider-execution","reason":"QUESTION must continue through resolveCapabilityConfig and executeResolvedCapability instead of direct provider SDK calls."},{"risk_family":"structural-contract","surface":"web-search-tool","reason":"The QUESTION request must retain the required web_search tool in auto mode."},{"risk_family":"structural-contract","surface":"central-policy","reason":"Timeout, retry and fallback remain owned by the central resolved capability policy rather than a local fast-path policy."}],"plausible_wrong_implementation":"Create a special direct-provider fast path, remove web search, or invent local timeout/retry rules solely for simple questions.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0"},"negative_controls":[{"id":"STRUCT-NEG-001","risk_family":"structural-contract","surface":"provider-execution","dimension":"central-executor-reuse","failure_mode":"A fast path bypasses the capability executor and calls a provider SDK directly.","plausible_wrong_implementation":"Instantiate OpenAI or Gemini inside aiQuestionAssistant for generic questions.","control_type":"procedure","procedure":"Scan the QUESTION handler for central resolver/executor use and direct provider imports.","expected":"resolveCapabilityConfig(\"QUESTION\") and executeResolvedCapability are present; no direct OpenAI/Gemini import appears.","observed":"Structural scan shows central resolver/executor call sites and no direct SDK import matches.","status":"passed","evidence_path":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"STRUCT-SIB-001","surface":"provider-execution","dimension":"same-handler-for-generic-and-personal","status":"passed"}]},{"id":"STRUCT-NEG-002","risk_family":"structural-contract","surface":"web-search-tool","dimension":"tool-preservation","failure_mode":"The optimization removes web_search from the provider request to reduce model latency.","plausible_wrong_implementation":"Disable tools for scope=none while keeping them for full questions.","control_type":"procedure","procedure":"Inspect the createDomainTextResponse request construction in the single QUESTION answerWithAi path.","expected":"Auto mode still supplies tools:[{type:\"web_search\"}] independent of context scope.","observed":"Structural scan shows web_search construction in the shared answerWithAi path.","status":"passed","evidence_path":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"STRUCT-SIB-002","surface":"web-search-tool","dimension":"disabled-mode-remains-explicit","status":"passed"}]},{"id":"STRUCT-NEG-003","risk_family":"structural-contract","surface":"central-policy","dimension":"policy-single-source","failure_mode":"The fast path defines a shorter local timeout or retry count that diverges from central policy.","plausible_wrong_implementation":"Add a scope-specific timeout/retry constant in aiQuestionAssistant.","control_type":"procedure","procedure":"Inspect QUESTION handler for policy resolution and absence of local timeout/retry execution policy.","expected":"Policy comes from resolveCapabilityConfig(\"QUESTION\") and executeResolvedCapability; no local execution policy is introduced.","observed":"Structural scan shows central policy resolution and executor; candidate adds no local timeout/retry implementation.","status":"passed","evidence_path":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"STRUCT-SIB-003","surface":"central-policy","dimension":"fallback-metadata-observation-only","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/telemetry-scan.txt","evidence_sha256":"2017021f0183c998590ab85c7c3d6c549348b9c0ba4a4d60a25283088309a2ec"},{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539"}]},{"requirement_id":"RQ-REGRESSION","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"legacy-question-contract","reason":"The existing QUESTION reply path, ambiguous-context behavior and success detail must remain compatible while optimization is introduced."}],"plausible_wrong_implementation":"Optimize generic questions by changing the shared reply contract or applying reduced context to ambiguous legacy cases.","positive_control":{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539"},"negative_controls":[{"id":"REG-NEG-001","risk_family":"structural-contract","surface":"legacy-question-contract","dimension":"ambiguous-contract-preservation","failure_mode":"Legacy ambiguous questions are routed through a reduced context path and change behavior unexpectedly.","plausible_wrong_implementation":"Default unknown questions to none instead of full.","control_type":"procedure","procedure":"Execute ambiguous and follow-up selector smoke cases and inspect the shared handler contract.","expected":"Ambiguous cases remain full and the existing QUESTION reply path is shared.","observed":"All ambiguous selector cases passed with full scope; optimization does not create a separate reply handler.","status":"passed","evidence_path":".audit/entregar-issue/evidence/context-plan-smoke.txt","evidence_sha256":"c1ab7a20826446881a3268d59d7b8d83c578606b529f95dcb87ba6d86cc41539","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","sibling_cases":[{"id":"REG-SIB-001","surface":"legacy-question-contract","dimension":"generic-fast-path-still-shared-answer","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/typecheck-limited.txt","evidence_sha256":"e9e274521bb93ba7d129777878352531930bfedcada1915548f381aa812cd872"},{"status":"passed","head_sha":"7321fb4626f32c3ee43d54651c5b3979956e0161","evidence":".audit/entregar-issue/evidence/structural-scan.txt","evidence_sha256":"47ce332b7f8bc61893ad2edd782c78000c5173c8a800e968b66f32f93c2ac3f0"}]}],"uncovered_requirements":[]}
+{
+  "schema_version": 1,
+  "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+  "requirements": [
+    {
+      "requirement_id": "RQ-PERF",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "critical-path-context",
+          "reason": "Latency gain depends on eliminating unnecessary personal aggregate loads from the synchronous QUESTION path."
+        }
+      ],
+      "plausible_wrong_implementation": "Keep loading all personal aggregate windows for every question and claim improvement from unrelated synthetic timing.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/perf.txt",
+        "evidence_sha256": "b491ab21d1e12cd4feee796522ec0a5bc7de8c2e1c728e2e653bccbc7d9a1ae9"
+      },
+      "negative_controls": [
+        {
+          "id": "PERF-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "critical-path-context",
+          "dimension": "unnecessary-load-elimination",
+          "failure_mode": "Simple questions still load all daily, weekly and 30-day aggregates before the model call.",
+          "plausible_wrong_implementation": "Simple questions still load all daily, weekly and 30-day aggregates before the model call.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/perf.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Benchmark gate passes with p90 201ms to 126ms and current scope selector omits unnecessary windows.",
+          "status": "passed",
+          "evidence_path": "evidence/perf.txt",
+          "evidence_sha256": "b491ab21d1e12cd4feee796522ec0a5bc7de8c2e1c728e2e653bccbc7d9a1ae9",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "PERF-NEG-001-S1",
+              "surface": "critical-path-context",
+              "dimension": "full-follow-up-preservation",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/regression.txt",
+          "evidence_sha256": "f257be889372e79e880e15b697eca5ebeaa815acbc5cf188f058e46939a57dc8"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-CONTEXT",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "reason": "Scope selection must reduce clearly unnecessary personal aggregates while preserving ambiguous conversational context."
+        }
+      ],
+      "plausible_wrong_implementation": "Treat all short questions as generic and remove personal context even for ambiguous follow-ups or explicit personal periods.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/context.txt",
+        "evidence_sha256": "001864bcb208810f5617520e7313a670843c2c25a37958aeeb793753394b2955"
+      },
+      "negative_controls": [
+        {
+          "id": "CTX-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "dimension": "ambiguous-follow-up-fallback",
+          "failure_mode": "An ambiguous follow-up is classified as none and loses personal context required for continuity.",
+          "plausible_wrong_implementation": "An ambiguous follow-up is classified as none and loses personal context required for continuity.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/context.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current selector defaults ambiguous follow-ups to full and only narrows explicit safe cases.",
+          "status": "passed",
+          "evidence_path": "evidence/context.txt",
+          "evidence_sha256": "001864bcb208810f5617520e7313a670843c2c25a37958aeeb793753394b2955",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "CTX-NEG-001-S1",
+              "surface": "context-scope",
+              "dimension": "explicit-period-minimization",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/regression.txt",
+          "evidence_sha256": "f257be889372e79e880e15b697eca5ebeaa815acbc5cf188f058e46939a57dc8"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-OBS",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "telemetry-payload",
+          "reason": "Latency telemetry must expose stage/execution metadata without leaking user content or credentials."
+        }
+      ],
+      "plausible_wrong_implementation": "Emit only a total duration or serialize the raw question and answer into diagnostic latency telemetry.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/observability.txt",
+        "evidence_sha256": "a3bf4e4c1608193785e3acf7d153c18d57bc45b47c3cc405d46f5913a5ebf95e"
+      },
+      "negative_controls": [
+        {
+          "id": "OBS-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "telemetry-payload",
+          "dimension": "sensitive-content-exclusion",
+          "failure_mode": "Telemetry omits required stage fields or includes raw question/response content.",
+          "plausible_wrong_implementation": "Telemetry omits required stage fields or includes raw question/response content.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/observability.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current latency payload contains required stage/provider/retry/search fields and no raw question/reply keys.",
+          "status": "passed",
+          "evidence_path": "evidence/observability.txt",
+          "evidence_sha256": "a3bf4e4c1608193785e3acf7d153c18d57bc45b47c3cc405d46f5913a5ebf95e",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "OBS-NEG-001-S1",
+              "surface": "telemetry-payload",
+              "dimension": "correlation-provider-metadata",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/structural.txt",
+          "evidence_sha256": "b6bfb7b963bd7a35b713c55fdc247105ece3310ebd2142262ce6a7b157c0dd6b"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-BENCH",
+      "risk_families": [
+        "documentation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "documentation",
+          "surface": "benchmark-evidence",
+          "reason": "Reviewable before/after evidence must use an identical versioned cohort with explicit provenance and failure accounting."
+        }
+      ],
+      "plausible_wrong_implementation": "Change candidate fixtures or omit slow failures and publish only favorable percentiles without reproducible provenance.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/benchmark.txt",
+        "evidence_sha256": "23408f5c8f45c971ef47de2c412b63b4de3ae1ae63f56d41adfb54f0bd0cc6e4"
+      },
+      "negative_controls": [
+        {
+          "id": "BENCH-NEG-001",
+          "risk_family": "documentation",
+          "surface": "benchmark-evidence",
+          "dimension": "cohort-and-failure-accounting",
+          "failure_mode": "Candidate measurements use a different cohort or silently exclude failed or slow observations.",
+          "plausible_wrong_implementation": "Candidate measurements use a different cohort or silently exclude failed or slow observations.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/benchmark.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "One manifest drives both sides, 40 successes per side and errors/timeouts are explicit with both SHAs recorded.",
+          "status": "passed",
+          "evidence_path": "evidence/benchmark.txt",
+          "evidence_sha256": "23408f5c8f45c971ef47de2c412b63b4de3ae1ae63f56d41adfb54f0bd0cc6e4",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "BENCH-NEG-001-S1",
+              "surface": "benchmark-evidence",
+              "dimension": "provider-policy-provenance",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/perf.txt",
+          "evidence_sha256": "b491ab21d1e12cd4feee796522ec0a5bc7de8c2e1c728e2e653bccbc7d9a1ae9"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-STRUCTURAL",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "provider-execution",
+          "reason": "QUESTION must remain on the central multi-provider resolver/executor path."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "web-search-tool",
+          "reason": "The optimization must not remove the required web_search capability from QUESTION."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "central-policy",
+          "reason": "Timeout, retry and fallback policy must remain owned by the central capability configuration."
+        }
+      ],
+      "plausible_wrong_implementation": "Create a generic-question fast path that calls a provider directly, removes web search, or defines local timeout/retry behavior.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/structural.txt",
+        "evidence_sha256": "b6bfb7b963bd7a35b713c55fdc247105ece3310ebd2142262ce6a7b157c0dd6b"
+      },
+      "negative_controls": [
+        {
+          "id": "STRUCT-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "provider-execution",
+          "dimension": "central-executor-reuse",
+          "failure_mode": "Generic questions bypass executeResolvedCapability and call an OpenAI or Gemini SDK directly.",
+          "plausible_wrong_implementation": "Generic questions bypass executeResolvedCapability and call an OpenAI or Gemini SDK directly.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/structural.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current shared handler resolves QUESTION and calls executeResolvedCapability for all scopes.",
+          "status": "passed",
+          "evidence_path": "evidence/structural.txt",
+          "evidence_sha256": "b6bfb7b963bd7a35b713c55fdc247105ece3310ebd2142262ce6a7b157c0dd6b",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "STRUCT-NEG-001-S1",
+              "surface": "provider-execution",
+              "dimension": "same-handler-generic-personal",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "STRUCT-NEG-002",
+          "risk_family": "structural-contract",
+          "surface": "web-search-tool",
+          "dimension": "tool-preservation",
+          "failure_mode": "The reduced-context path removes web_search to improve latency.",
+          "plausible_wrong_implementation": "The reduced-context path removes web_search to improve latency.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/structural.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current shared answerWithAi offers web_search in auto mode independently of context scope.",
+          "status": "passed",
+          "evidence_path": "evidence/structural.txt",
+          "evidence_sha256": "b6bfb7b963bd7a35b713c55fdc247105ece3310ebd2142262ce6a7b157c0dd6b",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "STRUCT-NEG-002-S1",
+              "surface": "web-search-tool",
+              "dimension": "shared-tool-construction",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "STRUCT-NEG-003",
+          "risk_family": "structural-contract",
+          "surface": "central-policy",
+          "dimension": "policy-single-source",
+          "failure_mode": "The fast path adds a local timeout or retry limit divergent from central policy.",
+          "plausible_wrong_implementation": "The fast path adds a local timeout or retry limit divergent from central policy.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/structural.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current handler consumes resolved capability policy and contains no local execution-policy loop.",
+          "status": "passed",
+          "evidence_path": "evidence/structural.txt",
+          "evidence_sha256": "b6bfb7b963bd7a35b713c55fdc247105ece3310ebd2142262ce6a7b157c0dd6b",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "STRUCT-NEG-003-S1",
+              "surface": "central-policy",
+              "dimension": "fallback-observation-only",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/regression.txt",
+          "evidence_sha256": "f257be889372e79e880e15b697eca5ebeaa815acbc5cf188f058e46939a57dc8"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-REGRESSION",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "legacy-question-contract",
+          "reason": "The established QUESTION reply path and ambiguous-context behavior must remain compatible after latency optimization."
+        }
+      ],
+      "plausible_wrong_implementation": "Apply reduced context as the default and change shared reply behavior for ambiguous legacy questions to maximize benchmark gains.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+        "evidence": "evidence/regression.txt",
+        "evidence_sha256": "f257be889372e79e880e15b697eca5ebeaa815acbc5cf188f058e46939a57dc8"
+      },
+      "negative_controls": [
+        {
+          "id": "REG-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "legacy-question-contract",
+          "dimension": "ambiguous-contract-preservation",
+          "failure_mode": "Unknown or ambiguous questions are forced through a reduced-context path and change legacy behavior.",
+          "plausible_wrong_implementation": "Unknown or ambiguous questions are forced through a reduced-context path and change legacy behavior.",
+          "control_type": "procedure",
+          "procedure": "Revalidate current branch head against evidence/regression.txt and the versioned source/result artifacts.",
+          "expected": "The prohibited shortcut is absent and the required contract remains observable on the material head.",
+          "observed": "Current tests and selector preserve full as the safe default for ambiguous inputs.",
+          "status": "passed",
+          "evidence_path": "evidence/regression.txt",
+          "evidence_sha256": "f257be889372e79e880e15b697eca5ebeaa815acbc5cf188f058e46939a57dc8",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "sibling_cases": [
+            {
+              "id": "REG-NEG-001-S1",
+              "surface": "legacy-question-contract",
+              "dimension": "shared-reply-path-preservation",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+          "evidence": "evidence/context.txt",
+          "evidence_sha256": "001864bcb208810f5617520e7313a670843c2c25a37958aeeb793753394b2955"
+        }
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}

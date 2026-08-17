@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-17T22:40:32.029962+00:00",
+  "created_at": "2026-08-17T23:16:05.635366+00:00",
   "identity": {
-    "head_sha": "7321fb4626f32c3ee43d54651c5b3979956e0161",
-    "material_head_sha": "7321fb4626f32c3ee43d54651c5b3979956e0161",
+    "head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
+    "material_head_sha": "44b9d011f4c9b996ebb864a5854d060912f27c00",
     "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
     "merge_preview_sha": null,
     "material_merge_preview_sha": null
@@ -13,20 +13,12 @@
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue",
-      ".audit/entregar-issue/evidence/benchmark-gate.txt",
-      ".audit/entregar-issue/evidence/context-plan-smoke.txt",
-      ".audit/entregar-issue/evidence/material-result-delta.txt",
-      ".audit/entregar-issue/evidence/remote-gate.txt",
-      ".audit/entregar-issue/evidence/structural-scan.txt",
-      ".audit/entregar-issue/evidence/telemetry-scan.txt",
-      ".audit/entregar-issue/evidence/typecheck-limited.txt",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-989.txt"
+      ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
   "contract_version": "2026-08-06.2",
@@ -53,15 +45,15 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "9c0b8d2114710fb1fc5a1b8cc21b4ae60495e7ecf30889ea85c23f4133b24205"
+      "sha256": "9bfe310cc416fafa6fbfe726903ef5d6a33edf6831fb79002be893fece0a99bc"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "cb860df5641d50a15eb751a38c0b96fbd68a87a151977ea6906014bacf0f86f0"
+      "sha256": "cf5e8eb2bec2a8a2ce5e38c6c586a6e9428b294c041adeb14e67139bd2f067b2"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "e2f836c0b8a6792d3a5dff43b4b05c4324a91bf41e1b4657b7457504c5fb07fb"
+      "sha256": "a34e5dbcd26c45cfda317db4a43cb987540f2c1e7514b8e70637d4b0333a58f9"
     }
   },
   "previous_independent_rejection": false

@@ -1,4 +1,0 @@
-Environment constraint: repository dependencies are not installed in connector-only mode.
-Focused TypeScript parse/noResolve check was run for new modules earlier in the delivery.
-Observed diagnostics were unresolved module/type-environment diagnostics only; no syntax/internal diagnostic was observed in the new pure modules.
-Full pnpm check/test/architecture:check/build/agent:check were not runnable locally and remote CI had no run in the single observed snapshot.

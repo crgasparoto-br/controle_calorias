@@ -1,0 +1,3 @@
+material_head_sha=44b9d011f4c9b996ebb864a5854d060912f27c00
+Observed current questionContextPlan.ts at branch head: generic questions can select none; explicit personal today/week/period select the corresponding narrow scope; ambiguous/follow-up defaults to full. Current aiQuestionAssistant.ts loads personal knowledge and recent history concurrently and keeps history even when personal aggregate scope is none.
+Negative cases preserved: ambiguous `e proteína?` => full; unknown/non-clear generic => full.

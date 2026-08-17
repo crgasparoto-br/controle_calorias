@@ -1,6 +1,8 @@
-material_head_sha=7321fb4626f32c3ee43d54651c5b3979956e0161
-remote_gate=pending-no-run
-workflow_runs=[]
-combined_statuses=[]
-observation_mode=read-only-single-snapshot
-no_rerun_or_dispatch=true
+material_head_sha=44b9d011f4c9b996ebb864a5854d060912f27c00
+observed_once=true
+agent_first_gate_run=32079509495
+agent_first_gate_status=in_progress
+whatsapp_context_tidb_run=32079509393
+whatsapp_context_tidb_status=completed
+whatsapp_context_tidb_conclusion=success
+note=CI snapshot is observational only; no rerun, dispatch, cancel or polling was performed.
