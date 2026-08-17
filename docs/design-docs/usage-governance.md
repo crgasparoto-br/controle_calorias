@@ -14,7 +14,9 @@ Eventos de IA derivam do evento normalizado de observabilidade. A chave idempote
 
 `billingEconomicFacts` registra fatos idempotentes e versionados como receita contratual, desconto, cupom, crédito, reembolso, chargeback, imposto sobre receita, tarifa efetiva de recebimento e custo financeiro. Valores estimados e efetivos não são misturados silenciosamente.
 
-A receita gerencial é reconhecida proporcionalmente ao período de serviço, inclusive em planos anuais; pagamento antecipado não concentra receita no mês de caixa. Trial, transição, acesso aberto e waiver não geram receita contratual reconhecida sem fato comercial correspondente.
+A receita gerencial é reconhecida proporcionalmente ao período de serviço, inclusive em planos anuais; pagamento antecipado não concentra receita no mês de caixa. O fim da competência é respeitado exatamente e a distribuição mensal conserva o valor total do fato mesmo quando a vigência começa ou termina no meio do mês. Trial, transição, acesso aberto e waiver não geram receita contratual reconhecida sem fato comercial correspondente.
+
+Fatos econômicos retroativos recompõem imediatamente todos os meses de competência afetados. Quando o detalhe de consumo já saiu da retenção, a recomposição preserva o custo variável previamente consolidado no agregado mensal em vez de reconstruí-lo como zero; retries idempotentes do mesmo fato também repetem a recomposição para recuperar falhas ocorridas depois da persistência do ledger.
 
 Receita econômica líquida:
 
@@ -46,7 +48,7 @@ O contrato administrativo `billing.adminUsageAnalytics` permanece separado da UI
 
 ## Retenção e legal hold
 
-Política `2026-08-16.3`:
+Política `2026-08-16.5`:
 
 - eventos detalhados de consumo: **13 meses**;
 - agregados diários: **24 meses**;

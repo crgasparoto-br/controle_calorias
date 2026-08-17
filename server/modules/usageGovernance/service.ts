@@ -15,7 +15,7 @@ import { hasActiveUsageExemption } from "../../repositories/usageGovernancePolic
 import { purgeUsageGovernanceRetention } from "../../repositories/usageGovernanceRetentionRepository";
 import { billingService } from "../billing/service";
 
-export const USAGE_RULE_VERSION = "2026-08-16.4";
+export const USAGE_RULE_VERSION = "2026-08-16.5";
 export const USAGE_RETENTION_POLICY = {
   detailedUsageMonths: 13,
   dailyAggregateMonths: 24,
@@ -199,14 +199,20 @@ export async function registerEconomicFact(input: {
   metadata?: Record<string, unknown> | null;
 }) {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor < 0) throw new Error("economic_fact_amount_invalid");
-  if (input.competenceEnd.getTime() < input.competenceStart.getTime()) throw new Error("economic_fact_competence_invalid");
-  return recordEconomicFact({
+  if (input.competenceEnd.getTime() <= input.competenceStart.getTime()) throw new Error("economic_fact_competence_invalid");
+  const recorded = await recordEconomicFact({
     ...input,
     id: crypto.randomUUID(),
     effectiveAt: input.effectiveAt ?? new Date(),
     ruleVersion: USAGE_RULE_VERSION,
     correlationId: crypto.randomUUID(),
   });
+  await refreshEconomicAggregatesForRange({
+    from: input.competenceStart,
+    to: input.competenceEnd,
+    refreshDailyUsage: false,
+  });
+  return recorded;
 }
 
 export function prorateMinorUnits(amountMinor: number, serviceStart: Date, serviceEnd: Date, sliceStart: Date, sliceEnd: Date) {
@@ -254,8 +260,41 @@ function addMonths(value: Date, months: number) {
 function subtractMonths(value: Date, months: number) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() - months, value.getUTCDate(), value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds()));
 }
+function normalizeMonthlyRangeEnd(value: Date) {
+  const month = startOfMonth(value);
+  return value.getTime() === month.getTime() ? month : addMonths(month, 1);
+}
+function firstFullyRetainedUsageMonth(now: Date) {
+  const cutoff = subtractMonths(now, USAGE_RETENTION_POLICY.detailedUsageMonths);
+  const month = startOfMonth(cutoff);
+  return cutoff.getTime() === month.getTime() ? month : addMonths(month, 1);
+}
 function monthOrdinal(value: Date) {
   return value.getUTCFullYear() * 12 + value.getUTCMonth();
+}
+
+export function allocateMinorUnitsByMonth(amountMinor: number, serviceStart: Date, serviceEnd: Date) {
+  if (serviceEnd.getTime() <= serviceStart.getTime()) return [];
+  const total = serviceEnd.getTime() - serviceStart.getTime();
+  const allocations: Array<{ month: Date; amountMinor: number }> = [];
+  let cursor = startOfMonth(serviceStart);
+  let exactCumulative = 0;
+  let roundedCumulative = 0;
+
+  while (cursor < serviceEnd) {
+    const next = addMonths(cursor, 1);
+    const overlapStart = Math.max(serviceStart.getTime(), cursor.getTime());
+    const overlapEnd = Math.min(serviceEnd.getTime(), next.getTime());
+    if (overlapEnd > overlapStart) {
+      exactCumulative += amountMinor * ((overlapEnd - overlapStart) / total);
+      const nextRounded = Math.round(exactCumulative);
+      const value = nextRounded - roundedCumulative;
+      roundedCumulative = nextRounded;
+      if (value !== 0) allocations.push({ month: new Date(cursor), amountMinor: value });
+    }
+    cursor = next;
+  }
+  return allocations;
 }
 
 export type EconomicSeriesRow = {
@@ -313,21 +352,61 @@ export function decorateEconomicDecisionSeries(rows: EconomicSeriesRow[]) {
   return decorated;
 }
 
-export async function refreshEconomicAggregates(now = new Date()) {
-  const from = addMonths(startOfMonth(now), -2);
-  const to = addMonths(startOfMonth(now), 1);
-  await refreshUsageDailyAggregates(from, to, USAGE_RULE_VERSION);
+export async function refreshEconomicAggregatesForRange(input: {
+  from: Date;
+  to: Date;
+  now?: Date;
+  refreshDailyUsage?: boolean;
+}) {
+  const from = startOfMonth(input.from);
+  const to = normalizeMonthlyRangeEnd(input.to);
+  if (to <= from) return;
+  const now = input.now ?? new Date();
+  if (input.refreshDailyUsage) await refreshUsageDailyAggregates(from, to, USAGE_RULE_VERSION);
   const facts = await listEconomicFacts({ from, to });
-  const usage = await listUsageEvents({ from, to });
+  const completeDetailFrom = firstFullyRetainedUsageMonth(now);
+  const usageFrom = from < completeDetailFrom ? completeDetailFrom : from;
+  const usage = usageFrom < to ? await listUsageEvents({ from: usageFrom, to }) : [];
+  const historicalTo = to < completeDetailFrom ? to : completeDetailFrom;
+  const historicalAggregates = from < historicalTo
+    ? await listMonthlyEconomicAggregates({ from, to: historicalTo })
+    : [];
   const buckets = new Map<string, Record<string, number | string | null | Date | boolean>>();
 
-  for (let month = new Date(from); month < to; month = addMonths(month, 1)) {
-    const next = addMonths(month, 1);
-    for (const fact of facts) {
-      const competenceStart = new Date(String(fact.competenceStart));
-      const competenceEnd = new Date(String(fact.competenceEnd));
-      const value = prorateMinorUnits(Number(fact.amountMinor), competenceStart, addMonths(startOfMonth(competenceEnd), 1), month, next);
-      if (!value) continue;
+  for (const row of historicalAggregates) {
+    const month = startOfMonth(new Date(String(row.competenceMonth)));
+    const key = [month.toISOString().slice(0, 10), row.payerUserId, row.subscriptionId ?? "", row.versionCode ?? "", row.currency].join("|");
+    buckets.set(key, {
+      month,
+      payerUserId: Number(row.payerUserId),
+      subscriptionId: row.subscriptionId ? String(row.subscriptionId) : null,
+      productCode: row.productCode ? String(row.productCode) : null,
+      versionCode: row.versionCode ? String(row.versionCode) : null,
+      billingCycle: row.billingCycle ? String(row.billingCycle) : null,
+      currency: String(row.currency),
+      contract_revenue: 0,
+      discount: 0,
+      coupon: 0,
+      credit: 0,
+      refund: 0,
+      chargeback: 0,
+      revenue_tax: 0,
+      receipt_fee: 0,
+      financial_cost: 0,
+      estimatedFacts: 0,
+      effectiveFacts: 0,
+      variableCostMicros: Number(row.variableCostMicros ?? 0),
+      hasUnconvertedVariableCost: row.variableCostRatioBps == null && Number(row.netEconomicRevenueMinor ?? 0) > 0,
+    });
+  }
+
+  for (const fact of facts) {
+    const competenceStart = new Date(String(fact.competenceStart));
+    const competenceEnd = new Date(String(fact.competenceEnd));
+    for (const allocation of allocateMinorUnitsByMonth(Number(fact.amountMinor), competenceStart, competenceEnd)) {
+      const month = allocation.month;
+      if (month < from || month >= to) continue;
+      const value = allocation.amountMinor;
       const key = [month.toISOString().slice(0, 10), fact.payerUserId, fact.subscriptionId ?? "", fact.versionCode ?? "", fact.currency].join("|");
       const bucket = buckets.get(key) ?? {
         month, payerUserId: Number(fact.payerUserId), subscriptionId: fact.subscriptionId ? String(fact.subscriptionId) : null,
@@ -419,6 +498,15 @@ export async function refreshEconomicAggregates(now = new Date()) {
       ruleVersion: USAGE_RULE_VERSION,
     });
   }
+}
+
+export async function refreshEconomicAggregates(now = new Date()) {
+  return refreshEconomicAggregatesForRange({
+    from: addMonths(startOfMonth(now), -2),
+    to: addMonths(startOfMonth(now), 1),
+    now,
+    refreshDailyUsage: true,
+  });
 }
 
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {

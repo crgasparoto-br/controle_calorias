@@ -37,6 +37,7 @@ import {
   AiUsageTemporarilyLimitedError,
   FAIR_USE_POLICY,
   USAGE_RETENTION_POLICY,
+  allocateMinorUnitsByMonth,
   calculateNetEconomicRevenueMinor,
   calculateVariableCostRatioBps,
   economicHealthBand,
@@ -45,6 +46,7 @@ import {
   prorateMinorUnits,
   recordAiEconomicUsage,
   refreshEconomicAggregates,
+  registerEconomicFact,
   runUsageRetention,
 } from "./service";
 
@@ -113,10 +115,12 @@ function economicRow(month: string, ratioBps: number | null) {
 describe("usage governance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     mocks.getActiveUsageLimitation.mockResolvedValue([]);
     mocks.hasActiveUsageExemption.mockResolvedValue(false);
     mocks.getUserSubscriptionStatus.mockResolvedValue(status());
     mocks.recordUsageEvent.mockResolvedValue({ created: true });
+    mocks.recordEconomicFact.mockResolvedValue({ created: true });
     mocks.purgeUsageGovernanceRetention.mockResolvedValue(undefined);
     mocks.listEconomicFacts.mockResolvedValue([]);
     mocks.listMonthlyEconomicAggregates.mockResolvedValue([]);
@@ -182,6 +186,156 @@ describe("usage governance", () => {
     const january = prorateMinorUnits(annual, start, end, start, new Date("2026-02-01T00:00:00.000Z"));
     expect(january).toBeGreaterThan(9_000);
     expect(january).toBeLessThan(11_000);
+  });
+
+  it("allocates exact competence boundaries without monthly rounding drift", () => {
+    const midMonth = allocateMinorUnitsByMonth(
+      10_000,
+      new Date("2026-08-15T00:00:00.000Z"),
+      new Date("2026-09-14T00:00:00.000Z"),
+    );
+    expect(midMonth.map(item => [item.month.toISOString().slice(0, 7), item.amountMinor])).toEqual([
+      ["2026-08", 5667],
+      ["2026-09", 4333],
+    ]);
+
+    const annual = allocateMinorUnitsByMonth(
+      120_000,
+      new Date("2026-01-15T00:00:00.000Z"),
+      new Date("2027-01-15T00:00:00.000Z"),
+    );
+    expect(annual.reduce((sum, item) => sum + item.amountMinor, 0)).toBe(120_000);
+  });
+
+  it("aggregates a mid-month competence using its exact service end", async () => {
+    mocks.listEconomicFacts.mockResolvedValue([{
+      competenceStart: "2026-08-15", competenceEnd: "2026-09-14", amountMinor: 10_000,
+      payerUserId: 7, subscriptionId: "sub-pro", versionCode: "professional_v1", billingCycle: "monthly",
+      currency: "BRL", factType: "contract_revenue", valueKind: "effective",
+    }]);
+    await refreshEconomicAggregates(new Date("2026-09-16T12:00:00.000Z"));
+    const calls = mocks.upsertMonthlyEconomicAggregate.mock.calls.map(call => call[0]);
+    expect(calls.find(row => row.competenceMonth.toISOString().slice(0, 7) === "2026-08")).toMatchObject({
+      recognizedContractRevenueMinor: 5667,
+    });
+    expect(calls.find(row => row.competenceMonth.toISOString().slice(0, 7) === "2026-09")).toMatchObject({
+      recognizedContractRevenueMinor: 4333,
+    });
+  });
+
+  it("rebuilds a retroactive competence immediately after registering an economic fact", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-16T12:00:00.000Z"));
+    const fact = {
+      idempotencyKey: "retro-2026-03",
+      payerUserId: 7,
+      subscriptionId: "sub-pro",
+      productCode: "professional",
+      versionCode: "professional_v1",
+      billingCycle: "monthly",
+      factType: "contract_revenue" as const,
+      amountMinor: 10_000,
+      currency: "BRL",
+      valueKind: "effective" as const,
+      competenceStart: new Date("2026-03-01T00:00:00.000Z"),
+      competenceEnd: new Date("2026-04-01T00:00:00.000Z"),
+      reason: "retroactive reconciliation",
+      actorUserId: 1,
+    };
+    mocks.listEconomicFacts.mockResolvedValue([{
+      ...fact,
+      competenceStart: "2026-03-01",
+      competenceEnd: "2026-04-01",
+    }]);
+
+    await registerEconomicFact(fact);
+
+    expect(mocks.listEconomicFacts).toHaveBeenCalledWith({
+      from: new Date("2026-03-01T00:00:00.000Z"),
+      to: new Date("2026-04-01T00:00:00.000Z"),
+    });
+    expect(mocks.refreshUsageDailyAggregates).not.toHaveBeenCalled();
+    expect(mocks.upsertMonthlyEconomicAggregate).toHaveBeenCalledWith(expect.objectContaining({
+      competenceMonth: new Date("2026-03-01T00:00:00.000Z"),
+      recognizedContractRevenueMinor: 10_000,
+    }));
+  });
+
+  it("preserves historical variable cost when retroactive revenue predates detailed usage retention", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-16T12:00:00.000Z"));
+    const fact = {
+      idempotencyKey: "retro-2025-06",
+      payerUserId: 7,
+      subscriptionId: "sub-pro",
+      productCode: "professional",
+      versionCode: "professional_v1",
+      billingCycle: "monthly",
+      factType: "contract_revenue" as const,
+      amountMinor: 20_000,
+      currency: "BRL",
+      valueKind: "effective" as const,
+      competenceStart: new Date("2025-06-01T00:00:00.000Z"),
+      competenceEnd: new Date("2025-07-01T00:00:00.000Z"),
+      reason: "historical reconciliation",
+      actorUserId: 1,
+    };
+    mocks.listEconomicFacts.mockResolvedValue([{
+      ...fact,
+      competenceStart: "2025-06-01",
+      competenceEnd: "2025-07-01",
+    }]);
+    mocks.listMonthlyEconomicAggregates.mockResolvedValue([{
+      competenceMonth: "2025-06-01T00:00:00.000Z",
+      payerUserId: 7,
+      subscriptionId: "sub-pro",
+      productCode: "professional",
+      versionCode: "professional_v1",
+      billingCycle: "monthly",
+      currency: "BRL",
+      recognizedContractRevenueMinor: 10_000,
+      netEconomicRevenueMinor: 10_000,
+      variableCostMicros: 20_000_000,
+      variableCostRatioBps: 2000,
+    }]);
+
+    await registerEconomicFact(fact);
+
+    expect(mocks.listUsageEvents).not.toHaveBeenCalled();
+    expect(mocks.upsertMonthlyEconomicAggregate).toHaveBeenCalledWith(expect.objectContaining({
+      competenceMonth: new Date("2025-06-01T00:00:00.000Z"),
+      recognizedContractRevenueMinor: 20_000,
+      variableCostMicros: 20_000_000,
+      variableCostRatioBps: 1000,
+    }));
+  });
+
+  it("recomputes an idempotent retry so a prior post-insert aggregation failure can heal", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-16T12:00:00.000Z"));
+    mocks.recordEconomicFact.mockResolvedValue({ created: false });
+    mocks.listEconomicFacts.mockResolvedValue([{
+      competenceStart: "2026-03-01", competenceEnd: "2026-04-01", amountMinor: 10_000,
+      payerUserId: 7, subscriptionId: "sub-pro", versionCode: "professional_v1", billingCycle: "monthly",
+      currency: "BRL", factType: "contract_revenue", valueKind: "effective",
+    }]);
+
+    const result = await registerEconomicFact({
+      idempotencyKey: "retro-idempotent-retry",
+      payerUserId: 7,
+      subscriptionId: "sub-pro",
+      versionCode: "professional_v1",
+      billingCycle: "monthly",
+      factType: "contract_revenue",
+      amountMinor: 10_000,
+      currency: "BRL",
+      valueKind: "effective",
+      competenceStart: new Date("2026-03-01T00:00:00.000Z"),
+      competenceEnd: new Date("2026-04-01T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual({ created: false });
+    expect(mocks.upsertMonthlyEconomicAggregate).toHaveBeenCalled();
   });
 
   it("computes net economic revenue without financial anticipation in the denominator", () => {
