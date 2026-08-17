@@ -10,9 +10,13 @@ const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("../../db", () => ({
-  getDb: mocks.getDb,
-}));
+vi.mock("../../db", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../db")>();
+  return {
+    ...actual,
+    getDb: mocks.getDb,
+  };
+});
 
 import { usageGovernanceRouter } from "./router";
 
