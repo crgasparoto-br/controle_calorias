@@ -1,1 +1,15 @@
-{"schema_version":1,"classification":"implementation-only","source_event":{"repository":"crgasparoto-br/controle_calorias","issue":897,"pr":985,"candidate_head_sha":"c121453f1fd060092c0d6fad855c617148844121","reason":"independent-audit-functional-findings"},"generalized_learning":{"promotion_status":"not-required","reason":"The findings are product implementation gaps already covered by existing provider-call, authorization propagation, idempotency/concurrency, and adversarial-control delivery rules; remediation changes product code and tests without requiring a new generic Skill rule."}}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue": 897,
+    "pr": 985,
+    "candidate_head_sha": "84d7e87a7051300446583568f8ef78745b358fff",
+    "reason": "cycle-2-independent-audit-findings-A-001-through-A-005"
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The findings are repository implementation gaps covered by existing schema synchronization, provider attribution, analytics contract, retention, idempotency, and adversarial-control delivery rules. Remediation changes product code, generated documentation, and tests without requiring a new generic Skill rule."
+  }
+}

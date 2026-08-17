@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+  "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
   "requirements": [
     {
       "requirement_id": "RA",
@@ -14,7 +14,7 @@
       "plausible_wrong_implementation": "Wrong implementation bypasses required invariant.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+        "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
         "evidence": "evidence/e.txt"
       },
       "negative_controls": [
@@ -30,8 +30,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -60,8 +60,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -90,8 +90,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -120,8 +120,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -150,8 +150,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -172,7 +172,7 @@
       "regression_controls": [
         {
           "status": "passed",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "evidence": "evidence/e.txt"
         }
       ],
@@ -214,7 +214,7 @@
       "plausible_wrong_implementation": "Wrong implementation bypasses required invariant.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+        "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
         "evidence": "evidence/e.txt"
       },
       "negative_controls": [
@@ -230,8 +230,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -260,8 +260,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -290,8 +290,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -320,8 +320,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -350,8 +350,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -380,8 +380,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -410,8 +410,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -440,8 +440,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -470,8 +470,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -492,7 +492,7 @@
       "regression_controls": [
         {
           "status": "passed",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "evidence": "evidence/e.txt"
         }
       ],
@@ -552,7 +552,7 @@
       "plausible_wrong_implementation": "Wrong implementation bypasses required invariant.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+        "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
         "evidence": "evidence/e.txt"
       },
       "negative_controls": [
@@ -568,8 +568,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -592,8 +592,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -608,7 +608,7 @@
       "regression_controls": [
         {
           "status": "passed",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "evidence": "evidence/e.txt"
         }
       ],
@@ -633,12 +633,15 @@
         "authorization",
         "structural-contract",
         "public-boundary",
-        "documentation"
+        "documentation",
+        "tenant-isolation",
+        "temporal-consistency",
+        "concurrency-atomicity"
       ],
       "plausible_wrong_implementation": "Wrong implementation bypasses required invariant.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+        "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
         "evidence": "evidence/e.txt"
       },
       "negative_controls": [
@@ -654,8 +657,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -684,8 +687,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -714,8 +717,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -744,8 +747,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -774,8 +777,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -804,8 +807,8 @@
           "expected": "Rejected.",
           "observed": "Passed now.",
           "evidence_path": "evidence/e.txt",
-          "evidence_sha256": "bc9705d430947748fa801a7ea97eb354098714b91d89542c1b6d1e6cf6f86fce",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "status": "passed",
           "sibling_cases": [
             {
@@ -821,12 +824,312 @@
               "status": "passed"
             }
           ]
+        },
+        {
+          "id": "c2-schema",
+          "risk_family": "structural-contract",
+          "surface": "drizzle-schema",
+          "dimension": "migration-journal-snapshot-parity",
+          "failure_mode": "Configured schema cannot deploy journaled migrations.",
+          "plausible_wrong_implementation": "Journal SQL without canonical schema parity.",
+          "control_type": "test",
+          "procedure": "Validate configured schema, journal, snapshot and migrations.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-schema-a",
+              "surface": "drizzle-schema",
+              "dimension": "table-parity",
+              "status": "passed"
+            },
+            {
+              "id": "c2-schema-b",
+              "surface": "drizzle-schema",
+              "dimension": "column-parity",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-docs",
+          "risk_family": "documentation",
+          "surface": "generated-db-docs",
+          "dimension": "schema-source-freshness",
+          "failure_mode": "Generated schema docs omit governance tables.",
+          "plausible_wrong_implementation": "Generate docs from only the legacy schema.",
+          "control_type": "test",
+          "procedure": "Run generated documentation freshness check.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-docs-a",
+              "surface": "generated-db-docs",
+              "dimension": "source-list",
+              "status": "passed"
+            },
+            {
+              "id": "c2-docs-b",
+              "surface": "generated-db-docs",
+              "dimension": "table-list",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-identity",
+          "risk_family": "authorization",
+          "surface": "provider-gate",
+          "dimension": "missing-identity-fails-closed",
+          "failure_mode": "Provider executes without attributable beneficiary.",
+          "plausible_wrong_implementation": "Skip gate when userId is absent.",
+          "control_type": "test",
+          "procedure": "Invoke gated capability without identity.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-identity-a",
+              "surface": "provider-gate",
+              "dimension": "scope-identity",
+              "status": "passed"
+            },
+            {
+              "id": "c2-identity-b",
+              "surface": "provider-gate",
+              "dimension": "correlation-identity",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-attribution",
+          "risk_family": "tenant-isolation",
+          "surface": "usage-ledger",
+          "dimension": "beneficiary-sponsor-attribution",
+          "failure_mode": "Usage crosses beneficiary or sponsor attribution.",
+          "plausible_wrong_implementation": "Drop identity at an entrypoint.",
+          "control_type": "test",
+          "procedure": "Exercise authenticated entrypoints with distinct identities.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-attribution-a",
+              "surface": "usage-ledger",
+              "dimension": "beneficiary",
+              "status": "passed"
+            },
+            {
+              "id": "c2-attribution-b",
+              "surface": "usage-ledger",
+              "dimension": "sponsor",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-analytics",
+          "risk_family": "structural-contract",
+          "surface": "usage-analytics",
+          "dimension": "complete-required-dimensions",
+          "failure_mode": "Required dimensions collapse.",
+          "plausible_wrong_implementation": "Group only by operation and channel.",
+          "control_type": "test",
+          "procedure": "Query deliberately distinct dimensional fixtures.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-analytics-a",
+              "surface": "usage-analytics",
+              "dimension": "provider-model",
+              "status": "passed"
+            },
+            {
+              "id": "c2-analytics-b",
+              "surface": "usage-analytics",
+              "dimension": "patient-sponsor-version",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-portfolio",
+          "risk_family": "historical-immutability",
+          "surface": "professional-portfolio",
+          "dimension": "distinct-fixture-aggregation",
+          "failure_mode": "Portfolio statistics erase patient populations.",
+          "plausible_wrong_implementation": "Use total calls as active patient count.",
+          "control_type": "test",
+          "procedure": "Aggregate distinct portfolio populations.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-portfolio-a",
+              "surface": "professional-portfolio",
+              "dimension": "percentiles",
+              "status": "passed"
+            },
+            {
+              "id": "c2-portfolio-b",
+              "surface": "professional-portfolio",
+              "dimension": "size-range",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-retention",
+          "risk_family": "temporal-consistency",
+          "surface": "governance-retention",
+          "dimension": "five-year-boundary",
+          "failure_mode": "Governance records persist beyond policy or are deleted early.",
+          "plausible_wrong_implementation": "Declare cutoff but omit repository deletes.",
+          "control_type": "test",
+          "procedure": "Exercise boundary dates across governance tables.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-retention-a",
+              "surface": "governance-retention",
+              "dimension": "before-boundary",
+              "status": "passed"
+            },
+            {
+              "id": "c2-retention-b",
+              "surface": "governance-retention",
+              "dimension": "after-boundary",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-hold",
+          "risk_family": "authorization",
+          "surface": "legal-hold",
+          "dimension": "active-hold-exclusion",
+          "failure_mode": "Retention deletes records protected by legal hold.",
+          "plausible_wrong_implementation": "Ignore active hold scopes.",
+          "control_type": "test",
+          "procedure": "Run retention under global and scoped active holds.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-hold-a",
+              "surface": "legal-hold",
+              "dimension": "global",
+              "status": "passed"
+            },
+            {
+              "id": "c2-hold-b",
+              "surface": "legal-hold",
+              "dimension": "scoped",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-attempt",
+          "risk_family": "idempotency",
+          "surface": "provider-attempt-ledger",
+          "dimension": "stable-root-distinct-attempt-key",
+          "failure_mode": "Fallback overwrites original attempt.",
+          "plausible_wrong_implementation": "Reuse logical message key for all attempts.",
+          "control_type": "test",
+          "procedure": "Fail original and succeed fallback, then replay.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-attempt-a",
+              "surface": "provider-attempt-ledger",
+              "dimension": "fallback",
+              "status": "passed"
+            },
+            {
+              "id": "c2-attempt-b",
+              "surface": "provider-attempt-ledger",
+              "dimension": "replay",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "c2-claim",
+          "risk_family": "concurrency-atomicity",
+          "surface": "provider-dispatch-claim",
+          "dimension": "claim-per-attempt",
+          "failure_mode": "Original and fallback share one dispatch claim.",
+          "plausible_wrong_implementation": "Claim only the logical root.",
+          "control_type": "test",
+          "procedure": "Compare original and fallback claims under retries.",
+          "expected": "Rejected.",
+          "observed": "Passed now.",
+          "evidence_path": "evidence/e.txt",
+          "evidence_sha256": "7e06cc9d7dd57df07c756e294c2d55728d3c0ec821909fdf4f5ec20d8783d6fe",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "c2-claim-a",
+              "surface": "provider-dispatch-claim",
+              "dimension": "original",
+              "status": "passed"
+            },
+            {
+              "id": "c2-claim-b",
+              "surface": "provider-dispatch-claim",
+              "dimension": "fallback",
+              "status": "passed"
+            }
+          ]
         }
       ],
       "regression_controls": [
         {
           "status": "passed",
-          "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+          "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
           "evidence": "evidence/e.txt"
         }
       ],
@@ -860,6 +1163,56 @@
           "risk_family": "documentation",
           "surface": "usage-governance-doc-freshness",
           "reason": "Material surface."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "drizzle-schema",
+          "reason": "Material cycle-2 schema deployment surface."
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "generated-db-docs",
+          "reason": "Material cycle-2 generated documentation surface."
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "provider-gate",
+          "reason": "Material cycle-2 provider authorization surface."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "usage-ledger",
+          "reason": "Material cycle-2 beneficiary attribution surface."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "usage-analytics",
+          "reason": "Material cycle-2 analytics contract surface."
+        },
+        {
+          "risk_family": "historical-immutability",
+          "surface": "professional-portfolio",
+          "reason": "Material cycle-2 portfolio aggregation surface."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "governance-retention",
+          "reason": "Material cycle-2 retention surface."
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "legal-hold",
+          "reason": "Material cycle-2 legal hold surface."
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "provider-attempt-ledger",
+          "reason": "Material cycle-2 provider attempt surface."
+        },
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "provider-dispatch-claim",
+          "reason": "Material cycle-2 dispatch claim surface."
         }
       ]
     }

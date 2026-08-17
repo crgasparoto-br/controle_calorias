@@ -1,179 +1,101 @@
 {
   "schema_version": 1,
-  "material_head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+  "material_head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
   "escapes": [
     {
-      "escape_id": "AUD897-REAUDIT-A001-REVIEW-SCOPE",
-      "escape_class": "human-review-to-enforcement-scope-drift",
+      "escape_id": "AUD897-C2-A001-SCHEMA-DEPLOYMENT",
+      "escape_class": "migration-schema-journal-drift",
       "status": "passed",
-      "source_audit": {
-        "finding_id": "A-001",
-        "validity": "independent",
-        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
-      },
-      "plausible_wrong_implementation": "Persist a reviewed scope but enforce a different heavy operation later.",
-      "literal_case": {
-        "procedure": "Review audio then request unrelated WhatsApp limitation.",
-        "status": "passed",
-        "evidence": "evidence/e.txt"
-      },
+      "source_audit": {"finding_id":"A-001","validity":"independent","affected_head_sha":"84d7e87a7051300446583568f8ef78745b358fff"},
+      "plausible_wrong_implementation": "Ship SQL migrations that are absent from the configured Drizzle schema, journal, snapshot, and generated documentation.",
+      "literal_case": {"procedure":"Compare migrations 0043-0046 with configured schemas, journal, snapshot, and generated documentation.","status":"passed","evidence":"evidence/e.txt"},
       "sibling_cases": [
-        {
-          "id": "A001S1",
-          "surface": "review-limitation-scope",
-          "dimension": "empty-approved-scope-rejected",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        },
-        {
-          "id": "A001S2",
-          "surface": "review-limitation-scope",
-          "dimension": "reviewed-subset-accepted",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        }
+        {"id":"A001S1","surface":"drizzle-schema","dimension":"all-governance-tables-configured","status":"passed","evidence":"evidence/e.txt"},
+        {"id":"A001S2","surface":"generated-db-docs","dimension":"schema-source-freshness","status":"passed","evidence":"evidence/e.txt"}
       ],
       "required_attack_dimensions": [
-        {
-          "risk_family": "authorization",
-          "surface": "review-limitation-scope",
-          "dimension": "requested-operation-subset-of-reviewed-scope"
-        },
-        {
-          "risk_family": "authorization",
-          "surface": "review-limitation-scope",
-          "dimension": "scope-empty"
-        }
+        {"risk_family":"structural-contract","surface":"drizzle-schema","dimension":"migration-journal-snapshot-parity"},
+        {"risk_family":"documentation","surface":"generated-db-docs","dimension":"schema-source-freshness"}
       ],
-      "prevention_change": {
-        "control_id": "REVIEW-SCOPE-BIND-001",
-        "evidence": "evidence/e.txt"
-      },
-      "detection_change": {
-        "control_id": "REVIEW-SCOPE-BIND-001",
-        "evidence": "evidence/e.txt"
-      },
-      "required_risk_families": [
-        "authorization"
-      ]
+      "prevention_change":{"control_id":"SCHEMA-JOURNAL-PARITY-897","evidence":"evidence/e.txt"},
+      "detection_change":{"control_id":"SCHEMA-JOURNAL-PARITY-897","evidence":"evidence/e.txt"},
+      "required_risk_families":["structural-contract","documentation"]
     },
     {
-      "escape_id": "AUD897-REAUDIT-A002-PROVIDER-DURABILITY",
-      "escape_class": "external-effect-before-durable-accounting",
+      "escape_id": "AUD897-C2-A002-USAGE-IDENTITY",
+      "escape_class": "provider-gate-unattributed-bypass",
       "status": "passed",
-      "source_audit": {
-        "finding_id": "A-002",
-        "validity": "independent",
-        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
-      },
-      "plausible_wrong_implementation": "Send to an external provider before a durable economic position exists.",
-      "literal_case": {
-        "procedure": "Provider succeeds, finalization fails, then replay the same position.",
-        "status": "passed",
-        "evidence": "evidence/e.txt"
-      },
+      "source_audit": {"finding_id":"A-002","validity":"independent","affected_head_sha":"84d7e87a7051300446583568f8ef78745b358fff"},
+      "plausible_wrong_implementation": "Permit a provider call without beneficiary identity, causing the limitation gate and ledger attribution to be skipped.",
+      "literal_case": {"procedure":"Invoke a gated capability without user identity and assert rejection before adapter creation.","status":"passed","evidence":"evidence/e.txt"},
       "sibling_cases": [
-        {
-          "id": "A002S1",
-          "surface": "meta-provider-boundary",
-          "dimension": "durable-reservation-before-provider-sibling-a",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        },
-        {
-          "id": "A002S2",
-          "surface": "provider-dispatch-claim",
-          "dimension": "single-claim-before-provider-sibling-a",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        }
+        {"id":"A002S1","surface":"whatsapp-provider-entrypoints","dimension":"audio-image-text-identity-propagation","status":"passed","evidence":"evidence/e.txt"},
+        {"id":"A002S2","surface":"trpc-provider-entrypoints","dimension":"authenticated-scope-propagation","status":"passed","evidence":"evidence/e.txt"}
       ],
       "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "meta-provider-boundary",
-          "dimension": "durable-reservation-before-provider"
-        },
-        {
-          "risk_family": "idempotency",
-          "surface": "whatsapp-reprocessing",
-          "dimension": "uncertain-provider-effect-does-not-resend"
-        },
-        {
-          "risk_family": "concurrency-atomicity",
-          "surface": "provider-dispatch-claim",
-          "dimension": "single-claim-before-provider"
-        }
+        {"risk_family":"authorization","surface":"provider-gate","dimension":"missing-identity-fails-closed"},
+        {"risk_family":"tenant-isolation","surface":"usage-ledger","dimension":"beneficiary-sponsor-attribution"}
       ],
-      "prevention_change": {
-        "control_id": "PROVIDER-METER-DURABILITY-001",
-        "evidence": "evidence/e.txt"
-      },
-      "detection_change": {
-        "control_id": "PROVIDER-METER-DURABILITY-001",
-        "evidence": "evidence/e.txt"
-      },
-      "required_risk_families": [
-        "structural-contract",
-        "idempotency",
-        "concurrency-atomicity"
-      ]
+      "prevention_change":{"control_id":"PROVIDER-IDENTITY-GATE-897","evidence":"evidence/e.txt"},
+      "detection_change":{"control_id":"PROVIDER-IDENTITY-GATE-897","evidence":"evidence/e.txt"},
+      "required_risk_families":["authorization","tenant-isolation"]
     },
     {
-      "escape_id": "AUD897-REAUDIT-A003-ABUSE-SIGNALS",
-      "escape_class": "semantic-policy-input-bypass",
+      "escape_id": "AUD897-C2-A003-ANALYTICS-DIMENSIONS",
+      "escape_class": "analytics-contract-dimension-collapse",
       "status": "passed",
-      "source_audit": {
-        "finding_id": "A-003",
-        "validity": "independent",
-        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
-      },
-      "plausible_wrong_implementation": "Accept any non-empty signal array, allowing high cost alone or invented signals.",
-      "literal_case": {
-        "procedure": "Open an abuse case with high_cost only.",
-        "status": "passed",
-        "evidence": "evidence/e.txt"
-      },
+      "source_audit": {"finding_id":"A-003","validity":"independent","affected_head_sha":"84d7e87a7051300446583568f8ef78745b358fff"},
+      "plausible_wrong_implementation": "Aggregate only by operation/channel and erase patient, sponsor, version, provider, model, and portfolio distribution distinctions.",
+      "literal_case": {"procedure":"Query deliberately distinct dimensional fixtures and portfolio populations.","status":"passed","evidence":"evidence/e.txt"},
       "sibling_cases": [
-        {
-          "id": "A003S1",
-          "surface": "abuse-signal-contract",
-          "dimension": "unknown-signal-rejected",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        },
-        {
-          "id": "A003S2",
-          "surface": "abuse-case-signal-policy",
-          "dimension": "high-cost-alone-rejected-sibling-a",
-          "status": "passed",
-          "evidence": "evidence/e.txt"
-        }
+        {"id":"A003S1","surface":"usage-analytics","dimension":"patient-sponsor-product-version-cycle-origin-provider-model","status":"passed","evidence":"evidence/e.txt"},
+        {"id":"A003S2","surface":"professional-portfolio","dimension":"active-average-percentiles-size-distribution","status":"passed","evidence":"evidence/e.txt"}
       ],
       "required_attack_dimensions": [
-        {
-          "risk_family": "authorization",
-          "surface": "abuse-case-signal-policy",
-          "dimension": "high-cost-alone-rejected"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "abuse-signal-contract",
-          "dimension": "unknown-signal-rejected"
-        }
+        {"risk_family":"structural-contract","surface":"usage-analytics","dimension":"complete-required-dimensions"},
+        {"risk_family":"historical-immutability","surface":"professional-portfolio","dimension":"distinct-fixture-aggregation"}
       ],
-      "prevention_change": {
-        "control_id": "ABUSE-SIGNAL-POLICY-001",
-        "evidence": "evidence/e.txt"
-      },
-      "detection_change": {
-        "control_id": "ABUSE-SIGNAL-POLICY-001",
-        "evidence": "evidence/e.txt"
-      },
-      "required_risk_families": [
-        "authorization",
-        "structural-contract"
-      ]
+      "prevention_change":{"control_id":"ANALYTICS-DIMENSIONS-897","evidence":"evidence/e.txt"},
+      "detection_change":{"control_id":"ANALYTICS-DIMENSIONS-897","evidence":"evidence/e.txt"},
+      "required_risk_families":["structural-contract","historical-immutability"]
+    },
+    {
+      "escape_id": "AUD897-C2-A004-GOVERNANCE-RETENTION",
+      "escape_class": "retention-policy-surface-omission",
+      "status": "passed",
+      "source_audit": {"finding_id":"A-004","validity":"independent","affected_head_sha":"84d7e87a7051300446583568f8ef78745b358fff"},
+      "plausible_wrong_implementation": "Declare a governance retention period but never apply it to governance/audit tables.",
+      "literal_case": {"procedure":"Run retention with records around the five-year boundary and active legal holds.","status":"passed","evidence":"evidence/e.txt"},
+      "sibling_cases": [
+        {"id":"A004S1","surface":"governance-retention","dimension":"all-terminal-governance-tables","status":"passed","evidence":"evidence/e.txt"},
+        {"id":"A004S2","surface":"legal-hold","dimension":"active-hold-preservation","status":"passed","evidence":"evidence/e.txt"}
+      ],
+      "required_attack_dimensions": [
+        {"risk_family":"temporal-consistency","surface":"governance-retention","dimension":"five-year-boundary"},
+        {"risk_family":"authorization","surface":"legal-hold","dimension":"active-hold-exclusion"}
+      ],
+      "prevention_change":{"control_id":"GOVERNANCE-RETENTION-897","evidence":"evidence/e.txt"},
+      "detection_change":{"control_id":"GOVERNANCE-RETENTION-897","evidence":"evidence/e.txt"},
+      "required_risk_families":["temporal-consistency","authorization"]
+    },
+    {
+      "escape_id": "AUD897-C2-A005-PROVIDER-ATTEMPTS",
+      "escape_class": "logical-effect-attempt-identity-collapse",
+      "status": "passed",
+      "source_audit": {"finding_id":"A-005","validity":"independent","affected_head_sha":"84d7e87a7051300446583568f8ef78745b358fff"},
+      "plausible_wrong_implementation": "Reuse one claim and ledger row for original and fallback provider attempts, hiding failures and billable calls.",
+      "literal_case": {"procedure":"Fail the original Meta attempt, succeed textual fallback, and compare two durable rows under one root.","status":"passed","evidence":"evidence/e.txt"},
+      "sibling_cases": [
+        {"id":"A005S1","surface":"provider-attempt-ledger","dimension":"original-fallback-distinct-identities","status":"passed","evidence":"evidence/e.txt"},
+        {"id":"A005S2","surface":"provider-replay","dimension":"uncertainty-and-replay-per-attempt","status":"passed","evidence":"evidence/e.txt"}
+      ],
+      "required_attack_dimensions": [
+        {"risk_family":"idempotency","surface":"provider-attempt-ledger","dimension":"stable-root-distinct-attempt-key"},
+        {"risk_family":"concurrency-atomicity","surface":"provider-dispatch-claim","dimension":"claim-per-attempt"}
+      ],
+      "prevention_change":{"control_id":"PROVIDER-ATTEMPT-IDENTITY-897","evidence":"evidence/e.txt"},
+      "detection_change":{"control_id":"PROVIDER-ATTEMPT-IDENTITY-897","evidence":"evidence/e.txt"},
+      "required_risk_families":["idempotency","concurrency-atomicity"]
     }
   ]
 }

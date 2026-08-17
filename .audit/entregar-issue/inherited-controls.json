@@ -1,74 +1,74 @@
 {
   "schema_version": 1,
-  "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+  "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
   "controls": [
     {
       "control_id": "HISTORICAL-ATTRIBUTION-ROLLBACK",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Historical attribution freeze and future-charge rollback controls remain present."
     },
     {
       "control_id": "ECONOMIC-TEMPORAL-CURRENCY",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Rolling-window, currency, exact-span and retroactive-recomposition controls remain present."
     },
     {
       "control_id": "USAGE-GOVERNANCE-AUTHORIZATION",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Exemption, limitation extension, emergency proof and legal-hold controls remain present."
     },
     {
       "control_id": "AUD897-REMEDIATION",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Meta metering, cost reconciliation and configurable policy controls remain implemented and covered."
     },
     {
       "control_id": "PUBLIC-BOUNDARY-TRANSPORT",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Real HTTP/tRPC boundary sanitization, rollback, correlation and controlled-domain errors are exercised."
     },
     {
       "control_id": "DOCUMENTATION-FRESHNESS",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Repository documentation gate rejects stale claims about usage-governance availability or automatic threshold blocking/charging."
     },
     {
       "control_id": "HANDOFF-IDENTITY-REFREEZE",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Post-write identity drift is classified as stale and requires refreeze plus a terminal result-only child before audit."
     },
     {
       "control_id": "AUD897-REVIEW-SCOPE-BIND-002",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Human review affected-operation scope is non-empty for approval and bounds later limitations."
     },
     {
       "control_id": "AUD897-PROVIDER-METER-DURABILITY-002",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "Meta effects require durable reserve plus atomic claim; uncertain replay does not resend."
     },
     {
       "control_id": "AUD897-ABUSE-SIGNAL-POLICY-002",
       "status": "passed",
-      "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+      "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
       "evidence": "evidence/e.txt",
       "reason": "High cost alone and unknown abuse signals are rejected at schema and service boundaries."
     }

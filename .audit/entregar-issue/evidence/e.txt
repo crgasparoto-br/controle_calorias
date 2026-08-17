@@ -1,48 +1,35 @@
-Issue 897 post-CI refreeze evidence
-repository=crgasparoto-br/controle_calorias
-pr=985
-branch=feat/897-usage-governance
-base_branch=develop
-base_sha=6b735b34fdfbe46c3c65856aba62a1c44830a729
-previous_material_head_sha=dda1a53c582191cd27cf455c9317822c9269c375
-previous_handoff_head_sha=9c23bcb0e2b05f544e05b8c2855cc649cb3697cf
-material_head_sha=f76853bdc3745f4a78826a34cc0f1523dae2807f
-material_tree_sha=143fb6ac8aeb3522921985b6e8dbfb8e4f110b95
-material_merge_preview_sha=63a8ca61b4b6931fb6c94f160a34a0d1b6278e35
+Issue #897 cycle 2 remediation evidence
+Material candidate: 684e88de6d4576526de8fca6e65e147d6e8309af
 
-Post-CI material delta:
-- server/whatsappIntentWebhook.test.ts
-- server/whatsappAnnotatedImageWebhook.test.ts
+A-001 schema/deployment synchronization
+- drizzle.config.ts includes the canonical usage-governance schema.
+- migrations 0043-0046 are journaled and 0046_snapshot.json contains all governance tables.
+- `DATABASE_URL=dummy drizzle-kit generate` reported "No schema changes, nothing to migrate".
+- generated db schema documentation was regenerated and freshness checks passed.
+- repository schema contract tests passed.
+- The exact migrate command reached the configured MySQL connection path; no database service/DATABASE_URL was available locally (ECONNREFUSED 127.0.0.1:3306). Remote TiDB persistence CI is the deployment-backed control.
 
-Root-cause and sibling closure:
-- The test lifecycle mock reused internal messageId=1 for distinct external inbound messages.
-- Durable Meta usage metering correctly treated the repeated internal position as the same economic dispatch and suppressed the second outbound call.
-- The text-flow fixture now allocates a distinct lifecycle message id per inbound request.
-- The annotated-image fixture used the same invalid identity assumption; it was corrected in the same remediation round.
-- Duplicate delivery of the same external message remains covered by existing idempotency tests and was not weakened.
+A-002 provider identity and limitation gate
+- Protected/admin tRPC procedures and WhatsApp meal, intent, question, audio, and image entrypoints propagate authenticated usage identity.
+- When the usage gate is installed, missing identity fails closed before adapter creation or provider execution.
+- Capability executor tests prove attribution, sponsorship correlation, limitation execution, and pre-provider rejection.
 
-Local exact-source validation on material head content:
-- focused Vitest: server/whatsappIntentWebhook.test.ts + server/whatsappAnnotatedImageWebhook.test.ts: PASS, 2 files / 30 tests.
-- pnpm check: PASS.
-- pnpm test with CI unset: PASS, 564 files / 3662 tests.
-- pnpm architecture:check: PASS.
-- pnpm professional-retirement:check: PASS.
-- pnpm docs:check: PASS.
-- issue-927 smoke, benchmark verification and policy/pricing controls: PASS.
-- pnpm build: PASS.
-- pnpm agent:check aggregate was decomposed into the same commands because the connector-only runtime's nested project pnpm launcher could not create its tool cache under the read-only home directory; every constituent gate was executed and passed.
+A-003 analytics dimensions and portfolio aggregates
+- Analytics groups by patient/beneficiary, sponsor/payer, product, plan version, billing cycle, origin/access source, operation, channel, provider, and model.
+- Professional portfolios expose active patient counts, per-active-patient average, p50/p75/p90/p95, and portfolio-size distribution.
+- Distinct patient, sponsor, version, provider, and model fixtures passed.
 
-Remote exact-head terminal evidence for f76853bdc3745f4a78826a34cc0f1523dae2807f:
-- Agent-first gate run 32058836176: completed/success.
-- Billing persistence TiDB gate run 32058836042: completed/success.
-- Onboarding activation TiDB gate run 32058836168: completed/success.
-- Professional persistence TiDB gate run 32058836102: completed/success.
-- WhatsApp context TiDB gate run 32058836009: completed/success.
-- AI provider live smoke run 32058836006: completed/skipped; no live-provider success is claimed.
+A-004 governance retention
+- The retention service supplies a five-year governance cutoff.
+- Policies, grants, abuse cases, limitations, authorizations, reconciliations, retention audits, and terminal legal holds are deleted only beyond the cutoff and outside active legal holds.
+- Temporal boundary and legal-hold repository/service tests passed.
 
-Inherited independent-audit controls revalidated:
-- Historical attribution and cost-ledger immutability remain unchanged by the test-only delta.
-- Economic competence, currency separation, retention/legal hold and charge rollback remain unchanged and passed in the full suite.
-- Review-scope authorization, durable provider reservation/claim, high-cost-only abuse rejection and public-boundary sanitization remain covered and passed.
-- The remediation strengthens test identity realism without changing product behavior or weakening any inherited control.
-- No workflow was manually dispatched, rerun, cancelled or approved.
+A-005 durable provider attempts
+- Original Meta and textual fallback attempts use distinct durable idempotency identities under one logical root.
+- Each attempt independently reserves, claims, executes, and finalizes; original failures remain measurable and fallback success cannot overwrite them.
+- Original, fallback, failure, uncertainty, replay, and reservation-failure tests passed.
+
+Validation on the material tree
+- 565 test files passed; 3666 tests passed.
+- TypeScript, architecture, professional-retirement, documentation freshness, multi-provider policy, pricing provenance, and production build gates passed.
+- Focused governance and WhatsApp durability suites passed.

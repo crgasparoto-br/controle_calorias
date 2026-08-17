@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+  "head_sha": "684e88de6d4576526de8fca6e65e147d6e8309af",
   "families": [
     {
       "family": "authorization",
@@ -11,7 +11,9 @@
         "ba2",
         "ba3",
         "ba4",
-        "da"
+        "da",
+        "c2-identity",
+        "c2-hold"
       ],
       "dimensions": [
         {
@@ -53,17 +55,44 @@
             "ba1"
           ],
           "status": "passed"
+        },
+        {
+          "surface": "provider-gate",
+          "reason": "Missing identity fails closed.",
+          "control_ids": [
+            "c2-identity"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "legal-hold",
+          "reason": "Active holds exclude protected rows.",
+          "control_ids": [
+            "c2-hold"
+          ],
+          "status": "passed"
         }
       ],
       "status": "passed"
     },
     {
       "family": "tenant-isolation",
-      "applicable": false,
-      "reason": "No material surface is reachable for this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Authenticated beneficiary and sponsor attribution is a material surface.",
+      "control_ids": [
+        "c2-attribution"
+      ],
+      "dimensions": [
+        {
+          "surface": "usage-ledger",
+          "reason": "Distinct beneficiary and sponsor attribution is exercised.",
+          "control_ids": [
+            "c2-attribution"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
@@ -101,7 +130,8 @@
         "bt2",
         "bt3",
         "ct1",
-        "ct2"
+        "ct2",
+        "c2-retention"
       ],
       "dimensions": [
         {
@@ -143,6 +173,14 @@
             "bt1"
           ],
           "status": "passed"
+        },
+        {
+          "surface": "governance-retention",
+          "reason": "Five-year boundary is exercised.",
+          "control_ids": [
+            "c2-retention"
+          ],
+          "status": "passed"
         }
       ],
       "status": "passed"
@@ -160,7 +198,8 @@
       "applicable": true,
       "reason": "Material exact-head risk surface is present.",
       "control_ids": [
-        "ac"
+        "ac",
+        "c2-claim"
       ],
       "dimensions": [
         {
@@ -168,6 +207,14 @@
           "reason": "Material exact-head risk surface is exercised.",
           "control_ids": [
             "ac"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "provider-dispatch-claim",
+          "reason": "A claim is durable per attempt.",
+          "control_ids": [
+            "c2-claim"
           ],
           "status": "passed"
         }
@@ -180,7 +227,8 @@
       "reason": "Material exact-head risk surface is present.",
       "control_ids": [
         "ai",
-        "di"
+        "di",
+        "c2-attempt"
       ],
       "dimensions": [
         {
@@ -196,6 +244,14 @@
           "reason": "Material exact-head risk surface is exercised.",
           "control_ids": [
             "ai"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "provider-attempt-ledger",
+          "reason": "Per-attempt replay identity is exercised.",
+          "control_ids": [
+            "c2-attempt"
           ],
           "status": "passed"
         }
@@ -227,7 +283,8 @@
       "reason": "Material exact-head risk surface is present.",
       "control_ids": [
         "ah",
-        "dh"
+        "dh",
+        "c2-portfolio"
       ],
       "dimensions": [
         {
@@ -245,6 +302,14 @@
             "dh"
           ],
           "status": "passed"
+        },
+        {
+          "surface": "professional-portfolio",
+          "reason": "Distinct portfolio fixtures preserve aggregation semantics.",
+          "control_ids": [
+            "c2-portfolio"
+          ],
+          "status": "passed"
         }
       ],
       "status": "passed"
@@ -257,7 +322,9 @@
         "as",
         "bs",
         "bs2",
-        "ds"
+        "ds",
+        "c2-schema",
+        "c2-analytics"
       ],
       "dimensions": [
         {
@@ -291,6 +358,22 @@
             "as"
           ],
           "status": "passed"
+        },
+        {
+          "surface": "drizzle-schema",
+          "reason": "Migration/schema parity is exercised.",
+          "control_ids": [
+            "c2-schema"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "usage-analytics",
+          "reason": "Complete analytics dimensions are exercised.",
+          "control_ids": [
+            "c2-analytics"
+          ],
+          "status": "passed"
         }
       ],
       "status": "passed"
@@ -300,7 +383,8 @@
       "applicable": true,
       "reason": "Material exact-head risk surface is present.",
       "control_ids": [
-        "ddoc"
+        "ddoc",
+        "c2-docs"
       ],
       "dimensions": [
         {
@@ -308,6 +392,14 @@
           "reason": "Material exact-head risk surface is exercised.",
           "control_ids": [
             "ddoc"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "generated-db-docs",
+          "reason": "Generated schema documentation freshness is exercised.",
+          "control_ids": [
+            "c2-docs"
           ],
           "status": "passed"
         }
