@@ -1,63 +1,48 @@
-Issue 897 independent-audit remediation evidence
+Issue 897 post-CI refreeze evidence
 repository=crgasparoto-br/controle_calorias
 pr=985
 branch=feat/897-usage-governance
 base_branch=develop
 base_sha=6b735b34fdfbe46c3c65856aba62a1c44830a729
-previous_material_head_sha=c121453f1fd060092c0d6fad855c617148844121
-material_head_sha=dda1a53c582191cd27cf455c9317822c9269c375
-material_tree_sha=7d75a0829cd194df482cf69379461c3acf03abc2
-material_merge_preview_sha=a749ad6a5ea8d07246523da9928b2b83982c9934
+previous_material_head_sha=dda1a53c582191cd27cf455c9317822c9269c375
+previous_handoff_head_sha=9c23bcb0e2b05f544e05b8c2855cc649cb3697cf
+material_head_sha=f76853bdc3745f4a78826a34cc0f1523dae2807f
+material_tree_sha=143fb6ac8aeb3522921985b6e8dbfb8e4f110b95
+material_merge_preview_sha=63a8ca61b4b6931fb6c94f160a34a0d1b6278e35
 
-Material remediation scope (17 paths):
-- docs/design-docs/usage-governance.md
-- drizzle/0046_billing_usage_provider_dispatch_state.sql
-- server/modules/usageGovernance/abusePolicy.ts
-- server/modules/usageGovernance/adminService.auditRemediation.test.ts
-- server/modules/usageGovernance/adminService.test.ts
-- server/modules/usageGovernance/adminService.ts
-- server/modules/usageGovernance/providerUsage.auditRemediation.test.ts
-- server/modules/usageGovernance/providerUsage.ts
-- server/modules/usageGovernance/schemas.auditRemediation.test.ts
-- server/modules/usageGovernance/schemas.ts
-- server/modules/whatsapp/processingAcknowledgementDelivery.ts
-- server/modules/whatsapp/processingAcknowledgementDelivery.usageDurability.test.ts
-- server/modules/whatsapp/replyTransport.ts
-- server/modules/whatsapp/replyTransport.usageDurability.test.ts
-- server/repositories/usageProviderDispatchRepository.test.ts
-- server/repositories/usageProviderDispatchRepository.ts
-- server/testSetupAiDefaults.ts
+Post-CI material delta:
+- server/whatsappIntentWebhook.test.ts
+- server/whatsappAnnotatedImageWebhook.test.ts
 
-Exact-source local controls executed on the material tree:
-- git write-tree == 7d75a0829cd194df482cf69379461c3acf03abc2: PASS (matches remote commit tree).
-- git diff --cached --check: PASS.
-- admin-abuse-controls: PASS. Exercises high_cost-only rejection, unknown-signal rejection, supported combination, required non-empty reviewed scope, unreviewed-operation rejection, reviewed subset acceptance, and legacy empty-scope fail-closed.
-- provider-durability-controls: PASS. Exercises durable reserve before provider claim, provider success followed by finalization persistence failure, replay without a second provider call, and preparation failure with zero provider calls.
-- provider-dispatch-lease-controls: PASS. Exercises one atomic claim, stale started lease -> provider_dispatch_uncertain without reacquisition, and recent in-flight lease not stolen.
-- inherited-historical-attribution: PASS static invariant probe on current source.
-- inherited-economic-temporal-currency: PASS static invariant probe on current source.
-- inherited-authorization-chain: PASS static invariant probe on current source.
-- inherited-charging-rollback: PASS static invariant probe on current source.
-- inherited-cost-reconciliation: PASS static invariant probe on current source.
-- inherited-public-boundary: PASS static invariant probe on current source.
-- inherited-retention-legal-hold: PASS static invariant probe on current source.
-- inherited-configurable-nonblocking-policy: PASS static invariant probe on current source.
-- inherited-documentation-freshness: PASS static invariant probe on current source.
+Root-cause and sibling closure:
+- The test lifecycle mock reused internal messageId=1 for distinct external inbound messages.
+- Durable Meta usage metering correctly treated the repeated internal position as the same economic dispatch and suppressed the second outbound call.
+- The text-flow fixture now allocates a distinct lifecycle message id per inbound request.
+- The annotated-image fixture used the same invalid identity assumption; it was corrected in the same remediation round.
+- Duplicate delivery of the same external message remains covered by existing idempotency tests and was not weakened.
 
-Remote exact-head snapshot (observe-only, one collection) for dda1a53c582191cd27cf455c9317822c9269c375:
-- Agent-first gate run 32053424185: in_progress at observation. Job 95458004234 TypeScript check step completed/success; Tests step was in_progress; later steps not claimed.
-- Professional persistence TiDB gate run 32053424396: in_progress.
-- Billing persistence TiDB gate run 32053424115: in_progress.
-- WhatsApp context TiDB gate run 32053424159: in_progress.
-- Onboarding activation TiDB gate run 32053424042: in_progress.
-- AI provider live smoke run 32053424158: completed/skipped and is not claimed as execution evidence.
+Local exact-source validation on material head content:
+- focused Vitest: server/whatsappIntentWebhook.test.ts + server/whatsappAnnotatedImageWebhook.test.ts: PASS, 2 files / 30 tests.
+- pnpm check: PASS.
+- pnpm test with CI unset: PASS, 564 files / 3662 tests.
+- pnpm architecture:check: PASS.
+- pnpm professional-retirement:check: PASS.
+- pnpm docs:check: PASS.
+- issue-927 smoke, benchmark verification and policy/pricing controls: PASS.
+- pnpm build: PASS.
+- pnpm agent:check aggregate was decomposed into the same commands because the connector-only runtime's nested project pnpm launcher could not create its tool cache under the read-only home directory; every constituent gate was executed and passed.
 
-Audit finding closures on this material head:
-- A-001 REVIEW-SCOPE-BIND-001: human-reviewed affectedOperations is non-empty for limitation approval and applyUsageLimitation accepts only a subset of that persisted scope. Siblings: empty reviewed scope and operation outside reviewed scope both reject.
-- A-002 PROVIDER-METER-DURABILITY-001: usage position is reserved and atomically claimed before Meta; post-provider persistence failure leaves durable provider_dispatch_started, replay does not resend, and stale leases become provider_dispatch_uncertain without reacquiring provider rights. Siblings: processing acknowledgement uses same prepare/claim/finalize barrier; original+fallback share one claim and one idempotent position.
-- A-003 ABUSE-SIGNAL-POLICY-001: high_cost alone and arbitrary signals reject; supported multi-signal combinations pass; one security signal requires securityRiskConfirmed=true. Siblings: public schema rejects the same invalid shapes and service validation fails closed independently.
+Remote exact-head terminal evidence for f76853bdc3745f4a78826a34cc0f1523dae2807f:
+- Agent-first gate run 32058836176: completed/success.
+- Billing persistence TiDB gate run 32058836042: completed/success.
+- Onboarding activation TiDB gate run 32058836168: completed/success.
+- Professional persistence TiDB gate run 32058836102: completed/success.
+- WhatsApp context TiDB gate run 32058836009: completed/success.
+- AI provider live smoke run 32058836006: completed/skipped; no live-provider success is claimed.
 
-Limitations recorded truthfully:
-- Full local Vitest/build were not executed because the recovered exact-head bundle contains no node_modules and the container cannot resolve the package registry.
-- Remote full tests/gates were still in_progress in the single allowed snapshot; only the exact-head TypeScript success step is claimed.
-- No workflow was dispatched, rerun, cancelled or approved.
+Inherited independent-audit controls revalidated:
+- Historical attribution and cost-ledger immutability remain unchanged by the test-only delta.
+- Economic competence, currency separation, retention/legal hold and charge rollback remain unchanged and passed in the full suite.
+- Review-scope authorization, durable provider reservation/claim, high-cost-only abuse rejection and public-boundary sanitization remain covered and passed.
+- The remediation strengthens test identity realism without changing product behavior or weakening any inherited control.
+- No workflow was manually dispatched, rerun, cancelled or approved.

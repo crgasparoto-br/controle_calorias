@@ -1,1 +1,15 @@
-{"schema_version":2,"status":"frozen","created_at":"2026-08-17T18:14:15.885726+00:00","identity":{"material_head_sha":"dda1a53c582191cd27cf455c9317822c9269c375","head_sha":"dda1a53c582191cd27cf455c9317822c9269c375","base_sha":"6b735b34fdfbe46c3c65856aba62a1c44830a729","material_merge_preview_sha":"a749ad6a5ea8d07246523da9928b2b83982c9934","merge_preview_sha":"a749ad6a5ea8d07246523da9928b2b83982c9934"},"reason":"refreeze after implementing independent audit findings A-001/A-002/A-003 on issue 897","previous_material_head_sha":"c121453f1fd060092c0d6fad855c617148844121","remote_gate":"in-progress-snapshot-with-typescript-success"}
+{
+  "schema_version": 2,
+  "status": "frozen",
+  "created_at": "2026-08-17T19:20:13Z",
+  "identity": {
+    "material_head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+    "head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+    "base_sha": "6b735b34fdfbe46c3c65856aba62a1c44830a729",
+    "material_merge_preview_sha": "63a8ca61b4b6931fb6c94f160a34a0d1b6278e35",
+    "merge_preview_sha": "63a8ca61b4b6931fb6c94f160a34a0d1b6278e35"
+  },
+  "reason": "post-CI refreeze after exact-head test identity remediation",
+  "previous_material_head_sha": "dda1a53c582191cd27cf455c9317822c9269c375",
+  "remote_gate": "completed-success"
+}

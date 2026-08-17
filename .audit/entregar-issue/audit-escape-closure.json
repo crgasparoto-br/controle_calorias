@@ -1,1 +1,179 @@
-{"schema_version":1,"material_head_sha":"dda1a53c582191cd27cf455c9317822c9269c375","escapes":[{"escape_id":"AUD897-REAUDIT-A001-REVIEW-SCOPE","escape_class":"human-review-to-enforcement-scope-drift","status":"passed","source_audit":{"finding_id":"A-001","validity":"independent","affected_head_sha":"c121453f1fd060092c0d6fad855c617148844121"},"plausible_wrong_implementation":"Persist a reviewed scope but enforce a different heavy operation later.","literal_case":{"procedure":"Review audio then request unrelated WhatsApp limitation.","status":"passed","evidence":"evidence/e.txt"},"sibling_cases":[{"id":"A001S1","surface":"review-limitation-scope","dimension":"empty-approved-scope-rejected","status":"passed","evidence":"evidence/e.txt"},{"id":"A001S2","surface":"review-limitation-scope","dimension":"reviewed-subset-accepted","status":"passed","evidence":"evidence/e.txt"}],"required_attack_dimensions":[{"risk_family":"authorization","surface":"review-limitation-scope","dimension":"requested-operation-subset-of-reviewed-scope"},{"risk_family":"authorization","surface":"review-limitation-scope","dimension":"scope-empty"}],"prevention_change":{"control_id":"REVIEW-SCOPE-BIND-001","evidence":"evidence/e.txt"},"detection_change":{"control_id":"REVIEW-SCOPE-BIND-001","evidence":"evidence/e.txt"},"required_risk_families":["authorization"]},{"escape_id":"AUD897-REAUDIT-A002-PROVIDER-DURABILITY","escape_class":"external-effect-before-durable-accounting","status":"passed","source_audit":{"finding_id":"A-002","validity":"independent","affected_head_sha":"c121453f1fd060092c0d6fad855c617148844121"},"plausible_wrong_implementation":"Send to an external provider before a durable economic position exists.","literal_case":{"procedure":"Provider succeeds, finalization fails, then replay the same position.","status":"passed","evidence":"evidence/e.txt"},"sibling_cases":[{"id":"A002S1","surface":"meta-provider-boundary","dimension":"durable-reservation-before-provider-sibling-a","status":"passed","evidence":"evidence/e.txt"},{"id":"A002S2","surface":"provider-dispatch-claim","dimension":"single-claim-before-provider-sibling-a","status":"passed","evidence":"evidence/e.txt"}],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"meta-provider-boundary","dimension":"durable-reservation-before-provider"},{"risk_family":"idempotency","surface":"whatsapp-reprocessing","dimension":"uncertain-provider-effect-does-not-resend"},{"risk_family":"concurrency-atomicity","surface":"provider-dispatch-claim","dimension":"single-claim-before-provider"}],"prevention_change":{"control_id":"PROVIDER-METER-DURABILITY-001","evidence":"evidence/e.txt"},"detection_change":{"control_id":"PROVIDER-METER-DURABILITY-001","evidence":"evidence/e.txt"},"required_risk_families":["structural-contract","idempotency","concurrency-atomicity"]},{"escape_id":"AUD897-REAUDIT-A003-ABUSE-SIGNALS","escape_class":"semantic-policy-input-bypass","status":"passed","source_audit":{"finding_id":"A-003","validity":"independent","affected_head_sha":"c121453f1fd060092c0d6fad855c617148844121"},"plausible_wrong_implementation":"Accept any non-empty signal array, allowing high cost alone or invented signals.","literal_case":{"procedure":"Open an abuse case with high_cost only.","status":"passed","evidence":"evidence/e.txt"},"sibling_cases":[{"id":"A003S1","surface":"abuse-signal-contract","dimension":"unknown-signal-rejected","status":"passed","evidence":"evidence/e.txt"},{"id":"A003S2","surface":"abuse-case-signal-policy","dimension":"high-cost-alone-rejected-sibling-a","status":"passed","evidence":"evidence/e.txt"}],"required_attack_dimensions":[{"risk_family":"authorization","surface":"abuse-case-signal-policy","dimension":"high-cost-alone-rejected"},{"risk_family":"structural-contract","surface":"abuse-signal-contract","dimension":"unknown-signal-rejected"}],"prevention_change":{"control_id":"ABUSE-SIGNAL-POLICY-001","evidence":"evidence/e.txt"},"detection_change":{"control_id":"ABUSE-SIGNAL-POLICY-001","evidence":"evidence/e.txt"},"required_risk_families":["authorization","structural-contract"]}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "f76853bdc3745f4a78826a34cc0f1523dae2807f",
+  "escapes": [
+    {
+      "escape_id": "AUD897-REAUDIT-A001-REVIEW-SCOPE",
+      "escape_class": "human-review-to-enforcement-scope-drift",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-001",
+        "validity": "independent",
+        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
+      },
+      "plausible_wrong_implementation": "Persist a reviewed scope but enforce a different heavy operation later.",
+      "literal_case": {
+        "procedure": "Review audio then request unrelated WhatsApp limitation.",
+        "status": "passed",
+        "evidence": "evidence/e.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A001S1",
+          "surface": "review-limitation-scope",
+          "dimension": "empty-approved-scope-rejected",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        },
+        {
+          "id": "A001S2",
+          "surface": "review-limitation-scope",
+          "dimension": "reviewed-subset-accepted",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "review-limitation-scope",
+          "dimension": "requested-operation-subset-of-reviewed-scope"
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "review-limitation-scope",
+          "dimension": "scope-empty"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "REVIEW-SCOPE-BIND-001",
+        "evidence": "evidence/e.txt"
+      },
+      "detection_change": {
+        "control_id": "REVIEW-SCOPE-BIND-001",
+        "evidence": "evidence/e.txt"
+      },
+      "required_risk_families": [
+        "authorization"
+      ]
+    },
+    {
+      "escape_id": "AUD897-REAUDIT-A002-PROVIDER-DURABILITY",
+      "escape_class": "external-effect-before-durable-accounting",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-002",
+        "validity": "independent",
+        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
+      },
+      "plausible_wrong_implementation": "Send to an external provider before a durable economic position exists.",
+      "literal_case": {
+        "procedure": "Provider succeeds, finalization fails, then replay the same position.",
+        "status": "passed",
+        "evidence": "evidence/e.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A002S1",
+          "surface": "meta-provider-boundary",
+          "dimension": "durable-reservation-before-provider-sibling-a",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        },
+        {
+          "id": "A002S2",
+          "surface": "provider-dispatch-claim",
+          "dimension": "single-claim-before-provider-sibling-a",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "meta-provider-boundary",
+          "dimension": "durable-reservation-before-provider"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "whatsapp-reprocessing",
+          "dimension": "uncertain-provider-effect-does-not-resend"
+        },
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "provider-dispatch-claim",
+          "dimension": "single-claim-before-provider"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "PROVIDER-METER-DURABILITY-001",
+        "evidence": "evidence/e.txt"
+      },
+      "detection_change": {
+        "control_id": "PROVIDER-METER-DURABILITY-001",
+        "evidence": "evidence/e.txt"
+      },
+      "required_risk_families": [
+        "structural-contract",
+        "idempotency",
+        "concurrency-atomicity"
+      ]
+    },
+    {
+      "escape_id": "AUD897-REAUDIT-A003-ABUSE-SIGNALS",
+      "escape_class": "semantic-policy-input-bypass",
+      "status": "passed",
+      "source_audit": {
+        "finding_id": "A-003",
+        "validity": "independent",
+        "affected_head_sha": "c121453f1fd060092c0d6fad855c617148844121"
+      },
+      "plausible_wrong_implementation": "Accept any non-empty signal array, allowing high cost alone or invented signals.",
+      "literal_case": {
+        "procedure": "Open an abuse case with high_cost only.",
+        "status": "passed",
+        "evidence": "evidence/e.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A003S1",
+          "surface": "abuse-signal-contract",
+          "dimension": "unknown-signal-rejected",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        },
+        {
+          "id": "A003S2",
+          "surface": "abuse-case-signal-policy",
+          "dimension": "high-cost-alone-rejected-sibling-a",
+          "status": "passed",
+          "evidence": "evidence/e.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "abuse-case-signal-policy",
+          "dimension": "high-cost-alone-rejected"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "abuse-signal-contract",
+          "dimension": "unknown-signal-rejected"
+        }
+      ],
+      "prevention_change": {
+        "control_id": "ABUSE-SIGNAL-POLICY-001",
+        "evidence": "evidence/e.txt"
+      },
+      "detection_change": {
+        "control_id": "ABUSE-SIGNAL-POLICY-001",
+        "evidence": "evidence/e.txt"
+      },
+      "required_risk_families": [
+        "authorization",
+        "structural-contract"
+      ]
+    }
+  ]
+}
