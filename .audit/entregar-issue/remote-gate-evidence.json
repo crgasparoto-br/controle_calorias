@@ -1,53 +1,58 @@
 {
   "schema_version": 1,
-  "repository": "crgasparoto-br/controle_calorias",
-  "pull_request": 991,
-  "material_head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
-  "observation_mode": "read-only-single-observation",
-  "observed_runs": [
+  "material_head_sha": "eca5fc4861a6fae40a07ec3d9f497010ec07f5be",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "observed_at": "2026-08-17T23:39:00Z",
+  "gates": [
     {
-      "name": "Agent-first gate",
-      "run_id": 32066043667,
+      "name": "Billing persistence TiDB gate",
+      "run_id": 32076253238,
       "status": "completed",
-      "conclusion": "success",
-      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+      "conclusion": "success"
     },
     {
       "name": "WhatsApp context TiDB gate",
-      "run_id": 32066043675,
+      "run_id": 32076253254,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Onboarding activation TiDB gate",
+      "run_id": 32076253171,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "run_id": 32076253205,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Agent-first gate",
+      "run_id": 32076253227,
+      "job_id": 95530023399,
       "status": "completed",
       "conclusion": "success",
-      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+      "validated_steps": [
+        "TypeScript check",
+        "Tests (24 shards)",
+        "Architecture check",
+        "Documentation check",
+        "Build",
+        "Agent check",
+        "exact-head verification manifest",
+        "exact-head repository bundle"
+      ]
     },
     {
       "name": "AI provider live smoke",
-      "run_id": 32066043688,
+      "run_id": 32076253522,
       "status": "completed",
       "conclusion": "skipped",
-      "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844"
+      "policy": "skipped-by-policy; not positive evidence"
     }
   ],
-  "agent_first_job": {
-    "job_id": 95498291978,
-    "conclusion": "success",
-    "passed_steps": [
-      "TypeScript check",
-      "Tests",
-      "Architecture check",
-      "Documentation check",
-      "Build",
-      "Agent check",
-      "CI gate docs check",
-      "Create exact-head verification manifest",
-      "Create exact-head repository bundle"
-    ],
-    "database_integrity_check": "skipped-by-gate-policy-with-successful-skip-step"
-  },
-  "exact_head_repository_artifact": {
-    "artifact_id": 9300207070,
-    "name": "agent-first-repository-afa5e534273a06fd5937b22aa0dd68b8294fc844",
-    "sha256": "a61f4b36d8eeb242d194f2b31c5ca146795cce74358312b505a35cf027a07bae"
-  },
-  "rerun_or_dispatch_performed": false,
-  "observation_disposition": "Exact-head mandatory repository gate completed successfully; no polling, rerun, dispatch, cancel or approval performed."
+  "overall_status": "required-gates-green",
+  "note": "Existing remote evidence only; no workflow was dispatched, rerun, cancelled or approved by this remediation."
 }

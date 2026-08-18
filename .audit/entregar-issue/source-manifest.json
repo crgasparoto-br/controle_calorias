@@ -2,21 +2,36 @@
   "schema_version": 1,
   "complete": true,
   "sources": [
-    {"id":"SRC-ISSUE-987","kind":"github-issue","locator":"https://github.com/crgasparoto-br/controle_calorias/issues/987","sha256":"9f4eb7ad5d79df57eeee3d22fc886c6ff306796ec363718b0ca99e4ccfdf23b7"},
-    {"id":"SRC-AGENTS","kind":"repository-instructions","locator":"AGENTS.md","sha256":"638438e2a0d90e39258a7bd43e320f11dffaef76d114171773c5e3c1b7ba37f3"},
-    {"id":"SRC-DOCS-INDEX","kind":"canonical-documentation","locator":"docs/README.md","sha256":"9f8740c8dd682a26566d963e7b9f68c1c024a47c96ab41dfbfe086e3ac5d5104"},
-    {"id":"SRC-ARCHITECTURE","kind":"architecture","locator":"ARCHITECTURE.md","sha256":"aeb3052e622775de453903b852b5bec347dce344b27dbc26f3030d39d0d852ce"},
-    {"id":"SRC-MEAL-SPEC","kind":"product-specification","locator":"docs/product-specs/meal-registration.md","sha256":"da9bc2a5c324ecf7bb9182b539fbcae08d1a6cafad170f9fe1eb31a76dd8995c"},
-    {"id":"SRC-NUTRITION-DESIGN","kind":"technical-design","locator":"docs/design-docs/nutrition-engine.md","sha256":"eb8a2918542fb8a08a8404090d17f6f4eb19ede4e4697a6969f762290a1a0118"}
+    {
+      "id": "SRC-GITHUB-ISSUE-897",
+      "kind": "github-issue",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/897",
+      "sha256": "8b2b3bd2ae22bf8a8d4a657a265e9678a965741eb07d69ce97ff2d62b6efd3f5"
+    },
+    {
+      "id": "SRC-USAGE-GOVERNANCE-DOC",
+      "kind": "canonical-documentation",
+      "locator": "docs/design-docs/usage-governance.md",
+      "sha256": "cf8622ac233e5ab8bb7d15b676e4f0cfc8d2515ac754ad2275c259547e9f6277"
+    },
+    {
+      "id": "SRC-PRIVACY",
+      "kind": "canonical-documentation",
+      "locator": "docs/PRIVACY_LGPD.md",
+      "sha256": "9088eecaaa105f7425510a70421ab596aa3aac30023399e16165bb388970bd60"
+    },
+    {
+      "id": "SRC-RELIABILITY",
+      "kind": "canonical-documentation",
+      "locator": "docs/RELIABILITY.md",
+      "sha256": "cefc8531a2fb7e24c917f25168625e699b320ab5a903a81c328d9ee8d9a6d0f9"
+    },
+    {
+      "id": "SRC-SECURITY",
+      "kind": "canonical-documentation",
+      "locator": "docs/SECURITY.md",
+      "sha256": "3beada55ddfe253b2f4b68c39d9896073c66dd1ecdaf92571459d01d32f4ddd9"
+    }
   ],
-  "discovery": {
-    "commands": ["gh issue view 987 --repo crgasparoto-br/controle_calorias", "rg --files docs server"],
-    "roots": [".", "docs", "server"],
-    "discovered_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
-    "declared_paths": ["AGENTS.md", "ARCHITECTURE.md", "docs/README.md", "docs/product-specs/meal-registration.md", "docs/design-docs/nutrition-engine.md"],
-    "omitted_sources": [],
-    "stale_claim_queries": ["snack", "brand", "hydration", "NUTRITION_SEARCH"],
-    "unresolved_stale_claims": [],
-    "state_transition": true
-  }
+  "omitted_sources": []
 }

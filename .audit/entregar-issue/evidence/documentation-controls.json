@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "eca5fc4861a6fae40a07ec3d9f497010ec07f5be",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "execution_evidence": {
+    "source": "existing-github-actions-run",
+    "run_id": 32076253227,
+    "job_id": 95530023399,
+    "workflow": "Agent-first gate",
+    "status": "completed",
+    "conclusion": "success",
+    "tests_step": "success",
+    "docs_step": "success",
+    "architecture_step": "success",
+    "build_step": "success",
+    "exact_head_manifest": "eca5fc4861a6fae40a07ec3d9f497010ec07f5be",
+    "note": "The workflow executed the full Vitest suite in 24 sequential shards on the exact material head; this remediation reuses that existing green evidence and does not dispatch or rerun CI."
+  },
+  "source_files": [
+    {
+      "path": "docs/design-docs/usage-governance.md",
+      "sha256": "cf8622ac233e5ab8bb7d15b676e4f0cfc8d2515ac754ad2275c259547e9f6277"
+    },
+    {
+      "path": "docs/PRIVACY_LGPD.md",
+      "sha256": "9088eecaaa105f7425510a70421ab596aa3aac30023399e16165bb388970bd60"
+    },
+    {
+      "path": "docs/RELIABILITY.md",
+      "sha256": "cefc8531a2fb7e24c917f25168625e699b320ab5a903a81c328d9ee8d9a6d0f9"
+    },
+    {
+      "path": "docs/SECURITY.md",
+      "sha256": "3beada55ddfe253b2f4b68c39d9896073c66dd1ecdaf92571459d01d32f4ddd9"
+    }
+  ],
+  "static_checks": [
+    "git merge-base --is-ancestor develop material-head passed",
+    "Exact-head Agent-first docs check passed"
+  ],
+  "controls": [
+    {
+      "id": "NC-DOC-CANON-001",
+      "claim": "Canonical usage-governance, privacy, reliability and security documentation carries the delivery contract.",
+      "test": "Agent-first docs:check plus local canonical-claim scan",
+      "observed": "Exact-head docs:check succeeded and all four canonical documents contain the expected governance/retention language."
+    },
+    {
+      "id": "NC-STRUCT-COMPOSE-001",
+      "claim": "The material candidate composes issue behavior with the current develop base rather than choosing one side wholesale.",
+      "test": "git ancestry/composition gate",
+      "observed": "c1d178642418cf0a54a247f97e15da4d27b103b4 is an ancestor of eca5fc4861a6fae40a07ec3d9f497010ec07f5be; material head remains based on current develop and the result package changes only audit artifacts."
+    }
+  ]
+}

@@ -1,61 +1,13 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
+  "classification": "implementation-only",
   "source_event": {
-    "type": "independent-audit-rejection",
-    "finding_id": "B1",
-    "candidate_head_sha": "0c949162725f64168d362e17cc264ff1658599d9",
-    "repository": "crgasparoto-br/controle_calorias"
+    "kind": "independent-audit-outcome",
+    "scope": "delivery-saturation"
   },
   "generalized_learning": {
-    "escape_class": "provider-cross-field-evidence-compensation",
-    "generalized_failure_pattern": "A provider response is accepted by comparing a blended textual identity, so a correct-looking field can compensate for a contradictory structured field or cited source.",
-    "plausible_wrong_implementation": "Treat concatenated provider output as one identity string and accept it when any representation echoes the request, without reconciling authoritative fields independently.",
-    "trigger_signals": [
-      "multiple provider identity fields",
-      "exact-source acceptance",
-      "grounded or cited evidence",
-      "fallback after provider rejection"
-    ],
-    "risk_families": [
-      "structural-contract"
-    ],
-    "reusable_control": "PROVIDER-EVIDENCE-CONSISTENCY-001",
-    "prevention_rule": "Before accepting an exact provider-backed result, validate each authoritative structured identity field independently, reject cross-field contradictions, and require cited evidence to support the discriminating identity rather than only numeric payloads.",
-    "detection_rule": "Adversarial controls must vary at least two independent provider fields and the evidence source so that echoed free text cannot hide a conflicting structured value.",
-    "transfer_cases": [
-      {
-        "surface": "commerce-provider-result",
-        "dimension": "sku-versus-brand-field",
-        "status": "passed"
-      },
-      {
-        "surface": "document-grounding",
-        "dimension": "citation-versus-structured-entity",
-        "status": "passed"
-      },
-      {
-        "surface": "measurement-provider-result",
-        "dimension": "display-label-versus-normalized-value",
-        "status": "passed"
-      }
-    ],
-    "promotion_status": "promoted"
+    "promotion_status": "not-required",
+    "reason": "The governing entregar-issue skill already requires semantic rederivation of every canonical risk family and control-specific surface saturation. The rejected handoff was a local execution/artifact-population failure, not a missing or ambiguous global rule; this remediation applies the existing rule and adds cumulative local controls."
   },
-  "skill_changes": [
-    {
-      "role": "prevention",
-      "skill": "entregar-issue",
-      "path": "references/implementation-provider-call-governance.md",
-      "status": "passed",
-      "evidence": "targeted contract tests and genericity validator"
-    },
-    {
-      "role": "detection",
-      "skill": "auditar-issue",
-      "path": "references/provider-call-and-secret-audit.md",
-      "status": "passed",
-      "evidence": "targeted contract tests and genericity validator"
-    }
-  ]
+  "skill_changes": []
 }
