@@ -141,12 +141,17 @@ export function safeStructuredLogDetail(value: unknown, maxLength = 4_096): stri
     }
     if (candidate && typeof candidate === "object") {
       return Object.fromEntries(
-        Object.entries(candidate as Record<string, unknown>).map(([entryKey, entryValue]) => [
-          entryKey,
-          SENSITIVE_KEY_PATTERN.test(entryKey)
-            ? "[redacted]"
-            : sanitizeStructuredValue(entryValue, entryKey),
-        ]),
+        Object.entries(candidate as Record<string, unknown>).map(([entryKey, entryValue]) => {
+          const safeLatencyMetric =
+            entryKey === "time_to_first_token_ms"
+            && (entryValue === null || typeof entryValue === "number");
+          return [
+            entryKey,
+            SENSITIVE_KEY_PATTERN.test(entryKey) && !safeLatencyMetric
+              ? "[redacted]"
+              : sanitizeStructuredValue(entryValue, entryKey),
+          ];
+        }),
       );
     }
     return candidate;
