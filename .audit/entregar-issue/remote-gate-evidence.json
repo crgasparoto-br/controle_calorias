@@ -1,1 +1,48 @@
-{"schema_version":1,"material_head_sha":"596f120859302a2b21016a74f4620631da0d6d37","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","observed_at":"2026-08-18T10:01:38Z","gates":[],"commit_statuses":[],"overall_status":"pending-no-run","observation_policy":"single-snapshot-no-polling","note":"No workflow run or commit status was attached to the material SHA at the one permitted connector-only snapshot. No workflow was dispatched, rerun, cancelled or approved."}
+{
+  "schema_version": 1,
+  "material_head_sha": "416259389d21de97ea1fb7421f028df5a3b4fe7c",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "observed_at": "2026-08-18T12:20:00Z",
+  "gates": [
+    {
+      "name": "Agent-first gate",
+      "run_id": 32135361226,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Billing persistence TiDB gate",
+      "run_id": 32135361281,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 32135361324,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "run_id": 32135361269,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Onboarding activation TiDB gate",
+      "run_id": 32135361508,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "AI provider live smoke",
+      "run_id": 32135361293,
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "commit_statuses": [],
+  "overall_status": "success",
+  "observation_policy": "post-ci-refreeze exact-head snapshot",
+  "note": "All applicable workflows for the material SHA completed successfully. The AI provider live smoke was skipped by its existing workflow conditions. No remote workflow action was performed."
+}
