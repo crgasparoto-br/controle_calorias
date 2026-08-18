@@ -81,9 +81,11 @@ function extractDbCauseDetail(cause: unknown): string {
 function isAiInferenceEventDetail(value: string): boolean {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
-    return parsed?.schemaVersion === 1
+    const hasKnownCorrelationId =
+      typeof parsed.executionId === "string" || typeof parsed.requestId === "string";
+    return (parsed?.schemaVersion === 1 || parsed?.schemaVersion === 2)
       && typeof parsed.capability === "string"
-      && typeof parsed.executionId === "string"
+      && hasKnownCorrelationId
       && typeof parsed.outcome === "string";
   } catch {
     return false;
