@@ -74,7 +74,7 @@ export function runWithQuestionLatencyContext<T>(operation: () => T): T {
   return questionLatencyScope.run(scope, () => {
     const finishIncompleteTrace = () => {
       if (!scope.trace || scope.trace.finalized) return;
-      if (scope.trace.outcome !== "error") {
+      if (scope.trace.outcome === null) {
         recordCurrentQuestionOutcome("error", "request_incomplete");
       }
       finalizeCurrentQuestionLatencyTrace();
