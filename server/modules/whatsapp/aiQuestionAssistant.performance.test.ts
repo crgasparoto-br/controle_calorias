@@ -121,7 +121,10 @@ function latencyEvent() {
 describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    buildWhatsappIntentContextMock.mockResolvedValue({ recentTurns: [] });
+    buildWhatsappIntentContextMock.mockImplementation(async (_userId, options) => {
+      options?.onRecentMessagesDbDurationMs?.(7);
+      return { recentTurns: [] };
+    });
     getDashboardTodayOverviewMock.mockResolvedValue(todayFixture());
     getWeeklyReportBundleMock.mockResolvedValue(weekFixture());
     getPeriodReportBundleMock.mockResolvedValue(periodFixture());
@@ -176,6 +179,8 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
       attempts: 1,
       fallback_occurred: false,
       web_search_available: true,
+      db_ms: 7,
+      context_ms: expect.any(Number),
     }));
     expect(JSON.stringify(telemetry)).not.toContain(rawQuestion);
     expect(JSON.stringify(result?.data)).not.toContain(rawQuestion);

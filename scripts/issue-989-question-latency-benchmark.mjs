@@ -145,7 +145,15 @@ function expectedContextLoads(scope) {
   }
 }
 
-function validateWorkerObservations(side, manifest, observations) {
+function expectedCandidateDbMs(scope, delays) {
+  const expected = expectedContextLoads(scope);
+  return delays.history
+    + expected.today * delays.today
+    + expected.currentWeek * delays.currentWeek
+    + expected.last30Days * delays.last30Days;
+}
+
+function validateWorkerObservations(side, manifest, observations, delays) {
   if (observations.length !== manifest.fixtures.length * manifest.repetitionsPerFixture) {
     throw new Error(`${side} observation count does not match the fixed cohort.`);
   }
@@ -183,9 +191,19 @@ function validateWorkerObservations(side, manifest, observations) {
       throw new Error(`${side}/${observation.fixtureId} scope=${observation.contextScope}, expected ${fixture.expectedScope}.`);
     }
     if (side === "candidate") {
+      if (observation.contextLoads.unusedDomainSnapshot !== 0) {
+        throw new Error(`${side}/${observation.fixtureId} loaded an unused domain snapshot in the QUESTION history path.`);
+      }
       const finalLatency = observation.finalLatency;
       if (!finalLatency || finalLatency.boundary !== "inbound_persistence_to_processed_reply") {
         throw new Error(`${side}/${observation.fixtureId} did not emit the canonical end-to-end latency boundary.`);
+      }
+      const expectedDbMs = expectedCandidateDbMs(fixture.expectedScope, delays);
+      if (typeof finalLatency.dbMs !== "number" || finalLatency.dbMs < Math.max(0, expectedDbMs - 6)) {
+        throw new Error(`${side}/${observation.fixtureId} db_ms=${finalLatency.dbMs}, expected coverage of at least ${expectedDbMs - 6}ms across history and selected insight loads.`);
+      }
+      if (typeof finalLatency.contextMs !== "number" || finalLatency.contextMs < 0) {
+        throw new Error(`${side}/${observation.fixtureId} did not measure context assembly latency.`);
       }
       if (typeof finalLatency.persistMs !== "number" || finalLatency.persistMs < 0) {
         throw new Error(`${side}/${observation.fixtureId} did not measure persistence latency.`);
@@ -309,8 +327,8 @@ async function main() {
       }),
     ]);
     debug("paired workers complete");
-    validateWorkerObservations("baseline", manifest, baselineRun.observations);
-    validateWorkerObservations("candidate", manifest, candidateRun.observations);
+    validateWorkerObservations("baseline", manifest, baselineRun.observations, baselineRun.delays);
+    validateWorkerObservations("candidate", manifest, candidateRun.observations, candidateRun.delays);
 
     const baseline = summarizeObservations(baselineRun.observations);
     const candidate = summarizeObservations(candidateRun.observations);
@@ -358,6 +376,8 @@ async function main() {
         webSearchAvailableOnEverySuccessfulQuestion: true,
         productionEndToEndPipelineExecutedOnBothExactShas: true,
         candidateTelemetryMatchesEndToEndBoundary: true,
+        candidateDbStageCoversHistoryAndSelectedInsightLoads: true,
+        unusedQuestionHistoryDomainSnapshotSkipped: true,
         persistenceMeasuredOnCandidate: true,
         deliveryIncludedInTotalMs: true,
         timeToFirstToken: "not-measurable-non-streaming-provider-contract",

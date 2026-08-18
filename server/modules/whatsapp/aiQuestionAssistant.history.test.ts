@@ -128,6 +128,10 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
       flow: "text",
       timeZone: "America/Sao_Paulo",
       includeSummary: false,
+      includeDomainSnapshot: false,
+      includeContextualMemories: false,
+      includeShadowIntentComparison: false,
+      onRecentMessagesDbDurationMs: expect.any(Function),
     });
 
     const requestArgs = responsesCreateMock.mock.calls[0][0];

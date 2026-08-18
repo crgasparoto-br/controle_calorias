@@ -180,6 +180,7 @@ async function buildUserKnowledgeBase(
   receivedAt: Date,
   timeZone: string,
   scope: QuestionContextScope,
+  onDbDurationMs?: (durationMs: number) => void,
 ): Promise<UserKnowledgeBase> {
   const endDate = getDateKeyInTimeZone(receivedAt, timeZone);
   const startDate = addCalendarDays(endDate, -29);
@@ -188,18 +189,26 @@ async function buildUserKnowledgeBase(
     insightsServicePromise ??= import("../insights/service");
     return insightsServicePromise;
   };
+  const measureDb = async <T>(operation: () => Promise<T>) => {
+    const startedAt = performance.now();
+    try {
+      return await operation();
+    } finally {
+      onDbDurationMs?.(performance.now() - startedAt);
+    }
+  };
   const loaded = await loadQuestionContextByScope(scope, {
     loadToday: async () => {
       const { getDashboardTodayOverview } = await getInsightsService();
-      return getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }, timeZone);
+      return measureDb(() => getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }, timeZone));
     },
     loadCurrentWeek: async () => {
       const { getWeeklyReportBundle } = await getInsightsService();
-      return getWeeklyReportBundle(userId, 0, timeZone);
+      return measureDb(() => getWeeklyReportBundle(userId, 0, timeZone));
     },
     loadLast30Days: async () => {
       const { getPeriodReportBundle } = await getInsightsService();
-      return getPeriodReportBundle(userId, { startDate, endDate }, timeZone);
+      return measureDb(() => getPeriodReportBundle(userId, { startDate, endDate }, timeZone));
     },
   });
 
@@ -216,6 +225,7 @@ async function buildRecentHistory(
   timeZone: string,
   conversationRepository?: WhatsAppConversationRepository,
   currentInboundExternalMessageId?: string | null,
+  onDbDurationMs?: (durationMs: number) => void,
 ) {
   const context = await buildWhatsappIntentContext(userId, {
     receivedAt,
@@ -223,6 +233,10 @@ async function buildRecentHistory(
     flow: "text",
     timeZone,
     includeSummary: false,
+    includeDomainSnapshot: false,
+    includeContextualMemories: false,
+    includeShadowIntentComparison: false,
+    ...(onDbDurationMs ? { onRecentMessagesDbDurationMs: onDbDurationMs } : {}),
     ...(conversationRepository ? { conversationRepository } : {}),
     ...(currentInboundExternalMessageId ? { currentInboundExternalMessageId } : {}),
   });
@@ -434,17 +448,22 @@ export async function executeWhatsappAiQuestionIntent(
   const receivedAt = input.receivedAt ?? new Date();
   const timeZone = input.userTimezone ?? await getWhatsAppOperationTimeZone(userId);
   let dbMs: number | null = null;
+  const addDbDurationMs = (durationMs: number) => {
+    dbMs = (dbMs ?? 0) + Math.max(0, durationMs);
+  };
   let contextMs: number | null = null;
   let llmMs: number | null = null;
   let llmStartedAt: number | null = null;
 
   try {
     const contextStartedAt = performance.now();
-    const knowledgeStartedAt = performance.now();
-    const knowledgePromise = buildUserKnowledgeBase(userId, receivedAt, timeZone, contextScope)
-      .finally(() => {
-        dbMs = performance.now() - knowledgeStartedAt;
-      });
+    const knowledgePromise = buildUserKnowledgeBase(
+      userId,
+      receivedAt,
+      timeZone,
+      contextScope,
+      addDbDurationMs,
+    );
     const [knowledgeBase, recentHistory] = await Promise.all([
       knowledgePromise,
       buildRecentHistory(
@@ -453,6 +472,7 @@ export async function executeWhatsappAiQuestionIntent(
         timeZone,
         input.conversationRepository,
         input.externalMessageId,
+        addDbDurationMs,
       ),
     ]);
     contextMs = performance.now() - contextStartedAt;

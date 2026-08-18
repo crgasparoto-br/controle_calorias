@@ -71,7 +71,7 @@ function createObservationState(fixture = {}) {
     providerCalls: 0,
     deliveryCalls: 0,
     offeredWebSearch: false,
-    contextLoads: { history: 0, today: 0, currentWeek: 0, last30Days: 0 },
+    contextLoads: { history: 0, today: 0, currentWeek: 0, last30Days: 0, unusedDomainSnapshot: 0 },
     persistenceOperations: { conversation: 0, inbound: 0, outbound: 0, responseLink: 0, processed: 0 },
     delays,
     failureMode: fixture.failureMode ?? "none",
@@ -217,6 +217,8 @@ for (const fixture of manifest.fixtures) {
       finalLatency: finalLatency
         ? {
             totalMs: finalLatency.total_ms,
+            dbMs: finalLatency.db_ms,
+            contextMs: finalLatency.context_ms,
             persistMs: finalLatency.persist_ms,
             boundary: finalLatency.boundary,
             outcome: finalLatency.outcome,

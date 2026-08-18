@@ -34,7 +34,9 @@ O gate exige:
 - `web_search` disponível em toda pergunta bem-sucedida;
 - as mesmas operações de lifecycle/persistência em baseline e candidato;
 - identidades Git baseline/candidato distintas e verificadas pelos worktrees;
-- no candidato, telemetria final com persistência mensurada e fronteira fim a fim coerente com o cronômetro do harness.
+- no candidato, telemetria final com persistência mensurada e fronteira fim a fim coerente com o cronômetro do harness;
+- `db_ms` cobre a leitura persistida de histórico e todos os agregados de insights realmente selecionados pelo escopo, inclusive quando executados em ramos paralelos;
+- o caminho de histórico de `QUESTION` não carrega snapshot de refeições, memória contextual nem comparação shadow quando esses dados não são consumidos pelo prompt.
 
 Como o contrato atual de `QUESTION` no WhatsApp é não streaming, TTFT permanece explicitamente não mensurável; ele não é inferido a partir do tempo total.
 
@@ -57,7 +59,9 @@ O driver exige SHAs explícitos, materializa ambos com `git worktree`, confirma 
 
 ## Observabilidade em produção
 
-O webhook abre o trace de `QUESTION` antes da resolução do usuário e o mantém no mesmo `AsyncLocalStorage` até a persistência terminal. O assistente acrescenta ao trace `db_ms`, `context_ms`, `llm_ms`, escopo de contexto, provider/modelo, tentativas, retry/fallback e pesquisa web. O lifecycle acumula o tempo real gasto nas persistências de inbound, outbound/link e `markProcessed`; a entrega registra sucesso ou falha. O evento só é finalizado após `markProcessed`, ou como erro explícito se a requisição terminar incompleta.
+O webhook abre o trace de `QUESTION` antes da resolução do usuário e o mantém no mesmo `AsyncLocalStorage` até a persistência terminal. O assistente acrescenta ao trace `db_ms`, `context_ms`, `llm_ms`, escopo de contexto, provider/modelo, tentativas, retry/fallback e pesquisa web. `db_ms` é cumulativo para as operações de leitura da montagem de contexto: inclui a consulta persistida do histórico recente e cada loader de insights selecionado (`today`, `currentWeek`, `last30Days`), mesmo quando os ramos executam em paralelo; `context_ms` continua sendo o wall-clock sobreposto da montagem completa. O lifecycle acumula o tempo real gasto nas persistências de inbound, outbound/link e `markProcessed`; a entrega registra sucesso ou falha. O evento só é finalizado após `markProcessed`, ou como erro explícito se a requisição terminar incompleta.
+
+Para o consumidor `slash_assistant`, o builder de histórico é chamado em modo mínimo: sem `currentDomainSnapshot`, sem memória contextual, sem resumo e sem shadow intent comparison. Isso preserva a seleção canônica de `recentTurns` e elimina I/O/cálculo que o prompt de `QUESTION` não consome.
 
 O evento `whatsapp.ai_question.latency` não contém pergunta, resposta, telefone, credencial ou PII. `persist_ms` é numérico quando o fluxo produtivo persistiu a mensagem; `time_to_first_token_ms` permanece `null` enquanto o contrato do canal/provedor não expuser TTFT confiável.
 

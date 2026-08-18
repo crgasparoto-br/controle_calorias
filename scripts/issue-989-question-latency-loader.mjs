@@ -37,10 +37,13 @@ export function setCurrentWhatsappInboundExternalMessageId() {}
 export function getCurrentWhatsappInboundExternalMessageId() { return null; }
 `],
   ["server/modules/whatsapp/intentContext.ts", `
-export async function buildWhatsappIntentContext() {
+export async function buildWhatsappIntentContext(_userId, options = {}) {
   const state = globalThis.__questionLatencyBench;
   state.contextLoads.history += 1;
+  if (options.includeDomainSnapshot !== false) state.contextLoads.unusedDomainSnapshot += 1;
+  const startedAt = performance.now();
   await state.sleep(state.delays.history);
+  options.onRecentMessagesDbDurationMs?.(performance.now() - startedAt);
   return { recentTurns: [] };
 }
 `],
