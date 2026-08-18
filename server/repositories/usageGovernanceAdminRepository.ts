@@ -8,6 +8,16 @@ async function requireDb() {
   return db;
 }
 
+function jsonRecord(value: unknown) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(String(value ?? "{}"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function createAllowanceGrant(input: { id:string; subjectType:string; subjectId:string; grantType:string; additionalUnits?:number|null; reason:string; startsAt:Date; endsAt:Date; actorUserId:number }) {
   const db=await requireDb();
   await db.execute(sql`INSERT INTO billingUsageAllowanceGrants (id,subjectType,subjectId,grantType,additionalUnits,reason,startsAt,endsAt,state,createdByUserId) VALUES (${input.id},${input.subjectType},${input.subjectId},${input.grantType},${input.additionalUnits??null},${input.reason},${input.startsAt},${input.endsAt},'active',${input.actorUserId})`);
@@ -18,7 +28,7 @@ export async function revokeAllowanceGrant(id:string, actorUserId:number) {
   await db.execute(sql`UPDATE billingUsageAllowanceGrants SET state='revoked',revokedAt=NOW(),revokedByUserId=${actorUserId} WHERE id=${id} AND state='active'`);
 }
 
-export async function createAbuseCase(input:{id:string;subjectUserId:number;sponsorUserId?:number|null;signals:string[];evidence:Record<string,number|string|boolean|null>;actorUserId:number}) {
+export async function createAbuseCase(input:{id:string;subjectUserId:number;sponsorUserId?:number|null;signals:string[];evidence:Record<string,number|string|boolean|string[]|null>;actorUserId:number}) {
   const db=await requireDb();
   await db.execute(sql`INSERT INTO billingUsageAbuseCases (id,subjectUserId,sponsorUserId,state,signalsJson,sanitizedEvidenceJson,openedByUserId) VALUES (${input.id},${input.subjectUserId},${input.sponsorUserId??null},'open',${JSON.stringify(input.signals)},${JSON.stringify(input.evidence)},${input.actorUserId})`);
 }
@@ -44,6 +54,14 @@ export async function createLimitation(input:{id:string;abuseCaseId:string;subje
     let secondApprover: number|null = null;
     if (input.emergencySecurity) {
       if (prior.some(row => String(row.lifecycleKind) === "emergency" || Boolean(row.emergencySecurity))) throw new Error("usage_emergency_limit_already_applied");
+      const evidence = jsonRecord(abuseCase.sanitizedEvidenceJson);
+      const evidencedOperations = new Set(Array.isArray(evidence.affectedOperations)
+        ? evidence.affectedOperations.map(String).map(operation => operation.trim()).filter(Boolean)
+        : []);
+      if (!evidencedOperations.size) throw new Error("usage_emergency_security_scope_required");
+      if (!input.operations.every(operation => evidencedOperations.has(operation))) {
+        throw new Error("usage_emergency_security_operation_not_evidenced");
+      }
       lifecycleKind = "emergency";
     } else {
       if (String(abuseCase.reviewOutcome) !== "limitation_approved" || !Boolean(abuseCase.systemFailuresExcluded) || !Boolean(abuseCase.legitimateGrowthReviewed)) throw new Error("usage_limitation_human_review_required");

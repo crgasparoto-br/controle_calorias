@@ -188,7 +188,11 @@ describe("usage governance charging rollback", () => {
       systemFailuresExcluded: false,
       legitimateGrowthReviewed: false,
       signalsJson: JSON.stringify(["control_bypass_attempt"]),
-      sanitizedEvidenceJson: JSON.stringify({ blockedControlId: "heavy-operation-guard", securityRiskConfirmed: true }),
+      sanitizedEvidenceJson: JSON.stringify({
+        blockedControlId: "heavy-operation-guard",
+        securityRiskConfirmed: true,
+        affectedOperations: ["ai_heavy_processing"],
+      }),
     }));
     await expect(applyUsageLimitation(limitationInput({
       emergencySecurity: true,

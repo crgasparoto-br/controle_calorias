@@ -79,11 +79,15 @@ const sanitizedEvidenceValue = z.union([
   z.null(),
 ]);
 
+const sanitizedEvidenceSchema = z.object({
+  affectedOperations: z.array(heavyUsageOperation).min(1).max(20).optional(),
+}).catchall(sanitizedEvidenceValue);
+
 export const openUsageAbuseCaseSchema = z.object({
   subjectUserId: z.number().int().positive(),
   sponsorUserId: z.number().int().positive().optional(),
   signals: z.array(z.enum(USAGE_ABUSE_SIGNAL_VALUES)).min(1).max(20),
-  evidence: z.record(z.string(), sanitizedEvidenceValue).refine(
+  evidence: sanitizedEvidenceSchema.refine(
     value => !Object.keys(value).some(key => /prompt|content|text|message|transcript|audio|image|media|payload|error|secret|token|url/i.test(key)),
     "Evidências não podem conter conteúdo bruto ou campos sensíveis.",
   ),

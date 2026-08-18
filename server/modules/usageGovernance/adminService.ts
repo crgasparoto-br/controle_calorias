@@ -27,6 +27,8 @@ import { FAIR_USE_POLICY, USAGE_RULE_VERSION } from "./service";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
+type UsageAbuseEvidenceValue = number | string | boolean | string[] | null;
+
 function assertFutureRange(startsAt: Date, endsAt: Date) {
   if (endsAt.getTime() <= startsAt.getTime()) throw new Error("usage_governance_range_invalid");
 }
@@ -49,6 +51,14 @@ function jsonObject(value: unknown) {
   } catch {
     return {};
   }
+}
+
+function getEmergencyEvidenceOperations(evidence: Record<string, unknown>) {
+  const operations = normalizeReviewedOperations(jsonStringArray(evidence.affectedOperations));
+  if (!operations.length || operations.some(operation => !isHeavyUsageOperation(operation))) {
+    throw new Error("usage_emergency_security_scope_required");
+  }
+  return operations;
 }
 
 export async function grantTemporaryAllowance(input: {
@@ -74,7 +84,7 @@ export async function openUsageAbuseCase(input: {
   subjectUserId: number;
   sponsorUserId?: number | null;
   signals: string[];
-  evidence: Record<string, number | string | boolean | null>;
+  evidence: Record<string, UsageAbuseEvidenceValue>;
   actorUserId: number;
 }) {
   const signals = normalizeUsageAbuseSignals(input.signals);
@@ -145,6 +155,10 @@ export async function applyUsageLimitation(input: {
     const evidence = jsonObject(abuseCase.sanitizedEvidenceJson);
     if (!signals.some(signal => SECURITY_USAGE_ABUSE_SIGNALS.has(signal)) || evidence.securityRiskConfirmed !== true) {
       throw new Error("usage_emergency_security_evidence_required");
+    }
+    const evidencedOperations = new Set(getEmergencyEvidenceOperations(evidence));
+    if (requestedOperations.some(operation => !evidencedOperations.has(operation))) {
+      throw new Error("usage_emergency_security_operation_not_evidenced");
     }
   } else {
     if (duration > FAIR_USE_POLICY.initialLimitationDays * DAY_MS) throw new Error("usage_limitation_duration_invalid");
