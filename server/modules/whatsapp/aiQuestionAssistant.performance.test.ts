@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const logInferenceEventMock = vi.fn();
+const getDbMock = vi.fn();
+const logPersistenceWarningMock = vi.fn();
 const buildWhatsappIntentContextMock = vi.fn();
 const executeResolvedCapabilityMock = vi.fn();
 const createDomainTextResponseMock = vi.fn();
@@ -9,6 +11,8 @@ const getWeeklyReportBundleMock = vi.fn();
 const getPeriodReportBundleMock = vi.fn();
 
 vi.mock("../../db", () => ({
+  getDb: getDbMock,
+  logPersistenceWarning: logPersistenceWarningMock,
   logInferenceEvent: logInferenceEventMock,
 }));
 
