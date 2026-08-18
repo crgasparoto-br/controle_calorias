@@ -45,33 +45,39 @@
           "surface": "benchmark-execution",
           "dimension": "production-entrypoint-bypass",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "ESC-EQ-S2",
           "surface": "failure-accounting",
           "dimension": "timeout-regression",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "ESC-EQ-S3",
           "surface": "source-fidelity",
           "dimension": "omitted-acceptance-clause",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         }
       ],
       "prevention_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "Distinct exact source identities, observed failures and lossless canonical source remain mandatory."
+        "detail": "Distinct exact source identities, observed failures and lossless canonical source remain mandatory.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
       },
       "detection_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "Exact-SHA end-to-end benchmark and canonical-source coverage reject evidence substitution."
-      }
+        "detail": "Exact-SHA end-to-end benchmark and canonical-source coverage reject evidence substitution.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
+      },
+      "revalidated_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648"
     },
     {
       "escape_id": "ESC-CONTEXT-PERSONALIZATION",
@@ -111,33 +117,39 @@
           "surface": "context-scope",
           "dimension": "implicit-beneficiary-language-preservation",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "CTX-S2",
           "surface": "context-scope",
           "dimension": "modal-advice-preservation",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "CTX-S3",
           "surface": "context-scope",
           "dimension": "generic-question-narrowing",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         }
       ],
       "prevention_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "The deterministic classifier treats implicit first-person advice and para/pra mim as personal and conservatively keeps full context."
+        "detail": "The deterministic classifier treats implicit first-person advice and para/pra mim as personal and conservatively keeps full context.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
       },
       "detection_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "Focused tests and benchmark fixtures include implicit advice, implicit beneficiary, true generic and explicit temporal controls."
-      }
+        "detail": "Focused tests and benchmark fixtures include implicit advice, implicit beneficiary, true generic and explicit temporal controls.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
+      },
+      "revalidated_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648"
     },
     {
       "escape_id": "ESC-E2E-LATENCY-BOUNDARY",
@@ -182,33 +194,39 @@
           "surface": "critical-path-sequencing",
           "dimension": "terminal-persistence-failure",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "E2E-S2",
           "surface": "failure-accounting",
           "dimension": "delivery-failure",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         },
         {
           "id": "E2E-S3",
           "surface": "telemetry-payload",
           "dimension": "numeric-persistence-stage",
           "status": "passed",
-          "evidence": "evidence/delivery.txt"
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
         }
       ],
       "prevention_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "A shared AsyncLocalStorage trace starts before inbound persistence and finalizes only after reply delivery and markMessageProcessed."
+        "detail": "A shared AsyncLocalStorage trace starts before inbound persistence and finalizes only after reply delivery and markMessageProcessed.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
       },
       "detection_change": {
         "status": "passed",
         "evidence": "evidence/delivery.txt",
-        "detail": "Lifecycle/webhook tests plus the exact-SHA benchmark fail if the event finalizes early, omits persistence, or ignores delivery/persistence failures."
-      }
+        "detail": "Lifecycle/webhook tests plus the exact-SHA benchmark fail if the event finalizes early, omits persistence, or ignores delivery/persistence failures.",
+        "evidence_sha256": "73fa60bf10e694c8c605b6286ef422b6040ba6c8e61408b5328e0a9c5b8302d1"
+      },
+      "revalidated_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648"
     },
     {
       "escape_id": "ESC-QUANTITATIVE-EVIDENCE-FRESHNESS",
@@ -225,7 +243,8 @@
         "procedure": "Compare normalized evidence subject_sha and raw benchmark candidateSha with the frozen material head.",
         "status": "passed",
         "evidence": "evidence/quantitative-freshness.txt",
-        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796",
+        "observed": "The prior 63c4a31 benchmark is superseded and the active quantitative result has subject_sha/candidateSha equal to bb5b659."
       },
       "trigger_terms": [
         "benchmark",
@@ -264,7 +283,7 @@
           "dimension": "ancestor-subject-rejection",
           "status": "passed",
           "evidence": "evidence/quantitative-freshness.txt",
-          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+          "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
         },
         {
           "id": "QEF-S2",
@@ -272,7 +291,7 @@
           "dimension": "result-only-child-material-identity",
           "status": "passed",
           "evidence": "evidence/quantitative-freshness.txt",
-          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+          "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
         },
         {
           "id": "QEF-S3",
@@ -280,25 +299,26 @@
           "dimension": "exact-head-reexecution",
           "status": "passed",
           "evidence": "evidence/quantitative-freshness.txt",
-          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+          "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
         }
       ],
       "prevention_change": {
         "status": "passed",
         "skill_or_code": "entregar-issue evidence freshness gate",
         "evidence": "evidence/quantitative-freshness.txt",
-        "detail": "Quantitative controls require evidence_kind, evidence_id, exact-material-head freshness, normalized subject_sha and matching evidence hash; post-write material changes invalidate prior measurements.",
-        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        "detail": "The post-write refreeze invalidated the ancestor quantitative result and forced exact-head reexecution before the new freeze.",
+        "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
       },
       "detection_change": {
         "status": "passed",
         "skill_or_gate": "auditar-issue quantitative provenance preflight",
         "control_id": "QUANT-EVIDENCE-FRESHNESS-001",
         "evidence": "evidence/quantitative-freshness.txt",
-        "detail": "Independent preflight rejects certified quantitative evidence whose measured subject differs from the certified material head.",
-        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        "detail": "The attack matrix and provenance validator now reject any quantitative result whose subject differs from the frozen material head.",
+        "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
       },
-      "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+      "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796",
+      "revalidated_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648"
     }
   ]
 }

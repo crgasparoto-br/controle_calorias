@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+  "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
   "controls": [
     {
       "id": "EVID-EQUIV-001",
       "status": "passed",
-      "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+      "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
       "evidence": "evidence/delivery.txt",
-      "reason": "Comparative evidence uses distinct exact source identities, observed failure accounting and lossless canonical sources."
+      "reason": "Distinct exact Git identities, fixed fixtures and explicit success/error/timeout accounting were re-executed on the new material head."
     },
     {
       "id": "CONTEXT-PERSONALIZATION-001",
       "status": "passed",
-      "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+      "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
       "evidence": "evidence/delivery.txt",
-      "reason": "Implicit personal advice and beneficiary wording retain personal context; true generic and explicit temporal controls remain discriminated."
+      "reason": "Implicit personal advice and beneficiary/modal sibling cases retain full context, while generic/today/week controls remain discriminated on the new head."
     },
     {
       "id": "E2E-LATENCY-BOUNDARY-001",
       "status": "passed",
-      "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+      "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
       "evidence": "evidence/delivery.txt",
-      "reason": "Latency closes after reply delivery and terminal lifecycle persistence, with numeric persist_ms and explicit delivery/persistence failure outcomes."
+      "reason": "End-to-end latency remains terminal through delivery and lifecycle persistence, with numeric persist_ms and failure regressions green for the new head."
     },
     {
       "id": "QUANT-EVIDENCE-FRESHNESS-001",
       "status": "passed",
-      "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+      "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
       "evidence": "evidence/quantitative-freshness.txt",
-      "reason": "Quantitative evidence is bound by hash and subject_sha to the frozen material head; ancestor-SHA promotion is rejected while an allowlisted result-only child preserves material identity.",
-      "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+      "reason": "Exact-head benchmark provenance now binds subject_sha and result candidateSha to bb5b659; prior 63c4a31 evidence is superseded after material drift.",
+      "evidence_sha256": "a67d3e53e1453f0b52e20b2313d9be1d1786adaac70a8974e94853c04b13f796"
     }
   ],
   "unresolved_controls": []

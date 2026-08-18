@@ -1,81 +1,98 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
+  "classification": "implementation-only",
   "source_event": {
     "kind": "independent-audit-rejection",
     "repository": "crgasparoto-br/controle_calorias",
     "pull_request": 993,
-    "material_head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
-    "reason": "The audit rejected the delivery because quantitative performance evidence was measured on an ancestor SHA and promoted to the final material head by structural reasoning."
+    "material_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
+    "reason": "The independent audit found the published PR head had moved materially beyond the certified handoff child, so the existing certificate no longer represented the current candidate."
   },
   "generalized_learning": {
-    "escape_class": "quantitative-evidence-freshness-substitution",
-    "generalized_failure_pattern": "A measured quantitative result is associated with a later material identity even though that later identity was never the subject of the measurement.",
-    "plausible_wrong_implementation": "After any material change, retain earlier benchmark percentiles and relabel metadata as if the measurement belonged to the new candidate.",
-    "trigger_signals": [
-      "quantitative acceptance gate",
-      "benchmark or percentile",
-      "material identity changed after measurement",
-      "exact-subject evidence reuse"
-    ],
-    "risk_families": [
-      "structural-contract",
-      "documentation"
-    ],
-    "reusable_control": {
-      "id": "QUANT-EVIDENCE-FRESHNESS-001",
-      "rule": "Require a normalized evidence subject identity and reject quantitative evidence unless it equals the frozen material candidate."
-    },
-    "prevention_rule": "Invalidate quantitative exact-subject evidence after any material change and reexecute the measurement on the new material candidate before freeze.",
-    "detection_rule": "Cross-check normalized subject identity and raw quantitative result identity against the certified material candidate before accepting the handoff.",
-    "transfer_cases": [
-      {
-        "id": "synthetic-performance-ancestor",
-        "surface": "performance-benchmark",
-        "scenario": "An ancestor latency benchmark is presented for a later material candidate.",
-        "status": "passed"
-      },
-      {
-        "id": "synthetic-resource-measurement-ancestor",
-        "surface": "resource-measurement",
-        "scenario": "An ancestor memory or cardinality measurement is presented for a later material candidate.",
-        "status": "passed"
-      }
-    ],
-    "promotion_status": "promoted"
+    "promotion_status": "not-required",
+    "reason": "The failure is an execution-specific miss of the already-versioned universal post-write-refreeze and terminal-handoff rules in entregar-issue. The generic prevention and detection contracts already require material drift to invalidate the previous certificate and require a direct allowlisted result-only child before audit readiness."
   },
-  "skill_changes": [
-    {
-      "role": "prevention",
-      "skill": "entregar-issue",
-      "status": "passed",
-      "evidence": "evidence/quantitative-freshness.txt",
-      "package_sha256": "aaa855e14b80f8b481caa64d18bc080de8e14e74740ac4f3331aca2906851575"
-    },
-    {
-      "role": "detection",
-      "skill": "auditar-issue",
-      "status": "passed",
-      "evidence": "evidence/quantitative-freshness.txt",
-      "package_sha256": "e153cfe338f66752269af22ca245c0d566ca74057ce27e3f3ee2cbf92acd7086"
-    }
-  ],
   "prior_learning_events": [
     {
       "schema_version": 1,
-      "classification": "implementation-only",
+      "classification": "systemic-escape",
       "source_event": {
         "kind": "independent-audit-rejection",
-        "reason": "The latest rejection found two concrete implementation defects: implicit personal advice lost context and latency measurement stopped before terminal delivery/persistence."
+        "repository": "crgasparoto-br/controle_calorias",
+        "pull_request": 993,
+        "material_head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+        "reason": "The audit rejected the delivery because quantitative performance evidence was measured on an ancestor SHA and promoted to the final material head by structural reasoning."
       },
       "generalized_learning": {
-        "promotion_status": "not-required",
-        "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
+        "escape_class": "quantitative-evidence-freshness-substitution",
+        "generalized_failure_pattern": "A measured quantitative result is associated with a later material identity even though that later identity was never the subject of the measurement.",
+        "plausible_wrong_implementation": "After any material change, retain earlier benchmark percentiles and relabel metadata as if the measurement belonged to the new candidate.",
+        "trigger_signals": [
+          "quantitative acceptance gate",
+          "benchmark or percentile",
+          "material identity changed after measurement",
+          "exact-subject evidence reuse"
+        ],
+        "risk_families": [
+          "structural-contract",
+          "documentation"
+        ],
+        "reusable_control": {
+          "id": "QUANT-EVIDENCE-FRESHNESS-001",
+          "rule": "Require a normalized evidence subject identity and reject quantitative evidence unless it equals the frozen material candidate."
+        },
+        "prevention_rule": "Invalidate quantitative exact-subject evidence after any material change and reexecute the measurement on the new material candidate before freeze.",
+        "detection_rule": "Cross-check normalized subject identity and raw quantitative result identity against the certified material candidate before accepting the handoff.",
+        "transfer_cases": [
+          {
+            "id": "synthetic-performance-ancestor",
+            "surface": "performance-benchmark",
+            "scenario": "An ancestor latency benchmark is presented for a later material candidate.",
+            "status": "passed"
+          },
+          {
+            "id": "synthetic-resource-measurement-ancestor",
+            "surface": "resource-measurement",
+            "scenario": "An ancestor memory or cardinality measurement is presented for a later material candidate.",
+            "status": "passed"
+          }
+        ],
+        "promotion_status": "promoted"
       },
-      "prior_systemic_learning": {
-        "promotion_status": "not-required",
-        "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
-      }
+      "skill_changes": [
+        {
+          "role": "prevention",
+          "skill": "entregar-issue",
+          "status": "passed",
+          "evidence": "evidence/quantitative-freshness.txt",
+          "package_sha256": "aaa855e14b80f8b481caa64d18bc080de8e14e74740ac4f3331aca2906851575"
+        },
+        {
+          "role": "detection",
+          "skill": "auditar-issue",
+          "status": "passed",
+          "evidence": "evidence/quantitative-freshness.txt",
+          "package_sha256": "e153cfe338f66752269af22ca245c0d566ca74057ce27e3f3ee2cbf92acd7086"
+        }
+      ],
+      "prior_learning_events": [
+        {
+          "schema_version": 1,
+          "classification": "implementation-only",
+          "source_event": {
+            "kind": "independent-audit-rejection",
+            "reason": "The latest rejection found two concrete implementation defects: implicit personal advice lost context and latency measurement stopped before terminal delivery/persistence."
+          },
+          "generalized_learning": {
+            "promotion_status": "not-required",
+            "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
+          },
+          "prior_systemic_learning": {
+            "promotion_status": "not-required",
+            "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
+          }
+        }
+      ]
     }
   ]
 }
