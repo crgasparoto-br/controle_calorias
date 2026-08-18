@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "evidence": [
+    {
+      "evidence_id": "question-latency-e2e-63c4a31",
+      "kind": "quantitative",
+      "path": "docs/benchmarks/question-latency/results/2026-08-18-63c4a31-e2e-summary.json",
+      "sha256": "c980ddb03ef7e61244ad6b8c700a708df2145d4e051c47e640a74478cf534135",
+      "subject_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+      "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+      "freshness_policy": "exact-material-head",
+      "producer": "question-latency/end-to-end-productive-pipeline-hermetic-v3",
+      "status": "passed",
+      "summary": {
+        "baseline_successes": 120,
+        "candidate_successes": 120,
+        "baseline_errors": 0,
+        "candidate_errors": 0,
+        "baseline_timeouts": 0,
+        "candidate_timeouts": 0,
+        "baseline_p50_ms": 262,
+        "candidate_p50_ms": 172,
+        "baseline_p90_ms": 268,
+        "candidate_p90_ms": 193,
+        "baseline_p95_ms": 272,
+        "candidate_p95_ms": 261,
+        "p90_improvement_percent": 27.99,
+        "gate_passed": true
+      },
+      "raw_archive": {
+        "path": "docs/benchmarks/question-latency/results/2026-08-18-63c4a31-e2e-raw.json.gz",
+        "sha256": "bd4abfc2e2a14c6ef1ef0215a9898bad91df8dd65262aaaefbb0830b03ef41c8",
+        "uncompressed_sha256": "f19f2fb15271aa7717d121b957853565455b1dfac2b766d551921c1474cbbefb",
+        "encoding": "gzip",
+        "baseline_observations": 120,
+        "candidate_observations": 120
+      }
+    }
+  ]
+}

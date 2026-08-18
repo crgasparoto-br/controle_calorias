@@ -209,6 +209,96 @@
         "evidence": "evidence/delivery.txt",
         "detail": "Lifecycle/webhook tests plus the exact-SHA benchmark fail if the event finalizes early, omits persistence, or ignores delivery/persistence failures."
       }
+    },
+    {
+      "escape_id": "ESC-QUANTITATIVE-EVIDENCE-FRESHNESS",
+      "escape_class": "quantitative-evidence-freshness-substitution",
+      "source_audit": {
+        "status": "rejected",
+        "head_sha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+        "finding_id": "RQ-BENCH-EXACT-HEAD",
+        "reason": "Independent audit found that the canonical quantitative benchmark measured an ancestor candidate while the matrix claimed exact-head evidence for the final material head."
+      },
+      "status": "passed",
+      "plausible_wrong_implementation": "Reuse a quantitative result measured on an ancestor commit and change only metadata/checklists so it appears to validate a later material head.",
+      "literal_case": {
+        "procedure": "Compare normalized evidence subject_sha and raw benchmark candidateSha with the frozen material head.",
+        "status": "passed",
+        "evidence": "evidence/quantitative-freshness.txt",
+        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+      },
+      "trigger_terms": [
+        "benchmark",
+        "percentile",
+        "quantitative evidence",
+        "exact-SHA",
+        "material head",
+        "subject SHA",
+        "provenance"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "evidence-freshness",
+          "dimension": "exact-material-subject-identity"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-execution",
+          "dimension": "distinct-source-identity"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "source-fidelity",
+          "dimension": "lossless-canonical-source"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "QEF-S1",
+          "surface": "evidence-freshness",
+          "dimension": "ancestor-subject-rejection",
+          "status": "passed",
+          "evidence": "evidence/quantitative-freshness.txt",
+          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        },
+        {
+          "id": "QEF-S2",
+          "surface": "benchmark-execution",
+          "dimension": "result-only-child-material-identity",
+          "status": "passed",
+          "evidence": "evidence/quantitative-freshness.txt",
+          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        },
+        {
+          "id": "QEF-S3",
+          "surface": "source-fidelity",
+          "dimension": "exact-head-reexecution",
+          "status": "passed",
+          "evidence": "evidence/quantitative-freshness.txt",
+          "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "skill_or_code": "entregar-issue evidence freshness gate",
+        "evidence": "evidence/quantitative-freshness.txt",
+        "detail": "Quantitative controls require evidence_kind, evidence_id, exact-material-head freshness, normalized subject_sha and matching evidence hash; post-write material changes invalidate prior measurements.",
+        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+      },
+      "detection_change": {
+        "status": "passed",
+        "skill_or_gate": "auditar-issue quantitative provenance preflight",
+        "control_id": "QUANT-EVIDENCE-FRESHNESS-001",
+        "evidence": "evidence/quantitative-freshness.txt",
+        "detail": "Independent preflight rejects certified quantitative evidence whose measured subject differs from the certified material head.",
+        "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
+      },
+      "evidence_sha256": "44b2cbbcc9b18853e56ec63c24f8b9f4dbd4e4d70ee35e9491f25af4ac73a5c2"
     }
   ]
 }

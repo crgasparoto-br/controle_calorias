@@ -1,34 +1,50 @@
-material_head_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
-baseline_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-tested_runtime_sha=7a19b16739b09ea414c166470a9d7e43499102c2
-benchmark_summary=docs/benchmarks/question-latency/results/2026-08-18-7a19b167-e2e-summary.json
+material_head_sha=63c4a31ecf76972ca9daf6dce63511e49d220cf2
+base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
+merge_preview_sha=88090aaf0c985437bbd58cf199239e59dd5daf5b
+previous_certified_material_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
+post_write_refreeze_delta=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15..63c4a31ecf76972ca9daf6dce63511e49d220cf2
+post_write_material_paths=server/modules/whatsapp/questionLatencyContext.ts,server/privacy.ts
+post_write_delta_classification=telemetry outcome/state preservation and sanitized schema-v2 serialization only; no new await, DB, provider, network, persistence, delivery, retry or timeout operation added
+remote_exact_head_run=GitHub Actions Agent-first gate run 32097282070 for PR head 63c4a31ecf76972ca9daf6dce63511e49d220cf2 completed success
+remote_exact_head_gate=pnpm check passed; full Vitest suite passed in 24 sequential shards; architecture:check passed; docs:check passed; build passed; agent:check passed
+remote_exact_head_artifact=agent-first-repository-63c4a31ecf76972ca9daf6dce63511e49d220cf2 artifact 9310526200 digest sha256:11719e1e90dd691ba429fc29720d969e2eb1e722da4235b6573c14a59d5bb155
+remote_exact_head_bundle=contains refs/orchestrator/head=63c4a31ecf76972ca9daf6dce63511e49d220cf2 and refs/orchestrator/base=c1d178642418cf0a54a247f97e15da4d27b103b4 with complete history
+remote_whatsapp_tidb_gate=WhatsApp context TiDB gate run 32097282095 completed success for material head
+local_validation=git diff --check passed for 9c4af4..63c4; changed TypeScript files transpile with TypeScript 5.9-compatible compiler; benchmark harness self-test passed
 benchmark_protocol=exact-sha end-to-end productive QUESTION pipeline with hermetic external persistence/delivery/provider doubles
-benchmark_runs=120 baseline successes, 120 candidate successes, 0 errors, 0 timeouts on both sides
-benchmark_percentiles=baseline p50/p90/p95 261/263/269 ms; candidate p50/p90/p95 170/187/260 ms
-benchmark_improvements=p50 34.87%; p90 28.9%; p95 3.35%; gate passed via p90 >=20% and no percentile regression >5%
 benchmark_boundary=user resolution + inbound lifecycle persistence -> QUESTION context/LLM -> logical reply delivery/outbound persistence -> markMessageProcessed terminal persistence
-benchmark_controls=exactly one provider call, web_search available, lifecycle persistence operations present on both sides, candidate telemetry boundary=end-to-end, persist_ms numeric, telemetry total_ms matches external timer
-context_literal=quanto de proteína devo consumir? => full
-context_sibling_1=qual a melhor fonte de proteína para mim? => full
+benchmark_controls=exactly one provider call, web_search available, lifecycle persistence operations present on both sides, candidate telemetry boundary=end-to-end, persist_ms numeric
+context_literal=quanto de proteina devo consumir? => full
+context_sibling_1=qual a melhor fonte de proteina para mim? => full
 context_sibling_2=quais macros eu deveria priorizar? => full
-context_regression_generic=qual é a recomendação atual de fibras? => none
-context_regression_today=como está meu consumo hoje? => today
-latency_literal=success latency event is absent before markMessageProcessed and emitted only after terminal persistence with numeric persist_ms
-latency_sibling_1=markMessageProcessed persistence failure => outcome=error,error_code=persistence_failed
-latency_sibling_2=reply delivery failure => outcome=error,error_code=delivery_failed
-privacy=latency event excludes raw question, raw response, phone, credentials and PII; TTFT remains null because current WhatsApp/provider contract is non-streaming
-central_contract=QUESTION continues through resolveCapabilityConfig + executeResolvedCapability; no direct provider fast path; web_search remains available; no local retry/timeout policy
-local_validation=git diff --check passed; changed TypeScript files transpile; benchmark self-test passed; exact-SHA end-to-end benchmark passed
-remote_snapshot=final material remote gate is captured once per SHA; pending/in-progress runs are not polled and failures are remediated by new SHA
-previous_escape=EVID-EQUIV-001 remains inherited and passed: distinct source identity, observed failure accounting, production path equivalence and lossless canonical source
-current_escape_context=CONTEXT-PERSONALIZATION-001 passed with literal + implicit-beneficiary + modal-advice siblings
-current_escape_e2e=E2E-LATENCY-BOUNDARY-001 passed with terminal-boundary + persistence-failure + delivery-failure siblings
-remote_material_snapshot_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
-remote_material_snapshot_runs=none returned at the single allowed collection point
-prior_candidate_ci_failure_sha=b441bab437358d7d515f58dd9bff130109a88769
-prior_candidate_ci_failure=Agent-first TypeScript check TS2352 at questionLatencyContext.ts PromiseLike cast
-prior_candidate_ci_remediation_sha=7a19b16739b09ea414c166470a9d7e43499102c2
-prior_candidate_ci_remediation=cast changed to unknown as PromiseLike<unknown>; exact-SHA benchmark rerun and passed
-final_result_only_material_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
-final_result_only_parent_sha=7a19b16739b09ea414c166470a9d7e43499102c2
-final_result_only_difference=adds docs/benchmarks/question-latency/results/2026-08-18-7a19b167-e2e-summary.json only
+context_regression_generic=qual e a recomendacao atual de fibras? => none
+context_regression_today=como esta meu consumo hoje? => today
+latency_literal=current exact-head messageLifecycle test proves success latency event absent before markMessageProcessed and emitted after terminal persistence with schemaVersion=2,boundary=inbound_persistence_to_processed_reply,persist_ms numeric,delivery_ok=true,outcome=success,error_code=null
+latency_sibling_1=current exact-head messageLifecycle test proves markMessageProcessed persistence failure => outcome=error,error_code=persistence_failed,persist_ms numeric
+latency_sibling_2=current exact-head whatsappWebhook.aiQuestion test proves reply delivery failure => delivery_ok=false,outcome=error,error_code=delivery_failed,persist_ms numeric
+completed_outcome_control=current questionLatencyContext finishIncompleteTrace overwrites outcome only when outcome is null, preserving an already completed success/error outcome
+successful_delivery_control=current recordCurrentQuestionDeliveryOutcome(true) promotes null outcome to success and clears errorCode; failure still maps to delivery_failed
+privacy=current safeStructuredLogDetail recognizes schemaVersion 1 or 2 with executionId/requestId correlation and preserves time_to_first_token_ms only when null/numeric; other sensitive-key values remain redacted
+privacy_regression=current exact-head aiQuestionAssistant.performance test asserts time_to_first_token_ms=null, requestId correlation, web_search availability and absence of raw question from serialized telemetry/result
+central_contract=QUESTION continues through resolveCapabilityConfig + executeResolvedCapability; no direct provider fast path; web_search remains available; no local retry/timeout policy introduced by post-write delta
+previous_escape=EVID-EQUIV-001 remains inherited: distinct exact source identities, observed failure accounting, productive entrypoint equivalence and lossless canonical source
+current_escape_context=CONTEXT-PERSONALIZATION-001 remains covered by exact-head full suite plus unchanged classifier code relative to prior certified material
+current_escape_e2e=E2E-LATENCY-BOUNDARY-001 revalidated on exact-head by messageLifecycle and whatsappWebhook QUESTION tests covering terminal success, persistence failure and delivery failure
+benchmark_summary=docs/benchmarks/question-latency/results/2026-08-18-63c4a31-e2e-summary.json
+benchmark_subject_sha=63c4a31ecf76972ca9daf6dce63511e49d220cf2
+benchmark_base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
+benchmark_sha256=c980ddb03ef7e61244ad6b8c700a708df2145d4e051c47e640a74478cf534135
+benchmark_execution_source=exact-head repository bundle from Agent-first gate run 32097282070, artifact 9310526200, digest sha256:11719e1e90dd691ba429fc29720d969e2eb1e722da4235b6573c14a59d5bb155
+benchmark_runs=120 baseline successes, 120 candidate successes, 0 errors, 0 timeouts on both sides
+benchmark_percentiles=baseline p50/p90/p95 262/268/272 ms; candidate p50/p90/p95 172/193/261 ms
+benchmark_improvements=p50 34.35%; p90 27.99%; p95 4.04%; gate passed via p90 >=20% and no percentile regression >5%
+benchmark_freshness=canonical result candidateSha equals the frozen material head; no ancestor-SHA promotion is used
+quantitative_evidence_manifest=.audit/entregar-issue/evidence-provenance.json binds the canonical result hash and subject_sha to the material head
+quantitative_escape=QUANT-EVIDENCE-FRESHNESS-001 closes the independent finding that ancestor quantitative evidence had been reanchored to a later material head
+skill_prevention=entregar-issue exact-material-head freshness gate; focused tests 6 passed
+skill_detection=auditar-issue quantitative provenance preflight; focused tests 8 passed
+refreeze_reason=independent audit rejected the prior handoff because the quantitative benchmark measured ancestor SHA 7a19b167 rather than final material head 63c4a31
+refreeze_result=benchmark reexecuted on exact material head 63c4a31ecf76972ca9daf6dce63511e49d220cf2; quantitative provenance, inherited controls, attack matrix, saturation and handoff regenerated
+benchmark_raw_archive=docs/benchmarks/question-latency/results/2026-08-18-63c4a31-e2e-raw.json.gz
+benchmark_raw_archive_sha256=bd4abfc2e2a14c6ef1ef0215a9898bad91df8dd65262aaaefbb0830b03ef41c8
+benchmark_raw_uncompressed_sha256=f19f2fb15271aa7717d121b957853565455b1dfac2b766d551921c1474cbbefb
