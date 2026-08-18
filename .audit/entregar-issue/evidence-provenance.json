@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "322df2e26be565a9bc69384cb74e445aa1fbf443",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "evidence": [
+    {
+      "evidence_id": "BEHAVIOR-REMEDIATION-001",
+      "kind": "behavioral",
+      "path": "evidence/audit-remediation-2026-08-18.json",
+      "sha256": "dd6f47dd5a97a7d7a365920aeaf15d0315a104399c7988c53c0f37c9135a2fb9",
+      "subject_sha": "322df2e26be565a9bc69384cb74e445aa1fbf443",
+      "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+      "freshness_policy": "exact-material-head",
+      "producer": "connector-only discriminant source and test verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "QUANT-ECON-001",
+      "kind": "quantitative",
+      "path": "evidence/usage-governance-quantitative.json",
+      "sha256": "63e3337216a5bbda256ffe6f4893a224ab40c418cc6cd80556bbc488b90779cf",
+      "subject_sha": "322df2e26be565a9bc69384cb74e445aa1fbf443",
+      "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-source quantitative harness for usage governance economics",
+      "status": "passed"
+    }
+  ]
+}

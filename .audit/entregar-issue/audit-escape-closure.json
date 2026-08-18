@@ -1,1 +1,197 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-003","escape_class":"evidence-effect-scope-gap","source_audit":{"finding_id":"A-001","validity":"independent","prior_material_head_sha":"416259389d21de97ea1fb7421f028df5a3b4fe7c"},"plausible_wrong_implementation":"Validate that emergency evidence exists and that the requested operation is generally heavy, but never prove that the requested effect belongs to the operations supported by that evidence.","literal_case":{"procedure":"Security evidence supports image_processing while the emergency request targets audio_processing; require rejection before persistence.","status":"passed","evidence":"evidence/commercial-identity-remediation.json"},"required_risk_families":["authorization","reference-liveness"],"required_attack_dimensions":[{"risk_family":"authorization","surface":"evidence-effect-scope","dimension":"emergency-unrelated-operation"},{"risk_family":"authorization","surface":"evidence-effect-scope","dimension":"emergency-unrelated-operation-v1"},{"risk_family":"reference-liveness","surface":"evidence-effect-scope-commit","dimension":"locked-evidence-scope-revalidation"},{"risk_family":"reference-liveness","surface":"evidence-effect-scope-commit","dimension":"locked-evidence-scope-revalidation-v1"}],"sibling_cases":[{"id":"A003-MIXED","status":"passed","surface":"evidence-effect-scope","dimension":"mixed-authorized-and-unrelated-atomic-rejection","evidence":"evidence/commercial-identity-remediation.json"},{"id":"A003-CREDENTIAL","status":"passed","surface":"evidence-effect-scope","dimension":"credential-abuse-unrelated-operation","evidence":"evidence/commercial-identity-remediation.json"},{"id":"A003-LOCKED","status":"passed","surface":"evidence-effect-scope-commit","dimension":"locked-revalidation-before-insert","evidence":"evidence/commercial-identity-remediation.json"}],"prevention_change":{"skill_or_code":"entregar-issue evidence-effect-scope gate plus service/repository scope checks","evidence":"evidence/commercial-identity-remediation.json","status":"passed"},"detection_change":{"skill_or_gate":"AUTH-EFFECT-SCOPE-001 and REF-LIVE-EFFECT-SCOPE-001","control_id":"AUTH-EFFECT-SCOPE-001","evidence":"requirement-attack-matrix.json","status":"passed"},"reusable_control":"AUTH-EFFECT-SCOPE-001","trigger_terms":["related to evidence","affected operations","emergency","override","approved scope"],"status":"passed"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "LATEST-SEMANTIC-IDENTITY",
+      "escape_class": "semantic-identity-field-conflation",
+      "source_audit": {
+        "validity": "independent",
+        "prior_material_head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a"
+      },
+      "plausible_wrong_implementation": "A specialized provider producer stores a plan code as a version and omits product identity while sibling writers remain correct.",
+      "literal_case": {
+        "procedure": "Exercise the real provider-attempt reservation with deliberately distinct plan/product/version values.",
+        "status": "passed",
+        "evidence": "evidence/audit-remediation-2026-08-18.json"
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "distinct-plan-product-version"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "provider-attempt-reservation-boundary"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "SEM-ESC-S1",
+          "status": "passed",
+          "surface": "semantic-identity-propagation",
+          "dimension": "direct-processing-sibling-preserves-product-version",
+          "evidence": "evidence/audit-remediation-2026-08-18.json"
+        },
+        {
+          "id": "SEM-ESC-S2",
+          "status": "passed",
+          "surface": "semantic-identity-propagation",
+          "dimension": "provider-attempt-reservation-boundary",
+          "evidence": "evidence/audit-remediation-2026-08-18.json"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "canonical semantic identity propagation gate plus corrected provider producer",
+        "evidence": "evidence/audit-remediation-2026-08-18.json",
+        "status": "passed"
+      },
+      "detection_change": {
+        "skill_or_gate": "SEMANTIC-IDENTITY-PROP-001",
+        "control_id": "SEMANTIC-IDENTITY-PROP-001",
+        "evidence": "requirement-attack-matrix.json",
+        "status": "passed"
+      },
+      "reusable_control": "SEMANTIC-IDENTITY-PROP-001",
+      "trigger_terms": [
+        "neighboring identity fields",
+        "adapter mapping",
+        "producer persistence"
+      ],
+      "status": "passed"
+    },
+    {
+      "escape_id": "LATEST-IDEMPOTENCY-SATURATION",
+      "escape_class": "material-risk-family-underclassification",
+      "source_audit": {
+        "validity": "independent",
+        "prior_material_head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a"
+      },
+      "plausible_wrong_implementation": "The delivery marks idempotency not applicable even though retry, duplicate callback or reprocessing is an explicit contract.",
+      "literal_case": {
+        "procedure": "Reprocess the same persisted key/payload and then reuse the key with a divergent payload.",
+        "status": "passed",
+        "evidence": "evidence/audit-remediation-2026-08-18.json"
+      },
+      "required_risk_families": [
+        "idempotency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "persisted-replay-after-restart"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "conflicting-payload-same-key-rejected"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "IDEM-ESC-S1",
+          "status": "passed",
+          "surface": "duplicate-processing",
+          "dimension": "same-key-same-payload-created-false",
+          "evidence": "evidence/audit-remediation-2026-08-18.json"
+        },
+        {
+          "id": "IDEM-ESC-S2",
+          "status": "passed",
+          "surface": "duplicate-processing",
+          "dimension": "conflicting-payload-same-key-rejected",
+          "evidence": "evidence/audit-remediation-2026-08-18.json"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "risk family rederivation from canonical requirement source text",
+        "evidence": "requirement-closure.json",
+        "status": "passed"
+      },
+      "detection_change": {
+        "skill_or_gate": "IDEMPOTENCY-REPLAY-001",
+        "control_id": "IDEMPOTENCY-REPLAY-001",
+        "evidence": "requirement-attack-matrix.json",
+        "status": "passed"
+      },
+      "reusable_control": "IDEMPOTENCY-REPLAY-001",
+      "trigger_terms": [
+        "retry",
+        "callback",
+        "reprocessing",
+        "duplicate"
+      ],
+      "status": "passed"
+    },
+    {
+      "escape_id": "LATEST-QUANT-PROVENANCE",
+      "escape_class": "exact-sha-quantitative-evidence-omission",
+      "source_audit": {
+        "validity": "independent",
+        "prior_material_head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a"
+      },
+      "plausible_wrong_implementation": "Numeric thresholds and percentiles are declared green without an executed measurement bound to the final material SHA.",
+      "literal_case": {
+        "procedure": "Resolve the quantitative implementation at the final material SHA, execute threshold, rolling, allocation and percentile cases, then hash the result.",
+        "status": "passed",
+        "evidence": "evidence/usage-governance-quantitative.json"
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "exact-material-head-evidence-linked"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "stale-ancestor-not-reanchored"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "QUANT-ESC-S1",
+          "status": "passed",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "evidence-hash-bound-to-provenance",
+          "evidence": "evidence/usage-governance-quantitative.json"
+        },
+        {
+          "id": "QUANT-ESC-S2",
+          "status": "passed",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "stale-ancestor-not-reanchored",
+          "evidence": "evidence/usage-governance-quantitative.json"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "quantitative source inference requires evidence provenance",
+        "evidence": "evidence-provenance.json",
+        "status": "passed"
+      },
+      "detection_change": {
+        "skill_or_gate": "QUANT-PROV-001",
+        "control_id": "QUANT-PROV-001",
+        "evidence": "requirement-attack-matrix.json",
+        "status": "passed"
+      },
+      "reusable_control": "QUANT-PROV-001",
+      "trigger_terms": [
+        "percentile",
+        "moving average",
+        "cost ratio",
+        "count",
+        "measurement"
+      ],
+      "status": "passed"
+    }
+  ]
+}

@@ -1,1 +1,63 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-audit-outcome","scope":"evidence-to-effect authorization scope"},"generalized_learning":{"escape_class":"evidence-effect-scope-gap","generalized_failure_pattern":"A system can validate a legitimate evidence, review or approval object and validate an independently legitimate effect while failing to prove that the specific effect is inside the scope authorized by that source.","plausible_wrong_implementation":"Check evidence existence and generic effect eligibility indepently, then execute the requested mutation without comparing the effect identity to the source scope.","trigger_signals":["evidence or review defines affected operations","approved scope gates later mutations","emergency or override reaches the same effect through a different branch","persisted authorization scope is consumed later"],"risk_families":["authorization","reference-liveness"],"reusable_control":"Use deliberately divergent source and effect identities; admit the matching effect, reject an unrelated effect and a mixed request before mutation, and repeat under exception and commit-time branches.","prevention_rule":"Derive the authorized effect set from the canonical source at the definitive effect boundary; exception branches may change timing or preconditions but may not silently widen scope.","detection_rule":"Require AUTH-EFFECT-SCOPE-001 style divergent fixtures plus commit-time revalidation when the scope is persisted or mutable.","transfer_cases":[{"surface":"approval-scoped resource mutation","status":"passed","procedure":"Synthetic approval authorizes resource_a while request targets resource_b; assert fail-closed before mutation."},{"surface":"emergency policy override","status":"passed","procedure":"Synthetic emergency evidence authorizes operation_a while override requests operation_b and a mixed operation_a+operation_b request; assert atomic rejection."}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","target":"entregar-issue evidence-effect-scope implementation guidance","description":"Require source/effect divergence and commit-bound scope derivation."},{"role":"detection","status":"passed","target":"entregar-issue requirement attack validation","description":"Require authorization:evidence-effect-scope and exception-branch sibling coverage."}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "repository": "crgasparoto-br/controle_calorias",
+    "work_item": 897,
+    "pull_request": 985,
+    "material_head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a"
+  },
+  "generalized_learning": {
+    "escape_class": "delivery-self-certification-gap",
+    "generalized_failure_pattern": "A delivery can self-certify by omitting a risk family, exercising only sibling producers, or attaching numeric claims without exact-subject execution evidence.",
+    "plausible_wrong_implementation": "Generate internally consistent audit JSON whose declared families and passed controls never independently rederive source obligations or exercise every material producer/evidence boundary.",
+    "trigger_signals": [
+      "duplicate-processing language",
+      "neighboring identity fields",
+      "multiple persistence producers",
+      "numeric thresholds or percentiles",
+      "inherited audit controls"
+    ],
+    "risk_families": [
+      "idempotency",
+      "structural-contract"
+    ],
+    "reusable_control": "source-rederived risk plus discriminant producer and exact-subject evidence closure",
+    "prevention_rule": "Derive minimum risk families and semantic identity surfaces from canonical source text before implementation; require exact-subject quantitative provenance whenever the contract contains executed numeric criteria.",
+    "detection_rule": "Reject handoff when a rederived family is absent, a semantic identity control lacks deliberately divergent fields at persistence, an inherited control lacks exact-head discriminant observation, or numeric evidence lacks a matching subject hash.",
+    "transfer_cases": [
+      {
+        "id": "TRANSFER-A",
+        "surface": "webhook-deduplication",
+        "scenario": "A webhook delivery is replayed after process restart with the same durable event key, then replayed with a divergent payload.",
+        "status": "passed"
+      },
+      {
+        "id": "TRANSFER-B",
+        "surface": "catalog-identity-adapter",
+        "scenario": "A producer receives deliberately different product, version and subscription identities and must preserve each one at the storage boundary.",
+        "status": "passed"
+      },
+      {
+        "id": "TRANSFER-C",
+        "surface": "latency-percentile-evidence",
+        "scenario": "A percentile claim is regenerated after a material code change and the previous measurement is rejected as stale.",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "change": "Canonical source inference now activates duplicate-processing and semantic identity propagation before freeze.",
+      "status": "passed"
+    },
+    {
+      "role": "detection",
+      "change": "Final gates require discriminant inherited controls and exact-material-head quantitative evidence provenance.",
+      "status": "passed"
+    }
+  ]
+}

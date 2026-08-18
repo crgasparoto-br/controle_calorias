@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "subject_sha": "322df2e26be565a9bc69384cb74e445aa1fbf443",
+  "source": {
+    "path": "server/modules/usageGovernance/service.ts",
+    "git_blob_sha": "8323e66f29b2626ed70b2a05fa0ef2bcfbc1a25c",
+    "ref": "322df2e26be565a9bc69384cb74e445aa1fbf443",
+    "extraction": "exact function bodies resolved by connector at subject SHA"
+  },
+  "checks": [
+    {
+      "label": "ratio-2000-bps",
+      "expected": 2000,
+      "observed": 2000,
+      "status": "passed"
+    },
+    {
+      "label": "band-2000-bps",
+      "expected": "healthy",
+      "observed": "healthy",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2001-bps",
+      "expected": 2001,
+      "observed": 2001,
+      "status": "passed"
+    },
+    {
+      "label": "band-2001-bps",
+      "expected": "attention",
+      "observed": "attention",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2500-bps",
+      "expected": 2500,
+      "observed": 2500,
+      "status": "passed"
+    },
+    {
+      "label": "band-2500-bps",
+      "expected": "attention",
+      "observed": "attention",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2501-bps",
+      "expected": 2501,
+      "observed": 2501,
+      "status": "passed"
+    },
+    {
+      "label": "band-2501-bps",
+      "expected": "review",
+      "observed": "review",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-3000-bps",
+      "expected": 3000,
+      "observed": 3000,
+      "status": "passed"
+    },
+    {
+      "label": "band-3000-bps",
+      "expected": "review",
+      "observed": "review",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-3001-bps",
+      "expected": 3001,
+      "observed": 3001,
+      "status": "passed"
+    },
+    {
+      "label": "band-3001-bps",
+      "expected": "mandatory_review_candidate",
+      "observed": "mandatory_review_candidate",
+      "status": "passed"
+    },
+    {
+      "label": "rolling-window-first-over-30",
+      "expected": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review_candidate",
+        "mandatoryReviewRequired": false
+      },
+      "observed": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review_candidate",
+        "mandatoryReviewRequired": false
+      },
+      "status": "passed"
+    },
+    {
+      "label": "rolling-window-second-consecutive-over-30",
+      "expected": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review",
+        "mandatoryReviewRequired": true
+      },
+      "observed": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review",
+        "mandatoryReviewRequired": true
+      },
+      "status": "passed"
+    },
+    {
+      "label": "annual-revenue-month-count",
+      "expected": 12,
+      "observed": 12,
+      "status": "passed"
+    },
+    {
+      "label": "annual-revenue-preserves-total",
+      "expected": 12000,
+      "observed": 12000,
+      "status": "passed"
+    },
+    {
+      "label": "portfolio-percentiles",
+      "expected": {
+        "p50": 300,
+        "p75": 400,
+        "p90": 460,
+        "p95": 480
+      },
+      "observed": {
+        "p50": 300,
+        "p75": 400,
+        "p90": 460,
+        "p95": 480
+      },
+      "status": "passed"
+    },
+    {
+      "label": "portfolio-range-boundaries",
+      "expected": [
+        "1-10",
+        "11-25",
+        "11-25",
+        "26-50",
+        "26-50",
+        "51+"
+      ],
+      "observed": [
+        "1-10",
+        "11-25",
+        "11-25",
+        "26-50",
+        "26-50",
+        "51+"
+      ],
+      "status": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 18,
+    "failed": 0,
+    "status": "passed"
+  }
+}
