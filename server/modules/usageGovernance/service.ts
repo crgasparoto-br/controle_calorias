@@ -372,6 +372,9 @@ function firstFullyRetainedUsageMonth(now: Date) {
   const month = startOfMonth(cutoff);
   return cutoff.getTime() === month.getTime() ? month : addMonths(month, 1);
 }
+function monthlyEconomicRetentionCutoff(now: Date) {
+  return startOfMonth(subtractMonths(now, USAGE_RETENTION_POLICY.monthlyEconomicYears * 12));
+}
 function monthOrdinal(value: Date) {
   return value.getUTCFullYear() * 12 + value.getUTCMonth();
 }
@@ -735,7 +738,8 @@ function summarizeProfessionalPortfolios(usage: Record<string, unknown>[]) {
 }
 
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
-  const dailyDetailCutoff = subtractMonths(new Date(), USAGE_RETENTION_POLICY.dailyAggregateMonths);
+  const now = new Date();
+  const dailyDetailCutoff = subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths);
   const usageFrom = input.from < dailyDetailCutoff ? dailyDetailCutoff : input.from;
   const usage = usageFrom < input.to
     ? await collectPages(
@@ -745,11 +749,17 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
     : [];
   const requestedFrom = startOfMonth(input.from);
   const requestedTo = addMonths(startOfMonth(input.to), 1);
-  const economics = await listMonthlyEconomicAggregates({
-    from: addMonths(requestedFrom, -3),
-    to: requestedTo,
-    payerUserId: input.userId,
-  });
+  const economicRetentionFrom = monthlyEconomicRetentionCutoff(now);
+  const economicAvailableFrom = requestedFrom < economicRetentionFrom ? economicRetentionFrom : requestedFrom;
+  const economicHistoryCandidate = addMonths(economicAvailableFrom, -3);
+  const economicQueryFrom = economicHistoryCandidate < economicRetentionFrom ? economicRetentionFrom : economicHistoryCandidate;
+  const economics = economicAvailableFrom < requestedTo
+    ? await listMonthlyEconomicAggregates({
+        from: economicQueryFrom,
+        to: requestedTo,
+        payerUserId: input.userId,
+      })
+    : [];
   const byOperation = new Map<string, { operation: string; channel: string; calls: number; units: number; estimatedCostMicros: number; effectiveCostMicros: number; retries: number; failures: number }>();
   const byDimensions = new Map<string, UsageDimensionSummary>();
   for (const row of usage) {
@@ -826,9 +836,9 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
       },
       economics: {
         source: "monthly_aggregates" as const,
-        state: "complete" as const,
+        state: requestedFrom < economicRetentionFrom ? "partial" as const : "complete" as const,
         requestedFrom,
-        availableFrom: requestedFrom,
+        availableFrom: economicAvailableFrom,
         availableTo: requestedTo,
         retentionYears: USAGE_RETENTION_POLICY.monthlyEconomicYears,
         truncated: false,
@@ -839,7 +849,7 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
     byDimensions: Array.from(byDimensions.values()),
     professionalPortfolio,
     monthlyEconomics: monthly,
-    generatedAt: new Date(),
+    generatedAt: now,
   };
 }
 
@@ -848,7 +858,7 @@ export async function runUsageRetention(now = new Date()) {
     now,
     detailedCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.detailedUsageMonths),
     dailyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths),
-    monthlyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.monthlyEconomicYears * 12),
+    monthlyCutoff: monthlyEconomicRetentionCutoff(now),
     governanceCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.governanceAuditYears * 12),
     ruleVersion: USAGE_RULE_VERSION,
     auditId: crypto.randomUUID(),
