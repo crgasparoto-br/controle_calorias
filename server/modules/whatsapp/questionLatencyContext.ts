@@ -82,7 +82,7 @@ export function runWithQuestionLatencyContext<T>(operation: () => T): T {
 
     try {
       const result = operation();
-      if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+      if (result && typeof (result as unknown as PromiseLike<unknown>).then === "function") {
         return Promise.resolve(result)
           .catch(error => {
             if (scope.trace && !scope.trace.finalized && scope.trace.outcome !== "error") {
