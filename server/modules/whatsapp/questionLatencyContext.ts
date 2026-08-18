@@ -184,6 +184,9 @@ export function recordCurrentQuestionDeliveryOutcome(ok: boolean) {
   if (!ok && trace.outcome !== "error") {
     trace.outcome = "error";
     trace.errorCode = "delivery_failed";
+  } else if (ok && trace.outcome === null) {
+    trace.outcome = "success";
+    trace.errorCode = null;
   }
 }
 
