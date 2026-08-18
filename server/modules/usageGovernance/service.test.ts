@@ -53,10 +53,11 @@ import {
 } from "./service";
 
 function status(reason = "active_subscription", sponsorUserId?: number) {
+  const versionCode = reason === "sponsored_by_professional" ? "professional_v1" : "individual_v1";
   return {
-    access: { allowed: true, reason, ...(sponsorUserId ? { sponsorUserId } : {}), planCode: reason === "sponsored_by_professional" ? "professional_v1" : "individual_v1", entitlements: ["system_access"], sourceAvailable: true, evaluatedAt: new Date() },
-    subscription: { id: "sub-own", planCode: "individual_v1", billingCycle: "monthly", currency: "BRL" },
-    professionalSubscription: sponsorUserId ? { id: "sub-pro", planCode: "professional_v1", billingCycle: "monthly", currency: "BRL" } : null,
+    access: { allowed: true, reason, ...(sponsorUserId ? { sponsorUserId } : {}), planCode: versionCode, versionCode, entitlements: ["system_access"], sourceAvailable: true, evaluatedAt: new Date() },
+    subscription: { id: "sub-own", planCode: "individual_v1", versionCode: "individual_v1", billingCycle: "monthly", currency: "BRL" },
+    professionalSubscription: sponsorUserId ? { id: "sub-pro", planCode: "professional_v1", versionCode: "professional_v1", billingCycle: "monthly", currency: "BRL" } : null,
   };
 }
 
@@ -177,7 +178,7 @@ describe("usage governance", () => {
   it("applies a professional exemption to the professional self-use only when a professional subscription exists", async () => {
     mocks.getUserSubscriptionStatus.mockResolvedValue({
       ...status(),
-      professionalSubscription: { id: "sub-pro", planCode: "professional_v1", billingCycle: "monthly", currency: "BRL" },
+      professionalSubscription: { id: "sub-pro", planCode: "professional_v1", versionCode: "professional_v1", billingCycle: "monthly", currency: "BRL" },
     });
     mocks.hasActiveUsageExemption.mockResolvedValue(true);
     await expect(enforceUsageAllowance({ userId: 7, capability: "QUESTION", origin: "web", flow: "question_answer" })).resolves.toBeTruthy();
@@ -357,7 +358,6 @@ describe("usage governance", () => {
     expect(economicHealthBand(2800)).toBe("review");
     expect(economicHealthBand(3100)).toBe("mandatory_review_candidate");
   });
-
   it("never mixes usage cost from another currency into the official KPI", async () => {
     mocks.listEconomicFacts.mockResolvedValue([{
       competenceStart: "2026-08-01", competenceEnd: "2026-08-31", amountMinor: 10_000,
