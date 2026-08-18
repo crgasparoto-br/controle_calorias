@@ -1,1 +1,16 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-audit-rejection","reason":"Performance evidence passed internal closure despite source-identity substitution, fabricated failure accounting and incomplete canonical-source capture."},"generalized_learning":{"escape_class":"evidence-equivalence-substitution","generalized_failure_pattern":"A before/after proof can satisfy superficial statistics while comparing the wrong source identities, inventing failure accounting, or deriving requirements from a lossy canonical source.","plausible_wrong_implementation":"Use candidate code for both sides with a mode flag, fix errors/timeouts to favorable constants, or condense the specification so omitted constraints cannot fail the gate.","trigger_signals":["before/after benchmark","baseline/candidate evidence","canonical source snapshot","failure counters"],"risk_families":["structural-contract","documentation"],"reusable_control":"EVID-EQUIV-001: prove distinct source identity, execute the production/canonical path per side, derive failure accounting from observations, and preserve canonical textual sources losslessly.","prevention_rule":"Before accepting comparative evidence, require auditable source identity and semantic path equivalence for each side; canonical textual sources must be lossless and summaries auxiliary only.","detection_rule":"Reject comparative evidence when baseline is modeled by candidate code, error/timeout outcomes are constants rather than observations, or the canonical textual source omits source content.","transfer_cases":[{"surface":"benchmark-execution","scenario":"candidate code reused under a baseline mode flag","status":"passed"},{"surface":"specification-source","scenario":"canonical source replaced by an abbreviated rewrite","status":"passed"},{"surface":"failure-accounting","scenario":"error and timeout counts fixed to zero","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","evidence":"entregar-issue adversarial evidence contract and generic transfer test; see evidence/learning.txt"},{"role":"detection","status":"passed","evidence":"auditar-issue evidence rules and generic transfer test; see evidence/learning.txt"}]}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "reason": "The latest rejection found two concrete implementation defects: implicit personal advice lost context and latency measurement stopped before terminal delivery/persistence."
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
+  },
+  "prior_systemic_learning": {
+    "promotion_status": "not-required",
+    "reason": "Both defects are implementation-specific violations of already-existing generic contracts: preserve required semantic context and measure the complete required critical path. No missing cross-project Skill rule was identified; the previously promoted evidence-equivalence rule remains preserved as an inherited control."
+  }
+}

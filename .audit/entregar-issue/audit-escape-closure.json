@@ -1,1 +1,214 @@
-{"schema_version":1,"escapes":[{"escape_id":"ESC-EVIDENCE-EQUIVALENCE","escape_class":"evidence-equivalence-substitution","source_audit":{"status":"rejected","reason":"A statistically plausible performance claim substituted the candidate context boundary for the baseline production identity, hard-coded failure accounting, and relied on a lossy canonical-source snapshot."},"status":"passed","plausible_wrong_implementation":"Benchmark a modified code path under a baseline label, predeclare failure counts as zero, or summarize away constraints that would invalidate the evidence.","trigger_terms":["before/after","benchmark","baseline","candidate","canonical specification","errors","timeouts"],"required_risk_families":["structural-contract","documentation"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"benchmark-execution","dimension":"distinct-source-identity"},{"risk_family":"structural-contract","surface":"failure-accounting","dimension":"observed-failure-accounting"},{"risk_family":"documentation","surface":"source-fidelity","dimension":"lossless-canonical-source"}],"sibling_cases":[{"id":"ESC-EQ-S1","surface":"benchmark-execution","dimension":"production-entrypoint-bypass","status":"passed","evidence":"evidence/delivery.txt"},{"id":"ESC-EQ-S2","surface":"failure-accounting","dimension":"timeout-regression","status":"passed","evidence":"evidence/delivery.txt"},{"id":"ESC-EQ-S3","surface":"source-fidelity","dimension":"omitted-acceptance-clause","status":"passed","evidence":"evidence/delivery.txt"}],"prevention_change":{"status":"passed","evidence":"evidence/delivery.txt","detail":"Promoted a generic before/after evidence-equivalence contract requiring separate source identities, production entrypoint execution, observed failure accounting and lossless canonical sources."},"detection_change":{"status":"passed","evidence":"evidence/delivery.txt","detail":"Promoted independent-audit checks that reject simulated baseline identity, hard-coded error/timeout truth values and lossy canonical-source snapshots."}}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-EVIDENCE-EQUIVALENCE",
+      "escape_class": "evidence-equivalence-substitution",
+      "source_audit": {
+        "status": "rejected",
+        "reason": "Comparative evidence previously substituted source/path identity or favorable failure accounting."
+      },
+      "status": "passed",
+      "plausible_wrong_implementation": "Benchmark candidate code under a baseline label, hard-code favorable failure counts, or summarize away canonical constraints.",
+      "trigger_terms": [
+        "before/after",
+        "benchmark",
+        "baseline",
+        "candidate",
+        "errors",
+        "timeouts"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-execution",
+          "dimension": "distinct-source-identity"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "failure-accounting",
+          "dimension": "observed-failure-accounting"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "source-fidelity",
+          "dimension": "lossless-canonical-source"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "ESC-EQ-S1",
+          "surface": "benchmark-execution",
+          "dimension": "production-entrypoint-bypass",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "ESC-EQ-S2",
+          "surface": "failure-accounting",
+          "dimension": "timeout-regression",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "ESC-EQ-S3",
+          "surface": "source-fidelity",
+          "dimension": "omitted-acceptance-clause",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "Distinct exact source identities, observed failures and lossless canonical source remain mandatory."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "Exact-SHA end-to-end benchmark and canonical-source coverage reject evidence substitution."
+      }
+    },
+    {
+      "escape_id": "ESC-CONTEXT-PERSONALIZATION",
+      "escape_class": "implicit-personal-context-loss",
+      "source_audit": {
+        "status": "rejected",
+        "reason": "Implicit first-person advice could be classified as generic and lose all personal context."
+      },
+      "status": "passed",
+      "plausible_wrong_implementation": "Recognize only explicit possessive pronouns as personal markers while generic prefixes such as quanto/qual bypass all user aggregates.",
+      "trigger_terms": [
+        "personal advice",
+        "implicit beneficiary",
+        "devo",
+        "deveria",
+        "para mim",
+        "context scope"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "dimension": "implicit-personal-advice-preservation"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "dimension": "implicit-beneficiary-language-preservation"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "CTX-S1",
+          "surface": "context-scope",
+          "dimension": "implicit-beneficiary-language-preservation",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "CTX-S2",
+          "surface": "context-scope",
+          "dimension": "modal-advice-preservation",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "CTX-S3",
+          "surface": "context-scope",
+          "dimension": "generic-question-narrowing",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "The deterministic classifier treats implicit first-person advice and para/pra mim as personal and conservatively keeps full context."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "Focused tests and benchmark fixtures include implicit advice, implicit beneficiary, true generic and explicit temporal controls."
+      }
+    },
+    {
+      "escape_id": "ESC-E2E-LATENCY-BOUNDARY",
+      "escape_class": "premature-latency-boundary",
+      "source_audit": {
+        "status": "rejected",
+        "reason": "total_ms ended inside the assistant before delivery and lifecycle persistence, with persist_ms permanently null."
+      },
+      "status": "passed",
+      "plausible_wrong_implementation": "Stop the timer when model output is ready, emit success before reply delivery/markProcessed, and leave persistence outside the measured request.",
+      "trigger_terms": [
+        "end-to-end latency",
+        "persist_ms",
+        "delivery",
+        "mark processed",
+        "critical path",
+        "total_ms"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "telemetry-payload",
+          "dimension": "end-to-end-terminal-boundary"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "critical-path-sequencing",
+          "dimension": "terminal-persistence-inclusion"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "failure-accounting",
+          "dimension": "delivery-persistence-failure-accounting"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "E2E-S1",
+          "surface": "critical-path-sequencing",
+          "dimension": "terminal-persistence-failure",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "E2E-S2",
+          "surface": "failure-accounting",
+          "dimension": "delivery-failure",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        },
+        {
+          "id": "E2E-S3",
+          "surface": "telemetry-payload",
+          "dimension": "numeric-persistence-stage",
+          "status": "passed",
+          "evidence": "evidence/delivery.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "A shared AsyncLocalStorage trace starts before inbound persistence and finalizes only after reply delivery and markMessageProcessed."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "evidence/delivery.txt",
+        "detail": "Lifecycle/webhook tests plus the exact-SHA benchmark fail if the event finalizes early, omits persistence, or ignores delivery/persistence failures."
+      }
+    }
+  ]
+}

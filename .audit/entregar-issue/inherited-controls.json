@@ -1,1 +1,28 @@
-{"schema_version":1,"head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","controls":[{"id":"EVID-EQUIV-001","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","reason":"Inherited from the previous independent rejection: comparative evidence must prove distinct source identity, production-path equivalence, observed failures and lossless canonical-source capture."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+  "controls": [
+    {
+      "id": "EVID-EQUIV-001",
+      "status": "passed",
+      "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+      "evidence": "evidence/delivery.txt",
+      "reason": "Comparative evidence uses distinct exact source identities, observed failure accounting and lossless canonical sources."
+    },
+    {
+      "id": "CONTEXT-PERSONALIZATION-001",
+      "status": "passed",
+      "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+      "evidence": "evidence/delivery.txt",
+      "reason": "Implicit personal advice and beneficiary wording retain personal context; true generic and explicit temporal controls remain discriminated."
+    },
+    {
+      "id": "E2E-LATENCY-BOUNDARY-001",
+      "status": "passed",
+      "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+      "evidence": "evidence/delivery.txt",
+      "reason": "Latency closes after reply delivery and terminal lifecycle persistence, with numeric persist_ms and explicit delivery/persistence failure outcomes."
+    }
+  ],
+  "unresolved_controls": []
+}

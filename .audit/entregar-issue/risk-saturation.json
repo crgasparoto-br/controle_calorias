@@ -1,1 +1,242 @@
-{"schema_version":1,"head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","families":[{"family":"authorization","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"tenant-isolation","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-destination","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"rollback","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"historical-immutability","applicable":false,"reason":"No canonical requirement or final material diff activates this risk family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"structural-contract","applicable":true,"reason":"Derived from the full canonical issue and material diff; adversarial surfaces are active.","control_ids":["PERF-NEG-001","OBS-NEG-001","CRITICAL-NEG-001","CONTEXT-NEG-001","CALLS-NEG-001","BENCH-NEG-001","BENCH-NEG-002","STRUCTURAL-NEG-001","STRUCTURAL-NEG-002","STRUCTURAL-NEG-003","REGRESSION-NEG-001"],"dimensions":[{"surface":"benchmark-execution","reason":"Before/after evidence must execute the production QUESTION entrypoint from distinct exact source identities.","control_ids":["BENCH-NEG-001"],"status":"passed"},{"surface":"central-policy","reason":"Timeout, attempts and fallback policy must remain single-sourced centrally.","control_ids":["STRUCTURAL-NEG-003"],"status":"passed"},{"surface":"context-scope","reason":"Context reduction must remove only clearly unnecessary aggregates and preserve ambiguous continuity.","control_ids":["CONTEXT-NEG-001"],"status":"passed"},{"surface":"critical-path-latency","reason":"End-to-end latency gain must come from removing unnecessary work on the synchronous QUESTION path.","control_ids":["PERF-NEG-001"],"status":"passed"},{"surface":"critical-path-sequencing","reason":"Required response/consistency operations must not be moved after the response.","control_ids":["CRITICAL-NEG-001"],"status":"passed"},{"surface":"failure-accounting","reason":"Benchmark error and timeout results must be derived from observed executions, not favorable constants.","control_ids":["BENCH-NEG-002"],"status":"passed"},{"surface":"legacy-question-contract","reason":"Existing QUESTION history, ambiguous-context and response contracts must remain compatible.","control_ids":["REGRESSION-NEG-001"],"status":"passed"},{"surface":"provider-call-count","reason":"A simple QUESTION must not gain latency by adding hidden sequential AI classification/generation calls.","control_ids":["CALLS-NEG-001"],"status":"passed"},{"surface":"provider-execution","reason":"QUESTION must remain on the central multi-provider executor path.","control_ids":["STRUCTURAL-NEG-001"],"status":"passed"},{"surface":"telemetry-payload","reason":"Latency stages and execution metadata must remain correlated and sanitized.","control_ids":["OBS-NEG-001"],"status":"passed"},{"surface":"web-search-tool","reason":"QUESTION web_search availability must remain present on the optimized path.","control_ids":["STRUCTURAL-NEG-002"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":true,"reason":"Derived from the full canonical issue and material diff; adversarial surfaces are active.","control_ids":["METRICS-NEG-001","BENCH-NEG-003","BENCH-NEG-004","DOCS-NEG-001"],"dimensions":[{"surface":"benchmark-documentation","reason":"Benchmark methodology, provenance and current canonical result must be versioned without competing superseded evidence.","control_ids":["DOCS-NEG-001"],"status":"passed"},{"surface":"benchmark-provenance","reason":"Fixed cohort, policies, hashes, SHAs, percentiles and failure counts must be reviewable and reproducible.","control_ids":["BENCH-NEG-004"],"status":"passed"},{"surface":"production-percentiles","reason":"Operators need p50/p90/p95 plus separate error/timeout counts for the QUESTION flow.","control_ids":["METRICS-NEG-001"],"status":"passed"},{"surface":"source-fidelity","reason":"Canonical textual specification sources must be captured losslessly before obligation extraction.","control_ids":["BENCH-NEG-003"],"status":"passed"}],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No canonical requirement or final material diff activates this risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from the full canonical issue and material diff; adversarial surfaces are active.",
+      "control_ids": [
+        "PERF-NEG-001",
+        "OBS-NEG-001",
+        "CRITICAL-NEG-001",
+        "CONTEXT-NEG-001",
+        "CALLS-NEG-001",
+        "BENCH-NEG-001",
+        "BENCH-NEG-002",
+        "STRUCTURAL-NEG-001",
+        "STRUCTURAL-NEG-002",
+        "STRUCTURAL-NEG-003",
+        "REGRESSION-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-execution",
+          "reason": "Before/after evidence must execute the production QUESTION entrypoint from distinct exact source identities.",
+          "control_ids": [
+            "BENCH-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "central-policy",
+          "reason": "Timeout, attempts and fallback policy must remain single-sourced centrally.",
+          "control_ids": [
+            "STRUCTURAL-NEG-003"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "context-scope",
+          "reason": "Context reduction preserves ambiguous follow-ups and implicit personal advice while narrowing only clearly generic or explicit temporal cases.",
+          "control_ids": [
+            "CONTEXT-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "critical-path-latency",
+          "reason": "End-to-end latency gain must come from removing unnecessary work on the synchronous QUESTION path.",
+          "control_ids": [
+            "PERF-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "critical-path-sequencing",
+          "reason": "Required reply delivery and terminal lifecycle persistence remain inside the measured critical path.",
+          "control_ids": [
+            "CRITICAL-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "failure-accounting",
+          "reason": "Benchmark and runtime evidence retain timeout, delivery and persistence failures instead of improving percentiles by omission.",
+          "control_ids": [
+            "BENCH-NEG-002"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "legacy-question-contract",
+          "reason": "Existing QUESTION history, ambiguous-context and response contracts must remain compatible.",
+          "control_ids": [
+            "REGRESSION-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "provider-call-count",
+          "reason": "A simple QUESTION must not gain latency by adding hidden sequential AI classification/generation calls.",
+          "control_ids": [
+            "CALLS-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "provider-execution",
+          "reason": "QUESTION must remain on the central multi-provider executor path.",
+          "control_ids": [
+            "STRUCTURAL-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "telemetry-payload",
+          "reason": "Latency telemetry is sanitized and closes only at the terminal lifecycle boundary with measured persistence.",
+          "control_ids": [
+            "OBS-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "web-search-tool",
+          "reason": "QUESTION web_search availability must remain present on the optimized path.",
+          "control_ids": [
+            "STRUCTURAL-NEG-002"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from the full canonical issue and material diff; adversarial surfaces are active.",
+      "control_ids": [
+        "METRICS-NEG-001",
+        "BENCH-NEG-003",
+        "BENCH-NEG-004",
+        "DOCS-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-documentation",
+          "reason": "Benchmark methodology, provenance and current canonical result must be versioned without competing superseded evidence.",
+          "control_ids": [
+            "DOCS-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "benchmark-provenance",
+          "reason": "Fixed cohort, policies, hashes, SHAs, percentiles and failure counts must be reviewable and reproducible.",
+          "control_ids": [
+            "BENCH-NEG-004"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "production-percentiles",
+          "reason": "Operators need p50/p90/p95 plus separate error/timeout counts for the QUESTION flow.",
+          "control_ids": [
+            "METRICS-NEG-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "source-fidelity",
+          "reason": "Canonical textual specification sources must be captured losslessly before obligation extraction.",
+          "control_ids": [
+            "BENCH-NEG-003"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
