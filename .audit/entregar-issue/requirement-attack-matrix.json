@@ -1,1 +1,715 @@
-{"schema_version":1,"head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","requirements":[{"requirement_id":"RQ-PERF","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"critical-path-latency","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"PERF-NEG-001","risk_family":"structural-contract","surface":"critical-path-latency","dimension":"unnecessary-load-elimination","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"PERF-NEG-001-S1","surface":"critical-path-latency","dimension":"unnecessary-load-elimination-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-OBS","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"telemetry-payload","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"OBS-NEG-001","risk_family":"structural-contract","surface":"telemetry-payload","dimension":"sensitive-content-exclusion","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"OBS-NEG-001-S1","surface":"telemetry-payload","dimension":"sensitive-content-exclusion-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-CRITICAL","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"critical-path-sequencing","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"CRITICAL-NEG-001","risk_family":"structural-contract","surface":"critical-path-sequencing","dimension":"required-operation-ordering","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"CRITICAL-NEG-001-S1","surface":"critical-path-sequencing","dimension":"required-operation-ordering-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-CONTEXT","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"context-scope","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"CONTEXT-NEG-001","risk_family":"structural-contract","surface":"context-scope","dimension":"ambiguous-follow-up-fallback","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"CONTEXT-NEG-001-S1","surface":"context-scope","dimension":"ambiguous-follow-up-fallback-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-CALLS","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"provider-call-count","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"CALLS-NEG-001","risk_family":"structural-contract","surface":"provider-call-count","dimension":"single-provider-call","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"CALLS-NEG-001-S1","surface":"provider-call-count","dimension":"single-provider-call-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-METRICS","risk_families":["documentation"],"risk_surfaces":[{"risk_family":"documentation","surface":"production-percentiles","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"METRICS-NEG-001","risk_family":"documentation","surface":"production-percentiles","dimension":"failure-aware-percentiles","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"METRICS-NEG-001-S1","surface":"production-percentiles","dimension":"failure-aware-percentiles-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-BENCH","risk_families":["structural-contract","documentation"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"benchmark-execution","reason":"Material risk surface."},{"risk_family":"structural-contract","surface":"failure-accounting","reason":"Material risk surface."},{"risk_family":"documentation","surface":"source-fidelity","reason":"Material risk surface."},{"risk_family":"documentation","surface":"benchmark-provenance","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"BENCH-NEG-001","risk_family":"structural-contract","surface":"benchmark-execution","dimension":"distinct-source-identity","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"BENCH-NEG-001-S1","surface":"benchmark-execution","dimension":"production-entrypoint-bypass","status":"passed"}]},{"id":"BENCH-NEG-002","risk_family":"structural-contract","surface":"failure-accounting","dimension":"observed-failure-accounting","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"BENCH-NEG-002-S1","surface":"failure-accounting","dimension":"timeout-regression","status":"passed"}]},{"id":"BENCH-NEG-003","risk_family":"documentation","surface":"source-fidelity","dimension":"lossless-canonical-source","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"BENCH-NEG-003-S1","surface":"source-fidelity","dimension":"omitted-acceptance-clause","status":"passed"}]},{"id":"BENCH-NEG-004","risk_family":"documentation","surface":"benchmark-provenance","dimension":"fixed-cohort-provenance","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"BENCH-NEG-004-S1","surface":"benchmark-provenance","dimension":"fixed-cohort-provenance-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-STRUCTURAL","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"provider-execution","reason":"Material risk surface."},{"risk_family":"structural-contract","surface":"web-search-tool","reason":"Material risk surface."},{"risk_family":"structural-contract","surface":"central-policy","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"STRUCTURAL-NEG-001","risk_family":"structural-contract","surface":"provider-execution","dimension":"central-executor-reuse","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"STRUCTURAL-NEG-001-S1","surface":"provider-execution","dimension":"central-executor-reuse-sibling","status":"passed"}]},{"id":"STRUCTURAL-NEG-002","risk_family":"structural-contract","surface":"web-search-tool","dimension":"tool-preservation","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"STRUCTURAL-NEG-002-S1","surface":"web-search-tool","dimension":"tool-preservation-sibling","status":"passed"}]},{"id":"STRUCTURAL-NEG-003","risk_family":"structural-contract","surface":"central-policy","dimension":"policy-single-source","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"STRUCTURAL-NEG-003-S1","surface":"central-policy","dimension":"policy-single-source-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-REGRESSION","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"legacy-question-contract","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"REGRESSION-NEG-001","risk_family":"structural-contract","surface":"legacy-question-contract","dimension":"ambiguous-contract-preservation","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"test","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"REGRESSION-NEG-001-S1","surface":"legacy-question-contract","dimension":"ambiguous-contract-preservation-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]},{"requirement_id":"RQ-DOCS","risk_families":["documentation"],"risk_surfaces":[{"risk_family":"documentation","surface":"benchmark-documentation","reason":"Material risk surface."}],"plausible_wrong_implementation":"Use a shortcut that violates the required contract.","positive_control":{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"},"negative_controls":[{"id":"DOCS-NEG-001","risk_family":"documentation","surface":"benchmark-documentation","dimension":"single-current-evidence","failure_mode":"Required contract can fail silently.","plausible_wrong_implementation":"Use a shortcut that violates the required contract.","control_type":"procedure","procedure":"Run final-head discriminant control.","expected":"Contract preserved.","observed":"Discriminant passed on final head.","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","evidence_sha256":"1def4a80ed1aaf360bfa832f2c66f369bc1aeba23b43627a3d875e6c85fb091f","sibling_cases":[{"id":"DOCS-NEG-001-S1","surface":"benchmark-documentation","dimension":"single-current-evidence-sibling","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt"}]}],"uncovered_requirements":[]}
+{
+  "schema_version": 1,
+  "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+  "requirements": [
+    {
+      "requirement_id": "RQ-PERF",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "critical-path-latency",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "PERF-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "critical-path-latency",
+          "dimension": "unnecessary-load-elimination",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "PERF-NEG-001-S1",
+              "surface": "critical-path-latency",
+              "dimension": "unnecessary-load-elimination-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-OBS",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "telemetry-payload",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "OBS-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "telemetry-payload",
+          "dimension": "sensitive-content-exclusion",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Exercise successful QUESTION lifecycle and inspect the single final latency event after markMessageProcessed.",
+          "expected": "The final event represents the terminal end-to-end boundary, contains numeric persistence time, and remains sanitized.",
+          "observed": "No final event existed before terminal persistence; final event used boundary inbound_persistence_to_processed_reply with numeric persist_ms.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "OBS-NEG-001-S1",
+              "surface": "telemetry-payload",
+              "dimension": "sensitive-content-exclusion-sibling",
+              "status": "passed"
+            },
+            {
+              "id": "OBS-E2E-TERMINAL",
+              "surface": "telemetry-payload",
+              "dimension": "end-to-end-terminal-boundary",
+              "status": "passed"
+            },
+            {
+              "id": "OBS-PERSIST-STAGE",
+              "surface": "telemetry-payload",
+              "dimension": "persistence-stage-measured",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-CRITICAL",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "critical-path-sequencing",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CRITICAL-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "critical-path-sequencing",
+          "dimension": "required-operation-ordering",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Exercise reply delivery, outbound persistence and markMessageProcessed ordering, including terminal persistence failure.",
+          "expected": "Latency finalization occurs only after required delivery and terminal lifecycle persistence; mandatory work is not moved after success.",
+          "observed": "Success finalized after markMessageProcessed; terminal persistence failure produced an error latency event.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "CRITICAL-NEG-001-S1",
+              "surface": "critical-path-sequencing",
+              "dimension": "required-operation-ordering-sibling",
+              "status": "passed"
+            },
+            {
+              "id": "CRITICAL-TERMINAL-PERSIST",
+              "surface": "critical-path-sequencing",
+              "dimension": "terminal-persistence-inclusion",
+              "status": "passed"
+            },
+            {
+              "id": "CRITICAL-DELIVERY-BEFORE-FINAL",
+              "surface": "critical-path-sequencing",
+              "dimension": "reply-delivery-before-finalization",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-CONTEXT",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CONTEXT-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "context-scope",
+          "dimension": "ambiguous-follow-up-fallback",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Exercise generic, explicit-window, ambiguous follow-up and implicit first-person advice phrases through resolveQuestionContextScope on the final material code.",
+          "expected": "Only clearly generic questions use none; implicit personal advice remains full unless an explicit smaller temporal window is present.",
+          "observed": "Literal and sibling personal-advice cases resolved to full; generic and today regressions kept none/today respectively.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "CONTEXT-NEG-001-S1",
+              "surface": "context-scope",
+              "dimension": "ambiguous-follow-up-fallback",
+              "status": "passed"
+            },
+            {
+              "id": "CONTEXT-IMPLICIT-ADVICE",
+              "surface": "context-scope",
+              "dimension": "implicit-personal-advice-preservation",
+              "status": "passed"
+            },
+            {
+              "id": "CONTEXT-IMPLICIT-BENEFICIARY",
+              "surface": "context-scope",
+              "dimension": "implicit-beneficiary-language-preservation",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-CALLS",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "provider-call-count",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CALLS-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "provider-call-count",
+          "dimension": "single-provider-call",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "CALLS-NEG-001-S1",
+              "surface": "provider-call-count",
+              "dimension": "single-provider-call-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-METRICS",
+      "risk_families": [
+        "documentation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "documentation",
+          "surface": "production-percentiles",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "METRICS-NEG-001",
+          "risk_family": "documentation",
+          "surface": "production-percentiles",
+          "dimension": "failure-aware-percentiles",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "METRICS-NEG-001-S1",
+              "surface": "production-percentiles",
+              "dimension": "failure-aware-percentiles-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-BENCH",
+      "risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-execution",
+          "reason": "Material risk surface."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "failure-accounting",
+          "reason": "Material risk surface."
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "source-fidelity",
+          "reason": "Material risk surface."
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "benchmark-provenance",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "BENCH-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "benchmark-execution",
+          "dimension": "distinct-source-identity",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Run baseline and candidate from distinct exact Git worktrees through the same end-to-end QUESTION lifecycle harness.",
+          "expected": "Distinct source identities execute equivalent productive lifecycle/context/provider/delivery modules.",
+          "observed": "Exact baseline and candidate SHAs produced 120 observations per side through the end-to-end harness.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "BENCH-NEG-001-S1",
+              "surface": "benchmark-execution",
+              "dimension": "production-entrypoint-bypass",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "BENCH-NEG-002",
+          "risk_family": "structural-contract",
+          "surface": "failure-accounting",
+          "dimension": "observed-failure-accounting",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Derive success/error/timeout and delivery/persistence failure outcomes from worker observations and final latency events.",
+          "expected": "Failures remain explicit and cannot improve percentiles silently.",
+          "observed": "Both sides recorded 120 successes, 0 errors and 0 timeouts; candidate additionally proved delivery/persistence failure accounting in regression tests.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "BENCH-NEG-002-S1",
+              "surface": "failure-accounting",
+              "dimension": "timeout-regression",
+              "status": "passed"
+            },
+            {
+              "id": "BENCH-DELIVERY-PERSIST-FAILURE",
+              "surface": "failure-accounting",
+              "dimension": "delivery-persistence-failure-accounting",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "BENCH-NEG-003",
+          "risk_family": "documentation",
+          "surface": "source-fidelity",
+          "dimension": "lossless-canonical-source",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "BENCH-NEG-003-S1",
+              "surface": "source-fidelity",
+              "dimension": "omitted-acceptance-clause",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "BENCH-NEG-004",
+          "risk_family": "documentation",
+          "surface": "benchmark-provenance",
+          "dimension": "fixed-cohort-provenance",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "BENCH-NEG-004-S1",
+              "surface": "benchmark-provenance",
+              "dimension": "fixed-cohort-provenance-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-STRUCTURAL",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "provider-execution",
+          "reason": "Material risk surface."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "web-search-tool",
+          "reason": "Material risk surface."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "central-policy",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "STRUCTURAL-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "provider-execution",
+          "dimension": "central-executor-reuse",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "STRUCTURAL-NEG-001-S1",
+              "surface": "provider-execution",
+              "dimension": "central-executor-reuse-sibling",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "STRUCTURAL-NEG-002",
+          "risk_family": "structural-contract",
+          "surface": "web-search-tool",
+          "dimension": "tool-preservation",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "STRUCTURAL-NEG-002-S1",
+              "surface": "web-search-tool",
+              "dimension": "tool-preservation-sibling",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "STRUCTURAL-NEG-003",
+          "risk_family": "structural-contract",
+          "surface": "central-policy",
+          "dimension": "policy-single-source",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "STRUCTURAL-NEG-003-S1",
+              "surface": "central-policy",
+              "dimension": "policy-single-source-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-REGRESSION",
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "legacy-question-contract",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "REGRESSION-NEG-001",
+          "risk_family": "structural-contract",
+          "surface": "legacy-question-contract",
+          "dimension": "ambiguous-contract-preservation",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "test",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "REGRESSION-NEG-001-S1",
+              "surface": "legacy-question-contract",
+              "dimension": "ambiguous-contract-preservation-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "RQ-DOCS",
+      "risk_families": [
+        "documentation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "documentation",
+          "surface": "benchmark-documentation",
+          "reason": "Material risk surface."
+        }
+      ],
+      "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+        "evidence": "evidence/delivery.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "DOCS-NEG-001",
+          "risk_family": "documentation",
+          "surface": "benchmark-documentation",
+          "dimension": "single-current-evidence",
+          "failure_mode": "Required contract can fail silently.",
+          "plausible_wrong_implementation": "Use a shortcut that violates the required contract.",
+          "control_type": "procedure",
+          "procedure": "Run final-head discriminant control.",
+          "expected": "Contract preserved.",
+          "observed": "Discriminant passed on final head.",
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt",
+          "evidence_sha256": "e52f723479f30a6f6b8599e2549c32c6d1663196cb30f6b0be32a09d8ade8b38",
+          "sibling_cases": [
+            {
+              "id": "DOCS-NEG-001-S1",
+              "surface": "benchmark-documentation",
+              "dimension": "single-current-evidence-sibling",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15",
+          "evidence": "evidence/delivery.txt"
+        }
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}

@@ -1,38 +1,34 @@
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
+material_head_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
 baseline_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-benchmark_final_material_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-exact_sha_run_sha256=12c51607a08a61a630f8bfffd3749575fe8bf8f4cb1abc54189a1713e62fed7a
-The corrected benchmark executes server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent from two distinct detached Git worktrees, one at the develop baseline and one at the final material candidate. Only external DB/history/provider boundaries are doubled deterministically; central capability resolution/execution, prompt construction, context selection/loading and web_search request construction come from each tested SHA.
-Final material run: 40/40 successes per side, 0 errors, 0 timeouts. Baseline p50/p90/p95=202/203/203 ms. Candidate p50/p90/p95=112/128/203 ms. Improvements p50=44.55%, p90=36.95%, p95=0%. Gate passed via p90 >=20%, with no percentile regression >5%, no error increase and no timeout increase.
-Every successful observation executed exactly one provider call and offered QUESTION web_search. Driver self-test proves that an error increase, timeout increase, or identical baseline/candidate identity fails the gate.
-The versioned compact result is docs/benchmarks/question-latency/results/2026-08-17-92b4c50-summary.json; the final material head differs from its benchmarked production-code parent only by benchmark evidence documentation/removal of superseded invalid evidence and was re-run exactly as recorded above.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-questionContextPlan.ts uses none/today/week/period/full. Clear generic questions can use none; explicit personal today/week/30-day questions use the corresponding narrow scope; ambiguous/follow-up inputs remain full. questionContextLoader.ts loads only selected aggregates concurrently. aiQuestionAssistant performance tests cover generic, today, week, period and ambiguous full fallback. The exact-SHA benchmark additionally proves baseline loads all three aggregates while the candidate loads only the selected production scope, while recent history still executes exactly once.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-The production QUESTION path emits whatsapp.ai_question.latency with requestId, capability, flow, total_ms, db_ms, context_ms, llm_ms, persist_ms, time_to_first_token_ms, context_scope, provider/model, attempts, retry/fallback, web_search availability/execution, outcome and sanitized error_code. Raw user question, raw model answer, credentials and PII are excluded. TTFT remains null/not-measurable under the current non-streaming WhatsApp provider contract rather than being inferred from total latency.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-server/modules/whatsapp/questionLatencyMetrics.ts aggregates sanitized whatsapp.ai_question.latency events for capability=QUESTION and flow=whatsapp_question into sampleSize, successfulSamples, errors, timeouts, p50TotalMs, p90TotalMs, p95TotalMs and observation window. Percentiles use successful requests only while failures remain separate counters. server/modules/admin/service.ts exposes this aggregation as questionLatency on the existing admin overview; no new public endpoint is introduced. Focused tests cover percentile math, timeout/error accounting and filtering malformed/other-flow events.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-The QUESTION production entrypoint resolves one central capability execution for each question. The exact-SHA benchmark records providerCalls per observation and rejects any successful observation with providerCalls != 1. All 40 baseline and all 40 final-candidate successful observations used exactly one provider call. Context-scope classification is deterministic and does not add an AI classification call.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-aiQuestionAssistant.ts continues to resolve QUESTION via resolveCapabilityConfig and execute it through executeResolvedCapability; model work remains createDomainTextResponse inside that executor. No direct OpenAI/Gemini SDK fast path or local timeout/retry loop was added. web_search remains offered in auto mode independently of context scope. No response-contract operation was moved to post-response/background; the optimization is context selection/loading plus existing concurrency. Exact-SHA benchmark and performance regression tests discriminate direct-provider, web-search-removal and multiple-call shortcuts.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-Local focused validation: benchmark self-test passed; exact-SHA production-entrypoint benchmark passed against the final material head; MJS files pass node syntax checks; TypeScript additions transpile with the cached TypeScript compiler; questionLatencyMetrics direct runtime fixture produced sampleSize=22, successfulSamples=20, errors=2, timeouts=1, p50=190, p90=270, p95=280. The existing QUESTION history/regression behavior remains unchanged by the material diff except for context narrowing in explicit safe cases. Full repository CI is delegated to the GitHub Actions exact-head gate after publication because dependencies are not installed in this isolated runtime.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-Canonical issue body was captured losslessly as specification-sources/SRC-ISSUE-989.txt: 290 lines, sha256=556850f0e047157816ffa21f77690ac0d7eace482c6b49658e5a47b6fe1f03f6. The source contains the production-entrypoint benchmark requirement, production p50/p90/p95 requirement, sequential AI-call review, full acceptance criteria, structural invariants, test expectations and documentation rules. requirement-closure.json is initialized from this full source and contains 87 extracted obligations. No condensed rewrite is used as a canonical specification source.
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-The prior independent rejection exposed a systemic evidence-equivalence escape: a benchmark can look statistically valid while substituting candidate code for baseline identity, hard-coding failure accounting, or using a lossy canonical-source summary. Prevention and detection were promoted generically in entregar-issue and auditar-issue. New transfer tests passed; genericity validators passed for both skills; run_ecosystem_tests.sh passed 15/15 files.
-entregar skill main before=e95a6fc8e327551442d26fbeacebb445f6338d6bc2b8e5f0609dbe47010378a2 after=3d0bafe492fb862e4c44f4d7e944529d2fb92679aec75b282d6b617b8e98f839
-entregar adversarial evidence after=ba02decadfed0a227902aab02fce87d3c65fd60394419c31646438852bebb973
-auditar skill main=f4d68a04329482bb7c247535c028c00ad6691451d1de9a5ba4ee7a192d4349f7
-auditar evidence after=49fe64ff8cfdc20db834d2a1b7b1fa8a15282e506d2a5f970375358f2793b85d
-ecosystem_report=/mnt/data/issue989-work/skill-ecosystem-report.json
-material_head_sha=41f9b5ca60cd29ded6e98a09879f728816b93f99
-observed_once=true
-observation=GitHub fetch_commit_workflow_runs returned no pull-request workflow runs for the newly published material SHA at the single allowed observation point.
-remote_action_mode=observe-only
-rerun=false
-dispatch=false
-cancel=false
-polling=false
-assurance=Local exact-head validation and exact-SHA production-entrypoint benchmark passed; remote CI is not claimed as evidence for this material SHA.
+tested_runtime_sha=7a19b16739b09ea414c166470a9d7e43499102c2
+benchmark_summary=docs/benchmarks/question-latency/results/2026-08-18-7a19b167-e2e-summary.json
+benchmark_protocol=exact-sha end-to-end productive QUESTION pipeline with hermetic external persistence/delivery/provider doubles
+benchmark_runs=120 baseline successes, 120 candidate successes, 0 errors, 0 timeouts on both sides
+benchmark_percentiles=baseline p50/p90/p95 261/263/269 ms; candidate p50/p90/p95 170/187/260 ms
+benchmark_improvements=p50 34.87%; p90 28.9%; p95 3.35%; gate passed via p90 >=20% and no percentile regression >5%
+benchmark_boundary=user resolution + inbound lifecycle persistence -> QUESTION context/LLM -> logical reply delivery/outbound persistence -> markMessageProcessed terminal persistence
+benchmark_controls=exactly one provider call, web_search available, lifecycle persistence operations present on both sides, candidate telemetry boundary=end-to-end, persist_ms numeric, telemetry total_ms matches external timer
+context_literal=quanto de proteína devo consumir? => full
+context_sibling_1=qual a melhor fonte de proteína para mim? => full
+context_sibling_2=quais macros eu deveria priorizar? => full
+context_regression_generic=qual é a recomendação atual de fibras? => none
+context_regression_today=como está meu consumo hoje? => today
+latency_literal=success latency event is absent before markMessageProcessed and emitted only after terminal persistence with numeric persist_ms
+latency_sibling_1=markMessageProcessed persistence failure => outcome=error,error_code=persistence_failed
+latency_sibling_2=reply delivery failure => outcome=error,error_code=delivery_failed
+privacy=latency event excludes raw question, raw response, phone, credentials and PII; TTFT remains null because current WhatsApp/provider contract is non-streaming
+central_contract=QUESTION continues through resolveCapabilityConfig + executeResolvedCapability; no direct provider fast path; web_search remains available; no local retry/timeout policy
+local_validation=git diff --check passed; changed TypeScript files transpile; benchmark self-test passed; exact-SHA end-to-end benchmark passed
+remote_snapshot=final material remote gate is captured once per SHA; pending/in-progress runs are not polled and failures are remediated by new SHA
+previous_escape=EVID-EQUIV-001 remains inherited and passed: distinct source identity, observed failure accounting, production path equivalence and lossless canonical source
+current_escape_context=CONTEXT-PERSONALIZATION-001 passed with literal + implicit-beneficiary + modal-advice siblings
+current_escape_e2e=E2E-LATENCY-BOUNDARY-001 passed with terminal-boundary + persistence-failure + delivery-failure siblings
+remote_material_snapshot_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
+remote_material_snapshot_runs=none returned at the single allowed collection point
+prior_candidate_ci_failure_sha=b441bab437358d7d515f58dd9bff130109a88769
+prior_candidate_ci_failure=Agent-first TypeScript check TS2352 at questionLatencyContext.ts PromiseLike cast
+prior_candidate_ci_remediation_sha=7a19b16739b09ea414c166470a9d7e43499102c2
+prior_candidate_ci_remediation=cast changed to unknown as PromiseLike<unknown>; exact-SHA benchmark rerun and passed
+final_result_only_material_sha=9c4af4bcd23f34335b2ecf6ae9a7dfbd04bf2a15
+final_result_only_parent_sha=7a19b16739b09ea414c166470a9d7e43499102c2
+final_result_only_difference=adds docs/benchmarks/question-latency/results/2026-08-18-7a19b167-e2e-summary.json only
