@@ -1,12 +1,1 @@
-{
-  "schema_version": 1,
-  "controller_mode": "delivery-single-invocation",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue": 897,
-  "branch": "feat/897-usage-governance",
-  "base_ref": "develop",
-  "material_head_sha": "eca5fc4861a6fae40a07ec3d9f497010ec07f5be",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "contract_version": "2026-08-06.2",
-  "work_item_fingerprint": "audit-897-delivery-saturation-remediation"
-}
+{"schema_version":1,"controller_mode":"delivery-single-invocation","repository":"crgasparoto-br/controle_calorias","issue":897,"branch":"feat/897-usage-governance","base_ref":"develop","material_head_sha":"596f120859302a2b21016a74f4620631da0d6d37","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","contract_version":"2026-08-06.2","work_item_fingerprint":"audit-897-commercial-identity-remediation"}

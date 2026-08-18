@@ -1,11 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "eca5fc4861a6fae40a07ec3d9f497010ec07f5be",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "107011eca1b39589b6d01b2854947bdbe36136d5",
-  "local_readiness": "passed",
-  "remote_required_gates": "passed",
-  "merge_eligible": false,
-  "audit_handoff_eligible": true,
-  "release_gate": "pending-independent-audit"
-}
+{"schema_version":1,"material_head_sha":"596f120859302a2b21016a74f4620631da0d6d37","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","merge_preview_sha":"4e3111d3a9266b4dd58db90288df68d3aa190ac6","local_readiness":"passed","remote_required_gates":"pending-no-run","merge_eligible":false,"audit_handoff_eligible":true,"release_gate":"pending-remote-ci-and-independent-audit"}
