@@ -1,26 +1,33 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-18T12:30:31.129016+00:00",
+  "created_at": "2026-08-18T16:35:00+00:00",
   "identity": {
-    "head_sha": "416259389d21de97ea1fb7421f028df5a3b4fe7c",
-    "material_head_sha": "416259389d21de97ea1fb7421f028df5a3b4fe7c",
+    "head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a",
+    "material_head_sha": "d11a272f5fe1f1b1ee5054f587f9023e9d9f519a",
     "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-    "merge_preview_sha": "602c7052077327084f1d8bb1405b1270de9534a2",
-    "material_merge_preview_sha": "602c7052077327084f1d8bb1405b1270de9534a2"
+    "merge_preview_sha": "7233b1e29bcd62f91bc31ffbcde8095b393c6ea2",
+    "material_merge_preview_sha": "7233b1e29bcd62f91bc31ffbcde8095b393c6ea2"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "work_item_kind": "issue",
+    "work_item_number": 897,
+    "pull_request": 985,
+    "base_ref": "develop",
+    "head_ref": "feat/897-usage-governance"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/controller-context.json",
+      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
       ".audit/entregar-issue/evidence/commercial-identity-remediation.json",
       ".audit/entregar-issue/freeze.json",
       ".audit/entregar-issue/gate-report.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
-      ".audit/entregar-issue/neutral-packet.json",
       ".audit/entregar-issue/remote-gate-evidence.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
@@ -28,10 +35,10 @@
       ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
-  "contract_version": "2026-08-06.2",
+  "contract_version": "2026-08-18.1",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "a8e3fba521e6b13f6923eb64155dffae15b20d26fa99b503e3aa43f86cb719ff"
+    "skill_sha256": "ecebd5723b79e17e123fb6f8e620c0bc98f150cba879e81abb528762a4b7c8f2"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
@@ -53,23 +60,23 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "d7469162326eeac107d21181aeb2ab0762f017cf57384e76694c3a5a47179ffd"
+      "sha256": "36ce33c4ae111f6b31b795b9a9ed6b06367c274f3c27c423e797d69406af060c"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "82b653e5603cca6d11e75df9253741dd0e1f7723e3bcb38bac9dce10a63a8c02"
+      "sha256": "32bb35cbb99f349cdb0e3daf39a4fde1e645aeb1f66b7093922911fe692502fe"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "1ccf4dc415ac483fa4e7b8ac4fd563ac64ce0f3e732e9bae90282dfc24322f6e"
+      "sha256": "bf1b79b02a7bd2db7a82da8d0820368378f0bdcf1f6ddca3f891744b32958445"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "9b50cf4681fdc851cc311966b2f203937c517d1b4608fd756f8561cd7b5c1b7e"
+      "sha256": "7acb91a9e8860126700d60cd9f0206dffd8e8011899c775ca2461cb45eb19e85"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "f9ac31bcda0b5ebfaabe87748feef0f1bc0d8222fd27c667ba87c8f0179bb2b5"
+      "sha256": "71445d62878aea383decb18a4a28602dbc30959cc45e3f4eee5081fa3c7c10eb"
     }
   },
   "previous_independent_rejection": true

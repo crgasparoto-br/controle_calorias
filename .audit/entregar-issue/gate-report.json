@@ -1,12 +1,1 @@
-{
-  "schema_version": 1,
-  "material_head_sha": "416259389d21de97ea1fb7421f028df5a3b4fe7c",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "602c7052077327084f1d8bb1405b1270de9534a2",
-  "local_readiness": "passed",
-  "remote_required_gates": "passed",
-  "merge_eligible": false,
-  "audit_handoff_eligible": true,
-  "release_gate": "pending-independent-audit",
-  "post_ci_refreeze": "passed"
-}
+{"schema_version":1,"material_head_sha":"d11a272f5fe1f1b1ee5054f587f9023e9d9f519a","status":"passed","controls":["AUTH-EFFECT-SCOPE-001","REF-LIVE-EFFECT-SCOPE-001","AUTH-EFFECT-SCOPE-SCHEMA-001"],"remote_ci":"success","previous_independent_rejection_closed":true}
