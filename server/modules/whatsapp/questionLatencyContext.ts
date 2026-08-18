@@ -131,6 +131,21 @@ export function getCurrentQuestionLatencyTrace() {
   return questionLatencyScope.getStore()?.trace ?? null;
 }
 
+export function recordCurrentQuestionDbMs(durationMs: number) {
+  const trace = getCurrentQuestionLatencyTrace();
+  if (!trace || trace.finalized) return;
+  trace.dbMs = (trace.dbMs ?? 0) + Math.max(0, durationMs);
+}
+
+export async function measureCurrentQuestionDbOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    return await operation();
+  } finally {
+    recordCurrentQuestionDbMs(performance.now() - startedAt);
+  }
+}
+
 export function recordCurrentQuestionPersistenceMs(durationMs: number) {
   const trace = getCurrentQuestionLatencyTrace();
   if (!trace || trace.finalized) return;
@@ -154,7 +169,9 @@ export function recordCurrentQuestionAiStage(input: {
   const trace = getCurrentQuestionLatencyTrace();
   if (!trace || trace.finalized) return;
   trace.contextScope = input.contextScope;
-  trace.dbMs = input.dbMs;
+  if (input.dbMs !== null) {
+    trace.dbMs = (trace.dbMs ?? 0) + Math.max(0, input.dbMs);
+  }
   trace.contextMs = input.contextMs;
   trace.llmMs = input.llmMs;
   trace.configuredProvider = input.configuredProvider;
