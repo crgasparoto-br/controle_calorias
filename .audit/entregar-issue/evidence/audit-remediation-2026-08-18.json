@@ -1,1 +1,176 @@
-{"schema_version":1,"subject_sha":"214eeb86009cca493256e6afa2e26dbe10894807","execution_mode":"artifact-bundle-exact-material-tree","status":"passed","dynamic_controls":[{"id":"SEMANTIC-IDENTITY-PROP-001","status":"passed","observed":{"productCode":"product-neighbor-b","versionCode":"version-neighbor-c","planExcluded":true}},{"id":"ROLE-CONTEXT-SOURCE-001","status":"passed","observed":{"subscriptionId":"sub-pro","productCode":"pro-product","versionCode":"pro-version"}},{"id":"SPONSOR-SUBSCRIPTION-LOOKUP-001","status":"passed","observed":{"beneficiaryUserId":99,"payerUserId":7,"sponsorUserId":7,"subscriptionId":"sub-pro"}},{"id":"MHIST","status":"passed","observed":{"historical":{"payerUserId":7,"subscriptionId":"sub-pro"},"current":{"payerUserId":99,"subscriptionId":"sub-own"}}},{"id":"AUTH-EFFECT-SCOPE-001","status":"passed","observed":{"authorizedPersistCount":1,"unrelatedError":"usage_emergency_security_operation_not_evidenced","mixedError":"usage_emergency_security_operation_not_evidenced","rejectedPersistCount":0}},{"id":"IDEMPOTENCY-REPLAY-001","status":"passed","observed":{"samePayloadCreated":false,"conflictingPayloadError":"usage_event_idempotency_conflict"}},{"id":"REF-LIVE-EFFECT-SCOPE-001","status":"passed","observed":{"lockBeforeScope":true,"scopeBeforeInsert":true,"sourceSha256":"db7d6bf4b43546fc47f131c92f4e100a09e12fb431f35d55e3ccdd61ee4d9d64"}}],"static_discriminant_checks":[{"label":"RDEST-detail-legal-hold","status":"passed","observed":"detailed expiry excludes legalHold rows and active scoped holds"},{"label":"RDEST-daily","status":"passed","observed":"daily aggregate cutoff is independent and legal-hold aware"},{"label":"RDEST-monthly","status":"passed","observed":"monthly economic cutoff is independent and legal-hold aware"},{"label":"R-HISTORY-retained-aggregate","status":"passed","observed":"historical recomputation reads retained monthly aggregates before detailed-usage availability"},{"label":"ECON-THRESHOLDS-bounded-analytics","status":"passed","observed":"analytics path consumes daily/monthly aggregates rather than detailed usage events"},{"label":"FPUB-generic-boundary","status":"passed","observed":"public-boundary regression rejects internal persistence code and preserves correlation id"},{"label":"F-TEMP-duration-bounds","status":"passed","observed":"emergency and normal limitation windows are independently bounded"},{"label":"CDEST-future-effective-date","status":"passed","observed":"non-future charging authorization rejects before persistence"},{"label":"CROLL-explicit-rollback","status":"passed","observed":"future charging authorization requires non-empty rollback plan"},{"label":"C-AUTH-no-retroactive","status":"passed","observed":"explicit charging authorization returns noRetroactive=true and remains a separate admin operation"},{"label":"FCONC-locked-lifecycle","status":"passed","observed":"abuse case and prior limitations are locked before lifecycle insertion"},{"label":"CREF-authorization-persistence","status":"passed","observed":"explicit authorization persists future effective policy with noRetroactive and rollback metadata"},{"label":"DOC-canonical-coverage-retention","status":"passed","observed":"canonical design doc declares coverage metadata and five-year monthly economic retention"}],"lineage_controls":{"material_parent":"READY: audit escape closure is complete and monotonic","previous_published":"READY: audit escape closure is complete and monotonic","learning":"READY: rejection learning is closed and generalized","rejection":"READY: independent rejection independent-rejection:2026-08-18:coverage-lineage is explicitly closed in the cumulative audit escape ledger"},"files":{"server/modules/usageGovernance/service.ts":{"sha256":"88e55f77131dfc46bdfc65c685e0b59f2c0ea2ec271ffdec863ccf5bc459ed60"},"server/modules/usageGovernance/providerAttemptUsage.ts":{"sha256":"3dc110bdf851079b9adbf1533e71aac77c037e0bb3fa16f60f94d6b3e82c9e87"},"server/modules/usageGovernance/providerAttemptUsage.auditRemediation.test.ts":{"sha256":"e0bbafd14b7dee3e7a74c66086c54cea9bbe42b2f0595a24ca22c6d83faea9ae"},"server/repositories/usageGovernanceRepository.ts":{"sha256":"b07eeaf0e72de196cfb80bf7eb921a11e34ba47b7d53f5d9d408faedeb35c977"},"server/repositories/usageGovernanceIdempotency.auditRemediation.test.ts":{"sha256":"576d56c9fcaf5e38c18645588eccb73c1788d8177903634c9c73fa1759671036"},"server/modules/usageGovernance/adminService.ts":{"sha256":"2eaa351784893d1fabcee27386d1090b660227047d1c580425266aaa6c23beff"},"server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts":{"sha256":"0c7651b45c8ae5f396e9d845869cac5937f4d5b0c83a51e4377c64c81d06c8a9"},"server/repositories/usageGovernanceAdminRepository.ts":{"sha256":"db7d6bf4b43546fc47f131c92f4e100a09e12fb431f35d55e3ccdd61ee4d9d64"},"server/modules/usageGovernance/router.publicBoundary.test.ts":{"sha256":"b2d8827fd21d0164866575db2093ee5d6f533d2cd2d4d5693fc32b6cc5e3f0ca"},"server/repositories/usageGovernanceRetentionRepository.ts":{"sha256":"1f1916f6a0058b48edfe57e1555b2b5fc0a637057af3f6acf40191149c151659"},"docs/design-docs/usage-governance.md":{"sha256":"cf8622ac233e5ab8bb7d15b676e4f0cfc8d2515ac754ad2275c259547e9f6277"},"server/modules/usageGovernance/economicCoverage.auditRemediation.test.ts":{"sha256":"1ec0760c3fb30dbdea82b8659970fff08718f67dadfdb7fabd80a7b78d6d2d34"}},"remote_ci_snapshot":{"collection_policy":"single snapshot, no polling","material_head_sha":"214eeb86009cca493256e6afa2e26dbe10894807","runs":[],"state":"pending-no-run"},"summary":{"status":"passed","dynamic_controls":7,"static_controls":13,"lineage_validations":4}}
+{
+  "schema_version": 1,
+  "subject_sha": "7e046150c3c09b58759d53be89db9242da516b71",
+  "material_tree_sha": "9e64500960c60a912a4589fcb6795ecbfa41c103",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "execution_mode": "artifact-bundle-exact-material-tree + TypeScript VM discriminant",
+  "status": "passed",
+  "checks": [
+    {
+      "label": "material-tree-exact",
+      "status": "passed",
+      "observed": {
+        "tree_sha": "9e64500960c60a912a4589fcb6795ecbfa41c103",
+        "expected": "9e64500960c60a912a4589fcb6795ecbfa41c103"
+      }
+    },
+    {
+      "label": "daily-retention-single-boundary",
+      "status": "passed",
+      "observed": "purge, query clamp and coverage state share dailyAggregateRetentionCutoff"
+    },
+    {
+      "label": "daily-boundary-sibling-tests",
+      "status": "passed",
+      "observed": "exact boundary, partial+user filter, fully expired, and purge alignment cases present"
+    },
+    {
+      "label": "role-context-source",
+      "status": "passed",
+      "observed": "professional self-use selects professionalSubscription instead of ordinary subscription"
+    },
+    {
+      "label": "semantic-identity-propagation",
+      "status": "passed",
+      "observed": "provider reservation persists distinct product/version/subscription fields and discriminant test uses distinct values"
+    },
+    {
+      "label": "sponsor-subscription-resolution",
+      "status": "passed",
+      "observed": "sponsored beneficiary keeps user identity while payer resolves to sponsor"
+    },
+    {
+      "label": "idempotency-replay",
+      "status": "passed",
+      "observed": "repository uses INSERT IGNORE + payload fingerprint conflict and exact-head test covers replay/conflict"
+    },
+    {
+      "label": "auth-effect-scope",
+      "status": "passed",
+      "observed": "admin service rejects operation not evidenced and test contains divergent/mixed scope case"
+    },
+    {
+      "label": "reference-liveness-effect-scope",
+      "status": "passed",
+      "observed": "admin repository exact-head source locks lifecycle rows before definitive mutation path"
+    },
+    {
+      "label": "retention-repository-day-granularity",
+      "status": "passed",
+      "observed": "daily retention persistence operates at DATE bucket granularity"
+    },
+    {
+      "label": "documentation-retention-coverage",
+      "status": "passed",
+      "observed": "canonical design doc states daily retention and reporting coverage semantics"
+    },
+    {
+      "label": "runtime-coverage-daily-exact-retained-bucket",
+      "status": "passed",
+      "observed": {
+        "state": "complete",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "runtime-coverage-daily-partial-with-user-filter",
+      "status": "passed",
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z",
+        "userId": 42
+      }
+    },
+    {
+      "label": "runtime-coverage-daily-fully-expired",
+      "status": "passed",
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "availableTo": "2024-08-17T00:00:00.000Z",
+        "queryCount": 0
+      }
+    },
+    {
+      "label": "runtime-coverage-retention-bucket-alignment",
+      "status": "passed",
+      "observed": {
+        "dailyCutoff": "2024-08-17T00:00:00.000Z",
+        "monthlyCutoff": "2021-08-01T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "runtime-coverage-monthly-request-before-retention",
+      "status": "passed",
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2021-08-01T00:00:00.000Z",
+        "queryFrom": "2021-08-01T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "runtime-coverage-monthly-exact-retention-boundary",
+      "status": "passed",
+      "observed": {
+        "state": "complete",
+        "availableFrom": "2021-08-01T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "runtime-coverage-monthly-fully-expired",
+      "status": "passed",
+      "observed": {
+        "state": "partial",
+        "queryCount": 0
+      }
+    }
+  ],
+  "files": {
+    "server/modules/usageGovernance/service.ts": {
+      "sha256": "ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251"
+    },
+    "server/modules/usageGovernance/providerAttemptUsage.ts": {
+      "sha256": "3dc110bdf851079b9adbf1533e71aac77c037e0bb3fa16f60f94d6b3e82c9e87"
+    },
+    "server/modules/usageGovernance/providerAttemptUsage.auditRemediation.test.ts": {
+      "sha256": "e0bbafd14b7dee3e7a74c66086c54cea9bbe42b2f0595a24ca22c6d83faea9ae"
+    },
+    "server/repositories/usageGovernanceRepository.ts": {
+      "sha256": "b07eeaf0e72de196cfb80bf7eb921a11e34ba47b7d53f5d9d408faedeb35c977"
+    },
+    "server/repositories/usageGovernanceIdempotency.auditRemediation.test.ts": {
+      "sha256": "576d56c9fcaf5e38c18645588eccb73c1788d8177903634c9c73fa1759671036"
+    },
+    "server/modules/usageGovernance/adminService.ts": {
+      "sha256": "2eaa351784893d1fabcee27386d1090b660227047d1c580425266aaa6c23beff"
+    },
+    "server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts": {
+      "sha256": "0c7651b45c8ae5f396e9d845869cac5937f4d5b0c83a51e4377c64c81d06c8a9"
+    },
+    "server/repositories/usageGovernanceAdminRepository.ts": {
+      "sha256": "db7d6bf4b43546fc47f131c92f4e100a09e12fb431f35d55e3ccdd61ee4d9d64"
+    },
+    "server/repositories/usageGovernanceRetentionRepository.ts": {
+      "sha256": "1f1916f6a0058b48edfe57e1555b2b5fc0a637057af3f6acf40191149c151659"
+    },
+    "server/modules/usageGovernance/economicCoverage.auditRemediation.test.ts": {
+      "sha256": "6fec1d3c582ee1f14ab87120a28fa5644532cbad8081bd8be7e3977a04d4b995"
+    },
+    "docs/design-docs/usage-governance.md": {
+      "sha256": "cf8622ac233e5ab8bb7d15b676e4f0cfc8d2515ac754ad2275c259547e9f6277"
+    }
+  },
+  "remote_ci_snapshot": {
+    "collection_policy": "single snapshot, no polling",
+    "material_head_sha": "7e046150c3c09b58759d53be89db9242da516b71",
+    "runs": [],
+    "state": "pending-no-run"
+  },
+  "summary": {
+    "status": "passed",
+    "checks": 18,
+    "failed": 0
+  }
+}

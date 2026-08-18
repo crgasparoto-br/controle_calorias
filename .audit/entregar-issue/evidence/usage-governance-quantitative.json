@@ -1,1 +1,268 @@
-{"schema_version":1,"subject_sha":"214eeb86009cca493256e6afa2e26dbe10894807","source":{"path":"server/modules/usageGovernance/service.ts","git_blob_sha":"c10dabff948dff0055b6fbc8eea0ef83f2f7002a","ref":"214eeb86009cca493256e6afa2e26dbe10894807","extraction":"executed exact material-tree source via TypeScript transpile harness"},"checks":[{"label":"ratio-2000-bps","expected":2000,"observed":2000,"status":"passed"},{"label":"band-2000-bps","expected":"healthy","observed":"healthy","status":"passed"},{"label":"ratio-2001-bps","expected":2001,"observed":2001,"status":"passed"},{"label":"band-2001-bps","expected":"attention","observed":"attention","status":"passed"},{"label":"ratio-2500-bps","expected":2500,"observed":2500,"status":"passed"},{"label":"band-2500-bps","expected":"attention","observed":"attention","status":"passed"},{"label":"ratio-2501-bps","expected":2501,"observed":2501,"status":"passed"},{"label":"band-2501-bps","expected":"review","observed":"review","status":"passed"},{"label":"ratio-3000-bps","expected":3000,"observed":3000,"status":"passed"},{"label":"band-3000-bps","expected":"review","observed":"review","status":"passed"},{"label":"ratio-3001-bps","expected":3001,"observed":3001,"status":"passed"},{"label":"band-3001-bps","expected":"mandatory_review_candidate","observed":"mandatory_review_candidate","status":"passed"},{"label":"rolling-window-first-over-30","expected":{"rolling3MonthVariableCostRatioBps":3100,"rolling3MonthHealth":"mandatory_review_candidate","mandatoryReviewRequired":false},"observed":{"rolling3MonthVariableCostRatioBps":3100,"rolling3MonthHealth":"mandatory_review_candidate","mandatoryReviewRequired":false},"status":"passed"},{"label":"rolling-window-second-consecutive-over-30","expected":{"rolling3MonthVariableCostRatioBps":3100,"rolling3MonthHealth":"mandatory_review","mandatoryReviewRequired":true},"observed":{"rolling3MonthVariableCostRatioBps":3100,"rolling3MonthHealth":"mandatory_review","mandatoryReviewRequired":true},"status":"passed"},{"label":"annual-revenue-month-count","expected":12,"observed":12,"status":"passed"},{"label":"annual-revenue-preserves-total","expected":12000,"observed":12000,"status":"passed"},{"label":"portfolio-percentiles","expected":{"p50":300,"p75":400,"p90":460,"p95":480},"observed":{"p50":300,"p75":400,"p90":460,"p95":480},"status":"passed"},{"label":"portfolio-range-boundaries","expected":["1-10","11-25","11-25","26-50","26-50","51+"],"observed":["1-10","11-25","11-25","26-50","26-50","51+"],"status":"passed"},{"label":"coverage-request-before-retention","expected":{"state":"partial","availableFrom":"2021-08-01T00:00:00.000Z","queryFrom":"2021-08-01T00:00:00.000Z"},"observed":{"state":"partial","availableFrom":"2021-08-01T00:00:00.000Z","queryFrom":"2021-08-01T00:00:00.000Z"},"status":"passed"},{"label":"coverage-exact-retention-boundary","expected":{"state":"complete","availableFrom":"2021-08-01T00:00:00.000Z"},"observed":{"state":"complete","availableFrom":"2021-08-01T00:00:00.000Z"},"status":"passed"},{"label":"coverage-fully-expired","expected":{"state":"partial","queryCount":0},"observed":{"state":"partial","queryCount":0},"status":"passed"},{"label":"coverage-retention-cutoff-alignment","expected":"2021-08-01T00:00:00.000Z","observed":"2021-08-01T00:00:00.000Z","status":"passed"}],"summary":{"passed":22,"failed":0,"status":"passed"}}
+{
+  "schema_version": 1,
+  "subject_sha": "7e046150c3c09b58759d53be89db9242da516b71",
+  "material_tree_sha": "9e64500960c60a912a4589fcb6795ecbfa41c103",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "source": {
+    "path": "server/modules/usageGovernance/service.ts",
+    "git_blob_sha": "519c580a69806ce8fb3b3cbb28f712b9bbcd9005",
+    "sha256": "ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251",
+    "ref": "7e046150c3c09b58759d53be89db9242da516b71",
+    "extraction": "executed exact material-tree service.ts via TypeScript transpile + VM with deterministic repository mocks"
+  },
+  "runtime": {
+    "fixed_now": "2026-08-17T12:34:56.000Z",
+    "timezone": "UTC"
+  },
+  "checks": [
+    {
+      "label": "ratio-2000-bps",
+      "expected": 2000,
+      "observed": 2000,
+      "status": "passed"
+    },
+    {
+      "label": "band-2000-bps",
+      "expected": "healthy",
+      "observed": "healthy",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2001-bps",
+      "expected": 2001,
+      "observed": 2001,
+      "status": "passed"
+    },
+    {
+      "label": "band-2001-bps",
+      "expected": "attention",
+      "observed": "attention",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2500-bps",
+      "expected": 2500,
+      "observed": 2500,
+      "status": "passed"
+    },
+    {
+      "label": "band-2500-bps",
+      "expected": "attention",
+      "observed": "attention",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-2501-bps",
+      "expected": 2501,
+      "observed": 2501,
+      "status": "passed"
+    },
+    {
+      "label": "band-2501-bps",
+      "expected": "review",
+      "observed": "review",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-3000-bps",
+      "expected": 3000,
+      "observed": 3000,
+      "status": "passed"
+    },
+    {
+      "label": "band-3000-bps",
+      "expected": "review",
+      "observed": "review",
+      "status": "passed"
+    },
+    {
+      "label": "ratio-3001-bps",
+      "expected": 3001,
+      "observed": 3001,
+      "status": "passed"
+    },
+    {
+      "label": "band-3001-bps",
+      "expected": "mandatory_review_candidate",
+      "observed": "mandatory_review_candidate",
+      "status": "passed"
+    },
+    {
+      "label": "rolling-window-first-over-30",
+      "expected": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review_candidate",
+        "mandatoryReviewRequired": false
+      },
+      "observed": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review_candidate",
+        "mandatoryReviewRequired": false
+      },
+      "status": "passed"
+    },
+    {
+      "label": "rolling-window-second-consecutive-over-30",
+      "expected": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review",
+        "mandatoryReviewRequired": true
+      },
+      "observed": {
+        "rolling3MonthVariableCostRatioBps": 3100,
+        "rolling3MonthHealth": "mandatory_review",
+        "mandatoryReviewRequired": true
+      },
+      "status": "passed"
+    },
+    {
+      "label": "annual-revenue-month-count",
+      "expected": 12,
+      "observed": 12,
+      "status": "passed"
+    },
+    {
+      "label": "annual-revenue-preserves-total",
+      "expected": 12000,
+      "observed": 12000,
+      "status": "passed"
+    },
+    {
+      "label": "portfolio-percentiles",
+      "expected": {
+        "p50": 300,
+        "p75": 400,
+        "p90": 460,
+        "p95": 480
+      },
+      "observed": {
+        "p50": 300,
+        "p75": 400,
+        "p90": 460,
+        "p95": 480
+      },
+      "status": "passed"
+    },
+    {
+      "label": "portfolio-range-boundaries",
+      "expected": [
+        "1-10",
+        "11-25",
+        "11-25",
+        "26-50",
+        "26-50",
+        "51+"
+      ],
+      "observed": [
+        "1-10",
+        "11-25",
+        "11-25",
+        "26-50",
+        "26-50",
+        "51+"
+      ],
+      "status": "passed"
+    },
+    {
+      "label": "coverage-monthly-request-before-retention",
+      "expected": {
+        "state": "partial",
+        "availableFrom": "2021-08-01T00:00:00.000Z",
+        "queryFrom": "2021-08-01T00:00:00.000Z"
+      },
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2021-08-01T00:00:00.000Z",
+        "queryFrom": "2021-08-01T00:00:00.000Z"
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-monthly-exact-retention-boundary",
+      "expected": {
+        "state": "complete",
+        "availableFrom": "2021-08-01T00:00:00.000Z"
+      },
+      "observed": {
+        "state": "complete",
+        "availableFrom": "2021-08-01T00:00:00.000Z"
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-monthly-fully-expired",
+      "expected": {
+        "state": "partial",
+        "queryCount": 0
+      },
+      "observed": {
+        "state": "partial",
+        "queryCount": 0
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-daily-exact-retained-bucket",
+      "expected": {
+        "state": "complete",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z"
+      },
+      "observed": {
+        "state": "complete",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z"
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-daily-partial-with-user-filter",
+      "expected": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z",
+        "userId": 42
+      },
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "queryFrom": "2024-08-17T00:00:00.000Z",
+        "userId": 42
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-daily-fully-expired",
+      "expected": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "availableTo": "2024-08-17T00:00:00.000Z",
+        "queryCount": 0
+      },
+      "observed": {
+        "state": "partial",
+        "availableFrom": "2024-08-17T00:00:00.000Z",
+        "availableTo": "2024-08-17T00:00:00.000Z",
+        "queryCount": 0
+      },
+      "status": "passed"
+    },
+    {
+      "label": "coverage-retention-bucket-alignment",
+      "expected": {
+        "dailyCutoff": "2024-08-17T00:00:00.000Z",
+        "monthlyCutoff": "2021-08-01T00:00:00.000Z"
+      },
+      "observed": {
+        "dailyCutoff": "2024-08-17T00:00:00.000Z",
+        "monthlyCutoff": "2021-08-01T00:00:00.000Z"
+      },
+      "status": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 25,
+    "failed": 0,
+    "status": "passed"
+  }
+}
