@@ -1,21 +1,21 @@
-material_head_sha=bb5b6591730410e22cf7a10d1f842527cdc83648
+material_head_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
 base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
 contract_version=2026-08-18.1
-source_bundle_run=32146519877
-source_bundle_artifact=9328332116
-source_bundle_digest=sha256:ba0e966a04d3e797e2652992374a1f41ae1b9cf0644d96f8727b8524d7dd6ac1
-benchmark_command=QUESTION_BENCH_TYPESCRIPT_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js node scripts/issue-989-question-latency-benchmark.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha bb5b6591730410e22cf7a10d1f842527cdc83648 --out docs/benchmarks/question-latency/results/2026-08-18-bb5b659-e2e-summary.json
-benchmark_result=docs/benchmarks/question-latency/results/2026-08-18-bb5b659-e2e-summary.json
-benchmark_sha256=4cae1c7fd8182b8a779857ca53acf3177498716bc3adde3f754ebdbc7339b96d
-benchmark_subject_sha=bb5b6591730410e22cf7a10d1f842527cdc83648
+source_bundle_run=32165849773
+source_bundle_artifact=9335652997
+source_bundle_digest=sha256:572c80b1a656166433a3003368dc4879bab5d415476522817facc5e2456aecf6
+benchmark_command=QUESTION_BENCH_TYPESCRIPT_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js node scripts/issue-989-question-latency-benchmark.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha 7d13ee950bf16df1a6cb6c36ce9995e232c54db4 --out docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
+benchmark_result=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
+benchmark_sha256=f6d991e4258607c4f459f40ee78b8ddb2d0acfbffcaf1ef7414e3a176bc286d2
+benchmark_subject_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
 benchmark_base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
 benchmark_runs=120 baseline successes; 120 candidate successes; 0 errors; 0 timeouts on both sides
-benchmark_percentiles=baseline p50/p90/p95 264/270/272 ms; candidate 173/194/264 ms
-benchmark_improvements=p50 34.47%; p90 28.15%; p95 2.94%; gate passed via p90 >=20% and no percentile regression >5%
+benchmark_percentiles=baseline p50/p90/p95 262/267/269 ms; candidate 172/190/262 ms
+benchmark_improvements=p50 34.35%; p90 28.84%; p95 2.6%; gate passed via p90 >=20% and no percentile regression >5%
 benchmark_contract=exact-sha productive end-to-end QUESTION pipeline with hermetic persistence, delivery and provider doubles
-freshness_literal=the previous canonical quantitative result measured 63c4a31 and became stale after material commit bb5b659; it is not reused to close the new material head
-freshness_reexecution=the benchmark was reexecuted with candidateSha=bb5b6591730410e22cf7a10d1f842527cdc83648 before the new freeze
-freshness_result_only_rule=the future result-only handoff child may carry this result without changing its subject_sha because its direct parent remains bb5b659 and its paths are allowlisted
-benchmark_raw_archive=docs/benchmarks/question-latency/results/2026-08-18-bb5b659-e2e-raw.json.gz
-benchmark_raw_archive_sha256=32da3889a6f9776463e30fcf29d4d2c4477be236bdf533cc37a06ae9c430bf6f
-benchmark_raw_uncompressed_sha256=52d972c42af7e6b3cb98b25ed7fa630f92ae8cefc097e9872b3c21339da1fdbb
+freshness_literal=the prior bb5b659 quantitative result became stale when the remediation promoted 7d13ee9 to the new material identity; it is preserved only as historical evidence
+freshness_reexecution=the benchmark was reexecuted with candidateSha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4 before the new freeze
+freshness_result_only_rule=the future result-only handoff child may carry this result without changing subject_sha only when its direct parent remains 7d13ee950bf16df1a6cb6c36ce9995e232c54db4 and all changed paths are allowlisted
+benchmark_raw_archive=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-raw.json.gz
+benchmark_raw_archive_sha256=59814c6be02be5e6e79d0657910bb4d39f2b75864a5473cca8359e27d09184c7
+benchmark_raw_uncompressed_sha256=df9d9c43b4afc53cfc1bbae8884f21eac9aa3f098342144cb64fcff633072def

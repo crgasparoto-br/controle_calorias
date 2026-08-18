@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-18T17:27:25.810126+00:00",
+  "created_at": "2026-08-18T19:45:26.666385+00:00",
   "identity": {
-    "head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
-    "material_head_sha": "bb5b6591730410e22cf7a10d1f842527cdc83648",
+    "head_sha": "7d13ee950bf16df1a6cb6c36ce9995e232c54db4",
+    "material_head_sha": "7d13ee950bf16df1a6cb6c36ce9995e232c54db4",
     "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-    "merge_preview_sha": "51bad9a681f3c8e1cd3e8755fc1847c1c6a1e655",
-    "material_merge_preview_sha": "51bad9a681f3c8e1cd3e8755fc1847c1c6a1e655"
+    "merge_preview_sha": "646bfcde3064efafa506c96d7b4464ecd55373d0",
+    "material_merge_preview_sha": "646bfcde3064efafa506c96d7b4464ecd55373d0"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
@@ -31,23 +31,24 @@
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      "docs/benchmarks/question-latency/results/2026-08-18-bb5b659-e2e-raw.json.gz",
-      "docs/benchmarks/question-latency/results/2026-08-18-bb5b659-e2e-summary.json"
+      "docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-raw.json.gz",
+      "docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json"
     ]
   },
   "contract_version": "2026-08-18.1",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "126fbbbd227834fe0a986fbc247192ae216c6f27d9c085343cb0d58a5694fd0b"
+    "skill_sha256": "1910b3d951c905bb4271eae50699b2ec6727df646176421b16d581bbb5e48ed0"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
-    "validate_handoff_readiness.py": "506655274158f60919daf95494d3b6b734731290167de00e6e2e96499b2b50d3",
-    "validate_requirement_attack_matrix.py": "213bff4a0fb722aed69ad022d3ac656dcb52d21e49311a77c3e939b22ac1b2cd",
+    "validate_handoff_readiness.py": "e6bce1339a592eb99668bd6ec140f467e2b802b12ba3ecbb0a3a1ae6904ec46b",
+    "validate_requirement_attack_matrix.py": "7584b30fa779a3a1863d372d0028cc52b90b113ad0ddc5b299fc9525f2ba50bf",
     "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
-    "validate_risk_saturation.py": "78d27bfb7cc14c9d72652e78ffbcc170747f65a8cb9b029a27e36118acb6dc61",
-    "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
-    "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
+    "validate_risk_saturation.py": "7db89b89c85a1af6e7a0dee532978a4b72fafc0f1af16967791eb91d145a4e35",
+    "validate_inherited_controls.py": "265811897ce1ebc0f3a6b0ccb483a133ed9a7e20a12a2cb7798c54a966d36e33",
+    "validate_learning_closure.py": "1528fead9ac4779fb4609c92f527e80fb180e13b61473545974e360390daf753",
+    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b"
   },
   "artifacts": {
     "specification_snapshot": {
@@ -60,27 +61,27 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "08c815e37163a99cc1833d04bc4d0501ed61df68c5124cbe7b151db6be6dcfed"
+      "sha256": "88f3ef98937dbe2d83412a4d5fbb2763b8edeb55625d2341c45f15f0d2f93bab"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "442086dacd3d5394ebfc3f83a80c6c88fa6e3e3f1dbf0264ce773ef496a7d115"
+      "sha256": "59a90f75776cd350bdc75175f98946b8935349970e5a21dd0ac5a0f70502aa55"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "62a2303945c1f8f4d9ebf366dddf38cc2d65fe08c6c0ba42df42255adc7c7a46"
+      "sha256": "08bdc983790763a57e7dd64ce05a7b7a46fe245c88713969ef5d4d206b2e3b15"
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "a44b629292f988d894b4a2d81ce30e8a10c99a6c7a2fc3932e130fce5eb20700"
+      "sha256": "bcd65beb8e63fe584375a63761a8e6b85c110851aa276321bc55a5077ea184a0"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "72d474429845947004e35c396d1fadf942ccbd1866784c13915ee3073cca4174"
+      "sha256": "9bf4e5e147c844bbf547ff3e784499443568e978c2d347aeecf639ee2c74fc7d"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "6a8a2f5172782472d2010a2b9d1015b7f5b1d956e5b382ac4a674f4d6da4d6a6"
+      "sha256": "5e6802aa755e3902518408eb9a04cfb54d94e2c0f82cb03467b5aaba1f6cb474"
     }
   },
   "previous_independent_rejection": true
