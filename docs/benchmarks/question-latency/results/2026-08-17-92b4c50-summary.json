@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "benchmark": "question-latency/productive-entrypoint-hermetic-v2",
+  "cohort": "QUESTION/text-only",
+  "fixtureManifest": "docs/benchmarks/question-latency/fixtures/manifest.json",
+  "executionMode": "exact-sha-production-entrypoint-with-hermetic-db-and-provider-doubles",
+  "baseSha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "candidateSha": "92b4c50fc25fb4f747389f26b772eccf1ddbd5f9",
+  "sourceEntrypoint": "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+  "environment": {
+    "timezone": "America/Sao_Paulo",
+    "provider": "openai-adapter-contract-via-hermetic-provider-double",
+    "model": "gpt-4.1-mini",
+    "policy": {
+      "timeoutMs": 2000,
+      "maxAttempts": 1,
+      "fallback": false,
+      "webSearch": "auto-available-not-forced"
+    },
+    "stageDelaysMs": {
+      "history": 10,
+      "today": 30,
+      "currentWeek": 45,
+      "last30Days": 120,
+      "llm": 80
+    },
+    "concurrency": "sequential-observations; production context branches retain their own Promise.all concurrency"
+  },
+  "provenance": {
+    "manifestSha256": "16a0fc37648fe4e775b0cc98ab779d1024a65af8b73633eda88f4990bb07b24b",
+    "benchmarkSha256": "6257bf95b5b6df1619932dbe5c3490c91019d66a3073b7cca9c57cd7161df129",
+    "loaderSha256": "98577ed8d24eb3ab94547057bc664a964555db077344220c490b6cb3e47bf24e",
+    "workerSha256": "8c93a04930f46b2f6fcb16384cf4fc04710183e08fc61045ef48f156176be8f6",
+    "sourceIdentityVerifiedByGitWorktree": true
+  },
+  "baseline": {
+    "totalRuns": 40,
+    "successfulRuns": 40,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 202,
+    "p90TotalMs": 203,
+    "p95TotalMs": 203
+  },
+  "candidate": {
+    "totalRuns": 40,
+    "successfulRuns": 40,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 112,
+    "p90TotalMs": 128,
+    "p95TotalMs": 202
+  },
+  "improvementsPercent": {
+    "p50": 44.55,
+    "p90": 36.95,
+    "p95": 0.49
+  },
+  "gate": {
+    "atLeast30SuccessfulRunsEachSide": true,
+    "p90OrP95ImprovementAtLeast20Percent": true,
+    "noPercentileRegressionOver5Percent": true,
+    "noErrorIncrease": true,
+    "noTimeoutIncrease": true,
+    "exactlyOneProviderCallPerSuccessfulQuestion": true,
+    "webSearchAvailableOnEverySuccessfulQuestion": true,
+    "productionEntrypointExecutedOnBothExactShas": true,
+    "timeToFirstToken": "not-measurable-non-streaming-provider-contract"
+  },
+  "passed": true,
+  "observationEvidence": {
+    "baselineObservationCount": 40,
+    "candidateObservationCount": 40,
+    "baselineObservationSha256": "7452d1477a400c195537066dee3d70b475e2030a8569bce458ae106d87b7bb79",
+    "candidateObservationSha256": "f62109dcc91ebfd57fb6444feda6eb49ff5b8184a322760a1015ae4fff93701e",
+    "fullSanitizedRunSha256": "23317be4d893ad0f34fffd5821bd203a1da724f21bc443c3e7db0942811a4d49",
+    "fullRunVersioned": false,
+    "rationale": "Compact canonical evidence remains reviewable; the production-entrypoint harness deterministically regenerates all sanitized observations from the fixed manifest and exact Git SHAs."
+  },
+  "privacy": {
+    "containsRawQuestionOrAnswer": false,
+    "containsPiiOrCredentials": false,
+    "syntheticOnly": true
+  }
+}
