@@ -1,0 +1,53 @@
+name: Issue 989 handoff helper
+
+on:
+  push:
+    branches:
+      - probe/989-handoff-diff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ contains(github.event.head_commit.message, '[apply-989-handoff]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: probe/989-handoff-diff
+          fetch-depth: 0
+
+      - name: Verify and apply exact handoff patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .delivery-patches/handoff-*.b64 > /tmp/issue989-handoff.patch.gz.b64
+          printf '%s  %s\n' '9ec10990ca94d929c72b91ffae9ccaa56ed745563881387f8e74b828ab010296' /tmp/issue989-handoff.patch.gz.b64 | sha256sum -c -
+          base64 -d /tmp/issue989-handoff.patch.gz.b64 > /tmp/issue989-handoff.patch.gz
+          gzip -dc /tmp/issue989-handoff.patch.gz > /tmp/issue989-handoff.patch
+          printf '%s  %s\n' '70f00ff504052286f058a04a19c6b50e6cae99bf4b72007383d5ddbc47efff89' /tmp/issue989-handoff.patch | sha256sum -c -
+          git apply --check /tmp/issue989-handoff.patch
+          git apply /tmp/issue989-handoff.patch
+
+          cat > /tmp/expected-audit-paths.txt <<'EOF'
+          .audit/entregar-issue/audit-escape-closure.json
+          .audit/entregar-issue/audit-escape-pattern-catalog.json
+          .audit/entregar-issue/evidence/delivery.txt
+          .audit/entregar-issue/handoff-ready.json
+          .audit/entregar-issue/inherited-controls.json
+          .audit/entregar-issue/learning-closure.json
+          .audit/entregar-issue/requirement-attack-matrix.json
+          .audit/entregar-issue/risk-saturation.json
+          EOF
+          git diff --name-only -- .audit/entregar-issue | sort > /tmp/actual-audit-paths.txt
+          sort /tmp/expected-audit-paths.txt -o /tmp/expected-audit-paths.txt
+          diff -u /tmp/expected-audit-paths.txt /tmp/actual-audit-paths.txt
+
+          rm -rf .delivery-patches
+          git config user.name 'Issue 989 delivery helper'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: refresh issue 989 audit handoff [staged]'
+          git push origin HEAD:probe/989-handoff-diff
