@@ -1,7 +1,0 @@
-material_head_sha=55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99
-observed_once=true
-agent_first_gate_run=32079968847
-agent_first_gate_status=in_progress
-whatsapp_context_tidb_run=32079968848
-whatsapp_context_tidb_status=in_progress
-note=CI snapshot is observational only; no rerun, dispatch, cancel or polling was performed.

@@ -1,2 +1,0 @@
-material_head_sha=55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99
-Observed current aiQuestionAssistant.ts emits whatsapp.ai_question.latency with requestId, capability, total_ms, db_ms, context_ms, llm_ms, persist_ms, time_to_first_token_ms, context_scope, provider/model, attempts, retry/fallback, web_search availability/execution, outcome and sanitized error_code. The telemetry payload does not include raw question or reply fields.

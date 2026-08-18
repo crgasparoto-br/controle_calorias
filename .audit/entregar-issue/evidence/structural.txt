@@ -1,2 +1,0 @@
-material_head_sha=55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99
-Observed current aiQuestionAssistant.ts imports and calls resolveCapabilityConfig("QUESTION") and executeResolvedCapability; the model operation remains createDomainTextResponse inside the common executor. The shared answerWithAi path offers tools:[{type:"web_search"}] in auto mode independent of context scope. No direct OpenAI/Gemini SDK fast path or local timeout/retry loop was introduced by #989.

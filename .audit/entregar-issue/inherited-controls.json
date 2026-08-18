@@ -1,1 +1,1 @@
-{"schema_version":1,"head_sha":"55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99","controls":[],"unresolved_controls":[]}
+{"schema_version":1,"head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","controls":[{"id":"EVID-EQUIV-001","status":"passed","head_sha":"41f9b5ca60cd29ded6e98a09879f728816b93f99","evidence":"evidence/delivery.txt","reason":"Inherited from the previous independent rejection: comparative evidence must prove distinct source identity, production-path equivalence, observed failures and lossless canonical-source capture."}],"unresolved_controls":[]}

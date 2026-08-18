@@ -1,2 +1,0 @@
-material_head_sha=55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99
-Current branch includes aiQuestionAssistant.performance.test.ts and questionContextPlan.test.ts covering generic, today, week, period, ambiguous full fallback, central executor correlation, preserved web_search and telemetry privacy. Existing result-only handoff evidence was revalidated after a docs-only material commit; runtime source files remain unchanged. Full pnpm validation is delegated to the exact-head GitHub Actions gate because the connector-only runtime cannot clone/install dependencies.

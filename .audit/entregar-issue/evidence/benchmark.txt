@@ -1,2 +1,0 @@
-material_head_sha=55dbdeceb6c2ec23e02540ed2f7e4ebe748a5e99
-Versioned docs/benchmarks/question-latency/ contains README, synthetic manifest and result summary. Manifest uses one fixed 10-fixture cohort x4 repetitions for both sides. Result records baseline/candidate SHAs, provider/model/policy metadata, 40 successful runs per side, explicit zero errors/timeouts, p50/p90/p95 and a passing relative gate. TTFT limitation is documented instead of fabricated. docs/README.md now indexes this canonical benchmark route.
