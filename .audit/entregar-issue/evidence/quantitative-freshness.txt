@@ -1,21 +1,10 @@
-material_head_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
+Quantitative freshness evidence
+material_head_sha=304e7bd0a7969a964926989960757db816129643
 base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-contract_version=2026-08-18.1
-source_bundle_run=32165849773
-source_bundle_artifact=9335652997
-source_bundle_digest=sha256:572c80b1a656166433a3003368dc4879bab5d415476522817facc5e2456aecf6
-benchmark_command=QUESTION_BENCH_TYPESCRIPT_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js node scripts/issue-989-question-latency-benchmark.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha 7d13ee950bf16df1a6cb6c36ce9995e232c54db4 --out docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
-benchmark_result=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
-benchmark_sha256=f6d991e4258607c4f459f40ee78b8ddb2d0acfbffcaf1ef7414e3a176bc286d2
-benchmark_subject_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
-benchmark_base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-benchmark_runs=120 baseline successes; 120 candidate successes; 0 errors; 0 timeouts on both sides
-benchmark_percentiles=baseline p50/p90/p95 262/267/269 ms; candidate 172/190/262 ms
-benchmark_improvements=p50 34.35%; p90 28.84%; p95 2.6%; gate passed via p90 >=20% and no percentile regression >5%
-benchmark_contract=exact-sha productive end-to-end QUESTION pipeline with hermetic persistence, delivery and provider doubles
-freshness_literal=the prior bb5b659 quantitative result became stale when the remediation promoted 7d13ee9 to the new material identity; it is preserved only as historical evidence
-freshness_reexecution=the benchmark was reexecuted with candidateSha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4 before the new freeze
-freshness_result_only_rule=the future result-only handoff child may carry this result without changing subject_sha only when its direct parent remains 7d13ee950bf16df1a6cb6c36ce9995e232c54db4 and all changed paths are allowlisted
-benchmark_raw_archive=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-raw.json.gz
-benchmark_raw_archive_sha256=59814c6be02be5e6e79d0657910bb4d39f2b75864a5473cca8359e27d09184c7
-benchmark_raw_uncompressed_sha256=df9d9c43b4afc53cfc1bbae8884f21eac9aa3f098342144cb64fcff633072def
+material_tree_sha=1848f33d22c2d5bdd5f34ad49959168a9ab1ec05
+benchmark_candidate_sha=304e7bd0a7969a964926989960757db816129643
+freshness_policy=exact-material-head
+benchmark=question-latency/end-to-end-productive-pipeline-hermetic-v4
+summary_path=docs/benchmarks/question-latency/results/2026-08-18-304e7bd-e2e-summary.json
+result=passed
+The remote Git commit object 304e7bd0 was reconstructed locally from its exact tree, parent, author/committer timestamp+timezone and message; git verified the exact SHA before the benchmark. The versioned v4 benchmark then executed with candidateSha equal to the material head.

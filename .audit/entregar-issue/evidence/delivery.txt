@@ -1,67 +1,69 @@
-material_head_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
+Delivery evidence for issue #989 / PR #993
+material_head_sha=304e7bd0a7969a964926989960757db816129643
 base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-merge_preview_sha=646bfcde3064efafa506c96d7b4464ecd55373d0
-pr=993
-issue=989
-contract_version=2026-08-18.1
-current_reaudit_reason=independent audit blocked re-audit because a known handoff-drift rejection was present in learning metadata but absent from audit-escape-closure; remediation also closes the omission class itself
-current_reaudit_product_delta=none; prior published result-only head 7d13ee9 is promoted to the new material identity and all exact-head dependent evidence is reexecuted
-remote_agent_first_run=32165849773
-remote_agent_first_head_sha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
-remote_agent_first_checkout_sha=646bfcde3064efafa506c96d7b4464ecd55373d0
-remote_agent_first_result=completed/success
-remote_agent_first_steps=TypeScript check success; Tests success; Architecture check success; Documentation check success; Build success; Agent check success; CI gate docs check success
-remote_exact_head_bundle_artifact=9335652997
-remote_exact_head_bundle_digest=sha256:572c80b1a656166433a3003368dc4879bab5d415476522817facc5e2456aecf6
-remote_exact_head_bundle_identity=refs/orchestrator/head=7d13ee950bf16df1a6cb6c36ce9995e232c54db4; refs/orchestrator/base=c1d178642418cf0a54a247f97e15da4d27b103b4
-local_benchmark_self_test=question latency benchmark self-test passed
-benchmark_command=QUESTION_BENCH_TYPESCRIPT_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js node scripts/issue-989-question-latency-benchmark.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha 7d13ee950bf16df1a6cb6c36ce9995e232c54db4 --out docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
-benchmark_result=PASS
-benchmark_runs=baseline 120 successes/0 errors/0 timeouts; candidate 120 successes/0 errors/0 timeouts
-benchmark_percentiles=baseline p50/p90/p95 262/267/269 ms; candidate p50/p90/p95 172/190/262 ms
-benchmark_improvements=p50 34.35%; p90 28.84%; p95 2.6%; relative gate passes via p90 >=20% and no percentile regression >5%
-benchmark_summary=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-summary.json
-benchmark_summary_sha256=f6d991e4258607c4f459f40ee78b8ddb2d0acfbffcaf1ef7414e3a176bc286d2
-benchmark_raw_archive=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-raw.json.gz
-benchmark_raw_archive_sha256=59814c6be02be5e6e79d0657910bb4d39f2b75864a5473cca8359e27d09184c7
-benchmark_raw_uncompressed_sha256=df9d9c43b4afc53cfc1bbae8884f21eac9aa3f098342144cb64fcff633072def
-benchmark_identity=baseSha=c1d178642418cf0a54a247f97e15da4d27b103b4; candidateSha=7d13ee950bf16df1a6cb6c36ce9995e232c54db4; exact source identities verified by git worktrees
-handoff_drift_rejection_id=audit-rejection:39ce57d64eca4aa8f08c89f90c730768a0484f6961d7249bddaa1dcba69a9506
-handoff_drift_literal=previous certified identity became stale after a later material head; stale certificate was superseded and the later identity was re-frozen
-handoff_drift_sibling_parent=terminal result-only publication requires direct parent equal to the frozen material head
-handoff_drift_sibling_allowlist=terminal result-only publication rejects any changed path outside the certificate allowlist
-rejection_closure_rejection_id=audit-rejection:3f6bb9c5efb04f54d9cdd1c9d29d0a43a492a3a96b8aacd9a05ff74eef7ca388
-rejection_closure_literal=producer validator rejects learning rejection_id absent from audit-escape-closure
-rejection_closure_sibling_producer=producer validator rejects partial declared finding coverage before handoff
-rejection_closure_sibling_auditor=auditor re-audit readiness rejects omitted rejection and partial finding coverage before broad audit
-rejection_closure_prevention_skill_sha256=bc214b881a65a079ae352e4252fe922069d0450414d60c510280f31526d5695f
-rejection_closure_detection_skill_sha256=634f84fce73ab9b995fdd02b6a23e4dbb75d45a2fcf8d51cbff3df7cefc81a16
-post_write_refreeze_reason=independent audit rejected the prior handoff because the published PR head moved materially beyond the certified result-only child; bb5b659 changes product/tests/docs and therefore must become a new material head
-post_write_refreeze_previous_handoff_head=ab6eb744f799e190b569fd6315d95e17c23e3470
-post_write_refreeze_material_delta=ab6eb744f799e190b569fd6315d95e17c23e3470..bb5b6591730410e22cf7a10d1f842527cdc83648
-post_write_material_paths=docs/benchmarks/question-latency/README.md,scripts/issue-989-question-latency-benchmark.mjs,scripts/issue-989-question-latency-loader.mjs,scripts/issue-989-question-latency-worker.mjs,server/modules/whatsapp/aiQuestionAssistant.history.test.ts,server/modules/whatsapp/aiQuestionAssistant.performance.test.ts,server/modules/whatsapp/aiQuestionAssistant.ts,server/modules/whatsapp/intentContext.test.ts,server/modules/whatsapp/intentContext.ts
-local_benchmark_self_test=question latency benchmark self-test passed
-stage_attribution_control=PERF-STAGE-ATTR-001 passed: all 120 candidate observations emitted numeric db_ms covering recent-history DB timing plus every selected today/currentWeek+last30Days loader; observed candidate db_ms range 9..207 ms and context_ms range 10..132 ms; benchmark validator rejects a candidate whose db_ms omits selected DB loaders
-stage_attribution_sibling=full-scope observations execute history+today+currentWeek+last30Days with additive db_ms while context_ms remains wall-clock over parallel assembly; none/today/week scopes execute only their selected loaders
-critical_work_control=PERF-CRITICAL-WORK-001 passed: all 120 candidate observations have contextLoads.unusedDomainSnapshot=0; slash_assistant requests includeDomainSnapshot=false, includeContextualMemories=false and includeShadowIntentComparison=false
-critical_work_sibling=Agent-first Tests step passed server/modules/whatsapp/intentContext.test.ts, including the minimal-history case that proves listMeals and contextual-memory retrieval are not invoked while the default builder contract remains covered by sibling tests
-provider_call_control=all 120 successful candidate observations performed exactly one provider call and exactly one delivery call
-web_search_control=all 120 successful candidate observations offered QUESTION web_search
-persistence_control=all 120 successful candidate observations performed conversation,inbound,outbound,responseLink,processed persistence operations exactly once and emitted numeric persist_ms range 42..64 ms
-telemetry_boundary_control=all 120 candidate observations emitted boundary=inbound_persistence_to_processed_reply, deliveryOk=true, outcome=success and telemetry total_ms within benchmark tolerance of end-to-end harness total
-context_literal=implicit-personal-advice fixture "quanto de proteína devo consumir?" => full context in all repetitions
-context_sibling=server/modules/whatsapp/questionContextPlan.test.ts covers "qual a melhor fonte de proteína para mim?" and "quais macros eu deveria priorizar?" as personal/full-context cases; Agent-first Tests step passed
-context_regression=generic-fiber => none; today-consumption => today; week-consumption => week; follow-up-ambiguous => full in exact-head benchmark
-failure_accounting=Agent-first Tests step passed existing messageLifecycle and WhatsApp QUESTION failure regressions; benchmark report separately preserves successes/errors/timeouts and forbids error/timeout increases
-central_contract=server/modules/whatsapp/aiQuestionAssistant.ts imports resolveCapabilityConfig and executeResolvedCapability, resolves QUESTION centrally, and executeResolvedCapability receives tools=[{type:web_search}] when auto; no direct OpenAI/Gemini SDK path or local retry/timeout policy was introduced
-structural_regression=Agent-first TypeScript/Tests/Architecture/Documentation/Build/Agent check all succeeded on PR merge preview with head bb5b659; exact-head benchmark independently exercises the productive QUESTION path from the bb5b659 bundle
-benchmark_source_fidelity=.audit/entregar-issue/specification-sources/SRC-ISSUE-989.txt remains the canonical issue body; docs/benchmarks/question-latency/README.md documents the same fixed-cohort, exact-SHA, failure-accounting, db_ms stage coverage and unused-context elimination contracts
-privacy_control=benchmark privacy flags syntheticOnly=true, containsRawQuestionOrAnswer=false, containsPiiOrCredentials=false; Agent-first tests include raw-question absence assertions in latency telemetry
+material_tree_sha=1848f33d22c2d5bdd5f34ad49959168a9ab1ec05
+previous_head_sha=bbc2dd68128258c250ce474580e5f84ee8a9aef3
+previous_head_agent_first_run=32187630976
+previous_head_agent_first_status=success
+current_head_agent_first_run=32193668730
+current_head_snapshot=TypeScript check completed success; Tests in_progress; later steps not reached at snapshot time
 
-ADDITIONAL_CANONICAL_RISK_CONTROLS
-CONC-ATOMIC-001 PASS: 8 full-scope exact-head observations loaded currentWeek+last30Days exactly once with measured dbMs; synthetic omitted-parallel-load mutation was rejected.
-TEMP-CONSISTENCY-001 PASS: 120 candidate observations preserved terminal boundary, non-negative persistMs, and <=20ms inner/outer total delta; premature-boundary mutation was rejected.
-REF-LIVE-001 PASS: productive source resolves QUESTION and calls executeResolvedCapability; all 120 exact-head observations had exactly one provider call and web_search offered; executor-bypass mutation was rejected.
-TENANT-ISOLATION-001 PASS: the same userId reaches today/week/period insight loaders and canonical recent-history context; two neighboring-user substitution mutations were rejected.
-SOURCE_HEAD=7d13ee950bf16df1a6cb6c36ce9995e232c54db4
-RAW_EVIDENCE=docs/benchmarks/question-latency/results/2026-08-18-7d13ee9-e2e-raw.json.gz
+Material delta from bbc2dd68 to 304e7bd0:
+- docs/benchmarks/question-latency/README-v4.md
+- scripts/issue-989-question-latency-benchmark-v4.mjs
+No product runtime source or product test file changed in this delta. Product behavioral controls not dependent on the benchmark protocol remain unchanged from the previously green exact product tree; performance/evidence controls were invalidated and reexecuted below.
+
+Exact-head benchmark command:
+node scripts/issue-989-question-latency-benchmark-v4.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha 304e7bd0a7969a964926989960757db816129643 --typescript-path /opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js --out /mnt/data/question-latency-304e7bd0-exact.json
+Benchmark protocol=question-latency/end-to-end-productive-pipeline-hermetic-v4
+fixture_count=30
+repetitions_per_fixture=2
+baseline_successes=60
+candidate_successes=60
+baseline_errors=0
+candidate_errors=0
+baseline_timeouts=0
+candidate_timeouts=0
+baseline_p50_ms=268
+candidate_p50_ms=178
+baseline_p90_ms=271
+candidate_p90_ms=194
+baseline_p95_ms=273
+candidate_p95_ms=268
+p50_improvement_percent=33.58
+p90_improvement_percent=28.41
+p95_improvement_percent=1.83
+benchmark_gate_passed=true
+productive_user_lookup_and_timezone_executed=true
+generic_questions_skip_recent_history=true
+candidate_db_stage_covers_preparatory_and_context_reads=true
+provider_calls_per_success=1
+web_search_offered=true
+terminal_persistence_and_delivery_included=true
+
+Performance critical-path inventory observed by the v4 harness:
+- user lookup: required, db_ms
+- persisted timezone resolution: required, db_ms
+- recent history: optional by context scope, db_ms; zero calls for scope=none
+- today insights: optional by scope, db_ms; zero calls when not required
+- current-week insights: optional by scope, db_ms; zero calls when not required
+- last-30-days insights: optional by scope, db_ms; zero calls when not required
+- centralized QUESTION provider execution: required, llm_ms, exactly one provider call, web_search available
+- inbound/outbound lifecycle persistence, response link and markProcessed: required before terminal boundary
+- logical delivery: required before terminal boundary
+
+Systemic handoff-drift control:
+package=/mnt/data/corrigir-ci-package/skill.zip
+package_sha256=70fb4d50e3566953712c92af6fddc25d565afbf3b40ac8810c2be0cbdb40a256
+command=python3 -m pytest -q tests/test_ci_terminal_state_guard.py tests/test_handoff_recertification_contract.py tests/test_ci_ownership_contract.py
+result=12 passed in 3.81s
+literal control: stale certificate after later material CI fix is rejected
+sibling control 1: material commit after terminal handoff child is rejected
+sibling control 2: non-allowlisted path in terminal child is rejected
+positive control: direct allowlisted result-only child of the CI-fixed material head is accepted
+
+Documentation/static validation:
+- README-v4 now declares two observations per fixture and 60 executions per side.
+- benchmark v4 enforces repetitionsPerFixture=2 and atLeast60SuccessfulRunsEachSide.
+- node benchmark v4 --self-test: passed.
+- git diff --check for the material benchmark protocol change: passed before publication.
