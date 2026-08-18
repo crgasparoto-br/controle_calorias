@@ -95,10 +95,73 @@ describe("usage governance economic retention coverage", () => {
     expect(mocks.listMonthlyEconomicAggregates).not.toHaveBeenCalled();
   });
 
-  it("uses the same month-aligned cutoff for retention and coverage", async () => {
+  it("reports complete daily coverage at the exact retained day boundary even when now is mid-day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T12:34:56.000Z"));
+
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2024-08-17T00:00:00.000Z"),
+      to: new Date("2026-08-17T12:34:56.000Z"),
+    });
+
+    expect(result.coverage.usage).toMatchObject({
+      state: "complete",
+      requestedFrom: new Date("2024-08-17T00:00:00.000Z"),
+      availableFrom: new Date("2024-08-17T00:00:00.000Z"),
+      availableTo: new Date("2026-08-17T12:34:56.000Z"),
+      retentionMonths: 24,
+      truncated: false,
+    });
+    expect(mocks.listUsageDailyAggregatesPage).toHaveBeenCalledWith(expect.objectContaining({
+      from: new Date("2024-08-17T00:00:00.000Z"),
+      to: new Date("2026-08-17T12:34:56.000Z"),
+    }));
+  });
+
+  it("clamps partial daily coverage to the retained day boundary with a user filter", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T12:34:56.000Z"));
+
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2024-08-16T23:59:59.000Z"),
+      to: new Date("2026-08-17T12:34:56.000Z"),
+      userId: 42,
+    });
+
+    expect(result.coverage.usage).toMatchObject({
+      state: "partial",
+      requestedFrom: new Date("2024-08-16T23:59:59.000Z"),
+      availableFrom: new Date("2024-08-17T00:00:00.000Z"),
+    });
+    expect(mocks.listUsageDailyAggregatesPage).toHaveBeenCalledWith(expect.objectContaining({
+      from: new Date("2024-08-17T00:00:00.000Z"),
+      userId: 42,
+    }));
+  });
+
+  it("does not query daily aggregates when the requested window is entirely before retention", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T12:34:56.000Z"));
+
+    const result = await getInternalUsageAnalytics({
+      from: new Date("2024-08-15T00:00:00.000Z"),
+      to: new Date("2024-08-17T00:00:00.000Z"),
+    });
+
+    expect(result.coverage.usage).toMatchObject({
+      state: "partial",
+      availableFrom: new Date("2024-08-17T00:00:00.000Z"),
+      availableTo: new Date("2024-08-17T00:00:00.000Z"),
+    });
+    expect(result.byOperation).toEqual([]);
+    expect(mocks.listUsageDailyAggregatesPage).not.toHaveBeenCalled();
+  });
+
+  it("uses the same bucket-aligned cutoffs for retention and coverage", async () => {
     await runUsageRetention(new Date("2026-08-17T12:34:56.000Z"));
 
     expect(mocks.purgeUsageGovernanceRetention).toHaveBeenCalledWith(expect.objectContaining({
+      dailyCutoff: new Date("2024-08-17T00:00:00.000Z"),
       monthlyCutoff: new Date("2021-08-01T00:00:00.000Z"),
     }));
   });

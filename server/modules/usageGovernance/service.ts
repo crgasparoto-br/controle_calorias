@@ -363,6 +363,12 @@ function addMonths(value: Date, months: number) {
 function subtractMonths(value: Date, months: number) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() - months, value.getUTCDate(), value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds()));
 }
+function startOfUtcDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+}
+function dailyAggregateRetentionCutoff(now: Date) {
+  return startOfUtcDay(subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths));
+}
 function normalizeMonthlyRangeEnd(value: Date) {
   const month = startOfMonth(value);
   return value.getTime() === month.getTime() ? month : addMonths(month, 1);
@@ -739,8 +745,8 @@ function summarizeProfessionalPortfolios(usage: Record<string, unknown>[]) {
 
 export async function getInternalUsageAnalytics(input: { from: Date; to: Date; userId?: number }) {
   const now = new Date();
-  const dailyDetailCutoff = subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths);
-  const usageFrom = input.from < dailyDetailCutoff ? dailyDetailCutoff : input.from;
+  const dailyRetentionFrom = dailyAggregateRetentionCutoff(now);
+  const usageFrom = input.from < dailyRetentionFrom ? dailyRetentionFrom : input.from;
   const usage = usageFrom < input.to
     ? await collectPages(
         cursor => listUsageDailyAggregatesPage({ from: usageFrom, to: input.to, userId: input.userId, cursor, limit: 5000 }),
@@ -827,7 +833,7 @@ export async function getInternalUsageAnalytics(input: { from: Date; to: Date; u
     coverage: {
       usage: {
         source: "daily_aggregates" as const,
-        state: input.from < dailyDetailCutoff ? "partial" as const : "complete" as const,
+        state: input.from < dailyRetentionFrom ? "partial" as const : "complete" as const,
         requestedFrom: input.from,
         availableFrom: usageFrom,
         availableTo: input.to,
@@ -857,7 +863,7 @@ export async function runUsageRetention(now = new Date()) {
   return purgeUsageGovernanceRetention({
     now,
     detailedCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.detailedUsageMonths),
-    dailyCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.dailyAggregateMonths),
+    dailyCutoff: dailyAggregateRetentionCutoff(now),
     monthlyCutoff: monthlyEconomicRetentionCutoff(now),
     governanceCutoff: subtractMonths(now, USAGE_RETENTION_POLICY.governanceAuditYears * 12),
     ruleVersion: USAGE_RULE_VERSION,
