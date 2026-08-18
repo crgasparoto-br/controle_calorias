@@ -9,6 +9,8 @@ vi.mock("./intentContext", () => ({
 }));
 
 vi.mock("../../db", () => ({
+  getDb: vi.fn(),
+  logPersistenceWarning: vi.fn(),
   logInferenceEvent: vi.fn(),
 }));
 
