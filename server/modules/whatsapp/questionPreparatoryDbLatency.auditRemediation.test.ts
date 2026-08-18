@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const events: Array<{ eventType: string; detail: string }> = [];
-const getUserIdByWhatsappPhoneImplementation = vi.fn(async () => {
-  await new Promise(resolve => setTimeout(resolve, 5));
-  return 42;
-});
-const resolveEffectiveUserTimeZone = vi.fn(async () => {
-  await new Promise(resolve => setTimeout(resolve, 6));
-  return { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null };
-});
+const {
+  events,
+  getUserIdByWhatsappPhoneImplementation,
+  resolveEffectiveUserTimeZone,
+} = vi.hoisted(() => ({
+  events: [] as Array<{ eventType: string; detail: string }>,
+  getUserIdByWhatsappPhoneImplementation: vi.fn(async () => {
+    await new Promise(resolve => setTimeout(resolve, 5));
+    return 42;
+  }),
+  resolveEffectiveUserTimeZone: vi.fn(async () => {
+    await new Promise(resolve => setTimeout(resolve, 6));
+    return { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null };
+  }),
+}));
 
 vi.mock("../../dbImplementation", () => ({
   getDb: vi.fn(async () => null),
