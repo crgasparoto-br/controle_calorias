@@ -13,6 +13,28 @@ const mockModules = new Map([
 export function logInferenceEvent(event) {
   globalThis.__questionLatencyBench.events.push(event);
 }
+export async function getDb() { return null; }
+export function logPersistenceWarning() {}
+`],
+  ["server/repositories/whatsappConversationRepository.ts", `
+export function createDrizzleWhatsAppConversationRepository() {
+  return globalThis.__questionLatencyBench.defaultConversationRepository;
+}
+`],
+  ["server/repositories/whatsappConversationMessageEnrichmentRepository.ts", `
+export function createDrizzleWhatsAppConversationMessageEnrichmentRepository() {
+  return { async enrichInboundMessageByExternalId() { return false; } };
+}
+`],
+  ["server/repositories/whatsappProcessingClaimRepository.ts", `
+export function createDrizzleWhatsAppProcessingClaimRepository() {
+  return { async claimStaleUnprocessedMessage() { return false; } };
+}
+`],
+  ["server/modules/whatsapp/inboundCorrelationContext.ts", `
+export function runWithWhatsappInboundCorrelationScope(operation) { return operation(); }
+export function setCurrentWhatsappInboundExternalMessageId() {}
+export function getCurrentWhatsappInboundExternalMessageId() { return null; }
 `],
   ["server/modules/whatsapp/intentContext.ts", `
 export async function buildWhatsappIntentContext() {
@@ -108,6 +130,32 @@ export function getAiProviderById() {
     async createAudioTranscription() { throw new Error("unexpected transcription call"); },
     async createImageGeneration() { throw new Error("unexpected image call"); },
   };
+}
+`],
+  ["server/modules/quickEdit/service.ts", `
+export async function tryCreateQuickEditLinkForMeal() { return null; }
+`],
+  ["server/modules/whatsapp/replyContract.ts", `
+export function logicalReplyFromLegacyText(text) {
+  return { messages: [{ type: "text", text }] };
+}
+export function withAuxiliaryImage(reply) { return reply; }
+`],
+  ["server/modules/whatsapp/replyTransport.ts", `
+import { recordOutboundReply } from "./messageLifecycle";
+
+export async function sendWhatsAppLogicalReply(_to, reply, lifecycle) {
+  const state = globalThis.__questionLatencyBench;
+  state.deliveryCalls += 1;
+  await state.sleep(state.delays.delivery);
+  if (state.deliveryFailure) {
+    return { ok: false, primaryOk: false, sends: [{ ok: false, detail: "synthetic delivery failure" }] };
+  }
+  if (lifecycle) {
+    const text = reply?.messages?.find(message => message?.type === "text")?.text ?? "Resposta segura";
+    await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text });
+  }
+  return { ok: true, primaryOk: true, sends: [{ ok: true }] };
 }
 `],
 ]);

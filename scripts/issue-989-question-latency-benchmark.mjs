@@ -3,13 +3,14 @@ import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const loaderPath = path.join(scriptDir, "issue-989-question-latency-loader.mjs");
 const workerPath = path.join(scriptDir, "issue-989-question-latency-worker.mjs");
+const debug = (...args) => { if (process.env.QUESTION_BENCH_DEBUG === "1") console.error("[question-bench]", ...args); };
 
 function parseArg(name) {
   const index = process.argv.indexOf(name);
@@ -159,6 +160,14 @@ function validateWorkerObservations(side, manifest, observations) {
     if (observation.offeredWebSearch !== true) {
       throw new Error(`${side}/${observation.fixtureId} did not preserve QUESTION web_search availability.`);
     }
+    if (observation.deliveryCalls !== 1) {
+      throw new Error(`${side}/${observation.fixtureId} performed ${observation.deliveryCalls} delivery calls; expected exactly one.`);
+    }
+    for (const key of ["conversation", "inbound", "outbound", "responseLink", "processed"]) {
+      if (observation.persistenceOperations?.[key] !== 1) {
+        throw new Error(`${side}/${observation.fixtureId} persistence operation ${key}=${observation.persistenceOperations?.[key]}, expected 1.`);
+      }
+    }
     if (observation.contextLoads.history !== 1) {
       throw new Error(`${side}/${observation.fixtureId} did not execute the production recent-history path exactly once.`);
     }
@@ -173,10 +182,25 @@ function validateWorkerObservations(side, manifest, observations) {
     if (side === "candidate" && observation.contextScope !== fixture.expectedScope) {
       throw new Error(`${side}/${observation.fixtureId} scope=${observation.contextScope}, expected ${fixture.expectedScope}.`);
     }
+    if (side === "candidate") {
+      const finalLatency = observation.finalLatency;
+      if (!finalLatency || finalLatency.boundary !== "inbound_persistence_to_processed_reply") {
+        throw new Error(`${side}/${observation.fixtureId} did not emit the canonical end-to-end latency boundary.`);
+      }
+      if (typeof finalLatency.persistMs !== "number" || finalLatency.persistMs < 0) {
+        throw new Error(`${side}/${observation.fixtureId} did not measure persistence latency.`);
+      }
+      if (finalLatency.deliveryOk !== true || finalLatency.outcome !== "success") {
+        throw new Error(`${side}/${observation.fixtureId} final latency event did not observe successful delivery.`);
+      }
+      if (typeof finalLatency.totalMs !== "number" || Math.abs(finalLatency.totalMs - observation.totalMs) > 20) {
+        throw new Error(`${side}/${observation.fixtureId} telemetry total_ms diverges from the harness end-to-end timer.`);
+      }
+    }
   }
 }
 
-function runWorker({ side, sourceRoot, sourceSha, manifestPath, typescriptPath }) {
+async function runWorker({ side, sourceRoot, sourceSha, manifestPath, typescriptPath }) {
   const env = {
     ...process.env,
     QUESTION_BENCH_SOURCE_ROOT: sourceRoot,
@@ -185,11 +209,30 @@ function runWorker({ side, sourceRoot, sourceSha, manifestPath, typescriptPath }
     QUESTION_BENCH_MODE: side,
     ...(typescriptPath ? { QUESTION_BENCH_TYPESCRIPT_PATH: typescriptPath } : {}),
   };
-  const stdout = run(process.execPath, ["--loader", loaderPath, workerPath], {
-    cwd: repoRoot,
-    env,
-  });
-  return JSON.parse(stdout);
+  const outputPath = path.join(os.tmpdir(), `question-latency-worker-${process.pid}-${side}-${Date.now()}.json`);
+  const outputFd = fs.openSync(outputPath, "w");
+  let stderr = "";
+  try {
+    const child = spawn(process.execPath, ["--loader", loaderPath, workerPath], {
+      cwd: repoRoot,
+      env,
+      stdio: ["ignore", outputFd, "pipe"],
+    });
+    fs.closeSync(outputFd);
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    const status = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+    if (status !== 0) {
+      throw new Error(`question latency ${side} worker failed${stderr ? `:\n${stderr.trim()}` : ""}`);
+    }
+    return JSON.parse(fs.readFileSync(outputPath, "utf8"));
+  } finally {
+    try { fs.closeSync(outputFd); } catch {}
+    fs.rmSync(outputPath, { force: true });
+  }
 }
 
 function addWorktree(root, sha, label) {
@@ -244,22 +287,28 @@ async function main() {
   let baselineRoot;
   let candidateRoot;
   try {
+    debug("adding baseline worktree");
     baselineRoot = addWorktree(tempRoot, baseSha, "baseline");
+    debug("adding candidate worktree");
     candidateRoot = addWorktree(tempRoot, candidateSha, "candidate");
-    const baselineRun = runWorker({
-      side: "baseline",
-      sourceRoot: baselineRoot,
-      sourceSha: baseSha,
-      manifestPath,
-      typescriptPath,
-    });
-    const candidateRun = runWorker({
-      side: "candidate",
-      sourceRoot: candidateRoot,
-      sourceSha: candidateSha,
-      manifestPath,
-      typescriptPath,
-    });
+    debug("running paired baseline/candidate workers");
+    const [baselineRun, candidateRun] = await Promise.all([
+      runWorker({
+        side: "baseline",
+        sourceRoot: baselineRoot,
+        sourceSha: baseSha,
+        manifestPath,
+        typescriptPath,
+      }),
+      runWorker({
+        side: "candidate",
+        sourceRoot: candidateRoot,
+        sourceSha: candidateSha,
+        manifestPath,
+        typescriptPath,
+      }),
+    ]);
+    debug("paired workers complete");
     validateWorkerObservations("baseline", manifest, baselineRun.observations);
     validateWorkerObservations("candidate", manifest, candidateRun.observations);
 
@@ -267,14 +316,19 @@ async function main() {
     const candidate = summarizeObservations(candidateRun.observations);
     const { improvements, gate, passed } = evaluateGate(baseline, candidate);
     const report = {
-      schemaVersion: 2,
-      benchmark: "question-latency/productive-entrypoint-hermetic-v2",
+      schemaVersion: 3,
+      benchmark: "question-latency/end-to-end-productive-pipeline-hermetic-v3",
       cohort: manifest.cohort,
       fixtureManifest: path.relative(repoRoot, manifestPath).split(path.sep).join("/"),
-      executionMode: "exact-sha-production-entrypoint-with-hermetic-db-and-provider-doubles",
+      executionMode: "exact-sha-production-pipeline-with-hermetic-persistence-delivery-and-provider-doubles",
       baseSha,
       candidateSha,
-      sourceEntrypoint: "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+      sourceEntrypoints: [
+        "server/modules/whatsapp/messageLifecycle.ts#beginInboundMessage",
+        "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+        "server/modules/whatsapp/logicalReplyDelivery.ts#sendWhatsAppLogicalDomainReply",
+        "server/modules/whatsapp/messageLifecycle.ts#markMessageProcessed",
+      ],
       environment: {
         timezone: manifest.timezone,
         provider: "openai-adapter-contract-via-hermetic-provider-double",
@@ -302,7 +356,10 @@ async function main() {
         ...gate,
         exactlyOneProviderCallPerSuccessfulQuestion: true,
         webSearchAvailableOnEverySuccessfulQuestion: true,
-        productionEntrypointExecutedOnBothExactShas: true,
+        productionEndToEndPipelineExecutedOnBothExactShas: true,
+        candidateTelemetryMatchesEndToEndBoundary: true,
+        persistenceMeasuredOnCandidate: true,
+        deliveryIncludedInTotalMs: true,
         timeToFirstToken: "not-measurable-non-streaming-provider-contract",
       },
       passed,
@@ -328,9 +385,11 @@ async function main() {
     }));
     if (!passed) process.exitCode = 1;
   } finally {
+    debug("cleanup start");
     if (baselineRoot) removeWorktree(baselineRoot);
     if (candidateRoot) removeWorktree(candidateRoot);
     await fsPromises.rm(tempRoot, { recursive: true, force: true });
+    debug("cleanup complete");
   }
 }
 

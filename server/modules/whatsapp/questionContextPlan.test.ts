@@ -26,6 +26,9 @@ describe("resolveQuestionContextScope", () => {
     "o que você sugeriu antes?",
     "como está minha alimentação?",
     "me sugira um jantar",
+    "quanto de proteína devo consumir?",
+    "qual a melhor fonte de proteína para mim?",
+    "quais macros eu deveria priorizar?",
   ])("mantém contexto completo quando a intenção depende de continuidade ou é ambígua: %s", question => {
     expect(resolveQuestionContextScope(question)).toBe("full");
   });

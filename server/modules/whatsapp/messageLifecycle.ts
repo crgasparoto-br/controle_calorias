@@ -26,6 +26,13 @@ import {
   runWithWhatsappInboundCorrelationScope,
   setCurrentWhatsappInboundExternalMessageId,
 } from "./inboundCorrelationContext";
+import {
+  beginCurrentQuestionLatencyTrace,
+  finalizeCurrentQuestionLatencyTrace,
+  getCurrentQuestionLatencyTrace,
+  recordCurrentQuestionOutcome,
+  recordCurrentQuestionPersistenceMs,
+} from "./questionLatencyContext";
 
 export { getCurrentWhatsappInboundExternalMessageId as getCurrentInboundExternalMessageId } from "./inboundCorrelationContext";
 
@@ -74,30 +81,42 @@ export function createMessageLifecycleService(input: {
 
   return {
     async beginInboundMessage(message: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
-      const conversation = await input.conversationRepository.createOrGetActiveConversation(
-        message.userId,
-        message.whatsappConnectionId,
-        message.phoneNumber,
-      );
-      if (!conversation) return null;
-
-      const appended = await input.conversationRepository.appendMessage({
-        conversationId: conversation.id,
+      const latencyTrace = getCurrentQuestionLatencyTrace() ?? beginCurrentQuestionLatencyTrace({
         userId: message.userId,
-        direction: "inbound",
-        externalMessageId: message.externalMessageId ?? null,
         contentType: message.contentType,
-        text: message.text ?? null,
-        transcript: message.transcript ?? null,
-        captionText: message.captionText ?? null,
-        mediaStorageKey: message.mediaStorageKey ?? null,
-        mediaMimeType: message.mediaMimeType ?? null,
-        occurredAt: message.occurredAt,
-        allowRawContentStorage: message.allowRawContentStorage,
+        text: message.text,
       });
-      if (!appended) return null;
+      const persistenceStartedAt = latencyTrace ? performance.now() : null;
+      try {
+        const conversation = await input.conversationRepository.createOrGetActiveConversation(
+          message.userId,
+          message.whatsappConnectionId,
+          message.phoneNumber,
+        );
+        if (!conversation) return null;
 
-      return { conversationId: conversation.id, messageId: appended.message.id, wasNewInsert: appended.wasNewInsert };
+        const appended = await input.conversationRepository.appendMessage({
+          conversationId: conversation.id,
+          userId: message.userId,
+          direction: "inbound",
+          externalMessageId: message.externalMessageId ?? null,
+          contentType: message.contentType,
+          text: message.text ?? null,
+          transcript: message.transcript ?? null,
+          captionText: message.captionText ?? null,
+          mediaStorageKey: message.mediaStorageKey ?? null,
+          mediaMimeType: message.mediaMimeType ?? null,
+          occurredAt: message.occurredAt,
+          allowRawContentStorage: message.allowRawContentStorage,
+        });
+        if (!appended) return null;
+
+        return { conversationId: conversation.id, messageId: appended.message.id, wasNewInsert: appended.wasNewInsert };
+      } finally {
+        if (persistenceStartedAt !== null) {
+          recordCurrentQuestionPersistenceMs(performance.now() - persistenceStartedAt);
+        }
+      }
     },
 
     async claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
@@ -123,20 +142,26 @@ export function createMessageLifecycleService(input: {
       reply: { userId: number; text: string; occurredAt?: Date },
     ): Promise<void> {
       if (!handle) return;
+      const persistenceStartedAt = getCurrentQuestionLatencyTrace() ? performance.now() : null;
+      try {
+        const appended = await input.conversationRepository.appendMessage({
+          conversationId: handle.conversationId,
+          userId: reply.userId,
+          direction: "outbound",
+          contentType: "text",
+          text: reply.text,
+          respondsToMessageId: handle.messageId,
+          occurredAt: reply.occurredAt ?? new Date(),
+          allowRawContentStorage: true,
+        });
+        if (!appended) return;
 
-      const appended = await input.conversationRepository.appendMessage({
-        conversationId: handle.conversationId,
-        userId: reply.userId,
-        direction: "outbound",
-        contentType: "text",
-        text: reply.text,
-        respondsToMessageId: handle.messageId,
-        occurredAt: reply.occurredAt ?? new Date(),
-        allowRawContentStorage: true,
-      });
-      if (!appended) return;
-
-      await input.conversationRepository.linkResponse(handle.messageId, appended.message.id);
+        await input.conversationRepository.linkResponse(handle.messageId, appended.message.id);
+      } finally {
+        if (persistenceStartedAt !== null) {
+          recordCurrentQuestionPersistenceMs(performance.now() - persistenceStartedAt);
+        }
+      }
     },
 
     async recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {
@@ -147,7 +172,21 @@ export function createMessageLifecycleService(input: {
 
     async markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
       if (!handle) return;
-      await input.conversationRepository.markProcessed(handle.messageId, processedAt);
+      const persistenceStartedAt = getCurrentQuestionLatencyTrace() ? performance.now() : null;
+      try {
+        await input.conversationRepository.markProcessed(handle.messageId, processedAt);
+      } catch (error) {
+        if (persistenceStartedAt !== null) {
+          recordCurrentQuestionPersistenceMs(performance.now() - persistenceStartedAt);
+          recordCurrentQuestionOutcome("error", "persistence_failed");
+          finalizeCurrentQuestionLatencyTrace();
+        }
+        throw error;
+      }
+      if (persistenceStartedAt !== null) {
+        recordCurrentQuestionPersistenceMs(performance.now() - persistenceStartedAt);
+        finalizeCurrentQuestionLatencyTrace();
+      }
     },
 
     async enrichInboundMessage(

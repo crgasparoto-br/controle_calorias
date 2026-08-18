@@ -53,6 +53,25 @@ vi.mock("../insights/service", () => ({
 }));
 
 const { executeWhatsappAiQuestionIntent } = await import("./aiQuestionAssistant");
+const {
+  finalizeCurrentQuestionLatencyTrace,
+  recordCurrentQuestionDeliveryOutcome,
+  recordCurrentQuestionPersistenceMs,
+  runWithQuestionLatencyContext,
+} = await import("./questionLatencyContext");
+
+async function executeQuestion(
+  userId: number,
+  input: Parameters<typeof executeWhatsappAiQuestionIntent>[1],
+) {
+  return runWithQuestionLatencyContext(async () => {
+    const result = await executeWhatsappAiQuestionIntent(userId, input);
+    recordCurrentQuestionDeliveryOutcome(true);
+    recordCurrentQuestionPersistenceMs(1);
+    finalizeCurrentQuestionLatencyTrace();
+    return result;
+  });
+}
 
 function todayFixture() {
   return {
@@ -129,7 +148,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
 
   it("não carrega relatórios pessoais para pergunta genérica e preserva web_search", async () => {
     const rawQuestion = "qual é a recomendação atual de fibras?";
-    const result = await executeWhatsappAiQuestionIntent(42, {
+    const result = await executeQuestion(42, {
       text: `/ ${rawQuestion}`,
       receivedAt: new Date("2026-08-17T18:00:00Z"),
       userTimezone: "America/Sao_Paulo",
@@ -151,7 +170,8 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
     expect(telemetry).toEqual(expect.objectContaining({
       capability: "QUESTION",
       context_scope: "none",
-      persist_ms: null,
+      boundary: "inbound_persistence_to_processed_reply",
+      persist_ms: expect.any(Number),
       time_to_first_token_ms: null,
       attempts: 1,
       fallback_occurred: false,
@@ -169,7 +189,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
   });
 
   it("carrega apenas o agregado diário quando a pergunta pessoal é explicitamente sobre hoje", async () => {
-    await executeWhatsappAiQuestionIntent(42, {
+    await executeQuestion(42, {
       text: "/ como está meu consumo hoje?",
       receivedAt: new Date("2026-08-17T18:00:00Z"),
       userTimezone: "America/Sao_Paulo",
@@ -186,7 +206,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
   });
 
   it("carrega apenas a semana quando o período pessoal é semanal", async () => {
-    await executeWhatsappAiQuestionIntent(42, {
+    await executeQuestion(42, {
       text: "/ como foi meu consumo esta semana?",
       receivedAt: new Date("2026-08-17T18:00:00Z"),
       userTimezone: "America/Sao_Paulo",
@@ -199,7 +219,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
   });
 
   it("carrega apenas 30 dias quando a pergunta pessoal explicita período longo", async () => {
-    await executeWhatsappAiQuestionIntent(42, {
+    await executeQuestion(42, {
       text: "/ como está minha evolução nos últimos 30 dias?",
       receivedAt: new Date("2026-08-17T18:00:00Z"),
       userTimezone: "America/Sao_Paulo",
@@ -212,7 +232,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
   });
 
   it("mantém os três agregados para follow-up ambíguo", async () => {
-    await executeWhatsappAiQuestionIntent(42, {
+    await executeQuestion(42, {
       text: "/ e proteína?",
       receivedAt: new Date("2026-08-17T18:00:00Z"),
       userTimezone: "America/Sao_Paulo",

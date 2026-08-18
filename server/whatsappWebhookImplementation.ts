@@ -13,6 +13,7 @@ import {
   updateUserMeal,
 } from "./db";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
+import { beginCurrentQuestionLatencyTrace } from "./modules/whatsapp/questionLatencyContext";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
@@ -401,6 +402,12 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
       continue;
     }
+
+    beginCurrentQuestionLatencyTrace({
+      userId: null,
+      contentType: message.text?.body ? "text" : message.image?.id ? "image" : message.audio?.id ? "audio" : message.type ?? "unknown",
+      text: message.text?.body ?? null,
+    });
 
     const userId = await resolveUserIdFromPhone(sourcePhone);
 

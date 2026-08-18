@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   executeResolvedCapability,
   observeUnavailableResolvedCapability,
@@ -13,7 +12,12 @@ import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone"
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { loadQuestionContextByScope } from "./questionContextLoader";
-import { getQuestionContextSections, resolveQuestionContextScope, type QuestionContextScope } from "./questionContextPlan";
+import { resolveQuestionContextScope, type QuestionContextScope } from "./questionContextPlan";
+import {
+  ensureCurrentQuestionLatencyTrace,
+  recordCurrentQuestionAiStage,
+  recordCurrentQuestionOutcome,
+} from "./questionLatencyContext";
 import {
   buildUntrustedWhatsAppAssistantHistoryContent,
   buildUntrustedWhatsAppUserContent,
@@ -59,18 +63,7 @@ type UserKnowledgeBase = {
   last30Days?: PeriodReportBundle;
 };
 
-type QuestionLatencyState = {
-  requestId: string;
-  startedAt: number;
-  contextMs: number | null;
-  dbMs: number | null;
-  llmMs: number | null;
-  contextScope: QuestionContextScope;
-  attempts: number | null;
-  usedFallback: boolean | null;
-  source: AiCallSource | null;
-  webSearchExecuted: boolean | null;
-};
+
 
 export function isWhatsappAiQuestionText(text?: string | null) {
   return Boolean(text?.trim().startsWith(AI_QUESTION_PREFIX));
@@ -379,57 +372,6 @@ async function answerWithAi(
   };
 }
 
-function roundLatency(value: number | null) {
-  return value === null ? null : Math.max(0, Math.round(value));
-}
-
-function logQuestionLatency(
-  userId: number,
-  policy: ResolvedCapabilityConfig,
-  state: QuestionLatencyState,
-  outcome: "success" | "error",
-  errorCode: string | null,
-) {
-  const totalMs = performance.now() - state.startedAt;
-  const effectiveTarget = state.source === "fallback" && policy.fallback.provider && policy.fallback.model
-    ? { provider: policy.fallback.provider, model: policy.fallback.model }
-    : policy.primary;
-  const sections = getQuestionContextSections(state.contextScope);
-
-  logInferenceEvent({
-    userId,
-    origin: "whatsapp",
-    status: outcome === "success" ? "success" : "error",
-    eventType: "whatsapp.ai_question.latency",
-    detail: JSON.stringify({
-      schemaVersion: 1,
-      requestId: state.requestId,
-      capability: "QUESTION",
-      flow: "whatsapp_question",
-      total_ms: roundLatency(totalMs),
-      db_ms: roundLatency(state.dbMs),
-      context_ms: roundLatency(state.contextMs),
-      llm_ms: roundLatency(state.llmMs),
-      persist_ms: null,
-      time_to_first_token_ms: null,
-      context_scope: state.contextScope,
-      context_sections: sections,
-      configured_provider: policy.primary?.provider ?? null,
-      configured_model: policy.primary?.model ?? null,
-      effective_provider: effectiveTarget?.provider ?? null,
-      effective_model: effectiveTarget?.model ?? null,
-      attempts: state.attempts,
-      retry_occurred: typeof state.attempts === "number"
-        ? state.attempts - (state.usedFallback ? 1 : 0) > 1
-        : null,
-      fallback_occurred: state.usedFallback,
-      web_search_available: resolveQuestionWebSearchMode() === "auto",
-      web_search_executed: state.webSearchExecuted,
-      outcome,
-      error_code: errorCode,
-    }),
-  });
-}
 
 export async function executeWhatsappAiQuestionIntent(
   userId: number,
@@ -456,8 +398,25 @@ export async function executeWhatsappAiQuestionIntent(
     };
   }
 
+  const contextScope = resolveQuestionContextScope(question);
+  const latencyTrace = ensureCurrentQuestionLatencyTrace(userId);
   const policy = resolveCapabilityConfig("QUESTION");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    recordCurrentQuestionAiStage({
+      contextScope,
+      dbMs: null,
+      contextMs: null,
+      llmMs: null,
+      configuredProvider: policy.primary?.provider ?? null,
+      configuredModel: policy.primary?.model ?? null,
+      effectiveProvider: policy.primary?.provider ?? null,
+      effectiveModel: policy.primary?.model ?? null,
+      attempts: null,
+      fallbackOccurred: null,
+      webSearchAvailable: resolveQuestionWebSearchMode() === "auto",
+      webSearchExecuted: null,
+    });
+    recordCurrentQuestionOutcome("error", "ai_question_unavailable");
     await observeUnavailableResolvedCapability(policy, {
       origin: "whatsapp",
       flow: "whatsapp_question",
@@ -472,29 +431,19 @@ export async function executeWhatsappAiQuestionIntent(
     };
   }
 
-  const contextScope = resolveQuestionContextScope(question);
-  const latencyState: QuestionLatencyState = {
-    requestId: randomUUID(),
-    startedAt: performance.now(),
-    contextMs: null,
-    dbMs: null,
-    llmMs: null,
-    contextScope,
-    attempts: null,
-    usedFallback: null,
-    source: null,
-    webSearchExecuted: null,
-  };
   const receivedAt = input.receivedAt ?? new Date();
   const timeZone = input.userTimezone ?? await getWhatsAppOperationTimeZone(userId);
+  let dbMs: number | null = null;
+  let contextMs: number | null = null;
+  let llmMs: number | null = null;
+  let llmStartedAt: number | null = null;
 
   try {
     const contextStartedAt = performance.now();
     const knowledgeStartedAt = performance.now();
     const knowledgePromise = buildUserKnowledgeBase(userId, receivedAt, timeZone, contextScope)
-      .then(value => {
-        latencyState.dbMs = performance.now() - knowledgeStartedAt;
-        return value;
+      .finally(() => {
+        dbMs = performance.now() - knowledgeStartedAt;
       });
     const [knowledgeBase, recentHistory] = await Promise.all([
       knowledgePromise,
@@ -506,23 +455,36 @@ export async function executeWhatsappAiQuestionIntent(
         input.externalMessageId,
       ),
     ]);
-    latencyState.contextMs = performance.now() - contextStartedAt;
+    contextMs = performance.now() - contextStartedAt;
 
-    const llmStartedAt = performance.now();
+    llmStartedAt = performance.now();
     const answer = await answerWithAi(
       policy,
       question,
       knowledgeBase,
       recentHistory,
-      latencyState.requestId,
+      latencyTrace.requestId,
       contextScope,
     );
-    latencyState.llmMs = performance.now() - llmStartedAt;
-    latencyState.attempts = answer.attempts;
-    latencyState.usedFallback = answer.usedFallback;
-    latencyState.source = answer.source;
-    latencyState.webSearchExecuted = answer.webSearchExecuted;
-    logQuestionLatency(userId, policy, latencyState, "success", null);
+    llmMs = performance.now() - llmStartedAt;
+    const effectiveTarget = answer.source === "fallback" && policy.fallback.provider && policy.fallback.model
+      ? { provider: policy.fallback.provider, model: policy.fallback.model }
+      : policy.primary;
+    recordCurrentQuestionAiStage({
+      contextScope,
+      dbMs,
+      contextMs,
+      llmMs,
+      configuredProvider: policy.primary.provider,
+      configuredModel: policy.primary.model,
+      effectiveProvider: effectiveTarget?.provider ?? null,
+      effectiveModel: effectiveTarget?.model ?? null,
+      attempts: answer.attempts,
+      fallbackOccurred: answer.usedFallback,
+      webSearchAvailable: resolveQuestionWebSearchMode() === "auto",
+      webSearchExecuted: answer.webSearchExecuted,
+    });
+    recordCurrentQuestionOutcome("success", null);
 
     return {
       handled: true,
@@ -542,7 +504,24 @@ export async function executeWhatsappAiQuestionIntent(
     const errorCode = error instanceof AiOperationalError || error instanceof AiNonRetryableError
       ? error.code
       : "unknown";
-    logQuestionLatency(userId, policy, latencyState, "error", errorCode);
+    if (llmStartedAt !== null && llmMs === null) {
+      llmMs = performance.now() - llmStartedAt;
+    }
+    recordCurrentQuestionAiStage({
+      contextScope,
+      dbMs,
+      contextMs,
+      llmMs,
+      configuredProvider: policy.primary.provider,
+      configuredModel: policy.primary.model,
+      effectiveProvider: policy.primary.provider,
+      effectiveModel: policy.primary.model,
+      attempts: null,
+      fallbackOccurred: null,
+      webSearchAvailable: resolveQuestionWebSearchMode() === "auto",
+      webSearchExecuted: null,
+    });
+    recordCurrentQuestionOutcome("error", errorCode);
     logInferenceEvent({
       userId,
       origin: "whatsapp",
