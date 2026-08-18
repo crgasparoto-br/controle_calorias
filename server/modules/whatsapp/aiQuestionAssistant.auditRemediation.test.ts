@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const executeCoreMock = vi.fn();
-const defaultRepository = { findRecentMessagesByUser: vi.fn() };
+const { executeCoreMock, defaultRepository } = vi.hoisted(() => ({
+  executeCoreMock: vi.fn(),
+  defaultRepository: { findRecentMessagesByUser: vi.fn() },
+}));
 
 vi.mock("./aiQuestionAssistantCore", () => ({
   executeWhatsappAiQuestionIntent: executeCoreMock,
