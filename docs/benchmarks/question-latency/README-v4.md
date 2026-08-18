@@ -1,6 +1,6 @@
 # Protocolo v4 — QUESTION end-to-end
 
-O benchmark `question-latency/end-to-end-productive-pipeline-hermetic-v4` compara `develop` e o material head sobre a mesma coorte sintética, com os mesmos 30 fixtures da coorte versionada e uma observação por fixture em cada lado (30 execuções por lado). Baseline e candidato rodam sequencialmente para não contaminar percentis por contenção cruzada.
+O benchmark `question-latency/end-to-end-productive-pipeline-hermetic-v4` compara `develop` e o material head sobre a mesma coorte sintética, com os mesmos 30 fixtures da coorte versionada e duas observações por fixture em cada lado (60 execuções por lado). Baseline e candidato rodam sequencialmente para não contaminar percentis por contenção cruzada.
 
 ## Boundary produtivo
 
@@ -14,7 +14,7 @@ Perguntas claramente genéricas (`scope=none`) devem executar **zero** I/O de hi
 
 ## Gate
 
-O candidato passa apenas se houver: 30 sucessos por lado; melhora >=20% em p90 ou p95; nenhuma regressão >5% em p50/p90/p95; erros/timeouts sem aumento; uma chamada de provider com web search disponível; lookup de usuário e timezone exatamente uma vez por caso; persistência terminal completa; `scope=none` sem histórico; e `db_ms` cobrindo reads preparatórios + contexto.
+O candidato passa apenas se houver: no mínimo 60 sucessos por lado (2 repetições para cada um dos 30 fixtures); melhora >=20% em p90 ou p95; nenhuma regressão >5% em p50/p90/p95; erros/timeouts sem aumento; uma chamada de provider com web search disponível; lookup de usuário e timezone exatamente uma vez por caso; persistência terminal completa; `scope=none` sem histórico; e `db_ms` cobrindo reads preparatórios + contexto.
 
 Execute `node scripts/issue-989-question-latency-benchmark-v4.mjs --base-sha <develop_sha> --candidate-sha <material_head_sha> --typescript-path <typescript_module> --out <result.json>`.
 
