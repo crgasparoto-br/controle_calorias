@@ -70,16 +70,20 @@ export async function enforceUsageAllowance(input: AiUsageGateInput): Promise<Ai
   const status = await billingService.getUserSubscriptionStatus(input.userId);
   const access = status.access;
   const originalPlanCode = status.subscription?.planCode ?? null;
-  const sponsored = access.reason === "sponsored_by_professional" && access.sponsorUserId;
-  const effectiveSubscription = sponsored ? status.professionalSubscription : status.subscription;
-  const effectivePlanCode = access.planCode ?? effectiveSubscription?.planCode ?? originalPlanCode;
+  const sponsored = access.reason === "sponsored_by_professional" && Boolean(access.sponsorUserId);
+  const sponsorUserId = sponsored ? Number(access.sponsorUserId) : null;
+  const professionalSelfUse = !sponsored && Boolean(status.professionalSubscription);
+  const effectiveSubscription = sponsored || professionalSelfUse
+    ? status.professionalSubscription
+    : status.subscription;
+  const effectivePlanCode = effectiveSubscription?.planCode ?? access.planCode ?? originalPlanCode;
   const conversationRef = opaqueConversationRef(input.conversationId);
-  const payerUserId = sponsored ? access.sponsorUserId! : input.userId;
+  const payerUserId = sponsorUserId ?? input.userId;
   const now = new Date();
 
   const exempt = await hasActiveUsageExemption({
     userId: input.userId,
-    professionalId: sponsored ? access.sponsorUserId! : status.professionalSubscription ? input.userId : null,
+    professionalId: sponsorUserId ?? (status.professionalSubscription ? input.userId : null),
     now,
   });
   if (!exempt) {
@@ -98,10 +102,12 @@ export async function enforceUsageAllowance(input: AiUsageGateInput): Promise<Ai
       beneficiaryUserId: input.userId,
       payerUserId,
       billedUserId: payerUserId,
-      sponsorUserId: sponsored ? access.sponsorUserId! : 0,
+      sponsorUserId: sponsorUserId ?? 0,
       accessSource: access.reason,
       planCode: effectivePlanCode ?? "none",
       originalPlanCode: originalPlanCode ?? "none",
+      productCode: effectiveSubscription?.productCode ?? access.productCode ?? "none",
+      versionCode: effectiveSubscription?.versionCode ?? access.versionCode ?? "none",
       subscriptionId: effectiveSubscription?.id ?? "none",
       billingCycle: effectiveSubscription?.billingCycle ?? "none",
       currency: effectiveSubscription?.currency ?? "none",
@@ -147,7 +153,8 @@ export async function recordAiEconomicUsage(event: AiInferenceEvent) {
     sponsorUserId,
     payerUserId,
     subscriptionId: correlationString(event, "subscriptionId"),
-    versionCode: correlationString(event, "planCode"),
+    productCode: correlationString(event, "productCode"),
+    versionCode: correlationString(event, "versionCode"),
     billingCycle: correlationString(event, "billingCycle"),
     accessSource: correlationString(event, "accessSource") ?? "unknown",
     operation: event.flow || event.capability,
@@ -196,13 +203,17 @@ export async function recordDirectProcessingUsage(input: {
   const access = status.access;
   const sponsored = access.reason === "sponsored_by_professional" && Boolean(access.sponsorUserId);
   const sponsorUserId = sponsored ? Number(access.sponsorUserId) : null;
-  const subscription = sponsored ? status.professionalSubscription : status.subscription;
+  const professionalSelfUse = !sponsored && Boolean(status.professionalSubscription);
+  const subscription = sponsored || professionalSelfUse
+    ? status.professionalSubscription
+    : status.subscription;
   return recordUsageEvent({
     id: crypto.randomUUID(), idempotencyKey: input.idempotencyKey,
     beneficiaryUserId: input.userId, patientUserId: sponsorUserId ? input.userId : null,
     sponsorUserId, payerUserId: sponsorUserId ?? input.userId,
     subscriptionId: subscription?.id ?? null,
-    versionCode: access.planCode ?? subscription?.planCode ?? null,
+    productCode: subscription?.productCode ?? access.productCode ?? null,
+    versionCode: subscription?.versionCode ?? access.versionCode ?? null,
     billingCycle: subscription?.billingCycle ?? null,
     accessSource: access.reason, operation: input.operation, channel: input.channel,
     provider: input.provider ?? "local", model: null, unitType: input.unitType,

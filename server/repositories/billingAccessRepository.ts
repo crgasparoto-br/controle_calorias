@@ -61,10 +61,12 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
 
     const ownRows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
-        SELECT s.id AS sourceId, p.code AS planCode, p.entitlementsJson,
+        SELECT s.id AS sourceId, bp.code AS productCode,
+          p.code AS planCode, p.versionCode, p.entitlementsJson,
           s.currentPeriodStart AS validFrom, s.currentPeriodEnd AS validUntil
         FROM billingSubscriptions s
         INNER JOIN billingPlans p ON p.id = s.planId
+        INNER JOIN billingProducts bp ON bp.id = p.productId
         WHERE s.payerUserId = ${userId}
           AND s.status = 'active'
           AND (s.currentPeriodStart IS NULL OR s.currentPeriodStart <= ${now})
@@ -79,6 +81,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
         validFrom: dateOrNull(row.validFrom),
         validUntil: dateOrNull(row.validUntil),
         planCode: row.planCode ? String(row.planCode) : null,
+        productCode: row.productCode ? String(row.productCode) : null,
+        versionCode: row.versionCode ? String(row.versionCode) : null,
         entitlements: stringArray(row.entitlementsJson),
       });
     }
@@ -86,7 +90,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
     const sponsoredRows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
         SELECT e.sourceId, e.validFrom, e.validUntil AS entitlementValidUntil,
-          e.sponsorUserId, p.code AS planCode, e.entitlementsJson,
+          e.sponsorUserId, bp.code AS productCode, p.code AS planCode,
+          p.versionCode, e.entitlementsJson,
           s.currentPeriodEnd AS subscriptionValidUntil
         FROM billingEntitlements e
         INNER JOIN billingCapacityAllocations c
@@ -94,6 +99,7 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
         INNER JOIN billingSubscriptions s
           ON s.id = c.subscriptionId AND s.status = 'active'
         INNER JOIN billingPlans p ON p.id = s.planId
+        INNER JOIN billingProducts bp ON bp.id = p.productId
         INNER JOIN professionalPatientAuthorizations a
           ON a.id = c.authorizationId AND a.status = 'approved'
         WHERE e.beneficiaryUserId = ${userId}
@@ -116,6 +122,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
         ),
         sponsorUserId: numberValue(row.sponsorUserId),
         planCode: row.planCode ? String(row.planCode) : null,
+        productCode: row.productCode ? String(row.productCode) : null,
+        versionCode: row.versionCode ? String(row.versionCode) : null,
         entitlements: stringArray(row.entitlementsJson),
       });
     }
@@ -123,9 +131,11 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
     const standaloneRows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
         SELECT e.sourceId, e.sourceType, e.validFrom, e.validUntil,
-          e.sponsorUserId, p.code AS planCode, e.entitlementsJson
+          e.sponsorUserId, bp.code AS productCode, p.code AS planCode,
+          p.versionCode, e.entitlementsJson
         FROM billingEntitlements e
         LEFT JOIN billingPlans p ON p.id = e.planId
+        LEFT JOIN billingProducts bp ON bp.id = p.productId
         WHERE e.beneficiaryUserId = ${userId}
           AND e.sourceType IN ('trial', 'transition', 'read_only', 'free_access')
           AND e.state = 'active'
@@ -154,6 +164,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
             ? null
             : numberValue(row.sponsorUserId),
         planCode: row.planCode ? String(row.planCode) : null,
+        productCode: row.productCode ? String(row.productCode) : null,
+        versionCode: row.versionCode ? String(row.versionCode) : null,
         entitlements: stringArray(row.entitlementsJson),
       });
     }
@@ -188,10 +200,12 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
     const [row] = resultRows<Record<string, unknown>>(
       await db.execute(sql`
         SELECT s.id, s.provider, s.status, s.currentPeriodStart,
-          s.currentPeriodEnd, s.cancelAtPeriodEnd, p.code AS planCode,
-          p.name AS planName, p.billingCycle, p.currency, p.unitAmount
+          s.currentPeriodEnd, s.cancelAtPeriodEnd, bp.code AS productCode,
+          p.code AS planCode, p.versionCode, p.name AS planName,
+          p.billingCycle, p.currency, p.unitAmount
         FROM billingSubscriptions s
         INNER JOIN billingPlans p ON p.id = s.planId
+        INNER JOIN billingProducts bp ON bp.id = p.productId
         WHERE s.payerUserId = ${userId}
         ORDER BY
           CASE s.status
@@ -217,8 +231,9 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
     const [row] = resultRows<Record<string, unknown>>(
       await db.execute(sql`
         SELECT s.id, s.provider, s.planId, s.status, s.currentPeriodStart,
-          s.currentPeriodEnd, s.cancelAtPeriodEnd, p.code AS planCode,
-          p.name AS planName, p.billingCycle, p.currency, p.unitAmount,
+          s.currentPeriodEnd, s.cancelAtPeriodEnd, bp.code AS productCode,
+          p.code AS planCode, p.versionCode, p.name AS planName,
+          p.billingCycle, p.currency, p.unitAmount,
           p.capacityLimit, p.entitlementsJson,
           (
             SELECT COUNT(*)
@@ -227,6 +242,7 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
           ) AS capacityUsed
         FROM billingSubscriptions s
         INNER JOIN billingPlans p ON p.id = s.planId
+        INNER JOIN billingProducts bp ON bp.id = p.productId
         WHERE s.payerUserId = ${professionalUserId}
           AND p.audience = 'professional'
           AND s.status = 'active'
