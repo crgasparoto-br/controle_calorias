@@ -1,4 +1,4 @@
-name: Issue 989 handoff helper
+name: Issue 989 terminal handoff publisher
 
 on:
   push:
@@ -9,9 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  publish:
     if: ${{ contains(github.event.head_commit.message, '[apply-989-handoff]') }}
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MATERIAL_SHA: 0f5fc1c547f8b7f0abd05c18fa240eb819688887
+      TARGET_BRANCH: perf/989-question-latency
     steps:
       - name: Checkout staging branch
         uses: actions/checkout@v4
@@ -19,35 +23,116 @@ jobs:
           ref: probe/989-handoff-diff
           fetch-depth: 0
 
-      - name: Verify and apply exact handoff patch
+      - name: Publish exact result-only child
         shell: bash
         run: |
           set -euo pipefail
-          cat .delivery-patches/handoff-*.b64 > /tmp/issue989-handoff.patch.gz.b64
-          printf '%s  %s\n' '9ec10990ca94d929c72b91ffae9ccaa56ed745563881387f8e74b828ab010296' /tmp/issue989-handoff.patch.gz.b64 | sha256sum -c -
-          base64 -d /tmp/issue989-handoff.patch.gz.b64 > /tmp/issue989-handoff.patch.gz
-          gzip -dc /tmp/issue989-handoff.patch.gz > /tmp/issue989-handoff.patch
-          printf '%s  %s\n' '70f00ff504052286f058a04a19c6b50e6cae99bf4b72007383d5ddbc47efff89' /tmp/issue989-handoff.patch | sha256sum -c -
-          git apply --check /tmp/issue989-handoff.patch
-          git apply /tmp/issue989-handoff.patch
 
-          cat > /tmp/expected-audit-paths.txt <<'EOF'
+          remote_head="$(git ls-remote origin "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          test "${remote_head}" = "${MATERIAL_SHA}" || {
+            echo "Target branch moved: expected ${MATERIAL_SHA}, got ${remote_head}" >&2
+            exit 42
+          }
+
+          git checkout --detach "${MATERIAL_SHA}"
+
+          fetch_blob() {
+            blob_sha="$1"
+            destination="$2"
+            mkdir -p "$(dirname "${destination}")"
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${blob_sha}" \
+              | jq -r '.content' | tr -d '\n' | base64 -d > "${destination}"
+          }
+
+          fetch_blob affeacd80c60ed3e6a663f3cf86d4c2f5f005ed7 .audit/entregar-issue/audit-escape-closure.json
+          fetch_blob 6891365a31711dc65ee7a8c3c8a99090b986653e .audit/entregar-issue/evidence-provenance.json
+          fetch_blob 274a39dc21f690b75a3e7aa12a86e3a9312cba30 .audit/entregar-issue/evidence/delivery.txt
+          fetch_blob c21bf115138f3230a6e2920de1760ed7fe93eee4 .audit/entregar-issue/evidence/quantitative-freshness.txt
+          fetch_blob 6bc0d74e1c2e4a1705333905e9de0aa5688e8b7b .audit/entregar-issue/evidence/validation.txt
+          fetch_blob 1f339008180b6204a163526badb4e0609706321d .audit/entregar-issue/handoff-ready.json
+          fetch_blob e769ff6de359f0b9c36fd2d159c66f798f25c304 .audit/entregar-issue/inherited-controls.json
+          fetch_blob 6ff7b6aff6a958cbe97e045f5efec7bf32bf1ff8 .audit/entregar-issue/learning-closure.json
+          fetch_blob 6f85c763937da0ad75c7f2089492a4a59f3e208a .audit/entregar-issue/risk-saturation.json
+          fetch_blob 6ec173bc31d7d6f034a85711518ba2b3501a034a docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
+
+          fetch_blob 2fe2d2145f64201e7cc979d6cecd77e76edad940 /tmp/requirement-closure.json.gz
+          gzip -dc /tmp/requirement-closure.json.gz > .audit/entregar-issue/requirement-closure.json
+          fetch_blob 0ed4b3e2773524d017e1c728bc3ff9b2b0d777bb /tmp/requirement-attack-matrix.json.gz
+          gzip -dc /tmp/requirement-attack-matrix.json.gz > .audit/entregar-issue/requirement-attack-matrix.json
+
+          check_sha() {
+            expected="$1"
+            path="$2"
+            actual="$(sha256sum "${path}" | awk '{print $1}')"
+            test "${actual}" = "${expected}" || {
+              echo "SHA-256 mismatch for ${path}: expected ${expected}, got ${actual}" >&2
+              exit 43
+            }
+          }
+
+          check_sha 888973add39a92fba358f9d87ad65b8a872a83e39ddb993be74e4b94f7b99b55 .audit/entregar-issue/audit-escape-closure.json
+          check_sha bc103ce95cc7f46bddb3c430b16fa565156d372d78e5522e150b14856a8b8697 .audit/entregar-issue/evidence-provenance.json
+          check_sha 095b0c411d82e53ff01b975589c8321910ee3b6ea18cb1abeca70301b392cf49 .audit/entregar-issue/evidence/delivery.txt
+          check_sha 49302a175868bb847fa4b55f8d3670b574bc8e2868d7bd644a98f4648f3cb253 .audit/entregar-issue/evidence/quantitative-freshness.txt
+          check_sha b8107437b9b54508d24af2164a2564c1ef75d51674f96f3edec7b5d25b67e938 .audit/entregar-issue/evidence/validation.txt
+          check_sha 1d5fb6776f9eeeb059b54c7754241124f9f9503922d26b8f70f1dbf3a195c66f .audit/entregar-issue/handoff-ready.json
+          check_sha 70701d76c4593ce7995dd7f08e42e9098bffe7562edfa0f8135c0621ca5fec29 .audit/entregar-issue/inherited-controls.json
+          check_sha 23cc08e6030c710d6c1183394731261a4b28ddf480e770855a30504e7af759b0 .audit/entregar-issue/learning-closure.json
+          check_sha 504de23affabd2fcbd0e4bba9e564bff10a24f12dcf7c13be10882fa130c7376 .audit/entregar-issue/requirement-attack-matrix.json
+          check_sha a6b8063abbf87be4878deeb2fc47246e2699de01ce16d100a99fb3f786307264 .audit/entregar-issue/requirement-closure.json
+          check_sha 87f3e68cf6b4f4fa3cddca115ec1831f9cf1670a19fb516713aa37f76493ee46 .audit/entregar-issue/risk-saturation.json
+          check_sha 1ae3b9d2f6138ea78576e1baf85c789540b2730444578a6f1251609d6223520e docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
+
+          git add -- \
+            .audit/entregar-issue/audit-escape-closure.json \
+            .audit/entregar-issue/evidence-provenance.json \
+            .audit/entregar-issue/evidence/delivery.txt \
+            .audit/entregar-issue/evidence/quantitative-freshness.txt \
+            .audit/entregar-issue/evidence/validation.txt \
+            .audit/entregar-issue/handoff-ready.json \
+            .audit/entregar-issue/inherited-controls.json \
+            .audit/entregar-issue/learning-closure.json \
+            .audit/entregar-issue/requirement-attack-matrix.json \
+            .audit/entregar-issue/requirement-closure.json \
+            .audit/entregar-issue/risk-saturation.json \
+            docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
+
+          cat > /tmp/expected-paths <<'EOF'
           .audit/entregar-issue/audit-escape-closure.json
-          .audit/entregar-issue/audit-escape-pattern-catalog.json
+          .audit/entregar-issue/evidence-provenance.json
           .audit/entregar-issue/evidence/delivery.txt
+          .audit/entregar-issue/evidence/quantitative-freshness.txt
+          .audit/entregar-issue/evidence/validation.txt
           .audit/entregar-issue/handoff-ready.json
           .audit/entregar-issue/inherited-controls.json
           .audit/entregar-issue/learning-closure.json
           .audit/entregar-issue/requirement-attack-matrix.json
+          .audit/entregar-issue/requirement-closure.json
           .audit/entregar-issue/risk-saturation.json
+          docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
           EOF
-          git diff --name-only -- .audit/entregar-issue | sort > /tmp/actual-audit-paths.txt
-          sort /tmp/expected-audit-paths.txt -o /tmp/expected-audit-paths.txt
-          diff -u /tmp/expected-audit-paths.txt /tmp/actual-audit-paths.txt
+          sed -i 's/^          //' /tmp/expected-paths
+          LC_ALL=C sort -o /tmp/expected-paths /tmp/expected-paths
+          git diff --cached --name-only | LC_ALL=C sort > /tmp/actual-paths
+          diff -u /tmp/expected-paths /tmp/actual-paths
 
-          rm -rf .delivery-patches
-          git config user.name 'Issue 989 delivery helper'
-          git config user.email 'actions@users.noreply.github.com'
-          git add -A
-          git commit -m 'chore: refresh issue 989 audit handoff [staged]'
-          git push origin HEAD:probe/989-handoff-diff
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: publish QUESTION terminal audit handoff"
+
+          child="$(git rev-parse HEAD)"
+          parent="$(git rev-parse HEAD^)"
+          test "${parent}" = "${MATERIAL_SHA}"
+
+          remote_head="$(git ls-remote origin "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          test "${remote_head}" = "${MATERIAL_SHA}" || {
+            echo "Target branch moved before push: expected ${MATERIAL_SHA}, got ${remote_head}" >&2
+            exit 44
+          }
+
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          echo "published_child=${child}"
