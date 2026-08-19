@@ -1,69 +1,41 @@
-Delivery evidence for issue #989 / PR #993
-material_head_sha=304e7bd0a7969a964926989960757db816129643
+QUESTION issue #989 handoff-only remediation evidence
+repository=crgasparoto-br/controle_calorias
+pull_request=993
+material_head_sha=0f5fc1c547f8b7f0abd05c18fa240eb819688887
 base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-material_tree_sha=1848f33d22c2d5bdd5f34ad49959168a9ab1ec05
-previous_head_sha=bbc2dd68128258c250ce474580e5f84ee8a9aef3
-previous_head_agent_first_run=32187630976
-previous_head_agent_first_status=success
-current_head_agent_first_run=32193668730
-current_head_snapshot=TypeScript check completed success; Tests in_progress; later steps not reached at snapshot time
+merge_preview_sha=bf047f55dbe567bbc540a4d238033a09940309e5
 
-Material delta from bbc2dd68 to 304e7bd0:
-- docs/benchmarks/question-latency/README-v4.md
-- scripts/issue-989-question-latency-benchmark-v4.mjs
-No product runtime source or product test file changed in this delta. Product behavioral controls not dependent on the benchmark protocol remain unchanged from the previously green exact product tree; performance/evidence controls were invalidated and reexecuted below.
+Exact material snapshot provenance:
+- GitHub Actions run 32204872345, workflow Agent-first gate, conclusion success.
+- exact-head repository artifact 9348940230 names material head 0f5fc1c547f8b7f0abd05c18fa240eb819688887 and base develop/c1d178642418cf0a54a247f97e15da4d27b103b4.
+- repository bundle contains refs/orchestrator/head=0f5fc1c547f8b7f0abd05c18fa240eb819688887 and refs/orchestrator/base=c1d178642418cf0a54a247f97e15da4d27b103b4.
 
-Exact-head benchmark command:
-node scripts/issue-989-question-latency-benchmark-v4.mjs --base-sha c1d178642418cf0a54a247f97e15da4d27b103b4 --candidate-sha 304e7bd0a7969a964926989960757db816129643 --typescript-path /opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js --out /mnt/data/question-latency-304e7bd0-exact.json
-Benchmark protocol=question-latency/end-to-end-productive-pipeline-hermetic-v4
-fixture_count=30
-repetitions_per_fixture=2
-baseline_successes=60
-candidate_successes=60
-baseline_errors=0
-candidate_errors=0
-baseline_timeouts=0
-candidate_timeouts=0
-baseline_p50_ms=268
-candidate_p50_ms=178
-baseline_p90_ms=271
-candidate_p90_ms=194
-baseline_p95_ms=273
-candidate_p95_ms=268
-p50_improvement_percent=33.58
-p90_improvement_percent=28.41
-p95_improvement_percent=1.83
-benchmark_gate_passed=true
-productive_user_lookup_and_timezone_executed=true
-generic_questions_skip_recent_history=true
-candidate_db_stage_covers_preparatory_and_context_reads=true
-provider_calls_per_success=1
-web_search_offered=true
-terminal_persistence_and_delivery_included=true
+Remote merge-preview validation from the same PR head:
+- checkout merge preview bf047f55dbe567bbc540a4d238033a09940309e5 with VERIFICATION_HEAD_SHA=0f5fc1c547f8b7f0abd05c18fa240eb819688887.
+- pnpm check: passed.
+- pnpm test: passed in 24 sequential single-worker shards; all shards reached and completed successfully.
+- pnpm architecture:check: passed.
+- pnpm docs:check: passed.
+- pnpm build: passed.
+- pnpm agent:check: passed.
+- database integrity step skipped because DATABASE_URL was unavailable; this issue does not change database schema/persistence contracts.
 
-Performance critical-path inventory observed by the v4 harness:
-- user lookup: required, db_ms
-- persisted timezone resolution: required, db_ms
-- recent history: optional by context scope, db_ms; zero calls for scope=none
-- today insights: optional by scope, db_ms; zero calls when not required
-- current-week insights: optional by scope, db_ms; zero calls when not required
-- last-30-days insights: optional by scope, db_ms; zero calls when not required
-- centralized QUESTION provider execution: required, llm_ms, exactly one provider call, web_search available
-- inbound/outbound lifecycle persistence, response link and markProcessed: required before terminal boundary
-- logical delivery: required before terminal boundary
+Material-head discriminant tests present in the exact bundle and included by the full Vitest suite:
+- server/modules/whatsapp/questionContextPlan.test.ts: generic self-contained questions => scope none; explicit today/week/last7Days/month/period windows; ambiguous/referential follow-ups including 'qual a melhor opção?', 'qual é melhor?', 'quando foi?', 'onde encontro?' => full context.
+- server/modules/whatsapp/aiQuestionAssistant.auditRemediation.test.ts: scope=none performs zero persisted-history reads; ambiguous follow-ups read and forward recent history exactly once.
+- server/modules/whatsapp/aiQuestionAssistant.temporalContext.test.ts: rolling last7Days uses 2026-08-10..2026-08-16 for local Sao Paulo date 2026-08-16; current month at 2026-09-01T01:30Z resolves to local August 2026 and loads 2026-08-01..2026-08-31.
+- server/modules/whatsapp/aiQuestionAssistantCore.ts continues through resolveCapabilityConfig/executeResolvedCapability; provider policy remains centralized.
 
-Systemic handoff-drift control:
-package=/mnt/data/corrigir-ci-package/skill.zip
-package_sha256=70fb4d50e3566953712c92af6fddc25d565afbf3b40ac8810c2be0cbdb40a256
-command=python3 -m pytest -q tests/test_ci_terminal_state_guard.py tests/test_handoff_recertification_contract.py tests/test_ci_ownership_contract.py
-result=12 passed in 3.81s
-literal control: stale certificate after later material CI fix is rejected
-sibling control 1: material commit after terminal handoff child is rejected
-sibling control 2: non-allowlisted path in terminal child is rejected
-positive control: direct allowlisted result-only child of the CI-fixed material head is accepted
+Quantitative benchmark:
+- protocol=question-latency/end-to-end-productive-pipeline-hermetic-v4
+- fixtures=30; repetitions=2; 60 successful runs per side; errors=0/0; timeouts=0/0.
+- baseline p50/p90/p95=268/269/271 ms.
+- candidate p50/p90/p95=177/194/267 ms.
+- improvements p50/p90/p95=33.96/27.88/1.48 percent.
+- gate passes via p90 improvement >=20 percent, no percentile regression >5 percent, no error/timeout increase.
+- canonical exact-head result=docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
+- canonical result sha256=1ae3b9d2f6138ea78576e1baf85c789540b2730444578a6f1251609d6223520e
 
-Documentation/static validation:
-- README-v4 now declares two observations per fixture and 60 executions per side.
-- benchmark v4 enforces repetitionsPerFixture=2 and atLeast60SuccessfulRunsEachSide.
-- node benchmark v4 --self-test: passed.
-- git diff --check for the material benchmark protocol change: passed before publication.
+Handoff remediation trigger:
+- independent rejection audit-rejection:95801268-edea-4085-9f1a-9e50eb32a283 found only handoff-stale: the inherited certificate still certified 304e7bd0a7969a964926989960757db816129643 after material commit 0f5fc1c547f8b7f0abd05c18fa240eb819688887.
+- recovery_scope=handoff-only; no product code change is required or performed by this remediation.

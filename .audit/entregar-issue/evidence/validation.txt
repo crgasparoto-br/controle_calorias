@@ -1,16 +1,12 @@
-Validation evidence for issue #989 / PR #993
-material_head_sha=304e7bd0a7969a964926989960757db816129643
-base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-
-READY: canonical specification coverage is complete
-READY: evidence provenance is fresh for material head 304e7bd0a7969a964926989960757db816129643
-READY: every covered requirement has cross-surface adversarial, regression, and evidence-provenance closure
-READY: canonical risk families, attack surfaces and audit-escape dimensions are saturated
-READY: cumulative inherited audit controls have monotonic discriminant exact-head lineage
-READY: audit escape closure is complete and monotonic
-READY: rejection learning is closed and generalized
-READY: independent rejection audit-rejection:cd680834-bed9-40af-bc95-0e56d2929782 is explicitly closed in the cumulative audit escape ledger
-READY: requirement attacks, evidence freshness, risk saturation, inherited controls, structural invariants, audit escapes and independent rejection lineage are closed
-READY: skill permanent assets are free of obvious issue-number coupling
-corrigir-ci focused contract tests: 12 passed in 3.81s
-current remote CI snapshot: Agent-first TypeScript check success; Tests in_progress; Billing/Professional/WhatsApp in_progress; AI provider live smoke skipped
+material_head_sha=0f5fc1c547f8b7f0abd05c18fa240eb819688887
+source=GitHub Actions run 32204872345 plus entregar-issue deterministic handoff validators
+agent_first=success
+whatsapp_context_tidb=success
+billing_persistence_tidb=success
+professional_persistence_tidb=success
+ai_provider_live_smoke=skipped-by-policy
+full_vitest=success-24-of-24-shards
+architecture=success
+documentation=success
+build=success
+handoff_only=true

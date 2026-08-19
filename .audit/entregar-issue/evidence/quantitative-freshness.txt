@@ -1,10 +1,10 @@
-Quantitative freshness evidence
-material_head_sha=304e7bd0a7969a964926989960757db816129643
-base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-material_tree_sha=1848f33d22c2d5bdd5f34ad49959168a9ab1ec05
-benchmark_candidate_sha=304e7bd0a7969a964926989960757db816129643
+material_head_sha=0f5fc1c547f8b7f0abd05c18fa240eb819688887
+evidence_id=question-latency-e2e-0f5fc1c
+path=docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
+sha256=1ae3b9d2f6138ea78576e1baf85c789540b2730444578a6f1251609d6223520e
+subject_sha=0f5fc1c547f8b7f0abd05c18fa240eb819688887
 freshness_policy=exact-material-head
-benchmark=question-latency/end-to-end-productive-pipeline-hermetic-v4
-summary_path=docs/benchmarks/question-latency/results/2026-08-18-304e7bd-e2e-summary.json
-result=passed
-The remote Git commit object 304e7bd0 was reconstructed locally from its exact tree, parent, author/committer timestamp+timezone and message; git verified the exact SHA before the benchmark. The versioned v4 benchmark then executed with candidateSha equal to the material head.
+candidateSha_in_payload=0f5fc1c547f8b7f0abd05c18fa240eb819688887
+status=passed
+procedure=Compare evidence-provenance subject_sha and benchmark candidateSha to the frozen material head, then recompute SHA-256 of the canonical summary.
+observed=All identities equal 0f5fc1c547f8b7f0abd05c18fa240eb819688887 and canonical summary SHA-256 equals 1ae3b9d2f6138ea78576e1baf85c789540b2730444578a6f1251609d6223520e.
