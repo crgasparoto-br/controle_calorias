@@ -15,6 +15,8 @@ describe("resolveQuestionContextScope", () => {
     ["como está meu consumo hoje?", "today"],
     ["quanto eu consumi hoje?", "today"],
     ["como foi meu consumo esta semana?", "week"],
+    ["como foi meu consumo nos últimos 7 dias?", "last7Days"],
+    ["como foi meu consumo este mês?", "month"],
     ["como está minha evolução nos últimos 30 dias?", "period"],
   ] as const)("seleciona a menor janela explícita: %s", (question, expected) => {
     expect(resolveQuestionContextScope(question)).toBe(expected);
@@ -23,6 +25,12 @@ describe("resolveQuestionContextScope", () => {
   it.each([
     "e proteína?",
     "e sobre isso?",
+    "qual a melhor opção?",
+    "qual é melhor?",
+    "quando foi?",
+    "onde encontro?",
+    "como foi meu consumo na semana passada?",
+    "como foi meu consumo no mês passado?",
     "o que você sugeriu antes?",
     "como está minha alimentação?",
     "me sugira um jantar",
@@ -37,6 +45,8 @@ describe("resolveQuestionContextScope", () => {
     expect(getQuestionContextSections("none")).toEqual({ today: false, currentWeek: false, last30Days: false });
     expect(getQuestionContextSections("today")).toEqual({ today: true, currentWeek: false, last30Days: false });
     expect(getQuestionContextSections("week")).toEqual({ today: false, currentWeek: true, last30Days: false });
+    expect(getQuestionContextSections("last7Days")).toEqual({ today: false, currentWeek: false, last30Days: true });
+    expect(getQuestionContextSections("month")).toEqual({ today: false, currentWeek: false, last30Days: true });
     expect(getQuestionContextSections("period")).toEqual({ today: false, currentWeek: false, last30Days: true });
     expect(getQuestionContextSections("full")).toEqual({ today: true, currentWeek: true, last30Days: true });
   });

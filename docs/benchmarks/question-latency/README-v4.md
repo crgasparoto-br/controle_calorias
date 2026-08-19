@@ -12,6 +12,8 @@ Cada observação abre o trace antes do lookup e atravessa, nesta ordem: `server
 
 Perguntas claramente genéricas (`scope=none`) devem executar **zero** I/O de histórico recente e não enviar histórico ao provider. Follow-ups/ambiguidades preservam o histórico. O harness verifica os dois ramos.
 
+O estreitamento temporal também é conservador: `week` significa semana-calendário corrente, `last7Days` significa sete datas locais inclusivas terminando no dia da requisição, `month` significa mês-calendário corrente até a data local, e `period` preserva a janela móvel de 30 dias. Expressões que não identificam uma dessas janelas com segurança caem em `full`; uma janela mais barata nunca pode substituir um período semanticamente diferente.
+
 ## Gate
 
 O candidato passa apenas se houver: no mínimo 60 sucessos por lado (2 repetições para cada um dos 30 fixtures); melhora >=20% em p90 ou p95; nenhuma regressão >5% em p50/p90/p95; erros/timeouts sem aumento; uma chamada de provider com web search disponível; lookup de usuário e timezone exatamente uma vez por caso; persistência terminal completa; `scope=none` sem histórico; e `db_ms` cobrindo reads preparatórios + contexto.

@@ -55,12 +55,17 @@ export type WhatsappAiQuestionResult = {
   data?: Record<string, unknown>;
 };
 
+type QuestionPeriodKind = "last7Days" | "currentMonth" | "last30Days";
+
 type UserKnowledgeBase = {
   generatedAt: string;
   timeZone: string;
   today?: DashboardTodayOverview;
   currentWeek?: WeeklyReportBundle;
-  last30Days?: PeriodReportBundle;
+  period?: {
+    kind: QuestionPeriodKind;
+    report: PeriodReportBundle;
+  };
 };
 
 
@@ -144,16 +149,17 @@ function compactKnowledgeBase(knowledgeBase: UserKnowledgeBase) {
           },
         }
       : {}),
-    ...(knowledgeBase.last30Days
+    ...(knowledgeBase.period
       ? {
-          last30Days: {
-            range: knowledgeBase.last30Days.range,
-            goal: knowledgeBase.last30Days.goal,
-            totals: knowledgeBase.last30Days.totals,
-            quality: knowledgeBase.last30Days.quality,
-            habitAnalytics: knowledgeBase.last30Days.habitAnalytics,
-            weightTrend: knowledgeBase.last30Days.weightTrend,
-            daily: knowledgeBase.last30Days.daily.map(day => ({
+          period: {
+            kind: knowledgeBase.period.kind,
+            range: knowledgeBase.period.report.range,
+            goal: knowledgeBase.period.report.goal,
+            totals: knowledgeBase.period.report.totals,
+            quality: knowledgeBase.period.report.quality,
+            habitAnalytics: knowledgeBase.period.report.habitAnalytics,
+            weightTrend: knowledgeBase.period.report.weightTrend,
+            daily: knowledgeBase.period.report.daily.map(day => ({
               date: day.date,
               calories: day.calories,
               protein: day.protein,
@@ -172,7 +178,20 @@ function compactKnowledgeBase(knowledgeBase: UserKnowledgeBase) {
 }
 
 function hasUserKnowledgeData(knowledgeBase: UserKnowledgeBase) {
-  return Boolean(knowledgeBase.today || knowledgeBase.currentWeek || knowledgeBase.last30Days);
+  return Boolean(knowledgeBase.today || knowledgeBase.currentWeek || knowledgeBase.period);
+}
+
+function resolveQuestionPeriod(
+  scope: QuestionContextScope,
+  endDate: string,
+): { kind: QuestionPeriodKind; startDate: string; endDate: string } {
+  if (scope === "last7Days") {
+    return { kind: "last7Days", startDate: addCalendarDays(endDate, -6), endDate };
+  }
+  if (scope === "month") {
+    return { kind: "currentMonth", startDate: `${endDate.slice(0, 7)}-01`, endDate };
+  }
+  return { kind: "last30Days", startDate: addCalendarDays(endDate, -29), endDate };
 }
 
 async function buildUserKnowledgeBase(
@@ -183,7 +202,7 @@ async function buildUserKnowledgeBase(
   onDbDurationMs?: (durationMs: number) => void,
 ): Promise<UserKnowledgeBase> {
   const endDate = getDateKeyInTimeZone(receivedAt, timeZone);
-  const startDate = addCalendarDays(endDate, -29);
+  const period = resolveQuestionPeriod(scope, endDate);
   let insightsServicePromise: Promise<InsightsService> | null = null;
   const getInsightsService = () => {
     insightsServicePromise ??= import("../insights/service");
@@ -208,14 +227,18 @@ async function buildUserKnowledgeBase(
     },
     loadLast30Days: async () => {
       const { getPeriodReportBundle } = await getInsightsService();
-      return measureDb(() => getPeriodReportBundle(userId, { startDate, endDate }, timeZone));
+      return measureDb(() => getPeriodReportBundle(userId, { startDate: period.startDate, endDate: period.endDate }, timeZone));
     },
   });
 
   return {
     generatedAt: receivedAt.toISOString(),
     timeZone,
-    ...loaded,
+    ...(loaded.today !== undefined ? { today: loaded.today } : {}),
+    ...(loaded.currentWeek !== undefined ? { currentWeek: loaded.currentWeek } : {}),
+    ...(loaded.last30Days !== undefined
+      ? { period: { kind: period.kind, report: loaded.last30Days } }
+      : {}),
   };
 }
 

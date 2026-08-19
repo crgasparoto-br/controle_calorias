@@ -44,11 +44,17 @@ describe("QUESTION audit remediation: optional recent history", () => {
     expect(result?.data?.history).toEqual([]);
   });
 
-  it("preserves recent history for ambiguous follow-ups", async () => {
+  it.each([
+    "/ e quanto ao que você disse antes?",
+    "/ qual a melhor opção?",
+    "/ qual é melhor?",
+    "/ quando foi?",
+    "/ onde encontro?",
+  ])("preserves recent history for ambiguous follow-ups: %s", async text => {
     const rows = [{ text: "context-needed" }];
     const findRecentMessagesByUser = vi.fn(async () => rows);
     const result = await executeWhatsappAiQuestionIntent(42, {
-      text: "/ e quanto ao que você disse antes?",
+      text,
       userTimezone: "America/Sao_Paulo",
       conversationRepository: { findRecentMessagesByUser } as never,
     });

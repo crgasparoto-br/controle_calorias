@@ -1,4 +1,4 @@
-export type QuestionContextScope = "none" | "today" | "week" | "period" | "full";
+export type QuestionContextScope = "none" | "today" | "week" | "last7Days" | "month" | "period" | "full";
 
 export type QuestionContextSections = {
   today: boolean;
@@ -19,9 +19,12 @@ function normalizeQuestion(value: string) {
 const PERSONAL_CONTEXT_PATTERN = /\b(?:eu|meu|minha|meus|minhas|mim|comi|consumi|bebi|fiz|estou|tenho|tive|peso|meta|metas|consumo|consumido|consumida|ingeri|registrei|registros?|refeic(?:ao|oes)|agua|exercicios?|evolucao|historico|habitos?)\b/;
 const PERSONAL_ADVICE_PATTERN = /\b(?:devo|deveria|preciso|precisaria|posso|poderia|quero|gostaria)\b|\b(?:para|pra) mim\b/;
 const FOLLOW_UP_PATTERN = /^(?:e\b|e sobre\b|e quanto\b|e a\b|e o\b|isso\b|essa\b|esse\b|essas\b|esses\b|tambem\b|agora\b)|\b(?:anterior|antes|voce sugeriu|voce falou|que voce disse)\b/;
+const AMBIGUOUS_GENERIC_REFERENCE_PATTERN = /^(?:qual (?:e )?(?:a |o )?(?:melhor|pior)(?: opcao| alternativa)?(?:\?|$)|quando (?:foi|isso|aconteceu)(?:\?|$)|onde (?:encontro|fica|foi)(?:\?|$))/;
 const TODAY_PATTERN = /\b(?:hoje|agora|neste dia|no dia de hoje)\b/;
-const WEEK_PATTERN = /\b(?:esta semana|nessa semana|na semana|semana atual|ultimos 7 dias|ultimas 7 dias|7 dias)\b/;
-const PERIOD_PATTERN = /\b(?:este mes|nesse mes|no mes|mes atual|ultimos 30 dias|ultimas 30 dias|30 dias|evolucao|tendencia|historico)\b/;
+const WEEK_PATTERN = /\b(?:esta semana|nessa semana|semana atual)\b/;
+const LAST_7_DAYS_PATTERN = /\b(?:ultimos 7 dias|ultimas 7 dias)\b/;
+const MONTH_PATTERN = /\b(?:este mes|nesse mes|mes atual)\b/;
+const PERIOD_PATTERN = /\b(?:ultimos 30 dias|ultimas 30 dias|evolucao|tendencia|historico)\b/;
 const CLEAR_GENERIC_PATTERN = /^(?:o que (?:e|significa)|qual (?:e|a|o)|quais (?:sao|as|os)|quanto(?:s|as)? |quantas calorias (?:tem|ha)|como funciona|como calcular|como saber|para que serve|diferenca entre|e verdade que|por que |porque |quando |onde )/;
 
 /**
@@ -34,11 +37,15 @@ export function resolveQuestionContextScope(question: string): QuestionContextSc
   const normalized = normalizeQuestion(question);
   if (!normalized) return "full";
 
-  if (FOLLOW_UP_PATTERN.test(normalized)) return "full";
+  if (FOLLOW_UP_PATTERN.test(normalized) || AMBIGUOUS_GENERIC_REFERENCE_PATTERN.test(normalized)) {
+    return "full";
+  }
 
   const needsPersonalContext = PERSONAL_CONTEXT_PATTERN.test(normalized) || PERSONAL_ADVICE_PATTERN.test(normalized);
   if (needsPersonalContext && TODAY_PATTERN.test(normalized)) return "today";
+  if (needsPersonalContext && LAST_7_DAYS_PATTERN.test(normalized)) return "last7Days";
   if (needsPersonalContext && WEEK_PATTERN.test(normalized)) return "week";
+  if (needsPersonalContext && MONTH_PATTERN.test(normalized)) return "month";
   if (needsPersonalContext && PERIOD_PATTERN.test(normalized)) return "period";
 
   if (!needsPersonalContext && CLEAR_GENERIC_PATTERN.test(normalized)) return "none";
@@ -54,6 +61,8 @@ export function getQuestionContextSections(scope: QuestionContextScope): Questio
       return { today: true, currentWeek: false, last30Days: false };
     case "week":
       return { today: false, currentWeek: true, last30Days: false };
+    case "last7Days":
+    case "month":
     case "period":
       return { today: false, currentWeek: false, last30Days: true };
     case "full":
