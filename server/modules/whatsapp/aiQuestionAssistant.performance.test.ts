@@ -183,7 +183,7 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
       attempts: 1,
       fallback_occurred: false,
       web_search_available: true,
-      db_ms: 7,
+      db_ms: null,
       context_ms: expect.any(Number),
     }));
     expect(JSON.stringify(telemetry)).not.toContain(rawQuestion);
@@ -208,9 +208,9 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
     expect(getWeeklyReportBundleMock).not.toHaveBeenCalled();
     expect(getPeriodReportBundleMock).not.toHaveBeenCalled();
     const prompt = createDomainTextResponseMock.mock.calls[0][1].input[0].content[0].text as string;
-    expect(prompt).toContain('"today"');
-    expect(prompt).not.toContain('"currentWeek"');
-    expect(prompt).not.toContain('"last30Days"');
+    expect(prompt).toContain('\"today\"');
+    expect(prompt).not.toContain('\"currentWeek\"');
+    expect(prompt).not.toContain('\"last30Days\"');
     expect(latencyEvent()).toEqual(expect.objectContaining({ context_scope: "today" }));
   });
 
