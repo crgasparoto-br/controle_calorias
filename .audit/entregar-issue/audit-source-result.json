@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "rejection_id": "audit-rejection:6c9c779e-17b6-44ba-823c-b4e984b75534",
+  "head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+  "repository": "crgasparoto-br/controle_calorias",
+  "pull_request": 993,
+  "issue": 989,
+  "result": "REPROVADA",
+  "findings": [
+    {
+      "id": "A-001",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "title": "Requirement closure keeps stale exact-head identity",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "evidence": {
+        "stale_material_head": "c99e51ae5ed09980e4fc5bee6dad0b6054353f6b",
+        "current_material_head": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+        "path": ".audit/entregar-issue/requirement-closure.json"
+      },
+      "classification_note": "The independent audit found a stale active canonical identity only in the critical handoff package; no product regression was demonstrated."
+    }
+  ],
+  "recommendations": []
+}

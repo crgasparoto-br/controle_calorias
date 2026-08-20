@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:6c9c779e-17b6-44ba-823c-b4e984b75534",
+    "audit_report_sha256": "694e3c09879dcbae52a01a5f97de16938c6b03726d85ba4eadc260c1211391f6",
+    "audited_head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f"
+  },
+  "candidate_head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/requirement-closure.json"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/evidence/exact-head-narrative.txt",
+        ".audit/entregar-issue/evidence-provenance.json"
+      ],
+      "validations": [
+        "canonical source identity references question-latency-e2e-9a92ab47",
+        "canonical value matches exact material head 9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+        "existing material-head CI is green and was reused without rerun",
+        "terminal handoff is republished as a direct result-only child of the unchanged material head"
+      ],
+      "reason": "Removed the stale active exact-head claim from requirement closure without changing product, test, configuration, or quantitative benchmark behavior."
+    }
+  ],
+  "status": "closed"
+}

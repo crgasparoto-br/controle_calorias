@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-20T02:42:53.986567+00:00",
+  "created_at": "2026-08-20T21:10:02+00:00",
   "identity": {
-    "head_sha": "c99e51ae5ed09980e4fc5bee6dad0b6054353f6b",
-    "material_head_sha": "c99e51ae5ed09980e4fc5bee6dad0b6054353f6b",
+    "head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+    "material_head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
     "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-    "merge_preview_sha": "1aebe70143d333c8181f73bd341aee390fc0dc0a",
-    "material_merge_preview_sha": "1aebe70143d333c8181f73bd341aee390fc0dc0a"
+    "merge_preview_sha": "9d6571ae2f8a77a8df1ef4ba7735b3efd6c76465",
+    "material_merge_preview_sha": "9d6571ae2f8a77a8df1ef4ba7735b3efd6c76465"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
@@ -21,10 +21,13 @@
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
       ".audit/entregar-issue/evidence-provenance.json",
       ".audit/entregar-issue/evidence/delivery.txt",
       ".audit/entregar-issue/evidence/exact-head-narrative.txt",
+      ".audit/entregar-issue/evidence/quantitative-freshness.txt",
+      ".audit/entregar-issue/evidence/validation.txt",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
@@ -32,24 +35,26 @@
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-989.txt",
-      "docs/benchmarks/question-latency/results/2026-08-19-c99e51ae-e2e-summary.json"
+      "docs/benchmarks/question-latency/results/2026-08-20-9a92ab47-e2e-summary.json"
     ]
   },
-  "contract_version": "2026-08-18.1",
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "critical",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "95d9a5e7e9a2886a020c077bd675dbf9af856204d8f1530cb8f3229cada4c140"
+    "skill_sha256": "44f07f709f516bf37ea81c67864393493c0cabdf6a672515139c4cff0ff213aa"
   },
   "validators": {
     "validate_specification_coverage.py": "4eb93ff6a8f451d824adc4ad8faf9fd92a24f92bb42e93666a804f1e74f39aea",
-    "validate_handoff_readiness.py": "e05ab47b90c8cc1e9645f5357d989b05245c66f0f33679519610d70f529da01e",
+    "validate_handoff_readiness.py": "ef19c5fdc5045dfbd856d69ec000ddd347b6b938558bd5e2a466f5f608b8bc03",
     "validate_requirement_attack_matrix.py": "cce39121a991fe540cd1cf787d5609bb4ffe291990bc0cd8d25f6fa72aa7cc62",
     "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
     "validate_risk_saturation.py": "fc6286588f136290beba1e15927803fab82e1e0f092771234048748ad2345300",
     "validate_inherited_controls.py": "d76aff2b5745f6d8d34adf805d51dc112e960bcc7ac06028982d872f284a2976",
     "validate_learning_closure.py": "488e0c5ce2c9d85c1427b1205ba87945acb9d37cca2763ac194fa2f040900872",
-    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b"
+    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b",
+    "validate_code_growth_report.py": "96c5b2a8559ab788e872abd408796f6e12a45e148cff2ba5889238aae443e48b",
+    "validate_standard_evidence.py": "7e506ab745a68d6dff6781c11bc7b6f90c22470206b4d8218ca2aa660d71562b"
   },
   "artifacts": {
     "specification_snapshot": {
@@ -58,32 +63,49 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "301e52e1c8de265061abcb519c362ab6e6cf62da2ae0dfd9f1783dd7ae643b7b"
+      "sha256": "6a1623500b405ff9e8be75f51bf7b277b71f3911528c0565ea48b158c28443b2"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "b191a4c2ad5dfdc1a1409da308d2e83cdea168c0c3603948d23ee3d1109af020"
+      "sha256": "46641262e2f254c2cfc2f88391ce6bcbe0049ceb5da614ded366289f21cc9b79"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "9e3b19b247455bd52f84e0cdc6f017093030342b6ac6708e1e15378c1d897f9e"
+      "sha256": "60a0adbeded572a1c8a1708cf8c0ceb45fcf5697ee5766579090071988768b20"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "66b3b531f8fcfc56c3285fb525c80745479ec0bf5b38880c5a057e7c0068fbd4"
+      "sha256": "9ca9652dd608d503a37c0a9c7293342166bee3a2aba7b937d67aa7496ef7be19"
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "113e9aad2255112409493d665ba2b7ec82e1d0d8241be847e6b75ac235c59b0d"
+      "sha256": "3eb5d08193aa190cef52c2d056315f3db57d4d4ae85004fc2a3ede2632e660e8"
+    },
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "fcf7f192c8cf09373ff67feafd54ef76451469c0e31c4b29297b09c25c743638"
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "694e3c09879dcbae52a01a5f97de16938c6b03726d85ba4eadc260c1211391f6"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "86aaf48c3f0c6d8e0bc50e95008fbc91aa5a500b34a403a897b8ca18be9051b9"
+      "sha256": "36c02aefc9660b6a4127b75ab2c9b8f90e4ec6d05ee0d3af7a223d2930f28398"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "c218268e2f11716e4150377de4d438f6bf24d6a4038de1cb3513cb3cdc72cfd0"
+      "sha256": "860cd49d7023c43ac28113d9ec9c52815a1665574fb73beb1ac4a6bb7f1c6cc0"
     }
   },
-  "previous_independent_rejection": true
+  "previous_independent_rejection": true,
+  "remediation_mode": "targeted-remediation",
+  "readiness_validation_reused": true,
+  "controls": {
+    "code_growth": {
+      "applicable": false,
+      "control_id": "CODE-GROWTH-001",
+      "artifact": null
+    }
+  }
 }

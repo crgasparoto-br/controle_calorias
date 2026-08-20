@@ -1,35 +1,32 @@
-Issue #989 / PR #993 remediation for independent rejection audit-rejection:f193afdf-df02-4ffa-85fe-565bf83251aa.
-Material head: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
+Issue #989 / PR #993 post-write refreeze after independent rejection audit-rejection:103842fe-c7da-453d-87ca-4b164f1aa0f8.
+Material head: 9a92ab479bc65ac6e1b626398416c59ddd8f321f
 Base develop: c1d178642418cf0a54a247f97e15da4d27b103b4
+Previous certified material head: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b (stale after later material test commit)
+Previous published handoff head: 69c3c8ba53a9faeb6266da46f4872adea01f4d45 (historical/stale)
+Contract: entregar-issue 2026-08-20.3
 
-Implemented:
-- v4 worker emits execution metadata: timezone, provider contract/id, model, timeoutMs, maxAttempts, fallback and webSearch policy.
-- v4 benchmark persists baseline/candidate execution metadata, explicit TTFT disposition, manifest/runner/loader/worker hashes and privacy metadata.
-- BENCH-RESULT-CONTRACT-001 self-test rejects missing policy metadata, missing TTFT disposition and missing provenance hash.
-- exact-SHA productive benchmark executed against material head c99e51ae5ed09980e4fc5bee6dad0b6054353f6b and base c1d178642418cf0a54a247f97e15da4d27b103b4 using the recovered official repository bundle plus reconstructed Git tree identities.
+Remediation:
+- classified as systemic because the cumulative lineage already contains repeated post-write handoff recertification escapes;
+- treated server/modules/whatsapp/aiQuestionAssistant.performance.test.ts as a material post-handoff write;
+- invalidated the old quantitative evidence rather than re-anchoring it;
+- re-executed benchmark v4 on exact material head 9a92ab479bc65ac6e1b626398416c59ddd8f321f;
+- rebuilt exact-head cumulative evidence for a new result-only handoff child.
 
 Exact-SHA benchmark result:
 - baseline successes/errors/timeouts: 60/0/0
 - candidate successes/errors/timeouts: 60/0/0
-- p50: 268ms -> 178ms (33.58% improvement)
-- p90: 269ms -> 193ms (28.25% improvement)
-- p95: 270ms -> 266ms (1.48% improvement)
+- p50: 268ms -> 179ms (33.21% improvement)
+- p90: 273ms -> 195ms (28.57% improvement)
+- p95: 275ms -> 267ms (2.91% improvement)
 - gate: PASS
-- candidateSha in canonical result: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
+- candidateSha in canonical result: 9a92ab479bc65ac6e1b626398416c59ddd8f321f
 - execution policy equivalent across baseline/candidate: true
 - TTFT disposition: not-measurable-non-streaming-provider-contract
-- canonical result SHA-256: f063d9e7e8865fb0f1c4cac0bc83e08eb1010593e4d22aa6ec830579e6a981e0
+- canonical result: docs/benchmarks/question-latency/results/2026-08-20-9a92ab47-e2e-summary.json
+- canonical result SHA-256: 06260dbc6eccd33b0c71ae8cbf2c2d8a7b705501cf74ad7f81e7da42472e574a
 
-Focused validation:
-- node --check runner/worker: PASS
-- git diff --check: PASS
-- benchmark v4 --self-test (BENCH-RESULT-CONTRACT-001): PASS
-- exact-SHA benchmark: PASS
-
-Remote CI snapshot for material c99e51ae5ed09980e4fc5bee6dad0b6054353f6b (single delivery collection):
-- WhatsApp context TiDB gate: success
-- Billing persistence TiDB gate: success
-- AI provider live smoke: skipped by policy
-- Professional persistence TiDB gate: in_progress at snapshot
-- Agent-first gate: in_progress at snapshot
-No workflow was rerun, dispatched, approved, cancelled or polled by this delivery.
+Validation reused/executed:
+- GitHub Actions Agent-first run 32396329886 on exact material head: success (TypeScript, tests, architecture, documentation, build, agent checks)
+- benchmark v4 self-test BENCH-RESULT-CONTRACT-001: PASS
+- exact-SHA benchmark v4: PASS
+- no workflow was rerun, dispatched, approved or cancelled by this remediation.
