@@ -1,0 +1,11 @@
+material_head_sha=c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
+published_handoff_head_sha=0cce6bcd725144eb445d59a5a19b85c5738c8f13
+rejection_id=audit-rejection:f2217ba4-cd5f-4406-85cf-b7449dac3605
+findings=A-001,A-002
+control=EXACT-HEAD-NARRATIVE-001
+procedure=Run the current entregar-issue exact-head semantic validators against ancestor-as-current narrative variants in inherited controls and audit escape literal cases, then validate the corrected packet.
+expected=Ancestor SHA claims presented as current/exact-head are rejected; narratives naming c99e51ae5ed09980e4fc5bee6dad0b6054353f6b pass.
+observed=The targeted generic regression suite passed 6 tests; validate_inherited_controls.py and validate_audit_escape_lineage.py both contain non-current-SHA narrative guards and reject the stale forms found by the independent audit.
+skill_sha256=a396a5b9d21655f787d04a3de2670f093d6a5c81f1430ee8a29e172744da0fce
+command=pytest -q /home/oai/skills/entregar-issue/tests/test_delivery_saturation_regression.py -k inherited_or_literal_case
+result=6 passed, 10 deselected

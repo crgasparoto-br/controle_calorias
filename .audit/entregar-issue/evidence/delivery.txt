@@ -1,41 +1,35 @@
-QUESTION issue #989 handoff-only remediation evidence
-repository=crgasparoto-br/controle_calorias
-pull_request=993
-material_head_sha=0f5fc1c547f8b7f0abd05c18fa240eb819688887
-base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
-merge_preview_sha=bf047f55dbe567bbc540a4d238033a09940309e5
+Issue #989 / PR #993 remediation for independent rejection audit-rejection:f193afdf-df02-4ffa-85fe-565bf83251aa.
+Material head: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
+Base develop: c1d178642418cf0a54a247f97e15da4d27b103b4
 
-Exact material snapshot provenance:
-- GitHub Actions run 32204872345, workflow Agent-first gate, conclusion success.
-- exact-head repository artifact 9348940230 names material head 0f5fc1c547f8b7f0abd05c18fa240eb819688887 and base develop/c1d178642418cf0a54a247f97e15da4d27b103b4.
-- repository bundle contains refs/orchestrator/head=0f5fc1c547f8b7f0abd05c18fa240eb819688887 and refs/orchestrator/base=c1d178642418cf0a54a247f97e15da4d27b103b4.
+Implemented:
+- v4 worker emits execution metadata: timezone, provider contract/id, model, timeoutMs, maxAttempts, fallback and webSearch policy.
+- v4 benchmark persists baseline/candidate execution metadata, explicit TTFT disposition, manifest/runner/loader/worker hashes and privacy metadata.
+- BENCH-RESULT-CONTRACT-001 self-test rejects missing policy metadata, missing TTFT disposition and missing provenance hash.
+- exact-SHA productive benchmark executed against material head c99e51ae5ed09980e4fc5bee6dad0b6054353f6b and base c1d178642418cf0a54a247f97e15da4d27b103b4 using the recovered official repository bundle plus reconstructed Git tree identities.
 
-Remote merge-preview validation from the same PR head:
-- checkout merge preview bf047f55dbe567bbc540a4d238033a09940309e5 with VERIFICATION_HEAD_SHA=0f5fc1c547f8b7f0abd05c18fa240eb819688887.
-- pnpm check: passed.
-- pnpm test: passed in 24 sequential single-worker shards; all shards reached and completed successfully.
-- pnpm architecture:check: passed.
-- pnpm docs:check: passed.
-- pnpm build: passed.
-- pnpm agent:check: passed.
-- database integrity step skipped because DATABASE_URL was unavailable; this issue does not change database schema/persistence contracts.
+Exact-SHA benchmark result:
+- baseline successes/errors/timeouts: 60/0/0
+- candidate successes/errors/timeouts: 60/0/0
+- p50: 268ms -> 178ms (33.58% improvement)
+- p90: 269ms -> 193ms (28.25% improvement)
+- p95: 270ms -> 266ms (1.48% improvement)
+- gate: PASS
+- candidateSha in canonical result: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
+- execution policy equivalent across baseline/candidate: true
+- TTFT disposition: not-measurable-non-streaming-provider-contract
+- canonical result SHA-256: f063d9e7e8865fb0f1c4cac0bc83e08eb1010593e4d22aa6ec830579e6a981e0
 
-Material-head discriminant tests present in the exact bundle and included by the full Vitest suite:
-- server/modules/whatsapp/questionContextPlan.test.ts: generic self-contained questions => scope none; explicit today/week/last7Days/month/period windows; ambiguous/referential follow-ups including 'qual a melhor opção?', 'qual é melhor?', 'quando foi?', 'onde encontro?' => full context.
-- server/modules/whatsapp/aiQuestionAssistant.auditRemediation.test.ts: scope=none performs zero persisted-history reads; ambiguous follow-ups read and forward recent history exactly once.
-- server/modules/whatsapp/aiQuestionAssistant.temporalContext.test.ts: rolling last7Days uses 2026-08-10..2026-08-16 for local Sao Paulo date 2026-08-16; current month at 2026-09-01T01:30Z resolves to local August 2026 and loads 2026-08-01..2026-08-31.
-- server/modules/whatsapp/aiQuestionAssistantCore.ts continues through resolveCapabilityConfig/executeResolvedCapability; provider policy remains centralized.
+Focused validation:
+- node --check runner/worker: PASS
+- git diff --check: PASS
+- benchmark v4 --self-test (BENCH-RESULT-CONTRACT-001): PASS
+- exact-SHA benchmark: PASS
 
-Quantitative benchmark:
-- protocol=question-latency/end-to-end-productive-pipeline-hermetic-v4
-- fixtures=30; repetitions=2; 60 successful runs per side; errors=0/0; timeouts=0/0.
-- baseline p50/p90/p95=268/269/271 ms.
-- candidate p50/p90/p95=177/194/267 ms.
-- improvements p50/p90/p95=33.96/27.88/1.48 percent.
-- gate passes via p90 improvement >=20 percent, no percentile regression >5 percent, no error/timeout increase.
-- canonical exact-head result=docs/benchmarks/question-latency/results/2026-08-18-0f5fc1c-e2e-summary.json
-- canonical result sha256=1ae3b9d2f6138ea78576e1baf85c789540b2730444578a6f1251609d6223520e
-
-Handoff remediation trigger:
-- independent rejection audit-rejection:95801268-edea-4085-9f1a-9e50eb32a283 found only handoff-stale: the inherited certificate still certified 304e7bd0a7969a964926989960757db816129643 after material commit 0f5fc1c547f8b7f0abd05c18fa240eb819688887.
-- recovery_scope=handoff-only; no product code change is required or performed by this remediation.
+Remote CI snapshot for material c99e51ae5ed09980e4fc5bee6dad0b6054353f6b (single delivery collection):
+- WhatsApp context TiDB gate: success
+- Billing persistence TiDB gate: success
+- AI provider live smoke: skipped by policy
+- Professional persistence TiDB gate: in_progress at snapshot
+- Agent-first gate: in_progress at snapshot
+No workflow was rerun, dispatched, approved, cancelled or polled by this delivery.

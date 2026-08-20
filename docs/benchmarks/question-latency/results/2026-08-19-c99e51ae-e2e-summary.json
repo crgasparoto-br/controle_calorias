@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 4,
+  "benchmark": "question-latency/end-to-end-productive-pipeline-hermetic-v4",
+  "cohort": "QUESTION/text-only",
+  "fixtureCount": 30,
+  "repetitionsPerFixture": 2,
+  "fixtureManifest": "docs/benchmarks/question-latency/fixtures/manifest.json",
+  "executionMode": "exact-sha-production-pipeline-with-hermetic-persistence-delivery-and-provider-doubles",
+  "worktreeMode": "sparse-server-shared",
+  "syntheticOnly": true,
+  "baseSha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "candidateSha": "c99e51ae5ed09980e4fc5bee6dad0b6054353f6b",
+  "baseline": {
+    "totalRuns": 60,
+    "successfulRuns": 60,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 268,
+    "p90TotalMs": 269,
+    "p95TotalMs": 270,
+    "execution": {
+      "timezone": "America/Sao_Paulo",
+      "provider": "openai-adapter-contract-via-hermetic-provider-double",
+      "providerId": "openai",
+      "model": "gpt-4.1-mini",
+      "policy": {
+        "timeoutMs": 2000,
+        "maxAttempts": 1,
+        "fallback": false,
+        "webSearch": "auto-available-not-forced"
+      }
+    }
+  },
+  "candidate": {
+    "totalRuns": 60,
+    "successfulRuns": 60,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 178,
+    "p90TotalMs": 193,
+    "p95TotalMs": 266,
+    "execution": {
+      "timezone": "America/Sao_Paulo",
+      "provider": "openai-adapter-contract-via-hermetic-provider-double",
+      "providerId": "openai",
+      "model": "gpt-4.1-mini",
+      "policy": {
+        "timeoutMs": 2000,
+        "maxAttempts": 1,
+        "fallback": false,
+        "webSearch": "auto-available-not-forced"
+      }
+    }
+  },
+  "improvements": {
+    "p50": 33.58,
+    "p90": 28.25,
+    "p95": 1.48
+  },
+  "ttft": {
+    "metric": "time_to_first_token_ms",
+    "targetMs": 2000,
+    "measurable": false,
+    "disposition": "not-measurable-non-streaming-provider-contract"
+  },
+  "provenance": {
+    "manifestSha256": "7891abb5e91e5b1d99c6718148d87b51e323ee957aba7890b26b13314d6e112f",
+    "benchmarkSha256": "eb0e3053b14fa744df1a2dd48ff99051c4fc7a3b9d9708cb14b9c36b6c734329",
+    "loaderSha256": "a91eb10bf6504ac65419b1d36ecacfcfafafa261727ec5c7c48fd4fe731fb09a",
+    "workerSha256": "834a708f58533f2f177589618b95441474558dd7f65f604daee667b2f47d9782",
+    "sourceIdentityVerifiedByGitWorktree": true
+  },
+  "privacy": {
+    "containsRawQuestionOrAnswer": false,
+    "containsPiiOrCredentials": false,
+    "syntheticOnly": true
+  },
+  "gate": {
+    "atLeast30SuccessfulRunsEachSide": true,
+    "atLeast60SuccessfulRunsEachSide": true,
+    "p90OrP95ImprovementAtLeast20Percent": true,
+    "noPercentileRegressionOver5Percent": true,
+    "noErrorIncrease": true,
+    "noTimeoutIncrease": true,
+    "productiveUserLookupAndTimeZoneExecuted": true,
+    "genericQuestionsSkipRecentHistory": true,
+    "candidateDbStageCoversPreparatoryAndContextReads": true,
+    "exactlyOneProviderCallPerSuccessfulQuestion": true,
+    "webSearchAvailableOnEverySuccessfulQuestion": true,
+    "productionEndToEndPipelineExecutedOnBothExactShas": true,
+    "executionMetadataComplete": true,
+    "executionPolicyEquivalent": true,
+    "provenanceComplete": true,
+    "timeToFirstToken": "not-measurable-non-streaming-provider-contract"
+  },
+  "passed": true,
+  "sourceEntrypoints": [
+    "server/db.ts#getUserIdByWhatsappPhone",
+    "server/modules/whatsapp/timeZoneContext.ts#resolveWhatsAppOperationTimeZone",
+    "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+    "server/modules/whatsapp/messageLifecycle.ts",
+    "server/modules/whatsapp/logicalReplyDelivery.ts"
+  ]
+}
