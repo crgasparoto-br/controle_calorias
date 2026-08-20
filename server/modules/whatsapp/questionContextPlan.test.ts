@@ -7,6 +7,10 @@ describe("resolveQuestionContextScope", () => {
     ["qual é a recomendação atual de fibras?", "none"],
     ["quantas calorias tem uma banana?", "none"],
     ["como funciona o índice glicêmico?", "none"],
+    ["qual é a meta diária de água recomendada para adultos?", "none"],
+    ["qual é o consumo recomendado de água por dia?", "none"],
+    ["qual é o peso médio de uma banana?", "none"],
+    ["quais hábitos ajudam a dormir melhor?", "none"],
   ] as const)("não carrega dados pessoais para pergunta genérica: %s", (question, expected) => {
     expect(resolveQuestionContextScope(question)).toBe(expected);
   });
@@ -37,6 +41,10 @@ describe("resolveQuestionContextScope", () => {
     "quanto de proteína devo consumir?",
     "qual a melhor fonte de proteína para mim?",
     "quais macros eu deveria priorizar?",
+    "qual é meu peso atual?",
+    "como estão meus hábitos?",
+    "qual é o consumo recomendado para mim?",
+    "quanto de água eu devo beber?",
   ])("mantém contexto completo quando a intenção depende de continuidade ou é ambígua: %s", question => {
     expect(resolveQuestionContextScope(question)).toBe("full");
   });

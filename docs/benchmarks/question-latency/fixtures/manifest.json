@@ -21,8 +21,8 @@
       "expectedScope": "none"
     },
     {
-      "id": "generic-glycemic",
-      "question": "como funciona o índice glicêmico?",
+      "id": "generic-water-goal-collision",
+      "question": "qual é a meta diária de água recomendada para adultos?",
       "expectedScope": "none"
     },
     {
@@ -106,18 +106,18 @@
       "expectedScope": "none"
     },
     {
-      "id": "generic-fiber-timing",
-      "question": "quando é melhor consumir fibras?",
+      "id": "generic-water-consumption-collision",
+      "question": "qual é o consumo recomendado de água por dia?",
       "expectedScope": "none"
     },
     {
-      "id": "generic-b12",
-      "question": "onde encontrar vitamina B12?",
+      "id": "generic-banana-weight-collision",
+      "question": "qual é o peso médio de uma banana?",
       "expectedScope": "none"
     },
     {
-      "id": "generic-sleep-importance",
-      "question": "por que o sono é importante?",
+      "id": "generic-habits-collision",
+      "question": "quais hábitos ajudam a dormir melhor?",
       "expectedScope": "none"
     },
     {
