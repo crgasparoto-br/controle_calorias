@@ -208,9 +208,9 @@ describe("executeWhatsappAiQuestionIntent — caminho crítico de QUESTION", () 
     expect(getWeeklyReportBundleMock).not.toHaveBeenCalled();
     expect(getPeriodReportBundleMock).not.toHaveBeenCalled();
     const prompt = createDomainTextResponseMock.mock.calls[0][1].input[0].content[0].text as string;
-    expect(prompt).toContain('\"today\"');
-    expect(prompt).not.toContain('\"currentWeek\"');
-    expect(prompt).not.toContain('\"last30Days\"');
+    expect(prompt).toContain('"today"');
+    expect(prompt).not.toContain('"currentWeek"');
+    expect(prompt).not.toContain('"last30Days"');
     expect(latencyEvent()).toEqual(expect.objectContaining({ context_scope: "today" }));
   });
 
