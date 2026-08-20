@@ -157,17 +157,25 @@ function V(side, manifest, run) {
     if (!K.every((key, index) => observation.contextLoads[key] === expected[index])) {
       throw new Error(`${side}/${observation.fixtureId}: context`);
     }
-    const historyLoads = side === "candidate" && fixture.expectedScope === "none" ? 0 : 1;
-    if (observation.contextLoads.history !== historyLoads
-      || (side === "candidate" && fixture.expectedScope === "none" && observation.historySent)) {
-      throw new Error(`${side}/${observation.fixtureId}: history`);
+    const historySources = observation.historySourceLoads || {};
+    if (side === "candidate") {
+      const historyLoads = fixture.expectedScope === "none" ? 0 : 1;
+      const expectedSourceLoads = historyLoads === 0 ? 0 : 1;
+      if (observation.contextLoads.history !== historyLoads
+        || historySources.persistent !== expectedSourceLoads
+        || historySources.legacy !== expectedSourceLoads
+        || (fixture.expectedScope === "none" && observation.historySent)) {
+        throw new Error(`${side}/${observation.fixtureId}: history`);
+      }
+    } else if (historySources.legacy !== 1 || !observation.historySent) {
+      throw new Error(`${side}/${observation.fixtureId}: baseline history source`);
     }
     if (side === "candidate") {
       if (observation.contextScope !== fixture.expectedScope) {
         throw new Error(`${side}/${observation.fixtureId}: scope`);
       }
       const latency = observation.finalLatency;
-      const selectedDbDelay = historyLoads * run.delays.history
+      const selectedDbDelay = (fixture.expectedScope === "none" ? 0 : run.delays.history)
         + expected[0] * run.delays.today
         + expected[1] * run.delays.currentWeek
         + expected[2] * run.delays.last30Days;
@@ -179,6 +187,24 @@ function V(side, manifest, run) {
         || typeof latency.dbMs !== "number"
         || latency.dbMs < minDbMs) {
         throw new Error(`${side}/${observation.fixtureId}: telemetry`);
+      }
+    }
+  }
+  if (side === "candidate") {
+    const probes = run.historyBypassProbes || [];
+    const expectedModes = ["write_only", "shadow", "persistent"];
+    if (probes.length !== expectedModes.length) {
+      throw new Error(`${side}: missing history bypass rollout probes`);
+    }
+    for (const mode of expectedModes) {
+      const probe = probes.find(item => item.rolloutMode === mode);
+      if (!probe
+        || probe.contextScope !== "none"
+        || probe.historySent
+        || probe.contextLoadsHistory !== 0
+        || probe.historySourceLoads?.legacy !== 0
+        || probe.historySourceLoads?.persistent !== 0) {
+        throw new Error(`${side}/${mode}: generic history bypass`);
       }
     }
   }

@@ -74,10 +74,21 @@ function repo(state) {
     async linkDomainRecord() {},
     async findRecentMessages() { return []; },
     async findRecentMessagesByUser() {
+      state.contextLoads.history++;
+      state.historySourceLoads.persistent++;
+      await state.sleep(delays.history);
       return [{
+        id: 900,
+        conversationId: 77,
+        userId: 42,
         direction: "inbound",
+        contentType: "text",
         text: "historical-marker",
-        occurredAtIso: "2026-08-17T17:00:00.000Z",
+        sanitizedText: "historical-marker",
+        externalMessageId: "wamid.history",
+        occurredAt: new Date("2026-08-17T17:00:00.000Z"),
+        createdAt: new Date("2026-08-17T17:00:00.000Z"),
+        updatedAt: new Date("2026-08-17T17:00:00.000Z"),
       }];
     },
     async createOrGetActiveConversationForUpdate() { return { id: 77 }; },
@@ -93,6 +104,7 @@ function createState() {
     historySent: false,
     contextLoads: { history: 0, today: 0, currentWeek: 0, last30Days: 0, unusedDomainSnapshot: 0 },
     contextHelperCalls: { history: 0 },
+    historySourceLoads: { legacy: 0, persistent: 0 },
     dbOperations: { userLookup: 0, timeZone: 0 },
     persistence: { conversation: 0, inbound: 0, outbound: 0, responseLink: 0, processed: 0 },
     delays,
@@ -171,6 +183,34 @@ async function runFixture(fixture, repetition) {
   });
 }
 
+async function runGenericHistoryBypassProbe(fixture, rolloutMode) {
+  const previousMode = process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT;
+  const previousPercent = process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT;
+  process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT = rolloutMode;
+  if (rolloutMode === "persistent") {
+    process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT = "100";
+  } else {
+    delete process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT;
+  }
+  globalThis.__q = createState();
+  try {
+    const result = await runFixture(fixture, `probe-${rolloutMode}`);
+    const state = globalThis.__q;
+    return {
+      rolloutMode,
+      contextScope: result?.data?.contextScope ?? null,
+      historySent: state.historySent,
+      contextLoadsHistory: state.contextLoads.history,
+      historySourceLoads: state.historySourceLoads,
+    };
+  } finally {
+    if (previousMode === undefined) delete process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT;
+    else process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT = previousMode;
+    if (previousPercent === undefined) delete process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT;
+    else process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT = previousPercent;
+  }
+}
+
 const observations = [];
 for (const fixture of manifest.fixtures) {
   for (let repetition = 1; repetition <= manifest.repetitionsPerFixture; repetition++) {
@@ -198,6 +238,7 @@ for (const fixture of manifest.fixtures) {
       historySent: state.historySent,
       contextLoads: state.contextLoads,
       contextHelperCalls: state.contextHelperCalls,
+      historySourceLoads: state.historySourceLoads,
       dbOperations: state.dbOperations,
       persistenceOperations: state.persistence,
       finalLatency: final ? {
@@ -213,10 +254,16 @@ for (const fixture of manifest.fixtures) {
   }
 }
 
+const genericFixture = manifest.fixtures.find(fixture => fixture.expectedScope === "none");
+const historyBypassProbes = process.env.QUESTION_BENCH_MODE === "candidate" && genericFixture
+  ? await Promise.all(["write_only", "shadow", "persistent"].map(mode => runGenericHistoryBypassProbe(genericFixture, mode)))
+  : [];
+
 process.stdout.write(`${JSON.stringify({
   mode: process.env.QUESTION_BENCH_MODE,
   sourceSha: process.env.QUESTION_BENCH_SOURCE_SHA,
   execution,
   delays,
   observations,
+  historyBypassProbes,
 })}\n`);

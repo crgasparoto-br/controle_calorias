@@ -487,16 +487,19 @@ export async function executeWhatsappAiQuestionIntent(
       contextScope,
       addDbDurationMs,
     );
+    const recentHistoryPromise = contextScope === "none"
+      ? Promise.resolve<string[]>([])
+      : buildRecentHistory(
+          userId,
+          receivedAt,
+          timeZone,
+          input.conversationRepository,
+          input.externalMessageId,
+          addDbDurationMs,
+        );
     const [knowledgeBase, recentHistory] = await Promise.all([
       knowledgePromise,
-      buildRecentHistory(
-        userId,
-        receivedAt,
-        timeZone,
-        input.conversationRepository,
-        input.externalMessageId,
-        addDbDurationMs,
-      ),
+      recentHistoryPromise,
     ]);
     contextMs = performance.now() - contextStartedAt;
 
