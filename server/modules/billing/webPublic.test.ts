@@ -56,9 +56,22 @@ const catalog = [
   },
 ];
 
+const noSubscriptionStatus = () => ({
+  access: {
+    allowed: false,
+    reason: "no_access",
+    entitlements: [],
+    sourceAvailable: true,
+    evaluatedAt: new Date(),
+  },
+  subscription: null,
+  professionalSubscription: null,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listCatalog.mockResolvedValue(catalog);
+  mocks.getUserSubscriptionStatus.mockResolvedValue(noSubscriptionStatus());
   mocks.getUserEntitlements.mockResolvedValue({
     allowed: false,
     reason: "no_access",
@@ -103,6 +116,47 @@ describe("billing web public boundary", () => {
 
     expect(result.sponsoredCoverage).toBe(true);
     expect(result.professionalSubscription).toBeNull();
+  });
+
+  it("blocks a second self-service checkout while an own subscription exists", async () => {
+    mocks.getUserSubscriptionStatus.mockResolvedValue({
+      ...noSubscriptionStatus(),
+      subscription: {
+        id: "subscription-1",
+        provider: "asaas",
+        planCode: "individual",
+        planName: "Individual",
+        status: "active",
+        billingCycle: "monthly",
+        currency: "BRL",
+        unitAmount: 1990,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(),
+        cancelAtPeriodEnd: false,
+      },
+    });
+
+    await expect(
+      startBillingWebCheckout({
+        userId: 12,
+        accountName: "Pessoa",
+        accountEmail: "pessoa@example.com",
+        payload: {
+          contractKey: "web_contract_123456789",
+          versionCode: "individual_monthly_v1",
+          paymentMethod: "credit_card",
+          trialChoice: "waive",
+          couponCode: null,
+          customer: {
+            name: "Pessoa",
+            email: null,
+            mobilePhone: "15999999999",
+            cpfCnpj: "12345678901",
+          },
+        },
+      })
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(mocks.prepareAsaasBillingFlow).not.toHaveBeenCalled();
   });
 
   it("requires explicit trial waiver for Pix Automático before calling the provider", async () => {
