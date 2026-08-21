@@ -1,11 +1,15 @@
-material_head_sha=c2cc1527c6bdc3d5db09d8633310375f601c3718
-source=GitHub Actions exact-head bundle plus local exact-SHA post-write-refreeze controls
-agent_first=success
-whatsapp_context_tidb=success
-billing_persistence_tidb=success
-professional_persistence_tidb=success
-ai_provider_live_smoke=skipped-by-policy
-focused_context_collision=10/10-pass
-benchmark_exact_sha=passed
-post_write_refreeze=true
-handoff_only=false
+material_head_sha=155988050f606f836c2e06b80c505c0d4da7d5ef
+focused_context_classifier=34/34-pass
+focused_history_bypass=9/9-pass
+legacy_generic_personal_collision=10/10-pass
+benchmark_fixture_scope_matrix=30/30-pass
+transpile_diagnostics=3/3-pass
+benchmark_contract_self_test=pass
+exact_sha_benchmark=pass
+skill_genericity=pass
+skill_context_reduction_contract_tests=3/3-pass
+status=focused-validation-passed-before-final-audit-artifact-gates
+remote_ci_material_head=agent-first-success; whatsapp-context-tidb-success; billing-persistence-tidb-success; professional-persistence-tidb-success; provider-live-smoke-skipped-by-policy
+agent_first_steps=typescript-success;tests-success;architecture-success;documentation-success;build-success;agent-success;ci-gate-docs-success;exact-head-bundle-success
+
+FINAL ARTIFACT GATES PASS

@@ -1,6 +1,11 @@
-material_head_sha=c2cc1527c6bdc3d5db09d8633310375f601c3718
-control=CONTEXT-GENERIC-COLLISION-001
-procedure=Execute generic nutritional noun collisions and explicit personal-reference/advice siblings against questionContextPlan on the exact material source.
-expected=Generic meta/consumo/peso/agua/habitos questions resolve none; explicit meu/mim/devo/follow-up siblings preserve full context.
-observed=10/10 discriminant cases passed on exact material source: 4 generic collisions -> none and 6 personal/follow-up siblings -> full.
-status=passed
+PASS "qual é a meta diária de água recomendada para adultos?" => none expected=none
+PASS "qual é o consumo recomendado de água por dia?" => none expected=none
+PASS "qual é o peso médio de uma banana?" => none expected=none
+PASS "quais hábitos ajudam a dormir melhor?" => none expected=none
+PASS "qual é meu peso atual?" => full expected=full
+PASS "como estão meus hábitos?" => full expected=full
+PASS "qual é o consumo recomendado para mim?" => full expected=full
+PASS "quanto de água eu devo beber?" => full expected=full
+PASS "e proteína?" => full expected=full
+PASS "o que você sugeriu antes?" => full expected=full
+RESULT 10/10

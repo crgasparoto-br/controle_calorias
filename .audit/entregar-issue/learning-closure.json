@@ -3,18 +3,18 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191",
+    "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
     "finding_ids": [
       "A-001"
     ],
     "repository": "crgasparoto-br/controle_calorias",
     "pull_request": 993,
-    "audited_head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
-    "audit_report_sha256": "de6b6c0784f2c6a71a286bdd07b5214f25886b929c51e1e98a309ed696e58b08",
-    "reason": "The current branch had a material commit after the prior result-only handoff, leaving the terminal certificate bound to an ancestor and requiring post-write refreeze."
+    "audited_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+    "audit_report_sha256": "a5e6d626168d8c148be01b7e41c49b533b01569a9edfc3ba76cc8e1633dbbb62"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed cumulative post-write handoff recertification latch already encodes the generic prevention/detection class; this rejection requires exact delivery-instance recertification and lineage closure, not another repository-specific permanent rule."
-  }
+    "reason": "The rejection exposed an execution-order violation in this handoff publication, while the installed generic transport/certificate validators already define the reusable invariant. The remediation applies those existing controls correctly and adds an inherited discriminant control for this delivery without introducing a new global product or Skill rule."
+  },
+  "skill_changes": []
 }

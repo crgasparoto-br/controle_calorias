@@ -1,0 +1,22 @@
+Control: HANDOFF-PHYSICAL-001 / HANDOFF-CERT-ORDER-001
+Material head: 155988050f606f836c2e06b80c505c0d4da7d5ef
+Rejected published handoff: 5ff3b63d9743bfae75528ec6b1421bdaf390b87d
+
+Literal failure reproduced before repair:
+- requirement-closure transport rejected because part-000 SHA-256 did not match its manifest.
+- requirement-attack-matrix transport had an extra trailing byte beyond the certified part size.
+- risk-saturation transport had an extra trailing byte beyond the certified part size.
+- handoff-ready.json therefore certified bytes that were not the final published bytes.
+
+Repair control executed in an isolated staging copy:
+1. Validate the logical requirement/specification, evidence freshness, attack matrix, risk saturation, inherited controls, audit escape lineage and independent-rejection closure before packing.
+2. Pack large JSON artifacts deterministically with pack_large_audit_artifact.py.
+3. Re-open every packed artifact with audit_artifact_io.artifact_metadata, which reconstructs shards and validates part size, part SHA-256, encoded size/hash, gzip decoded size/hash and logical JSON.
+4. Generate handoff-ready.json only after the packing/self-check step.
+5. The certificate builder returned READY and recorded the post-pack physical and logical hashes.
+
+Discriminant siblings exercised:
+- a one-byte trailing newline on a base64 shard changes the physical size and is rejected before certification;
+- a same-size but different shard payload changes SHA-256 and is rejected before certification.
+
+Observed staging result: PASS. The repaired delivery repeats this exact pack -> self-check -> certificate order and must pass the terminal handoff guard before publication is accepted.

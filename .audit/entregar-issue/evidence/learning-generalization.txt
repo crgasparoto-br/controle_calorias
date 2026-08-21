@@ -1,0 +1,3 @@
+READY: skill permanent assets are free of obvious issue-number coupling
+...                                                                      [100%]
+3 passed in 0.05s

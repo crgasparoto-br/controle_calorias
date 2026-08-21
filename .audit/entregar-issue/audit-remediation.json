@@ -3,11 +3,11 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191",
-    "audit_report_sha256": "de6b6c0784f2c6a71a286bdd07b5214f25886b929c51e1e98a309ed696e58b08",
-    "audited_head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718"
+    "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
+    "audit_report_sha256": "a5e6d626168d8c148be01b7e41c49b533b01569a9edfc3ba76cc8e1633dbbb62",
+    "audited_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef"
   },
-  "candidate_head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
+  "candidate_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -16,33 +16,27 @@
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        "docs/benchmarks/question-latency/results/2026-08-21-c2cc1527-e2e-summary.json",
-        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/handoff-ready.json",
         ".audit/entregar-issue/requirement-closure.json",
         ".audit/entregar-issue/requirement-attack-matrix.json",
         ".audit/entregar-issue/risk-saturation.json",
         ".audit/entregar-issue/inherited-controls.json",
         ".audit/entregar-issue/audit-escape-closure.json",
         ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/evidence/delivery.txt",
-        ".audit/entregar-issue/evidence/exact-head-narrative.txt",
-        ".audit/entregar-issue/evidence/quantitative-freshness.txt",
-        ".audit/entregar-issue/evidence/validation.txt"
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/evidence/handoff-package-integrity.txt"
       ],
       "evidence": [
-        "docs/benchmarks/question-latency/results/2026-08-21-c2cc1527-e2e-summary.json",
-        ".audit/entregar-issue/evidence-provenance.json",
-        ".audit/entregar-issue/evidence/delivery.txt",
-        ".audit/entregar-issue/evidence/exact-head-narrative.txt"
+        "evidence/handoff-package-integrity.txt"
       ],
       "validations": [
-        "post-write recovery floor preserved",
-        "exact-SHA benchmark rerun on controlled identical baseline/candidate profile",
-        "focused generic-vs-personal context control passed 10/10",
-        "cumulative inherited controls and audit escape lineage rebound to current material head",
-        "terminal publisher constrained to a direct allowlisted result-only child"
+        "logical readiness validators pass before packing",
+        "large artifacts are deterministically packed and reconstructed by audit_artifact_io before certificate generation",
+        "certificate is generated after final transport bytes are fixed",
+        "terminal handoff guard must pass on the freshly re-read published head"
       ],
-      "reason": "Refroze the exact current material head, reexecuted identity-dependent quantitative and discriminant evidence, rebuilt cumulative audit artifacts, and prepared terminal result-only publication."
+      "reason": "Rebuilt the result-only package from validated logical artifacts, added a physical-integrity negative control, and moved certificate generation after deterministic packing so certified hashes describe the bytes actually published."
     }
   ],
   "status": "closed"

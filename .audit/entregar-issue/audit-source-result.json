@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191",
-  "head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
+  "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
+  "head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
   "repository": "crgasparoto-br/controle_calorias",
   "pull_request": 993,
   "issue": 989,
@@ -15,16 +15,22 @@
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "title": "Terminal handoff is stale after a material post-handoff commit",
-      "recovery_scope": "post-write-refreeze",
-      "requires_refreeze": true,
+      "title": "Terminal handoff certificate and transport manifests do not match the published artifact bytes",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
       "evidence": {
-        "certified_material_head": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
-        "previous_published_handoff_head": "cd0d6649aaf8dd7c45ebd4749b2ed0861b759e97",
-        "current_material_head": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
-        "path": ".audit/entregar-issue/handoff-ready.json"
+        "audited_material_head": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+        "audited_published_head": "5ff3b63d9743bfae75528ec6b1421bdaf390b87d",
+        "mismatches": [
+          "audit-remediation physical hash",
+          "audit-source-result physical hash",
+          "evidence-provenance physical hash",
+          "requirement-closure shard SHA-256",
+          "requirement-attack-matrix shard size",
+          "risk-saturation shard size"
+        ]
       },
-      "classification_note": "The independent audit found that the current branch contains a material commit after the previous result-only handoff, so the ancestor certificate cannot release a new independent audit until post-write refreeze and terminal republication complete."
+      "classification_note": "The product material head remained stable; the failure was confined to result-only package physical integrity and certificate generation order."
     }
   ],
   "recommendations": []
