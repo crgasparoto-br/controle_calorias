@@ -46,6 +46,7 @@ const delays = Object.freeze({
   currentWeek: 45,
   last30Days: 120,
   llm: 80,
+  usageGate: 7,
   usageReserve: 4,
   usageClaim: 4,
   usageFinalize: 4,
@@ -108,7 +109,7 @@ function createState() {
     contextLoads: { history: 0, today: 0, currentWeek: 0, last30Days: 0, unusedDomainSnapshot: 0 },
     contextHelperCalls: { history: 0 },
     historySourceLoads: { legacy: 0, persistent: 0 },
-    dbOperations: { userLookup: 0, timeZone: 0, usageReserve: 0, usageClaim: 0, usageFinalize: 0 },
+    dbOperations: { userLookup: 0, timeZone: 0, usageGate: 0, usageReserve: 0, usageClaim: 0, usageFinalize: 0 },
     persistence: { conversation: 0, inbound: 0, outbound: 0, responseLink: 0, processed: 0 },
     delays,
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
@@ -123,9 +124,12 @@ const sourceUrl = relativePath => pathToFileURL(path.join(root, relativePath)).h
 
 const { executeWhatsappAiQuestionIntent } = await import(sourceUrl("server/modules/whatsapp/aiQuestionAssistant.ts"));
 const { setAiUsageGate } = await import(sourceUrl("server/_core/ai/usageGate.ts"));
-setAiUsageGate(async input => ({
-  correlation: { beneficiaryUserId: input.userId },
-}));
+setAiUsageGate(async input => {
+  const state = globalThis.__q;
+  state.dbOperations.usageGate++;
+  await state.sleep(state.delays.usageGate);
+  return { correlation: { beneficiaryUserId: input.userId } };
+});
 const db = await import(sourceUrl("server/db.ts"));
 const tz = await import(sourceUrl("server/modules/whatsapp/timeZoneContext.ts"));
 const life = await import(sourceUrl("server/modules/whatsapp/messageLifecycle.ts"));
@@ -234,6 +238,19 @@ for (const fixture of manifest.fixtures) {
     }
     const state = globalThis.__q;
     const final = finalLatency(state);
+    if (process.env.QUESTION_BENCH_MODE === "candidate") {
+      const scope = fixture.expectedScope;
+      const selectedDbDelay = (scope === "none" ? 0 : delays.history)
+        + (scope === "today" ? delays.today : 0)
+        + (scope === "week" ? delays.currentWeek : 0)
+        + (["last7Days", "month", "period"].includes(scope) ? delays.last30Days : 0)
+        + (scope === "full" ? delays.today + delays.currentWeek + delays.last30Days : 0);
+      const usageDbDelay = delays.usageGate + delays.usageReserve + delays.usageClaim + delays.usageFinalize;
+      const minDbMs = delays.userLookup + delays.timeZone + selectedDbDelay + usageDbDelay - 10;
+      if (!final || typeof final.db_ms !== "number" || final.db_ms < minDbMs) {
+        throw new Error(`candidate/${fixture.id}: usage governance DB time missing from db_ms`);
+      }
+    }
     observations.push({
       fixtureId: fixture.id,
       totalMs: Math.round(performance.now() - startedAt),

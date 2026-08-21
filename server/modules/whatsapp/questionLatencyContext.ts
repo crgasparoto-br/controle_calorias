@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { logInferenceEvent } from "../../db";
+import { setAiUsageDurationObserver } from "../../_core/ai/usageGate";
 import { getQuestionContextSections, type QuestionContextScope } from "./questionContextPlan";
 
 export type QuestionLatencyTrace = {
@@ -155,6 +156,8 @@ export function ensureCurrentQuestionLatencyTrace(userId: number) {
 export function getCurrentQuestionLatencyTrace() {
   return questionLatencyScope.getStore()?.trace ?? null;
 }
+
+setAiUsageDurationObserver(durationMs => recordCurrentQuestionDbMs(durationMs));
 
 export function recordCurrentQuestionDbMs(durationMs: number) {
   const scope = questionLatencyScope.getStore();
