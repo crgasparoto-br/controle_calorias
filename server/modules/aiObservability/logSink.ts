@@ -13,19 +13,26 @@ function logOrigin(event: AiInferenceEvent): "web" | "whatsapp" | "admin" {
 
 function logStatus(event: AiInferenceEvent): "success" | "warning" | "error" {
   if (event.outcome === "success") return "success";
-  if (event.outcome === "invalid_configuration" || event.outcome === "safety_block") {
-    return "error";
-  }
+  if (event.outcome === "invalid_configuration" || event.outcome === "safety_block") return "error";
   return "warning";
 }
 
+function attributedUserId(event: AiInferenceEvent) {
+  const value = event.correlation?.userId;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 /**
- * Reuses the canonical inference log pipeline. The detail is a bounded,
- * schema-versioned JSON event containing only normalized metadata.
+ * Operational logs and the durable economic ledger intentionally remain
+ * separate. Both consume the same sanitized/versioned inference event, so no
+ * prompt, response, media or raw conversation identifier is copied for usage
+ * measurement. The capability executor owns durable economic accounting before
+ * each provider attempt; this sink cannot create a second, post-effect ledger.
  */
 export function configureAiObservabilityLogging(): void {
   setAiObservabilitySink(async event => {
     await logInferenceEvent({
+      userId: attributedUserId(event),
       origin: logOrigin(event),
       status: logStatus(event),
       eventType: "ai.inference_call",

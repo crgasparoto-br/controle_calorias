@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { decodeStrictBase64, StrictBase64Error } from "../../_core/imageBase64";
 import { storagePut } from "../../storage";
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { getCurrentAiUsageScope } from "../../_core/ai/usageContext";
 
 export type LocalMealPhotoOverlayInput = {
   image: {
@@ -361,6 +362,20 @@ export async function createLocalMealPhotoOverlay(
     .update(overlaySvg)
     .digest("hex")
     .slice(0, 24);
+  const usage = getCurrentAiUsageScope();
+  if (usage?.userId) {
+    const { recordDirectProcessingUsage } = await import("../usageGovernance/service");
+    await recordDirectProcessingUsage({
+      userId: usage.userId,
+      idempotencyKey: `local-image:${digest}`,
+      operation: "image_processing",
+      channel: "local",
+      unitType: "pixels",
+      unitCount: width * height,
+      correlationId: `local-image:${digest}`,
+      metadata: { implementation: "sharp_overlay", outputMimeType: "image/png" },
+    });
+  }
   const storageKey = `generated/meal-annotations/local-${digest}.png`;
   const storagePutFn = dependencies.storagePutFn ?? storagePut;
 

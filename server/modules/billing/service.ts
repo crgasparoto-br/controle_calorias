@@ -77,6 +77,8 @@ function allowedResult(
       ? { sponsorUserId: candidate.sponsorUserId }
       : {}),
     ...(candidate.planCode ? { planCode: candidate.planCode } : {}),
+    ...(candidate.productCode ? { productCode: candidate.productCode } : {}),
+    ...(candidate.versionCode ? { versionCode: candidate.versionCode } : {}),
     entitlements: uniqueEntitlements(candidate.entitlements),
     sourceAvailable,
     evaluatedAt: now,
@@ -147,10 +149,17 @@ export function createBillingService(deps: {
   async function getUserSubscriptionStatus(userId: number) {
     const access = await getUserEntitlements(userId);
     const evaluatedAt = nowProvider();
+    const professionalUserId =
+      access.reason === "sponsored_by_professional" && access.sponsorUserId
+        ? access.sponsorUserId
+        : userId;
     try {
       const [subscription, professionalSubscription] = await Promise.all([
         deps.repository.getOwnSubscription(userId, evaluatedAt),
-        deps.repository.getActiveProfessionalSubscription(userId, evaluatedAt),
+        deps.repository.getActiveProfessionalSubscription(
+          professionalUserId,
+          evaluatedAt
+        ),
       ]);
       return {
         access,

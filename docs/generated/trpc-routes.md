@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts` e `server/modules/billing/router.ts`.
+Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts`, `server/modules/billing/router.ts` e `server/modules/usageGovernance/router.ts`.
 
 ## Grupos
 
@@ -31,7 +31,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 18 | 9 | 9 | admin | Elegibilidade própria e administração comercial de billing |
+| `billing` | 19 | 10 | 9 | admin | Elegibilidade própria e administração comercial de billing |
+| `usageGovernance` | 16 | 1 | 15 | admin | Medição, economia gerencial, fair use, recurso e retenção |
 
 ## Procedures por grupo
 
@@ -302,6 +303,28 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `adminCreateCouponRevision` | mutation | admin |
 | `adminDeactivateCoupon` | mutation | admin |
 | `adminAnalytics` | query | admin |
+| `adminUsageAnalytics` | query | admin |
+
+### usageGovernance
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `analytics` | query | admin |
+| `configurePolicy` | mutation | admin |
+| `reconcileUsageCost` | mutation | admin |
+| `recordEconomicFact` | mutation | admin |
+| `grantAllowance` | mutation | admin |
+| `revokeAllowance` | mutation | admin |
+| `openAbuseCase` | mutation | admin |
+| `reviewAbuseCase` | mutation | admin |
+| `applyLimitation` | mutation | admin |
+| `revokeLimitation` | mutation | admin |
+| `submitLimitationAppeal` | mutation | protected |
+| `reviewLimitationAppeal` | mutation | admin |
+| `authorizeConsumptionCharging` | mutation | admin |
+| `revokeConsumptionCharging` | mutation | admin |
+| `placeLegalHold` | mutation | admin |
+| `revokeLegalHold` | mutation | admin |
 
 ## Regras para novas procedures
 

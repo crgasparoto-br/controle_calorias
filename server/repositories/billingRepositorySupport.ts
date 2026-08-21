@@ -109,6 +109,8 @@ export function mapSubscription(
     id: String(row.id),
     provider: String(row.provider),
     planCode: String(row.planCode),
+    ...(row.productCode == null ? {} : { productCode: String(row.productCode) }),
+    ...(row.versionCode == null ? {} : { versionCode: String(row.versionCode) }),
     planName: String(row.planName),
     status: row.status as BillingSubscriptionSummary["status"],
     billingCycle:

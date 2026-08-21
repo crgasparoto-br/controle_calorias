@@ -1,4 +1,0 @@
-subject_sha=e4104806b25d2b7d6d5807eba385e7c3dad37260
-observed=Deterministic base64-shards-v1 packing and logical reconstruction completed for requirement-closure, requirement-attack-matrix, risk-saturation, inherited-controls and audit-escape-closure before certificate generation. Each final manifest/part is verified for physical SHA-256 plus encoded/decoded logical integrity by audit_artifact_io.
-pack_before_certificate=true
-status=passed

@@ -1,0 +1,273 @@
+diff --git a/server/catalogMatching.ts b/server/catalogMatching.ts
+index 289b59d0..24741fe3 100644
+--- a/server/catalogMatching.ts
++++ b/server/catalogMatching.ts
+@@ -214,7 +214,7 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
+       continue;
+     }
+ 
+-    const aliasWords = getSignificantWords(alias);
++    const aliasWords = getSignificantWords(alias).filter(word => !brandWords.has(word));
+     if (aliasWords.length > 1 && aliasWords.every(word => queryWordSet.has(word))) {
+       bestScore = Math.max(bestScore, 600 + alias.length);
+       continue;
+diff --git a/server/catalogSemanticSearch.ts b/server/catalogSemanticSearch.ts
+index 934df607..96ca47fc 100644
+--- a/server/catalogSemanticSearch.ts
++++ b/server/catalogSemanticSearch.ts
+@@ -20,7 +20,8 @@ import type { AiWebSearchResult } from "./_core/aiProvider";
+ const SIMILARITY_THRESHOLD = 0.82;
+ const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
+ 
+-type PackagedSnackCategory = "chocolate" | "cookie";
++type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
++type PackagedSnackCategory = Exclude<NutritionSearchCategory, "branded_product">;
+ 
+ type SearchedNutritionResult = {
+   found: boolean;
+@@ -358,7 +359,7 @@ function parseNutritionAttemptOutput(outputText: string): SearchedNutritionResul
+   }
+   if (
+     !isPositiveNumber(result.gramsPerServing)
+-    || !isPositiveNumber(result.calories)
++    || !isNonNegativeNumber(result.calories)
+     || !isNonNegativeNumber(result.protein)
+     || !isNonNegativeNumber(result.carbs)
+     || !isNonNegativeNumber(result.fat)
+@@ -469,12 +470,12 @@ function extractLabelledGramValues(text: string, labelPattern: string): number[]
+ }
+ 
+ function numericClaimsSupportResult(text: string, result: Partial<SearchedNutritionResult>): boolean {
+-  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return false;
++  if (!isPositiveNumber(result.gramsPerServing) || !isNonNegativeNumber(result.calories)) return false;
+ 
+   const calorieValues = extractUnitValues(text, "kcal|calorias?");
+-  const gramValues = extractUnitValues(text, "g|gramas?");
++  const servingValues = extractUnitValues(text, "g|gramas?|ml|mililitros?");
+   if (!calorieValues.some(value => approximatelyEqual(value, result.calories as number))) return false;
+-  if (!gramValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
++  if (!servingValues.some(value => approximatelyEqual(value, result.gramsPerServing as number))) return false;
+ 
+   const labelledClaims: Array<[string, number | undefined]> = [
+     ["prote[ií]nas?|proteins?", result.protein],
+@@ -558,7 +559,7 @@ function parseSearchedNutritionResult(
+   if (!result?.found || result.confidence === undefined || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) {
+     return null;
+   }
+-  if (!isPositiveNumber(result.gramsPerServing) || !isPositiveNumber(result.calories)) return null;
++  if (!isPositiveNumber(result.gramsPerServing) || !isNonNegativeNumber(result.calories)) return null;
+   if (!isNonNegativeNumber(result.protein) || !isNonNegativeNumber(result.carbs) || !isNonNegativeNumber(result.fat)) return null;
+ 
+   const matchedProductName = result.matchedProductName?.trim() || foodName.trim();
+@@ -596,7 +597,7 @@ function parseSearchedNutritionResult(
+ 
+ export async function findPackagedSnackByWebSearch(
+   foodName: string,
+-  category: PackagedSnackCategory,
++  category: NutritionSearchCategory,
+ ): Promise<CatalogFood | null> {
+   const policy = resolveCapabilityConfig("NUTRITION_SEARCH");
+   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+@@ -624,7 +625,11 @@ export async function findPackagedSnackByWebSearch(
+                 type: "input_text",
+                 text: [
+                   `Alimento reconhecido: ${foodName}`,
+-                  `Categoria provável: ${category === "chocolate" ? "chocolate/bombom/wafer embalado" : "biscoito doce embalado"}`,
++                  `Categoria provável: ${category === "chocolate"
++                    ? "chocolate/bombom/wafer embalado"
++                    : category === "cookie"
++                      ? "biscoito doce embalado"
++                      : "produto alimentício ou bebida industrializada com marca"}`,
+                   "Busque calorias, proteínas, carboidratos e gorduras da porção mais específica do produto.",
+                   "Se o produto for normalmente vendido por unidade, use 1 unidade como porção quando a fonte informar peso/valores por unidade.",
+                   "Se a fonte trouxer valores por 100 g e peso da unidade, converta para a unidade. Se não houver peso confiável, retorne found=false.",
+@@ -772,15 +777,24 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
+  */
+ export async function findCatalogFoodSemantic(
+   foodName: string,
++  options: { searchSpecificProduct?: boolean; skipNutritionSearch?: boolean } = {},
+ ): Promise<CatalogFood | null> {
+   const packagedSnackCategory = detectPackagedSnackCategory(foodName);
+-  if (packagedSnackCategory) {
++  if (packagedSnackCategory && !options.skipNutritionSearch) {
+     const candidate = await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
+       ?? await findCatalogFoodByEmbedding(foodName)
+       ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
+     return candidateIsCompatible(foodName, candidate) ? candidate : null;
+   }
+ 
++  if (packagedSnackCategory) return findCatalogFoodByEmbedding(foodName);
++
++  if (options.searchSpecificProduct) {
++    const candidate = await findPackagedSnackByWebSearch(foodName, "branded_product")
++      ?? await findCatalogFoodByEmbedding(foodName);
++    return candidate && candidateIsCompatible(foodName, candidate) ? candidate : null;
++  }
++
+   return findCatalogFoodByEmbedding(foodName);
+ }
+ 
+diff --git a/server/mealAiExtraction.ts b/server/mealAiExtraction.ts
+index 1710bce5..1bd61478 100644
+--- a/server/mealAiExtraction.ts
++++ b/server/mealAiExtraction.ts
+@@ -256,6 +256,8 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
+         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
+         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': quantity deve ser 140, unit deve ser 'g', foodName deve ser apenas 'Carne moída suína' e portionText deve ser derivado como '140 g'.",
+         "Separe marca em brand quando ela estiver explícita no texto, foto, rótulo ou etiqueta; use null quando não houver evidência clara de marca.",
++        "Em fotos de produtos embalados, preserve em foodName a categoria e todos os termos visíveis que diferenciam linha, versão, estilo ou sabor (por exemplo Original, Pilsen, Lager, Weissbier, Zero, Light ou Sem lactose), mesmo quando brand estiver preenchida separadamente.",
++        "Não invente marca ou variante a partir de cor, formato da embalagem ou semelhança visual quando o texto do rótulo estiver ilegível ou ambíguo.",
+         "Não invente marca por inferência genérica. Não trate sabor, unidade, quantidade, tipo do alimento ou ingrediente como marca.",
+         "Para exemplos como '80g iogurte grego light Danone', '100ml leite integral Piracanjuba' e '18g whey proten doce de leite Growth', preencha brand com Danone, Piracanjuba e Growth respectivamente.",
+         "Para exemplos como 'pão com mel', 'banana' ou 'arroz e feijão', preencha brand como null.",
+@@ -320,4 +322,4 @@ const FOOD_CLASSIFICATION_NOVA_GUIDE = [
+   "- ultra_processed: formulações industriais com múltiplos ingredientes refinados e aditivos (refrigerantes, salgadinhos industrializados, embutidos industriais, macarrão instantâneo, biscoitos, sorvetes, produtos com muitos aditivos/conservantes).",
+   "Marque isFruit e isVegetable apenas quando o item for de fato uma fruta ou um legume/verdura consumido como tal (não marque sucos industrializados ou preparações compostas como fruta/vegetal puro).",
+   "Estime fiberGrams como a quantidade de fibra alimentar (em gramas) presente na porção informada, usando 0 quando não houver fibra relevante (ex.: bebidas, carnes, laticínios).",
+-].join("\n");
+\ No newline at end of file
++].join("\n");
+diff --git a/server/mealItemBuilders.ts b/server/mealItemBuilders.ts
+index 469a3f1e..9267a447 100644
+--- a/server/mealItemBuilders.ts
++++ b/server/mealItemBuilders.ts
+@@ -6,6 +6,7 @@ import {
+   extractExplicitQuantities,
+   extractExplicitQuantityFoodSegments,
+   formatFoodNameTitleCase,
++  normalizeForMatching,
+   normalizeText,
+   normalizeUnit,
+   parseFoodText,
+@@ -54,6 +55,19 @@ export function clampConfidence(value: number) {
+   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
+ }
+ 
++function formatRecognizedProductIdentity(foodName: string, brand: string | null) {
++  const formattedFoodName = formatFoodNameTitleCase(foodName);
++  if (!brand) return formattedFoodName;
++
++  const normalizedFoodName = normalizeForMatching(formattedFoodName);
++  const normalizedBrand = normalizeForMatching(brand).trim();
++  if (!normalizedBrand || normalizedFoodName.includes(` ${normalizedBrand} `)) {
++    return formattedFoodName;
++  }
++
++  return `${formattedFoodName} ${brand}`;
++}
++
+ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
+   const servings = Math.max(llmItem.servings || 1, 0.25);
+   const estimatedGrams = llmItem.estimatedGrams > 0
+@@ -74,7 +88,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
+   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
+ 
+   return {
+-    foodName: formatFoodNameTitleCase(llmItem.foodName),
++    foodName: formatRecognizedProductIdentity(llmItem.foodName, brand),
+     canonicalName: formatFoodNameTitleCase(food.name),
+     brand,
+     portionText,
+@@ -102,12 +116,13 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
+     ? roundNutritionValue(llmQuantity)
+     : quantityUnit.quantity;
+   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
+-  const foodName = formatFoodNameTitleCase(llmItem.foodName);
++  const brand = normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName);
++  const foodName = formatRecognizedProductIdentity(llmItem.foodName, brand);
+ 
+   return {
+     foodName,
+     canonicalName: foodName,
+-    brand: normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName),
++    brand,
+     portionText: llmItem.portionText,
+     quantity,
+     unit,
+diff --git a/server/nutritionEngine.ts b/server/nutritionEngine.ts
+index 1ace0a47..d6a85962 100644
+--- a/server/nutritionEngine.ts
++++ b/server/nutritionEngine.ts
+@@ -129,8 +129,18 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
+ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
+   const candidates: string[] = [];
+   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
++  const normalizedFoodName = normalizeForMatching(item.foodName);
++  const normalizedBrand = normalizeForMatching(item.brand ?? "").trim();
++  const commercialIdentity = normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
++    ? `${item.foodName} ${item.brand}`
++    : item.foodName;
+ 
+   addCatalogCandidate(candidates, sourceFoodName);
++  if (item.brand) {
++    addCatalogCandidate(candidates, `${commercialIdentity} ${item.portionText}`);
++    addCatalogCandidate(candidates, commercialIdentity);
++    addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
++  }
+   if (
+     Number.isFinite(item.estimatedGrams)
+     && item.estimatedGrams > 0
+@@ -138,10 +148,6 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
+   ) {
+     addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
+   }
+-  if (item.brand) {
+-    addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
+-    addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
+-  }
+   addCatalogCandidate(candidates, item.foodName);
+ 
+   return candidates;
+@@ -161,18 +167,32 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
+ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
+   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
+   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
++  let genericFallback: ReturnType<typeof findCatalogFood>;
+ 
+   for (const candidate of candidates) {
+     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
+-    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
++    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
++    if (item.brand && !catalog.brandName) {
++      genericFallback ??= catalog;
++      continue;
++    }
++    return catalog;
+   }
+ 
+-  for (const candidate of candidates) {
+-    const catalog = await findCatalogFoodSemantic(candidate) ?? undefined;
+-    if (catalog && isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) return catalog;
++  for (const [index, candidate] of candidates.entries()) {
++    const catalog = await findCatalogFoodSemantic(candidate, {
++      searchSpecificProduct: Boolean(item.brand) && index === 0,
++      skipNutritionSearch: index > 0,
++    }) ?? undefined;
++    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
++    if (item.brand && !catalog.brandName) {
++      genericFallback ??= catalog;
++      continue;
++    }
++    return catalog;
+   }
+ 
+-  return undefined;
++  return genericFallback;
+ }
+ 
+ type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
+@@ -330,10 +350,11 @@ function reasoningMentionsNutritionLabel(reasoning?: string) {
+     .replace(/[\u0300-\u036f]/g, "")
+     .toLowerCase();
+ 
+-  if (/\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\b[^.]{0,60}\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/.test(normalized)) return false;
+-  if (/\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b[^.]{0,60}\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\b/.test(normalized)) return false;
++  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
++  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
++  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
+ 
+-  return /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/i.test(normalized);
++  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
+ }
+ 
+ function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {

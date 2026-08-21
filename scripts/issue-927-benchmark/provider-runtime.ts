@@ -169,6 +169,7 @@ export function baseEnvironment(scenario: Scenario): NodeJS.ProcessEnv {
     NODE_ENV: "test",
     ALLOW_MEMORY_PERSISTENCE: "true",
     PROFESSIONAL_ACCESS_RECEIPT_STORAGE: "memory",
+    USAGE_PROVIDER_DISPATCH_TEST_MODE: "memory",
     OPENAI_API_KEY: "synthetic-openai-credential",
     GEMINI_API_KEY: "synthetic-gemini-credential",
     AI_MEAL_TEXT_PROVIDER: "openai",

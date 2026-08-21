@@ -5,7 +5,10 @@ import {
 } from "./dbImplementation";
 import { normalizeImageAnnotationInferenceEvent } from "./modules/whatsapp/imageAnnotationTelemetryContext";
 import { getConfiguredBillingDbProvider } from "./repositories/billingRepositorySupport";
-import { measureCurrentQuestionDbOperation } from "./modules/whatsapp/questionLatencyContext";
+import {
+  beginCurrentQuestionLatencyPreTrace,
+  measureCurrentQuestionDbOperation,
+} from "./modules/whatsapp/questionLatencyContext";
 
 export * from "./dbImplementation";
 
@@ -20,6 +23,7 @@ export function getDb(): ReturnType<typeof getDbImplementation> {
 export function getUserIdByWhatsappPhone(
   phoneNumber: string,
 ): ReturnType<typeof getUserIdByWhatsappPhoneImplementation> {
+  beginCurrentQuestionLatencyPreTrace();
   return measureCurrentQuestionDbOperation(() =>
     getUserIdByWhatsappPhoneImplementation(phoneNumber)
   );

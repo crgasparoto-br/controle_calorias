@@ -1,5 +1,0 @@
-subject_sha=e4104806b25d2b7d6d5807eba385e7c3dad37260
-procedure=Exact-head direct classifier probe over 12 referential/underspecified questions and 3 self-contained generic siblings.
-probe_sha256=dbd97212308e5d28e38b3e7f04b922a77e7fccacf1c309fb28dce06a9f7da035
-observed=15/15 cases matched the expected scope. Referential and underspecified questions resolved to full; self-contained generic nutrition questions resolved to none.
-status=passed

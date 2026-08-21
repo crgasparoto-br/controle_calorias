@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { runWithAiUsageScope } from "./_core/ai/usageContext";
 import type { ImageAnnotationResponse } from "./_core/imageAnnotation";
 import {
   buildSavedMedia,
@@ -13,7 +14,6 @@ import {
   updateUserMeal,
 } from "./db";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
-import { beginCurrentQuestionLatencyTrace } from "./modules/whatsapp/questionLatencyContext";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
@@ -403,12 +403,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       continue;
     }
 
-    beginCurrentQuestionLatencyTrace({
-      userId: null,
-      contentType: message.text?.body ? "text" : message.image?.id ? "image" : message.audio?.id ? "audio" : message.type ?? "unknown",
-      text: message.text?.body ?? null,
-    });
-
     const userId = await resolveUserIdFromPhone(sourcePhone);
 
     if (!userId) {
@@ -768,7 +762,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-      const processed = await processMealInput({
+      const processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
         text: prepared.text,
         transcript: prepared.transcript,
         imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
@@ -776,7 +770,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         habits: await getHabitSnapshots(userId),
         occurredAt,
         timeZone: userTimezone,
-      });
+      }));
 
       if (message.image?.id) {
         const waterSplit = splitMealItemsForWaterHydration(processed.items);

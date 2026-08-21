@@ -1,7 +1,0 @@
-current_material_head=e4104806b25d2b7d6d5807eba385e7c3dad37260
-previous_certified_material_head=155988050f606f836c2e06b80c505c0d4da7d5ef
-independent_audited_head=cfae10627b8778d2c9cdcb20d750c5f97f9e2563
-independent_rejection=audit-rejection:8719da74-b602-4521-ad8b-5b584329a619
-recovery_classifier={"auditor_recovery_scope":"post-write-refreeze","auditor_requires_refreeze":true,"certified_material_head_sha":"155988050f606f836c2e06b80c505c0d4da7d5ef","reason":"auditor-recovery-floor:post-write-refreeze","recovery_scope":"post-write-refreeze"}
-observed=The stale certificate remained historical. Subsequent benchmark-harness-only material changes were incorporated, the final exact material head is e4104806b25d2b7d6d5807eba385e7c3dad37260, and all exact-head evidence was regenerated before terminal handoff publication.
-status=passed

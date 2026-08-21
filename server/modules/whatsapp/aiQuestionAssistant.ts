@@ -1,3 +1,4 @@
+import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppConversationRepository,
@@ -31,19 +32,24 @@ export async function executeWhatsappAiQuestionIntent(
   userId: number,
   input: QuestionInput,
 ) {
-  const question = extractQuestion(input.text);
-  if (!question || resolveQuestionContextScope(question) !== "none") {
-    return executeWhatsappAiQuestionIntentCore(userId, input);
-  }
+  return runWithAiUsageScope(
+    { userId, conversationId: input.externalMessageId ?? null },
+    async () => {
+      const question = extractQuestion(input.text);
+      if (!question || resolveQuestionContextScope(question) !== "none") {
+        return executeWhatsappAiQuestionIntentCore(userId, input);
+      }
 
-  const repository = input.conversationRepository
-    ?? createDrizzleWhatsAppConversationRepository({
-      getDb,
-      onWarning: logPersistenceWarning,
-    });
+      const repository = input.conversationRepository
+        ?? createDrizzleWhatsAppConversationRepository({
+          getDb,
+          onWarning: logPersistenceWarning,
+        });
 
-  return executeWhatsappAiQuestionIntentCore(userId, {
-    ...input,
-    conversationRepository: withoutRecentHistory(repository),
-  });
+      return executeWhatsappAiQuestionIntentCore(userId, {
+        ...input,
+        conversationRepository: withoutRecentHistory(repository),
+      });
+    },
+  );
 }

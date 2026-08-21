@@ -27,7 +27,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate:professionals": "tsx scripts/migrate-professional-persistence.ts",
     "db:test:professionals": "tsx scripts/test-professional-persistence-tidb.ts && tsx scripts/test-professional-operational-alerts-tidb.ts",
-    "db:test:billing": "tsx scripts/test-billing-catalog-upgrade-tidb.ts && NODE_OPTIONS=--import=./scripts/billing-test-json-value.mjs tsx scripts/test-billing-persistence-tidb.ts && tsx scripts/test-professional-capacity-alert-lifecycle-tidb.ts && tsx scripts/test-asaas-concurrency-tidb.ts && tsx scripts/test-billing-subscription-lifecycle-tidb.ts",
+    "db:test:billing": "tsx scripts/test-billing-catalog-upgrade-tidb.ts && NODE_OPTIONS=--import=./scripts/billing-test-json-value.mjs tsx scripts/test-billing-persistence-tidb.ts && tsx scripts/test-professional-capacity-alert-lifecycle-tidb.ts && tsx scripts/test-asaas-concurrency-tidb.ts && tsx scripts/test-billing-subscription-lifecycle-tidb.ts && tsx scripts/test-usage-governance-retention-tidb.ts",
     "db:test:whatsapp-onboarding-activation": "tsx scripts/test-whatsapp-onboarding-activation-tidb.ts",
     "db:test:whatsapp-active-phone-migration": "tsx scripts/test-whatsapp-active-phone-migration-tidb.ts",
     "db:repair-meal-inferences": "node scripts/repair-meal-inferences-schema.mjs",

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "head_sha": "afa5e534273a06fd5937b22aa0dd68b8294fc844",
+  "status": "passed-remote-exact-head",
+  "created_at": "2026-08-17T19:41:08.384027+00:00",
+  "local_controls": [
+    {
+      "name": "post-write refreeze identity reconciliation",
+      "status": "passed",
+      "evidence": "evidence/issue987-post-write-refreeze.txt"
+    },
+    {
+      "name": "PROVIDER-EVIDENCE-CONSISTENCY-001 retained in full Vitest suite",
+      "status": "passed",
+      "evidence": "evidence/issue987-post-write-refreeze.txt"
+    },
+    {
+      "name": "canonical branded nutrition boundary security regression",
+      "status": "passed",
+      "evidence": "evidence/issue987-post-write-refreeze.txt"
+    }
+  ],
+  "full_local_gate": {
+    "status": "reused-remote-exact-head",
+    "reason": "connector-only recovery; exact-head Agent-first gate supplies full check/test/architecture/docs/build/agent evidence",
+    "run_id": 32066043667,
+    "job_id": 95498291978
+  },
+  "remote_observation": {
+    "mode": "read-only-single-observation",
+    "agent_first_gate": "success",
+    "agent_first_run_id": 32066043667,
+    "whatsapp_context_tidb_gate": "success",
+    "whatsapp_context_tidb_run_id": 32066043675,
+    "ai_provider_live_smoke": "skipped-by-policy",
+    "ai_provider_live_smoke_run_id": 32066043688,
+    "rerun_or_dispatch_performed": false
+  }
+}

@@ -1,1 +1,20 @@
-{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":989,"created_at":"2026-08-18T01:25:52.296101+00:00","primary_source_id":"SRC-ISSUE-989","sources":[{"id":"SRC-ISSUE-989","kind":"issue-body","path":"specification-sources/SRC-ISSUE-989.txt","locator":"/mnt/data/issue989-work/issue989-canonical.md","sha256":"556850f0e047157816ffa21f77690ac0d7eace482c6b49658e5a47b6fe1f03f6","textual":true,"extract_source_id":null,"required":true,"line_count":290}]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 897,
+  "created_at": "2026-08-18T17:44:15.841907+00:00",
+  "primary_source_id": "SRC-GITHUB-ISSUE-897",
+  "sources": [
+    {
+      "id": "SRC-GITHUB-ISSUE-897",
+      "kind": "issue-body",
+      "path": "specification-sources/SRC-GITHUB-ISSUE-897.txt",
+      "locator": "github://crgasparoto-br/controle_calorias/issues/897",
+      "sha256": "8b2b3bd2ae22bf8a8d4a657a265e9678a965741eb07d69ce97ff2d62b6efd3f5",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 277
+    }
+  ]
+}

@@ -29,6 +29,9 @@ export type QuestionLatencyTrace = {
 
 type QuestionLatencyScope = {
   trace: QuestionLatencyTrace | null;
+  preTraceStartedAt: number | null;
+  preTraceDbMs: number;
+  preTracePersistMs: number;
 };
 
 const questionLatencyScope = new AsyncLocalStorage<QuestionLatencyScope>();
@@ -68,9 +71,25 @@ function createTrace(userId: number | null, startedAt = performance.now()): Ques
   };
 }
 
+function materializeTraceFromPreTrace(scope: QuestionLatencyScope, userId: number | null) {
+  const trace = createTrace(userId, scope.preTraceStartedAt ?? performance.now());
+  if (scope.preTraceDbMs > 0) trace.dbMs = scope.preTraceDbMs;
+  if (scope.preTracePersistMs > 0) trace.persistMs = scope.preTracePersistMs;
+  scope.preTraceStartedAt = null;
+  scope.preTraceDbMs = 0;
+  scope.preTracePersistMs = 0;
+  scope.trace = trace;
+  return trace;
+}
+
 export function runWithQuestionLatencyContext<T>(operation: () => T): T {
   if (questionLatencyScope.getStore()) return operation();
-  const scope: QuestionLatencyScope = { trace: null };
+  const scope: QuestionLatencyScope = {
+    trace: null,
+    preTraceStartedAt: null,
+    preTraceDbMs: 0,
+    preTracePersistMs: 0,
+  };
   return questionLatencyScope.run(scope, () => {
     const finishIncompleteTrace = () => {
       if (!scope.trace || scope.trace.finalized) return;
@@ -104,6 +123,15 @@ export function runWithQuestionLatencyContext<T>(operation: () => T): T {
   });
 }
 
+export function beginCurrentQuestionLatencyPreTrace() {
+  const scope = questionLatencyScope.getStore();
+  if (!scope) return;
+  scope.trace = null;
+  scope.preTraceStartedAt = performance.now();
+  scope.preTraceDbMs = 0;
+  scope.preTracePersistMs = 0;
+}
+
 export function beginCurrentQuestionLatencyTrace(input: {
   userId: number | null;
   contentType: string;
@@ -111,9 +139,7 @@ export function beginCurrentQuestionLatencyTrace(input: {
 }) {
   const scope = questionLatencyScope.getStore();
   if (!scope || input.contentType !== "text" || !hasQuestionContent(input.text)) return null;
-  const trace = createTrace(input.userId);
-  scope.trace = trace;
-  return trace;
+  return materializeTraceFromPreTrace(scope, input.userId);
 }
 
 export function ensureCurrentQuestionLatencyTrace(userId: number) {
@@ -122,9 +148,8 @@ export function ensureCurrentQuestionLatencyTrace(userId: number) {
     if (scope.trace.userId === null) scope.trace.userId = userId;
     return scope.trace;
   }
-  const trace = createTrace(userId);
-  if (scope) scope.trace = trace;
-  return trace;
+  if (scope) return materializeTraceFromPreTrace(scope, userId);
+  return createTrace(userId);
 }
 
 export function getCurrentQuestionLatencyTrace() {
@@ -132,9 +157,17 @@ export function getCurrentQuestionLatencyTrace() {
 }
 
 export function recordCurrentQuestionDbMs(durationMs: number) {
-  const trace = getCurrentQuestionLatencyTrace();
-  if (!trace || trace.finalized) return;
-  trace.dbMs = (trace.dbMs ?? 0) + Math.max(0, durationMs);
+  const scope = questionLatencyScope.getStore();
+  const duration = Math.max(0, durationMs);
+  const trace = scope?.trace ?? null;
+  if (!trace) {
+    if (scope?.preTraceStartedAt !== null && scope?.preTraceStartedAt !== undefined) {
+      scope.preTraceDbMs += duration;
+    }
+    return;
+  }
+  if (trace.finalized) return;
+  trace.dbMs = (trace.dbMs ?? 0) + duration;
 }
 
 export async function measureCurrentQuestionDbOperation<T>(operation: () => Promise<T>): Promise<T> {
@@ -147,9 +180,17 @@ export async function measureCurrentQuestionDbOperation<T>(operation: () => Prom
 }
 
 export function recordCurrentQuestionPersistenceMs(durationMs: number) {
-  const trace = getCurrentQuestionLatencyTrace();
-  if (!trace || trace.finalized) return;
-  trace.persistMs = (trace.persistMs ?? 0) + Math.max(0, durationMs);
+  const scope = questionLatencyScope.getStore();
+  const duration = Math.max(0, durationMs);
+  const trace = scope?.trace ?? null;
+  if (!trace) {
+    if (scope?.preTraceStartedAt !== null && scope?.preTraceStartedAt !== undefined) {
+      scope.preTracePersistMs += duration;
+    }
+    return;
+  }
+  if (trace.finalized) return;
+  trace.persistMs = (trace.persistMs ?? 0) + duration;
 }
 
 export function recordCurrentQuestionAiStage(input: {
@@ -251,5 +292,10 @@ export function finalizeCurrentQuestionLatencyTrace() {
     }),
   });
 
-  if (scope) scope.trace = null;
+  if (scope) {
+    scope.trace = null;
+    scope.preTraceStartedAt = null;
+    scope.preTraceDbMs = 0;
+    scope.preTracePersistMs = 0;
+  }
 }

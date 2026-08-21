@@ -458,6 +458,10 @@ describe("whatsappWebhook smoke", () => {
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_voice_transcription",
+        correlation: {
+          userId: 123,
+          conversationId: "wamid.smoke-audio-1",
+        },
       },
     });
     expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -529,6 +533,10 @@ describe("whatsappWebhook smoke", () => {
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_voice_transcription",
+        correlation: {
+          userId: 123,
+          conversationId: "wamid.smoke-audio-1",
+        },
       },
     });
     expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({

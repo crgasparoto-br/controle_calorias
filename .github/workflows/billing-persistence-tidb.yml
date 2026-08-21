@@ -9,6 +9,7 @@ on:
       - "server/modules/professionals/entitlementService.ts"
       - "server/routers.ts"
       - "scripts/test-billing-persistence-tidb.ts"
+      - "scripts/test-usage-governance-retention-tidb.ts"
       - "scripts/check-referential-integrity.mjs"
       - "package.json"
       - ".github/workflows/billing-persistence-tidb.yml"

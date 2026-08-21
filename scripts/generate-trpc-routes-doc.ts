@@ -11,6 +11,7 @@ const sourcePaths = [
   path.join(root, "server/modules/professionals/settingsRouter.ts"),
   path.join(root, "server/modules/professionals/legacyEntitlementPolicy.ts"),
   path.join(root, "server/modules/billing/router.ts"),
+  path.join(root, "server/modules/usageGovernance/router.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
 const checkOnly = process.argv.includes("--check");
@@ -53,6 +54,7 @@ const groupDescriptions: Record<string, string> = {
   "professionalRecord.ai": "Assistência profissional por IA",
   "professionalRecord.settings": "Configurações profissionais e entitlements",
   billing: "Elegibilidade própria e administração comercial de billing",
+  usageGovernance: "Medição, economia gerencial, fair use, recurso e retenção",
 };
 
 let legacyProfessionalEntitledProcedures = new Set<string>();
@@ -215,7 +217,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts` e `server/modules/billing/router.ts`.",
+    "Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts`, `server/modules/professionals/legacyEntitlementPolicy.ts`, `server/modules/billing/router.ts` e `server/modules/usageGovernance/router.ts`.",
     "",
     "## Grupos",
     "",
@@ -275,6 +277,7 @@ const professionalAiSource = readRequiredFile(sourcePaths[4]);
 const professionalSettingsSource = readRequiredFile(sourcePaths[5]);
 const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[6]);
 const billingSource = readRequiredFile(sourcePaths[7]);
+const usageGovernanceSource = readRequiredFile(sourcePaths[8]);
 legacyProfessionalEntitledProcedures =
   parseLegacyProfessionalEntitledProcedures(legacyEntitlementPolicySource);
 const generated = generateMarkdown([
@@ -305,6 +308,7 @@ const generated = generateMarkdown([
     "professionalRecord.settings"
   ),
   parseTopLevelRouter(billingSource, "billingRouter", "billing"),
+  parseTopLevelRouter(usageGovernanceSource, "usageGovernanceRouter", "usageGovernance"),
 ]);
 
 if (checkOnly) {
