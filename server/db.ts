@@ -7,6 +7,7 @@ import { normalizeImageAnnotationInferenceEvent } from "./modules/whatsapp/image
 import { getConfiguredBillingDbProvider } from "./repositories/billingRepositorySupport";
 import {
   beginCurrentQuestionLatencyPreTrace,
+  getCurrentQuestionLatencyTrace,
   measureCurrentQuestionDbOperation,
 } from "./modules/whatsapp/questionLatencyContext";
 
@@ -23,7 +24,9 @@ export function getDb(): ReturnType<typeof getDbImplementation> {
 export function getUserIdByWhatsappPhone(
   phoneNumber: string,
 ): ReturnType<typeof getUserIdByWhatsappPhoneImplementation> {
-  beginCurrentQuestionLatencyPreTrace();
+  if (!getCurrentQuestionLatencyTrace()) {
+    beginCurrentQuestionLatencyPreTrace();
+  }
   return measureCurrentQuestionDbOperation(() =>
     getUserIdByWhatsappPhoneImplementation(phoneNumber)
   );
