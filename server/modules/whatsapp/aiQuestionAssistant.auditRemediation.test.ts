@@ -50,6 +50,12 @@ describe("QUESTION audit remediation: optional recent history", () => {
     "/ qual é melhor?",
     "/ quando foi?",
     "/ onde encontro?",
+    "/ quanto foi ontem?",
+    "/ quanto deu no total?",
+    "/ qual é o recomendado?",
+    "/ qual é a quantidade?",
+    "/ como calcular?",
+    "/ por que foi assim?",
   ])("preserves recent history for ambiguous follow-ups: %s", async text => {
     const rows = [{ text: "context-needed" }];
     const findRecentMessagesByUser = vi.fn(async () => rows);

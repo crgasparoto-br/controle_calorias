@@ -7,11 +7,14 @@ describe("resolveQuestionContextScope", () => {
     ["qual é a recomendação atual de fibras?", "none"],
     ["quantas calorias tem uma banana?", "none"],
     ["como funciona o índice glicêmico?", "none"],
+    ["como calcular o IMC?", "none"],
+    ["por que proteína é importante?", "none"],
     ["qual é a meta diária de água recomendada para adultos?", "none"],
     ["qual é o consumo recomendado de água por dia?", "none"],
     ["qual é o peso médio de uma banana?", "none"],
     ["quais hábitos ajudam a dormir melhor?", "none"],
-  ] as const)("não carrega dados pessoais para pergunta genérica: %s", (question, expected) => {
+    ["qual a dose de creatina recomendada?", "none"],
+  ] as const)("não carrega dados pessoais para pergunta genérica autocontida: %s", (question, expected) => {
     expect(resolveQuestionContextScope(question)).toBe(expected);
   });
 
@@ -33,6 +36,15 @@ describe("resolveQuestionContextScope", () => {
     "qual é melhor?",
     "quando foi?",
     "onde encontro?",
+    "quanto foi ontem?",
+    "quanto deu ontem?",
+    "quanto deu no total?",
+    "qual é o recomendado?",
+    "qual é a quantidade?",
+    "como calcular?",
+    "por que foi assim?",
+    "qual foi o total?",
+    "onde estava?",
     "como foi meu consumo na semana passada?",
     "como foi meu consumo no mês passado?",
     "o que você sugeriu antes?",

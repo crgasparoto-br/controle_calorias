@@ -16,16 +16,54 @@ function normalizeQuestion(value: string) {
     .trim();
 }
 
+function normalizedWords(value: string) {
+  return value.replace(/\?+$/g, "").trim().split(/\s+/).filter(Boolean);
+}
+
 const PERSONAL_REFERENCE_PATTERN = /\b(?:eu|meu|minha|meus|minhas|mim|comi|consumi|bebi|fiz|estou|tenho|tive|ingeri|registrei)\b/;
 const PERSONAL_ADVICE_PATTERN = /\b(?:devo|deveria|preciso|precisaria|posso|poderia|quero|gostaria)\b|\b(?:para|pra) mim\b/;
 const FOLLOW_UP_PATTERN = /^(?:e\b|e sobre\b|e quanto\b|e a\b|e o\b|isso\b|essa\b|esse\b|essas\b|esses\b|tambem\b|agora\b)|\b(?:anterior|antes|voce sugeriu|voce falou|que voce disse)\b/;
-const AMBIGUOUS_GENERIC_REFERENCE_PATTERN = /^(?:qual (?:e )?(?:a |o )?(?:melhor|pior)(?: opcao| alternativa)?(?:\?|$)|quando (?:foi|isso|aconteceu)(?:\?|$)|onde (?:encontro|fica|foi)(?:\?|$))/;
+const AMBIGUOUS_GENERIC_REFERENCE_PATTERN = /^(?:qual (?:e )?(?:a |o )?(?:melhor|pior)(?: opcao| alternativa)?(?:\?|$)|qual (?:e )?(?:a |o )?(?:recomendad[oa]|recomendacao|quantidade|valor|total|resultado|meta|consumo|peso)(?:\?|$)|quanto(?:s|as)? (?:foi|foram|deu|deram|ficou|ficaram|teve|tinha|houve)(?:\b|$)|como (?:calcular|saber)(?:\?|$)|por que (?:foi|deu|ficou|isso|assim|aconteceu|ocorreu)(?:\b|$)|porque (?:foi|deu|ficou|isso|assim|aconteceu|ocorreu)(?:\b|$)|quando (?:foi|isso|aconteceu)(?:\?|$)|onde (?:encontro|fica|foi|estava)(?:\?|$))/;
 const TODAY_PATTERN = /\b(?:hoje|agora|neste dia|no dia de hoje)\b/;
 const WEEK_PATTERN = /\b(?:esta semana|nessa semana|semana atual)\b/;
 const LAST_7_DAYS_PATTERN = /\b(?:ultimos 7 dias|ultimas 7 dias)\b/;
 const MONTH_PATTERN = /\b(?:este mes|nesse mes|mes atual)\b/;
 const PERIOD_PATTERN = /\b(?:ultimos 30 dias|ultimas 30 dias|evolucao|tendencia|historico)\b/;
-const CLEAR_GENERIC_PATTERN = /^(?:o que (?:e|significa)|qual (?:e|a|o)|quais (?:sao|as|os|habitos\b)|quanto(?:s|as)? |quantas calorias (?:tem|ha)|como funciona|como calcular|como saber|para que serve|diferenca entre|e verdade que|por que |porque |quando |onde )/;
+
+function hasTailAfterPrefix(value: string, pattern: RegExp) {
+  const match = value.match(pattern);
+  if (!match?.[1]) return false;
+  return normalizedWords(match[1]).length > 0;
+}
+
+function hasDescriptiveQualTail(value: string) {
+  const match = value.match(/^qual (?:(?:e )(?:a |o )?|(?:a |o ))(.+)$/);
+  if (!match?.[1]) return false;
+  return normalizedWords(match[1]).length >= 3;
+}
+
+function hasDescriptiveQuaisTail(value: string) {
+  const match = value.match(/^quais (?:(?:sao )(?:as |os )?|(?:as |os ))(.+)$/);
+  if (!match?.[1]) return false;
+  return normalizedWords(match[1]).length >= 3;
+}
+
+function isClearlyGenericQuestion(value: string) {
+  if (hasTailAfterPrefix(value, /^o que (?:e|significa) (.+)$/)) return true;
+  if (hasDescriptiveQualTail(value)) return true;
+  if (hasDescriptiveQuaisTail(value)) return true;
+  if (hasTailAfterPrefix(value, /^quais habitos (.+)$/)) return true;
+  if (hasTailAfterPrefix(value, /^quantas calorias (?:tem|ha) (.+)$/)) return true;
+  if (hasTailAfterPrefix(value, /^como funciona (.+)$/)) return true;
+  if (hasTailAfterPrefix(value, /^como calcular (.+)$/)) return true;
+  if (hasTailAfterPrefix(value, /^como saber (.+)$/)) return true;
+  if (hasTailAfterPrefix(value, /^para que serve (.+)$/)) return true;
+  if (/^diferenca entre .+\be\b.+/.test(value)) return true;
+  if (hasTailAfterPrefix(value, /^e verdade que (.+)$/)) return true;
+  if (normalizedWords(value.replace(/^por que /, "")).length >= 3 && /^por que /.test(value)) return true;
+  if (normalizedWords(value.replace(/^porque /, "")).length >= 3 && /^porque /.test(value)) return true;
+  return false;
+}
 
 /**
  * Selects the smallest user-data window that is clearly required by the
@@ -48,7 +86,7 @@ export function resolveQuestionContextScope(question: string): QuestionContextSc
   if (needsPersonalContext && MONTH_PATTERN.test(normalized)) return "month";
   if (needsPersonalContext && PERIOD_PATTERN.test(normalized)) return "period";
 
-  if (!needsPersonalContext && CLEAR_GENERIC_PATTERN.test(normalized)) return "none";
+  if (!needsPersonalContext && isClearlyGenericQuestion(normalized)) return "none";
 
   return "full";
 }
