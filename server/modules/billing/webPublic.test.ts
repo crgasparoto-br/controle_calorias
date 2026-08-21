@@ -5,11 +5,14 @@ const mocks = vi.hoisted(() => ({
   getUserEntitlements: vi.fn(),
   listCatalog: vi.fn(),
   loadLifecycle: vi.fn(),
+  getPlan: vi.fn(),
   getCapacity: vi.fn(),
   getManagement: vi.fn(),
+  getHistory: vi.fn(),
   prepareAsaasBillingFlow: vi.fn(),
   requestAsaasCancellation: vi.fn(),
   reactivateAsaasCancellation: vi.fn(),
+  prepareEarlyConversion: vi.fn(),
 }));
 
 vi.mock("./service", () => ({
@@ -27,16 +30,26 @@ vi.mock("./professionalCapacityRead", () => ({
 vi.mock("./subscriptionManagementRead", () => ({
   getSubscriptionManagementCapabilities: mocks.getManagement,
 }));
+vi.mock("./subscriptionHistoryRead", () => ({
+  getSubscriptionWebHistory: mocks.getHistory,
+}));
 vi.mock("./asaas/runtime", () => ({
   prepareAsaasBillingFlow: mocks.prepareAsaasBillingFlow,
   requestAsaasCancellation: mocks.requestAsaasCancellation,
   reactivateAsaasCancellation: mocks.reactivateAsaasCancellation,
 }));
+vi.mock("./asaas/remediationRuntime", () => ({
+  prepareAsaasProfessionalEarlyConversion: mocks.prepareEarlyConversion,
+}));
 vi.mock("./subscriptionLifecycleRuntime", () => ({
-  billingSubscriptionLifecycleRepository: { loadLifecycle: mocks.loadLifecycle },
+  billingSubscriptionLifecycleRepository: {
+    loadLifecycle: mocks.loadLifecycle,
+    getPlan: mocks.getPlan,
+  },
 }));
 
 import {
+  activateProfessionalTrialNow,
   cancelBillingWebSubscription,
   getBillingWebOverview,
   reactivateBillingWebSubscription,
@@ -104,6 +117,7 @@ beforeEach(() => {
   });
   mocks.loadLifecycle.mockResolvedValue(null);
   mocks.getCapacity.mockResolvedValue(null);
+  mocks.getHistory.mockResolvedValue([]);
   mocks.getManagement.mockResolvedValue({
     provider: "asaas",
     paymentMethod: "credit_card",
@@ -152,32 +166,37 @@ describe("billing web public boundary", () => {
     expect(mocks.getCapacity).not.toHaveBeenCalled();
   });
 
-  it("returns lifecycle and only provider-supported management actions", async () => {
+  it("returns lifecycle, sanitized history and only provider-supported actions", async () => {
     mocks.getUserSubscriptionStatus.mockResolvedValue({
       ...noSubscriptionStatus(),
       subscription: activeSubscription(true),
     });
     mocks.loadLifecycle.mockResolvedValue({
       state: "past_due",
+      audience: "individual",
+      productCode: "individual",
+      versionCode: "individual_monthly_v1",
       currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
       currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
       cancelAtPeriodEnd: true,
       trialStartedAt: null,
       trialEndsAt: null,
       firstChargeAt: null,
+      trialCapacityLimit: null,
       graceStartedAt: new Date("2026-08-20T00:00:00.000Z"),
       graceEndsAt: new Date("2026-08-27T00:00:00.000Z"),
       suspendedAt: null,
       recoveryEndsAt: null,
       reconciliationRequired: true,
     });
+    mocks.getHistory.mockResolvedValue([
+      { title: "Pagamento ficou pendente", occurredAt: new Date() },
+    ]);
 
     const result = await getBillingWebOverview(12);
 
-    expect(result.lifecycle).toMatchObject({
-      state: "past_due",
-      reconciliationRequired: true,
-    });
+    expect(result.lifecycle).toMatchObject({ state: "past_due", reconciliationRequired: true });
+    expect(result.history[0]?.title).toBe("Pagamento ficou pendente");
     expect(result.actions.canRegularize).toBe(true);
     expect(result.actions.canReactivateRenewal).toBe(true);
     expect(result.management?.canUpdatePaymentMethod).toBe(false);
@@ -282,10 +301,7 @@ describe("billing web public boundary", () => {
       expect.objectContaining({
         payerUserId: 12,
         transitionAccessUntil: transitionUntil,
-        customer: expect.objectContaining({
-          payerUserId: 12,
-          email: "conta@example.com",
-        }),
+        customer: expect.objectContaining({ payerUserId: 12, email: "conta@example.com" }),
       })
     );
     expect(result.pendingAuthoritativeConfirmation).toBe(true);
@@ -295,26 +311,61 @@ describe("billing web public boundary", () => {
     mocks.requestAsaasCancellation.mockResolvedValue("applied");
     mocks.reactivateAsaasCancellation.mockResolvedValue("applied");
 
-    await cancelBillingWebSubscription({
-      userId: 12,
+    await cancelBillingWebSubscription({ userId: 12, subscriptionId: "subscription-1" });
+    await reactivateBillingWebSubscription({ userId: 12, subscriptionId: "subscription-1" });
+
+    expect(mocks.requestAsaasCancellation).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionId: "subscription-1", payerUserId: 12 })
+    );
+    expect(mocks.reactivateAsaasCancellation).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionId: "subscription-1", payerUserId: 12 })
+    );
+  });
+
+  it("builds professional early-conversion terms from backend state", async () => {
+    const trialEndsAt = new Date(Date.now() + 86_400_000);
+    mocks.loadLifecycle.mockResolvedValue({
       subscriptionId: "subscription-1",
+      payerUserId: 12,
+      state: "pending",
+      audience: "professional",
+      productCode: "professional",
+      versionCode: "professional_monthly_v1",
+      billingCycle: "monthly",
+      trialStartedAt: new Date(),
+      trialEndsAt,
     });
-    await reactivateBillingWebSubscription({
+    mocks.getPlan.mockResolvedValue({
+      productCode: "professional",
+      versionCode: "professional_monthly_v1",
+      audience: "professional",
+      billingCycle: "monthly",
+      currency: "BRL",
+      unitAmount: 7990,
+      capacityLimit: 30,
+      entitlements: ["system_access"],
+      commercialPaymentMethods: ["credit_card"],
+    });
+    mocks.prepareEarlyConversion.mockResolvedValue({
+      confirmation: "applied",
+      schedule: { state: "pending" },
+      pendingAuthoritativeConfirmation: true,
+    });
+
+    const result = await activateProfessionalTrialNow({
       userId: 12,
       subscriptionId: "subscription-1",
     });
 
-    expect(mocks.requestAsaasCancellation).toHaveBeenCalledWith(
+    expect(mocks.prepareEarlyConversion).toHaveBeenCalledWith(
       expect.objectContaining({
         subscriptionId: "subscription-1",
-        payerUserId: 12,
+        actorUserId: 12,
+        versionCode: "professional_monthly_v1",
+        unitAmount: 7990,
+        capacityLimit: 30,
       })
     );
-    expect(mocks.reactivateAsaasCancellation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subscriptionId: "subscription-1",
-        payerUserId: 12,
-      })
-    );
+    expect(result.pendingAuthoritativeConfirmation).toBe(true);
   });
 });
