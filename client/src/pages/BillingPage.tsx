@@ -44,6 +44,14 @@ const STATUS_LABELS: Record<string, string> = {
   expired: "Expirada",
 };
 
+const CAPACITY_LABELS: Record<string, string> = {
+  within_capacity: "Dentro da capacidade",
+  grandfathered_active: "Capacidade temporária ativa",
+  grandfathered_expiring: "Capacidade temporária perto do fim",
+  grandfathered_expired: "Capacidade temporária encerrada",
+  grandfathered_resolved: "Capacidade regularizada",
+};
+
 const CYCLE_LABELS: Record<string, string> = {
   monthly: "Mensal",
   yearly: "Anual",
@@ -197,6 +205,15 @@ export default function BillingPage() {
       toast.error(error.message || "Não foi possível solicitar o cancelamento."),
   });
 
+  const reactivateSubscription = trpc.billing.reactivateSubscription.useMutation({
+    onSuccess: async result => {
+      toast.info(result.message);
+      await utils.billing.webOverview.invalidate();
+    },
+    onError: error =>
+      toast.error(error.message || "Não foi possível reativar a renovação."),
+  });
+
   if (overview.isLoading) {
     return (
       <DashboardLayout>
@@ -237,18 +254,13 @@ export default function BillingPage() {
     access,
     subscription,
     professionalSubscription,
+    professionalCapacity,
     sponsoredCoverage,
     lifecycle,
+    management,
     actions,
   } = overview.data;
   const accessLabel = ACCESS_LABELS[access.reason] ?? "Origem de acesso válida";
-  const capacityAvailable =
-    professionalSubscription?.capacityLimit == null
-      ? null
-      : Math.max(
-          0,
-          professionalSubscription.capacityLimit - professionalSubscription.capacityUsed
-        );
 
   const startCheckout = () => {
     if (!selectedPlan) return;
@@ -443,20 +455,13 @@ export default function BillingPage() {
                 {lifecycle?.state === "past_due" ? (
                   <Notice alert>
                     Pagamento pendente. A carência preserva o acesso até{" "}
-                    <strong>{formatDate(lifecycle.graceEndsAt)}</strong>. Depois desse prazo,
-                    o backend pode limitar o acesso conforme o contrato vigente.
+                    <strong>{formatDate(lifecycle.graceEndsAt)}</strong>.
                   </Notice>
                 ) : null}
                 {lifecycle?.state === "suspended" ? (
                   <Notice alert>
-                    Assinatura suspensa. O acesso está limitado; quando aplicável, a janela
-                    de recuperação termina em <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>.
-                  </Notice>
-                ) : null}
-                {lifecycle?.state === "expired" ? (
-                  <Notice>
-                    Esta assinatura encerrou. Uma nova contratação usa somente as ofertas
-                    efetivas retornadas pelo backend.
+                    Assinatura suspensa. Quando aplicável, a janela de recuperação termina em{" "}
+                    <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>.
                   </Notice>
                 ) : null}
                 {lifecycle?.reconciliationRequired ? (
@@ -466,18 +471,40 @@ export default function BillingPage() {
                   </Notice>
                 ) : null}
 
-                {actions.canCancelRenewal ? (
-                  <Button
-                    variant="outline"
-                    disabled={cancelSubscription.isPending}
-                    onClick={() =>
-                      cancelSubscription.mutate({ subscriptionId: subscription.id })
-                    }
-                  >
-                    {cancelSubscription.isPending
-                      ? "Solicitando cancelamento..."
-                      : "Cancelar próxima renovação"}
-                  </Button>
+                <div className="flex flex-wrap gap-2">
+                  {actions.canCancelRenewal ? (
+                    <Button
+                      variant="outline"
+                      disabled={cancelSubscription.isPending}
+                      onClick={() =>
+                        cancelSubscription.mutate({ subscriptionId: subscription.id })
+                      }
+                    >
+                      {cancelSubscription.isPending
+                        ? "Solicitando cancelamento..."
+                        : "Cancelar próxima renovação"}
+                    </Button>
+                  ) : null}
+                  {actions.canReactivateRenewal ? (
+                    <Button
+                      variant="outline"
+                      disabled={reactivateSubscription.isPending}
+                      onClick={() =>
+                        reactivateSubscription.mutate({ subscriptionId: subscription.id })
+                      }
+                    >
+                      {reactivateSubscription.isPending
+                        ? "Reativando renovação..."
+                        : "Reativar renovação"}
+                    </Button>
+                  ) : null}
+                </div>
+                {subscription.cancelAtPeriodEnd &&
+                management?.requiresNewPixAuthorizationForReactivation ? (
+                  <Notice>
+                    A renovação Pix Automático cancelada exige uma nova autorização; ela não é
+                    simulada como uma reativação local.
+                  </Notice>
                 ) : null}
               </div>
             ) : (
@@ -496,32 +523,51 @@ export default function BillingPage() {
                 Capacidade profissional
               </CardTitle>
               <CardDescription>
-                Seu uso pessoal não consome uma vaga de paciente.
+                Seu uso pessoal não consome uma vaga de paciente. A situação abaixo vem do
+                mesmo contrato de capacidade usado pelo backend.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Detail
-                  label="Contratada"
-                  value={
-                    professionalSubscription.capacityLimit == null
-                      ? "Sem limite configurado"
-                      : `${professionalSubscription.capacityLimit} pacientes`
-                  }
-                />
-                <Detail
-                  label="Ocupada"
-                  value={`${professionalSubscription.capacityUsed} pacientes`}
-                />
-                <Detail
-                  label="Disponível"
-                  value={
-                    capacityAvailable == null
-                      ? "Não aplicável"
-                      : `${capacityAvailable} pacientes`
-                  }
-                />
-              </div>
+            <CardContent className="space-y-4">
+              {professionalCapacity ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    <Detail
+                      label="Situação"
+                      value={CAPACITY_LABELS[professionalCapacity.state] ?? "Em análise"}
+                    />
+                    <Detail
+                      label="Contratada"
+                      value={`${professionalCapacity.contractedLimit} pacientes`}
+                    />
+                    <Detail
+                      label="Ocupada"
+                      value={`${professionalCapacity.occupancy} pacientes`}
+                    />
+                    <Detail
+                      label="Disponível"
+                      value={`${professionalCapacity.available} pacientes`}
+                    />
+                  </div>
+                  {professionalCapacity.temporaryLimit != null ? (
+                    <Notice alert={professionalCapacity.state === "grandfathered_expired"}>
+                      Capacidade temporária: <strong>{professionalCapacity.temporaryLimit} pacientes</strong>.
+                      {professionalCapacity.temporaryEndsAt
+                        ? ` Prazo: ${formatDate(professionalCapacity.temporaryEndsAt)}.`
+                        : ""}
+                      {professionalCapacity.excess > 0
+                        ? ` Excesso atual: ${professionalCapacity.excess} pacientes.`
+                        : " A ocupação já voltou ao limite contratado."}
+                      {professionalCapacity.newCoverageBlocked
+                        ? " Novas coberturas ficam bloqueadas quando o limite aplicável é atingido; pacientes existentes não são removidos automaticamente."
+                        : ""}
+                    </Notice>
+                  ) : null}
+                </>
+              ) : (
+                <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+                  A capacidade ainda está sendo reconciliada pelo backend. Nenhum limite temporário será inferido pela interface.
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : null}
