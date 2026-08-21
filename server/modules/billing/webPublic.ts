@@ -4,7 +4,10 @@ import { z } from "zod";
 import { prepareAsaasBillingFlow, requestAsaasCancellation } from "./asaas/runtime";
 import { billingCatalogService } from "./catalogRuntime";
 import { billingService } from "./service";
-import { billingSubscriptionLifecycleService } from "./subscriptionLifecycleRuntime";
+import {
+  billingSubscriptionLifecycleRepository,
+  billingSubscriptionLifecycleService,
+} from "./subscriptionLifecycleRuntime";
 
 const contractKeySchema = z
   .string()
@@ -67,7 +70,7 @@ function publicBillingError(error: unknown): TRPCError {
     code: code in messages ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
     message:
       messages[code] ??
-      "Não foi possível iniciar a operação comercial com segurança. Nenhuma ativação foi confirmada.",
+      "Não foi possível concluir a operação comercial com segurança. Nenhuma ativação foi presumida.",
   });
 }
 
@@ -78,11 +81,30 @@ export async function getBillingWebOverview(userId: number) {
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
+  const lifecycle = subscription
+    ? await billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id)
+    : null;
   const canCreateNewSubscription = !subscription || subscription.status === "expired";
   return {
     ...status,
     professionalSubscription: sponsored ? null : status.professionalSubscription,
     sponsoredCoverage: sponsored,
+    lifecycle: lifecycle
+      ? {
+          state: lifecycle.state,
+          currentPeriodStart: lifecycle.currentPeriodStart,
+          currentPeriodEnd: lifecycle.currentPeriodEnd,
+          cancelAtPeriodEnd: lifecycle.cancelAtPeriodEnd,
+          trialStartedAt: lifecycle.trialStartedAt,
+          trialEndsAt: lifecycle.trialEndsAt,
+          firstChargeAt: lifecycle.firstChargeAt,
+          graceStartedAt: lifecycle.graceStartedAt,
+          graceEndsAt: lifecycle.graceEndsAt,
+          suspendedAt: lifecycle.suspendedAt,
+          recoveryEndsAt: lifecycle.recoveryEndsAt,
+          reconciliationRequired: lifecycle.reconciliationRequired,
+        }
+      : null,
     catalog,
     actions: {
       canStartCheckout:
@@ -92,11 +114,9 @@ export async function getBillingWebOverview(userId: number) {
         !!subscription &&
         subscription.status !== "expired" &&
         !subscription.cancelAtPeriodEnd,
-      // Do not advertise a local-only reactivation. It will only be enabled
-      // when the provider exposes a recoverable authoritative operation.
       canReactivateRenewal: false,
       canRegularize:
-        subscription?.status === "past_due" || subscription?.status === "suspended",
+        lifecycle?.state === "past_due" || lifecycle?.state === "suspended",
       canCreateNewSubscription,
     },
   };
