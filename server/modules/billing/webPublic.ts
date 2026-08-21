@@ -1,14 +1,16 @@
 import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { prepareAsaasBillingFlow, requestAsaasCancellation } from "./asaas/runtime";
+import {
+  prepareAsaasBillingFlow,
+  reactivateAsaasCancellation,
+  requestAsaasCancellation,
+} from "./asaas/runtime";
 import { billingCatalogService } from "./catalogRuntime";
 import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
 import { billingService } from "./service";
-import {
-  billingSubscriptionLifecycleRepository,
-  billingSubscriptionLifecycleService,
-} from "./subscriptionLifecycleRuntime";
+import { getSubscriptionManagementCapabilities } from "./subscriptionManagementRead";
+import { billingSubscriptionLifecycleRepository } from "./subscriptionLifecycleRuntime";
 
 const contractKeySchema = z
   .string()
@@ -45,7 +47,7 @@ export const billingStartCheckoutSchema = z.object({
   }),
 });
 
-export const billingCancelSubscriptionSchema = z.object({
+export const billingSubscriptionActionSchema = z.object({
   subscriptionId: z.string().trim().min(1).max(120),
 });
 
@@ -55,10 +57,13 @@ function publicBillingError(error: unknown): TRPCError {
     billing_plan_not_available: "Este plano não está disponível para contratação agora.",
     billing_payment_method_not_available: "Este meio de pagamento não está disponível para o plano selecionado.",
     billing_payment_method_not_allowed: "Este meio de pagamento não está disponível para o plano selecionado.",
+    billing_subscription_not_found: "A assinatura não foi localizada para esta conta.",
     pix_automatic_requires_trial_waiver: "O Pix Automático inicia uma contratação paga e exige confirmação de que o trial não será utilizado.",
     billing_trial_registered_card_required: "Para iniciar o período de avaliação, conclua primeiro o cadastro do cartão no ambiente seguro de pagamento.",
     billing_contract_trial_already_used: "O período de avaliação já foi utilizado e não está disponível para esta contratação.",
     billing_contract_trial_identity_conflict: "Não foi possível confirmar a elegibilidade para um novo período de avaliação.",
+    asaas_pix_reactivation_requires_new_authorization: "Esta renovação por Pix Automático exige uma nova autorização. Inicie uma nova autorização quando essa ação estiver disponível.",
+    asaas_reactivation_not_supported: "A reativação não está disponível para este meio de pagamento.",
     asaas_not_configured: "A contratação está temporariamente indisponível. Tente novamente mais tarde.",
   };
   if (code.startsWith("billing_coupon_")) {
@@ -82,9 +87,15 @@ export async function getBillingWebOverview(userId: number) {
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
-  const lifecycle = subscription
-    ? await billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id)
-    : null;
+  const [lifecycle, management] = subscription
+    ? await Promise.all([
+        billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id),
+        getSubscriptionManagementCapabilities({
+          subscriptionId: subscription.id,
+          payerUserId: userId,
+        }),
+      ])
+    : [null, null];
   const professionalCapacity =
     !sponsored && status.professionalSubscription
       ? await getProfessionalCapacityWebSnapshot({
@@ -114,6 +125,15 @@ export async function getBillingWebOverview(userId: number) {
           reconciliationRequired: lifecycle.reconciliationRequired,
         }
       : null,
+    management: management
+      ? {
+          paymentMethod: management.paymentMethod,
+          canReactivateRenewal: management.canReactivateRenewal,
+          canUpdatePaymentMethod: management.canUpdatePaymentMethod,
+          requiresNewPixAuthorizationForReactivation:
+            management.requiresNewPixAuthorizationForReactivation,
+        }
+      : null,
     catalog,
     actions: {
       canStartCheckout:
@@ -123,7 +143,10 @@ export async function getBillingWebOverview(userId: number) {
         !!subscription &&
         subscription.status !== "expired" &&
         !subscription.cancelAtPeriodEnd,
-      canReactivateRenewal: false,
+      canReactivateRenewal:
+        !!subscription &&
+        subscription.cancelAtPeriodEnd &&
+        management?.canReactivateRenewal === true,
       canRegularize:
         lifecycle?.state === "past_due" || lifecycle?.state === "suspended",
       canCreateNewSubscription,
@@ -190,21 +213,36 @@ export async function cancelBillingWebSubscription(input: {
   userId: number;
   subscriptionId: string;
 }) {
-  const correlationId = `billing-web-cancel:${crypto.randomUUID()}`;
   try {
     await requestAsaasCancellation({
       subscriptionId: input.subscriptionId,
       payerUserId: input.userId,
-      correlationId,
+      correlationId: `billing-web-cancel:${crypto.randomUUID()}`,
     });
-    await billingSubscriptionLifecycleService.requestCancellation(
-      input.subscriptionId,
-      correlationId
-    );
     return {
       status: "pending" as const,
       message:
         "O cancelamento da renovação foi solicitado. A vigência atual permanece até a data informada pelo backend.",
+    };
+  } catch (error) {
+    throw publicBillingError(error);
+  }
+}
+
+export async function reactivateBillingWebSubscription(input: {
+  userId: number;
+  subscriptionId: string;
+}) {
+  try {
+    await reactivateAsaasCancellation({
+      subscriptionId: input.subscriptionId,
+      payerUserId: input.userId,
+      correlationId: `billing-web-reactivate:${crypto.randomUUID()}`,
+    });
+    return {
+      status: "pending" as const,
+      message:
+        "A reativação da renovação foi solicitada. O plano, a versão e a data vigente permanecem inalterados até a confirmação do backend.",
     };
   } catch (error) {
     throw publicBillingError(error);
