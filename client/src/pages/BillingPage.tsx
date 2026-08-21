@@ -16,6 +16,7 @@ import {
   CalendarClock,
   Check,
   CreditCard,
+  History,
   QrCode,
   RefreshCw,
   ShieldCheck,
@@ -82,6 +83,14 @@ const ENTITLEMENT_LABELS: Record<string, string> = {
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return "Não informado";
   return new Date(value).toLocaleDateString("pt-BR");
+}
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) return "Não informado";
+  return new Date(value).toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
 function formatMoney(amountMinor: number, currency: string) {
@@ -214,6 +223,16 @@ export default function BillingPage() {
       toast.error(error.message || "Não foi possível reativar a renovação."),
   });
 
+  const activateProfessionalTrial =
+    trpc.billing.activateProfessionalTrialNow.useMutation({
+      onSuccess: async result => {
+        toast.info(result.message);
+        await utils.billing.webOverview.invalidate();
+      },
+      onError: error =>
+        toast.error(error.message || "Não foi possível antecipar a ativação."),
+    });
+
   if (overview.isLoading) {
     return (
       <DashboardLayout>
@@ -258,6 +277,7 @@ export default function BillingPage() {
     sponsoredCoverage,
     lifecycle,
     management,
+    history,
     actions,
   } = overview.data;
   const accessLabel = ACCESS_LABELS[access.reason] ?? "Origem de acesso válida";
@@ -419,7 +439,7 @@ export default function BillingPage() {
           <CardContent>
             {subscription ? (
               <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <Detail label="Plano" value={subscription.planName} />
                   <Detail
                     label="Situação"
@@ -430,6 +450,10 @@ export default function BillingPage() {
                     label="Valor"
                     value={formatMoney(subscription.unitAmount, subscription.currency)}
                     supporting="Valor registrado no contrato atual"
+                  />
+                  <Detail
+                    label="Pagamento"
+                    value={PAYMENT_LABELS[management?.paymentMethod ?? ""] ?? "Não informado"}
                   />
                   <Detail
                     label="Fim do período atual"
@@ -450,6 +474,32 @@ export default function BillingPage() {
                     {lifecycle.firstChargeAt
                       ? ` Primeira cobrança prevista para ${formatDate(lifecycle.firstChargeAt)}.`
                       : ""}
+                    {lifecycle.trialCapacityLimit != null
+                      ? ` Durante o trial, a capacidade profissional é de ${lifecycle.trialCapacityLimit} pacientes.`
+                      : ""}
+                  </Notice>
+                ) : null}
+                {actions.canActivateProfessionalTrialNow && lifecycle ? (
+                  <Notice>
+                    <p>
+                      Você pode antecipar o fim do trial. A versão, o ciclo e o preço atuais
+                      serão preservados; a capacidade integral só será liberada depois da
+                      confirmação financeira autoritativa.
+                    </p>
+                    <Button
+                      className="mt-3"
+                      disabled={activateProfessionalTrial.isPending}
+                      onClick={() =>
+                        activateProfessionalTrial.mutate({
+                          subscriptionId: subscription.id,
+                          confirmed: true,
+                        })
+                      }
+                    >
+                      {activateProfessionalTrial.isPending
+                        ? "Solicitando ativação..."
+                        : "Ativar plano agora e liberar todos os pacientes"}
+                    </Button>
                   </Notice>
                 ) : null}
                 {lifecycle?.state === "past_due" ? (
@@ -461,7 +511,15 @@ export default function BillingPage() {
                 {lifecycle?.state === "suspended" ? (
                   <Notice alert>
                     Assinatura suspensa. Quando aplicável, a janela de recuperação termina em{" "}
-                    <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>.
+                    <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>. Funções de leitura
+                    e gestão preservadas pelo backend continuam disponíveis; recursos pagos
+                    permanecem bloqueados até recuperação confirmada.
+                  </Notice>
+                ) : null}
+                {lifecycle?.state === "expired" ? (
+                  <Notice>
+                    Esta assinatura encerrou. Uma nova contratação usa somente as ofertas
+                    efetivas retornadas pelo backend; pagamento tardio não promete reativação.
                   </Notice>
                 ) : null}
                 {lifecycle?.reconciliationRequired ? (
@@ -515,6 +573,33 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
+        {history.length ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Histórico da assinatura
+              </CardTitle>
+              <CardDescription>
+                Eventos comerciais sanitizados. Identificadores do provider e dados sensíveis
+                não são exibidos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="space-y-3">
+                {history.map((entry, index) => (
+                  <li key={`${entry.title}-${index}`} className="rounded-xl border p-4">
+                    <p className="font-medium">{entry.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatDateTime(entry.occurredAt)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {!sponsoredCoverage && professionalSubscription ? (
           <Card>
             <CardHeader>
@@ -558,14 +643,17 @@ export default function BillingPage() {
                         ? ` Excesso atual: ${professionalCapacity.excess} pacientes.`
                         : " A ocupação já voltou ao limite contratado."}
                       {professionalCapacity.newCoverageBlocked
-                        ? " Novas coberturas ficam bloqueadas quando o limite aplicável é atingido; pacientes existentes não são removidos automaticamente."
+                        ? " Novas coberturas e reativações ficam bloqueadas quando o limite aplicável é atingido; pacientes existentes e dados não são removidos automaticamente."
+                        : ""}
+                      {professionalCapacity.excess > 0
+                        ? " As alternativas são redução natural da carteira, upgrade para oferta compatível ou contato administrativo/comercial. Uma extensão só será exibida quando confirmada pelo backend."
                         : ""}
                     </Notice>
                   ) : null}
                 </>
               ) : (
                 <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-                  A capacidade ainda está sendo reconciliada pelo backend. Nenhum limite temporário será inferido pela interface.
+                  A capacidade ainda está sendo reconciliada pelo backend. Nenhum limite temporário será inferido pela interface e novas inclusões não devem ser liberadas por esta ausência de dados.
                 </div>
               )}
             </CardContent>
@@ -579,7 +667,8 @@ export default function BillingPage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Preços, ciclos, capacidade e meios de pagamento abaixo vêm do catálogo
-              efetivo do backend.
+              efetivo do backend. Planos profissionais incluem recursos pessoais e
+              profissionais na mesma assinatura; Plus difere pela capacidade retornada.
             </p>
           </div>
 
@@ -699,7 +788,8 @@ export default function BillingPage() {
                       ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
                       : "O trial individual dura 7 dias."}{" "}
                     O cartão precisa ser cadastrado antes do início e a primeira cobrança
-                    ocorre somente após o período aplicável.
+                    ocorre somente após o período aplicável. Se houver cupom, o desconto
+                    começa na primeira cobrança efetiva.
                   </span>
                 </label>
               ) : (
@@ -766,9 +856,8 @@ export default function BillingPage() {
                   </p>
                 ) : coupon.data?.eligible ? (
                   <p className="text-sm text-emerald-700">
-                    Cupom válido: desconto de{" "}
-                    {formatMoney(coupon.data.discountAmount, selectedPlan.currency)}. Total da
-                    cobrança com desconto:{" "}
+                    Cupom válido: preço original {formatMoney(selectedPlan.unitAmount, selectedPlan.currency)},
+                    desconto de {formatMoney(coupon.data.discountAmount, selectedPlan.currency)} e preço final{" "}
                     {formatMoney(coupon.data.finalAmount, selectedPlan.currency)}.
                     {coupon.data.durationCharges > 1
                       ? ` Válido por ${coupon.data.durationCharges} cobranças.`
@@ -776,7 +865,8 @@ export default function BillingPage() {
                   </p>
                 ) : coupon.data && !coupon.data.eligible ? (
                   <p className="text-sm text-destructive" role="alert">
-                    Este cupom não está disponível para esta contratação.
+                    Este cupom não está disponível para esta contratação. Revise o código ou
+                    continue sem cupom; gratuidade integral depende de isenção administrativa.
                   </p>
                 ) : null}
               </div>
