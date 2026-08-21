@@ -74,6 +74,27 @@ describe("usage governance retention legal holds", () => {
     }
   });
 
+  it("maps user legal holds to user and professional allowance identities without preserving unrelated grants", async () => {
+    await purgeUsageGovernanceRetention({
+      now: new Date("2026-08-16T12:00:00.000Z"),
+      detailedCutoff: new Date("2025-07-16T12:00:00.000Z"),
+      dailyCutoff: new Date("2024-08-16T12:00:00.000Z"),
+      monthlyCutoff: new Date("2021-08-16T12:00:00.000Z"),
+      governanceCutoff: new Date("2021-08-16T12:00:00.000Z"),
+      ruleVersion: "test",
+      auditId: "audit-allowance-hold",
+    });
+
+    const queries = mocks.execute.mock.calls.map(call => String(call[0]));
+    const grants = queries.find(query => query.includes("DELETE g FROM billingUsageAllowanceGrants")) ?? "";
+
+    expect(grants).toContain("h.scopeType='user'");
+    expect(grants).toContain("g.subjectType IN ('user','professional')");
+    expect(grants).toContain("h.scopeId=g.subjectId");
+    expect(grants).not.toContain("h.scopeType=g.subjectType");
+    expect(grants).toContain("h.id IS NULL");
+  });
+
   it("materializes terminal dismissed and limited case states before applying the exact five-year cutoff", async () => {
     await purgeUsageGovernanceRetention({
       now: new Date("2026-08-16T12:00:00.000Z"),

@@ -88,7 +88,8 @@ export async function purgeUsageGovernanceRetention(input: {
       DELETE g FROM billingUsageAllowanceGrants g
       LEFT JOIN billingUsageLegalHolds h
         ON h.revokedAt IS NULL AND h.startsAt <= ${input.now} AND (h.endsAt IS NULL OR h.endsAt > ${input.now})
-       AND (h.scopeType='global' OR (h.scopeType=g.subjectType AND h.scopeId=g.subjectId))
+       AND (h.scopeType='global'
+            OR (h.scopeType='user' AND g.subjectType IN ('user','professional') AND h.scopeId=g.subjectId))
       WHERE COALESCE(g.revokedAt, g.endsAt) < ${input.governanceCutoff} AND h.id IS NULL
     `);
     await tx.execute(sql`
