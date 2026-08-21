@@ -160,6 +160,9 @@ function Router() {
           path="/onboarding/whatsapp/:token"
           component={WhatsappOnboardingPage}
         />
+        <Route path="/billing/return/success" component={BillingPage} />
+        <Route path="/billing/return/cancel" component={BillingPage} />
+        <Route path="/billing/return/expired" component={BillingPage} />
         <Route path="/billing" component={BillingPage} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
