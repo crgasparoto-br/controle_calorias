@@ -1,7 +1,9 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import { purgeUsageGovernanceRetention } from "../server/repositories/usageGovernanceRetentionRepository";
+import { configureBillingDbProvider } from "../server/repositories/billingRepositorySupport";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -24,6 +26,8 @@ async function main() {
       ? { ssl: { minVersion: "TLSv1.2" as const } }
       : {}),
   });
+  const db = drizzle(pool);
+  configureBillingDbProvider(async () => db);
 
   const heldSubjectId = "9181";
   const unrelatedSubjectId = "9182";
