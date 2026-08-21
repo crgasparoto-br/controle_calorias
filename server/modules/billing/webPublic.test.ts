@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({
   getUserEntitlements: vi.fn(),
   listCatalog: vi.fn(),
   loadLifecycle: vi.fn(),
+  getCapacity: vi.fn(),
+  getManagement: vi.fn(),
   prepareAsaasBillingFlow: vi.fn(),
   requestAsaasCancellation: vi.fn(),
-  requestCancellation: vi.fn(),
+  reactivateAsaasCancellation: vi.fn(),
 }));
 
 vi.mock("./service", () => ({
@@ -19,20 +21,25 @@ vi.mock("./service", () => ({
 vi.mock("./catalogRuntime", () => ({
   billingCatalogService: { listCatalog: mocks.listCatalog },
 }));
+vi.mock("./professionalCapacityRead", () => ({
+  getProfessionalCapacityWebSnapshot: mocks.getCapacity,
+}));
+vi.mock("./subscriptionManagementRead", () => ({
+  getSubscriptionManagementCapabilities: mocks.getManagement,
+}));
 vi.mock("./asaas/runtime", () => ({
   prepareAsaasBillingFlow: mocks.prepareAsaasBillingFlow,
   requestAsaasCancellation: mocks.requestAsaasCancellation,
+  reactivateAsaasCancellation: mocks.reactivateAsaasCancellation,
 }));
 vi.mock("./subscriptionLifecycleRuntime", () => ({
   billingSubscriptionLifecycleRepository: { loadLifecycle: mocks.loadLifecycle },
-  billingSubscriptionLifecycleService: {
-    requestCancellation: mocks.requestCancellation,
-  },
 }));
 
 import {
   cancelBillingWebSubscription,
   getBillingWebOverview,
+  reactivateBillingWebSubscription,
   startBillingWebCheckout,
 } from "./webPublic";
 
@@ -70,7 +77,7 @@ const noSubscriptionStatus = () => ({
   professionalSubscription: null,
 });
 
-const activeSubscription = () => ({
+const activeSubscription = (cancelAtPeriodEnd = false) => ({
   id: "subscription-1",
   provider: "asaas",
   planCode: "individual",
@@ -81,7 +88,7 @@ const activeSubscription = () => ({
   unitAmount: 1990,
   currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
   currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
-  cancelAtPeriodEnd: false,
+  cancelAtPeriodEnd,
 });
 
 beforeEach(() => {
@@ -96,6 +103,14 @@ beforeEach(() => {
     evaluatedAt: new Date(),
   });
   mocks.loadLifecycle.mockResolvedValue(null);
+  mocks.getCapacity.mockResolvedValue(null);
+  mocks.getManagement.mockResolvedValue({
+    provider: "asaas",
+    paymentMethod: "credit_card",
+    canReactivateRenewal: true,
+    canUpdatePaymentMethod: false,
+    requiresNewPixAuthorizationForReactivation: false,
+  });
 });
 
 describe("billing web public boundary", () => {
@@ -133,22 +148,23 @@ describe("billing web public boundary", () => {
 
     expect(result.sponsoredCoverage).toBe(true);
     expect(result.professionalSubscription).toBeNull();
-    expect(mocks.loadLifecycle).not.toHaveBeenCalled();
+    expect(result.professionalCapacity).toBeNull();
+    expect(mocks.getCapacity).not.toHaveBeenCalled();
   });
 
-  it("returns trial and recovery boundaries from the canonical lifecycle", async () => {
+  it("returns lifecycle and only provider-supported management actions", async () => {
     mocks.getUserSubscriptionStatus.mockResolvedValue({
       ...noSubscriptionStatus(),
-      subscription: activeSubscription(),
+      subscription: activeSubscription(true),
     });
     mocks.loadLifecycle.mockResolvedValue({
       state: "past_due",
       currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
       currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
-      cancelAtPeriodEnd: false,
-      trialStartedAt: new Date("2026-07-20T00:00:00.000Z"),
-      trialEndsAt: new Date("2026-07-27T00:00:00.000Z"),
-      firstChargeAt: new Date("2026-07-28T00:00:00.000Z"),
+      cancelAtPeriodEnd: true,
+      trialStartedAt: null,
+      trialEndsAt: null,
+      firstChargeAt: null,
       graceStartedAt: new Date("2026-08-20T00:00:00.000Z"),
       graceEndsAt: new Date("2026-08-27T00:00:00.000Z"),
       suspendedAt: null,
@@ -158,12 +174,13 @@ describe("billing web public boundary", () => {
 
     const result = await getBillingWebOverview(12);
 
-    expect(mocks.loadLifecycle).toHaveBeenCalledWith("subscription-1");
     expect(result.lifecycle).toMatchObject({
       state: "past_due",
       reconciliationRequired: true,
     });
     expect(result.actions.canRegularize).toBe(true);
+    expect(result.actions.canReactivateRenewal).toBe(true);
+    expect(result.management?.canUpdatePaymentMethod).toBe(false);
     expect(result.actions.canStartCheckout).toBe(false);
   });
 
@@ -274,11 +291,15 @@ describe("billing web public boundary", () => {
     expect(result.pendingAuthoritativeConfirmation).toBe(true);
   });
 
-  it("cancels only through the authenticated payer boundary", async () => {
-    mocks.requestAsaasCancellation.mockResolvedValue(undefined);
-    mocks.requestCancellation.mockResolvedValue("applied");
+  it("routes cancel and reactivation through authenticated Asaas operations", async () => {
+    mocks.requestAsaasCancellation.mockResolvedValue("applied");
+    mocks.reactivateAsaasCancellation.mockResolvedValue("applied");
 
     await cancelBillingWebSubscription({
+      userId: 12,
+      subscriptionId: "subscription-1",
+    });
+    await reactivateBillingWebSubscription({
       userId: 12,
       subscriptionId: "subscription-1",
     });
@@ -289,9 +310,11 @@ describe("billing web public boundary", () => {
         payerUserId: 12,
       })
     );
-    expect(mocks.requestCancellation).toHaveBeenCalledWith(
-      "subscription-1",
-      expect.stringContaining("billing-web-cancel:")
+    expect(mocks.reactivateAsaasCancellation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriptionId: "subscription-1",
+        payerUserId: 12,
+      })
     );
   });
 });
