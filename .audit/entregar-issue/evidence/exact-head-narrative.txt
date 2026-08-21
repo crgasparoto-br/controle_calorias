@@ -1,10 +1,5 @@
-material_head_sha=9a92ab479bc65ac6e1b626398416c59ddd8f321f
-stale_material_head_sha=c99e51ae5ed09980e4fc5bee6dad0b6054353f6b
-stale_published_handoff_head_sha=69c3c8ba53a9faeb6266da46f4872adea01f4d45
-rejection_id=audit-rejection:103842fe-c7da-453d-87ca-4b164f1aa0f8
-findings=A-001
-control=CI-TERMINAL-HANDOFF-LATCH-001
-contract_version=2026-08-20.3
-procedure=Apply the current universal post-write handoff latch: any material path after a published handoff, including tests, forces post-write refreeze; re-run exact-SHA quantitative evidence and rebuild a direct allowlisted result-only child.
-expected=The historical c99e51ae/69c3c8ba handoff is never treated as current after the material test commit; the current exact material head is 9a92ab479bc65ac6e1b626398416c59ddd8f321f, and only a new direct result-only child may release independent audit.
-observed=The stale handoff was rejected, exact-SHA benchmark evidence was re-executed on 9a92ab479bc65ac6e1b626398416c59ddd8f321f, and the cumulative handoff lineage was rebuilt under contract 2026-08-20.3 before publication.
+current_exact_material_head=c2cc1527c6bdc3d5db09d8633310375f601c3718
+historical_stale_certified_material_head=9a92ab479bc65ac6e1b626398416c59ddd8f321f
+historical_stale_handoff_head=cd0d6649aaf8dd7c45ebd4749b2ed0861b759e97
+classification=post-write-refreeze
+observed=The corrected active narrative identifies c2cc1527c6bdc3d5db09d8633310375f601c3718 as the current exact material head; ancestor certificates are historical only.

@@ -1,32 +1,22 @@
-Issue #989 / PR #993 post-write refreeze after independent rejection audit-rejection:103842fe-c7da-453d-87ca-4b164f1aa0f8.
-Material head: 9a92ab479bc65ac6e1b626398416c59ddd8f321f
-Base develop: c1d178642418cf0a54a247f97e15da4d27b103b4
-Previous certified material head: c99e51ae5ed09980e4fc5bee6dad0b6054353f6b (stale after later material test commit)
-Previous published handoff head: 69c3c8ba53a9faeb6266da46f4872adea01f4d45 (historical/stale)
-Contract: entregar-issue 2026-08-20.3
-
-Remediation:
-- classified as systemic because the cumulative lineage already contains repeated post-write handoff recertification escapes;
-- treated server/modules/whatsapp/aiQuestionAssistant.performance.test.ts as a material post-handoff write;
-- invalidated the old quantitative evidence rather than re-anchoring it;
-- re-executed benchmark v4 on exact material head 9a92ab479bc65ac6e1b626398416c59ddd8f321f;
-- rebuilt exact-head cumulative evidence for a new result-only handoff child.
-
-Exact-SHA benchmark result:
-- baseline successes/errors/timeouts: 60/0/0
-- candidate successes/errors/timeouts: 60/0/0
-- p50: 268ms -> 179ms (33.21% improvement)
-- p90: 273ms -> 195ms (28.57% improvement)
-- p95: 275ms -> 267ms (2.91% improvement)
-- gate: PASS
-- candidateSha in canonical result: 9a92ab479bc65ac6e1b626398416c59ddd8f321f
-- execution policy equivalent across baseline/candidate: true
-- TTFT disposition: not-measurable-non-streaming-provider-contract
-- canonical result: docs/benchmarks/question-latency/results/2026-08-20-9a92ab47-e2e-summary.json
-- canonical result SHA-256: 06260dbc6eccd33b0c71ae8cbf2c2d8a7b705501cf74ad7f81e7da42472e574a
-
-Validation reused/executed:
-- GitHub Actions Agent-first run 32396329886 on exact material head: success (TypeScript, tests, architecture, documentation, build, agent checks)
-- benchmark v4 self-test BENCH-RESULT-CONTRACT-001: PASS
-- exact-SHA benchmark v4: PASS
-- no workflow was rerun, dispatched, approved or cancelled by this remediation.
+Issue #989 / PR #993 targeted post-write refreeze after independent audit rejection.
+material_head_sha=c2cc1527c6bdc3d5db09d8633310375f601c3718
+base_sha=c1d178642418cf0a54a247f97e15da4d27b103b4
+base_ref=develop
+head_ref=perf/989-question-latency
+previous_stale_material_head=9a92ab479bc65ac6e1b626398416c59ddd8f321f
+previous_published_handoff_head=cd0d6649aaf8dd7c45ebd4749b2ed0861b759e97
+latest_rejection_id=audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191
+prior_functional_rejection_id=audit-rejection:aed13197-6747-4a8b-a138-9fb9b30573a1
+recovery_scope=post-write-refreeze
+requires_refreeze=true
+focused_context_collision=10/10-pass
+benchmark_profile=taskset-cpu-0; canonical v4 script; identical profile for baseline and candidate
+benchmark_path=docs/benchmarks/question-latency/results/2026-08-21-c2cc1527-e2e-summary.json
+benchmark_sha256=68340aee5d0df8d6a5a7635460072989f8d48e303614cfdc07b92e30c32df2b4
+benchmark_baseline=successes:60,errors:0,timeouts:0,p50:268,p90:272,p95:273
+benchmark_candidate=successes:60,errors:0,timeouts:0,p50:178,p90:194,p95:266
+benchmark_improvement=p50:33.58%,p90:28.68%,p95:2.56%
+benchmark_gate=passed
+benchmark_noise_disclosure=an unconstrained local run showed scheduler-sensitive p95 variance; diagnosis demonstrated symmetric timer jitter; two canonical runs under the documented single-CPU affinity profile passed. The certified evidence is the second controlled-profile canonical run.
+ci_snapshot=Agent-first success; WhatsApp context TiDB success; Billing persistence TiDB success; Professional persistence TiDB success; AI provider live smoke skipped-by-policy.
+publication_policy=only a direct allowlisted result-only child of the frozen material head may release independent audit.

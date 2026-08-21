@@ -1,0 +1,6 @@
+material_head_sha=c2cc1527c6bdc3d5db09d8633310375f601c3718
+control=CONTEXT-GENERIC-COLLISION-001
+procedure=Execute generic nutritional noun collisions and explicit personal-reference/advice siblings against questionContextPlan on the exact material source.
+expected=Generic meta/consumo/peso/agua/habitos questions resolve none; explicit meu/mim/devo/follow-up siblings preserve full context.
+observed=10/10 discriminant cases passed on exact material source: 4 generic collisions -> none and 6 personal/follow-up siblings -> full.
+status=passed

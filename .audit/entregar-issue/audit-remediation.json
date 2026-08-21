@@ -3,11 +3,11 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:6c9c779e-17b6-44ba-823c-b4e984b75534",
-    "audit_report_sha256": "694e3c09879dcbae52a01a5f97de16938c6b03726d85ba4eadc260c1211391f6",
-    "audited_head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f"
+    "rejection_id": "audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191",
+    "audit_report_sha256": "de6b6c0784f2c6a71a286bdd07b5214f25886b929c51e1e98a309ed696e58b08",
+    "audited_head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718"
   },
-  "candidate_head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+  "candidate_head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -16,20 +16,33 @@
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        ".audit/entregar-issue/requirement-closure.json"
+        "docs/benchmarks/question-latency/results/2026-08-21-c2cc1527-e2e-summary.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/evidence/delivery.txt",
+        ".audit/entregar-issue/evidence/exact-head-narrative.txt",
+        ".audit/entregar-issue/evidence/quantitative-freshness.txt",
+        ".audit/entregar-issue/evidence/validation.txt"
       ],
       "evidence": [
-        ".audit/entregar-issue/requirement-closure.json",
-        ".audit/entregar-issue/evidence/exact-head-narrative.txt",
-        ".audit/entregar-issue/evidence-provenance.json"
+        "docs/benchmarks/question-latency/results/2026-08-21-c2cc1527-e2e-summary.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/evidence/delivery.txt",
+        ".audit/entregar-issue/evidence/exact-head-narrative.txt"
       ],
       "validations": [
-        "canonical source identity references question-latency-e2e-9a92ab47",
-        "canonical value matches exact material head 9a92ab479bc65ac6e1b626398416c59ddd8f321f",
-        "existing material-head CI is green and was reused without rerun",
-        "terminal handoff is republished as a direct result-only child of the unchanged material head"
+        "post-write recovery floor preserved",
+        "exact-SHA benchmark rerun on controlled identical baseline/candidate profile",
+        "focused generic-vs-personal context control passed 10/10",
+        "cumulative inherited controls and audit escape lineage rebound to current material head",
+        "terminal publisher constrained to a direct allowlisted result-only child"
       ],
-      "reason": "Removed the stale active exact-head claim from requirement closure without changing product, test, configuration, or quantitative benchmark behavior."
+      "reason": "Refroze the exact current material head, reexecuted identity-dependent quantitative and discriminant evidence, rebuilt cumulative audit artifacts, and prepared terminal result-only publication."
     }
   ],
   "status": "closed"

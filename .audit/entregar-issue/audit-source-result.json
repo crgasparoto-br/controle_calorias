@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:6c9c779e-17b6-44ba-823c-b4e984b75534",
-  "head_sha": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+  "rejection_id": "audit-rejection:98989ac3-1ee2-4d88-82b3-f539f9a8a191",
+  "head_sha": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
   "repository": "crgasparoto-br/controle_calorias",
   "pull_request": 993,
   "issue": 989,
@@ -15,15 +15,16 @@
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "title": "Requirement closure keeps stale exact-head identity",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
+      "title": "Terminal handoff is stale after a material post-handoff commit",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
       "evidence": {
-        "stale_material_head": "c99e51ae5ed09980e4fc5bee6dad0b6054353f6b",
-        "current_material_head": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
-        "path": ".audit/entregar-issue/requirement-closure.json"
+        "certified_material_head": "9a92ab479bc65ac6e1b626398416c59ddd8f321f",
+        "previous_published_handoff_head": "cd0d6649aaf8dd7c45ebd4749b2ed0861b759e97",
+        "current_material_head": "c2cc1527c6bdc3d5db09d8633310375f601c3718",
+        "path": ".audit/entregar-issue/handoff-ready.json"
       },
-      "classification_note": "The independent audit found a stale active canonical identity only in the critical handoff package; no product regression was demonstrated."
+      "classification_note": "The independent audit found that the current branch contains a material commit after the previous result-only handoff, so the ancestor certificate cannot release a new independent audit until post-write refreeze and terminal republication complete."
     }
   ],
   "recommendations": []
