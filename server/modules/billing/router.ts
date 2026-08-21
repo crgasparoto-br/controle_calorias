@@ -1,9 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadService";
-import {
-  getInternalUsageAnalytics,
-} from "../usageGovernance/service";
+import { getInternalUsageAnalytics } from "../usageGovernance/service";
 import { governanceError } from "../usageGovernance/publicBoundary";
 import {
   internalUsageAnalyticsSchema,
@@ -27,6 +25,13 @@ import {
   billingAdminSearchUsersSchema,
 } from "./schemas";
 import { billingService } from "./service";
+import {
+  billingCancelSubscriptionSchema,
+  billingStartCheckoutSchema,
+  cancelBillingWebSubscription,
+  getBillingWebOverview,
+  startBillingWebCheckout,
+} from "./webPublic";
 
 const SAFE_ADMIN_ERROR_PREFIXES = [
   "A vigência final",
@@ -74,7 +79,8 @@ function safeAdminMutationError(error: unknown): TRPCError {
     ) {
       return new TRPCError({
         code: "FORBIDDEN",
-        message: "Sua autorização administrativa mudou. Recarregue a sessão antes de tentar novamente.",
+        message:
+          "Sua autorização administrativa mudou. Recarregue a sessão antes de tentar novamente.",
       });
     }
     const safe = SAFE_ADMIN_ERROR_PREFIXES.some(prefix =>
@@ -104,6 +110,9 @@ export const billingRouter = router({
   subscriptionStatus: protectedProcedure.query(({ ctx }) =>
     billingService.getUserSubscriptionStatus(ctx.user.id)
   ),
+  webOverview: protectedProcedure.query(({ ctx }) =>
+    getBillingWebOverview(ctx.user.id)
+  ),
   catalog: protectedProcedure.query(async () => {
     try {
       return await billingCatalogService.listCatalog();
@@ -123,6 +132,24 @@ export const billingRouter = router({
         throw safeCatalogQueryError();
       }
     }),
+  startCheckout: protectedProcedure
+    .input(billingStartCheckoutSchema)
+    .mutation(({ ctx, input }) =>
+      startBillingWebCheckout({
+        userId: ctx.user.id,
+        accountName: ctx.user.name,
+        accountEmail: ctx.user.email,
+        payload: input,
+      })
+    ),
+  cancelSubscription: protectedProcedure
+    .input(billingCancelSubscriptionSchema)
+    .mutation(({ ctx, input }) =>
+      cancelBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
   refreshOnboardingActivation: protectedProcedure.mutation(({ ctx }) =>
     activateWhatsappOnboardingUser(ctx.user.id)
   ),
@@ -260,7 +287,9 @@ export const billingRouter = router({
     .input(internalUsageAnalyticsSchema)
     .query(async ({ ctx, input }) => {
       try {
-        return await getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input));
+        return await getInternalUsageAnalytics(
+          resolveInternalUsageAnalyticsWindow(input)
+        );
       } catch (error) {
         governanceError(error, ctx.res);
       }
