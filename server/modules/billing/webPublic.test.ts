@@ -1,27 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getUserSubscriptionStatus = vi.fn();
-const getUserEntitlements = vi.fn();
-const listCatalog = vi.fn();
-const prepareAsaasBillingFlow = vi.fn();
-const requestAsaasCancellation = vi.fn();
-const requestCancellation = vi.fn();
+const mocks = vi.hoisted(() => ({
+  getUserSubscriptionStatus: vi.fn(),
+  getUserEntitlements: vi.fn(),
+  listCatalog: vi.fn(),
+  prepareAsaasBillingFlow: vi.fn(),
+  requestAsaasCancellation: vi.fn(),
+  requestCancellation: vi.fn(),
+}));
 
 vi.mock("./service", () => ({
   billingService: {
-    getUserSubscriptionStatus,
-    getUserEntitlements,
+    getUserSubscriptionStatus: mocks.getUserSubscriptionStatus,
+    getUserEntitlements: mocks.getUserEntitlements,
   },
 }));
 vi.mock("./catalogRuntime", () => ({
-  billingCatalogService: { listCatalog },
+  billingCatalogService: { listCatalog: mocks.listCatalog },
 }));
 vi.mock("./asaas/runtime", () => ({
-  prepareAsaasBillingFlow,
-  requestAsaasCancellation,
+  prepareAsaasBillingFlow: mocks.prepareAsaasBillingFlow,
+  requestAsaasCancellation: mocks.requestAsaasCancellation,
 }));
 vi.mock("./subscriptionLifecycleRuntime", () => ({
-  billingSubscriptionLifecycleService: { requestCancellation },
+  billingSubscriptionLifecycleService: {
+    requestCancellation: mocks.requestCancellation,
+  },
 }));
 
 import {
@@ -54,8 +58,8 @@ const catalog = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  listCatalog.mockResolvedValue(catalog);
-  getUserEntitlements.mockResolvedValue({
+  mocks.listCatalog.mockResolvedValue(catalog);
+  mocks.getUserEntitlements.mockResolvedValue({
     allowed: false,
     reason: "no_access",
     entitlements: [],
@@ -66,7 +70,7 @@ beforeEach(() => {
 
 describe("billing web public boundary", () => {
   it("does not expose sponsor professional subscription to a covered patient", async () => {
-    getUserSubscriptionStatus.mockResolvedValue({
+    mocks.getUserSubscriptionStatus.mockResolvedValue({
       access: {
         allowed: true,
         reason: "sponsored_by_professional",
@@ -122,12 +126,12 @@ describe("billing web public boundary", () => {
         },
       })
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(prepareAsaasBillingFlow).not.toHaveBeenCalled();
+    expect(mocks.prepareAsaasBillingFlow).not.toHaveBeenCalled();
   });
 
   it("binds checkout to the authenticated payer and keeps browser result pending", async () => {
     const transitionUntil = new Date("2026-08-30T00:00:00.000Z");
-    getUserEntitlements.mockResolvedValue({
+    mocks.getUserEntitlements.mockResolvedValue({
       allowed: true,
       reason: "transition_access",
       validUntil: transitionUntil,
@@ -135,7 +139,7 @@ describe("billing web public boundary", () => {
       sourceAvailable: true,
       evaluatedAt: new Date(),
     });
-    prepareAsaasBillingFlow.mockResolvedValue({
+    mocks.prepareAsaasBillingFlow.mockResolvedValue({
       flow: {
         kind: "hosted_checkout",
         provider: "asaas",
@@ -166,7 +170,7 @@ describe("billing web public boundary", () => {
       },
     });
 
-    expect(prepareAsaasBillingFlow).toHaveBeenCalledWith(
+    expect(mocks.prepareAsaasBillingFlow).toHaveBeenCalledWith(
       expect.objectContaining({
         payerUserId: 12,
         transitionAccessUntil: transitionUntil,
@@ -180,21 +184,21 @@ describe("billing web public boundary", () => {
   });
 
   it("cancels only through the authenticated payer boundary", async () => {
-    requestAsaasCancellation.mockResolvedValue(undefined);
-    requestCancellation.mockResolvedValue("applied");
+    mocks.requestAsaasCancellation.mockResolvedValue(undefined);
+    mocks.requestCancellation.mockResolvedValue("applied");
 
     await cancelBillingWebSubscription({
       userId: 12,
       subscriptionId: "subscription-1",
     });
 
-    expect(requestAsaasCancellation).toHaveBeenCalledWith(
+    expect(mocks.requestAsaasCancellation).toHaveBeenCalledWith(
       expect.objectContaining({
         subscriptionId: "subscription-1",
         payerUserId: 12,
       })
     );
-    expect(requestCancellation).toHaveBeenCalledWith(
+    expect(mocks.requestCancellation).toHaveBeenCalledWith(
       "subscription-1",
       expect.stringContaining("billing-web-cancel:")
     );
