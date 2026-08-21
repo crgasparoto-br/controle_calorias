@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
-  "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-  "material_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+  "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+  "material_tree_sha": "fb37f347948c07d8ab65b6831034a32be0914af6",
   "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
   "materialization": {
-    "remote_subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-    "remote_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
-    "local_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+    "remote_subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+    "remote_tree_sha": "fb37f347948c07d8ab65b6831034a32be0914af6",
+    "local_tree_sha": "fb37f347948c07d8ab65b6831034a32be0914af6",
     "tree_identity_verified": true
   },
   "source": {
     "path": "server/modules/usageGovernance/service.ts",
     "git_blob_sha": "519c580a69806ce8fb3b3cbb28f712b9bbcd9005",
     "sha256": "ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251",
-    "ref": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-    "extraction": "TypeScript transpile + VM execution from exact material tree with deterministic repository mocks"
+    "ref": "63e3fe9b76b3456a5074af33b34e1068385982be",
+    "extraction": "TypeScript transpile + VM execution from exact material source with deterministic repository mocks"
   },
   "runtime": {
     "fixed_now": "2026-08-17T12:34:56.000Z",
     "timezone": "UTC",
     "node": "v22.16.0",
-    "typescript": "5.8.3"
+    "typescript": "5.9.3"
   },
   "checks": [
     {
@@ -205,12 +205,6 @@
       "expected": "2021-08-01T00:00:00.000Z"
     },
     {
-      "id": "monthly-before-queryFrom",
-      "status": "passed",
-      "actual": "2021-08-01T00:00:00.000Z",
-      "expected": "2021-08-01T00:00:00.000Z"
-    },
-    {
       "id": "monthly-exact-state",
       "status": "passed",
       "actual": "complete",
@@ -227,12 +221,6 @@
       "status": "passed",
       "actual": "partial",
       "expected": "partial"
-    },
-    {
-      "id": "monthly-expired-query-count",
-      "status": "passed",
-      "actual": 0,
-      "expected": 0
     },
     {
       "id": "daily-exact-state",
@@ -259,28 +247,10 @@
       "expected": "2024-08-17T00:00:00.000Z"
     },
     {
-      "id": "daily-before-query-from",
-      "status": "passed",
-      "actual": "2024-08-17T00:00:00.000Z",
-      "expected": "2024-08-17T00:00:00.000Z"
-    },
-    {
-      "id": "daily-before-query-user",
-      "status": "passed",
-      "actual": 42,
-      "expected": 42
-    },
-    {
       "id": "daily-expired-state",
       "status": "passed",
       "actual": "partial",
       "expected": "partial"
-    },
-    {
-      "id": "daily-expired-query-count",
-      "status": "passed",
-      "actual": 0,
-      "expected": 0
     },
     {
       "id": "retention-daily-cutoff",
@@ -296,9 +266,9 @@
     }
   ],
   "summary": {
-    "passed": 45,
+    "passed": 40,
     "failed": 0,
-    "total": 45,
+    "total": 40,
     "status": "passed"
   }
 }

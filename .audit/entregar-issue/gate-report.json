@@ -1,17 +1,12 @@
 {
   "schema_version": 1,
-  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-  "status": "passed",
+  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+  "status": "passed-local-pending-remote",
   "controls": [
-    "EMERGENCY-LIMITATION-RIGHTS-001",
-    "PUBLIC-BOUNDARY-APPEAL-TARGET-001",
-    "AUTH-EFFECT-SCOPE-001",
-    "REF-LIVE-EFFECT-SCOPE-001",
-    "IDEMPOTENCY-REPLAY-001",
-    "QUANT-EXACT-SHA-001",
-    "ROLLBACK-FUTURE-CHARGE-001",
-    "HISTORICAL-ATTRIBUTION-IMMUTABILITY-001"
+    "LEGAL-HOLD-PROFESSIONAL-GRANT-001",
+    "LEGAL-HOLD-SIBLING-USER-001",
+    "LEGAL-HOLD-SIBLING-UNRELATED-001"
   ],
-  "remote_ci": "success",
+  "remote_ci": "pending-no-run-observed",
   "previous_independent_rejection_closed": true
 }

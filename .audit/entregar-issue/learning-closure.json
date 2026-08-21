@@ -2,16 +2,18 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-audit-rejection",
-    "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
-    "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939",
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:87a7305b-5949-48b1-b268-b0495216fef8",
     "finding_ids": [
-      "AUD-985-001",
-      "AUD-985-002"
-    ]
+      "AUD-985-003"
+    ],
+    "repository": "crgasparoto-br/controle_calorias",
+    "work_item": 897,
+    "pull_request": 985,
+    "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The generic delivery and audit contracts already require exception branches to preserve lifecycle obligations and require publicly reachable procedures to be classified and attacked at the public boundary; the escape was an application failure, not a missing reusable rule."
+    "reason": "The delivery contract already requires semantic identity propagation and historical-immutability controls across related records; the escape was a local retention join that compared storage labels instead of the canonical subject identity."
   }
 }

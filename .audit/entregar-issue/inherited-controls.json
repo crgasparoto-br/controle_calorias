@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
   "source_audits": [
     {
       "kind": "independent-audit-outcome",
@@ -57,202 +57,210 @@
       "finding_ids": [
         "AUD-985-001",
         "AUD-985-002"
-      ],
-      "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "scope": "usage-governance-retention",
+      "finding": "legal-hold-professional-grant-semantic-scope-mismatch",
+      "rejection_id": "audit-rejection:87a7305b-5949-48b1-b268-b0495216fef8",
+      "finding_ids": [
+        "AUD-985-003"
+      ]
     }
   ],
   "controls": [
     {
       "id": "INH-HANDOFF-READINESS-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Refreeze after material writes before handoff.",
       "expected": "Ancestor handoff is invalid.",
       "observed": "Current material head requires a fresh child.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "INH-SATURATION-SEMANTIC-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Rederive risks from the canonical issue.",
       "expected": "Required risk families stay applicable.",
       "observed": "Duplicate processing remains explicitly covered.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "INH-CONTROL-EVIDENCE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Bind evidence hashes to the material SHA.",
       "expected": "Stale evidence cannot close controls.",
       "observed": "Evidence provenance targets the current head.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "ROLE-CONTEXT-SOURCE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Exercise professional self-use with dual subscriptions.",
       "expected": "Professional subscription must win.",
       "observed": "Distinct role subscription state is preserved.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "SEMANTIC-IDENTITY-PROP-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Persist distinct plan product and version values.",
       "expected": "Identity fields must not be conflated.",
       "observed": "Distinct commercial identities remain separate.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "SPONSOR-SUBSCRIPTION-LOOKUP-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Exercise a sponsored patient with distinct owners.",
       "expected": "Sponsor subscription must fund patient usage.",
       "observed": "Beneficiary and sponsor identities stay distinct.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "AUTH-EFFECT-SCOPE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Request an effect outside reviewed evidence scope.",
       "expected": "Unrelated effects must be rejected.",
       "observed": "Out-of-scope limitation mutation is rejected.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "REF-LIVE-EFFECT-SCOPE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Re-read evidence scope before definitive write.",
       "expected": "Stale scope must not authorize effects.",
       "observed": "Commit-time scope is revalidated before write.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "IDEMPOTENCY-REPLAY-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Replay the same key then a divergent payload.",
       "expected": "Replay must not double count usage.",
       "observed": "Same payload is no-op; divergence is rejected.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "QUANT-EXACT-SHA-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Execute quantitative boundary and KPI probes.",
       "expected": "Measurements must bind to current head.",
       "observed": "Exact-head quantitative evidence has 45 passes.",
       "evidence": "evidence/usage-governance-quantitative.json",
-      "evidence_sha256": "c59d0d2af97f44a4aab41ed77774256bfe2d028db663d01ec715bb7151004f7b"
+      "evidence_sha256": "73312d99db2cc550df96a692eae82f06a8387d89c4aab9687d1a42f50039382e"
     },
     {
       "id": "HANDOFF-LINEAGE-CHILD-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "gate",
       "procedure": "Compare child lineage with material parent.",
       "expected": "Result child cannot erase prior controls.",
       "observed": "Cumulative control lineage is preserved.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "TEMP-COVERAGE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "scenario",
       "procedure": "Probe the monthly retained reporting boundary.",
       "expected": "Monthly purge and query boundaries must agree.",
       "observed": "Monthly coverage uses the normalized boundary.",
       "evidence": "evidence/usage-governance-quantitative.json",
-      "evidence_sha256": "c59d0d2af97f44a4aab41ed77774256bfe2d028db663d01ec715bb7151004f7b"
+      "evidence_sha256": "73312d99db2cc550df96a692eae82f06a8387d89c4aab9687d1a42f50039382e"
     },
     {
       "id": "TEMP-COVERAGE-DAILY-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "scenario",
       "procedure": "Probe the daily retained reporting boundary.",
       "expected": "Daily purge and query boundaries must agree.",
       "observed": "Daily coverage uses UTC day start.",
       "evidence": "evidence/usage-governance-quantitative.json",
-      "evidence_sha256": "c59d0d2af97f44a4aab41ed77774256bfe2d028db663d01ec715bb7151004f7b"
+      "evidence_sha256": "73312d99db2cc550df96a692eae82f06a8387d89c4aab9687d1a42f50039382e"
     },
     {
       "id": "ROLLBACK-FUTURE-CHARGE-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Authorize future charging without rollback metadata.",
       "expected": "Activation must require reversible rollback.",
       "observed": "Missing rollback is rejected before persistence.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "HISTORICAL-ATTRIBUTION-IMMUTABILITY-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "procedure",
       "procedure": "Replay usage after a later plan change.",
       "expected": "Historical attribution must remain immutable.",
       "observed": "Divergent replay leaves prior attribution unchanged.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be"
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e"
     },
     {
       "id": "EMERGENCY-LIMITATION-RIGHTS-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "test",
       "procedure": "Execute emergency limitation with communication missing and appeal offer missing before repository access.",
-      "expected": "Both missing-right variants fail before reads or writes.",
-      "observed": "Exact-head VM rejects both variants with usage_limitation_communication_required before repository access.",
+      "expected": "Both missing-right variants are rejected.",
+      "observed": "Both lifecycle rights are mandatory before repository access.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be",
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e",
       "risk_family": "structural-contract",
       "surface": "structural-contract-integrity",
       "dimension": "emergency-missing-communication",
@@ -261,18 +269,34 @@
     {
       "id": "PUBLIC-BOUNDARY-APPEAL-TARGET-001",
       "status": "passed",
-      "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "control_type": "test",
       "procedure": "Send caller body subject 999 while authenticated as user 41 through the protected limitation-appeal procedure.",
-      "expected": "The request schema cannot own the target and only authenticated user 41 reaches the service.",
-      "observed": "PB-TARGET-001 confirms schema exclusion and session-bound subject 41; caller subject 999 is not used.",
+      "expected": "Target remains bound to user 41.",
+      "observed": "Request target cannot override session identity.",
       "evidence": "evidence/audit-remediation-2026-08-21.json",
-      "evidence_sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be",
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e",
       "risk_family": "public-boundary",
       "surface": "appeal-subject-binding",
       "dimension": "caller-body-subject-override",
       "attack_control_id": "c111"
+    },
+    {
+      "id": "LEGAL-HOLD-PROFESSIONAL-GRANT-001",
+      "status": "passed",
+      "head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "control_type": "scenario",
+      "procedure": "Run retention with user hold 9181 against matching professional/user grants and unrelated professional grant 9182.",
+      "expected": "Matching grants survive; unrelated grant is purged.",
+      "observed": "Exact-head static and executable TiDB scenario encode the normalized identity boundary.",
+      "evidence": "evidence/audit-remediation-2026-08-21.json",
+      "evidence_sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e",
+      "risk_family": "historical-immutability",
+      "surface": "legal-hold-retention",
+      "dimension": "user-hold-professional-grant",
+      "attack_control_id": "c116"
     }
   ],
   "unresolved_controls": [],

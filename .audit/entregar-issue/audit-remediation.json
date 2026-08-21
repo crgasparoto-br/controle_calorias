@@ -3,47 +3,29 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "candidate_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
   "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
-    "audited_head_sha": "9f1a0e41a6244f23b5ea0c1214c2c95c5a34468d",
-    "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+    "rejection_id": "audit-rejection:87a7305b-5949-48b1-b268-b0495216fef8",
+    "audited_head_sha": "a7354226de5ccffbb17cb3cd72ec28707e434e1b"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-985-001",
+      "source_id": "AUD-985-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "evidence": [
         "evidence/audit-remediation-2026-08-21.json",
-        "server/modules/usageGovernance/adminService.test.ts",
-        "docs/design-docs/usage-governance.md"
+        "server/repositories/usageGovernanceRetentionRepository.ts",
+        "server/repositories/usageGovernanceRepository.test.ts",
+        "scripts/test-usage-governance-retention-tidb.ts"
       ],
       "validations": [
-        "emergency-communication-required",
-        "emergency-appeal-required",
-        "valid-emergency-persists",
-        "normal-limitation-regression"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "AUD-985-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "evidence": [
-        "evidence/audit-remediation-2026-08-21.json",
-        "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts",
-        "requirement-attack-matrix.json",
-        "risk-saturation.json"
-      ],
-      "validations": [
-        "protected-boundary",
-        "session-target-binding",
-        "request-target-override-absent",
-        "PB-TARGET-001-present"
+        "professional-grant-held",
+        "user-grant-held",
+        "unrelated-professional-purged",
+        "legacy-label-equality-absent"
       ]
     }
   ]

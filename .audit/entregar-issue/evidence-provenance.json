@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
-  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
   "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
   "evidence": [
     {
       "evidence_id": "BEHAVIOR-REMEDIATION-001",
       "kind": "behavioral",
       "path": "evidence/audit-remediation-2026-08-21.json",
-      "sha256": "94d631f366a1f82bc988f9bfcbc53904010f988324c16ef818afd008ee9648be",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "sha256": "5f06fdc7c271c8ef419f534cdec15bbfa91e68599d7cc713c120b89d8ac3796e",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
       "freshness_policy": "exact-material-head",
-      "producer": "exact-tree focused VM plus AST/static discriminant harness",
+      "producer": "17-check exact-tree remediation harness including legal-hold identity aliases",
       "status": "passed"
     },
     {
       "evidence_id": "QUANT-ECON-001",
       "kind": "quantitative",
       "path": "evidence/usage-governance-quantitative.json",
-      "sha256": "c59d0d2af97f44a4aab41ed77774256bfe2d028db663d01ec715bb7151004f7b",
-      "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "sha256": "73312d99db2cc550df96a692eae82f06a8387d89c4aab9687d1a42f50039382e",
+      "subject_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
       "freshness_policy": "exact-material-head",
-      "producer": "45-check exact-tree quantitative TypeScript VM harness",
+      "producer": "40-check exact-tree TypeScript VM quantitative harness",
       "status": "passed"
     }
   ]

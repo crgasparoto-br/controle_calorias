@@ -36,7 +36,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "LATEST-SEMANTIC-IDENTITY",
@@ -72,7 +72,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "LATEST-IDEMPOTENCY-SATURATION",
@@ -108,7 +108,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "LATEST-QUANT-PROVENANCE",
@@ -144,7 +144,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "A-004",
@@ -180,7 +180,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "A-005",
@@ -216,7 +216,7 @@
         "evidence": "requirement-attack-matrix.json"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "A-006",
@@ -257,12 +257,12 @@
         "rejection_id": "audit-rejection:0ceb57ec-7148-4fcf-9c49-add18f137613",
         "finding_id": "A-001"
       },
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be"
     },
     {
       "escape_id": "AUD-985-001-EMERGENCY-RIGHTS",
       "escape_class": "exception-branch-lifecycle-obligation-bypass",
-      "plausible_wrong_implementation": "Keep communication and appeal guards only in the normal branch so emergencySecurity bypasses lifecycle rights while emergency happy-path tests still pass.",
+      "plausible_wrong_implementation": "Keep communication and appeal guards only in the normal branch so emergency handling bypasses lifecycle rights.",
       "required_risk_families": [
         "structural-contract"
       ],
@@ -278,22 +278,13 @@
           "dimension": "emergency-missing-appeal"
         }
       ],
-      "literal_case": {
-        "procedure": "Call emergency limitation with communicatedAt missing and then with appealOfferedAt missing.",
-        "expected": "Both variants fail before reads or writes.",
-        "observed": "Exact-head VM rejected both variants with usage_limitation_communication_required before repository access."
-      },
       "sibling_cases": [
         {
           "id": "valid-emergency",
-          "surface": "structural-contract-integrity",
-          "dimension": "emergency-rights-present",
           "status": "passed"
         },
         {
           "id": "normal-limitation",
-          "surface": "structural-contract-integrity",
-          "dimension": "normal-rights-regression",
           "status": "passed"
         }
       ],
@@ -304,18 +295,17 @@
         "evidence": "server/modules/usageGovernance/adminService.test.ts"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "source_audit": {
         "kind": "independent-audit-rejection",
         "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
-        "finding_id": "AUD-985-001",
-        "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+        "finding_id": "AUD-985-001"
       }
     },
     {
       "escape_id": "AUD-985-002-PUBLIC-BOUNDARY",
       "escape_class": "public-boundary-risk-underclassification",
-      "plausible_wrong_implementation": "Mark the appeal public boundary not applicable and allow a caller-supplied subject identifier to flow through a protected procedure without a target-binding attack.",
+      "plausible_wrong_implementation": "Allow a caller supplied appeal subject identifier through a protected public procedure.",
       "required_risk_families": [
         "public-boundary"
       ],
@@ -331,22 +321,13 @@
           "dimension": "public-schema-cannot-select-subject"
         }
       ],
-      "literal_case": {
-        "procedure": "Send subjectUserId 999 through the appeal request while authenticated as user 41.",
-        "expected": "The public schema cannot own the target and the service receives only user 41.",
-        "observed": "Exact-head boundary probe confirmed schema exclusion and ctx.user.id target binding with the 999-versus-41 discriminant."
-      },
       "sibling_cases": [
         {
           "id": "schema-exclusion",
-          "surface": "appeal-subject-binding",
-          "dimension": "public-schema-cannot-select-subject",
           "status": "passed"
         },
         {
           "id": "session-binding",
-          "surface": "appeal-subject-binding",
-          "dimension": "authenticated-subject-owned-by-session",
           "status": "passed"
         }
       ],
@@ -357,12 +338,64 @@
         "evidence": "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts"
       },
       "status": "passed",
-      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
       "source_audit": {
         "kind": "independent-audit-rejection",
         "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
-        "finding_id": "AUD-985-002",
-        "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+        "finding_id": "AUD-985-002"
+      }
+    },
+    {
+      "escape_id": "AUD-985-003-LEGAL-HOLD-PROFESSIONAL-GRANT",
+      "escape_class": "semantic-subject-scope-alias-retention-mismatch",
+      "plausible_wrong_implementation": "Join legal hold scope labels directly to allowance subject labels so a user hold misses the same sponsor represented as a professional grant.",
+      "required_risk_families": [
+        "historical-immutability",
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "historical-immutability",
+          "surface": "legal-hold-retention",
+          "dimension": "user-hold-professional-grant"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "canonical-user-professional-alias"
+        }
+      ],
+      "literal_case": {
+        "procedure": "Hold user 9181 and purge an expired professional grant whose subjectId is 9181.",
+        "expected": "Grant survives.",
+        "observed": "Normalized predicate matches user hold to professional subject identity."
+      },
+      "sibling_cases": [
+        {
+          "id": "matching-user-grant",
+          "surface": "legal-hold-retention",
+          "dimension": "user-hold-user-grant",
+          "status": "passed"
+        },
+        {
+          "id": "unrelated-professional-grant",
+          "surface": "legal-hold-retention",
+          "dimension": "unrelated-professional-grant-deleted",
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "server/repositories/usageGovernanceRetentionRepository.ts"
+      },
+      "detection_change": {
+        "evidence": "scripts/test-usage-governance-retention-tidb.ts"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:87a7305b-5949-48b1-b268-b0495216fef8",
+        "finding_id": "AUD-985-003"
       }
     }
   ]

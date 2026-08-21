@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
   "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "b67f9089d1038b1706db4d2ac58a06f16ff2cdf0",
-  "reason": "independent-audit-remediation-emergency-rights-and-public-boundary",
+  "merge_preview_sha": null,
+  "reason": "independent-audit-remediation-legal-hold-professional-grant",
   "changed_paths_from_previous_handoff": [
-    "docs/design-docs/usage-governance.md",
-    "server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts",
-    "server/modules/usageGovernance/adminService.test.ts",
-    "server/modules/usageGovernance/adminService.ts",
-    "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts"
+    ".github/workflows/billing-persistence-tidb.yml",
+    "package.json",
+    "server/repositories/usageGovernanceRepository.test.ts",
+    "server/repositories/usageGovernanceRetentionRepository.ts",
+    "scripts/test-usage-governance-retention-tidb.ts"
   ],
-  "remote_gate": "success"
+  "remote_gate": "pending-no-run-observed"
 }
