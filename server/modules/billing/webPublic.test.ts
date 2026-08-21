@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getUserSubscriptionStatus: vi.fn(),
   getUserEntitlements: vi.fn(),
   listCatalog: vi.fn(),
+  loadLifecycle: vi.fn(),
   prepareAsaasBillingFlow: vi.fn(),
   requestAsaasCancellation: vi.fn(),
   requestCancellation: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("./asaas/runtime", () => ({
   requestAsaasCancellation: mocks.requestAsaasCancellation,
 }));
 vi.mock("./subscriptionLifecycleRuntime", () => ({
+  billingSubscriptionLifecycleRepository: { loadLifecycle: mocks.loadLifecycle },
   billingSubscriptionLifecycleService: {
     requestCancellation: mocks.requestCancellation,
   },
@@ -68,6 +70,20 @@ const noSubscriptionStatus = () => ({
   professionalSubscription: null,
 });
 
+const activeSubscription = () => ({
+  id: "subscription-1",
+  provider: "asaas",
+  planCode: "individual",
+  planName: "Individual",
+  status: "active",
+  billingCycle: "monthly",
+  currency: "BRL",
+  unitAmount: 1990,
+  currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+  currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+  cancelAtPeriodEnd: false,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listCatalog.mockResolvedValue(catalog);
@@ -79,6 +95,7 @@ beforeEach(() => {
     sourceAvailable: true,
     evaluatedAt: new Date(),
   });
+  mocks.loadLifecycle.mockResolvedValue(null);
 });
 
 describe("billing web public boundary", () => {
@@ -116,24 +133,44 @@ describe("billing web public boundary", () => {
 
     expect(result.sponsoredCoverage).toBe(true);
     expect(result.professionalSubscription).toBeNull();
+    expect(mocks.loadLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("returns trial and recovery boundaries from the canonical lifecycle", async () => {
+    mocks.getUserSubscriptionStatus.mockResolvedValue({
+      ...noSubscriptionStatus(),
+      subscription: activeSubscription(),
+    });
+    mocks.loadLifecycle.mockResolvedValue({
+      state: "past_due",
+      currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+      currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+      cancelAtPeriodEnd: false,
+      trialStartedAt: new Date("2026-07-20T00:00:00.000Z"),
+      trialEndsAt: new Date("2026-07-27T00:00:00.000Z"),
+      firstChargeAt: new Date("2026-07-28T00:00:00.000Z"),
+      graceStartedAt: new Date("2026-08-20T00:00:00.000Z"),
+      graceEndsAt: new Date("2026-08-27T00:00:00.000Z"),
+      suspendedAt: null,
+      recoveryEndsAt: null,
+      reconciliationRequired: true,
+    });
+
+    const result = await getBillingWebOverview(12);
+
+    expect(mocks.loadLifecycle).toHaveBeenCalledWith("subscription-1");
+    expect(result.lifecycle).toMatchObject({
+      state: "past_due",
+      reconciliationRequired: true,
+    });
+    expect(result.actions.canRegularize).toBe(true);
+    expect(result.actions.canStartCheckout).toBe(false);
   });
 
   it("blocks a second self-service checkout while an own subscription exists", async () => {
     mocks.getUserSubscriptionStatus.mockResolvedValue({
       ...noSubscriptionStatus(),
-      subscription: {
-        id: "subscription-1",
-        provider: "asaas",
-        planCode: "individual",
-        planName: "Individual",
-        status: "active",
-        billingCycle: "monthly",
-        currency: "BRL",
-        unitAmount: 1990,
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(),
-        cancelAtPeriodEnd: false,
-      },
+      subscription: activeSubscription(),
     });
 
     await expect(
