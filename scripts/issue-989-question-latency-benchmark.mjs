@@ -127,11 +127,24 @@ function selfTest() {
     identicalRejected = true;
   }
   if (!identicalRejected) throw new Error("Identical baseline/candidate identities must be rejected.");
+  if (expectedHistoryLoads("baseline", "none") !== 1) throw new Error("Baseline must preserve the legacy history load.");
+  if (expectedHistoryLoads("candidate", "none") !== 0) throw new Error("Candidate scope=none must skip recent history.");
+  if (expectedHistoryLoads("candidate", "full") !== 1) throw new Error("Candidate contextual scopes must preserve recent history.");
+  const syntheticDelays = { history: 10, today: 30, currentWeek: 45, last30Days: 120 };
+  if (expectedCandidateDbMs("none", syntheticDelays) !== 0) throw new Error("Candidate scope=none must not attribute skipped history to db_ms.");
+  if (expectedCandidateDbMs("today", syntheticDelays) !== 40) throw new Error("Candidate contextual db_ms must include history plus selected insight loads.");
+  if (!hasExpectedCandidateDbCoverage("none", null, syntheticDelays)) throw new Error("Candidate scope=none may report null db_ms when no context DB work executes.");
+  if (hasExpectedCandidateDbCoverage("today", null, syntheticDelays)) throw new Error("Candidate contextual scopes must report numeric db_ms when DB work executes.");
   console.log("question latency benchmark self-test passed");
 }
 
 function resolveCommit(ref) {
   return run("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
+}
+
+function expectedHistoryLoads(side, scope) {
+  if (side === "baseline") return 1;
+  return scope === "none" ? 0 : 1;
 }
 
 function expectedContextLoads(scope) {
@@ -147,10 +160,16 @@ function expectedContextLoads(scope) {
 
 function expectedCandidateDbMs(scope, delays) {
   const expected = expectedContextLoads(scope);
-  return delays.history
+  return (scope === "none" ? 0 : delays.history)
     + expected.today * delays.today
     + expected.currentWeek * delays.currentWeek
     + expected.last30Days * delays.last30Days;
+}
+
+function hasExpectedCandidateDbCoverage(scope, dbMs, delays) {
+  const expectedDbMs = expectedCandidateDbMs(scope, delays);
+  if (expectedDbMs === 0) return dbMs === null || (typeof dbMs === "number" && dbMs >= 0);
+  return typeof dbMs === "number" && dbMs >= Math.max(0, expectedDbMs - 6);
 }
 
 function validateWorkerObservations(side, manifest, observations, delays) {
@@ -176,8 +195,9 @@ function validateWorkerObservations(side, manifest, observations, delays) {
         throw new Error(`${side}/${observation.fixtureId} persistence operation ${key}=${observation.persistenceOperations?.[key]}, expected 1.`);
       }
     }
-    if (observation.contextLoads.history !== 1) {
-      throw new Error(`${side}/${observation.fixtureId} did not execute the production recent-history path exactly once.`);
+    const expectedHistory = expectedHistoryLoads(side, fixture.expectedScope);
+    if (observation.contextLoads.history !== expectedHistory) {
+      throw new Error(`${side}/${observation.fixtureId} context history load=${observation.contextLoads.history}, expected ${expectedHistory}.`);
     }
     const expected = side === "baseline"
       ? { today: 1, currentWeek: 1, last30Days: 1 }
@@ -199,8 +219,8 @@ function validateWorkerObservations(side, manifest, observations, delays) {
         throw new Error(`${side}/${observation.fixtureId} did not emit the canonical end-to-end latency boundary.`);
       }
       const expectedDbMs = expectedCandidateDbMs(fixture.expectedScope, delays);
-      if (typeof finalLatency.dbMs !== "number" || finalLatency.dbMs < Math.max(0, expectedDbMs - 6)) {
-        throw new Error(`${side}/${observation.fixtureId} db_ms=${finalLatency.dbMs}, expected coverage of at least ${expectedDbMs - 6}ms across history and selected insight loads.`);
+      if (!hasExpectedCandidateDbCoverage(fixture.expectedScope, finalLatency.dbMs, delays)) {
+        throw new Error(`${side}/${observation.fixtureId} db_ms=${finalLatency.dbMs}, expected ${expectedDbMs === 0 ? "null/zero when no context DB work executes" : `coverage of at least ${Math.max(0, expectedDbMs - 6)}ms across history and selected insight loads`}.`);
       }
       if (typeof finalLatency.contextMs !== "number" || finalLatency.contextMs < 0) {
         throw new Error(`${side}/${observation.fixtureId} did not measure context assembly latency.`);
