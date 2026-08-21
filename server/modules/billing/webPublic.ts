@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { prepareAsaasBillingFlow, requestAsaasCancellation } from "./asaas/runtime";
 import { billingCatalogService } from "./catalogRuntime";
+import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
 import { billingService } from "./service";
 import {
   billingSubscriptionLifecycleRepository,
@@ -84,10 +85,18 @@ export async function getBillingWebOverview(userId: number) {
   const lifecycle = subscription
     ? await billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id)
     : null;
+  const professionalCapacity =
+    !sponsored && status.professionalSubscription
+      ? await getProfessionalCapacityWebSnapshot({
+          subscriptionId: status.professionalSubscription.id,
+          payerUserId: userId,
+        })
+      : null;
   const canCreateNewSubscription = !subscription || subscription.status === "expired";
   return {
     ...status,
     professionalSubscription: sponsored ? null : status.professionalSubscription,
+    professionalCapacity,
     sponsoredCoverage: sponsored,
     lifecycle: lifecycle
       ? {
