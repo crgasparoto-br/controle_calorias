@@ -26,6 +26,8 @@ import {
 } from "./schemas";
 import { billingService } from "./service";
 import {
+  activateProfessionalTrialNow,
+  billingProfessionalEarlyActivationSchema,
   billingStartCheckoutSchema,
   billingSubscriptionActionSchema,
   cancelBillingWebSubscription,
@@ -155,6 +157,14 @@ export const billingRouter = router({
     .input(billingSubscriptionActionSchema)
     .mutation(({ ctx, input }) =>
       reactivateBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
+  activateProfessionalTrialNow: protectedProcedure
+    .input(billingProfessionalEarlyActivationSchema)
+    .mutation(({ ctx, input }) =>
+      activateProfessionalTrialNow({
         userId: ctx.user.id,
         subscriptionId: input.subscriptionId,
       })
