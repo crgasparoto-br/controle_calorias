@@ -179,8 +179,6 @@ describe("usage governance charging rollback", () => {
       emergencySecurity: true,
       startsAt: new Date("2026-08-16T13:00:00.000Z"),
       endsAt: new Date("2026-08-17T13:00:00.000Z"),
-      communicatedAt: null,
-      appealOfferedAt: null,
     }))).rejects.toThrow("usage_emergency_security_evidence_required");
 
     mocks.getAbuseCase.mockResolvedValue(reviewedCase({
@@ -198,9 +196,32 @@ describe("usage governance charging rollback", () => {
       emergencySecurity: true,
       startsAt: new Date("2026-08-16T13:00:00.000Z"),
       endsAt: new Date("2026-08-17T13:00:00.000Z"),
-      communicatedAt: null,
-      appealOfferedAt: null,
     }))).resolves.toMatchObject({ state: "active" });
+  });
+
+  it.each([
+    ["communication", { communicatedAt: null }],
+    ["appeal offer", { appealOfferedAt: null }],
+  ])("requires %s before an emergency limitation can activate", async (_label, missing) => {
+    mocks.getAbuseCase.mockResolvedValue(reviewedCase({
+      reviewOutcome: null,
+      systemFailuresExcluded: false,
+      legitimateGrowthReviewed: false,
+      signalsJson: JSON.stringify(["control_bypass_attempt"]),
+      sanitizedEvidenceJson: JSON.stringify({
+        blockedControlId: "heavy-operation-guard",
+        securityRiskConfirmed: true,
+        affectedOperations: ["ai_heavy_processing"],
+      }),
+    }));
+    await expect(applyUsageLimitation(limitationInput({
+      emergencySecurity: true,
+      startsAt: new Date("2026-08-16T13:00:00.000Z"),
+      endsAt: new Date("2026-08-17T13:00:00.000Z"),
+      ...missing,
+    }))).rejects.toThrow("usage_limitation_communication_required");
+    expect(mocks.getAbuseCase).not.toHaveBeenCalled();
+    expect(mocks.createLimitation).not.toHaveBeenCalled();
   });
 
   it("does not chain multiple emergency windows for the same case", async () => {
@@ -213,8 +234,6 @@ describe("usage governance charging rollback", () => {
       emergencySecurity: true,
       startsAt: new Date("2026-08-16T13:00:00.000Z"),
       endsAt: new Date("2026-08-17T13:00:00.000Z"),
-      communicatedAt: null,
-      appealOfferedAt: null,
     }))).rejects.toThrow("usage_emergency_limit_already_applied");
   });
 });

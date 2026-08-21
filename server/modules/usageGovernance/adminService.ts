@@ -142,6 +142,9 @@ export async function applyUsageLimitation(input: {
     throw new Error("usage_limitation_operations_invalid");
   }
   const duration = input.endsAt.getTime() - input.startsAt.getTime();
+  if (!input.communicatedAt || !input.appealOfferedAt) {
+    throw new Error("usage_limitation_communication_required");
+  }
   const abuseCase = await getAbuseCase(input.abuseCaseId);
   if (!abuseCase || Number(abuseCase.subjectUserId) !== input.subjectUserId) {
     throw new Error("usage_limitation_abuse_case_required");
@@ -165,7 +168,6 @@ export async function applyUsageLimitation(input: {
     if (String(abuseCase.reviewOutcome) !== "limitation_approved" || !Boolean(abuseCase.systemFailuresExcluded) || !Boolean(abuseCase.legitimateGrowthReviewed)) {
       throw new Error("usage_limitation_human_review_required");
     }
-    if (!input.communicatedAt || !input.appealOfferedAt) throw new Error("usage_limitation_communication_required");
 
     const impact = jsonObject(abuseCase.impactJson);
     const reviewedOperations = normalizeReviewedOperations(jsonStringArray(impact.affectedOperations));

@@ -57,8 +57,8 @@ function emergencyInput(operations: string[]) {
     endsAt: new Date("2026-08-19T12:00:00.000Z"),
     emergencySecurity: true,
     approvedByUserId: 11,
-    communicatedAt: null,
-    appealOfferedAt: null,
+    communicatedAt: new Date("2026-08-18T11:55:00.000Z"),
+    appealOfferedAt: new Date("2026-08-18T11:55:00.000Z"),
   };
 }
 

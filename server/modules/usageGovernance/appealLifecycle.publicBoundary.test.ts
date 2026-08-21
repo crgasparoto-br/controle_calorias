@@ -34,6 +34,17 @@ describe("limitation appeal public lifecycle",()=>{
     expect(body.result.data.json).toMatchObject({state:"pending"});
     expect(mocks.submit).toHaveBeenCalledWith(expect.objectContaining({subjectUserId:41,rationale:"A causa foi corrigida."}));
   });
+  it("PB-TARGET-001 keeps the appeal subject bound to the authenticated session",async()=>{
+    mocks.submit.mockResolvedValue({id:"appeal-1",state:"pending",created:true});
+    const body=await request("usageGovernance.submitLimitationAppeal",{
+      limitationId:"11111111-1111-4111-8111-111111111111",
+      rationale:"A causa foi corrigida.",
+      subjectUserId:999,
+    });
+    expect(body.result.data.json).toMatchObject({state:"pending"});
+    expect(mocks.submit).toHaveBeenCalledWith(expect.objectContaining({subjectUserId:41}));
+    expect(mocks.submit).not.toHaveBeenCalledWith(expect.objectContaining({subjectUserId:999}));
+  });
   it.each(["approved","denied"] as const)("reviews and preserves the %s result through the admin boundary",async result=>{
     mocks.resolve.mockResolvedValue({id:"appeal-1",state:"resolved",result,limitationReversed:result==="approved"});
     const body=await request("usageGovernance.reviewLimitationAppeal",{appealId:"22222222-2222-4222-8222-222222222222",result,rationale:`review ${result}`});
