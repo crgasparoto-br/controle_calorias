@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { prepareAsaasProfessionalEarlyConversion } from "./asaas/remediationRuntime";
 import {
   prepareAsaasBillingFlow,
   reactivateAsaasCancellation,
@@ -9,6 +10,7 @@ import {
 import { billingCatalogService } from "./catalogRuntime";
 import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
 import { billingService } from "./service";
+import { getSubscriptionWebHistory } from "./subscriptionHistoryRead";
 import { getSubscriptionManagementCapabilities } from "./subscriptionManagementRead";
 import { billingSubscriptionLifecycleRepository } from "./subscriptionLifecycleRuntime";
 
@@ -51,13 +53,22 @@ export const billingSubscriptionActionSchema = z.object({
   subscriptionId: z.string().trim().min(1).max(120),
 });
 
+export const billingProfessionalEarlyActivationSchema =
+  billingSubscriptionActionSchema.extend({
+    confirmed: z.literal(true),
+  });
+
 function publicBillingError(error: unknown): TRPCError {
   const code = error instanceof Error ? error.message : "";
   const messages: Record<string, string> = {
-    billing_plan_not_available: "Este plano não está disponível para contratação agora.",
+    billing_plan_not_available: "Este plano não está disponível para a operação solicitada.",
     billing_payment_method_not_available: "Este meio de pagamento não está disponível para o plano selecionado.",
     billing_payment_method_not_allowed: "Este meio de pagamento não está disponível para o plano selecionado.",
     billing_subscription_not_found: "A assinatura não foi localizada para esta conta.",
+    billing_professional_trial_required: "A ativação antecipada está disponível somente durante um trial profissional ativo.",
+    billing_early_conversion_payer_required: "Somente o pagador desta assinatura pode antecipar a ativação.",
+    billing_professional_trial_first_charge_missing: "Não foi possível confirmar a data financeira deste trial.",
+    asaas_credit_card_trial_subscription_required: "A ativação antecipada exige um trial profissional iniciado por cartão.",
     pix_automatic_requires_trial_waiver: "O Pix Automático inicia uma contratação paga e exige confirmação de que o trial não será utilizado.",
     billing_trial_registered_card_required: "Para iniciar o período de avaliação, conclua primeiro o cadastro do cartão no ambiente seguro de pagamento.",
     billing_contract_trial_already_used: "O período de avaliação já foi utilizado e não está disponível para esta contratação.",
@@ -87,15 +98,19 @@ export async function getBillingWebOverview(userId: number) {
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
-  const [lifecycle, management] = subscription
+  const [lifecycle, management, history] = subscription
     ? await Promise.all([
         billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id),
         getSubscriptionManagementCapabilities({
           subscriptionId: subscription.id,
           payerUserId: userId,
         }),
+        getSubscriptionWebHistory({
+          subscriptionId: subscription.id,
+          payerUserId: userId,
+        }),
       ])
-    : [null, null];
+    : [null, null, []];
   const professionalCapacity =
     !sponsored && status.professionalSubscription
       ? await getProfessionalCapacityWebSnapshot({
@@ -104,20 +119,32 @@ export async function getBillingWebOverview(userId: number) {
         })
       : null;
   const canCreateNewSubscription = !subscription || subscription.status === "expired";
+  const canActivateProfessionalTrialNow =
+    lifecycle?.state === "pending" &&
+    lifecycle.audience === "professional" &&
+    !!lifecycle.trialStartedAt &&
+    !!lifecycle.trialEndsAt &&
+    lifecycle.trialEndsAt.getTime() > Date.now() &&
+    management?.paymentMethod === "credit_card";
   return {
     ...status,
     professionalSubscription: sponsored ? null : status.professionalSubscription,
     professionalCapacity,
     sponsoredCoverage: sponsored,
+    history,
     lifecycle: lifecycle
       ? {
           state: lifecycle.state,
+          audience: lifecycle.audience,
+          productCode: lifecycle.productCode,
+          versionCode: lifecycle.versionCode,
           currentPeriodStart: lifecycle.currentPeriodStart,
           currentPeriodEnd: lifecycle.currentPeriodEnd,
           cancelAtPeriodEnd: lifecycle.cancelAtPeriodEnd,
           trialStartedAt: lifecycle.trialStartedAt,
           trialEndsAt: lifecycle.trialEndsAt,
           firstChargeAt: lifecycle.firstChargeAt,
+          trialCapacityLimit: lifecycle.trialCapacityLimit,
           graceStartedAt: lifecycle.graceStartedAt,
           graceEndsAt: lifecycle.graceEndsAt,
           suspendedAt: lifecycle.suspendedAt,
@@ -147,6 +174,7 @@ export async function getBillingWebOverview(userId: number) {
         !!subscription &&
         subscription.cancelAtPeriodEnd &&
         management?.canReactivateRenewal === true,
+      canActivateProfessionalTrialNow,
       canRegularize:
         lifecycle?.state === "past_due" || lifecycle?.state === "suspended",
       canCreateNewSubscription,
@@ -243,6 +271,64 @@ export async function reactivateBillingWebSubscription(input: {
       status: "pending" as const,
       message:
         "A reativação da renovação foi solicitada. O plano, a versão e a data vigente permanecem inalterados até a confirmação do backend.",
+    };
+  } catch (error) {
+    throw publicBillingError(error);
+  }
+}
+
+export async function activateProfessionalTrialNow(input: {
+  userId: number;
+  subscriptionId: string;
+}) {
+  const now = new Date();
+  const snapshot = await billingSubscriptionLifecycleRepository.loadLifecycle(
+    input.subscriptionId
+  );
+  if (
+    !snapshot ||
+    snapshot.payerUserId !== input.userId ||
+    snapshot.state !== "pending" ||
+    snapshot.audience !== "professional" ||
+    !snapshot.trialStartedAt ||
+    !snapshot.trialEndsAt ||
+    snapshot.trialEndsAt.getTime() <= now.getTime()
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A ativação antecipada não está disponível para esta assinatura.",
+    });
+  }
+  const plan = await billingSubscriptionLifecycleRepository.getPlan(
+    snapshot.versionCode,
+    now
+  );
+  if (!plan) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Não foi possível confirmar os termos atuais deste plano.",
+    });
+  }
+  const firstChargeAt = new Date(
+    Math.min(now.getTime() + 60_000, snapshot.trialEndsAt.getTime() - 1_000)
+  );
+  try {
+    const result = await prepareAsaasProfessionalEarlyConversion({
+      subscriptionId: snapshot.subscriptionId,
+      actorUserId: input.userId,
+      confirmationKey: `billing-web-early:${crypto.randomUUID()}`,
+      productCode: plan.productCode,
+      versionCode: plan.versionCode,
+      billingCycle: plan.billingCycle,
+      currency: plan.currency,
+      unitAmount: plan.unitAmount,
+      capacityLimit: plan.capacityLimit,
+      firstChargeAt,
+    });
+    return {
+      ...result,
+      message:
+        "A ativação antecipada foi solicitada. O limite integral de pacientes será liberado somente após confirmação financeira autoritativa.",
     };
   } catch (error) {
     throw publicBillingError(error);
