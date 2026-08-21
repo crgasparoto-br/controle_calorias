@@ -1,1 +1,27 @@
-{"schema_version":1,"rejection_id":"audit-rejection:44f466cb-fcdb-44d5-b187-2cb09f5da18b","head_sha":"9d00442e75cbeff71d17d457da69b0e48776818b","verdict":"rejected","findings":[{"id":"A-001","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","title":"Published handoff used stale contract_version","detail":"Regenerate the result-only handoff with canonical contract_version 2026-08-20.3 and exact-head validation."},{"id":"A-002","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","title":"Rollback and historical immutability were treated as not applicable","detail":"Preserve canonical obligations for later-plan non-reattribution, limitation reversal, grant revocation/reversion and charging authorization rollback; require rollback and historical-immutability risk closure."}],"recommendations":[]}
+{
+  "schema_version": 1,
+  "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
+  "head_sha": "9f1a0e41a6244f23b5ea0c1214c2c95c5a34468d",
+  "verdict": "rejected",
+  "findings": [
+    {
+      "id": "AUD-985-001",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "title": "Emergency limitation lacks mandatory communication and appeal",
+      "detail": "Emergency limitation accepted communicatedAt=null and appealOfferedAt=null although every limitation requires communication and appeal."
+    },
+    {
+      "id": "AUD-985-002",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "title": "Public boundary risk was underclassified",
+      "detail": "public-boundary was marked not applicable even though limitation appeal is exposed through a protected public procedure and must bind its subject to the authenticated session."
+    }
+  ],
+  "recommendations": []
+}

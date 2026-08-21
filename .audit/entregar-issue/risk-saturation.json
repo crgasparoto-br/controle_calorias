@@ -1,1 +1,469 @@
-{"schema_version":1,"head_sha":"6626c13338f9a1679fb771df5fc5c12076eda5ae","families":[{"family":"authorization","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c004"],"dimensions":[{"surface":"evidence-effect-scope","reason":"Source-derived risk.","control_ids":["c067"],"status":"passed"},{"surface":"future-charge-authorization","reason":"Source-derived risk.","control_ids":["c004"],"status":"passed"}],"status":"passed"},{"family":"concurrency-atomicity","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c079"],"dimensions":[{"surface":"limitation-lifecycle","reason":"Source-derived risk.","control_ids":["c079"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c018"],"dimensions":[{"surface":"normative-claim-consistency","reason":"Source-derived risk.","control_ids":["c018"],"status":"passed"}],"status":"passed"},{"family":"historical-immutability","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c083"],"dimensions":[{"surface":"usage-attribution-history","reason":"Source-derived risk.","control_ids":["c083"],"status":"passed"}],"status":"passed"},{"family":"idempotency","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c047"],"dimensions":[{"surface":"duplicate-processing","reason":"Source-derived risk.","control_ids":["c047"],"status":"passed"}],"status":"passed"},{"family":"public-boundary","applicable":false,"reason":"No current contract signal.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c007"],"dimensions":[{"surface":"reference-revalidation","reason":"Source-derived risk.","control_ids":["c007"],"status":"passed"}],"status":"passed"},{"family":"rollback","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c011"],"dimensions":[{"surface":"future-charge-rollback","reason":"Source-derived risk.","control_ids":["c011"],"status":"passed"}],"status":"passed"},{"family":"structural-contract","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c001"],"dimensions":[{"surface":"semantic-identity-propagation","reason":"Source-derived risk.","control_ids":["c001"],"status":"passed"},{"surface":"specified-test-matrix","reason":"Source-derived risk.","control_ids":["c019"],"status":"passed"},{"surface":"stage-attribution-completeness","reason":"Source-derived risk.","control_ids":["c014"],"status":"passed"},{"surface":"structural-contract-integrity","reason":"Source-derived risk.","control_ids":["c063"],"status":"passed"}],"status":"passed"},{"family":"temporal-consistency","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c012"],"dimensions":[{"surface":"economic-competence","reason":"Source-derived risk.","control_ids":["c024"],"status":"passed"},{"surface":"reporting-availability-window","reason":"Source-derived risk.","control_ids":["c106"],"status":"passed"},{"surface":"temporal-consistency","reason":"Source-derived risk.","control_ids":["c012"],"status":"passed"},{"surface":"temporary-limitation-duration","reason":"Source-derived risk.","control_ids":["c069"],"status":"passed"}],"status":"passed"},{"family":"temporal-destination","applicable":true,"reason":"Derived from attack matrix.","control_ids":["c013"],"dimensions":[{"surface":"temporal-destination","reason":"Source-derived risk.","control_ids":["c013"],"status":"passed"}],"status":"passed"},{"family":"tenant-isolation","applicable":false,"reason":"No current contract signal.","control_ids":[],"dimensions":[],"status":"not-applicable"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c004",
+        "c008",
+        "c009",
+        "c048",
+        "c067",
+        "c071"
+      ],
+      "dimensions": [
+        {
+          "surface": "evidence-effect-scope",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c067",
+            "c071"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "future-charge-authorization",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c004",
+            "c008",
+            "c009",
+            "c048"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "reason": "Authenticated limitation appeal crosses a public protectedProcedure boundary and binds target identity from session context.",
+      "control_ids": [
+        "c111"
+      ],
+      "dimensions": [
+        {
+          "surface": "appeal-subject-binding",
+          "reason": "Authenticated appeal is a protected public procedure whose target must remain bound to session identity.",
+          "control_ids": [
+            "c111"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c007",
+        "c094"
+      ],
+      "dimensions": [
+        {
+          "surface": "reference-revalidation",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c007",
+            "c094"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c012",
+        "c017",
+        "c024",
+        "c042",
+        "c069",
+        "c072",
+        "c077",
+        "c096",
+        "c106",
+        "c109",
+        "c114"
+      ],
+      "dimensions": [
+        {
+          "surface": "economic-competence",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c024",
+            "c042"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c106",
+            "c109",
+            "c114"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "temporal-consistency",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c012",
+            "c017",
+            "c096"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "temporary-limitation-duration",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c069",
+            "c072",
+            "c077"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c013",
+        "c050",
+        "c095",
+        "c110"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-destination",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c013",
+            "c050",
+            "c095",
+            "c110"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c079"
+      ],
+      "dimensions": [
+        {
+          "surface": "limitation-lifecycle",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c079"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c047",
+        "c080",
+        "c082",
+        "c091",
+        "c102"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c047",
+            "c080",
+            "c082",
+            "c091",
+            "c102"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c011"
+      ],
+      "dimensions": [
+        {
+          "surface": "future-charge-rollback",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c011"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c083"
+      ],
+      "dimensions": [
+        {
+          "surface": "usage-attribution-history",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c083"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c001",
+        "c002",
+        "c003",
+        "c005",
+        "c006",
+        "c010",
+        "c014",
+        "c015",
+        "c016",
+        "c019",
+        "c020",
+        "c021",
+        "c022",
+        "c023",
+        "c025",
+        "c026",
+        "c027",
+        "c028",
+        "c029",
+        "c030",
+        "c031",
+        "c032",
+        "c033",
+        "c034",
+        "c035",
+        "c036",
+        "c037",
+        "c038",
+        "c039",
+        "c040",
+        "c041",
+        "c043",
+        "c044",
+        "c045",
+        "c046",
+        "c049",
+        "c063",
+        "c064",
+        "c065",
+        "c066",
+        "c068",
+        "c070",
+        "c073",
+        "c074",
+        "c075",
+        "c076",
+        "c078",
+        "c081",
+        "c084",
+        "c085",
+        "c086",
+        "c087",
+        "c088",
+        "c089",
+        "c090",
+        "c092",
+        "c093",
+        "c098",
+        "c099",
+        "c100",
+        "c101",
+        "c103",
+        "c104",
+        "c105",
+        "c107",
+        "c108",
+        "c112",
+        "c113",
+        "c115"
+      ],
+      "dimensions": [
+        {
+          "surface": "handoff-lineage",
+          "reason": "Result-only handoff must preserve cumulative material-parent and prior-published audit lineage.",
+          "control_ids": [
+            "c112"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "quantitative-evidence-provenance",
+          "reason": "Quantitative evidence must be bound to the exact material head and cannot be reanchored from an ancestor.",
+          "control_ids": [
+            "c113"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "semantic-identity-propagation",
+          "reason": "Professional coverage must preserve distinct sponsor and patient identities across attribution boundaries.",
+          "control_ids": [
+            "c001",
+            "c002",
+            "c003",
+            "c005",
+            "c006",
+            "c010",
+            "c049",
+            "c081",
+            "c084",
+            "c085",
+            "c086",
+            "c087",
+            "c088",
+            "c089",
+            "c090",
+            "c092",
+            "c093",
+            "c115"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c019",
+            "c020",
+            "c021",
+            "c022",
+            "c023",
+            "c025",
+            "c026",
+            "c027",
+            "c028",
+            "c029",
+            "c030",
+            "c031",
+            "c032",
+            "c033",
+            "c034",
+            "c035",
+            "c036",
+            "c037",
+            "c038",
+            "c039",
+            "c040",
+            "c041",
+            "c043",
+            "c044",
+            "c045",
+            "c046"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "stage-attribution-completeness",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c014",
+            "c015",
+            "c016"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "structural-contract-integrity",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c063",
+            "c064",
+            "c065",
+            "c066",
+            "c068",
+            "c070",
+            "c073",
+            "c074",
+            "c075",
+            "c076",
+            "c078",
+            "c098",
+            "c099",
+            "c100",
+            "c101",
+            "c103",
+            "c104",
+            "c105",
+            "c107",
+            "c108"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "c018"
+      ],
+      "dimensions": [
+        {
+          "surface": "normative-claim-consistency",
+          "reason": "Source-derived risk.",
+          "control_ids": [
+            "c018"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

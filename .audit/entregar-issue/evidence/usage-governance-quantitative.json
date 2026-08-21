@@ -1,1 +1,304 @@
-{"schema_version":1,"subject_sha":"6626c13338f9a1679fb771df5fc5c12076eda5ae","material_head_sha":"6626c13338f9a1679fb771df5fc5c12076eda5ae","material_tree_sha":"7a42ca287c42e48302b009f3b5024a45e905be57","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","materialization":{"remote_subject_sha":"6626c13338f9a1679fb771df5fc5c12076eda5ae","remote_tree_sha":"7a42ca287c42e48302b009f3b5024a45e905be57","local_tree_sha":"7a42ca287c42e48302b009f3b5024a45e905be57","local_bundle_ref":"a8040085a196fda9b7048f29ddf3b98f68614d89","tree_identity_verified":true},"source":{"path":"server/modules/usageGovernance/service.ts","git_blob_sha":"519c580a69806ce8fb3b3cbb28f712b9bbcd9005","sha256":"ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251","ref":"6626c13338f9a1679fb771df5fc5c12076eda5ae","extraction":"TypeScript transpile + VM execution from a byte-identical Git tree whose SHA equals the remote material commit tree, with deterministic repository mocks"},"runtime":{"fixed_now":"2026-08-17T12:34:56.000Z","timezone":"UTC","node":"v22.16.0","typescript":"5.8.3"},"checks":[{"id":"ratio-2000","status":"passed","actual":2000,"expected":2000},{"id":"band-2000","status":"passed","actual":"healthy","expected":"healthy"},{"id":"ratio-2001","status":"passed","actual":2001,"expected":2001},{"id":"band-2001","status":"passed","actual":"attention","expected":"attention"},{"id":"ratio-2500","status":"passed","actual":2500,"expected":2500},{"id":"band-2500","status":"passed","actual":"attention","expected":"attention"},{"id":"ratio-2501","status":"passed","actual":2501,"expected":2501},{"id":"band-2501","status":"passed","actual":"review","expected":"review"},{"id":"ratio-3000","status":"passed","actual":3000,"expected":3000},{"id":"band-3000","status":"passed","actual":"review","expected":"review"},{"id":"ratio-3001","status":"passed","actual":3001,"expected":3001},{"id":"band-3001","status":"passed","actual":"mandatory_review_candidate","expected":"mandatory_review_candidate"},{"id":"rolling-first-over30","status":"passed","actual":3100,"expected":3100},{"id":"rolling-first-mandatory","status":"passed","actual":false,"expected":false},{"id":"rolling-second-over30","status":"passed","actual":3100,"expected":3100},{"id":"rolling-second-mandatory","status":"passed","actual":true,"expected":true},{"id":"annual-month-count","status":"passed","actual":12,"expected":12},{"id":"annual-total","status":"passed","actual":12000,"expected":12000},{"id":"percentile-p50","status":"passed","actual":300,"expected":300},{"id":"percentile-p75","status":"passed","actual":400,"expected":400},{"id":"percentile-p90","status":"passed","actual":460,"expected":460},{"id":"percentile-p95","status":"passed","actual":480,"expected":480},{"id":"portfolio-range-10","status":"passed","actual":"1-10","expected":"1-10"},{"id":"portfolio-range-11","status":"passed","actual":"11-25","expected":"11-25"},{"id":"portfolio-range-25","status":"passed","actual":"11-25","expected":"11-25"},{"id":"portfolio-range-26","status":"passed","actual":"26-50","expected":"26-50"},{"id":"portfolio-range-50","status":"passed","actual":"26-50","expected":"26-50"},{"id":"portfolio-range-51","status":"passed","actual":"51+","expected":"51+"},{"id":"monthly-before-state","status":"passed","actual":"partial","expected":"partial"},{"id":"monthly-before-availableFrom","status":"passed","actual":"2021-08-01T00:00:00.000Z","expected":"2021-08-01T00:00:00.000Z"},{"id":"monthly-before-queryFrom","status":"passed","actual":"2021-08-01T00:00:00.000Z","expected":"2021-08-01T00:00:00.000Z"},{"id":"monthly-exact-state","status":"passed","actual":"complete","expected":"complete"},{"id":"monthly-exact-availableFrom","status":"passed","actual":"2021-08-01T00:00:00.000Z","expected":"2021-08-01T00:00:00.000Z"},{"id":"monthly-expired-state","status":"passed","actual":"partial","expected":"partial"},{"id":"monthly-expired-query-count","status":"passed","actual":0,"expected":0},{"id":"daily-exact-state","status":"passed","actual":"complete","expected":"complete"},{"id":"daily-exact-availableFrom","status":"passed","actual":"2024-08-17T00:00:00.000Z","expected":"2024-08-17T00:00:00.000Z"},{"id":"daily-before-state","status":"passed","actual":"partial","expected":"partial"},{"id":"daily-before-availableFrom","status":"passed","actual":"2024-08-17T00:00:00.000Z","expected":"2024-08-17T00:00:00.000Z"},{"id":"daily-before-query-from","status":"passed","actual":"2024-08-17T00:00:00.000Z","expected":"2024-08-17T00:00:00.000Z"},{"id":"daily-before-query-user","status":"passed","actual":42,"expected":42},{"id":"daily-expired-state","status":"passed","actual":"partial","expected":"partial"},{"id":"daily-expired-query-count","status":"passed","actual":0,"expected":0},{"id":"retention-daily-cutoff","status":"passed","actual":"2024-08-17T00:00:00.000Z","expected":"2024-08-17T00:00:00.000Z"},{"id":"retention-monthly-cutoff","status":"passed","actual":"2021-08-01T00:00:00.000Z","expected":"2021-08-01T00:00:00.000Z"}],"summary":{"passed":45,"failed":0,"total":45,"status":"passed"}}
+{
+  "schema_version": 1,
+  "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "material_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "materialization": {
+    "remote_subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+    "remote_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+    "local_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+    "tree_identity_verified": true
+  },
+  "source": {
+    "path": "server/modules/usageGovernance/service.ts",
+    "git_blob_sha": "519c580a69806ce8fb3b3cbb28f712b9bbcd9005",
+    "sha256": "ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251",
+    "ref": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+    "extraction": "TypeScript transpile + VM execution from exact material tree with deterministic repository mocks"
+  },
+  "runtime": {
+    "fixed_now": "2026-08-17T12:34:56.000Z",
+    "timezone": "UTC",
+    "node": "v22.16.0",
+    "typescript": "5.8.3"
+  },
+  "checks": [
+    {
+      "id": "ratio-2000",
+      "status": "passed",
+      "actual": 2000,
+      "expected": 2000
+    },
+    {
+      "id": "band-2000",
+      "status": "passed",
+      "actual": "healthy",
+      "expected": "healthy"
+    },
+    {
+      "id": "ratio-2001",
+      "status": "passed",
+      "actual": 2001,
+      "expected": 2001
+    },
+    {
+      "id": "band-2001",
+      "status": "passed",
+      "actual": "attention",
+      "expected": "attention"
+    },
+    {
+      "id": "ratio-2500",
+      "status": "passed",
+      "actual": 2500,
+      "expected": 2500
+    },
+    {
+      "id": "band-2500",
+      "status": "passed",
+      "actual": "attention",
+      "expected": "attention"
+    },
+    {
+      "id": "ratio-2501",
+      "status": "passed",
+      "actual": 2501,
+      "expected": 2501
+    },
+    {
+      "id": "band-2501",
+      "status": "passed",
+      "actual": "review",
+      "expected": "review"
+    },
+    {
+      "id": "ratio-3000",
+      "status": "passed",
+      "actual": 3000,
+      "expected": 3000
+    },
+    {
+      "id": "band-3000",
+      "status": "passed",
+      "actual": "review",
+      "expected": "review"
+    },
+    {
+      "id": "ratio-3001",
+      "status": "passed",
+      "actual": 3001,
+      "expected": 3001
+    },
+    {
+      "id": "band-3001",
+      "status": "passed",
+      "actual": "mandatory_review_candidate",
+      "expected": "mandatory_review_candidate"
+    },
+    {
+      "id": "rolling-first-over30",
+      "status": "passed",
+      "actual": 3100,
+      "expected": 3100
+    },
+    {
+      "id": "rolling-first-mandatory",
+      "status": "passed",
+      "actual": false,
+      "expected": false
+    },
+    {
+      "id": "rolling-second-over30",
+      "status": "passed",
+      "actual": 3100,
+      "expected": 3100
+    },
+    {
+      "id": "rolling-second-mandatory",
+      "status": "passed",
+      "actual": true,
+      "expected": true
+    },
+    {
+      "id": "annual-month-count",
+      "status": "passed",
+      "actual": 12,
+      "expected": 12
+    },
+    {
+      "id": "annual-total",
+      "status": "passed",
+      "actual": 12000,
+      "expected": 12000
+    },
+    {
+      "id": "percentile-p50",
+      "status": "passed",
+      "actual": 300,
+      "expected": 300
+    },
+    {
+      "id": "percentile-p75",
+      "status": "passed",
+      "actual": 400,
+      "expected": 400
+    },
+    {
+      "id": "percentile-p90",
+      "status": "passed",
+      "actual": 460,
+      "expected": 460
+    },
+    {
+      "id": "percentile-p95",
+      "status": "passed",
+      "actual": 480,
+      "expected": 480
+    },
+    {
+      "id": "portfolio-range-10",
+      "status": "passed",
+      "actual": "1-10",
+      "expected": "1-10"
+    },
+    {
+      "id": "portfolio-range-11",
+      "status": "passed",
+      "actual": "11-25",
+      "expected": "11-25"
+    },
+    {
+      "id": "portfolio-range-25",
+      "status": "passed",
+      "actual": "11-25",
+      "expected": "11-25"
+    },
+    {
+      "id": "portfolio-range-26",
+      "status": "passed",
+      "actual": "26-50",
+      "expected": "26-50"
+    },
+    {
+      "id": "portfolio-range-50",
+      "status": "passed",
+      "actual": "26-50",
+      "expected": "26-50"
+    },
+    {
+      "id": "portfolio-range-51",
+      "status": "passed",
+      "actual": "51+",
+      "expected": "51+"
+    },
+    {
+      "id": "monthly-before-state",
+      "status": "passed",
+      "actual": "partial",
+      "expected": "partial"
+    },
+    {
+      "id": "monthly-before-availableFrom",
+      "status": "passed",
+      "actual": "2021-08-01T00:00:00.000Z",
+      "expected": "2021-08-01T00:00:00.000Z"
+    },
+    {
+      "id": "monthly-before-queryFrom",
+      "status": "passed",
+      "actual": "2021-08-01T00:00:00.000Z",
+      "expected": "2021-08-01T00:00:00.000Z"
+    },
+    {
+      "id": "monthly-exact-state",
+      "status": "passed",
+      "actual": "complete",
+      "expected": "complete"
+    },
+    {
+      "id": "monthly-exact-availableFrom",
+      "status": "passed",
+      "actual": "2021-08-01T00:00:00.000Z",
+      "expected": "2021-08-01T00:00:00.000Z"
+    },
+    {
+      "id": "monthly-expired-state",
+      "status": "passed",
+      "actual": "partial",
+      "expected": "partial"
+    },
+    {
+      "id": "monthly-expired-query-count",
+      "status": "passed",
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "id": "daily-exact-state",
+      "status": "passed",
+      "actual": "complete",
+      "expected": "complete"
+    },
+    {
+      "id": "daily-exact-availableFrom",
+      "status": "passed",
+      "actual": "2024-08-17T00:00:00.000Z",
+      "expected": "2024-08-17T00:00:00.000Z"
+    },
+    {
+      "id": "daily-before-state",
+      "status": "passed",
+      "actual": "partial",
+      "expected": "partial"
+    },
+    {
+      "id": "daily-before-availableFrom",
+      "status": "passed",
+      "actual": "2024-08-17T00:00:00.000Z",
+      "expected": "2024-08-17T00:00:00.000Z"
+    },
+    {
+      "id": "daily-before-query-from",
+      "status": "passed",
+      "actual": "2024-08-17T00:00:00.000Z",
+      "expected": "2024-08-17T00:00:00.000Z"
+    },
+    {
+      "id": "daily-before-query-user",
+      "status": "passed",
+      "actual": 42,
+      "expected": 42
+    },
+    {
+      "id": "daily-expired-state",
+      "status": "passed",
+      "actual": "partial",
+      "expected": "partial"
+    },
+    {
+      "id": "daily-expired-query-count",
+      "status": "passed",
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "id": "retention-daily-cutoff",
+      "status": "passed",
+      "actual": "2024-08-17T00:00:00.000Z",
+      "expected": "2024-08-17T00:00:00.000Z"
+    },
+    {
+      "id": "retention-monthly-cutoff",
+      "status": "passed",
+      "actual": "2021-08-01T00:00:00.000Z",
+      "expected": "2021-08-01T00:00:00.000Z"
+    }
+  ],
+  "summary": {
+    "passed": 45,
+    "failed": 0,
+    "total": 45,
+    "status": "passed"
+  }
+}

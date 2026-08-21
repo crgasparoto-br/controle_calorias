@@ -1,1 +1,369 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-003","escape_class":"evidence-effect-scope-gap","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["authorization","reference-liveness"],"required_attack_dimensions":[{"risk_family":"authorization","surface":"evidence-effect-scope","dimension":"emergency-unrelated-operation"},{"risk_family":"authorization","surface":"evidence-effect-scope","dimension":"emergency-unrelated-operation-v1"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"LATEST-SEMANTIC-IDENTITY","escape_class":"semantic-identity-field-conflation","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"semantic-identity-propagation","dimension":"distinct-plan-product-version"},{"risk_family":"structural-contract","surface":"semantic-identity-propagation","dimension":"provider-attempt-reservation-boundary"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"LATEST-IDEMPOTENCY-SATURATION","escape_class":"material-risk-family-underclassification","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["idempotency"],"required_attack_dimensions":[{"risk_family":"idempotency","surface":"duplicate-processing","dimension":"persisted-replay-after-restart"},{"risk_family":"idempotency","surface":"duplicate-processing","dimension":"conflicting-payload-same-key-rejected"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"LATEST-QUANT-PROVENANCE","escape_class":"exact-sha-quantitative-evidence-omission","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"quantitative-evidence-provenance","dimension":"exact-material-head-evidence-linked"},{"risk_family":"structural-contract","surface":"quantitative-evidence-provenance","dimension":"stale-ancestor-not-reanchored"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"A-004","escape_class":"result-child-cumulative-ledger-loss","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"handoff-lineage","dimension":"result-child-preserves-material-parent-escape-ledger"},{"risk_family":"structural-contract","surface":"handoff-lineage","dimension":"result-child-preserves-previous-published-escape-ledger"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"A-005","escape_class":"retention-backed-reporting-coverage-mislabel","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["temporal-consistency"],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"reporting-availability-window","dimension":"requested-before-retention-cutoff"},{"risk_family":"temporal-consistency","surface":"reporting-availability-window","dimension":"exact-retention-boundary"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed"},{"escape_id":"A-006","escape_class":"retention-backed-bucket-granularity-coverage-mismatch","plausible_wrong_implementation":"Wrong implementation passes happy path while this escape remains.","required_risk_families":["temporal-consistency"],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"reporting-availability-window","dimension":"daily-retention-boundary-alignment"},{"risk_family":"temporal-consistency","surface":"reporting-availability-window","dimension":"monthly-retention-boundary-alignment"}],"sibling_cases":[{"status":"passed"},{"status":"passed"}],"prevention_change":{"evidence":"requirement-attack-matrix.json"},"detection_change":{"evidence":"requirement-attack-matrix.json"},"status":"passed","source_audit":{"kind":"independent-audit-rejection","rejection_id":"audit-rejection:0ceb57ec-7148-4fcf-9c49-add18f137613","finding_id":"A-001"}}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-003",
+      "escape_class": "evidence-effect-scope-gap",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "authorization",
+        "reference-liveness"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "authorization",
+          "surface": "evidence-effect-scope",
+          "dimension": "emergency-unrelated-operation"
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "evidence-effect-scope",
+          "dimension": "emergency-unrelated-operation-v1"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "LATEST-SEMANTIC-IDENTITY",
+      "escape_class": "semantic-identity-field-conflation",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "distinct-plan-product-version"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "provider-attempt-reservation-boundary"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "LATEST-IDEMPOTENCY-SATURATION",
+      "escape_class": "material-risk-family-underclassification",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "idempotency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "persisted-replay-after-restart"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "conflicting-payload-same-key-rejected"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "LATEST-QUANT-PROVENANCE",
+      "escape_class": "exact-sha-quantitative-evidence-omission",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "exact-material-head-evidence-linked"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "quantitative-evidence-provenance",
+          "dimension": "stale-ancestor-not-reanchored"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "A-004",
+      "escape_class": "result-child-cumulative-ledger-loss",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-lineage",
+          "dimension": "result-child-preserves-material-parent-escape-ledger"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-lineage",
+          "dimension": "result-child-preserves-previous-published-escape-ledger"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "A-005",
+      "escape_class": "retention-backed-reporting-coverage-mislabel",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "dimension": "requested-before-retention-cutoff"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "dimension": "exact-retention-boundary"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "A-006",
+      "escape_class": "retention-backed-bucket-granularity-coverage-mismatch",
+      "plausible_wrong_implementation": "Wrong implementation passes happy path while this escape remains.",
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "dimension": "daily-retention-boundary-alignment"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "dimension": "monthly-retention-boundary-alignment"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "status": "passed"
+        },
+        {
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "status": "passed",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:0ceb57ec-7148-4fcf-9c49-add18f137613",
+        "finding_id": "A-001"
+      },
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0"
+    },
+    {
+      "escape_id": "AUD-985-001-EMERGENCY-RIGHTS",
+      "escape_class": "exception-branch-lifecycle-obligation-bypass",
+      "plausible_wrong_implementation": "Keep communication and appeal guards only in the normal branch so emergencySecurity bypasses lifecycle rights while emergency happy-path tests still pass.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "structural-contract-integrity",
+          "dimension": "emergency-missing-communication"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "structural-contract-integrity",
+          "dimension": "emergency-missing-appeal"
+        }
+      ],
+      "literal_case": {
+        "procedure": "Call emergency limitation with communicatedAt missing and then with appealOfferedAt missing.",
+        "expected": "Both variants fail before reads or writes.",
+        "observed": "Exact-head VM rejected both variants with usage_limitation_communication_required before repository access."
+      },
+      "sibling_cases": [
+        {
+          "id": "valid-emergency",
+          "surface": "structural-contract-integrity",
+          "dimension": "emergency-rights-present",
+          "status": "passed"
+        },
+        {
+          "id": "normal-limitation",
+          "surface": "structural-contract-integrity",
+          "dimension": "normal-rights-regression",
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "server/modules/usageGovernance/adminService.ts"
+      },
+      "detection_change": {
+        "evidence": "server/modules/usageGovernance/adminService.test.ts"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
+        "finding_id": "AUD-985-001",
+        "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+      }
+    },
+    {
+      "escape_id": "AUD-985-002-PUBLIC-BOUNDARY",
+      "escape_class": "public-boundary-risk-underclassification",
+      "plausible_wrong_implementation": "Mark the appeal public boundary not applicable and allow a caller-supplied subject identifier to flow through a protected procedure without a target-binding attack.",
+      "required_risk_families": [
+        "public-boundary"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "public-boundary",
+          "surface": "appeal-subject-binding",
+          "dimension": "caller-body-subject-override"
+        },
+        {
+          "risk_family": "public-boundary",
+          "surface": "appeal-subject-binding",
+          "dimension": "public-schema-cannot-select-subject"
+        }
+      ],
+      "literal_case": {
+        "procedure": "Send subjectUserId 999 through the appeal request while authenticated as user 41.",
+        "expected": "The public schema cannot own the target and the service receives only user 41.",
+        "observed": "Exact-head boundary probe confirmed schema exclusion and ctx.user.id target binding with the 999-versus-41 discriminant."
+      },
+      "sibling_cases": [
+        {
+          "id": "schema-exclusion",
+          "surface": "appeal-subject-binding",
+          "dimension": "public-schema-cannot-select-subject",
+          "status": "passed"
+        },
+        {
+          "id": "session-binding",
+          "surface": "appeal-subject-binding",
+          "dimension": "authenticated-subject-owned-by-session",
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "requirement-attack-matrix.json"
+      },
+      "detection_change": {
+        "evidence": "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts"
+      },
+      "status": "passed",
+      "revalidated_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
+        "finding_id": "AUD-985-002",
+        "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+      }
+    }
+  ]
+}

@@ -1,1 +1,50 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","status":"closed","candidate_head_sha":"6626c13338f9a1679fb771df5fc5c12076eda5ae","remediation_mode":"targeted-remediation","source":{"rejection_id":"audit-rejection:44f466cb-fcdb-44d5-b187-2cb09f5da18b","audited_head_sha":"9d00442e75cbeff71d17d457da69b0e48776818b","audit_report_sha256":"27cf40e310cf164a7bd5c6a36cb5b4d89a4068551fad2f96beda4fe37a13e468"},"items":[{"source_kind":"finding","source_id":"A-001","remediation_mode":"targeted-remediation","status":"fixed","evidence":["handoff-ready.json","readiness-attestation.json"],"validations":["validate_profile_gate","build_handoff_certificate","validate_terminal_handoff"]},{"source_kind":"finding","source_id":"A-002","remediation_mode":"targeted-remediation","status":"fixed","evidence":["requirement-closure.json","requirement-attack-matrix.json","risk-saturation.json","inherited-controls.json","evidence/audit-remediation-2026-08-20.json"],"validations":["validate_specification_coverage","validate_requirement_attack_matrix","validate_risk_saturation","validate_inherited_controls"]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
+    "audited_head_sha": "9f1a0e41a6244f23b5ea0c1214c2c95c5a34468d",
+    "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-985-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        "evidence/audit-remediation-2026-08-21.json",
+        "server/modules/usageGovernance/adminService.test.ts",
+        "docs/design-docs/usage-governance.md"
+      ],
+      "validations": [
+        "emergency-communication-required",
+        "emergency-appeal-required",
+        "valid-emergency-persists",
+        "normal-limitation-regression"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-985-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        "evidence/audit-remediation-2026-08-21.json",
+        "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts",
+        "requirement-attack-matrix.json",
+        "risk-saturation.json"
+      ],
+      "validations": [
+        "protected-boundary",
+        "session-target-binding",
+        "request-target-override-absent",
+        "PB-TARGET-001-present"
+      ]
+    }
+  ]
+}

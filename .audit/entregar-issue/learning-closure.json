@@ -1,1 +1,17 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-audit-rejection","rejection_id":"audit-rejection:0ceb57ec-7148-4fcf-9c49-add18f137613","finding_ids":["A-001"],"repository":"crgasparoto-br/controle_calorias","work_item":897,"pull_request":985,"material_head_sha":"214eeb86009cca493256e6afa2e26dbe10894807","published_head_sha":"a616f1455baafbd8009fdf27cbc8f4765ef2307b"},"generalized_learning":{"escape_class":"retention-backed-bucket-granularity-coverage-mismatch","generalized_failure_pattern":"A retention-backed report can appear covered by a generic temporal control while one aggregate tier uses a raw timestamp and its storage/query paths operate on a normalized bucket boundary.","plausible_wrong_implementation":"Treat all retention-backed reporting as one surface and reuse a control from one granularity for another, allowing daily, monthly or hourly boundary semantics to diverge silently.","trigger_signals":["coverage or availability metadata","multiple retained data tiers","bucketed aggregates","purge/query normalization","complete or partial reporting state"],"risk_families":["temporal-consistency"],"reusable_control":"dedicated off-boundary reporting-availability control for every retained tier actually used by a report","prevention_rule":"Inventory every retained tier used by a coverage-reporting entrypoint, classify unused tiers explicitly, and derive purge, query and reported availability from one normalized boundary per tier.","detection_rule":"Reject shared controls across retained tiers and reject a bucketed-tier probe unless its cutoff is deliberately off-boundary and purge, query, reported availableFrom and boundary-state all resolve to the same normalized bucket.","transfer_cases":[{"id":"TRANSFER-BUCKET-DAY","surface":"bucketed-day-report","scenario":"A day-bucket report receives a midday retention cutoff and must expose the retained day start consistently across purge, query and coverage.","status":"passed"},{"id":"TRANSFER-BUCKET-MONTH","surface":"bucketed-month-report","scenario":"A month-bucket report receives a mid-month retention cutoff and must expose the retained month start consistently across purge, query and coverage.","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","change":"Retention-tier inference now accepts aggregate noun/adjective variants and coverage contracts require every retained reporting tier to be classified with a dedicated control when used.","status":"passed"},{"role":"detection","change":"Coverage validation rejects cross-tier control reuse, aligned-only probes, and any mismatch among normalized purge, query and reported availability boundaries.","status":"passed"}]}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:cb6affaf-6193-4b69-8696-f3f2a7b62c5c",
+    "audit_report_sha256": "8e08a527975a9c00e6a415c46f6e8c64382f14ef46a68f34395b419644559939",
+    "finding_ids": [
+      "AUD-985-001",
+      "AUD-985-002"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The generic delivery and audit contracts already require exception branches to preserve lifecycle obligations and require publicly reachable procedures to be classified and attacked at the public boundary; the escape was an application failure, not a missing reusable rule."
+  }
+}

@@ -1,1 +1,16 @@
-{"schema_version":1,"status":"frozen","material_head_sha":"d11a272f5fe1f1b1ee5054f587f9023e9d9f519a","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","merge_preview_sha":"7233b1e29bcd62f91bc31ffbcde8095b393c6ea2","reason":"independent-audit-remediation-evidence-effect-scope","changed_paths_from_previous_handoff":["server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts","server/modules/usageGovernance/adminService.test.ts","server/modules/usageGovernance/adminService.ts","server/modules/usageGovernance/schemas.evidenceEffectScope.test.ts","server/modules/usageGovernance/schemas.ts","server/repositories/usageGovernanceAdminRepository.evidenceEffectScope.test.ts","server/repositories/usageGovernanceAdminRepository.ts"],"remote_gate":"success"}
+{
+  "schema_version": 1,
+  "status": "frozen",
+  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "merge_preview_sha": "b67f9089d1038b1706db4d2ac58a06f16ff2cdf0",
+  "reason": "independent-audit-remediation-emergency-rights-and-public-boundary",
+  "changed_paths_from_previous_handoff": [
+    "docs/design-docs/usage-governance.md",
+    "server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts",
+    "server/modules/usageGovernance/adminService.test.ts",
+    "server/modules/usageGovernance/adminService.ts",
+    "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts"
+  ],
+  "remote_gate": "success"
+}

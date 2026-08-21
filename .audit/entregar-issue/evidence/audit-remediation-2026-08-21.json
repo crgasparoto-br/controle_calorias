@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "material_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+  "materialization": {
+    "remote_subject_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+    "remote_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+    "local_tree_sha": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+    "source": "exact repository bundle plus deterministic material patch",
+    "tree_identity_verified": true
+  },
+  "files": [
+    {
+      "path": "server/modules/usageGovernance/adminService.ts",
+      "git_blob_sha": "63c90b68201f8eb999372fd45cca1252d64e2563",
+      "sha256": "c71de7c8cad3918e2c2ab8e0ca060b38c75f930776c4592714dc8478809c5a91",
+      "bytes": 11118
+    },
+    {
+      "path": "server/modules/usageGovernance/adminService.test.ts",
+      "git_blob_sha": "3d62b8dfa8dd9e0014f6433eb2d335ff9c6b44ed",
+      "sha256": "f9f7022c8ab253586631f060a572b9adbdacd6620090a92d6974b46ff7b491e2",
+      "bytes": 10647
+    },
+    {
+      "path": "server/modules/usageGovernance/adminService.evidenceEffectScope.test.ts",
+      "git_blob_sha": "ef56b55c2caa978c2f849b2daa88760ba4e6c531",
+      "sha256": "80e87720c3f27ea929e18688123ba630cdde3be92103cd48ade80361ae95d58b",
+      "bytes": 4515
+    },
+    {
+      "path": "server/modules/usageGovernance/appealLifecycle.publicBoundary.test.ts",
+      "git_blob_sha": "15a94e49a46cd1f1d1ea69e568b0f2bdb5c207e1",
+      "sha256": "142dc717833be9cdf055b9d6725ad612de32576880e16a42000c983e23831104",
+      "bytes": 3473
+    },
+    {
+      "path": "server/modules/usageGovernance/service.ts",
+      "git_blob_sha": "519c580a69806ce8fb3b3cbb28f712b9bbcd9005",
+      "sha256": "ec76cecd6fa3c095814fd628b7f967af3ba56e13cdcb872c78dbfc573f82b251",
+      "bytes": 38767
+    },
+    {
+      "path": "server/repositories/usageGovernanceRepository.ts",
+      "git_blob_sha": "e9e071352539bca1e828f4cf5ac22f2d6d08d3e5",
+      "sha256": "b07eeaf0e72de196cfb80bf7eb921a11e34ba47b7d53f5d9d408faedeb35c977",
+      "bytes": 20438
+    },
+    {
+      "path": "server/repositories/usageGovernanceAdminRepository.ts",
+      "git_blob_sha": "9a9457a30283a3ba15d272da4786661a190242a3",
+      "sha256": "db7d6bf4b43546fc47f131c92f4e100a09e12fb431f35d55e3ccdd61ee4d9d64",
+      "bytes": 13758
+    },
+    {
+      "path": "docs/design-docs/usage-governance.md",
+      "git_blob_sha": "d07d929f8810c1a0a9ba3b37b4063cf7e3ee13ce",
+      "sha256": "5fa36124a84022dc02e9790ed0c7070bada8fc877a51c1342ec35adabade5ada",
+      "bytes": 14851
+    }
+  ],
+  "runtime": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "timezone": "UTC"
+  },
+  "checks": [
+    {
+      "id": "MATERIAL-TREE-IDENTITY",
+      "status": "passed",
+      "expected": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba",
+      "observed": "6e8b18eb46835bc3f58ab110ba4ca8a314c059ba"
+    },
+    {
+      "id": "EMERGENCY-RIGHTS-BEHAVIOR",
+      "status": "passed",
+      "expected": [
+        "emergency-communication-required",
+        "emergency-appeal-required",
+        "valid-emergency-persists",
+        "normal-limitation-regression"
+      ],
+      "observed": [
+        "emergency-communication-required",
+        "emergency-appeal-required",
+        "valid-emergency-persists",
+        "normal-limitation-regression"
+      ]
+    },
+    {
+      "id": "PUBLIC-BOUNDARY-SESSION-TARGET",
+      "status": "passed",
+      "expected": [
+        "protected-boundary",
+        "session-target-binding",
+        "request-target-override-absent",
+        "PB-TARGET-001-present"
+      ],
+      "observed": [
+        "protected-boundary",
+        "session-target-binding",
+        "request-target-override-absent",
+        "PB-TARGET-001-present"
+      ]
+    },
+    {
+      "id": "ROLE-CONTEXT-SOURCE-001",
+      "status": "passed",
+      "observed": "professional self-use selects professionalSubscription"
+    },
+    {
+      "id": "SPONSOR-SUBSCRIPTION-LOOKUP-001",
+      "status": "passed",
+      "observed": "sponsored usage selects professional subscription"
+    },
+    {
+      "id": "SEMANTIC-IDENTITY-PROP-001",
+      "status": "passed",
+      "observed": "productCode and versionCode remain separate correlation fields"
+    },
+    {
+      "id": "AUTH-EFFECT-SCOPE-001",
+      "status": "passed",
+      "observed": "emergency effects are bounded to evidenced operations"
+    },
+    {
+      "id": "REF-LIVE-EFFECT-SCOPE-001",
+      "status": "passed",
+      "observed": "case and reviewed scope are re-read before limitation write"
+    },
+    {
+      "id": "IDEMPOTENCY-REPLAY-001",
+      "status": "passed",
+      "observed": "usage replay fingerprint rejects divergent payload"
+    },
+    {
+      "id": "ROLLBACK-FUTURE-CHARGE-001",
+      "status": "passed",
+      "observed": "future charging requires rollback and revocation reason"
+    },
+    {
+      "id": "HISTORICAL-ATTRIBUTION-IMMUTABILITY-001",
+      "status": "passed",
+      "observed": "existing usage key is compared without historical rewrite"
+    },
+    {
+      "id": "EMERGENCY-LIMITATION-RIGHTS-001",
+      "status": "passed",
+      "observed": "all limitation branches require communication and appeal before reads/writes"
+    },
+    {
+      "id": "PUBLIC-BOUNDARY-APPEAL-TARGET-001",
+      "status": "passed",
+      "observed": "appeal target is session-bound and request schema cannot override subject"
+    },
+    {
+      "id": "DOCUMENTATION-CONSISTENCY-001",
+      "status": "passed",
+      "observed": "design doc states emergency communication and appeal contract"
+    }
+  ],
+  "summary": {
+    "passed": 14,
+    "failed": 0,
+    "total": 14,
+    "status": "passed"
+  }
+}

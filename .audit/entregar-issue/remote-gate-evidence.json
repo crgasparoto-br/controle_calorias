@@ -1,1 +1,38 @@
-{"schema_version":1,"material_head_sha":"d11a272f5fe1f1b1ee5054f587f9023e9d9f519a","status":"success","observed_once":true,"runs":[{"name":"Agent-first gate","run_id":32149436071,"conclusion":"success"},{"name":"Onboarding activation TiDB gate","run_id":32149436068,"conclusion":"success"},{"name":"WhatsApp context TiDB gate","run_id":32149436072,"conclusion":"success"},{"name":"Billing persistence TiDB gate","run_id":32149436073,"conclusion":"success"},{"name":"Professional persistence TiDB gate","run_id":32149436069,"conclusion":"success"},{"name":"AI provider live smoke","run_id":32149436070,"conclusion":"skipped"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "1230c6d81e03b0be7ee4dc7a0de33cb6e6f55ab0",
+  "status": "success",
+  "observed_once": true,
+  "runs": [
+    {
+      "name": "Agent-first gate",
+      "run_id": 32434896712,
+      "conclusion": "success"
+    },
+    {
+      "name": "Onboarding activation TiDB gate",
+      "run_id": 32434896684,
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_id": 32434896734,
+      "conclusion": "success"
+    },
+    {
+      "name": "Billing persistence TiDB gate",
+      "run_id": 32434896690,
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "run_id": 32434896727,
+      "conclusion": "success"
+    },
+    {
+      "name": "AI provider live smoke",
+      "run_id": 32434896730,
+      "conclusion": "skipped"
+    }
+  ]
+}
