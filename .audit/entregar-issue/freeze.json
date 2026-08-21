@@ -1,16 +1,12 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
+  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
   "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": null,
-  "reason": "independent-audit-remediation-legal-hold-professional-grant",
+  "merge_preview_sha": "31840ac62da62c3fff2682489244f10b26c3fcbb",
+  "reason": "independent-audit-remediation-tidb-resource-termination",
   "changed_paths_from_previous_handoff": [
-    ".github/workflows/billing-persistence-tidb.yml",
-    "package.json",
-    "server/repositories/usageGovernanceRepository.test.ts",
-    "server/repositories/usageGovernanceRetentionRepository.ts",
     "scripts/test-usage-governance-retention-tidb.ts"
   ],
-  "remote_gate": "pending-no-run-observed"
+  "remote_gate": "completed-success"
 }

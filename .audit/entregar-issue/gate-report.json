@@ -1,12 +1,80 @@
 {
   "schema_version": 1,
-  "material_head_sha": "63e3fe9b76b3456a5074af33b34e1068385982be",
-  "status": "passed-local-pending-remote",
-  "controls": [
-    "LEGAL-HOLD-PROFESSIONAL-GRANT-001",
-    "LEGAL-HOLD-SIBLING-USER-001",
-    "LEGAL-HOLD-SIBLING-UNRELATED-001"
-  ],
-  "remote_ci": "pending-no-run-observed",
-  "previous_independent_rejection_closed": true
+  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+  "status": "ready-with-remote-green",
+  "local_gates": {
+    "resource_lifecycle_static": "passed",
+    "quantitative_current_source": "passed",
+    "handoff_readiness": "passed"
+  },
+  "remote_gate": {
+    "schema_version": 1,
+    "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+    "status": "completed-success",
+    "observed_once": true,
+    "runs": [
+      {
+        "id": 32503873474,
+        "name": "Onboarding activation TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872335,
+        "name": "Agent-first gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872276,
+        "name": "WhatsApp context TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872367,
+        "name": "Billing persistence TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872274,
+        "name": "Professional persistence TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872282,
+        "name": "AI provider live smoke",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ],
+    "billing_persistence": {
+      "run_id": 32503872367,
+      "job_id": 96839532758,
+      "status": "completed",
+      "conclusion": "success",
+      "critical_steps": [
+        {
+          "name": "Validate billing persistence, concurrency, and idempotency",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve billing integration diagnostics",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate referential integrity",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "AI provider live smoke was skipped by its workflow policy; all applicable persistence and agent gates completed successfully."
+  ]
 }

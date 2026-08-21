@@ -1,18 +1,1 @@
-{
-  "schema_version": 1,
-  "rejection_id": "audit-rejection:87a7305b-5949-48b1-b268-b0495216fef8",
-  "head_sha": "a7354226de5ccffbb17cb3cd72ec28707e434e1b",
-  "verdict": "rejected",
-  "findings": [
-    {
-      "id": "AUD-985-003",
-      "status": "open",
-      "disposition": "blocking",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "title": "Legal hold does not preserve professional allowance grants",
-      "detail": "A user-scoped legal hold did not match professional-scoped allowance grants for the same canonical sponsor identity."
-    }
-  ],
-  "recommendations": []
-}
+{"schema_version":1,"rejection_id":"audit-rejection:d97f25b8-29f2-47fd-8208-b5960d605a5e","head_sha":"c2c587f46c32c8f371da7bf6b65e8dec0b10cdca","verdict":"rejected","findings":[{"id":"AUD-985-004","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","title":"Billing persistence TiDB retention test does not terminate","detail":"The retention integration test used a test-owned pool while repository access could open a second cached runtime pool, leaving the workflow process alive after assertions."}],"recommendations":[]}
