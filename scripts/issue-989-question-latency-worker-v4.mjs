@@ -266,4 +266,4 @@ process.stdout.write(`${JSON.stringify({
   delays,
   observations,
   historyBypassProbes,
-})}\n`);
+})}\n`, () => process.exit(0));
