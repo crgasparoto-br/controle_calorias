@@ -46,6 +46,9 @@ const delays = Object.freeze({
   currentWeek: 45,
   last30Days: 120,
   llm: 80,
+  usageReserve: 4,
+  usageClaim: 4,
+  usageFinalize: 4,
 });
 
 function repo(state) {
@@ -105,7 +108,7 @@ function createState() {
     contextLoads: { history: 0, today: 0, currentWeek: 0, last30Days: 0, unusedDomainSnapshot: 0 },
     contextHelperCalls: { history: 0 },
     historySourceLoads: { legacy: 0, persistent: 0 },
-    dbOperations: { userLookup: 0, timeZone: 0 },
+    dbOperations: { userLookup: 0, timeZone: 0, usageReserve: 0, usageClaim: 0, usageFinalize: 0 },
     persistence: { conversation: 0, inbound: 0, outbound: 0, responseLink: 0, processed: 0 },
     delays,
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
@@ -119,6 +122,10 @@ globalThis.__q = createState();
 const sourceUrl = relativePath => pathToFileURL(path.join(root, relativePath)).href;
 
 const { executeWhatsappAiQuestionIntent } = await import(sourceUrl("server/modules/whatsapp/aiQuestionAssistant.ts"));
+const { setAiUsageGate } = await import(sourceUrl("server/_core/ai/usageGate.ts"));
+setAiUsageGate(async input => ({
+  correlation: { beneficiaryUserId: input.userId },
+}));
 const db = await import(sourceUrl("server/db.ts"));
 const tz = await import(sourceUrl("server/modules/whatsapp/timeZoneContext.ts"));
 const life = await import(sourceUrl("server/modules/whatsapp/messageLifecycle.ts"));
