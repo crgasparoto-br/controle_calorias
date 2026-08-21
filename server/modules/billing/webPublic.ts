@@ -78,26 +78,26 @@ export async function getBillingWebOverview(userId: number) {
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
+  const canCreateNewSubscription = !subscription || subscription.status === "expired";
   return {
     ...status,
-    // A beneficiary may know that coverage exists, but never receives the
-    // sponsor's financial/capacity object through this public read model.
     professionalSubscription: sponsored ? null : status.professionalSubscription,
     sponsoredCoverage: sponsored,
     catalog,
     actions: {
-      canStartCheckout: catalog.some(item => item.effectivePaymentMethods.length > 0),
+      canStartCheckout:
+        canCreateNewSubscription &&
+        catalog.some(item => item.effectivePaymentMethods.length > 0),
       canCancelRenewal:
         !!subscription &&
         subscription.status !== "expired" &&
         !subscription.cancelAtPeriodEnd,
-      canReactivateRenewal:
-        !!subscription &&
-        subscription.status !== "expired" &&
-        subscription.cancelAtPeriodEnd,
+      // Do not advertise a local-only reactivation. It will only be enabled
+      // when the provider exposes a recoverable authoritative operation.
+      canReactivateRenewal: false,
       canRegularize:
         subscription?.status === "past_due" || subscription?.status === "suspended",
-      canCreateNewSubscription: !subscription || subscription.status === "expired",
+      canCreateNewSubscription,
     },
   };
 }
@@ -108,7 +108,17 @@ export async function startBillingWebCheckout(input: {
   accountEmail: string | null;
   payload: z.infer<typeof billingStartCheckoutSchema>;
 }) {
-  const access = await billingService.getUserEntitlements(input.userId);
+  const [access, status] = await Promise.all([
+    billingService.getUserEntitlements(input.userId),
+    billingService.getUserSubscriptionStatus(input.userId),
+  ]);
+  if (status.subscription && status.subscription.status !== "expired") {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message:
+        "Já existe uma assinatura própria em andamento para esta conta. Gerencie a assinatura atual antes de iniciar uma nova contratação.",
+    });
+  }
   if (
     input.payload.paymentMethod === "pix_automatic" &&
     input.payload.trialChoice !== "waive"
@@ -139,8 +149,6 @@ export async function startBillingWebCheckout(input: {
     });
     return {
       ...result,
-      // The browser return is navigation only. This flag remains true until a
-      // provider-authoritative financial fact changes the lifecycle state.
       pendingAuthoritativeConfirmation: true as const,
     };
   } catch (error) {
