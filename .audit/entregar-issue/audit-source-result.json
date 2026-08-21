@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
-  "head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+  "rejection_id": "audit-rejection:8719da74-b602-4521-ad8b-5b584329a619",
+  "head_sha": "cfae10627b8778d2c9cdcb20d750c5f97f9e2563",
   "repository": "crgasparoto-br/controle_calorias",
   "pull_request": 993,
   "issue": 989,
@@ -15,22 +15,18 @@
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "title": "Terminal handoff certificate and transport manifests do not match the published artifact bytes",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
+      "title": "Handoff stale after material changes beyond the certified freeze",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
       "evidence": {
-        "audited_material_head": "155988050f606f836c2e06b80c505c0d4da7d5ef",
-        "audited_published_head": "5ff3b63d9743bfae75528ec6b1421bdaf390b87d",
-        "mismatches": [
-          "audit-remediation physical hash",
-          "audit-source-result physical hash",
-          "evidence-provenance physical hash",
-          "requirement-closure shard SHA-256",
-          "requirement-attack-matrix shard size",
-          "risk-saturation shard size"
+        "certified_material_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+        "current_head_sha": "cfae10627b8778d2c9cdcb20d750c5f97f9e2563",
+        "changed_paths": [
+          "server/modules/whatsapp/questionContextPlan.ts",
+          "server/modules/whatsapp/questionContextPlan.test.ts",
+          "server/modules/whatsapp/aiQuestionAssistant.auditRemediation.test.ts"
         ]
-      },
-      "classification_note": "The product material head remained stable; the failure was confined to result-only package physical integrity and certificate generation order."
+      }
     }
   ],
   "recommendations": []

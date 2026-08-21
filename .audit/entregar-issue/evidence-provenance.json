@@ -1,6 +1,40 @@
 {
   "schema_version": 1,
-  "material_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+  "material_head_sha": "e4104806b25d2b7d6d5807eba385e7c3dad37260",
   "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "evidence": [{"evidence_id":"question-latency-e2e-15598805","kind":"quantitative","path":"docs/benchmarks/question-latency/results/2026-08-21-15598805-e2e-summary.json","sha256":"4dcc05f52eac7c220eea4e62e5b803bb311d5a331794e1cc79597eccf683fae5","subject_sha":"155988050f606f836c2e06b80c505c0d4da7d5ef","freshness_policy":"exact-material-head","producer":"question-latency/end-to-end-productive-pipeline-hermetic-v4; taskset-cpu-0 controlled profile","status":"passed","summary":{"fixture_count":30,"repetitions_per_fixture":2,"baseline_successes":60,"candidate_successes":60,"baseline_errors":0,"candidate_errors":0,"baseline_timeouts":0,"candidate_timeouts":0,"baseline_p50_ms":271,"candidate_p50_ms":181,"baseline_p90_ms":282,"candidate_p90_ms":212,"baseline_p95_ms":288,"candidate_p95_ms":275,"p50_improvement_percent":33.21,"p90_improvement_percent":24.82,"p95_improvement_percent":4.51,"gate_passed":true,"execution_metadata_complete":true,"execution_policy_equivalent":true,"ttft_disposition":"not-measurable-non-streaming-provider-contract"}}]
+  "evidence": [
+    {
+      "evidence_id": "question-latency-e2e-e4104806",
+      "kind": "quantitative",
+      "path": "docs/benchmarks/question-latency/results/2026-08-21-e4104806-e2e-summary.json",
+      "sha256": "d748848f774743b8c3edb70f77d239167eeb9ecfc9f7bb5777bb7ebe8a58515a",
+      "subject_sha": "e4104806b25d2b7d6d5807eba385e7c3dad37260",
+      "freshness_policy": "exact-material-head",
+      "producer": "question-latency/end-to-end-productive-pipeline-hermetic-v4",
+      "status": "passed",
+      "summary": {
+        "fixture_count": 30,
+        "repetitions_per_fixture": 2,
+        "baseline_successes": 60,
+        "candidate_successes": 60,
+        "baseline_errors": 0,
+        "candidate_errors": 0,
+        "baseline_timeouts": 0,
+        "candidate_timeouts": 0,
+        "baseline_p50_ms": 268,
+        "candidate_p50_ms": 178,
+        "baseline_p90_ms": 269,
+        "candidate_p90_ms": 194,
+        "baseline_p95_ms": 270,
+        "candidate_p95_ms": 267,
+        "p50_improvement_percent": 33.58,
+        "p90_improvement_percent": 27.88,
+        "p95_improvement_percent": 1.11,
+        "gate_passed": true,
+        "execution_metadata_complete": true,
+        "execution_policy_equivalent": true,
+        "ttft_disposition": "not-measurable-non-streaming-provider-contract"
+      }
+    }
+  ]
 }

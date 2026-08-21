@@ -3,11 +3,11 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
-    "audit_report_sha256": "a5e6d626168d8c148be01b7e41c49b533b01569a9edfc3ba76cc8e1633dbbb62",
-    "audited_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef"
+    "rejection_id": "audit-rejection:8719da74-b602-4521-ad8b-5b584329a619",
+    "audit_report_sha256": "3614b27de5d43fee6b44a9d87f1268ba29adc5c36f5433cb043806c498cd9ec2",
+    "audited_head_sha": "cfae10627b8778d2c9cdcb20d750c5f97f9e2563"
   },
-  "candidate_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
+  "candidate_head_sha": "e4104806b25d2b7d6d5807eba385e7c3dad37260",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -16,8 +16,10 @@
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
+        "scripts/issue-989-question-latency-benchmark.mjs",
+        "scripts/issue-989-question-latency-worker-v4.mjs",
+        "docs/benchmarks/question-latency/results/2026-08-21-e4104806-e2e-summary.json",
         ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/requirement-closure.json",
         ".audit/entregar-issue/requirement-attack-matrix.json",
         ".audit/entregar-issue/risk-saturation.json",
         ".audit/entregar-issue/inherited-controls.json",
@@ -25,18 +27,23 @@
         ".audit/entregar-issue/learning-closure.json",
         ".audit/entregar-issue/audit-remediation.json",
         ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/evidence/handoff-package-integrity.txt"
+        ".audit/entregar-issue/evidence-provenance.json"
       ],
       "evidence": [
+        "evidence/exact-head-narrative.txt",
+        "evidence/validation.txt",
+        "evidence/quantitative-freshness.txt",
         "evidence/handoff-package-integrity.txt"
       ],
       "validations": [
-        "logical readiness validators pass before packing",
-        "large artifacts are deterministically packed and reconstructed by audit_artifact_io before certificate generation",
-        "certificate is generated after final transport bytes are fixed",
-        "terminal handoff guard must pass on the freshly re-read published head"
+        "recovery classifier enforces post-write-refreeze",
+        "benchmark v3 and v4 contract self-tests pass",
+        "exact-head context classifier discriminant passes",
+        "exact-head quantitative benchmark passes",
+        "cumulative lineage/readiness validators pass",
+        "terminal result-only child guard passes after publication"
       ],
-      "reason": "Rebuilt the result-only package from validated logical artifacts, added a physical-integrity negative control, and moved certificate generation after deterministic packing so certified hashes describe the bytes actually published."
+      "reason": "Applied the mandatory post-write-refreeze floor, fixed the benchmark worker termination so exact-SHA measurement can complete, re-ran the quantitative protocol on e4104806b25d2b7d6d5807eba385e7c3dad37260, rebound cumulative controls/escape closure, and prepared a new direct result-only child."
     }
   ],
   "status": "closed"

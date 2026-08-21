@@ -1,3 +1,6 @@
-CLASSIFIER 34/34 passed
-WRAPPER 9/9 discriminant cases passed
-PASS CTX-AMBIG-001 exact-head classifier + history-bypass surfaces
+subject_sha=e4104806b25d2b7d6d5807eba385e7c3dad37260
+source=server/modules/whatsapp/questionContextPlan.ts plus exact-head direct classifier probe
+probe_sha256=dbd97212308e5d28e38b3e7f04b922a77e7fccacf1c309fb28dce06a9f7da035
+observed=The exact-head probe passed all referential/deictic cases: quantas calorias tem isso?, o que é isso?, como funciona isso?, para que serve isso?, quantas calorias tem essa porção?, por que ela é importante?, quanto foi ontem?, quanto deu no total?, qual é o recomendado?, qual é a quantidade?, como calcular?, por que foi assim?. Three self-contained generic siblings remained scope=none.
+negative_control=Referential/underspecified questions remain full while truly self-contained generic questions remain eligible for none.
+status=passed

@@ -3,18 +3,18 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:8da226ca-a735-4fa6-881e-a6abda219989",
+    "rejection_id": "audit-rejection:8719da74-b602-4521-ad8b-5b584329a619",
     "finding_ids": [
       "A-001"
     ],
     "repository": "crgasparoto-br/controle_calorias",
     "pull_request": 993,
-    "audited_head_sha": "155988050f606f836c2e06b80c505c0d4da7d5ef",
-    "audit_report_sha256": "a5e6d626168d8c148be01b7e41c49b533b01569a9edfc3ba76cc8e1633dbbb62"
+    "audited_head_sha": "cfae10627b8778d2c9cdcb20d750c5f97f9e2563",
+    "audit_report_sha256": "3614b27de5d43fee6b44a9d87f1268ba29adc5c36f5433cb043806c498cd9ec2"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection exposed an execution-order violation in this handoff publication, while the installed generic transport/certificate validators already define the reusable invariant. The remediation applies those existing controls correctly and adds an inherited discriminant control for this delivery without introducing a new global product or Skill rule."
+    "reason": "The installed generic delivery contract already defines material drift after freeze as post-write-refreeze. The rejection was caused by applying an obsolete handoff after later material changes, so this delivery reuses the existing generic recovery classifier and terminal guard rather than adding a project-specific rule."
   },
   "skill_changes": []
 }

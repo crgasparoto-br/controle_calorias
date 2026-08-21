@@ -1,15 +1,11 @@
-material_head_sha=155988050f606f836c2e06b80c505c0d4da7d5ef
-focused_context_classifier=34/34-pass
-focused_history_bypass=9/9-pass
-legacy_generic_personal_collision=10/10-pass
-benchmark_fixture_scope_matrix=30/30-pass
-transpile_diagnostics=3/3-pass
-benchmark_contract_self_test=pass
-exact_sha_benchmark=pass
-skill_genericity=pass
-skill_context_reduction_contract_tests=3/3-pass
-status=focused-validation-passed-before-final-audit-artifact-gates
-remote_ci_material_head=agent-first-success; whatsapp-context-tidb-success; billing-persistence-tidb-success; professional-persistence-tidb-success; provider-live-smoke-skipped-by-policy
-agent_first_steps=typescript-success;tests-success;architecture-success;documentation-success;build-success;agent-success;ci-gate-docs-success;exact-head-bundle-success
-
-FINAL ARTIFACT GATES PASS
+subject_sha=e4104806b25d2b7d6d5807eba385e7c3dad37260
+CI snapshot: pending-no-run for final material head; no polling, rerun or dispatch.
+Benchmark v3 self-test: passed
+Benchmark v4 contract self-test: passed
+Exact-head classifier probe: 15/15 passed
+Quantitative report candidateSha: e4104806b25d2b7d6d5807eba385e7c3dad37260
+Quantitative report passed: true
+Recovery classifier: post-write-refreeze
+Entregar Issue Skill handoff recovery/terminal contract tests: 28 passed
+Artifact transport self-check: passed by deterministic pack plus logical reconstruction
+status=passed

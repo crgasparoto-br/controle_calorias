@@ -1,3 +1,6 @@
-READY: skill permanent assets are free of obvious issue-number coupling
-...                                                                      [100%]
-3 passed in 0.05s
+rejection_id=audit-rejection:8719da74-b602-4521-ad8b-5b584329a619
+classification=implementation-only
+reason=The installed generic delivery contract already requires post-write-refreeze whenever material code/tests appear after a certified freeze. This round applies that existing invariant to the current target; no repository-specific or issue-number-specific Skill rule is promoted.
+reusable_controls=classify_handoff_recovery.py plus terminal handoff guard
+skill_contract_tests=28 passed across handoff recovery classifier, terminal handoff contract, universal post-write guard and post-CI refreeze contract.
+status=passed
