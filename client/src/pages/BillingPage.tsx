@@ -91,21 +91,18 @@ function checkoutReturnMessage() {
   if (typeof window === "undefined") return null;
   if (window.location.pathname.endsWith("/return/success")) {
     return {
-      tone: "info" as const,
       title: "Retorno do pagamento recebido",
       text: "A contratação continua pendente até a confirmação financeira autoritativa. Atualizaremos esta tela assim que o backend receber a confirmação.",
     };
   }
   if (window.location.pathname.endsWith("/return/cancel")) {
     return {
-      tone: "warning" as const,
       title: "Checkout interrompido",
       text: "Nenhum acesso foi ativado por este retorno. Você pode revisar a oferta e tentar novamente.",
     };
   }
   if (window.location.pathname.endsWith("/return/expired")) {
     return {
-      tone: "warning" as const,
       title: "Tentativa expirada",
       text: "A tentativa expirou sem ativar acesso. Inicie uma nova tentativa quando estiver pronto.",
     };
@@ -130,9 +127,7 @@ export default function BillingPage() {
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [cardTrial, setCardTrial] = useState(true);
   const [pixWaiver, setPixWaiver] = useState(false);
-  const attemptRef = useRef<{ signature: string; contractKey: string } | null>(
-    null
-  );
+  const attemptRef = useRef<{ signature: string; contractKey: string } | null>(null);
   const returnMessage = useMemo(checkoutReturnMessage, []);
 
   const catalog = overview.data?.catalog ?? [];
@@ -146,13 +141,8 @@ export default function BillingPage() {
   }, [catalog, selectedVersionCode]);
 
   useEffect(() => {
-    if (
-      selectedPlan &&
-      !selectedPlan.effectivePaymentMethods.includes(paymentMethod)
-    ) {
-      setPaymentMethod(
-        selectedPlan.effectivePaymentMethods[0] ?? "credit_card"
-      );
+    if (selectedPlan && !selectedPlan.effectivePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(selectedPlan.effectivePaymentMethods[0] ?? "credit_card");
     }
   }, [paymentMethod, selectedPlan]);
 
@@ -228,9 +218,7 @@ export default function BillingPage() {
           <CardContent className="space-y-4 py-10 text-center">
             <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
             <div>
-              <h1 className="text-lg font-semibold">
-                Não foi possível consultar o acesso
-              </h1>
+              <h1 className="text-lg font-semibold">Não foi possível consultar o acesso</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Nenhuma cobrança ou alteração foi realizada. Tente novamente.
               </p>
@@ -250,6 +238,7 @@ export default function BillingPage() {
     subscription,
     professionalSubscription,
     sponsoredCoverage,
+    lifecycle,
     actions,
   } = overview.data;
   const accessLabel = ACCESS_LABELS[access.reason] ?? "Origem de acesso válida";
@@ -258,8 +247,7 @@ export default function BillingPage() {
       ? null
       : Math.max(
           0,
-          professionalSubscription.capacityLimit -
-            professionalSubscription.capacityUsed
+          professionalSubscription.capacityLimit - professionalSubscription.capacityUsed
         );
 
   const startCheckout = () => {
@@ -314,7 +302,7 @@ export default function BillingPage() {
         <PageIntro
           eyebrow="Comercial e elegibilidade"
           title="Plano e acesso"
-          description="Entenda de onde vem seu acesso, compare as ofertas disponíveis para sua conta e gerencie sua assinatura sem depender do retorno do navegador para confirmar pagamentos."
+          description="Entenda de onde vem seu acesso, acompanhe a situação canônica da assinatura, compare as ofertas disponíveis e gerencie a renovação sem depender do retorno do navegador para confirmar pagamentos."
         />
 
         {returnMessage ? (
@@ -324,9 +312,7 @@ export default function BillingPage() {
             className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
           >
             <p className="font-medium">{returnMessage.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {returnMessage.text}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{returnMessage.text}</p>
           </div>
         ) : null}
 
@@ -425,27 +411,61 @@ export default function BillingPage() {
                   <Detail label="Plano" value={subscription.planName} />
                   <Detail
                     label="Situação"
-                    value={STATUS_LABELS[subscription.status] ?? "Em análise"}
+                    value={STATUS_LABELS[lifecycle?.state ?? subscription.status] ?? "Em análise"}
                     supporting={CYCLE_LABELS[subscription.billingCycle]}
                   />
                   <Detail
                     label="Valor"
-                    value={formatMoney(
-                      subscription.unitAmount,
-                      subscription.currency
-                    )}
+                    value={formatMoney(subscription.unitAmount, subscription.currency)}
                     supporting="Valor registrado no contrato atual"
                   />
                   <Detail
                     label="Fim do período atual"
-                    value={formatDate(subscription.currentPeriodEnd)}
+                    value={formatDate(lifecycle?.currentPeriodEnd ?? subscription.currentPeriodEnd)}
                     supporting={
-                      subscription.cancelAtPeriodEnd
-                        ? "Renovação já desativada"
-                        : `Início: ${formatDate(subscription.currentPeriodStart)}`
+                      lifecycle?.cancelAtPeriodEnd || subscription.cancelAtPeriodEnd
+                        ? "Renovação desativada ao fim do período"
+                        : `Início: ${formatDate(
+                            lifecycle?.currentPeriodStart ?? subscription.currentPeriodStart
+                          )}`
                     }
                   />
                 </div>
+
+                {lifecycle?.trialEndsAt ? (
+                  <Notice>
+                    Período de avaliação até <strong>{formatDate(lifecycle.trialEndsAt)}</strong>.
+                    {lifecycle.firstChargeAt
+                      ? ` Primeira cobrança prevista para ${formatDate(lifecycle.firstChargeAt)}.`
+                      : ""}
+                  </Notice>
+                ) : null}
+                {lifecycle?.state === "past_due" ? (
+                  <Notice alert>
+                    Pagamento pendente. A carência preserva o acesso até{" "}
+                    <strong>{formatDate(lifecycle.graceEndsAt)}</strong>. Depois desse prazo,
+                    o backend pode limitar o acesso conforme o contrato vigente.
+                  </Notice>
+                ) : null}
+                {lifecycle?.state === "suspended" ? (
+                  <Notice alert>
+                    Assinatura suspensa. O acesso está limitado; quando aplicável, a janela
+                    de recuperação termina em <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>.
+                  </Notice>
+                ) : null}
+                {lifecycle?.state === "expired" ? (
+                  <Notice>
+                    Esta assinatura encerrou. Uma nova contratação usa somente as ofertas
+                    efetivas retornadas pelo backend.
+                  </Notice>
+                ) : null}
+                {lifecycle?.reconciliationRequired ? (
+                  <Notice alert>
+                    Há uma confirmação financeira em conciliação. Nenhum callback ou retorno
+                    do navegador será usado para liberar acesso enquanto o backend não resolver o estado.
+                  </Notice>
+                ) : null}
+
                 {actions.canCancelRenewal ? (
                   <Button
                     variant="outline"
@@ -458,13 +478,6 @@ export default function BillingPage() {
                       ? "Solicitando cancelamento..."
                       : "Cancelar próxima renovação"}
                   </Button>
-                ) : null}
-                {actions.canRegularize ? (
-                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
-                    Há uma pendência financeira. Você mantém apenas as capacidades
-                    que o backend informar para esta fase; regularize pelo fluxo de
-                    pagamento disponível quando ele for apresentado.
-                  </p>
                 ) : null}
               </div>
             ) : (
@@ -486,7 +499,7 @@ export default function BillingPage() {
                 Seu uso pessoal não consome uma vaga de paciente.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Detail
                   label="Contratada"
@@ -519,8 +532,8 @@ export default function BillingPage() {
               Compare os planos disponíveis
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Preços, ciclos, capacidade e meios de pagamento abaixo vêm do
-              catálogo efetivo do backend.
+              Preços, ciclos, capacidade e meios de pagamento abaixo vêm do catálogo
+              efetivo do backend.
             </p>
           </div>
 
@@ -551,9 +564,7 @@ export default function BillingPage() {
                       {formatMoney(plan.unitAmount, plan.currency)}
                     </p>
                     {plan.capacityLimit != null ? (
-                      <p className="mt-2 text-sm">
-                        Capacidade: {plan.capacityLimit} pacientes
-                      </p>
+                      <p className="mt-2 text-sm">Capacidade: {plan.capacityLimit} pacientes</p>
                     ) : null}
                     <ul className="mt-4 space-y-1 text-sm text-muted-foreground">
                       {plan.entitlements.slice(0, 6).map(resource => (
@@ -586,23 +597,17 @@ export default function BillingPage() {
             <CardHeader>
               <CardTitle>Confirmar contratação</CardTitle>
               <CardDescription>
-                Revise plano, ciclo, valor e forma de pagamento antes de seguir
-                para o ambiente seguro do provedor.
+                Revise plano, ciclo, valor e forma de pagamento antes de seguir para o
+                ambiente seguro do provedor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-3">
                 <Detail label="Plano" value={selectedPlan.name} />
-                <Detail
-                  label="Ciclo"
-                  value={CYCLE_LABELS[selectedPlan.billingCycle]}
-                />
+                <Detail label="Ciclo" value={CYCLE_LABELS[selectedPlan.billingCycle]} />
                 <Detail
                   label="Preço"
-                  value={formatMoney(
-                    selectedPlan.unitAmount,
-                    selectedPlan.currency
-                  )}
+                  value={formatMoney(selectedPlan.unitAmount, selectedPlan.currency)}
                 />
               </div>
 
@@ -620,9 +625,7 @@ export default function BillingPage() {
                         value={method}
                         checked={paymentMethod === method}
                         onChange={() =>
-                          setPaymentMethod(
-                            method as "credit_card" | "pix_automatic"
-                          )
+                          setPaymentMethod(method as "credit_card" | "pix_automatic")
                         }
                       />
                       {method === "credit_card" ? (
@@ -649,8 +652,8 @@ export default function BillingPage() {
                     {selectedPlan.audience === "professional"
                       ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
                       : "O trial individual dura 7 dias."}{" "}
-                    O cartão precisa ser cadastrado antes do início e a primeira
-                    cobrança ocorre somente após o período aplicável.
+                    O cartão precisa ser cadastrado antes do início e a primeira cobrança
+                    ocorre somente após o período aplicável.
                   </span>
                 </label>
               ) : (
@@ -662,10 +665,9 @@ export default function BillingPage() {
                     className="mt-1"
                   />
                   <span className="text-sm">
-                    <strong>Confirmo a contratação paga sem trial.</strong> O Pix
-                    Automático não inicia período de avaliação. A autorização do
-                    Pix, sozinha, também não ativa o plano; a confirmação
-                    financeira ainda precisa chegar ao backend.
+                    <strong>Confirmo a contratação paga sem trial.</strong> O Pix Automático
+                    não inicia período de avaliação. A autorização do Pix, sozinha, também não
+                    ativa o plano; a confirmação financeira ainda precisa chegar ao backend.
                   </span>
                 </label>
               )}
@@ -707,11 +709,7 @@ export default function BillingPage() {
                     autoComplete="off"
                   />
                   {couponCode ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setCouponCode("")}
-                    >
+                    <Button type="button" variant="outline" onClick={() => setCouponCode("")}>
                       Remover
                     </Button>
                   ) : null}
@@ -723,8 +721,8 @@ export default function BillingPage() {
                 ) : coupon.data?.eligible ? (
                   <p className="text-sm text-emerald-700">
                     Cupom válido: desconto de{" "}
-                    {formatMoney(coupon.data.discountAmount, selectedPlan.currency)}.
-                    Total da cobrança com desconto:{" "}
+                    {formatMoney(coupon.data.discountAmount, selectedPlan.currency)}. Total da
+                    cobrança com desconto:{" "}
                     {formatMoney(coupon.data.finalAmount, selectedPlan.currency)}.
                     {coupon.data.durationCharges > 1
                       ? ` Válido por ${coupon.data.durationCharges} cobranças.`
@@ -738,15 +736,11 @@ export default function BillingPage() {
               </div>
 
               {checkout.data?.flow.kind === "pix_automatic" ? (
-                <div
-                  className="rounded-xl border p-4"
-                  role="status"
-                  aria-live="polite"
-                >
+                <div className="rounded-xl border p-4" role="status" aria-live="polite">
                   <p className="font-medium">Autorização Pix iniciada</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Use o código abaixo no fluxo compatível do seu banco. Seu plano
-                    permanece pendente até confirmação financeira.
+                    Use o código abaixo no fluxo compatível do seu banco. Seu plano permanece
+                    pendente até confirmação financeira.
                   </p>
                   <code className="mt-3 block break-all rounded bg-muted p-3 text-xs">
                     {checkout.data.flow.qrCodePayload}
@@ -776,9 +770,9 @@ export default function BillingPage() {
         <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
           <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            A tela não presume ativação por callback, não oferece boleto ou Pix
-            manual e não cria preços, capacidades ou meios de pagamento fora do
-            catálogo retornado pelo backend.
+            A tela não presume ativação por callback, não oferece boleto ou Pix manual e
+            não cria preços, capacidades ou meios de pagamento fora do catálogo retornado
+            pelo backend.
           </p>
         </div>
       </div>
@@ -797,13 +791,24 @@ function Detail({
 }) {
   return (
     <div className="rounded-xl border p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
       <p className="mt-2 font-semibold">{value}</p>
       {supporting ? (
         <p className="mt-1 text-xs text-muted-foreground">{supporting}</p>
       ) : null}
+    </div>
+  );
+}
+
+function Notice({ children, alert = false }: { children: React.ReactNode; alert?: boolean }) {
+  return (
+    <div
+      role={alert ? "alert" : "status"}
+      className={`rounded-xl border p-4 text-sm ${
+        alert ? "border-amber-500/30 bg-amber-500/5" : "bg-muted/20"
+      }`}
+    >
+      {children}
     </div>
   );
 }
