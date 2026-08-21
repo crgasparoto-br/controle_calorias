@@ -26,10 +26,11 @@ import {
 } from "./schemas";
 import { billingService } from "./service";
 import {
-  billingCancelSubscriptionSchema,
   billingStartCheckoutSchema,
+  billingSubscriptionActionSchema,
   cancelBillingWebSubscription,
   getBillingWebOverview,
+  reactivateBillingWebSubscription,
   startBillingWebCheckout,
 } from "./webPublic";
 
@@ -143,9 +144,17 @@ export const billingRouter = router({
       })
     ),
   cancelSubscription: protectedProcedure
-    .input(billingCancelSubscriptionSchema)
+    .input(billingSubscriptionActionSchema)
     .mutation(({ ctx, input }) =>
       cancelBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
+  reactivateSubscription: protectedProcedure
+    .input(billingSubscriptionActionSchema)
+    .mutation(({ ctx, input }) =>
+      reactivateBillingWebSubscription({
         userId: ctx.user.id,
         subscriptionId: input.subscriptionId,
       })
