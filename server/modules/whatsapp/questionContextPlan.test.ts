@@ -57,6 +57,12 @@ describe("resolveQuestionContextScope", () => {
     "como estão meus hábitos?",
     "qual é o consumo recomendado para mim?",
     "quanto de água eu devo beber?",
+    "quantas calorias tem isso?",
+    "o que é isso?",
+    "como funciona isso?",
+    "para que serve isso?",
+    "quantas calorias tem essa porção?",
+    "por que ela é importante?",
   ])("mantém contexto completo quando a intenção depende de continuidade ou é ambígua: %s", question => {
     expect(resolveQuestionContextScope(question)).toBe("full");
   });

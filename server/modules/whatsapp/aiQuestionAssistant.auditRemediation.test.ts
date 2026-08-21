@@ -56,7 +56,13 @@ describe("QUESTION audit remediation: optional recent history", () => {
     "/ qual é a quantidade?",
     "/ como calcular?",
     "/ por que foi assim?",
-  ])("preserves recent history for ambiguous follow-ups: %s", async text => {
+    "/ quantas calorias tem isso?",
+    "/ o que é isso?",
+    "/ como funciona isso?",
+    "/ para que serve isso?",
+    "/ quantas calorias tem essa porção?",
+    "/ por que ela é importante?",
+  ])("preserves recent history for ambiguous or referential follow-ups: %s", async text => {
     const rows = [{ text: "context-needed" }];
     const findRecentMessagesByUser = vi.fn(async () => rows);
     const result = await executeWhatsappAiQuestionIntent(42, {
