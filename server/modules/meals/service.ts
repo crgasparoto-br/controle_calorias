@@ -22,6 +22,7 @@ import { MealDraftItem, processMealInput } from "../../nutritionEngine";
 import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTimePartsInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
+import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import {
   ConfirmMealInput,
   CopyMealInput,
@@ -356,7 +357,7 @@ export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMeal
   return decorateMealWithImageUrl(await reuseFavoriteMeal({ userId, ...input }));
 }
 
-export async function processMealDraft(
+async function processMealDraftAttributed(
   userId: number,
   input: ProcessMealDraftInput,
   timeZone = DEFAULT_APP_TIME_ZONE,
@@ -416,6 +417,17 @@ export async function processMealDraft(
     media: draft.media,
     ...(suggestedOccurredAt ? { suggestedOccurredAt } : {}),
   };
+}
+
+export async function processMealDraft(
+  userId: number,
+  input: ProcessMealDraftInput,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  return runWithAiUsageScope(
+    { userId },
+    () => processMealDraftAttributed(userId, input, timeZone),
+  );
 }
 
 export async function confirmMeal(userId: number, input: ConfirmMealInput) {

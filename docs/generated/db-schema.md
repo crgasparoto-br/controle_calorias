@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts` e `drizzle/billing-subscription-lifecycle-schema.ts`.
+Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts` e `drizzle/usage-governance-schema.ts`.
 
 ## Tabelas
 
@@ -77,6 +77,19 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingTrialEligibilityAuditEvents` | `billingTrialEligibilityAuditEvents` | 9 | Requer atenção |
 | `billingSubscriptionFacts` | `billingSubscriptionFacts` | 19 | Requer atenção |
 | `billingSubscriptionLifecycleAuditEvents` | `billingSubscriptionLifecycleAuditEvents` | 8 | Requer atenção |
+| `billingUsageEvents` | `billingUsageEvents` | 30 | Requer atenção |
+| `billingUsageDailyAggregates` | `billingUsageDailyAggregates` | 9 | Requer atenção |
+| `billingEconomicFacts` | `billingEconomicFacts` | 7 | Requer atenção |
+| `billingEconomicMonthlyAggregates` | `billingEconomicMonthlyAggregates` | 4 | Requer atenção |
+| `billingUsagePolicies` | `billingUsagePolicies` | 5 | Requer atenção |
+| `billingUsageAllowanceGrants` | `billingUsageAllowanceGrants` | 4 | Requer atenção |
+| `billingUsageAbuseCases` | `billingUsageAbuseCases` | 6 | Requer atenção |
+| `billingUsageLimitations` | `billingUsageLimitations` | 5 | Requer atenção |
+| `billingUsageLimitationAppeals` | `billingUsageLimitationAppeals` | 4 | Requer atenção |
+| `billingConsumptionChargeAuthorizations` | `billingConsumptionChargeAuthorizations` | 5 | Requer atenção |
+| `billingUsageLegalHolds` | `billingUsageLegalHolds` | 3 | Requer atenção |
+| `billingUsageRetentionAudit` | `billingUsageRetentionAudit` | 2 | Requer atenção |
+| `billingUsageCostReconciliations` | `billingUsageCostReconciliations` | 4 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -139,6 +152,19 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 - `billingTrialEligibilityAuditEvents` via export `billingTrialEligibilityAuditEvents`.
 - `billingSubscriptionFacts` via export `billingSubscriptionFacts`.
 - `billingSubscriptionLifecycleAuditEvents` via export `billingSubscriptionLifecycleAuditEvents`.
+- `billingUsageEvents` via export `billingUsageEvents`.
+- `billingUsageDailyAggregates` via export `billingUsageDailyAggregates`.
+- `billingEconomicFacts` via export `billingEconomicFacts`.
+- `billingEconomicMonthlyAggregates` via export `billingEconomicMonthlyAggregates`.
+- `billingUsagePolicies` via export `billingUsagePolicies`.
+- `billingUsageAllowanceGrants` via export `billingUsageAllowanceGrants`.
+- `billingUsageAbuseCases` via export `billingUsageAbuseCases`.
+- `billingUsageLimitations` via export `billingUsageLimitations`.
+- `billingUsageLimitationAppeals` via export `billingUsageLimitationAppeals`.
+- `billingConsumptionChargeAuthorizations` via export `billingConsumptionChargeAuthorizations`.
+- `billingUsageLegalHolds` via export `billingUsageLegalHolds`.
+- `billingUsageRetentionAudit` via export `billingUsageRetentionAudit`.
+- `billingUsageCostReconciliations` via export `billingUsageCostReconciliations`.
 
 ## Campos sensíveis conhecidos
 
@@ -200,6 +226,14 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingTrialEligibilityAuditEvents` | `reason`, `identityTypesJson` |
 | `billingSubscriptionFacts` | `payloadJson` |
 | `billingSubscriptionLifecycleAuditEvents` | `actorUserId`, `reason`, `metadataJson`, `occurredAt` |
+| `billingUsageEvents` | `patientUserId`, `metadataJson`, `occurredAt` |
+| `billingUsageDailyAggregates` | `patientUserId` |
+| `billingEconomicMonthlyAggregates` | `measurementCoverageBps` |
+| `billingUsageAbuseCases` | `signalsJson` |
+| `billingUsageLimitations` | `operationsJson` |
+| `billingConsumptionChargeAuthorizations` | `reason` |
+| `billingUsageLegalHolds` | `reason` |
+| `billingUsageCostReconciliations` | `usageIdempotencyKey`, `reason` |
 
 ## Relações críticas
 

@@ -280,6 +280,7 @@ async function answerWithAi(
   question: string,
   knowledgeBase: UserKnowledgeBase,
   recentHistory: string[],
+  usageIdentity: { userId: number; conversationId?: string | null },
 ): Promise<{ reply: string; webSearchExecuted: boolean }> {
   const instructions = buildInstructions();
   const input = buildQuestionInput(question, knowledgeBase, recentHistory);
@@ -304,6 +305,7 @@ async function answerWithAi(
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_question",
+        correlation: usageIdentity,
       },
     },
   );
@@ -369,7 +371,13 @@ export async function executeWhatsappAiQuestionIntent(
         input.externalMessageId,
       ),
     ]);
-    const { reply, webSearchExecuted } = await answerWithAi(policy, question, knowledgeBase, recentHistory);
+    const { reply, webSearchExecuted } = await answerWithAi(
+      policy,
+      question,
+      knowledgeBase,
+      recentHistory,
+      { userId, conversationId: input.externalMessageId },
+    );
 
     return {
       handled: true,

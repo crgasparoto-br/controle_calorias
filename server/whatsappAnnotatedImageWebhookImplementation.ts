@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { runWithAiUsageScope } from "./_core/ai/usageContext";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
@@ -174,14 +175,14 @@ async function processImageMealInputWithFallback(input: {
   userTimezone: string;
 }): Promise<MealProcessingResult | null> {
   try {
-    return await processMealInput({
+    return await runWithAiUsageScope({ userId: input.userId }, async () => processMealInput({
       text: input.prepared.text,
       imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
       habits: await getHabitSnapshots(input.userId),
       occurredAt: input.occurredAt,
       timeZone: input.userTimezone,
       intentHint: input.intentHint ?? undefined,
-    });
+    }));
   } catch (error) {
     if (!(error instanceof MealInferenceError)) {
       throw error;

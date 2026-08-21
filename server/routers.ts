@@ -30,6 +30,7 @@ import { getCanonicalProfessionalProfile } from "./modules/professionals/persist
 import { professionalRecordRouter } from "./modules/professionals/recordRouter";
 import { registerProfessionalRequestAccessPublicBoundary } from "./modules/professionals/requestAccessPublicBoundary";
 import { quickEditRouter } from "./modules/quickEdit/router";
+import { usageGovernanceRouter } from "./modules/usageGovernance/router";
 import { nutritionRouter } from "./nutritionRouter";
 
 configureBillingProfessionalEntitlementProvider();
@@ -228,6 +229,7 @@ export const appRouter = router({
   }),
   nutrition: nutritionRouter,
   billing: billingRouter,
+  usageGovernance: usageGovernanceRouter,
   professionalRecord: professionalRecordRouter,
   quickEdit: quickEditRouter,
 });

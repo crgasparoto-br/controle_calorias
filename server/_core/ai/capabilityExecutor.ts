@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AiProvider } from "../aiProvider";
 import type { ResolvedCapabilityConfig, ResolvedProviderModel } from "./configResolver";
 import {
@@ -25,6 +26,8 @@ import {
   type AiObservabilityContext,
   type AiObservabilitySink,
 } from "./observability";
+import { enforceAiUsageGate, getAiUsageGate } from "./usageGate";
+import { getCurrentAiUsageScope } from "./usageContext";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
   provider: AiProvider;
@@ -79,11 +82,55 @@ function requireTarget(
   return target;
 }
 
+async function applyUsageGovernance(
+  config: ResolvedCapabilityConfig,
+  observability?: AiObservabilityContext,
+): Promise<AiObservabilityContext | undefined> {
+  const rawCorrelation = observability?.correlation ?? {};
+  const scoped = getCurrentAiUsageScope();
+  const candidateUserId = rawCorrelation.userId ?? scoped?.userId;
+  if (!getAiUsageGate()) return observability;
+  if (
+    typeof candidateUserId !== "number" ||
+    !Number.isInteger(candidateUserId) ||
+    candidateUserId <= 0
+  ) {
+    throw new AiNonRetryableError(
+      "AI provider execution requires an attributed usage identity",
+      undefined,
+      "usage_identity_required",
+    );
+  }
+
+  const rawConversationId = rawCorrelation.conversationId ?? scoped?.conversationId;
+  const usage = await enforceAiUsageGate({
+    userId: candidateUserId,
+    capability: config.capability,
+    origin: observability?.origin,
+    flow: observability?.flow,
+    conversationId:
+      typeof rawConversationId === "string" && rawConversationId.trim()
+        ? rawConversationId
+        : null,
+  });
+
+  const { conversationId: _discardedConversationId, ...safeCorrelation } = rawCorrelation;
+  return {
+    ...observability,
+    correlation: {
+      ...safeCorrelation,
+      userId: candidateUserId,
+      ...(usage?.correlation ?? {}),
+    },
+  };
+}
+
 /**
  * Canonical execution boundary for a resolved capability. It binds the
  * provider and model selected by `resolveCapabilityConfig` to the adapter used
  * by every primary, retry and fallback attempt, then delegates sequencing to
- * the common policy executor.
+ * the common policy executor. When a user attribution is present, the shared
+ * usage gate runs before any provider adapter is created or called.
  */
 export async function executeResolvedCapability<T>(
   config: ResolvedCapabilityConfig,
@@ -97,9 +144,12 @@ export async function executeResolvedCapability<T>(
     onAttemptComplete,
     ...policyOptions
   } = options;
+  const effectiveObservability = await applyUsageGovernance(config, observability);
   const attemptCompletions: AiObservedAttemptCompletion<T>[] = [];
   const providerCalls = new Map<string, AiProviderCallObservation>();
   const executionStartedAt = performance.now();
+  const usageExecutionId = randomUUID();
+  const usageReservations = new Map<string, import("../../modules/usageGovernance/service").AiProviderUsageReservation>();
   let executionSucceeded = false;
   let primaryAdapter: AiProvider | null = null;
   let fallbackAdapter: AiProvider | null = null;
@@ -122,6 +172,29 @@ export async function executeResolvedCapability<T>(
         observation ??= current;
       },
     });
+
+    const callRole = effectiveObservability?.callRole === "escalation"
+      ? "escalation" as const
+      : context.source === "fallback"
+        ? "fallback" as const
+        : context.attempt > 1 ? "retry" as const : "primary" as const;
+    const usageCorrelation = effectiveObservability?.correlation ?? {};
+    const attributedUserId = usageCorrelation.beneficiaryUserId ?? usageCorrelation.userId;
+    if (typeof attributedUserId === "number" && Number.isInteger(attributedUserId) && attributedUserId > 0) {
+      const { prepareAiProviderAttemptUsage } = await import("../../modules/usageGovernance/providerAttemptUsage");
+      const reservation = await prepareAiProviderAttemptUsage({
+        executionId: usageExecutionId,
+        capability: config.capability,
+        flow: effectiveObservability?.flow ?? config.capability.toLowerCase(),
+        origin: effectiveObservability?.origin ?? "system",
+        provider: providerId,
+        model,
+        callRole,
+        attemptIndex: context.source === "fallback" ? config.maxAttempts + 1 : context.attempt,
+        correlation: usageCorrelation,
+      });
+      if (reservation) usageReservations.set(key, reservation);
+    }
 
     try {
       const value = await operation({
@@ -184,6 +257,21 @@ export async function executeResolvedCapability<T>(
           ...completion,
           ...(providerCalls.get(key) ? { providerCall: providerCalls.get(key) } : {}),
         });
+        const reservation = usageReservations.get(key);
+        if (reservation) {
+          const events = buildAiInferenceEvents({
+            config,
+            attempts: attemptCompletions,
+            context: effectiveObservability,
+            totalLatencyMs: performance.now() - executionStartedAt,
+            executionId: usageExecutionId,
+          });
+          const event = events.at(-1);
+          if (event) {
+            const { finalizeAiProviderAttemptUsage } = await import("../../modules/usageGovernance/providerAttemptUsage");
+            await finalizeAiProviderAttemptUsage(reservation, event);
+          }
+        }
         if (onAttemptComplete) await onAttemptComplete(completion);
       },
     });
@@ -202,10 +290,11 @@ export async function executeResolvedCapability<T>(
     const events = buildAiInferenceEvents({
       config,
       attempts: attemptCompletions,
-      context: observability && executionSucceeded && observability.degradationOnFailure
-        ? { ...observability, degradationOnFailure: undefined }
-        : observability,
+      context: effectiveObservability && executionSucceeded && effectiveObservability.degradationOnFailure
+        ? { ...effectiveObservability, degradationOnFailure: undefined }
+        : effectiveObservability,
       totalLatencyMs: performance.now() - executionStartedAt,
+      executionId: usageExecutionId,
     });
     await emitAiInferenceEvents(events, observabilitySink === undefined ? undefined : observabilitySink);
   }

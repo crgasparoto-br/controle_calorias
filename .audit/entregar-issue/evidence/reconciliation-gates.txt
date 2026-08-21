@@ -1,0 +1,6 @@
+Issue 897 delivery evidence for material eca5fc4861a6fae40a07ec3d9f497010ec07f5be.
+Base develop: c1d178642418cf0a54a247f97e15da4d27b103b4.
+PR 985 is mergeable after explicit two-parent reconciliation with current develop.
+The reconciliation preserves current-develop branded nutrition server blobs and composes the two overlapping canonical docs with both usage-governance and branded-nutrition clauses.
+Remote exact-head snapshot observed: Billing persistence TiDB=success; WhatsApp context TiDB=success; Onboarding activation TiDB=success; Professional persistence TiDB=success; Agent-first=in_progress after TypeScript success; AI provider live smoke=skipped by policy.
+Product evidence remains in the candidate tests, migrations, repositories, services and canonical documentation; this file records the delivery-level reconciliation and remote-gate snapshot only.

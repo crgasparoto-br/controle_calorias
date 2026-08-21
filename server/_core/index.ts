@@ -33,6 +33,10 @@ import { startConversationRetentionScheduler } from "../modules/whatsapp/convers
 import { handleProfessionalAccessRevocationStream } from "../modules/professionals/accessRevocationStream";
 import { configureAiObservabilityLogging } from "../modules/aiObservability/logSink";
 import {
+  configureUsageGovernanceRuntime,
+  startUsageGovernanceRetentionScheduler,
+} from "../modules/usageGovernance/runtime";
+import {
   configureAsaasBillingRuntime,
   getAsaasWebhookHandler,
   startAsaasBillingReconciliationScheduler,
@@ -85,6 +89,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   validateRuntimeEnv();
   configureAiObservabilityLogging();
+  configureUsageGovernanceRuntime();
   configureAsaasBillingRuntime();
   configureAsaasBillingLifecycleHooks();
 
@@ -218,6 +223,7 @@ async function startServer() {
   });
 
   startConversationRetentionScheduler();
+  startUsageGovernanceRetentionScheduler();
   startAsaasBillingReconciliationScheduler();
   startAsaasPixAuthorizationRecoveryScheduler();
 }

@@ -92,6 +92,7 @@ export default defineConfig({
     "./drizzle/professional-schema.ts",
     "./drizzle/billing-schema.ts",
     "./drizzle/billing-subscription-lifecycle-schema.ts",
+    "./drizzle/usage-governance-schema.ts",
   ],
   out: "./drizzle",
   dialect: "mysql",

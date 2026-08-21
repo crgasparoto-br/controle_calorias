@@ -4,6 +4,7 @@ import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { enforceProtectedProcedurePolicies } from "./procedurePolicy";
 import { enforceProtectedProcedureResultPolicies } from "./procedureResultPolicy";
+import { runWithAiUsageScope } from "./ai/usageContext";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -25,13 +26,15 @@ const requireUser = t.middleware(async opts => {
   };
   await enforceProtectedProcedurePolicies({ path, type, ctx: authenticatedCtx });
 
-  const rawInput = await getRawInput();
-  const result = await next({ ctx: authenticatedCtx });
-  return enforceProtectedProcedureResultPolicies({
-    path,
-    result,
-    ctx: authenticatedCtx,
-    input: rawInput,
+  return runWithAiUsageScope({ userId: ctx.user.id }, async () => {
+    const rawInput = await getRawInput();
+    const result = await next({ ctx: authenticatedCtx });
+    return enforceProtectedProcedureResultPolicies({
+      path,
+      result,
+      ctx: authenticatedCtx,
+      input: rawInput,
+    });
   });
 });
 
@@ -45,11 +48,9 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-      },
-    });
+    const authenticatedCtx = { ...ctx, user: ctx.user };
+    return runWithAiUsageScope({ userId: authenticatedCtx.user.id }, () => next({
+      ctx: authenticatedCtx,
+    }));
   }),
 );

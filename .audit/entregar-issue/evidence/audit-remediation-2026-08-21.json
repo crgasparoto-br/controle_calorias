@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "subject_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "material_tree_sha": "7f1e3688eba7526d713064d29d775d1850676ec2",
+  "materialization": {
+    "mode": "connector-only",
+    "remote_subject_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+    "remote_tree_sha": "7f1e3688eba7526d713064d29d775d1850676ec2",
+    "parent_sha": "c2c587f46c32c8f371da7bf6b65e8dec0b10cdca",
+    "changed_paths_from_previous_handoff": [
+      "scripts/test-usage-governance-retention-tidb.ts"
+    ],
+    "tree_identity_verified": true
+  },
+  "files": [
+    {
+      "path": "scripts/test-usage-governance-retention-tidb.ts",
+      "git_blob_sha": "fd79bdc133e87fe918a9775c38396ba72f8b25e8",
+      "sha256": "f5f0a36587cf3bc0286495152d7e8c8005029d101fa3f235c3404d44013fb144"
+    },
+    {
+      "path": "server/modules/usageGovernance/service.ts",
+      "git_blob_sha": "519c580a69806ce8fb3b3cbb28f712b9bbcd9005",
+      "unchanged_from_previous_material_head": true
+    },
+    {
+      "path": "server/repositories/usageGovernanceRetentionRepository.ts",
+      "git_blob_sha": "c575ba58511d69553ab500b2e59f79759ce126cc",
+      "unchanged_from_previous_material_head": true
+    },
+    {
+      "path": "server/repositories/billingRepositorySupport.ts",
+      "git_blob_sha": "ec418f89a1e75947b933b39ebe5d76b5e5bff52b",
+      "unchanged_from_previous_material_head": true
+    }
+  ],
+  "checks": [
+    {
+      "id": "MATERIAL-DELTA-TEST-ONLY",
+      "status": "passed",
+      "observed": "The remediation delta from the previous published handoff changes only scripts/test-usage-governance-retention-tidb.ts (+4/-0)."
+    },
+    {
+      "id": "TIDB-OWNED-POOL-001",
+      "status": "passed",
+      "observed": "The integration test creates exactly one mysql2 pool and wraps that same pool with drizzle(pool)."
+    },
+    {
+      "id": "TIDB-PROVIDER-INJECTION-001",
+      "status": "passed",
+      "observed": "configureBillingDbProvider(async () => db) is executed before purgeUsageGovernanceRetention, so repository access resolves to the test-owned pool."
+    },
+    {
+      "id": "TIDB-SUCCESS-TEARDOWN-001",
+      "status": "passed",
+      "observed": "The success path exits through finally and calls cleanup followed by pool.end on the injected provider pool."
+    },
+    {
+      "id": "TIDB-ERROR-TEARDOWN-001",
+      "status": "passed",
+      "observed": "The error path also exits through finally and calls pool.end, preventing the test-owned provider from retaining an event-loop handle."
+    },
+    {
+      "id": "LEGAL-HOLD-SIBLING-COVERAGE-001",
+      "status": "passed",
+      "observed": "The remediated integration test still asserts matching professional grant retained, matching user grant retained, and unrelated professional grant purged."
+    },
+    {
+      "id": "RESOURCE-LIFECYCLE-STATIC-HARNESS",
+      "status": "passed",
+      "observed": "Exact remote blob matched local git hash and 10/10 lifecycle assertions passed in the connector-only static harness."
+    },
+    {
+      "id": "PRIOR-PRODUCTION-SURFACES-UNCHANGED",
+      "status": "passed",
+      "observed": "Service, retention repository, and billing provider support blobs are unchanged by the one-file test-only remediation; prior production-behavior controls are revalidated by exact material delta."
+    }
+  ],
+  "remote_gate_snapshot": {
+    "status": "pending-no-run",
+    "observed_once": true,
+    "runs": []
+  },
+  "summary": {
+    "passed": 8,
+    "failed": 0,
+    "total": 8,
+    "status": "passed"
+  }
+}
