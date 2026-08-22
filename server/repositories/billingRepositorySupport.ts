@@ -111,6 +111,9 @@ export function mapSubscription(
     planCode: String(row.planCode),
     ...(row.productCode == null ? {} : { productCode: String(row.productCode) }),
     ...(row.versionCode == null ? {} : { versionCode: String(row.versionCode) }),
+    ...(row.planVersion == null
+      ? {}
+      : { planVersion: numberValue(row.planVersion) }),
     planName: String(row.planName),
     status: row.status as BillingSubscriptionSummary["status"],
     billingCycle:
