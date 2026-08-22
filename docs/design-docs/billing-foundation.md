@@ -110,7 +110,7 @@ A rota autenticada `/billing` apresenta origem efetiva, vigência, assinatura pr
 
 A contratação usa `billing.startCheckout`. Cartão usa o Checkout hospedado do Asaas; Pix Automático usa o fluxo de autorização implementado pelo adapter. Pix manual e boleto não são oferecidos. Pix Automático exige renúncia explícita ao trial antes da chamada ao provider. Cupons são validados no backend e o frontend apenas exibe elegibilidade, desconto, duração e valor final retornados.
 
-A tentativa usa `contractKey` estável para retries equivalentes. O retorno `/billing/return/success|cancel|expired` é apenas navegação: a UI permanece pendente até que webhook/reconciliação entregue um fato financeiro autoritativo ao lifecycle.
+A identidade idempotente da tentativa não é escolhida pelo navegador. O backend serializa uma claim durável por pagador antes de chamar o provider e deriva um `contractKey` canônico da geração corrente. Abas, retries ou clientes que enviem chaves diferentes mas os mesmos produto/versão, ciclo, método, trial e cupom convergem para a mesma tentativa; uma combinação incompatível é recusada enquanto a tentativa anterior estiver ativa. Uma nova geração só é aberta depois de falha terminal do provider, falha comprovadamente anterior ao provider ou término confirmado da assinatura anterior. O retorno `/billing/return/success|cancel|expired` é apenas navegação: a UI permanece pendente até que webhook/reconciliação entregue um fato financeiro autoritativo ao lifecycle.
 
 A gestão da renovação usa operações autenticadas e com ownership do pagador. Cancelamento passa pelo runtime Asaas e preserva a vigência atual. Reativação é oferecida somente quando o backend informa que a operação é suportada; no Asaas atual, renovação de cartão cancelada pode ser reativada pela operação reconciliável, enquanto Pix Automático cancelado exige nova autorização. Atualização direta do método de pagamento continua indisponível enquanto o provider não expuser um fluxo externo recuperável.
 
@@ -132,7 +132,7 @@ As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing
 - teste da matriz profissional combinada em uma única assinatura, sem reserva de capacidade pelo uso pessoal;
 - teste discriminante do WhatsApp para usuário inelegível antes do pipeline nutricional;
 - testes diretos da fronteira pública para não enumeração e exigência de sessão autenticada;
-- testes da boundary web para privacidade do patrocinador, prevenção de assinatura própria duplicada, waiver obrigatório do Pix, binding ao pagador autenticado, lifecycle, ações suportadas e callbacks pendentes;
+- testes da boundary web para privacidade do patrocinador, prevenção de assinatura própria duplicada, waiver obrigatório do Pix, binding ao pagador autenticado, lifecycle, ações suportadas, callbacks pendentes e idempotência entre múltiplas abas;
 - teste TiDB de claim, ativação, retomada, disputa entre contas e rejeição de telefone ativo duplicado;
 - teste TiDB de concorrência, idempotência, cobertura, overrides, analytics, evento duplicado e metadata sanitizada;
 - `pnpm agent:check`;
