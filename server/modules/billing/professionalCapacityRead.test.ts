@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const execute = vi.hoisted(() => vi.fn());
+const transaction = vi.hoisted(() =>
+  vi.fn(async <T>(callback: (tx: { execute: typeof execute }) => Promise<T>) =>
+    callback({ execute })
+  )
+);
 
 vi.mock("../../db", () => ({
-  getDb: vi.fn(async () => ({ execute })),
+  getDb: vi.fn(async () => ({ execute, transaction })),
 }));
 
 import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
@@ -11,6 +16,7 @@ import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
 describe("professional capacity web snapshot", () => {
   beforeEach(() => {
     execute.mockReset();
+    transaction.mockClear();
   });
 
   it("returns the confirmed 30-day extension horizon, canonical milestones and commercial review", async () => {
@@ -66,5 +72,6 @@ describe("professional capacity web snapshot", () => {
     expect(result?.warningMilestones[0]?.dueAt.toISOString()).toBe(
       "2026-08-22T00:00:00.000Z"
     );
+    expect(transaction).not.toHaveBeenCalled();
   });
 });
