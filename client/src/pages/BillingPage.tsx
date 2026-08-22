@@ -139,6 +139,11 @@ function transitionDays(
   return Math.round((end - start) / 86_400_000);
 }
 
+function estimatedTrialFirstChargeDate(audience: "individual" | "professional") {
+  const days = audience === "professional" ? 14 : 7;
+  return formatDate(new Date(Date.now() + days * 86_400_000));
+}
+
 function checkoutReturnMessage() {
   if (typeof window === "undefined") return null;
   if (window.location.pathname.endsWith("/return/success")) {
@@ -527,8 +532,12 @@ export default function BillingPage() {
           <CardContent>
             {subscription ? (
               <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                   <Detail label="Plano" value={subscription.planName} />
+                  <Detail
+                    label="Versão"
+                    value={subscription.planVersion ? `Versão ${subscription.planVersion}` : "Não informada"}
+                  />
                   <Detail
                     label="Situação"
                     value={STATUS_LABELS[lifecycle?.state ?? subscription.status] ?? "Em análise"}
@@ -544,7 +553,11 @@ export default function BillingPage() {
                     value={PAYMENT_LABELS[management?.paymentMethod ?? ""] ?? "Não informado"}
                   />
                   <Detail
-                    label="Fim do período atual"
+                    label={
+                      lifecycle?.cancelAtPeriodEnd || subscription.cancelAtPeriodEnd
+                        ? "Fim do período atual"
+                        : "Próxima renovação"
+                    }
                     value={formatDate(lifecycle?.currentPeriodEnd ?? subscription.currentPeriodEnd)}
                     supporting={
                       lifecycle?.cancelAtPeriodEnd || subscription.cancelAtPeriodEnd
@@ -842,7 +855,7 @@ export default function BillingPage() {
                       <div>
                         <p className="font-semibold">{plan.name}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {CYCLE_LABELS[plan.billingCycle]}
+                          Versão {plan.version} · {CYCLE_LABELS[plan.billingCycle]}
                         </p>
                       </div>
                       {selected ? <Check className="h-5 w-5" /> : null}
@@ -884,13 +897,14 @@ export default function BillingPage() {
             <CardHeader>
               <CardTitle>Confirmar contratação</CardTitle>
               <CardDescription>
-                Revise plano, ciclo, valor e forma de pagamento antes de seguir para o
+                Revise plano, versão, ciclo, valor e forma de pagamento antes de seguir para o
                 ambiente seguro do provedor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Detail label="Plano" value={selectedPlan.name} />
+                <Detail label="Versão" value={`Versão ${selectedPlan.version}`} />
                 <Detail label="Ciclo" value={CYCLE_LABELS[selectedPlan.billingCycle]} />
                 <Detail
                   label="Preço"
@@ -939,9 +953,11 @@ export default function BillingPage() {
                     {selectedPlan.audience === "professional"
                       ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
                       : "O trial individual dura 7 dias."}{" "}
-                    O cartão precisa ser cadastrado antes do início e a primeira cobrança
-                    ocorre somente após o período aplicável. Se houver cupom, o desconto
-                    começa na primeira cobrança efetiva.
+                    Se o cadastro do cartão e o início do trial forem concluídos hoje, a primeira
+                    cobrança é estimada para {estimatedTrialFirstChargeDate(selectedPlan.audience)};
+                    o backend/provider confirmará a data efetiva. Você pode cancelar a próxima
+                    renovação durante o trial antes da primeira cobrança sem cobrança do plano.
+                    Se houver cupom, o desconto começa na primeira cobrança efetiva.
                   </span>
                 </label>
               ) : (
