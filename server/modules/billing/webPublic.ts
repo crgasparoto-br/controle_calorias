@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { prepareAsaasProfessionalEarlyConversion } from "./asaas/remediationRuntime";
+import { prepareAsaasRegularization } from "./asaas/regularizationRuntime";
 import {
   prepareAsaasBillingFlow,
   reactivateAsaasCancellation,
@@ -13,6 +14,7 @@ import {
 } from "./billingWebCheckoutAttempt";
 import { billingCatalogService } from "./catalogRuntime";
 import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
+import { getProfessionalCoverageIndividualRenewalSnapshot } from "./professionalCoverageRenewalRead";
 import { billingService } from "./service";
 import { getSubscriptionWebHistory } from "./subscriptionHistoryRead";
 import { getSubscriptionManagementCapabilities } from "./subscriptionManagementRead";
@@ -64,6 +66,26 @@ export const billingProfessionalEarlyActivationSchema =
     confirmed: z.literal(true),
   });
 
+function couponPublicMessage(code: string) {
+  const reason = code.replace(/^billing_coupon_/, "");
+  const messages: Record<string, string> = {
+    inactive: "Cupom inválido ou inativo. Revise o código ou continue sem cupom.",
+    outside_validity: "Este cupom está fora do período de validade.",
+    product_not_eligible: "Este cupom não é válido para o produto selecionado.",
+    version_not_eligible: "Este cupom não é válido para esta versão do plano.",
+    cycle_not_eligible: "Este cupom não é válido para o ciclo selecionado.",
+    total_limit_reached: "Este cupom esgotou o limite total de utilizações.",
+    user_limit_reached: "Este cupom já atingiu o limite de uso para esta conta.",
+    first_contract_required: "Este cupom está disponível somente para a primeira contratação elegível.",
+    currency_mismatch: "Este cupom não pode ser aplicado à moeda desta contratação.",
+    invalid_discount: "Este desconto não pode ser aplicado com segurança. Gratuidade integral depende de isenção administrativa.",
+  };
+  return (
+    messages[reason] ??
+    "O cupom não está disponível para esta contratação. Revise o código ou continue sem cupom."
+  );
+}
+
 function publicBillingError(error: unknown): TRPCError {
   const code = error instanceof Error ? error.message : "";
   if (code === "asaas_operation_in_progress") {
@@ -88,12 +110,15 @@ function publicBillingError(error: unknown): TRPCError {
     billing_contract_trial_identity_conflict: "Não foi possível confirmar a elegibilidade para um novo período de avaliação.",
     asaas_pix_reactivation_requires_new_authorization: "Esta renovação por Pix Automático exige uma nova autorização. Inicie uma nova autorização quando essa ação estiver disponível.",
     asaas_reactivation_not_supported: "A reativação não está disponível para este meio de pagamento.",
+    asaas_regularization_not_available: "Não há uma ação de regularização disponível para o estado atual desta assinatura.",
+    asaas_regularization_reference_missing: "A cobrança ainda não possui referência financeira suficiente para uma regularização segura.",
+    asaas_regularization_invoice_not_available: "Não foi localizada uma cobrança vencida ou pendente com fatura segura disponível. Tente novamente após a próxima atualização financeira.",
     asaas_not_configured: "A contratação está temporariamente indisponível. Tente novamente mais tarde.",
   };
   if (code.startsWith("billing_coupon_")) {
     return new TRPCError({
       code: "BAD_REQUEST",
-      message: "O cupom não está disponível para esta contratação. Revise o código ou continue sem cupom.",
+      message: couponPublicMessage(code),
     });
   }
   return new TRPCError({
@@ -123,19 +148,27 @@ export async function getBillingWebOverview(userId: number) {
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
-  const [lifecycle, management, history] = subscription
-    ? await Promise.all([
-        billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id),
-        getSubscriptionManagementCapabilities({
-          subscriptionId: subscription.id,
-          payerUserId: userId,
-        }),
-        getSubscriptionWebHistory({
-          subscriptionId: subscription.id,
-          payerUserId: userId,
-        }),
-      ])
-    : [null, null, []];
+  const [lifecycle, management, history, professionalCoverageIndividualRenewal] =
+    await Promise.all([
+      subscription
+        ? billingSubscriptionLifecycleRepository.loadLifecycle(subscription.id)
+        : Promise.resolve(null),
+      subscription
+        ? getSubscriptionManagementCapabilities({
+            subscriptionId: subscription.id,
+            payerUserId: userId,
+          })
+        : Promise.resolve(null),
+      subscription
+        ? getSubscriptionWebHistory({
+            subscriptionId: subscription.id,
+            payerUserId: userId,
+          })
+        : Promise.resolve([]),
+      sponsored
+        ? getProfessionalCoverageIndividualRenewalSnapshot(userId)
+        : Promise.resolve(null),
+    ]);
   const professionalCapacity =
     !sponsored && status.professionalSubscription
       ? await getProfessionalCapacityWebSnapshot({
@@ -156,6 +189,7 @@ export async function getBillingWebOverview(userId: number) {
     professionalSubscription: sponsored ? null : status.professionalSubscription,
     professionalCapacity,
     sponsoredCoverage: sponsored,
+    professionalCoverageIndividualRenewal,
     history,
     lifecycle: lifecycle
       ? {
@@ -284,6 +318,26 @@ export async function startBillingWebCheckout(input: {
       }).catch(() => undefined);
     }
     if (error instanceof TRPCError) throw error;
+    throw publicBillingError(error);
+  }
+}
+
+export async function regularizeBillingWebSubscription(input: {
+  userId: number;
+  subscriptionId: string;
+}) {
+  try {
+    const flow = await prepareAsaasRegularization({
+      subscriptionId: input.subscriptionId,
+      payerUserId: input.userId,
+    });
+    return {
+      flow,
+      pendingAuthoritativeConfirmation: true as const,
+      message:
+        "A cobrança existente será aberta no ambiente seguro do Asaas. O acesso só muda depois da confirmação financeira autoritativa.",
+    };
+  } catch (error) {
     throw publicBillingError(error);
   }
 }
