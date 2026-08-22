@@ -16,6 +16,7 @@ export type BillingAccessMode = "open_access" | "enforced";
 export type UserEntitlementsResult = {
   allowed: boolean;
   reason: BillingAccessReason;
+  validFrom?: Date;
   validUntil?: Date;
   sponsorUserId?: number;
   planCode?: string;
