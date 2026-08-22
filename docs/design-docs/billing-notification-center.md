@@ -8,13 +8,13 @@ A implementação atende o complemento vinculante da issue #895 sem criar uma se
 
 ## Fonte interna e ordem de persistência
 
-Um aviso existe internamente porque o fato autoritativo correspondente já foi persistido. A camada `billingNotificationCenter` somente projeta fatos permitidos para linguagem de usuário e registra estado de leitura/entrega em `billingNotificationReceipts`.
+Um aviso existe internamente porque o fato autoritativo correspondente já foi persistido. A camada `billingNotificationCenter` somente projeta fatos permitidos para linguagem de usuário. Estado auxiliar de leitura/entrega usa um evento local idempotente `billing-web/notification_receipt` em `billingProviderEvents`, tabela já existente e também usada por operações web locais do billing; nenhum conteúdo financeiro novo é duplicado nesse receipt.
 
 Quando houver tentativa externa, `deliverBillingNotificationExternally`:
 
 1. valida ownership do fato pelo usuário alvo;
 2. confirma que o fato possui apresentação pública permitida;
-3. grava `pending` no receipt;
+3. grava `pending` no receipt local;
 4. somente então chama o canal externo;
 5. registra `delivered` ou `failed` sem apagar o fato interno.
 
@@ -24,11 +24,11 @@ Não existe caminho em que falha externa remova o aviso do `/billing`.
 
 A central mantém três dimensões separadas:
 
-- **leitura**: `unread`/`read`, persistida em `readAt`;
+- **leitura**: `unread`/`read`, persistida no receipt local;
 - **entrega externa**: `not_attempted`, `pending`, `delivered` ou `failed`, com canal e instante da última tentativa;
 - **conclusão comercial**: `open` ou `completed`, derivada exclusivamente do estado/fato autoritativo do backend.
 
-`billing.markNotificationRead` altera somente `readAt`. Ler uma mensagem nunca cancela, paga, regulariza, reativa, conclui análise nem encerra grandfathering.
+`billing.markNotificationRead` altera somente o campo de leitura do receipt. Ler uma mensagem nunca cancela, paga, regulariza, reativa, conclui análise nem encerra grandfathering.
 
 ## Conteúdo público
 
@@ -81,6 +81,6 @@ Fatos `professional_coverage_individual_renewal_*` são apresentados ao próprio
 - aviso genérico de falha do canal externo, sem detalhes técnicos;
 - ação de marcar como lido com nome acessível contextual.
 
-## Migração
+## Persistência auxiliar
 
-`0048_billing_notification_center.sql` cria `billingNotificationReceipts`. O fato comercial permanece em `billingSubscriptionFacts`; o novo registro guarda apenas estado específico do usuário e da entrega auxiliar.
+Não há migration nova para a central. O conteúdo permanente continua em `billingSubscriptionFacts`; `billingProviderEvents` guarda somente o pequeno receipt local de leitura e tentativa de canal externo, identificado de forma idempotente por usuário + fato. Essa decisão evita uma segunda fonte de verdade e não altera o schema do banco.
