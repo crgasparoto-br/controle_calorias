@@ -38,6 +38,7 @@ import {
   cancelBillingWebSubscription,
   getBillingWebOverview,
   reactivateBillingWebSubscription,
+  regularizeBillingWebSubscription,
   startBillingWebCheckout,
 } from "./webPublic";
 
@@ -179,6 +180,14 @@ export const billingRouter = router({
         accountName: ctx.user.name,
         accountEmail: ctx.user.email,
         payload: input,
+      })
+    ),
+  regularizeSubscription: protectedProcedure
+    .input(billingSubscriptionActionSchema)
+    .mutation(({ ctx, input }) =>
+      regularizeBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
       })
     ),
   cancelSubscription: protectedProcedure
