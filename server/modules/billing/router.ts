@@ -8,6 +8,11 @@ import {
   resolveInternalUsageAnalyticsWindow,
 } from "../usageGovernance/schemas";
 import {
+  listBillingUserNotifications,
+  markBillingNotificationRead,
+} from "./billingNotificationCenter";
+import { billingNotificationReadSchema } from "./billingNotificationSchemas";
+import {
   billingAdminCatalogListSchema,
   billingAdminCreateCouponRevisionSchema,
   billingAdminCreateProductSchema,
@@ -116,6 +121,17 @@ export const billingRouter = router({
   webOverview: protectedProcedure.query(({ ctx }) =>
     getBillingWebOverview(ctx.user.id)
   ),
+  notifications: protectedProcedure.query(({ ctx }) =>
+    listBillingUserNotifications(ctx.user.id)
+  ),
+  markNotificationRead: protectedProcedure
+    .input(billingNotificationReadSchema)
+    .mutation(({ ctx, input }) =>
+      markBillingNotificationRead({
+        userId: ctx.user.id,
+        notificationId: input.notificationId,
+      })
+    ),
   catalog: protectedProcedure.query(async () => {
     try {
       return await billingCatalogService.listCatalog();
