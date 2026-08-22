@@ -10,6 +10,7 @@ const refetchOverview = vi.fn(async () => undefined);
 const refetchNotifications = vi.fn(async () => undefined);
 const mutateRefresh = vi.fn();
 const mutateCheckout = vi.fn();
+const mutateRegularize = vi.fn();
 const mutateCancel = vi.fn();
 const mutateReactivate = vi.fn();
 const mutateEarlyActivation = vi.fn();
@@ -78,6 +79,9 @@ vi.mock("@/lib/trpc", () => ({
       startCheckout: {
         useMutation: () => ({ isPending: false, mutate: mutateCheckout, data: null }),
       },
+      regularizeSubscription: {
+        useMutation: () => ({ isPending: false, mutate: mutateRegularize }),
+      },
       cancelSubscription: {
         useMutation: () => ({ isPending: false, mutate: mutateCancel }),
       },
@@ -129,6 +133,20 @@ const professionalPlan = {
   sortOrder: 2,
 };
 
+const individualSubscription = {
+  id: "subscription-1",
+  provider: "asaas",
+  planCode: "individual",
+  planName: "Individual",
+  status: "past_due",
+  billingCycle: "monthly",
+  currency: "BRL",
+  unitAmount: 1990,
+  currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+  currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+  cancelAtPeriodEnd: false,
+};
+
 function baseOverview(overrides: Record<string, unknown> = {}) {
   return {
     access: {
@@ -142,6 +160,7 @@ function baseOverview(overrides: Record<string, unknown> = {}) {
     professionalSubscription: null,
     professionalCapacity: null,
     sponsoredCoverage: false,
+    professionalCoverageIndividualRenewal: null,
     lifecycle: null,
     management: null,
     history: [],
@@ -249,6 +268,200 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(within(article).getByText(/Regularize a cobrança/i)).toBeTruthy();
   });
 
+  it("shows the canonical seven-day coverage-loss transition and the following read-only state", async () => {
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "transition_access",
+        validFrom: new Date("2026-08-20T00:00:00.000Z"),
+        validUntil: new Date("2026-08-27T00:00:00.000Z"),
+        entitlements: ["system_access"],
+        sourceAvailable: true,
+        evaluatedAt: new Date("2026-08-22T00:00:00.000Z"),
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    const { unmount } = render(<BillingPage />);
+    expect(screen.getByText(/Transição de 7 dias após a perda da cobertura profissional/i)).toBeTruthy();
+    unmount();
+
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "read_only_access",
+        entitlements: ["system_access", "read_only", "export_data", "manage_account"],
+        sourceAvailable: true,
+        evaluatedAt: new Date(),
+      },
+    });
+    render(<BillingPage />);
+    expect(screen.getByText(/leitura, exportação e gestão da conta/i)).toBeTruthy();
+  });
+
+  it("shows the thirty-day existing-user transition without replacing it with a trial", async () => {
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "transition_access",
+        validFrom: new Date("2026-08-01T00:00:00.000Z"),
+        validUntil: new Date("2026-08-31T00:00:00.000Z"),
+        entitlements: ["system_access"],
+        sourceAvailable: true,
+        evaluatedAt: new Date("2026-08-22T00:00:00.000Z"),
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+    expect(screen.getByText(/Transição comercial de 30 dias para usuário existente/i)).toBeTruthy();
+    expect(screen.getByText(/nenhum trial adicional é presumido/i)).toBeTruthy();
+  });
+
+  it("renders a safe regularization action for past_due without claiming payment", async () => {
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "active_subscription",
+        entitlements: ["system_access"],
+        sourceAvailable: true,
+        evaluatedAt: new Date(),
+      },
+      subscription: individualSubscription,
+      lifecycle: {
+        state: "past_due",
+        currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+        currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+        cancelAtPeriodEnd: false,
+        graceEndsAt: new Date("2026-08-27T00:00:00.000Z"),
+        recoveryEndsAt: null,
+        trialEndsAt: null,
+        reconciliationRequired: false,
+      },
+      management: {
+        paymentMethod: "credit_card",
+        canReactivateRenewal: true,
+        canUpdatePaymentMethod: false,
+        requiresNewPixAuthorizationForReactivation: false,
+      },
+      actions: {
+        canStartCheckout: false,
+        canCancelRenewal: true,
+        canReactivateRenewal: false,
+        canActivateProfessionalTrialNow: false,
+        canRegularize: true,
+        canCreateNewSubscription: false,
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    expect(screen.getByText(/carência de 7 dias preserva o acesso/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Regularizar cobrança" }));
+    expect(mutateRegularize).toHaveBeenCalledWith({ subscriptionId: "subscription-1" });
+    expect(screen.getByText(/O acesso só muda após confirmação financeira autoritativa/i)).toBeTruthy();
+  });
+
+  it("shows capacity horizon, canonical milestones and commercial analysis without threatening patient removal", async () => {
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "active_subscription",
+        entitlements: ["system_access"],
+        sourceAvailable: true,
+        evaluatedAt: new Date(),
+      },
+      professionalSubscription: {
+        id: "subscription-pro",
+        provider: "asaas",
+        planCode: "professional",
+        planName: "Profissional",
+        status: "active",
+        billingCycle: "monthly",
+        currency: "BRL",
+        unitAmount: 7990,
+        currentPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+        currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+        cancelAtPeriodEnd: false,
+        planId: "plan-pro",
+        capacityLimit: 30,
+        capacityUsed: 120,
+        entitlements: ["professional_patients"],
+      },
+      professionalCapacity: {
+        state: "grandfathered_active",
+        contractedLimit: 30,
+        occupancy: 120,
+        available: 0,
+        excess: 90,
+        temporaryLimit: 120,
+        temporaryEndsAt: new Date("2026-11-20T00:00:00.000Z"),
+        temporaryWindowKind: "initial",
+        temporaryWindowDays: 90,
+        commercialAnalysisRequired: true,
+        newCoverageBlocked: true,
+        warningMilestones: [
+          { key: "started", dueAt: new Date("2026-08-22T00:00:00.000Z"), daysRemaining: 90, reached: true },
+          { key: "d60", dueAt: new Date("2026-09-21T00:00:00.000Z"), daysRemaining: 60, reached: false },
+          { key: "d30", dueAt: new Date("2026-10-21T00:00:00.000Z"), daysRemaining: 30, reached: false },
+          { key: "d15", dueAt: new Date("2026-11-05T00:00:00.000Z"), daysRemaining: 15, reached: false },
+          { key: "d7", dueAt: new Date("2026-11-13T00:00:00.000Z"), daysRemaining: 7, reached: false },
+          { key: "expired", dueAt: new Date("2026-11-20T00:00:00.000Z"), daysRemaining: 0, reached: false },
+        ],
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    expect(screen.getByText(/Período inicial confirmado de 90 dias/i)).toBeTruthy();
+    expect(screen.getByText("60 dias antes")).toBeTruthy();
+    expect(screen.getByText("7 dias antes")).toBeTruthy();
+    expect(screen.getByText(/Nenhum plano público atual comporta toda a carteira/i)).toBeTruthy();
+    expect(screen.getByText(/pacientes existentes, vínculos e dados não são removidos automaticamente/i)).toBeTruthy();
+  });
+
+  it("shows the covered user's own renewal choice without sponsor finances", async () => {
+    overviewData = baseOverview({
+      access: {
+        allowed: true,
+        reason: "sponsored_by_professional",
+        sponsorUserId: 77,
+        entitlements: ["system_access"],
+        sourceAvailable: true,
+        evaluatedAt: new Date(),
+      },
+      sponsoredCoverage: true,
+      subscription: { ...individualSubscription, status: "active", cancelAtPeriodEnd: true },
+      professionalCoverageIndividualRenewal: {
+        status: "confirmed",
+        subscriptionId: "subscription-1",
+        cancelAtPeriodEnd: true,
+        canKeepRenewal: true,
+        requiresNewPixAuthorization: false,
+        effectiveAt: new Date(),
+      },
+      management: {
+        paymentMethod: "credit_card",
+        canReactivateRenewal: true,
+        canUpdatePaymentMethod: false,
+        requiresNewPixAuthorizationForReactivation: false,
+      },
+      catalog: [],
+      actions: {
+        canStartCheckout: false,
+        canCancelRenewal: false,
+        canReactivateRenewal: true,
+        canActivateProfessionalTrialNow: false,
+        canRegularize: false,
+        canCreateNewSubscription: false,
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    expect(screen.getByText(/próxima renovação da sua assinatura individual foi cancelada/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manter renovação individual" })).toBeTruthy();
+    expect(screen.queryByText("Capacidade profissional")).toBeNull();
+  });
+
   it("keeps sponsor finances and capacity absent for a covered patient", async () => {
     overviewData = baseOverview({
       access: {
@@ -315,6 +528,16 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(
       screen.getByText(/Nenhum limite temporário será inferido pela interface/i)
     ).toBeTruthy();
+  });
+
+  it("renders the backend coupon rejection reason instead of a generic failure", async () => {
+    couponData = { eligible: false, reason: "total_limit_reached" };
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+    fireEvent.change(screen.getByLabelText("Cupom (opcional)"), {
+      target: { value: "PROMO" },
+    });
+    expect(screen.getByRole("alert").textContent).toContain("esgotou o limite total");
   });
 
   it("announces a checkout callback as pending instead of confirming access", async () => {
