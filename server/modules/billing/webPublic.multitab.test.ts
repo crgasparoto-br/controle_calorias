@@ -90,6 +90,7 @@ beforeEach(() => {
     generation: 1,
     persist: false,
   });
+  mocks.releaseAttempt.mockResolvedValue(true);
   mocks.prepareAsaasBillingFlow.mockResolvedValue({
     flow: {
       kind: "hosted_checkout",
