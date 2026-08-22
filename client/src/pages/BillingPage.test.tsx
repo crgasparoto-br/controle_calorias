@@ -5,15 +5,19 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const invalidateOverview = vi.fn(async () => undefined);
+const invalidateNotifications = vi.fn(async () => undefined);
 const refetchOverview = vi.fn(async () => undefined);
+const refetchNotifications = vi.fn(async () => undefined);
 const mutateRefresh = vi.fn();
 const mutateCheckout = vi.fn();
 const mutateCancel = vi.fn();
 const mutateReactivate = vi.fn();
 const mutateEarlyActivation = vi.fn();
+const mutateMarkRead = vi.fn();
 
 let overviewData: any;
 let couponData: any = null;
+let notificationsData: any[] = [];
 
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => (
@@ -36,7 +40,12 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ billing: { webOverview: { invalidate: invalidateOverview } } }),
+    useUtils: () => ({
+      billing: {
+        webOverview: { invalidate: invalidateOverview },
+        notifications: { invalidate: invalidateNotifications },
+      },
+    }),
     billing: {
       webOverview: {
         useQuery: () => ({
@@ -45,6 +54,17 @@ vi.mock("@/lib/trpc", () => ({
           isError: false,
           refetch: refetchOverview,
         }),
+      },
+      notifications: {
+        useQuery: () => ({
+          data: notificationsData,
+          isLoading: false,
+          isError: false,
+          refetch: refetchNotifications,
+        }),
+      },
+      markNotificationRead: {
+        useMutation: () => ({ isPending: false, mutate: mutateMarkRead }),
       },
       couponEligibility: {
         useQuery: () => ({
@@ -142,6 +162,7 @@ describe("BillingPage accessibility and responsive contract", () => {
   beforeEach(() => {
     overviewData = baseOverview();
     couponData = null;
+    notificationsData = [];
     window.history.replaceState({}, "", "/billing");
     vi.clearAllMocks();
   });
@@ -153,6 +174,7 @@ describe("BillingPage accessibility and responsive contract", () => {
     render(<BillingPage />);
 
     expect(screen.getByRole("heading", { name: "Plano e acesso" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Avisos sobre plano e acesso" })).toBeTruthy();
     const offersHeading = screen.getByRole("heading", {
       name: "Compare os planos disponíveis",
     });
@@ -187,6 +209,44 @@ describe("BillingPage accessibility and responsive contract", () => {
     });
     expect(checkoutButton.className).toContain("w-full");
     expect(checkoutButton.className).toContain("sm:w-auto");
+  });
+
+  it("renders notification campaign, version, date, situation and distinct read action", async () => {
+    notificationsData = [
+      {
+        notificationId: "fact-1",
+        campaign: "Regularização financeira",
+        campaignVersion: "v1",
+        title: "Pagamento pendente",
+        whatOccurred: "O backend confirmou uma pendência financeira na assinatura.",
+        effectiveAt: new Date("2026-08-22T08:00:00.000Z"),
+        expectedAction: "Regularize a cobrança pelo fluxo seguro disponível em Plano e acesso.",
+        consequence: "Sem regularização, a assinatura pode ser suspensa.",
+        support: "Use o canal oficial de suporte do aplicativo.",
+        actionHref: "/billing",
+        readState: "unread",
+        readAt: null,
+        deliveryState: "failed",
+        deliveryChannel: "whatsapp",
+        deliveryUpdatedAt: new Date("2026-08-22T08:05:00.000Z"),
+        completionState: "open",
+        situation: "Ação ou acompanhamento pendente",
+      },
+    ];
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    const article = screen.getByRole("article", { name: "Pagamento pendente" });
+    expect(within(article).getByText("Regularização financeira", { exact: false })).toBeTruthy();
+    expect(within(article).getByText("v1", { exact: false })).toBeTruthy();
+    expect(within(article).getByText("Ação ou acompanhamento pendente")).toBeTruthy();
+    expect(within(article).getByText(/envio externo por WhatsApp não foi confirmado/i)).toBeTruthy();
+
+    fireEvent.click(
+      within(article).getByRole("button", { name: "Marcar como lido: Pagamento pendente" })
+    );
+    expect(mutateMarkRead).toHaveBeenCalledWith({ notificationId: "fact-1" });
+    expect(within(article).getByText(/Regularize a cobrança/i)).toBeTruthy();
   });
 
   it("keeps sponsor finances and capacity absent for a covered patient", async () => {
@@ -262,8 +322,8 @@ describe("BillingPage accessibility and responsive contract", () => {
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
 
-    const status = screen.getByRole("status", { name: "" });
-    expect(status.textContent).toContain("Retorno do pagamento recebido");
-    expect(status.textContent).toContain("continua pendente");
+    const statuses = screen.getAllByRole("status");
+    expect(statuses.some(status => status.textContent?.includes("Retorno do pagamento recebido"))).toBe(true);
+    expect(statuses.some(status => status.textContent?.includes("continua pendente"))).toBe(true);
   });
 });
