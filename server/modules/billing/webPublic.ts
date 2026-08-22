@@ -7,6 +7,10 @@ import {
   reactivateAsaasCancellation,
   requestAsaasCancellation,
 } from "./asaas/runtime";
+import {
+  claimBillingWebCheckoutAttempt,
+  releaseBillingWebCheckoutAttempt,
+} from "./billingWebCheckoutAttempt";
 import { billingCatalogService } from "./catalogRuntime";
 import { getProfessionalCapacityWebSnapshot } from "./professionalCapacityRead";
 import { billingService } from "./service";
@@ -30,6 +34,8 @@ const documentSchema = z
   });
 
 export const billingStartCheckoutSchema = z.object({
+  // Backward-compatible input only. The server never trusts this value as the
+  // canonical attempt identity; a durable payer-scoped claim supplies it.
   contractKey: contractKeySchema,
   versionCode: z.string().trim().min(1).max(120),
   paymentMethod: z.enum(["credit_card", "pix_automatic"]),
@@ -60,6 +66,13 @@ export const billingProfessionalEarlyActivationSchema =
 
 function publicBillingError(error: unknown): TRPCError {
   const code = error instanceof Error ? error.message : "";
+  if (code === "asaas_operation_in_progress") {
+    return new TRPCError({
+      code: "CONFLICT",
+      message:
+        "Uma tentativa equivalente já está sendo processada. Aguarde a confirmação antes de iniciar outra.",
+    });
+  }
   const messages: Record<string, string> = {
     billing_plan_not_available: "Este plano não está disponível para a operação solicitada.",
     billing_payment_method_not_available: "Este meio de pagamento não está disponível para o plano selecionado.",
@@ -89,6 +102,18 @@ function publicBillingError(error: unknown): TRPCError {
       messages[code] ??
       "Não foi possível concluir a operação comercial com segurança. Nenhuma ativação foi presumida.",
   });
+}
+
+function isSafePreProviderCheckoutFailure(error: unknown) {
+  const code = error instanceof Error ? error.message : "";
+  return (
+    code === "billing_plan_not_available" ||
+    code === "billing_payment_method_not_available" ||
+    code === "billing_payment_method_not_allowed" ||
+    code === "billing_currency_not_supported" ||
+    code === "asaas_not_configured" ||
+    code.startsWith("billing_coupon_")
+  );
 }
 
 export async function getBillingWebOverview(userId: number) {
@@ -208,9 +233,28 @@ export async function startBillingWebCheckout(input: {
       message: "Confirme a contratação paga sem trial para usar Pix Automático.",
     });
   }
+
+  let canonicalContractKey: string | null = null;
   try {
+    const attempt = await claimBillingWebCheckoutAttempt({
+      userId: input.userId,
+      versionCode: input.payload.versionCode,
+      paymentMethod: input.payload.paymentMethod,
+      trialChoice: input.payload.trialChoice,
+      couponCode: input.payload.couponCode,
+      replaceExisting: status.subscription?.status === "expired",
+    });
+    if (attempt.status === "conflict") {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "Já existe outra tentativa de contratação em andamento para esta conta. Conclua ou aguarde o encerramento da tentativa atual antes de trocar plano, método ou cupom.",
+      });
+    }
+    canonicalContractKey = attempt.contractKey;
+
     const result = await prepareAsaasBillingFlow({
-      contractKey: input.payload.contractKey,
+      contractKey: canonicalContractKey,
       payerUserId: input.userId,
       versionCode: input.payload.versionCode,
       paymentMethod: input.payload.paymentMethod,
@@ -232,6 +276,13 @@ export async function startBillingWebCheckout(input: {
       pendingAuthoritativeConfirmation: true as const,
     };
   } catch (error) {
+    if (canonicalContractKey && isSafePreProviderCheckoutFailure(error)) {
+      await releaseBillingWebCheckoutAttempt({
+        userId: input.userId,
+        contractKey: canonicalContractKey,
+        reason: error instanceof Error ? error.message : "safe_pre_provider_failure",
+      }).catch(() => undefined);
+    }
     if (error instanceof TRPCError) throw error;
     throw publicBillingError(error);
   }

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getCapacity: vi.fn(),
   getManagement: vi.fn(),
   getHistory: vi.fn(),
+  claimAttempt: vi.fn(),
+  releaseAttempt: vi.fn(),
   prepareAsaasBillingFlow: vi.fn(),
   requestAsaasCancellation: vi.fn(),
   reactivateAsaasCancellation: vi.fn(),
@@ -32,6 +34,10 @@ vi.mock("./subscriptionManagementRead", () => ({
 }));
 vi.mock("./subscriptionHistoryRead", () => ({
   getSubscriptionWebHistory: mocks.getHistory,
+}));
+vi.mock("./billingWebCheckoutAttempt", () => ({
+  claimBillingWebCheckoutAttempt: mocks.claimAttempt,
+  releaseBillingWebCheckoutAttempt: mocks.releaseAttempt,
 }));
 vi.mock("./asaas/runtime", () => ({
   prepareAsaasBillingFlow: mocks.prepareAsaasBillingFlow,
@@ -118,6 +124,14 @@ beforeEach(() => {
   mocks.loadLifecycle.mockResolvedValue(null);
   mocks.getCapacity.mockResolvedValue(null);
   mocks.getHistory.mockResolvedValue([]);
+  mocks.claimAttempt.mockResolvedValue({
+    status: "claimed",
+    contractKey: "web_contract_123456789",
+    reused: false,
+    generation: 1,
+    persist: true,
+  });
+  mocks.releaseAttempt.mockResolvedValue(false);
   mocks.getManagement.mockResolvedValue({
     provider: "asaas",
     paymentMethod: "credit_card",
@@ -229,6 +243,7 @@ describe("billing web public boundary", () => {
         },
       })
     ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(mocks.claimAttempt).not.toHaveBeenCalled();
     expect(mocks.prepareAsaasBillingFlow).not.toHaveBeenCalled();
   });
 
@@ -253,6 +268,7 @@ describe("billing web public boundary", () => {
         },
       })
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.claimAttempt).not.toHaveBeenCalled();
     expect(mocks.prepareAsaasBillingFlow).not.toHaveBeenCalled();
   });
 
@@ -297,8 +313,18 @@ describe("billing web public boundary", () => {
       },
     });
 
+    expect(mocks.claimAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 12,
+        versionCode: "individual_monthly_v1",
+        paymentMethod: "credit_card",
+        trialChoice: "waive",
+        couponCode: null,
+      })
+    );
     expect(mocks.prepareAsaasBillingFlow).toHaveBeenCalledWith(
       expect.objectContaining({
+        contractKey: "web_contract_123456789",
         payerUserId: 12,
         transitionAccessUntil: transitionUntil,
         customer: expect.objectContaining({ payerUserId: 12, email: "conta@example.com" }),
