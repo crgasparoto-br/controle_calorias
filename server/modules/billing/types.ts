@@ -16,6 +16,7 @@ export type BillingAccessMode = "open_access" | "enforced";
 export type UserEntitlementsResult = {
   allowed: boolean;
   reason: BillingAccessReason;
+  validFrom?: Date;
   validUntil?: Date;
   sponsorUserId?: number;
   planCode?: string;
@@ -50,6 +51,7 @@ export type BillingSubscriptionSummary = {
   planCode: string;
   productCode?: string;
   versionCode?: string;
+  planVersion?: number;
   planName: string;
   status: "pending" | "active" | "past_due" | "suspended" | "canceled" | "expired";
   billingCycle: "monthly" | "yearly" | "custom";
