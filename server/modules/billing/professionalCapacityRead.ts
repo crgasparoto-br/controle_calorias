@@ -5,7 +5,12 @@ import {
   requireDb,
   resultRows,
 } from "../../repositories/billingRepositorySupport";
-import { professionalCapacityState } from "./professionalCoveragePolicy";
+import {
+  PROFESSIONAL_CAPACITY_EXTENSION_DAYS,
+  PROFESSIONAL_CAPACITY_GRANDFATHER_DAYS,
+  professionalCapacityState,
+  professionalCapacityWarningMilestones,
+} from "./professionalCoveragePolicy";
 
 function jsonObject(value: unknown): Record<string, unknown> {
   if (!value) return {};
@@ -73,6 +78,8 @@ export async function getProfessionalCapacityWebSnapshot(input: {
   let temporaryEndsAt: Date | null = null;
   let windowKey: string | null = null;
   let resolved = false;
+  let extensionApplied = false;
+  let commercialAnalysisRequired = false;
 
   if (started) {
     const payload = jsonObject(started.payloadJson);
@@ -109,12 +116,27 @@ export async function getProfessionalCapacityWebSnapshot(input: {
         `)
       );
       if (extension) {
+        extensionApplied = true;
         const extensionPayload = jsonObject(extension.payloadJson);
         temporaryEndsAt = optionalDate(extensionPayload.endsAt) ?? temporaryEndsAt;
         if (Number.isFinite(Number(extensionPayload.temporaryLimit))) {
           temporaryLimit = Number(extensionPayload.temporaryLimit);
         }
       }
+
+      const [rangeReview] = resultRows<Record<string, unknown>>(
+        await db.execute(sql`
+          SELECT id
+          FROM billingSubscriptionFacts
+          WHERE subscriptionId = ${input.subscriptionId}
+            AND factType = 'professional_capacity_admin_alert_opened'
+            AND JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.windowKey')) = ${windowKey}
+            AND JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.kind')) = 'catalog_range_review_required'
+          ORDER BY createdAt DESC
+          LIMIT 1
+        `)
+      );
+      commercialAnalysisRequired = !!rangeReview;
     }
   }
 
@@ -129,6 +151,18 @@ export async function getProfessionalCapacityWebSnapshot(input: {
           endsAt: temporaryEndsAt,
           now,
         });
+  const warningMilestones =
+    grandfatheredAt && temporaryEndsAt && !resolved
+      ? professionalCapacityWarningMilestones({
+          startedAt: grandfatheredAt,
+          endsAt: temporaryEndsAt,
+        }).map(item => ({
+          key: item.key,
+          dueAt: item.dueAt,
+          daysRemaining: item.daysRemaining,
+          reached: item.dueAt.getTime() <= now.getTime(),
+        }))
+      : [];
 
   return {
     state,
@@ -138,6 +172,18 @@ export async function getProfessionalCapacityWebSnapshot(input: {
     excess: Math.max(0, occupancy - contractedLimit),
     temporaryLimit,
     temporaryEndsAt,
+    temporaryWindowKind: grandfatheredAt
+      ? extensionApplied
+        ? ("extension" as const)
+        : ("initial" as const)
+      : null,
+    temporaryWindowDays: grandfatheredAt
+      ? extensionApplied
+        ? PROFESSIONAL_CAPACITY_EXTENSION_DAYS
+        : PROFESSIONAL_CAPACITY_GRANDFATHER_DAYS
+      : null,
+    warningMilestones,
+    commercialAnalysisRequired,
     newCoverageBlocked:
       occupancy >= contractedLimit || state === "grandfathered_expired",
   };
