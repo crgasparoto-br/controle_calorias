@@ -43,6 +43,15 @@ async function loadProfessionalCoverageIndividualRenewal(patientUserId: number) 
           'professional_coverage_individual_renewal_confirmed',
           'professional_coverage_individual_renewal_kept_by_user'
         )
+        AND EXISTS (
+          SELECT 1
+          FROM billingCapacityAllocations coverage
+          WHERE coverage.patientUserId = ${patientUserId}
+            AND coverage.state = 'active'
+            AND coverage.coverageKey = JSON_UNQUOTE(
+              JSON_EXTRACT(f.payloadJson, '$.coverageKey')
+            )
+        )
       ORDER BY f.effectiveAt DESC, f.createdAt DESC
       LIMIT 1
     `)
