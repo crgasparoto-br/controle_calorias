@@ -6,9 +6,14 @@ import {
 } from "../../db";
 import { runFoodImportJob as runFoodImportJobService } from "./foodImportJobs";
 import type { RunFoodImportJobInput, UpdateWhatsappTokenInput } from "./schemas";
+import { buildQuestionLatencyPercentiles } from "../whatsapp/questionLatencyMetrics";
 
 export async function getAdminOverview() {
-  return getAdminSnapshot();
+  const snapshot = await getAdminSnapshot();
+  return {
+    ...snapshot,
+    questionLatency: buildQuestionLatencyPercentiles(snapshot.recentInferenceLogs),
+  };
 }
 
 export async function getWhatsappTokenStatus() {

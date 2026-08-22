@@ -5,6 +5,7 @@ import {
   verifyWhatsAppWebhook,
 } from "./whatsappWebhookImplementation";
 import { runWithImageAnnotationTelemetryContext } from "./modules/whatsapp/imageAnnotationTelemetryContext";
+import { runWithQuestionLatencyContext } from "./modules/whatsapp/questionLatencyContext";
 
 export {
   __resetWhatsAppWebhookDeduplicationForTests,
@@ -13,7 +14,9 @@ export {
 
 // Static compatibility contract: canInterpretAudioTranscriptIntent -> executeWhatsappTextIntent(userId, { text: prepared.transcript }).
 export function handleWhatsAppWebhook(req: Request, res: Response) {
-  return runWithImageAnnotationTelemetryContext(
-    () => handleWhatsAppWebhookImplementation(req, res),
+  return runWithQuestionLatencyContext(() =>
+    runWithImageAnnotationTelemetryContext(
+      () => handleWhatsAppWebhookImplementation(req, res),
+    ),
   );
 }

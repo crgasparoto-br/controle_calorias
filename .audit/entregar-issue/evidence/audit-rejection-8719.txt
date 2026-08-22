@@ -1,0 +1,11 @@
+RESULT=REPROVADA
+rejection_id=audit-rejection:8719da74-b602-4521-ad8b-5b584329a619
+repository=crgasparoto-br/controle_calorias
+issue=989
+pull_request=993
+audited_head_sha=cfae10627b8778d2c9cdcb20d750c5f97f9e2563
+certified_material_head_sha=155988050f606f836c2e06b80c505c0d4da7d5ef
+finding=A-001 delivery-not-ready because the published candidate moved materially beyond the certified material head.
+recovery_scope=post-write-refreeze
+requires_refreeze=true
+material_paths=server/modules/whatsapp/questionContextPlan.ts; server/modules/whatsapp/questionContextPlan.test.ts; server/modules/whatsapp/aiQuestionAssistant.auditRemediation.test.ts

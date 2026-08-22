@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 3,
+  "benchmark": "question-latency/end-to-end-productive-pipeline-hermetic-v3",
+  "cohort": "QUESTION/text-only",
+  "fixtureManifest": "docs/benchmarks/question-latency/fixtures/manifest.json",
+  "executionMode": "exact-sha-production-pipeline-with-hermetic-persistence-delivery-and-provider-doubles",
+  "baseSha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "candidateSha": "63c4a31ecf76972ca9daf6dce63511e49d220cf2",
+  "sourceEntrypoints": [
+    "server/modules/whatsapp/messageLifecycle.ts#beginInboundMessage",
+    "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+    "server/modules/whatsapp/logicalReplyDelivery.ts#sendWhatsAppLogicalDomainReply",
+    "server/modules/whatsapp/messageLifecycle.ts#markMessageProcessed"
+  ],
+  "environment": {
+    "timezone": "America/Sao_Paulo",
+    "provider": "openai-adapter-contract-via-hermetic-provider-double",
+    "model": "gpt-4.1-mini",
+    "policy": {
+      "timeoutMs": 2000,
+      "maxAttempts": 1,
+      "fallback": false,
+      "webSearch": "auto-available-not-forced"
+    },
+    "stageDelaysMs": {
+      "userLookup": 5,
+      "conversation": 8,
+      "inboundPersist": 12,
+      "outboundPersist": 10,
+      "responseLinkPersist": 5,
+      "processedPersist": 8,
+      "delivery": 10,
+      "history": 10,
+      "today": 30,
+      "currentWeek": 45,
+      "last30Days": 120,
+      "llm": 80
+    },
+    "concurrency": "sequential-observations; production context branches retain their own Promise.all concurrency"
+  },
+  "provenance": {
+    "manifestSha256": "7891abb5e91e5b1d99c6718148d87b51e323ee957aba7890b26b13314d6e112f",
+    "benchmarkSha256": "d345590e52c6547185806a77ba23babe1cdb3e3fad83a826e059fd02b8c7dc59",
+    "loaderSha256": "3831e071f9ecaff9aedcc4ea5e4d940fab0c89a1c740dd59d84013b9e11a4463",
+    "workerSha256": "c768e1fe5c2132a011743e08b1958547b2ba10d37a0a2c2e2a361da9e253c97a",
+    "sourceIdentityVerifiedByGitWorktree": true
+  },
+  "baseline": {
+    "totalRuns": 120,
+    "successfulRuns": 120,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 262,
+    "p90TotalMs": 268,
+    "p95TotalMs": 272
+  },
+  "candidate": {
+    "totalRuns": 120,
+    "successfulRuns": 120,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 172,
+    "p90TotalMs": 193,
+    "p95TotalMs": 261
+  },
+  "improvementsPercent": {
+    "p50": 34.35,
+    "p90": 27.99,
+    "p95": 4.04
+  },
+  "gate": {
+    "atLeast30SuccessfulRunsEachSide": true,
+    "p90OrP95ImprovementAtLeast20Percent": true,
+    "noPercentileRegressionOver5Percent": true,
+    "noErrorIncrease": true,
+    "noTimeoutIncrease": true,
+    "exactlyOneProviderCallPerSuccessfulQuestion": true,
+    "webSearchAvailableOnEverySuccessfulQuestion": true,
+    "productionEndToEndPipelineExecutedOnBothExactShas": true,
+    "candidateTelemetryMatchesEndToEndBoundary": true,
+    "persistenceMeasuredOnCandidate": true,
+    "deliveryIncludedInTotalMs": true,
+    "timeToFirstToken": "not-measurable-non-streaming-provider-contract"
+  },
+  "passed": true,
+  "privacy": {
+    "containsRawQuestionOrAnswer": false,
+    "containsPiiOrCredentials": false,
+    "syntheticOnly": true
+  },
+  "observationsArchive": {
+    "path": "docs/benchmarks/question-latency/results/2026-08-18-63c4a31-e2e-raw.json.gz",
+    "encoding": "gzip",
+    "contentType": "application/json",
+    "compressedSha256": "bd4abfc2e2a14c6ef1ef0215a9898bad91df8dd65262aaaefbb0830b03ef41c8",
+    "uncompressedSha256": "f19f2fb15271aa7717d121b957853565455b1dfac2b766d551921c1474cbbefb",
+    "baselineObservationCount": 120,
+    "candidateObservationCount": 120,
+    "note": "Byte-exact full harness output, compressed only for versioned transport; summary fields above are derived from the same output."
+  }
+}

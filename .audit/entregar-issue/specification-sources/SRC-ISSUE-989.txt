@@ -1,0 +1,290 @@
+## Contexto
+
+Usuários estão percebendo demora excessiva entre o envio de uma pergunta e o recebimento da resposta no fluxo conversacional.
+
+A investigação inicial indica que o problema deve ser tratado como latência fim a fim do pipeline de pergunta → obtenção de contexto → chamada de IA → processamento/persistência → resposta, e não apenas como troca de modelo.
+
+Esta issue é independente das regressões de interpretação nutricional e deve focar exclusivamente em performance.
+
+> Branch base para implementação: `develop`.
+>
+> `specification_version: 2`
+
+## Fontes canônicas e restrições existentes
+
+- `ARCHITECTURE.md`: a capacidade `QUESTION` faz parte da fundação multi-provider de IA, exige texto + pesquisa web e já foi migrada para a resolução/execução centralizada de capacidades. A otimização não deve reintroduzir chamada direta a SDK/provider fora dessa fundação.
+- `server/_core/ai/policyDefaults.ts` / resolução central de configuração: timeout, tentativas e políticas compartilhadas devem continuar centralizados; não criar política paralela exclusiva para perguntas somente para reduzir latência.
+- `docs/benchmarks/transcription/`: usar como precedente de higiene de benchmark — fixtures sintéticos/versionados, resultado sanitizado, evidência vinculada ao SHA testado e sem secrets/PII.
+
+## Objetivo
+
+Medir com precisão onde o tempo está sendo gasto e reduzir a latência percebida e total das respostas, priorizando perguntas de texto simples, sem remover capacidades obrigatórias nem degradar o comportamento funcional existente.
+
+## Definições operacionais
+
+### Pergunta de texto simples
+
+Para esta issue, é uma entrada exclusivamente textual cuja resposta final utiliza a capacidade existente `QUESTION`.
+
+Ficam fora desta coorte de performance primária:
+
+- imagem;
+- áudio/transcrição;
+- registro ou mutação de refeição;
+- fluxos de confirmação pendente;
+- capacidades distintas de `QUESTION`, como `NUTRITION_SEARCH`, quando acionadas pelo comportamento atual.
+
+Esses fluxos continuam sendo instrumentados quando atravessarem o pipeline comum, mas não determinam o gate principal de performance desta issue.
+
+### Caminho crítico
+
+É o trabalho que precisa terminar para que a resposta correta possa ser enviada ao usuário. Trabalho auxiliar pode ser movido para depois da resposta apenas quando sua conclusão não for necessária para:
+
+- calcular ou validar a resposta atual;
+- manter a consistência exigida pelo fluxo;
+- cumprir persistência ou efeito colateral que faça parte do contrato atual;
+- manter deduplicação, autorização, auditoria ou segurança existentes.
+
+## Escopo
+
+### 1. Instrumentação fim a fim
+
+Adicionar métricas de duração para as principais etapas do fluxo, incluindo, quando aplicável:
+
+- `total_ms`
+- `db_ms`
+- `context_ms`
+- `llm_ms`
+- `persist_ms`
+- `time_to_first_token_ms` / TTFT
+
+A instrumentação deve permitir correlacionar todas as etapas de uma mesma requisição e identificar o tipo de entrada/fluxo sem registrar conteúdo sensível desnecessário.
+
+A instrumentação deve também registrar de forma sanitizada, quando relevante para explicar latência:
+
+- capacidade de IA executada;
+- provider/modelo efetivamente resolvido;
+- número de tentativas;
+- ocorrência de retry/fallback;
+- timeout/erro classificado;
+- presença da operação de pesquisa web exigida por `QUESTION`.
+
+Não registrar pergunta do usuário, resposta bruta do modelo, credenciais ou PII como requisito desta instrumentação.
+
+### 2. Identificar e remover trabalho do caminho crítico
+
+Revisar o fluxo e mover para pós-resposta/background tudo que não seja necessário para produzir a resposta imediata, por exemplo:
+
+- telemetria não bloqueante;
+- gravações auxiliares;
+- geração de dados derivados;
+- processamento secundário que não altera a resposta atual.
+
+Não mover operações que sejam necessárias para consistência funcional da resposta.
+
+### 3. Otimizar consultas e carregamento de contexto
+
+Investigar e corrigir:
+
+- consultas independentes executadas sequencialmente que possam ser paralelizadas;
+- leituras repetidas dos mesmos dados na mesma requisição;
+- carregamento de histórico maior que o necessário;
+- objetos/contextos enviados à IA sem necessidade para a pergunta atual.
+
+### 4. Reduzir custo do contexto/prompt
+
+Para perguntas simples, enviar apenas o contexto necessário para a intenção atual.
+
+Evitar:
+
+- histórico integral sem necessidade;
+- instruções repetidas;
+- payloads grandes que não influenciam a resposta;
+- múltiplas representações dos mesmos dados.
+
+A redução de contexto não pode remover informação necessária para manter o comportamento já coberto pelos testes/regressões do fluxo.
+
+### 5. Revisar número de chamadas de IA por pergunta
+
+Identificar fluxos em que uma única pergunta dispara múltiplas chamadas sequenciais de IA, por exemplo classificação → interpretação → geração.
+
+Quando seguro e compatível com o comportamento atual:
+
+- substituir classificação simples por lógica determinística;
+- consolidar etapas em uma única chamada estruturada;
+- executar chamadas independentes em paralelo.
+
+A implementação deve preservar a fundação central de capacidades (`QUESTION` resolvida/executada pelo mecanismo multi-provider existente) e não pode obter ganho de latência por chamada direta ao SDK do provider.
+
+### 6. Roteamento por complexidade
+
+Avaliar o uso de um caminho mais rápido para perguntas simples, preservando fluxos/modelos mais completos para casos que realmente exigem maior raciocínio, como análises complexas, imagem ou outros processamentos multimodais.
+
+Qualquer mudança de roteamento deve usar os mecanismos centrais de resolução/política existentes e não pode remover a pesquisa web exigida pelo contrato atual de `QUESTION` apenas para atingir a meta de latência.
+
+### 7. Streaming / resposta progressiva quando suportado
+
+Nos canais que suportarem streaming, reduzir o tempo percebido começando a entregar a resposta assim que houver conteúdo disponível.
+
+Para canais sem streaming tradicional, como WhatsApp, priorizar redução do caminho crítico e eliminação de chamadas/esperas desnecessárias.
+
+Streaming não substitui a medição de `total_ms`; TTFT e tempo total devem ser tratados como métricas distintas.
+
+### 8. Métricas de produção
+
+Disponibilizar acompanhamento de latência por percentil, no mínimo:
+
+- p50
+- p90
+- p95
+
+Separar, quando possível, por tipo de fluxo/entrada, por exemplo:
+
+- pergunta de texto simples (`QUESTION`);
+- registro alimentar;
+- imagem;
+- áudio;
+- pergunta/análise nutricional mais complexa.
+
+Erros e timeouts devem ser reportados separadamente; não é permitido melhorar percentis simplesmente descartando silenciosamente requisições lentas ou com falha da evidência.
+
+## Protocolo mínimo de benchmark antes/depois
+
+Criar uma coorte fixa e versionada de perguntas sintéticas de texto simples, sem dados reais de usuário, que exercite o mesmo caminho produtivo de `QUESTION` usado pela aplicação.
+
+Baseline e candidato devem ser comparados com:
+
+1. exatamente o mesmo conjunto de fixtures;
+2. o mesmo perfil de execução/concurrency;
+3. o mesmo ambiente e dependências externas, salvo a configuração que for explicitamente parte da otimização;
+4. provider, modelo, timeout, tentativas, fallback e demais políticas registrados em cada resultado;
+5. SHA do baseline em `develop` e SHA do candidato registrados;
+6. no mínimo 30 execuções bem-sucedidas da coorte para cada lado da comparação, além do registro separado de erros/timeouts;
+7. p50, p90 e p95 calculados sobre a mesma coorte e mesma definição de `total_ms`;
+8. resultados sanitizados sem pergunta/resposta bruta, PII ou credenciais.
+
+Se provider/modelo/política mudar como parte da otimização, a diferença deve ficar explícita no resultado; não apresentar a comparação como equivalente sem registrar essa mudança.
+
+A evidência canônica do benchmark desta issue deve ser versionada em `docs/benchmarks/question-latency/` seguindo o padrão de proveniência segura já usado pelos benchmarks existentes.
+
+## Meta e gate de performance
+
+Para a coorte de perguntas de texto simples:
+
+- objetivo de TTFT <= 2 s quando o canal/provedor permitir medir TTFT;
+- o candidato deve reduzir **p90 ou p95 de `total_ms` em pelo menos 20%** em relação ao baseline;
+- nenhum dos percentis p50/p90/p95 pode piorar mais de 5% em relação ao baseline;
+- o mesmo benchmark não pode apresentar aumento de erros/timeouts;
+- a meta deve ser demonstrada pelo protocolo antes/depois acima, e não por amostras diferentes ou medição manual isolada.
+
+Se a arquitetura/provedor tornar TTFT <= 2 s inviável, documentar o baseline, a restrição e a melhor meta tecnicamente alcançável. Isso não dispensa o gate relativo de melhoria do tempo total, salvo evidência técnica versionada de que a variância externa torna a comparação inconclusiva.
+
+## Invariantes estruturais
+
+### `must_reuse`
+
+- O fluxo `QUESTION` deve continuar reutilizando a fundação multi-provider e os mecanismos centrais de resolução/execução/política existentes.
+  - **Implementação errada plausível:** chamar OpenAI/Gemini diretamente no caminho rápido e obter resposta mais rápida no caso feliz.
+  - **Controle discriminante:** teste/spy no limite da capacidade provando que o caminho usa a resolução/execução central e não cria cliente direto alternativo.
+
+### `must_not_behave`
+
+- Não remover a operação de pesquisa web exigida pelo contrato atual de `QUESTION` somente para reduzir latência.
+  - **Implementação errada plausível:** desabilitar a ferramenta/pesquisa para diminuir `llm_ms`, mantendo respostas aparentemente aceitáveis em fixtures triviais.
+  - **Controle discriminante:** caso de regressão que exige o contrato de `QUESTION` e verifica que a operação continua disponível/presente no request produtivo.
+
+- Não responder antes de uma operação que pertença ao contrato funcional/consistência atual apenas para reduzir `total_ms`.
+  - **Implementação errada plausível:** mover trabalho obrigatório para background e responder sucesso mesmo quando esse trabalho falha depois.
+  - **Controle discriminante:** testes de integração cobrindo falha/timeout das operações que forem movidas, provando que apenas trabalho auxiliar ficou fora do caminho crítico.
+
+### `must_be_single_source`
+
+- Timeout, tentativas e políticas de execução de IA devem continuar definidos/resolvidos pelas fontes centrais existentes, sem constantes paralelas exclusivas para o caminho rápido.
+  - **Implementação errada plausível:** criar timeout/retry próprios no handler de pergunta, divergindo silenciosamente do executor comum.
+  - **Controle discriminante:** teste/configuração prova que a política efetiva é resolvida pela fonte central.
+
+### `forbidden_implementation`
+
+- É proibido declarar ganho de performance alterando fixtures entre baseline/candidato, excluindo seletivamente amostras lentas/falhas ou reduzindo capacidade funcional sem evidência explícita.
+  - **Implementação errada plausível:** benchmark do candidato usa perguntas menores ou ignora timeouts, produzindo percentis artificialmente melhores.
+  - **Controle discriminante:** manifesto/hash ou equivalente prova identidade da coorte; relatório inclui contagem total, sucessos, erros e timeouts dos dois lados.
+
+## Critérios de aceite
+
+- [ ] Existe instrumentação fim a fim das principais etapas da requisição.
+- [ ] É possível identificar quanto tempo foi gasto em banco, montagem de contexto, IA, persistência e total da requisição quando essas etapas existirem.
+- [ ] Existe correlação entre as métricas/logs das etapas de uma mesma pergunta.
+- [ ] A capacidade/provider/modelo/tentativas/retry/fallback relevantes podem ser correlacionados com a latência sem registrar conteúdo sensível.
+- [ ] Foi coletado e versionado um baseline em `develop` seguindo o protocolo desta issue.
+- [ ] A coorte primária de `QUESTION` possui a mesma definição/fixtures no baseline e no candidato.
+- [ ] O candidato reduz p90 ou p95 de `total_ms` em >= 20% e nenhum p50/p90/p95 regride > 5%.
+- [ ] O benchmark candidato não aumenta erros/timeouts em relação ao baseline para a mesma coorte.
+- [ ] Operações não essenciais foram removidas do caminho crítico quando seguro.
+- [ ] Nenhuma operação obrigatória para resposta, consistência, autorização, deduplicação, auditoria ou segurança foi movida indevidamente para depois da resposta.
+- [ ] Consultas sequenciais desnecessárias, leituras repetidas e carregamentos excessivos de contexto foram revisados e otimizados quando encontrados.
+- [ ] O número de chamadas sequenciais de IA por pergunta foi levantado e reduzido quando tecnicamente seguro.
+- [ ] Perguntas simples não carregam/enviam contexto claramente desnecessário.
+- [ ] `QUESTION` continua usando a fundação multi-provider central e não chama SDK/provider diretamente por um caminho paralelo.
+- [ ] A pesquisa web exigida pelo contrato atual de `QUESTION` não foi removida apenas para atingir a meta.
+- [ ] p50, p90 e p95 podem ser acompanhados por tipo de fluxo/entrada relevante.
+- [ ] Testes existentes continuam passando e novos testes cobrem mudanças de comportamento relevantes.
+- [ ] Existe regressão automatizada para os invariantes estruturais alterados por esta entrega.
+- [ ] Não há regressão funcional nos resultados/contratos cobertos pelo corpus de regressão e testes existentes.
+
+## Considerações de testes
+
+Cobrir proporcionalmente ao que for alterado:
+
+- unidade para montagem/redução de contexto e classificação determinística, quando aplicável;
+- integração do caminho `QUESTION` com resolução/execução central;
+- contagem de chamadas/tentativas para evitar multiplicação sequencial não intencional;
+- retry/fallback/timeout quando a otimização tocar política ou concorrência;
+- garantia de que trabalho movido para pós-resposta é realmente auxiliar;
+- regressão do contrato de pesquisa web de `QUESTION`;
+- benchmark sintético reproduzível antes/depois;
+- ausência de conteúdo sensível nos eventos/resultados de performance.
+
+Não exigir chamada real a provider em CI de PR com secrets permanentes. Comportamento deve ser provado por testes herméticos/doubles; evidência real de provider é complementar e deve permanecer vinculada ao SHA testado, seguindo o precedente dos benchmarks existentes.
+
+## Evidência esperada no PR
+
+O PR que implementar esta issue deve incluir:
+
+1. baseline de latência antes da alteração, com SHA e configuração;
+2. identificação dos maiores gargalos encontrados;
+3. mudanças aplicadas;
+4. métricas equivalentes após a alteração;
+5. comparação objetiva antes/depois por p50/p90/p95 e contagem de erros/timeouts;
+6. identificação de provider/modelo/política e tentativas relevantes nos dois lados;
+7. observações sobre diferenças entre texto, imagem, áudio e demais fluxos relevantes, sem misturar esses fluxos no gate primário de `QUESTION`;
+8. evidência dos testes dos invariantes estruturais.
+
+## Impacto na documentação
+
+- Criar/manter `docs/benchmarks/question-latency/` como fonte versionada da metodologia, fixtures sintéticos, proveniência e resultados sanitizados desta entrega.
+- Atualizar `ARCHITECTURE.md` somente se a implementação introduzir um contrato estável novo de observabilidade/caminho de execução que precise permanecer verdadeiro após a issue. Não atualizar apenas para narrar detalhes temporários da otimização.
+
+## Premissas desta versão
+
+- A coorte primária desta issue é `QUESTION` com entrada somente textual.
+- O mínimo de 30 execuções bem-sucedidas por lado é suficiente como gate inicial desta entrega; resultados de produção com volume maior devem prevalecer para acompanhamento posterior.
+- Melhoria relativa >= 20% em p90 ou p95, sem regressão > 5% nos demais percentis, é o limiar inicial de aceitação para evitar que “melhoria mensurável” seja interpretada de formas incompatíveis.
+
+## Fora de escopo
+
+- corrigir erros de interpretação nutricional não relacionados a performance;
+- alterar regras de negócio apenas para obter menor latência;
+- degradar qualidade de resposta sem evidência e decisão explícita;
+- mudanças amplas de infraestrutura sem demonstrar que o gargalo está nessa camada;
+- trocar a arquitetura multi-provider por integração direta a um provider;
+- remover pesquisa web/capacidade exigida por `QUESTION` apenas para cumprir SLO;
+- usar dados reais de usuários como fixtures do benchmark versionado.
+
+## Estratégia recomendada
+
+Implementar em duas etapas dentro da mesma entrega quando possível:
+
+1. **medir e criar baseline**;
+2. **otimizar os maiores gargalos em ordem de impacto e validar novamente**.
+
+Evitar otimizações especulativas antes de identificar em qual etapa o tempo está sendo consumido.

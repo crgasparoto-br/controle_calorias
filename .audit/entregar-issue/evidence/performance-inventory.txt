@@ -1,0 +1,24 @@
+subject_sha=0d0f0f74fab0a89edb4f4eef8689f582918483b8
+control=PERF-STAGE-ATTR-001,PERF-CRITICAL-WORK-001,PERF-BENCH-PATH-001
+production_entrypoint=server/whatsappWebhookImplementation.ts QUESTION branch through getUserIdByWhatsappPhone -> timezone resolution -> message lifecycle -> executeWhatsappAiQuestionIntent -> logical reply -> mark processed
+terminal_boundary=server/modules/whatsapp/messageLifecycle.ts#markMessageProcessed
+inventory:
+- user lookup: db, db_ms, required
+- operation timezone lookup: db, db_ms, required
+- conversation/inbound persistence: persist, persist_ms, required
+- recent history read: db, db_ms, conditional; generic scope=none expects 0 invocations
+- today/current-week/last-30-days context reads: db, db_ms, conditional by context scope
+- context assembly/classification: context, context_ms, required
+- AI usage gate: db, db_ms, required
+- AI usage reservation: db, db_ms, required
+- AI usage provider-dispatch claim: db, db_ms, required
+- central provider execution: llm, llm_ms, required; exactly one provider call
+- AI usage finalization: db, db_ms, required
+- outbound message/response-link/processed persistence: persist, persist_ms, required
+- logical WhatsApp delivery: delivery, included before total terminal boundary
+post-integration remediation=usage governance DB operations are measured through measureAiUsageGovernanceOperation and recordCurrentQuestionDbMs; no extra provider call or provider-specific fast path introduced.
+worker_observations_sha256=1c10c42973ad4ba8da08a17bc016281dfcb5ef947cc32f1343b35feaf8b9a5e3
+worker_observations=60 candidate executions; scopes none,today,week,full; providerCalls min=max=1; badGovernance=0; db_ms min=30 max=238; generic history loads min=max=0.
+generic_history_rollout_probes=write_only,shadow,persistent all scope=none with zero recent-history loads and no history sent.
+benchmark_result_sha256=1487eba3f78ebc6beac1e2325a28da05b389daba197c0832e1e96c1762ceef06
+benchmark_result=p50 290->200ms, p90 292->215ms, p95 296->290ms; 60/60 successes each side; gate passed.

@@ -1,1 +1,59 @@
-{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:d97f25b8-29f2-47fd-8208-b5960d605a5e","finding_ids":["AUD-985-004"],"repository":"crgasparoto-br/controle_calorias","work_item":897,"pull_request":985,"material_head_sha":"442abe366b726fd429db3dba2e38607fe94ec426"},"generalized_learning":{"promotion_status":"not-required","reason":"The delivery contract already requires terminal gates and resource-safe integration harnesses. This escape was local to one TiDB test that bypassed the existing injectable database provider and therefore left a second runtime pool alive."}}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19",
+    "finding_ids": [
+      "A-001",
+      "A-002"
+    ]
+  },
+  "generalized_learning": {
+    "escape_class": "target-lineage-and-remediation-mode-trust-gap",
+    "generalized_failure_pattern": "A re-audit package can appear cumulative while importing history from another target, and an omitted classification field can silently downgrade the validation path that would detect the contamination.",
+    "plausible_wrong_implementation": "Build cumulative state from every inherited package and default absent remediation classification to the least strict mode instead of deriving target lineage and mode from certified authoritative inputs.",
+    "trigger_signals": [
+      "inherited-controls",
+      "retired-controls",
+      "historical snapshot",
+      "foreign-target",
+      "remediation_mode",
+      "systemic-remediation",
+      "audit-remediation",
+      "reaudit"
+    ],
+    "risk_families": [
+      "structural-contract",
+      "execution-state-gap"
+    ],
+    "reusable_control": "Bind cumulative lineage to the immediately previous immutable snapshot of the same target, and derive remediation strictness from the certified remediation ledger on both producer and consumer sides.",
+    "prevention_rule": "Foreign historical packages are diagnostic inputs only and cannot introduce active or retired lineage IDs; certificate classification is derived from the certified remediation ledger.",
+    "detection_rule": "Re-audit readiness compares current lineage with the immutable immediately previous target snapshot and independently derives systemic/mixed mode from the certified ledger when necessary.",
+    "transfer_cases": [
+      {
+        "surface": "target-lineage",
+        "case": "a branch inherits an audit package from another issue and attempts to retire those IDs into the current issue ledger",
+        "status": "passed"
+      },
+      {
+        "surface": "reaudit-mode",
+        "case": "a legacy certificate omits remediation_mode while the certified remediation ledger is systemic",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "change": "Producer rejects historical-only retirement injection and writes remediation_mode from the certified audit-remediation ledger."
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "change": "Auditor derives remediation mode from the certified ledger when needed and executes systemic re-audit readiness rather than silently defaulting to targeted."
+    }
+  ]
+}
