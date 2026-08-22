@@ -7,13 +7,25 @@ import {
 
 type Row = Record<string, unknown>;
 
-export async function getProfessionalCoverageIndividualRenewalSnapshot(
-  patientUserId: number
-) {
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, unknown>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+async function loadProfessionalCoverageIndividualRenewal(patientUserId: number) {
   const db = await requireDb(getDb);
   const [row] = resultRows<Row>(
     await db.execute(sql`
-      SELECT f.factType, f.effectiveAt, s.id AS subscriptionId,
+      SELECT f.factType, f.effectiveAt, f.payloadJson, s.id AS subscriptionId,
         s.cancelAtPeriodEnd, i.paymentMethod
       FROM billingSubscriptionFacts f
       INNER JOIN billingSubscriptions s ON s.id = f.subscriptionId
@@ -45,21 +57,58 @@ export async function getProfessionalCoverageIndividualRenewalSnapshot(
         ? ("confirmed" as const)
         : ("kept_by_user" as const);
   const paymentMethod = row.paymentMethod ? String(row.paymentMethod) : null;
+  const cancelAtPeriodEnd =
+    row.cancelAtPeriodEnd === true ||
+    row.cancelAtPeriodEnd === 1 ||
+    row.cancelAtPeriodEnd === "1";
+  const payload = jsonObject(row.payloadJson);
   return {
     status,
     effectiveAt: row.effectiveAt ? new Date(String(row.effectiveAt)) : null,
     subscriptionId: String(row.subscriptionId),
-    cancelAtPeriodEnd:
-      row.cancelAtPeriodEnd === true ||
-      row.cancelAtPeriodEnd === 1 ||
-      row.cancelAtPeriodEnd === "1",
+    coverageKey:
+      typeof payload.coverageKey === "string" && payload.coverageKey
+        ? payload.coverageKey
+        : null,
+    cancelAtPeriodEnd,
+    paymentMethod,
+  };
+}
+
+export async function getProfessionalCoverageIndividualRenewalSnapshot(
+  patientUserId: number
+) {
+  const row = await loadProfessionalCoverageIndividualRenewal(patientUserId);
+  if (!row) return null;
+  return {
+    status: row.status,
+    effectiveAt: row.effectiveAt,
+    subscriptionId: row.subscriptionId,
+    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     canKeepRenewal:
-      status === "confirmed" &&
-      paymentMethod === "credit_card" &&
-      (row.cancelAtPeriodEnd === true ||
-        row.cancelAtPeriodEnd === 1 ||
-        row.cancelAtPeriodEnd === "1"),
+      row.status === "confirmed" &&
+      row.paymentMethod === "credit_card" &&
+      row.cancelAtPeriodEnd,
     requiresNewPixAuthorization:
-      status === "confirmed" && paymentMethod === "pix_automatic",
+      row.status === "confirmed" && row.paymentMethod === "pix_automatic",
+  };
+}
+
+export async function getProfessionalCoverageIndividualRenewalContext(input: {
+  patientUserId: number;
+  subscriptionId: string;
+}) {
+  const row = await loadProfessionalCoverageIndividualRenewal(input.patientUserId);
+  if (
+    !row ||
+    row.subscriptionId !== input.subscriptionId ||
+    row.status !== "confirmed" ||
+    !row.coverageKey
+  ) {
+    return null;
+  }
+  return {
+    coverageKey: row.coverageKey,
+    subscriptionId: row.subscriptionId,
   };
 }
