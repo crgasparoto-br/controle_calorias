@@ -111,6 +111,22 @@ function safeCatalogQueryError(): TRPCError {
   });
 }
 
+function safeNotificationReadError(error: unknown): TRPCError {
+  if (
+    error instanceof Error &&
+    error.message === "billing_notification_not_found"
+  ) {
+    return new TRPCError({
+      code: "NOT_FOUND",
+      message: "Este aviso não está disponível para esta conta.",
+    });
+  }
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível atualizar o estado de leitura deste aviso.",
+  });
+}
+
 export const billingRouter = router({
   me: protectedProcedure.query(({ ctx }) =>
     billingService.getUserEntitlements(ctx.user.id)
@@ -126,12 +142,16 @@ export const billingRouter = router({
   ),
   markNotificationRead: protectedProcedure
     .input(billingNotificationReadSchema)
-    .mutation(({ ctx, input }) =>
-      markBillingNotificationRead({
-        userId: ctx.user.id,
-        notificationId: input.notificationId,
-      })
-    ),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await markBillingNotificationRead({
+          userId: ctx.user.id,
+          notificationId: input.notificationId,
+        });
+      } catch (error) {
+        throw safeNotificationReadError(error);
+      }
+    }),
   catalog: protectedProcedure.query(async () => {
     try {
       return await billingCatalogService.listCatalog();
