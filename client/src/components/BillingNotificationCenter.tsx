@@ -6,7 +6,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Bell, CheckCheck, RefreshCw, TriangleAlert } from "lucide-react";
@@ -43,10 +42,13 @@ export default function BillingNotificationCenter() {
     <section aria-labelledby="billing-notifications-heading">
       <Card>
         <CardHeader>
-          <CardTitle id="billing-notifications-heading" className="flex items-center gap-2">
+          <h2
+            id="billing-notifications-heading"
+            className="flex items-center gap-2 font-semibold leading-none"
+          >
             <Bell className="h-5 w-5" aria-hidden="true" />
             Avisos sobre plano e acesso
-          </CardTitle>
+          </h2>
           <CardDescription>
             Este histórico é a fonte permanente das comunicações comerciais e financeiras da
             sua conta. Ler um aviso não conclui a ação comercial correspondente.
