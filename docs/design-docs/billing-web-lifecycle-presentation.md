@@ -7,9 +7,11 @@ A tela `/billing` não calcula elegibilidade nem produz transições, grandfathe
 - `getUserEntitlements` para origem efetiva e janela de acesso;
 - `billingSubscriptionLifecycle` para trial, carência, suspensão, recuperação e término;
 - fatos de `billingSubscriptionFacts` para capacidade e sincronização da renovação individual sob cobertura;
-- catálogo efetivo para preço, ciclo, capacidade e meios de pagamento.
+- catálogo efetivo para preço, ciclo, versão, capacidade e meios de pagamento.
 
 `validFrom` e `validUntil` são devolvidos pelo access service para que a interface consiga apresentar a duração real de uma transição já escolhida pela precedência canônica. A UI não escolhe se uma transição deve durar 7 ou 30 dias.
+
+O resumo da assinatura usa o número comercial `billingPlans.version`, carregado junto da assinatura. `versionCode` permanece identificador interno e não é usado como rótulo de versão na interface.
 
 ## Transições
 
@@ -20,6 +22,23 @@ Quando a origem efetiva é `transition_access`, a interface mostra início e té
 - qualquer outra janela continua sendo descrita genericamente a partir das datas autoritativas, sem inventar regra.
 
 Quando a origem é `read_only_access`, a tela explica que leitura, exportação e gestão permanecem disponíveis e que novos recursos pagos ficam bloqueados até existir nova origem válida.
+
+## Trial e termos antes do checkout
+
+Antes de abrir o checkout por cartão, a tela apresenta nome do plano, versão comercial, ciclo e preço retornados pelo catálogo. Quando o trial está selecionado, também informa:
+
+- 7 dias para Individual ou 14 dias para Profissional;
+- capacidade inicial de 5 pacientes no trial Profissional;
+- data **estimada** da primeira cobrança se cadastro do cartão e trial iniciarem no dia atual;
+- que a data efetiva será confirmada pelo backend/provider;
+- que o usuário pode cancelar a próxima renovação durante o trial antes da primeira cobrança sem cobrança do plano;
+- que eventual cupom começa na primeira cobrança efetiva.
+
+A estimativa exibida antes do checkout não substitui `firstChargeAt` persistido depois da criação do trial. Quando existe lifecycle real, `/billing` mostra a data autoritativa retornada pelo backend.
+
+## Renovação
+
+Quando a assinatura não está marcada para encerrar no fim do período, `currentPeriodEnd` é apresentado como **Próxima renovação**. Quando `cancelAtPeriodEnd` está ativo, a mesma data é apresentada como **Fim do período atual**, junto da informação de que a renovação está desativada. A UI não recalcula nem desloca essa data.
 
 ## Regularização financeira
 
@@ -35,7 +54,9 @@ Navegar para a fatura nunca confirma pagamento. A recuperação do acesso contin
 
 ## Cobertura profissional e renovação individual
 
-Quando a cobertura profissional é a origem principal, a tela consulta somente fatos e assinatura individual do próprio paciente. O estado de sincronização da renovação é apresentado como `requested`, `pending`, `confirmed` ou mantida. Se a renovação por cartão já estiver cancelada e o backend suportar reativação, o botão existente é apresentado como **Manter renovação individual**. Pix Automático não simula reativação: a necessidade de nova autorização é informada explicitamente.
+Quando a cobertura profissional é a origem principal, a tela consulta somente fatos e assinatura individual do próprio paciente. O estado de sincronização da renovação é apresentado como `requested`, `pending`, `confirmed` ou mantida. A leitura é vinculada à `coverageKey` cuja alocação ainda está ativa para aquele paciente, impedindo que uma cobertura antiga reapareça sob um patrocinador posterior.
+
+Se a renovação por cartão já estiver cancelada e o backend suportar reativação, o botão existente é apresentado como **Manter renovação individual**. Pix Automático não simula reativação: a necessidade de nova autorização é informada explicitamente.
 
 A situação visível também considera `cancelAtPeriodEnd` autoritativo. Assim, depois de uma reativação confirmada, a mensagem deixa de instruir o usuário a manter algo que já está mantido.
 
