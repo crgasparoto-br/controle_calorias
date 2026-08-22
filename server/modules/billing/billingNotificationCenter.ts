@@ -141,6 +141,16 @@ export function presentBillingFactAsNotification(input: {
         support,
         actionHref: manage,
       };
+    case "renewal_confirmed":
+      return {
+        campaign: "Renovação",
+        title: "Renovação confirmada",
+        whatOccurred: "O backend confirmou a renovação da assinatura para o novo período.",
+        expectedAction: null,
+        consequence: "A vigência e os recursos seguem o período renovado confirmado.",
+        support,
+        actionHref: null,
+      };
     case "past_due_entered":
     case "past_due_notice_day_0":
     case "past_due_notice_day_2":
@@ -223,6 +233,16 @@ export function presentBillingFactAsNotification(input: {
         whatOccurred: "O backend detectou uma confirmação que precisa ser conciliada antes de alterar o acesso.",
         expectedAction: "Aguarde a conciliação; evite repetir pagamentos ou criar outra tentativa incompatível.",
         consequence: "O sistema não libera acesso nem altera contrato enquanto a confirmação não for autoritativa.",
+        support,
+        actionHref: manage,
+      };
+    case "administrative_termination":
+      return {
+        campaign: "Encerramento de assinatura",
+        title: "Assinatura encerrada administrativamente",
+        whatOccurred: "O backend registrou um encerramento administrativo da assinatura.",
+        expectedAction: "Consulte Plano e acesso para verificar as origens de acesso ainda válidas e o próximo passo disponível.",
+        consequence: "O aviso não remove dados da conta e não cria uma nova contratação automaticamente.",
         support,
         actionHref: manage,
       };
@@ -376,11 +396,15 @@ function completionState(row: Row) {
   return "completed" as const;
 }
 
+function receiptProviderEventId(userId: number, sourceFactId: string) {
+  return `notification-receipt:${userId}:${sourceFactId}`;
+}
+
 async function requireOwnedPresentableFact(userId: number, sourceFactId: string) {
   const db = await requireDb(getDb);
   const [row] = resultRows<Row>(
     await db.execute(sql`
-      SELECT id, factType, payloadJson
+      SELECT id, subscriptionId, factType, payloadJson
       FROM billingSubscriptionFacts
       WHERE id = ${sourceFactId}
         AND payerUserId = ${userId}
@@ -393,15 +417,17 @@ async function requireOwnedPresentableFact(userId: number, sourceFactId: string)
   return { db, row };
 }
 
-export async function listBillingUserNotifications(userId: number, limit = 50) {
+export async function listBillingUserNotifications(userId: number, limit = 100) {
   const db = await requireDb(getDb);
   const rows = resultRows<Row>(
     await db.execute(sql`
       SELECT f.id, f.factType, f.factVersion, f.effectiveAt, f.payloadJson,
         f.invalidatedAt, l.state AS lifecycleState, l.trialEndsAt,
         l.reconciliationRequired, s.cancelAtPeriodEnd,
-        receipt.readAt, receipt.lastDeliveryChannel, receipt.lastDeliveryState,
-        receipt.lastDeliveryAt,
+        JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.readAt')) AS readAt,
+        JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryChannel')) AS lastDeliveryChannel,
+        JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryState')) AS lastDeliveryState,
+        JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryAt')) AS lastDeliveryAt,
         EXISTS (
           SELECT 1 FROM billingSubscriptionFacts resolved
           WHERE resolved.subscriptionId = f.subscriptionId
@@ -422,11 +448,34 @@ export async function listBillingUserNotifications(userId: number, limit = 50) {
       FROM billingSubscriptionFacts f
       INNER JOIN billingSubscriptions s ON s.id = f.subscriptionId
       LEFT JOIN billingSubscriptionLifecycle l ON l.subscriptionId = f.subscriptionId
-      LEFT JOIN billingNotificationReceipts receipt
-        ON receipt.userId = ${userId} AND receipt.sourceFactId = f.id
+      LEFT JOIN billingProviderEvents receipt
+        ON receipt.provider = 'billing-web'
+        AND receipt.eventType = 'notification_receipt'
+        AND receipt.providerEventId = CONCAT('notification-receipt:', ${userId}, ':', f.id)
       WHERE f.payerUserId = ${userId}
+        AND f.factType IN (
+          'trial_started', 'trial_ending',
+          'contract_pending', 'contract_confirmed', 'contract_refused', 'contract_expired',
+          'renewal_confirmed',
+          'past_due_entered', 'past_due_notice_day_0', 'past_due_notice_day_2',
+          'past_due_notice_day_5', 'past_due_notice_day_7',
+          'subscription_suspended', 'subscription_recovered', 'subscription_expired',
+          'cancellation_requested', 'cancellation_reactivated', 'cancellation_effective',
+          'late_payment_reconciliation_required', 'financial_reconciliation_required',
+          'administrative_termination',
+          'professional_capacity_grandfathered_started',
+          'professional_capacity_warning',
+          'professional_capacity_extension_granted',
+          'professional_capacity_grandfathered_expired',
+          'professional_capacity_admin_alert_opened',
+          'professional_capacity_grandfathered_resolved',
+          'professional_coverage_individual_renewal_requested',
+          'professional_coverage_individual_renewal_pending',
+          'professional_coverage_individual_renewal_confirmed',
+          'professional_coverage_individual_renewal_kept_by_user'
+        )
       ORDER BY f.effectiveAt DESC, f.createdAt DESC
-      LIMIT ${Math.max(1, Math.min(limit, 100))}
+      LIMIT ${Math.max(1, Math.min(limit, 250))}
     `)
   );
 
@@ -470,20 +519,33 @@ export async function markBillingNotificationRead(input: {
   userId: number;
   notificationId: string;
 }) {
-  const { db } = await requireOwnedPresentableFact(
+  const { db, row } = await requireOwnedPresentableFact(
     input.userId,
     input.notificationId
   );
   const readAt = new Date();
+  const providerEventId = receiptProviderEventId(input.userId, input.notificationId);
+  const payload = JSON.stringify({
+    userId: input.userId,
+    sourceFactId: input.notificationId,
+    readAt: readAt.toISOString(),
+    lastDeliveryState: "not_attempted",
+  });
   await db.execute(sql`
-    INSERT INTO billingNotificationReceipts (
-      id, userId, sourceFactId, readAt, lastDeliveryState, createdAt, updatedAt
+    INSERT INTO billingProviderEvents (
+      id, provider, providerEventId, eventType, status, subscriptionId,
+      payloadJson, occurredAt, processedAt, createdAt, updatedAt
     ) VALUES (
-      ${crypto.randomUUID()}, ${input.userId}, ${input.notificationId}, ${readAt},
-      'not_attempted', NOW(), NOW()
+      ${crypto.randomUUID()}, 'billing-web', ${providerEventId}, 'notification_receipt',
+      'processed', ${String(row.subscriptionId)}, ${payload}, ${readAt}, ${readAt}, NOW(), NOW()
     )
     ON DUPLICATE KEY UPDATE
-      readAt = COALESCE(readAt, ${readAt}),
+      status = 'processed',
+      payloadJson = JSON_SET(
+        COALESCE(payloadJson, JSON_OBJECT()),
+        '$.readAt', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.readAt')), ${readAt.toISOString()})
+      ),
+      processedAt = ${readAt},
       updatedAt = NOW()
   `);
   return { readAt };
@@ -495,23 +557,37 @@ async function setDeliveryState(input: {
   channel: BillingNotificationDeliveryChannel;
   state: Exclude<BillingNotificationDeliveryState, "not_attempted">;
 }) {
-  const { db } = await requireOwnedPresentableFact(
+  const { db, row } = await requireOwnedPresentableFact(
     input.userId,
     input.notificationId
   );
   const at = new Date();
+  const providerEventId = receiptProviderEventId(input.userId, input.notificationId);
+  const payload = JSON.stringify({
+    userId: input.userId,
+    sourceFactId: input.notificationId,
+    readAt: null,
+    lastDeliveryChannel: input.channel,
+    lastDeliveryState: input.state,
+    lastDeliveryAt: at.toISOString(),
+  });
   await db.execute(sql`
-    INSERT INTO billingNotificationReceipts (
-      id, userId, sourceFactId, lastDeliveryChannel, lastDeliveryState,
-      lastDeliveryAt, createdAt, updatedAt
+    INSERT INTO billingProviderEvents (
+      id, provider, providerEventId, eventType, status, subscriptionId,
+      payloadJson, occurredAt, processedAt, createdAt, updatedAt
     ) VALUES (
-      ${crypto.randomUUID()}, ${input.userId}, ${input.notificationId}, ${input.channel},
-      ${input.state}, ${at}, NOW(), NOW()
+      ${crypto.randomUUID()}, 'billing-web', ${providerEventId}, 'notification_receipt',
+      'processed', ${String(row.subscriptionId)}, ${payload}, ${at}, ${at}, NOW(), NOW()
     )
     ON DUPLICATE KEY UPDATE
-      lastDeliveryChannel = ${input.channel},
-      lastDeliveryState = ${input.state},
-      lastDeliveryAt = ${at},
+      status = 'processed',
+      payloadJson = JSON_SET(
+        COALESCE(payloadJson, JSON_OBJECT()),
+        '$.lastDeliveryChannel', ${input.channel},
+        '$.lastDeliveryState', ${input.state},
+        '$.lastDeliveryAt', ${at.toISOString()}
+      ),
+      processedAt = ${at},
       updatedAt = NOW()
   `);
 }
@@ -522,8 +598,9 @@ export async function deliverBillingNotificationExternally(input: {
   channel: BillingNotificationDeliveryChannel;
   deliver: () => Promise<boolean>;
 }) {
-  // Ownership + presentability are verified before the external call, proving
-  // that the internal authoritative fact exists first.
+  // The authoritative billing fact exists before this receipt is touched.
+  // Persist pending delivery before the external side effect; a failed channel
+  // never deletes or invalidates the internal notification source.
   await setDeliveryState({ ...input, state: "pending" });
   let delivered = false;
   try {
