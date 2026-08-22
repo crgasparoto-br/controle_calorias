@@ -80,8 +80,12 @@ export async function getProfessionalCoverageIndividualRenewalSnapshot(
 ) {
   const row = await loadProfessionalCoverageIndividualRenewal(patientUserId);
   if (!row) return null;
+  const visibleStatus =
+    row.status === "confirmed" && !row.cancelAtPeriodEnd
+      ? ("kept_by_user" as const)
+      : row.status;
   return {
-    status: row.status,
+    status: visibleStatus,
     effectiveAt: row.effectiveAt,
     subscriptionId: row.subscriptionId,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
@@ -90,7 +94,9 @@ export async function getProfessionalCoverageIndividualRenewalSnapshot(
       row.paymentMethod === "credit_card" &&
       row.cancelAtPeriodEnd,
     requiresNewPixAuthorization:
-      row.status === "confirmed" && row.paymentMethod === "pix_automatic",
+      row.status === "confirmed" &&
+      row.paymentMethod === "pix_automatic" &&
+      row.cancelAtPeriodEnd,
   };
 }
 
