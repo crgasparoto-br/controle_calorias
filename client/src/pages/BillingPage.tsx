@@ -1,3 +1,4 @@
+import BillingNotificationCenter from "@/components/BillingNotificationCenter";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
@@ -428,6 +429,8 @@ export default function BillingPage() {
             </CardContent>
           </Card>
         </div>
+
+        <BillingNotificationCenter />
 
         <Card>
           <CardHeader>
