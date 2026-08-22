@@ -54,6 +54,15 @@ const CAPACITY_LABELS: Record<string, string> = {
   grandfathered_resolved: "Capacidade regularizada",
 };
 
+const CAPACITY_MILESTONE_LABELS: Record<string, string> = {
+  started: "Início",
+  d60: "60 dias antes",
+  d30: "30 dias antes",
+  d15: "15 dias antes",
+  d7: "7 dias antes",
+  expired: "Vencimento",
+};
+
 const CYCLE_LABELS: Record<string, string> = {
   monthly: "Mensal",
   yearly: "Anual",
@@ -81,6 +90,20 @@ const ENTITLEMENT_LABELS: Record<string, string> = {
   health_integrations: "Integrações de saúde",
 };
 
+const COUPON_ERROR_LABELS: Record<string, string> = {
+  inactive: "Cupom inválido ou inativo.",
+  outside_validity: "Cupom expirado ou ainda fora do período de validade.",
+  product_not_eligible: "Cupom não elegível para este produto.",
+  version_not_eligible: "Cupom não elegível para esta versão do plano.",
+  cycle_not_eligible: "Cupom não elegível para este ciclo de cobrança.",
+  total_limit_reached: "Este cupom esgotou o limite total de utilizações.",
+  user_limit_reached: "Este cupom já atingiu o limite de uso para esta conta.",
+  first_contract_required: "Este cupom é exclusivo para a primeira contratação elegível.",
+  currency_mismatch: "Este cupom não pode ser aplicado à moeda desta contratação.",
+  invalid_discount:
+    "O desconto deste cupom não pode ser aplicado com segurança; gratuidade integral depende de isenção administrativa.",
+};
+
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return "Não informado";
   return new Date(value).toLocaleDateString("pt-BR");
@@ -103,6 +126,17 @@ function formatMoney(amountMinor: number, currency: string) {
 
 function entitlementLabel(value: string) {
   return ENTITLEMENT_LABELS[value] ?? "Recurso profissional incluído";
+}
+
+function transitionDays(
+  validFrom: Date | string | null | undefined,
+  validUntil: Date | string | null | undefined
+) {
+  if (!validFrom || !validUntil) return null;
+  const start = new Date(validFrom).getTime();
+  const end = new Date(validUntil).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return Math.round((end - start) / 86_400_000);
 }
 
 function checkoutReturnMessage() {
@@ -206,6 +240,15 @@ export default function BillingPage() {
       toast.error(error.message || "Não foi possível iniciar a contratação."),
   });
 
+  const regularizeSubscription = trpc.billing.regularizeSubscription.useMutation({
+    onSuccess: result => {
+      toast.info(result.message);
+      window.location.assign(result.flow.url);
+    },
+    onError: error =>
+      toast.error(error.message || "Não foi possível abrir a cobrança para regularização."),
+  });
+
   const cancelSubscription = trpc.billing.cancelSubscription.useMutation({
     onSuccess: async result => {
       toast.info(result.message);
@@ -276,12 +319,20 @@ export default function BillingPage() {
     professionalSubscription,
     professionalCapacity,
     sponsoredCoverage,
+    professionalCoverageIndividualRenewal,
     lifecycle,
     management,
     history,
     actions,
   } = overview.data;
   const accessLabel = ACCESS_LABELS[access.reason] ?? "Origem de acesso válida";
+  const accessTransitionDays = transitionDays(access.validFrom, access.validUntil);
+  const ownRenewalUnderCoverage =
+    sponsoredCoverage &&
+    subscription &&
+    professionalCoverageIndividualRenewal?.subscriptionId === subscription.id
+      ? professionalCoverageIndividualRenewal
+      : null;
 
   const startCheckout = () => {
     if (!selectedPlan) return;
@@ -381,14 +432,48 @@ export default function BillingPage() {
                       ? `Até ${formatDate(access.validUntil)}`
                       : "Sem término informado"
                   }
+                  supporting={
+                    access.validFrom ? `Início: ${formatDate(access.validFrom)}` : undefined
+                  }
                 />
               </dl>
+              {access.reason === "transition_access" ? (
+                <Notice>
+                  {accessTransitionDays === 7
+                    ? "Transição de 7 dias após a perda da cobertura profissional."
+                    : accessTransitionDays === 30
+                      ? "Transição comercial de 30 dias para usuário existente."
+                      : "Período de transição definido pelo backend."}{" "}
+                  O acesso segue válido até <strong>{formatDate(access.validUntil)}</strong>. Ao
+                  final, a origem de acesso será reavaliada; nenhum trial adicional é presumido.
+                </Notice>
+              ) : null}
+              {access.reason === "read_only_access" ? (
+                <Notice>
+                  O período de transição terminou. O backend preserva leitura, exportação e
+                  gestão da conta, enquanto novos registros e demais recursos pagos ficam
+                  bloqueados até existir uma nova origem válida de acesso.
+                </Notice>
+              ) : null}
               {sponsoredCoverage ? (
                 <div className="rounded-xl border p-4 text-sm text-muted-foreground">
                   Seu acesso é coberto por um profissional. Dados financeiros,
                   capacidade contratada e informações comerciais do patrocinador
                   não são exibidos nesta conta.
                 </div>
+              ) : null}
+              {ownRenewalUnderCoverage ? (
+                <Notice>
+                  {ownRenewalUnderCoverage.status === "requested" ||
+                  ownRenewalUnderCoverage.status === "pending"
+                    ? "A cobertura profissional está sincronizando o cancelamento da próxima renovação da sua assinatura individual. O período individual já pago permanece válido até o vencimento."
+                    : ownRenewalUnderCoverage.status === "confirmed"
+                      ? "A próxima renovação da sua assinatura individual foi cancelada após a confirmação da cobertura profissional. Se quiser manter a renovação individual, use a ação explícita abaixo quando o método permitir."
+                      : "Sua escolha de manter a renovação individual foi registrada; a cobertura profissional continua sendo a origem principal enquanto estiver válida."}
+                  {ownRenewalUnderCoverage.requiresNewPixAuthorization
+                    ? " Para Pix Automático, manter a renovação exige uma nova autorização segura; a tela não simula uma reativação local."
+                    : ""}
+                </Notice>
               ) : null}
               {!access.sourceAvailable ? (
                 <div role="alert" className="rounded-xl border p-4 text-sm">
@@ -507,17 +592,38 @@ export default function BillingPage() {
                 ) : null}
                 {lifecycle?.state === "past_due" ? (
                   <Notice alert>
-                    Pagamento pendente. A carência preserva o acesso até{" "}
-                    <strong>{formatDate(lifecycle.graceEndsAt)}</strong>.
+                    <p>
+                      Pagamento pendente. A carência de 7 dias preserva o acesso até{" "}
+                      <strong>{formatDate(lifecycle.graceEndsAt)}</strong>.
+                    </p>
                   </Notice>
                 ) : null}
                 {lifecycle?.state === "suspended" ? (
                   <Notice alert>
-                    Assinatura suspensa. Quando aplicável, a janela de recuperação termina em{" "}
-                    <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>. Funções de leitura
-                    e gestão preservadas pelo backend continuam disponíveis; recursos pagos
-                    permanecem bloqueados até recuperação confirmada.
+                    Assinatura suspensa. Quando aplicável, a janela de recuperação de 30 dias
+                    termina em <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>. Funções de
+                    leitura e gestão preservadas pelo backend continuam disponíveis; recursos
+                    pagos permanecem bloqueados até recuperação confirmada.
                   </Notice>
+                ) : null}
+                {actions.canRegularize &&
+                (lifecycle?.state === "past_due" || lifecycle?.state === "suspended") ? (
+                  <div>
+                    <Button
+                      disabled={regularizeSubscription.isPending}
+                      onClick={() =>
+                        regularizeSubscription.mutate({ subscriptionId: subscription.id })
+                      }
+                    >
+                      {regularizeSubscription.isPending
+                        ? "Abrindo cobrança..."
+                        : "Regularizar cobrança"}
+                    </Button>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      A ação abre a cobrança já existente no ambiente seguro do Asaas. O acesso
+                      só muda após confirmação financeira autoritativa.
+                    </p>
+                  </div>
                 ) : null}
                 {lifecycle?.state === "expired" ? (
                   <Notice>
@@ -556,7 +662,9 @@ export default function BillingPage() {
                     >
                       {reactivateSubscription.isPending
                         ? "Reativando renovação..."
-                        : "Reativar renovação"}
+                        : ownRenewalUnderCoverage?.canKeepRenewal
+                          ? "Manter renovação individual"
+                          : "Reativar renovação"}
                     </Button>
                   ) : null}
                 </div>
@@ -638,19 +746,60 @@ export default function BillingPage() {
                   </div>
                   {professionalCapacity.temporaryLimit != null ? (
                     <Notice alert={professionalCapacity.state === "grandfathered_expired"}>
-                      Capacidade temporária: <strong>{professionalCapacity.temporaryLimit} pacientes</strong>.
-                      {professionalCapacity.temporaryEndsAt
-                        ? ` Prazo: ${formatDate(professionalCapacity.temporaryEndsAt)}.`
-                        : ""}
-                      {professionalCapacity.excess > 0
-                        ? ` Excesso atual: ${professionalCapacity.excess} pacientes.`
-                        : " A ocupação já voltou ao limite contratado."}
-                      {professionalCapacity.newCoverageBlocked
-                        ? " Novas coberturas e reativações ficam bloqueadas quando o limite aplicável é atingido; pacientes existentes e dados não são removidos automaticamente."
-                        : ""}
-                      {professionalCapacity.excess > 0
-                        ? " As alternativas são redução natural da carteira, upgrade para oferta compatível ou contato administrativo/comercial. Uma extensão só será exibida quando confirmada pelo backend."
-                        : ""}
+                      <p>
+                        {professionalCapacity.temporaryWindowKind === "extension"
+                          ? `Extensão administrativa confirmada de ${professionalCapacity.temporaryWindowDays ?? 30} dias.`
+                          : `Período inicial confirmado de ${professionalCapacity.temporaryWindowDays ?? 90} dias de capacidade temporária.`}{" "}
+                        Capacidade temporária:{" "}
+                        <strong>{professionalCapacity.temporaryLimit} pacientes</strong>.
+                        {professionalCapacity.temporaryEndsAt
+                          ? ` Prazo final: ${formatDate(professionalCapacity.temporaryEndsAt)}.`
+                          : ""}
+                        {professionalCapacity.excess > 0
+                          ? ` Excesso atual: ${professionalCapacity.excess} pacientes.`
+                          : " A ocupação já voltou ao limite contratado."}
+                      </p>
+                      {professionalCapacity.newCoverageBlocked ? (
+                        <p className="mt-2">
+                          Novas aprovações, inclusões e reativações permanecem bloqueadas;
+                          pacientes existentes, vínculos e dados não são removidos automaticamente.
+                        </p>
+                      ) : null}
+                      {professionalCapacity.excess > 0 ? (
+                        <p className="mt-2">
+                          As alternativas são redução natural da carteira, upgrade para oferta
+                          compatível ou contato administrativo/comercial. Uma extensão só é
+                          apresentada quando confirmada pelo backend.
+                        </p>
+                      ) : null}
+                    </Notice>
+                  ) : null}
+                  {professionalCapacity.warningMilestones.length ? (
+                    <div className="rounded-xl border p-4">
+                      <h3 className="font-medium">Marcos da capacidade temporária</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Os mesmos marcos canônicos usados nas comunicações são mostrados aqui.
+                      </p>
+                      <ol className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {professionalCapacity.warningMilestones.map(milestone => (
+                          <li key={milestone.key} className="rounded-lg bg-muted/30 p-3 text-sm">
+                            <span className="font-medium">
+                              {CAPACITY_MILESTONE_LABELS[milestone.key] ?? milestone.key}
+                            </span>
+                            <span className="block text-muted-foreground">
+                              {formatDate(milestone.dueAt)} ·{" "}
+                              {milestone.reached ? "marco atingido" : "marco futuro"}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                  {professionalCapacity.commercialAnalysisRequired ? (
+                    <Notice alert>
+                      Nenhum plano público atual comporta toda a carteira. O caso está em
+                      análise administrativa/comercial. Isso não cria automaticamente um plano,
+                      não altera preço e não remove pacientes.
                     </Notice>
                   ) : null}
                 </>
@@ -868,8 +1017,9 @@ export default function BillingPage() {
                   </p>
                 ) : coupon.data && !coupon.data.eligible ? (
                   <p className="text-sm text-destructive" role="alert">
-                    Este cupom não está disponível para esta contratação. Revise o código ou
-                    continue sem cupom; gratuidade integral depende de isenção administrativa.
+                    {COUPON_ERROR_LABELS[coupon.data.reason] ??
+                      "Este cupom não está disponível para esta contratação."}{" "}
+                    Revise o código ou continue sem cupom.
                   </p>
                 ) : null}
               </div>
