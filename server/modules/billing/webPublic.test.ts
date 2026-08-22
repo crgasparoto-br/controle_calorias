@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   loadLifecycle: vi.fn(),
   getPlan: vi.fn(),
   getCapacity: vi.fn(),
+  getCoverageRenewal: vi.fn(),
   getManagement: vi.fn(),
   getHistory: vi.fn(),
   claimAttempt: vi.fn(),
   releaseAttempt: vi.fn(),
   prepareAsaasBillingFlow: vi.fn(),
+  prepareRegularization: vi.fn(),
   requestAsaasCancellation: vi.fn(),
   reactivateAsaasCancellation: vi.fn(),
   prepareEarlyConversion: vi.fn(),
@@ -29,6 +31,9 @@ vi.mock("./catalogRuntime", () => ({
 vi.mock("./professionalCapacityRead", () => ({
   getProfessionalCapacityWebSnapshot: mocks.getCapacity,
 }));
+vi.mock("./professionalCoverageRenewalRead", () => ({
+  getProfessionalCoverageIndividualRenewalSnapshot: mocks.getCoverageRenewal,
+}));
 vi.mock("./subscriptionManagementRead", () => ({
   getSubscriptionManagementCapabilities: mocks.getManagement,
 }));
@@ -43,6 +48,9 @@ vi.mock("./asaas/runtime", () => ({
   prepareAsaasBillingFlow: mocks.prepareAsaasBillingFlow,
   requestAsaasCancellation: mocks.requestAsaasCancellation,
   reactivateAsaasCancellation: mocks.reactivateAsaasCancellation,
+}));
+vi.mock("./asaas/regularizationRuntime", () => ({
+  prepareAsaasRegularization: mocks.prepareRegularization,
 }));
 vi.mock("./asaas/remediationRuntime", () => ({
   prepareAsaasProfessionalEarlyConversion: mocks.prepareEarlyConversion,
@@ -59,6 +67,7 @@ import {
   cancelBillingWebSubscription,
   getBillingWebOverview,
   reactivateBillingWebSubscription,
+  regularizeBillingWebSubscription,
   startBillingWebCheckout,
 } from "./webPublic";
 
@@ -123,6 +132,7 @@ beforeEach(() => {
   });
   mocks.loadLifecycle.mockResolvedValue(null);
   mocks.getCapacity.mockResolvedValue(null);
+  mocks.getCoverageRenewal.mockResolvedValue(null);
   mocks.getHistory.mockResolvedValue([]);
   mocks.claimAttempt.mockResolvedValue({
     status: "claimed",
@@ -171,13 +181,26 @@ describe("billing web public boundary", () => {
         entitlements: ["professional_patients"],
       },
     });
+    mocks.getCoverageRenewal.mockResolvedValue({
+      status: "confirmed",
+      subscriptionId: "own-individual",
+      cancelAtPeriodEnd: true,
+      canKeepRenewal: true,
+      requiresNewPixAuthorization: false,
+      effectiveAt: new Date(),
+    });
 
     const result = await getBillingWebOverview(12);
 
     expect(result.sponsoredCoverage).toBe(true);
     expect(result.professionalSubscription).toBeNull();
     expect(result.professionalCapacity).toBeNull();
+    expect(result.professionalCoverageIndividualRenewal).toMatchObject({
+      status: "confirmed",
+      subscriptionId: "own-individual",
+    });
     expect(mocks.getCapacity).not.toHaveBeenCalled();
+    expect(mocks.getCoverageRenewal).toHaveBeenCalledWith(12);
   });
 
   it("returns lifecycle, sanitized history and only provider-supported actions", async () => {
@@ -215,6 +238,27 @@ describe("billing web public boundary", () => {
     expect(result.actions.canReactivateRenewal).toBe(true);
     expect(result.management?.canUpdatePaymentMethod).toBe(false);
     expect(result.actions.canStartCheckout).toBe(false);
+  });
+
+  it("routes regularization through the authenticated Asaas invoice without confirming access", async () => {
+    mocks.prepareRegularization.mockResolvedValue({
+      provider: "asaas",
+      kind: "hosted_invoice",
+      url: "https://www.asaas.com/i/payment-1",
+      state: "pending",
+    });
+
+    const result = await regularizeBillingWebSubscription({
+      userId: 12,
+      subscriptionId: "subscription-1",
+    });
+
+    expect(mocks.prepareRegularization).toHaveBeenCalledWith({
+      subscriptionId: "subscription-1",
+      payerUserId: 12,
+    });
+    expect(result.flow.url).toContain("asaas.com/i/payment-1");
+    expect(result.pendingAuthoritativeConfirmation).toBe(true);
   });
 
   it("blocks a second self-service checkout while an own subscription exists", async () => {
@@ -277,6 +321,7 @@ describe("billing web public boundary", () => {
     mocks.getUserEntitlements.mockResolvedValue({
       allowed: true,
       reason: "transition_access",
+      validFrom: new Date("2026-08-23T00:00:00.000Z"),
       validUntil: transitionUntil,
       entitlements: ["system_access"],
       sourceAvailable: true,
