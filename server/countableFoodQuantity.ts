@@ -123,7 +123,16 @@ export function prepareCountableFoodRegistration(registrationText: string) {
   const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
   const rewrittenSegments = registrationSegments.map((segment, segmentIndex) => {
     const request = parseCountableFoodQuantitySegment(segment);
-    if (!request) return segment;
+    if (!request) {
+      const bare = parseBareCount(segment);
+      if (!bare || bare.count !== 1) return segment;
+      const safeBare = resolveSafeCountableCatalogGrams(
+        bare.foodName,
+        bare.count,
+        bare.requestedUnit,
+      );
+      return safeBare ? `${safeBare.grams} g de ${bare.foodName}` : segment;
+    }
     const safe = resolveSafeCountableCatalogGrams(
       request.foodName,
       request.count,
