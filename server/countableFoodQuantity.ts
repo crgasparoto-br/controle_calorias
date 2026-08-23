@@ -1,4 +1,5 @@
 import { findCatalogFood } from "./catalogMatching";
+import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import {
   normalizeUnit,
   parseFoodText,
@@ -40,16 +41,16 @@ export function parseCountableFoodQuantitySegment(
   segment: string,
 ): CountableFoodQuantityRequest | null {
   const parsed = parseFoodText(segment);
-  if (parsed.quantity && parsed.unit && parsed.estimatedGrams === undefined) {
+  if (parsed.quantity && parsed.unit) {
     const unit = normalizeUnit(parsed.unit);
-    if (!MASS_VOLUME_UNITS.has(unit)) {
-      return {
-        segment: segment.trim(),
-        foodName: parsed.foodName,
-        count: parsed.quantity,
-        requestedUnit: unit,
-      };
-    }
+    if (parsed.estimatedGrams !== undefined || MASS_VOLUME_UNITS.has(unit)) return null;
+    if (isCoffeeOrTeaBeverage(parsed.foodName)) return null;
+    return {
+      segment: segment.trim(),
+      foodName: parsed.foodName,
+      count: parsed.quantity,
+      requestedUnit: unit,
+    };
   }
   return parseBareCount(segment);
 }

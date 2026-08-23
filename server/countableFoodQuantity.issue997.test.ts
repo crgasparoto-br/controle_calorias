@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import {
   findUnsafeCountableFoodQuantity,
+  parseCountableFoodQuantitySegment,
   prepareCountableFoodRegistration,
   resolveSafeCountableCatalogGrams,
 } from "./countableFoodQuantity";
@@ -32,11 +33,35 @@ describe("issue #997 countable registration and local nutrition", () => {
 
     expect(prepared.registrationText).toContain("50 g de pão francês");
     expect(prepared.registrationText).toContain("45g requeijão catupiry light");
+    expect(prepared.registrationText).toContain("3 xícaras de café sem açúcar");
     expect(prepared.pendingItems.map(item => item.foodName)).toEqual([
       "ovo frito",
       "presunto",
       "mussarela",
     ]);
+  });
+
+  it("não reinterpreta massa ou volume explícitos como contagem nua", () => {
+    expect(parseCountableFoodQuantitySegment("200 ml café com açúcar")).toBeNull();
+    expect(parseCountableFoodQuantitySegment("45 g requeijão catupiry light")).toBeNull();
+
+    const prepared = prepareCountableFoodRegistration("200 ml café com açúcar");
+    expect(prepared.pendingItems).toEqual([]);
+    expect(prepared.registrationText).toBe("200 ml café com açúcar");
+  });
+
+  it("preserva café e chá para os contratos especializados em vez de abrir clarificação contável", () => {
+    for (const text of [
+      "1 xícara de café com açúcar",
+      "3 xícaras de café sem açúcar",
+      "1 xícara de café",
+      "2 xícaras de chá sem açúcar",
+    ]) {
+      expect(parseCountableFoodQuantitySegment(text)).toBeNull();
+      const prepared = prepareCountableFoodRegistration(text);
+      expect(prepared.pendingItems).toEqual([]);
+      expect(prepared.registrationText).toBe(text);
+    }
   });
 
   it("resolve identidades TACO locais antes do perfil genérico", () => {
