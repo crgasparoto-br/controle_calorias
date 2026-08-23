@@ -82,11 +82,11 @@ describe("issue #997 atomic mixed increment plan", () => {
   });
 
   it("não persiste os 48 g enquanto uma fatia ainda precisa de clarificação", async () => {
-    mocks.listMeals.mockResolvedValue(meal([
+    mocks.listMeals.mockResolvedValue([meal([
       item("Requeijão Catupiry Light", 45, 1),
       item("Presunto", 20),
       item("Mussarela", 20),
-    ]));
+    ])]);
 
     const result = await continueMixedMealItemIncrementPlan(42, basePlan);
 
@@ -103,7 +103,7 @@ describe("issue #997 atomic mixed increment plan", () => {
       item("Presunto", 20, 2),
       item("Mussarela", 20, 3),
     ]);
-    mocks.listMeals.mockResolvedValue(initial);
+    mocks.listMeals.mockResolvedValue([initial]);
     mocks.getFood.mockImplementation(async (_userId: number, foodId: number) => ({
       id: foodId,
       portions: [{ id: foodId * 10, label: "1 fatia", unit: "fatia", quantity: 1, grams: foodId === 2 ? 20 : 30 }],
@@ -111,7 +111,7 @@ describe("issue #997 atomic mixed increment plan", () => {
     mocks.convert.mockImplementation(async (_userId: number, input: { foodId: number }) => ({
       grams: input.foodId === 2 ? 20 : 30,
     }));
-    mocks.updateBatch.mockResolvedValue(initial);
+    mocks.updateBatch.mockResolvedValue([initial]);
 
     const result = await continueMixedMealItemIncrementPlan(42, basePlan);
 
@@ -124,7 +124,7 @@ describe("issue #997 atomic mixed increment plan", () => {
   it("revalida o alvo imediatamente antes da escrita e bloqueia plano stale", async () => {
     const initial = meal([item("Requeijão Catupiry Light", 45)]);
     const changed = meal([item("Outro alimento", 45)]);
-    mocks.listMeals.mockResolvedValueOnce(initial).mockResolvedValueOnce(changed);
+    mocks.listMeals.mockResolvedValueOnce([initial]).mockResolvedValueOnce([changed]);
 
     const result = await continueMixedMealItemIncrementPlan(42, {
       ...basePlan,
