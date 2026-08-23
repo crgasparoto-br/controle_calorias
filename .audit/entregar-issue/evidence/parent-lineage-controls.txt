@@ -1,0 +1,5 @@
+Current-target cumulative lineage revalidation.
+Material head: 0d0f0f74fab0a89edb4f4eef8689f582918483b8.
+The issue-989 ledger preserves every control from the immediately previous immutable issue-989 snapshot and the controls promoted by later issue-989 independent rejections.
+Controls originating only from foreign issue/PR packages are excluded rather than synthetically retired.
+The producer validator regression rejects any retirement ID absent from the immediately previous target snapshot, even if an older historical snapshot is supplied.

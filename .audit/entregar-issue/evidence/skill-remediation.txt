@@ -1,0 +1,5 @@
+Systemic remediation for rejection audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19.
+Prevention: entregar-issue rejects historical-only retirement injection and derives/persists remediation_mode from the certified audit-remediation ledger.
+Detection: auditar-issue derives systemic/mixed remediation mode from the certified remediation ledger when a legacy certificate omits the field, ensuring systemic re-audit readiness still executes.
+Focused permanent tests: 19 producer lineage tests passed; 15 handoff/auditor preflight tests passed.
+The exact benchmarked product material head 0d0f0f74fab0a89edb4f4eef8689f582918483b8 is unchanged.
