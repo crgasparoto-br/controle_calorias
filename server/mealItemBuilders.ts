@@ -379,7 +379,7 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const countableRequest = parseCountableFoodQuantitySegment(foodName);
-  if (countableRequest) {
+  if (countableRequest && !isKnownZeroBeverage(countableRequest.foodName, countableRequest.requestedUnit)) {
     const safeCountable = resolveSafeCountableCatalogGrams(
       countableRequest.foodName,
       countableRequest.count,
