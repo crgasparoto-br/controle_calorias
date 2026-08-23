@@ -6,6 +6,7 @@ import {
   splitFoodTextSegments,
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
+import { findTacoFood } from "./tacoLookup";
 
 const WORD_COUNTS: Record<string, number> = {
   um: 1,
@@ -79,6 +80,20 @@ export function findUnsafeCountableFoodQuantity(
     return request;
   }
   return null;
+}
+
+export function hasUnsafeKnownCountableFoodQuantity(
+  text?: string | null,
+) {
+  if (!text?.trim()) return false;
+  for (const segment of splitFoodTextSegments(text)) {
+    const request = parseCountableFoodQuantitySegment(segment);
+    if (!request) continue;
+    const local = findCatalogFood(request.foodName) ?? findTacoFood(request.foodName);
+    if (!local) continue;
+    if (!getSafeCatalogCountableGrams(local, request)) return true;
+  }
+  return false;
 }
 
 export function resolveSafeCountableCatalogGrams(
