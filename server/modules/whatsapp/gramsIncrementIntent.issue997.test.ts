@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ legacyIncrement: vi.fn(), continuePlan: vi.fn() }));
 vi.mock("./intent/gramsAdjustmentHandlers", () => ({ handleMealItemMultiIncrement: mocks.legacyIncrement }));
@@ -7,6 +7,10 @@ vi.mock("./mixedMealItemIncrementPlan", () => ({ continueMixedMealItemIncrementP
 import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 
 describe("issue #997 grams increment public intent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("encaminha as três operações do comando misto para um único plano", async () => {
     mocks.continuePlan.mockResolvedValueOnce({
       handled: true,
