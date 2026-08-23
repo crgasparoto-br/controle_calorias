@@ -19,6 +19,9 @@ const mutateMarkRead = vi.fn();
 let overviewData: any;
 let couponData: any = null;
 let notificationsData: any[] = [];
+let checkoutMutationOptions: any = null;
+let checkoutMutationData: any = null;
+let checkoutMutationVariables: any = undefined;
 
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => (
@@ -77,7 +80,18 @@ vi.mock("@/lib/trpc", () => ({
         useMutation: () => ({ isPending: false, mutate: mutateRefresh }),
       },
       startCheckout: {
-        useMutation: () => ({ isPending: false, mutate: mutateCheckout, data: null }),
+        useMutation: (options: any) => {
+          checkoutMutationOptions = options;
+          return {
+            isPending: false,
+            mutate: (variables: any) => {
+              checkoutMutationVariables = variables;
+              mutateCheckout(variables);
+            },
+            data: checkoutMutationData,
+            variables: checkoutMutationVariables,
+          };
+        },
       },
       regularizeSubscription: {
         useMutation: () => ({ isPending: false, mutate: mutateRegularize }),
@@ -127,9 +141,41 @@ const professionalPlan = {
     "system_access",
     "web_access",
     "whatsapp_access",
-    "professional_patients",
+    "meal_text",
+    "meal_image",
+    "meal_audio",
+    "ai_assistance",
+    "nutrition_goals",
+    "reports",
+    "weight_tracking",
+    "water_tracking",
+    "exercise_tracking",
+    "health_integrations",
+    "professional_dashboard",
+    "professional_portfolio",
+    "professional_record",
+    "professional_goals",
+    "professional_operational_alerts",
+    "professional_messages",
+    "professional_reports",
+    "professional_ai_assistance",
+    "professional_settings",
   ],
-  coveredBeneficiaryEntitlements: ["system_access", "web_access"],
+  coveredBeneficiaryEntitlements: [
+    "system_access",
+    "web_access",
+    "whatsapp_access",
+    "meal_text",
+    "meal_image",
+    "meal_audio",
+    "ai_assistance",
+    "nutrition_goals",
+    "reports",
+    "weight_tracking",
+    "water_tracking",
+    "exercise_tracking",
+    "health_integrations",
+  ],
   sortOrder: 2,
 };
 
@@ -182,13 +228,16 @@ describe("BillingPage accessibility and responsive contract", () => {
     overviewData = baseOverview();
     couponData = null;
     notificationsData = [];
+    checkoutMutationOptions = null;
+    checkoutMutationData = null;
+    checkoutMutationVariables = undefined;
     window.history.replaceState({}, "", "/billing");
     vi.clearAllMocks();
   });
 
   afterEach(cleanup);
 
-  it("exposes keyboard/reader semantics and responsive layout classes for plan selection and checkout", async () => {
+  it("exposes keyboard/reader semantics and the complete professional matrix for plan selection and checkout", async () => {
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
 
@@ -213,10 +262,22 @@ describe("BillingPage accessibility and responsive contract", () => {
     const offersGrid = professionalButton.parentElement;
     expect(offersGrid?.className).toContain("md:grid-cols-2");
     expect(offersGrid?.className).toContain("xl:grid-cols-3");
-    expect(screen.getByText("Capacidade: 30 pacientes")).toBeTruthy();
+    expect(within(professionalButton).getByText("Capacidade: 30 pacientes")).toBeTruthy();
     expect(
       screen.getByText(/Planos profissionais incluem recursos pessoais e profissionais na mesma assinatura/i)
     ).toBeTruthy();
+    expect(within(professionalButton).getByText("Recursos pessoais incluídos")).toBeTruthy();
+    expect(within(professionalButton).getByText("Recursos profissionais incluídos")).toBeTruthy();
+    expect(within(professionalButton).getByText("Painel profissional")).toBeTruthy();
+    expect(within(professionalButton).getByText("Configurações profissionais")).toBeTruthy();
+    expect(
+      within(professionalButton).getByText(/Seu uso pessoal não consome vaga da carteira/i)
+    ).toBeTruthy();
+
+    expect(screen.getByText("Recursos desta contratação")).toBeTruthy();
+    expect(screen.getByText(/não existe uma segunda cobrança para o uso pessoal/i)).toBeTruthy();
+    expect(screen.getByText("Capacidade", { selector: "p" })).toBeTruthy();
+    expect(screen.getByText("Seu uso pessoal não consome uma vaga")).toBeTruthy();
 
     const paymentGroup = screen.getByRole("group", { name: "Forma de pagamento" });
     expect(within(paymentGroup).getByRole("radio", { name: /Cartão de crédito/i })).toBeTruthy();
@@ -228,6 +289,77 @@ describe("BillingPage accessibility and responsive contract", () => {
     });
     expect(checkoutButton.className).toContain("w-full");
     expect(checkoutButton.className).toContain("sm:w-auto");
+  });
+
+  it("ignores a delayed checkout response after the user changes the commercial context", async () => {
+    const { default: BillingPage } = await import("./BillingPage");
+    const { toast } = await import("sonner");
+    render(<BillingPage />);
+
+    fireEvent.change(screen.getByLabelText("Nome do pagador"), {
+      target: { value: "Pessoa" },
+    });
+    fireEvent.change(screen.getByLabelText("Telefone com DDD"), {
+      target: { value: "15999999999" },
+    });
+    fireEvent.change(screen.getByLabelText("CPF ou CNPJ"), {
+      target: { value: "12345678901" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continuar para pagamento seguro" })
+    );
+
+    const submitted = mutateCheckout.mock.calls[0]?.[0];
+    expect(submitted?.versionCode).toBe("individual_monthly_v1");
+    expect(checkoutMutationOptions).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Profissional/i }));
+    await checkoutMutationOptions.onSuccess(
+      {
+        flow: {
+          kind: "hosted_checkout",
+          provider: "asaas",
+          externalId: "checkout-old",
+          url: "https://example.test/old-checkout",
+          state: "pending",
+        },
+        subscriptionId: null,
+        pendingAuthoritativeConfirmation: true,
+      },
+      submitted
+    );
+
+    expect(toast.info).toHaveBeenCalledWith(
+      "Recebemos uma resposta de uma tentativa anterior. Sua seleção atual foi preservada; revise-a antes de continuar."
+    );
+    expect(invalidateOverview).toHaveBeenCalled();
+  });
+
+  it("does not render stale Pix authorization data for another selected offer", async () => {
+    checkoutMutationData = {
+      flow: {
+        kind: "pix_automatic",
+        provider: "asaas",
+        externalId: "pix-old",
+        qrCodePayload: "stale-pix-payload",
+        state: "pending",
+      },
+      subscriptionId: null,
+      pendingAuthoritativeConfirmation: true,
+    };
+    checkoutMutationVariables = {
+      contractKey: "web_old_attempt",
+      versionCode: "professional_monthly_v1",
+      paymentMethod: "pix_automatic",
+      trialChoice: "waive",
+      couponCode: null,
+    };
+
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    expect(screen.queryByText("Autorização Pix iniciada")).toBeNull();
+    expect(screen.queryByText("stale-pix-payload")).toBeNull();
   });
 
   it("renders notification campaign, version, date, situation and distinct read action", async () => {
@@ -384,7 +516,7 @@ describe("BillingPage accessibility and responsive contract", () => {
         planId: "plan-pro",
         capacityLimit: 30,
         capacityUsed: 120,
-        entitlements: ["professional_patients"],
+        entitlements: ["professional_dashboard"],
       },
       professionalCapacity: {
         state: "grandfathered_active",
@@ -517,7 +649,7 @@ describe("BillingPage accessibility and responsive contract", () => {
         planId: "plan-pro",
         capacityLimit: 30,
         capacityUsed: 12,
-        entitlements: ["professional_patients"],
+        entitlements: ["professional_dashboard"],
       },
       professionalCapacity: null,
     });

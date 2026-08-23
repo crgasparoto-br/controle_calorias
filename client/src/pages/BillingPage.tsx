@@ -88,6 +88,15 @@ const ENTITLEMENT_LABELS: Record<string, string> = {
   water_tracking: "Acompanhamento de água",
   exercise_tracking: "Acompanhamento de exercícios",
   health_integrations: "Integrações de saúde",
+  professional_dashboard: "Painel profissional",
+  professional_portfolio: "Carteira de pacientes",
+  professional_record: "Prontuário profissional",
+  professional_goals: "Metas dos pacientes",
+  professional_operational_alerts: "Alertas operacionais",
+  professional_messages: "Mensagens profissionais",
+  professional_reports: "Relatórios profissionais",
+  professional_ai_assistance: "Assistência por IA profissional",
+  professional_settings: "Configurações profissionais",
 };
 
 const COUPON_ERROR_LABELS: Record<string, string> = {
@@ -103,6 +112,24 @@ const COUPON_ERROR_LABELS: Record<string, string> = {
   invalid_discount:
     "O desconto deste cupom não pode ser aplicado com segurança; gratuidade integral depende de isenção administrativa.",
 };
+
+type CheckoutSignatureInput = {
+  versionCode: string;
+  paymentMethod: "credit_card" | "pix_automatic";
+  trialChoice: "request" | "waive";
+  couponCode?: string | null;
+};
+
+type CheckoutRequestInput = CheckoutSignatureInput & { contractKey: string };
+
+function buildCheckoutSignature(input: CheckoutSignatureInput) {
+  return [
+    input.versionCode,
+    input.paymentMethod,
+    input.trialChoice,
+    (input.couponCode ?? "").trim().toUpperCase(),
+  ].join(":");
+}
 
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return "Não informado";
@@ -125,7 +152,7 @@ function formatMoney(amountMinor: number, currency: string) {
 }
 
 function entitlementLabel(value: string) {
-  return ENTITLEMENT_LABELS[value] ?? "Recurso profissional incluído";
+  return ENTITLEMENT_LABELS[value] ?? "Recurso incluído";
 }
 
 function transitionDays(
@@ -185,11 +212,23 @@ export default function BillingPage() {
   const [cardTrial, setCardTrial] = useState(true);
   const [pixWaiver, setPixWaiver] = useState(false);
   const attemptRef = useRef<{ signature: string; contractKey: string } | null>(null);
+  const checkoutContextRef = useRef("");
   const returnMessage = useMemo(checkoutReturnMessage, []);
 
   const catalog = overview.data?.catalog ?? [];
   const selectedPlan =
     catalog.find(item => item.versionCode === selectedVersionCode) ?? catalog[0];
+  const selectedTrialChoice: "request" | "waive" =
+    paymentMethod === "credit_card" && cardTrial ? "request" : "waive";
+  const selectedCheckoutSignature = selectedPlan
+    ? buildCheckoutSignature({
+        versionCode: selectedPlan.versionCode,
+        paymentMethod,
+        trialChoice: selectedTrialChoice,
+        couponCode,
+      })
+    : "";
+  checkoutContextRef.current = selectedCheckoutSignature;
 
   useEffect(() => {
     if (!selectedVersionCode && catalog[0]) {
@@ -215,6 +254,16 @@ export default function BillingPage() {
     }
   );
 
+  const isCurrentCheckoutResponse = (variables: CheckoutRequestInput | undefined) => {
+    if (!variables) return false;
+    const signature = buildCheckoutSignature(variables);
+    return (
+      checkoutContextRef.current === signature &&
+      attemptRef.current?.signature === signature &&
+      attemptRef.current.contractKey === variables.contractKey
+    );
+  };
+
   const refreshActivation = trpc.billing.refreshOnboardingActivation.useMutation({
     onSuccess: async result => {
       if (result.status === "activated" || result.status === "already_active") {
@@ -231,8 +280,14 @@ export default function BillingPage() {
   });
 
   const checkout = trpc.billing.startCheckout.useMutation({
-    onSuccess: async result => {
+    onSuccess: async (result, variables) => {
       await utils.billing.webOverview.invalidate();
+      if (!isCurrentCheckoutResponse(variables)) {
+        toast.info(
+          "Recebemos uma resposta de uma tentativa anterior. Sua seleção atual foi preservada; revise-a antes de continuar."
+        );
+        return;
+      }
       if (result.flow.kind === "hosted_checkout") {
         window.location.assign(result.flow.url);
         return;
@@ -241,8 +296,15 @@ export default function BillingPage() {
         "Autorização Pix criada. A assinatura continuará pendente até a confirmação financeira."
       );
     },
-    onError: error =>
-      toast.error(error.message || "Não foi possível iniciar a contratação."),
+    onError: (error, variables) => {
+      if (!isCurrentCheckoutResponse(variables)) {
+        toast.info(
+          "Uma tentativa anterior terminou sem alterar sua seleção atual. Revise os dados antes de tentar novamente."
+        );
+        return;
+      }
+      toast.error(error.message || "Não foi possível iniciar a contratação.");
+    },
   });
 
   const regularizeSubscription = trpc.billing.regularizeSubscription.useMutation({
@@ -338,6 +400,9 @@ export default function BillingPage() {
     professionalCoverageIndividualRenewal?.subscriptionId === subscription.id
       ? professionalCoverageIndividualRenewal
       : null;
+  const checkoutResultIsCurrent = isCurrentCheckoutResponse(
+    checkout.variables as CheckoutRequestInput | undefined
+  );
 
   const startCheckout = () => {
     if (!selectedPlan) return;
@@ -356,14 +421,12 @@ export default function BillingPage() {
       return;
     }
 
-    const trialChoice =
-      paymentMethod === "credit_card" && cardTrial ? "request" : "waive";
-    const signature = [
-      selectedPlan.versionCode,
+    const signature = buildCheckoutSignature({
+      versionCode: selectedPlan.versionCode,
       paymentMethod,
-      trialChoice,
-      couponCode.trim().toUpperCase(),
-    ].join(":");
+      trialChoice: selectedTrialChoice,
+      couponCode,
+    });
     const currentAttempt = attemptRef.current;
     const contractKey =
       currentAttempt?.signature === signature
@@ -375,7 +438,7 @@ export default function BillingPage() {
       contractKey,
       versionCode: selectedPlan.versionCode,
       paymentMethod,
-      trialChoice,
+      trialChoice: selectedTrialChoice,
       couponCode: couponCode.trim() || null,
       customer: {
         name: customerName.trim(),
@@ -442,6 +505,22 @@ export default function BillingPage() {
                   }
                 />
               </dl>
+              {access.entitlements.length ? (
+                <div className="rounded-xl border p-4">
+                  <h3 className="font-medium">Recursos liberados nesta origem</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    A lista abaixo reflete somente os recursos devolvidos pelo backend para a
+                    origem de acesso efetiva.
+                  </p>
+                  <EntitlementMatrix
+                    className="mt-4"
+                    entitlements={access.entitlements}
+                    professional={access.entitlements.some(resource =>
+                      resource.startsWith("professional_")
+                    )}
+                  />
+                </div>
+              ) : null}
               {access.reason === "transition_access" ? (
                 <Notice>
                   {accessTransitionDays === 7
@@ -841,6 +920,7 @@ export default function BillingPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {catalog.map(plan => {
                 const selected = plan.versionCode === selectedPlan?.versionCode;
+                const professional = plan.audience === "professional";
                 return (
                   <button
                     key={plan.versionCode}
@@ -858,7 +938,7 @@ export default function BillingPage() {
                           Versão {plan.version} · {CYCLE_LABELS[plan.billingCycle]}
                         </p>
                       </div>
-                      {selected ? <Check className="h-5 w-5" /> : null}
+                      {selected ? <Check className="h-5 w-5" aria-hidden="true" /> : null}
                     </div>
                     <p className="mt-4 text-2xl font-semibold">
                       {formatMoney(plan.unitAmount, plan.currency)}
@@ -866,14 +946,17 @@ export default function BillingPage() {
                     {plan.capacityLimit != null ? (
                       <p className="mt-2 text-sm">Capacidade: {plan.capacityLimit} pacientes</p>
                     ) : null}
-                    <ul className="mt-4 space-y-1 text-sm text-muted-foreground">
-                      {plan.entitlements.slice(0, 6).map(resource => (
-                        <li key={resource} className="flex gap-2">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                          {entitlementLabel(resource)}
-                        </li>
-                      ))}
-                    </ul>
+                    {professional ? (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Recursos pessoais e profissionais fazem parte desta única assinatura.
+                        Seu uso pessoal não consome vaga da carteira.
+                      </p>
+                    ) : null}
+                    <EntitlementMatrix
+                      className="mt-4"
+                      entitlements={plan.entitlements}
+                      professional={professional}
+                    />
                     <p className="mt-4 text-xs text-muted-foreground">
                       {plan.effectivePaymentMethods.length
                         ? plan.effectivePaymentMethods
@@ -897,18 +980,44 @@ export default function BillingPage() {
             <CardHeader>
               <CardTitle>Confirmar contratação</CardTitle>
               <CardDescription>
-                Revise plano, versão, ciclo, valor e forma de pagamento antes de seguir para o
-                ambiente seguro do provedor.
+                Revise plano, versão, ciclo, valor, recursos e forma de pagamento antes de seguir
+                para o ambiente seguro do provedor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div
+                className={`grid gap-4 sm:grid-cols-2 ${
+                  selectedPlan.capacityLimit != null ? "xl:grid-cols-5" : "xl:grid-cols-4"
+                }`}
+              >
                 <Detail label="Plano" value={selectedPlan.name} />
                 <Detail label="Versão" value={`Versão ${selectedPlan.version}`} />
                 <Detail label="Ciclo" value={CYCLE_LABELS[selectedPlan.billingCycle]} />
                 <Detail
                   label="Preço"
                   value={formatMoney(selectedPlan.unitAmount, selectedPlan.currency)}
+                />
+                {selectedPlan.capacityLimit != null ? (
+                  <Detail
+                    label="Capacidade"
+                    value={`${selectedPlan.capacityLimit} pacientes`}
+                    supporting="Seu uso pessoal não consome uma vaga"
+                  />
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border p-4">
+                <h3 className="font-medium">Recursos desta contratação</h3>
+                {selectedPlan.audience === "professional" ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Os recursos pessoais e profissionais abaixo pertencem à mesma assinatura;
+                    não existe uma segunda cobrança para o uso pessoal do profissional.
+                  </p>
+                ) : null}
+                <EntitlementMatrix
+                  className="mt-4"
+                  entitlements={selectedPlan.entitlements}
+                  professional={selectedPlan.audience === "professional"}
                 />
               </div>
 
@@ -1040,7 +1149,7 @@ export default function BillingPage() {
                 ) : null}
               </div>
 
-              {checkout.data?.flow.kind === "pix_automatic" ? (
+              {checkoutResultIsCurrent && checkout.data?.flow.kind === "pix_automatic" ? (
                 <div className="rounded-xl border p-4" role="status" aria-live="polite">
                   <p className="font-medium">Autorização Pix iniciada</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -1082,6 +1191,54 @@ export default function BillingPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function EntitlementMatrix({
+  entitlements,
+  professional,
+  className = "",
+}: {
+  entitlements: readonly string[];
+  professional: boolean;
+  className?: string;
+}) {
+  if (!entitlements.length) return null;
+  const personalResources = entitlements.filter(
+    resource => !resource.startsWith("professional_")
+  );
+  const professionalResources = entitlements.filter(resource =>
+    resource.startsWith("professional_")
+  );
+
+  const renderResources = (resources: readonly string[]) => (
+    <ul className="mt-2 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+      {resources.map(resource => (
+        <li key={resource} className="flex gap-2">
+          <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{entitlementLabel(resource)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <div className={`space-y-4 ${className}`.trim()}>
+      {personalResources.length ? (
+        <div>
+          <p className="text-sm font-medium">
+            {professional ? "Recursos pessoais incluídos" : "Recursos incluídos"}
+          </p>
+          {renderResources(personalResources)}
+        </div>
+      ) : null}
+      {professionalResources.length ? (
+        <div>
+          <p className="text-sm font-medium">Recursos profissionais incluídos</p>
+          {renderResources(professionalResources)}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
