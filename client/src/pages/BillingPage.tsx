@@ -171,6 +171,16 @@ function estimatedTrialFirstChargeDate(audience: "individual" | "professional") 
   return formatDate(new Date(Date.now() + days * 86_400_000));
 }
 
+function trialEligibilityMessage(reason: string | undefined) {
+  if (reason === "trial_already_used") {
+    return "O período de avaliação já foi utilizado por esta conta. Você ainda pode contratar o plano por cartão sem trial.";
+  }
+  if (reason === "transition_history") {
+    return "Esta conta já passou por uma transição comercial, que substitui um novo período de avaliação. Você ainda pode contratar o plano por cartão sem trial.";
+  }
+  return "A elegibilidade para um novo período de avaliação não pôde ser confirmada. Você ainda pode contratar o plano por cartão sem trial.";
+}
+
 function checkoutReturnMessage() {
   if (typeof window === "undefined") return null;
   if (window.location.pathname.endsWith("/return/success")) {
@@ -218,8 +228,14 @@ export default function BillingPage() {
   const catalog = overview.data?.catalog ?? [];
   const selectedPlan =
     catalog.find(item => item.versionCode === selectedVersionCode) ?? catalog[0];
+  const selectedTrialEligibility = selectedPlan
+    ? overview.data?.trialEligibility?.[selectedPlan.audience]
+    : null;
+  const canRequestTrial = selectedTrialEligibility?.eligible === true;
   const selectedTrialChoice: "request" | "waive" =
-    paymentMethod === "credit_card" && cardTrial ? "request" : "waive";
+    paymentMethod === "credit_card" && cardTrial && canRequestTrial
+      ? "request"
+      : "waive";
   const selectedCheckoutSignature = selectedPlan
     ? buildCheckoutSignature({
         versionCode: selectedPlan.versionCode,
@@ -1050,25 +1066,33 @@ export default function BillingPage() {
               </fieldset>
 
               {paymentMethod === "credit_card" ? (
-                <label className="flex items-start gap-3 rounded-xl border p-4">
-                  <input
-                    type="checkbox"
-                    checked={cardTrial}
-                    onChange={event => setCardTrial(event.target.checked)}
-                    className="mt-1"
-                  />
-                  <span className="text-sm">
-                    <strong>Iniciar período de avaliação.</strong>{" "}
-                    {selectedPlan.audience === "professional"
-                      ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
-                      : "O trial individual dura 7 dias."}{" "}
-                    Se o cadastro do cartão e o início do trial forem concluídos hoje, a primeira
-                    cobrança é estimada para {estimatedTrialFirstChargeDate(selectedPlan.audience)};
-                    o backend/provider confirmará a data efetiva. Você pode cancelar a próxima
-                    renovação durante o trial antes da primeira cobrança sem cobrança do plano.
-                    Se houver cupom, o desconto começa na primeira cobrança efetiva.
-                  </span>
-                </label>
+                selectedTrialEligibility?.eligible ? (
+                  <label className="flex items-start gap-3 rounded-xl border p-4">
+                    <input
+                      type="checkbox"
+                      checked={cardTrial}
+                      onChange={event => setCardTrial(event.target.checked)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm">
+                      <strong>Solicitar período de avaliação.</strong>{" "}
+                      {selectedPlan.audience === "professional"
+                        ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
+                        : "O trial individual dura 7 dias."}{" "}
+                      Se o cadastro do cartão e o início do trial forem concluídos hoje, a primeira
+                      cobrança é estimada para {estimatedTrialFirstChargeDate(selectedPlan.audience)};
+                      o backend/provider confirmará a data efetiva. Você pode cancelar a próxima
+                      renovação durante o trial antes da primeira cobrança sem cobrança do plano.
+                      Se houver cupom, o desconto começa na primeira cobrança efetiva. A elegibilidade
+                      final também depende da identidade e do cartão verificados no ambiente seguro.
+                    </span>
+                  </label>
+                ) : (
+                  <Notice>
+                    <strong>Período de avaliação indisponível.</strong>{" "}
+                    {trialEligibilityMessage(selectedTrialEligibility?.reason)}
+                  </Notice>
+                )
               ) : (
                 <label className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
                   <input

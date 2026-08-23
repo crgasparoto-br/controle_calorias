@@ -19,6 +19,7 @@ import { billingService } from "./service";
 import { getSubscriptionWebHistory } from "./subscriptionHistoryRead";
 import { getSubscriptionManagementCapabilities } from "./subscriptionManagementRead";
 import { billingSubscriptionLifecycleRepository } from "./subscriptionLifecycleRuntime";
+import { getKnownTrialEligibility } from "./trialEligibilityRead";
 
 const contractKeySchema = z
   .string()
@@ -142,9 +143,10 @@ function isSafePreProviderCheckoutFailure(error: unknown) {
 }
 
 export async function getBillingWebOverview(userId: number) {
-  const [status, catalog] = await Promise.all([
+  const [status, catalog, trialEligibility] = await Promise.all([
     billingService.getUserSubscriptionStatus(userId),
     billingCatalogService.listCatalog(),
+    getKnownTrialEligibility(userId),
   ]);
   const sponsored = status.access.reason === "sponsored_by_professional";
   const subscription = status.subscription;
@@ -221,6 +223,7 @@ export async function getBillingWebOverview(userId: number) {
         }
       : null,
     catalog,
+    trialEligibility,
     actions: {
       canStartCheckout:
         canCreateNewSubscription &&

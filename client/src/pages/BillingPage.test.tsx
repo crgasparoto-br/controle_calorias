@@ -211,6 +211,10 @@ function baseOverview(overrides: Record<string, unknown> = {}) {
     management: null,
     history: [],
     catalog: [individualPlan, professionalPlan],
+    trialEligibility: {
+      individual: { eligible: true, reason: "eligible" },
+      professional: { eligible: true, reason: "eligible" },
+    },
     actions: {
       canStartCheckout: true,
       canCancelRenewal: false,
@@ -282,13 +286,46 @@ describe("BillingPage accessibility and responsive contract", () => {
     const paymentGroup = screen.getByRole("group", { name: "Forma de pagamento" });
     expect(within(paymentGroup).getByRole("radio", { name: /Cartão de crédito/i })).toBeTruthy();
     expect(within(paymentGroup).getByRole("radio", { name: /Pix Automático/i })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: /Iniciar período de avaliação/i })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /Solicitar período de avaliação/i })).toBeTruthy();
 
     const checkoutButton = screen.getByRole("button", {
       name: "Continuar para pagamento seguro",
     });
     expect(checkoutButton.className).toContain("w-full");
     expect(checkoutButton.className).toContain("sm:w-auto");
+  });
+
+  it("does not offer a known-ineligible trial and submits card checkout as paid", async () => {
+    overviewData = baseOverview({
+      trialEligibility: {
+        individual: { eligible: false, reason: "trial_already_used" },
+        professional: { eligible: true, reason: "eligible" },
+      },
+    });
+    const { default: BillingPage } = await import("./BillingPage");
+    render(<BillingPage />);
+
+    expect(screen.queryByRole("checkbox", { name: /Solicitar período de avaliação/i })).toBeNull();
+    expect(screen.getByText(/O período de avaliação já foi utilizado por esta conta/i)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Nome do pagador"), {
+      target: { value: "Pessoa" },
+    });
+    fireEvent.change(screen.getByLabelText("Telefone com DDD"), {
+      target: { value: "15999999999" },
+    });
+    fireEvent.change(screen.getByLabelText("CPF ou CNPJ"), {
+      target: { value: "12345678901" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continuar para pagamento seguro" })
+    );
+
+    expect(mutateCheckout.mock.calls[0]?.[0]).toMatchObject({
+      versionCode: "individual_monthly_v1",
+      paymentMethod: "credit_card",
+      trialChoice: "waive",
+    });
   });
 
   it("ignores a delayed checkout response after the user changes the commercial context", async () => {
@@ -441,11 +478,16 @@ describe("BillingPage accessibility and responsive contract", () => {
         sourceAvailable: true,
         evaluatedAt: new Date("2026-08-22T00:00:00.000Z"),
       },
+      trialEligibility: {
+        individual: { eligible: false, reason: "transition_history" },
+        professional: { eligible: false, reason: "transition_history" },
+      },
     });
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
     expect(screen.getByText(/Transição comercial de 30 dias para usuário existente/i)).toBeTruthy();
     expect(screen.getByText(/nenhum trial adicional é presumido/i)).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /Solicitar período de avaliação/i })).toBeNull();
   });
 
   it("renders a safe regularization action for past_due without claiming payment", async () => {

@@ -7,7 +7,8 @@ A tela `/billing` não calcula elegibilidade nem produz transições, grandfathe
 - `getUserEntitlements` para origem efetiva e janela de acesso;
 - `billingSubscriptionLifecycle` para trial, carência, suspensão, recuperação e término;
 - fatos de `billingSubscriptionFacts` para capacidade e sincronização da renovação individual sob cobertura;
-- catálogo efetivo para preço, ciclo, versão, capacidade e meios de pagamento.
+- catálogo efetivo para preço, ciclo, versão, capacidade e meios de pagamento;
+- `trialEligibility` de `webOverview` para inelegibilidade de trial que já pode ser provada pelo histórico autoritativo local.
 
 `validFrom` e `validUntil` são devolvidos pelo access service para que a interface consiga apresentar a duração real de uma transição já escolhida pela precedência canônica. A UI não escolhe se uma transição deve durar 7 ou 30 dias.
 
@@ -25,7 +26,14 @@ Quando a origem é `read_only_access`, a tela explica que leitura, exportação 
 
 ## Trial e termos antes do checkout
 
-Antes de abrir o checkout por cartão, a tela apresenta nome do plano, versão comercial, ciclo e preço retornados pelo catálogo. Quando o trial está selecionado, também informa:
+Antes de abrir o checkout por cartão, a tela apresenta nome do plano, versão comercial, ciclo e preço retornados pelo catálogo. O backend também devolve a elegibilidade de trial que já pode ser determinada sem confiar em dados digitados no checkout:
+
+- histórico de trial permitido para a mesma conta e audiência torna um novo trial indisponível;
+- histórico de transição comercial torna um novo trial indisponível;
+- quando a inelegibilidade é conhecida, `/billing` não oferece a opção de trial, mas continua permitindo contratação paga por cartão quando o catálogo permitir;
+- telefone, CPF/CNPJ e cartão não são usados pelo frontend para decidir elegibilidade. A validação final de identidade continua no adapter do Asaas, com os dados verificados pelo provider.
+
+Quando o trial está disponível e selecionado, a tela também informa:
 
 - 7 dias para Individual ou 14 dias para Profissional;
 - capacidade inicial de 5 pacientes no trial Profissional;

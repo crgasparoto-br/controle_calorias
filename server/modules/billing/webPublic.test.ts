@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getUserSubscriptionStatus: vi.fn(),
   getUserEntitlements: vi.fn(),
   listCatalog: vi.fn(),
+  getKnownTrialEligibility: vi.fn(),
   loadLifecycle: vi.fn(),
   getPlan: vi.fn(),
   getCapacity: vi.fn(),
@@ -27,6 +28,9 @@ vi.mock("./service", () => ({
 }));
 vi.mock("./catalogRuntime", () => ({
   billingCatalogService: { listCatalog: mocks.listCatalog },
+}));
+vi.mock("./trialEligibilityRead", () => ({
+  getKnownTrialEligibility: mocks.getKnownTrialEligibility,
 }));
 vi.mock("./professionalCapacityRead", () => ({
   getProfessionalCapacityWebSnapshot: mocks.getCapacity,
@@ -122,6 +126,10 @@ const activeSubscription = (cancelAtPeriodEnd = false) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listCatalog.mockResolvedValue(catalog);
+  mocks.getKnownTrialEligibility.mockResolvedValue({
+    individual: { eligible: true, reason: "eligible" },
+    professional: { eligible: true, reason: "eligible" },
+  });
   mocks.getUserSubscriptionStatus.mockResolvedValue(noSubscriptionStatus());
   mocks.getUserEntitlements.mockResolvedValue({
     allowed: false,
@@ -152,6 +160,25 @@ beforeEach(() => {
 });
 
 describe("billing web public boundary", () => {
+  it("exposes only known trial ineligibility from authoritative local history", async () => {
+    mocks.getKnownTrialEligibility.mockResolvedValue({
+      individual: { eligible: false, reason: "trial_already_used" },
+      professional: { eligible: true, reason: "eligible" },
+    });
+
+    const result = await getBillingWebOverview(12);
+
+    expect(result.trialEligibility.individual).toEqual({
+      eligible: false,
+      reason: "trial_already_used",
+    });
+    expect(result.trialEligibility.professional).toEqual({
+      eligible: true,
+      reason: "eligible",
+    });
+    expect(mocks.getKnownTrialEligibility).toHaveBeenCalledWith(12);
+  });
+
   it("does not expose sponsor professional subscription to a covered patient", async () => {
     mocks.getUserSubscriptionStatus.mockResolvedValue({
       access: {
