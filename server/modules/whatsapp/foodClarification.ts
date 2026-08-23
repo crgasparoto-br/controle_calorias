@@ -2,6 +2,7 @@ import { calculateMealTotals } from "../../../shared/mealTotals";
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import * as dbRuntime from "../../db";
 import * as nutritionRuntime from "../../nutritionEngine";
+import { estimateGramsFromQuantity } from "../../mealTextParsing";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
@@ -286,6 +287,20 @@ async function resolvePendingText(
         "Resposta incompatível não consumiu a pendência aberta de quantidade."
       );
     }
+    const resolutionMode = (target as { resolutionContext?: { mode?: string } }).resolutionContext?.mode;
+    if (
+      (resolutionMode === "complete_mixed_increment_plan"
+        || resolutionMode === "complete_confirmed_text_meal")
+      && !estimateGramsFromQuantity(quantity.quantity, quantity.unit)
+    ) {
+      return reprompt(
+        pending,
+        target,
+        "whatsapp.food_clarification.invalid_mass_volume_response",
+        "Resposta sem massa/volume explícitos não consumiu a pendência aberta.",
+      );
+    }
+
     if (
       isSugarComplementQuantityTarget(target)
       && !isSupportedSugarQuantityUnit(quantity.unit)

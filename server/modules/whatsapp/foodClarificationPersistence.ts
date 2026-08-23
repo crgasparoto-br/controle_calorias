@@ -1,7 +1,7 @@
 import { calculateMealTotals } from "../../../shared/mealTotals";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type * as dbRuntime from "../../db";
-import { normalizeText } from "../../mealTextParsing";
+import { estimateGramsFromQuantity, normalizeText } from "../../mealTextParsing";
 import type * as nutritionRuntime from "../../nutritionEngine";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type * as mealRuntime from "../meals/service";
@@ -322,6 +322,94 @@ async function persistResolvedImageMeal(
   };
 }
 
+async function persistResolvedMixedIncrementPlan(
+  userId: number,
+  target: FoodQuantityClarificationTarget,
+  explicitQuantity?: { quantity: number; unit: string },
+): Promise<WhatsappIntentResult> {
+  const context = target.resolutionContext;
+  if (!context || context.mode !== "complete_mixed_increment_plan" || !explicitQuantity) {
+    throw new Error("Contexto do ajuste misto ou quantidade ausente.");
+  }
+  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
+  if (!grams || grams <= 0) {
+    throw new Error("A resposta do ajuste misto não representa massa/volume explícitos.");
+  }
+  const operation = context.plan.operations[context.operationIndex];
+  if (!operation) throw new Error("Operação pendente do ajuste misto não existe.");
+  const plan = {
+    ...context.plan,
+    operations: context.plan.operations.map((candidate, index) =>
+      index === context.operationIndex
+        ? { ...candidate, gramsDelta: grams, resolvedBy: "clarification" as const }
+        : { ...candidate, target: candidate.target ? { ...candidate.target } : undefined },
+    ),
+  };
+  const { continueMixedMealItemIncrementPlan } = await import("./mixedMealItemIncrementPlan");
+  return continueMixedMealItemIncrementPlan(userId, plan);
+}
+
+async function persistResolvedConfirmedTextMeal(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: FoodQuantityClarificationTarget,
+  explicitQuantity?: { quantity: number; unit: string },
+): Promise<WhatsappIntentResult> {
+  const context = target.resolutionContext;
+  if (!context || context.mode !== "complete_confirmed_text_meal" || !explicitQuantity) {
+    throw new Error("Contexto da refeição textual ou quantidade ausente.");
+  }
+  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
+  if (!grams || grams <= 0) {
+    throw new Error("A quantidade da refeição textual deve ser informada em massa ou volume.");
+  }
+  const current = context.pendingItems[context.currentPendingIndex];
+  if (!current) throw new Error("Item pendente da refeição textual não existe.");
+
+  const registrationSegments = [...context.registrationSegments];
+  registrationSegments[current.segmentIndex] = `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${current.foodName}`;
+  const nextPendingIndex = context.currentPendingIndex + 1;
+  const nextPending = context.pendingItems[nextPendingIndex];
+
+  if (nextPending) {
+    const clarification = createFoodQuantityClarificationService({ repository: deps.repository });
+    return clarification.requestConfirmedTextMealQuantity({
+      userId,
+      foodName: nextPending.foodName,
+      originalText: context.originalText,
+      registrationSegments,
+      pendingItems: context.pendingItems,
+      currentPendingIndex: nextPendingIndex,
+      occurredAt: new Date(context.occurredAt),
+      receivedAt: new Date(),
+      userTimezone: context.userTimezone,
+      messageId: context.inboundMessageId ?? null,
+      instructionText: `Para concluir a refeição sem assumir 100 g para ${nextPending.segment}, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+    });
+  }
+
+  const { executeConfirmedWhatsAppMealRegistration } = await import("./confirmedMealRegistration");
+  const outcome = await executeConfirmedWhatsAppMealRegistration({
+    userId,
+    registrationText: registrationSegments.join("\n"),
+    originalText: context.originalText,
+    occurredAt: new Date(context.occurredAt),
+    userTimezone: context.userTimezone,
+    skipCountablePreflight: true,
+  });
+  if (outcome.status === "registered" || outcome.status === "clarification_requested") {
+    return outcome.result;
+  }
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: outcome.prompt,
+    eventType: "whatsapp.food_clarification.confirmed_text_meal_incomplete",
+    detail: outcome.detail,
+    data: { originalTextPreserved: true },
+  };
+}
+
 async function persistResolvedFood(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -332,6 +420,12 @@ async function persistResolvedFood(
   explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappIntentResult> {
   const quantityTarget = target as FoodQuantityClarificationTarget;
+  if (quantityTarget.resolutionContext?.mode === "complete_mixed_increment_plan") {
+    return persistResolvedMixedIncrementPlan(userId, quantityTarget, explicitQuantity);
+  }
+  if (quantityTarget.resolutionContext?.mode === "complete_confirmed_text_meal") {
+    return persistResolvedConfirmedTextMeal(deps, userId, quantityTarget, explicitQuantity);
+  }
   if (quantityTarget.resolutionContext?.mode === "complete_caloric_complement") {
     return persistResolvedCaloricComplement(
       deps,
