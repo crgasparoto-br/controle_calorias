@@ -52,7 +52,12 @@ export function parseCountableFoodQuantitySegment(
       requestedUnit: unit,
     };
   }
-  return parseBareCount(segment);
+
+  const bare = parseBareCount(segment);
+  if (!bare) return null;
+  const local = findCatalogFood(bare.foodName);
+  if (bare.count === 1 && getSafeCatalogCountableGrams(local, bare)) return null;
+  return bare;
 }
 
 export function getSafeCatalogCountableGrams(
