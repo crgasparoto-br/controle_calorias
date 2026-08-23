@@ -1,1 +1,37 @@
-{"schema_version":1,"material_head_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","evidence":[{"evidence_id":"BEHAVIOR-REMEDIATION-001","kind":"behavioral","path":"evidence/audit-remediation-2026-08-21.json","sha256":"b01073c84e458a7c9913ec484d699191f59a55a3cb304f310486f1d7e202049b","subject_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","freshness_policy":"exact-material-head","producer":"connector-only exact-head material-delta and resource-lifecycle harness","status":"passed"},{"evidence_id":"QUANT-ECON-001","kind":"quantitative","path":"evidence/usage-governance-quantitative.json","sha256":"8aeea2fab3426fcdad24656cecd5630cbd14a3c4f91c9cb24ef92f1389f770f7","subject_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","freshness_policy":"exact-material-head","producer":"40-check deterministic Node harness against unchanged current usage-governance formulas","status":"passed"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+  "evidence": [
+    {
+      "evidence_id": "EVID-Q-COUNTABLE",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/quantitative-countable.txt",
+      "sha256": "5f3b6252155b0f349696be3b5a1db309209f5aa1b7e86e3170856f8eda46d1ee",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-Q-ATOMIC",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/quantitative-atomic.txt",
+      "sha256": "c9fbbd7d5109d94df0ceb7f08c1899931da475a3af90c9f2e07ce80bba501b03",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-Q-CONTINUITY",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/quantitative-continuity.txt",
+      "sha256": "df6df69862aa85331d0371a304dce4724deead28f23a04905920db8e3de52820",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,1 +1,397 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":1880,"encoded_sha256":"88b0682ec4ad56f3e7d207d304eb4fb814bfaa1b5cb99ab2270bac79fd401875","decoded_size":10368,"decoded_sha256":"5c7e37765d6e7c5c698f36fd5d1611dfdb9b42385fad6b34b291a0866336c46a","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1880,"sha256":"88b0682ec4ad56f3e7d207d304eb4fb814bfaa1b5cb99ab2270bac79fd401875"}]}
+{
+  "schema_version": 1,
+  "head_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-014-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "local-reference-availability",
+          "reason": "A decisão deve respeitar a disponibilidade da referência local compatível em vez de autorizar um fallback genérico indevido.",
+          "control_ids": [
+            "NC-014-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-001-01",
+        "NC-001-02",
+        "NC-017-01",
+        "NC-017-02",
+        "NC-025-01",
+        "NC-025-02",
+        "NC-027-01",
+        "NC-027-02",
+        "NC-040-02",
+        "NC-040-03",
+        "NC-042-01",
+        "NC-042-02",
+        "NC-043-01",
+        "NC-043-02",
+        "NC-044-01",
+        "NC-044-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "parser-boundary",
+          "reason": "Variações válidas de unidade ou elipse podem ser descartadas antes do plano composto se o parser público for incompleto.",
+          "control_ids": [
+            "NC-001-02",
+            "NC-017-02",
+            "NC-025-02",
+            "NC-027-02",
+            "NC-040-03",
+            "NC-042-02",
+            "NC-043-02",
+            "NC-044-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "text-intent-entrypoint",
+          "reason": "Texto não confiável pode contornar o preflight e alcançar o fallback genérico se a fronteira pública não aplicar o contrato.",
+          "control_ids": [
+            "NC-001-01",
+            "NC-017-01",
+            "NC-025-01",
+            "NC-027-01",
+            "NC-040-02",
+            "NC-042-01",
+            "NC-043-01",
+            "NC-044-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-011-01",
+        "NC-032-01",
+        "NC-048-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "final-target-revalidation",
+          "reason": "O alvo persistido pode mudar durante a clarificação e precisa ser revalidado imediatamente antes da escrita final.",
+          "control_ids": [
+            "NC-011-01",
+            "NC-032-01",
+            "NC-048-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-011-02",
+        "NC-012-01",
+        "NC-014-02",
+        "NC-018-01",
+        "NC-020-01",
+        "NC-021-02",
+        "NC-025-03",
+        "NC-029-05",
+        "NC-032-02",
+        "NC-034-01",
+        "NC-041-01",
+        "NC-047-03",
+        "NC-048-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "interaction-ordering",
+          "reason": "A decisão depende da ordem entre mensagem, clarificação, resolução e aplicação final sem confundir tempos históricos.",
+          "control_ids": [
+            "NC-011-02",
+            "NC-012-01",
+            "NC-014-02",
+            "NC-018-01",
+            "NC-020-01",
+            "NC-025-03",
+            "NC-029-05",
+            "NC-032-02",
+            "NC-034-01",
+            "NC-041-01",
+            "NC-047-03",
+            "NC-048-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NC-021-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-002-01",
+        "NC-002-02",
+        "NC-009-01",
+        "NC-009-02",
+        "NC-010-01",
+        "NC-010-02",
+        "NC-028-01",
+        "NC-028-02",
+        "NC-029-01",
+        "NC-029-02",
+        "NC-033-01",
+        "NC-033-02",
+        "NC-045-01",
+        "NC-045-02",
+        "NC-046-01",
+        "NC-046-02",
+        "NC-047-01",
+        "NC-047-02",
+        "NC-049-01",
+        "NC-049-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "final-batch-mutation",
+          "reason": "A aplicação final precisa ocorrer somente depois de todas as operações estarem resolvidas e revalidadas.",
+          "control_ids": [
+            "NC-002-02",
+            "NC-009-02",
+            "NC-010-02",
+            "NC-028-02",
+            "NC-029-02",
+            "NC-033-02",
+            "NC-045-02",
+            "NC-046-02",
+            "NC-047-02",
+            "NC-049-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "pending-claim",
+          "reason": "Respostas concorrentes podem disputar a mesma pendência e precisam de claim condicional.",
+          "control_ids": [
+            "NC-002-01",
+            "NC-009-01",
+            "NC-010-01",
+            "NC-028-01",
+            "NC-029-01",
+            "NC-033-01",
+            "NC-045-01",
+            "NC-046-01",
+            "NC-047-01",
+            "NC-049-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-010-03",
+        "NC-029-03",
+        "NC-033-03",
+        "NC-040-01",
+        "NC-049-03"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NC-010-03",
+            "NC-029-03",
+            "NC-033-03",
+            "NC-040-01",
+            "NC-049-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-002-03",
+        "NC-029-04",
+        "NC-031-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "compensated-batch",
+          "reason": "Falha durante a escrita de múltiplas refeições não pode deixar um subconjunto do plano persistido.",
+          "control_ids": [
+            "NC-002-03",
+            "NC-029-04",
+            "NC-031-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-003-01",
+        "NC-004-01",
+        "NC-005-01",
+        "NC-006-01",
+        "NC-007-01",
+        "NC-008-01",
+        "NC-013-01",
+        "NC-015-01",
+        "NC-016-01",
+        "NC-019-01",
+        "NC-021-01",
+        "NC-022-01",
+        "NC-023-01",
+        "NC-024-01",
+        "NC-026-01",
+        "NC-030-01",
+        "NC-035-01",
+        "NC-036-01",
+        "NC-037-01",
+        "NC-038-01",
+        "NC-039-01",
+        "NC-050-01",
+        "NC-051-01",
+        "NC-052-02",
+        "NC-053-02",
+        "NC-054-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "behavior-contract",
+          "reason": "A implementação pode parecer correta no caminho feliz e ainda violar a obrigação estrutural ou semântica observável.",
+          "control_ids": [
+            "NC-003-01",
+            "NC-004-01",
+            "NC-005-01",
+            "NC-006-01",
+            "NC-013-01",
+            "NC-015-01",
+            "NC-019-01",
+            "NC-026-01",
+            "NC-030-01",
+            "NC-053-02",
+            "NC-054-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Registro e ajuste precisam consumir a mesma fonte canônica de porções/clarificação, sem pesos paralelos no parser.",
+          "control_ids": [
+            "NC-007-01",
+            "NC-008-01",
+            "NC-016-01",
+            "NC-036-01",
+            "NC-037-01",
+            "NC-038-01",
+            "NC-039-01",
+            "NC-052-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "regression-contract",
+          "reason": "A regressão deve discriminar a implementação errada no entrypoint e nos estados persistentes, não apenas o caminho feliz.",
+          "control_ids": [
+            "NC-021-01",
+            "NC-022-01",
+            "NC-023-01",
+            "NC-024-01",
+            "NC-035-01",
+            "NC-050-01",
+            "NC-051-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-052-01",
+        "NC-053-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "As fontes canônicas de documentação devem descrever o mesmo contrato de medida caseira e plano composto implementado no código.",
+          "control_ids": [
+            "NC-052-01",
+            "NC-053-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
