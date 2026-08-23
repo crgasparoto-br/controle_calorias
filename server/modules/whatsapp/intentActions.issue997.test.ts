@@ -88,7 +88,7 @@ describe("issue #997 - preflight contável no executor textual", () => {
 
   it("não sequestra texto numérico que não resolve para alimento conhecido", async () => {
     const result = await executeWhatsappTextIntent(42, {
-      text: "2 dias de relatório",
+      text: "2 cadeiras azuis",
       receivedAt,
       userTimezone: "America/Sao_Paulo",
     });
