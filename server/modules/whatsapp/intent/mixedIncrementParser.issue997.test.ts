@@ -31,4 +31,30 @@ describe("issue #997 mixed increment parser", () => {
       expect.objectContaining({ targetFood: "queijo", unit: null, inheritedUnit: false }),
     ]);
   });
+
+  it("não captura adições canônicas quando nenhuma operação de ajuste suportada foi extraída", () => {
+    expect(
+      parseMixedMealItemIncrementCommand(
+        "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+      ),
+    ).toBeNull();
+    expect(
+      parseMixedMealItemIncrementCommand(
+        "Adicionar 1 copo de leite no café da manhã",
+      ),
+    ).toBeNull();
+  });
+
+  it("mantém bloqueio de sucesso parcial quando existe operação suportada junto de segmento desconhecido", () => {
+    const parsed = parseMixedMealItemIncrementCommand(
+      "Adicionar 48g ao requeijão, 1 xícara de café e 1 fatia ao presunto",
+    );
+
+    expect(parsed?.operations).toHaveLength(2);
+    expect(parsed?.operations).toEqual([
+      expect.objectContaining({ quantity: 48, unit: "g", targetFood: "requeijao" }),
+      expect.objectContaining({ quantity: 1, unit: "fatia", targetFood: "presunto" }),
+    ]);
+    expect(parsed?.unparsedSegments).toEqual(["1 xicara de cafe"]);
+  });
 });

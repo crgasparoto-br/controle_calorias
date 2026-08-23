@@ -143,7 +143,7 @@ export function parseMixedMealItemIncrementCommand(text: string): ParsedMixedInc
     }
   }
 
-  return operations.length || unparsedSegments.length
+  return operations.length
     ? { mealLabel, operations, unparsedSegments }
     : null;
 }

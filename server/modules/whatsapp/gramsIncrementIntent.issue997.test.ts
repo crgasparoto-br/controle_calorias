@@ -45,4 +45,35 @@ describe("issue #997 grams increment public intent", () => {
     expect(mocks.legacyIncrement).toHaveBeenCalled();
     expect(mocks.continuePlan).not.toHaveBeenCalled();
   });
+
+  it("deixa adições por medidas domésticas fora do parser seguirem para o fluxo canônico", async () => {
+    const coffee = await executeWhatsappGramsIncrementIntent(42, {
+      text: "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+    });
+    const milk = await executeWhatsappGramsIncrementIntent(42, {
+      text: "Adicionar 1 copo de leite no café da manhã",
+    });
+
+    expect(coffee).toBeNull();
+    expect(milk).toBeNull();
+    expect(mocks.legacyIncrement).not.toHaveBeenCalled();
+    expect(mocks.continuePlan).not.toHaveBeenCalled();
+  });
+
+  it("continua bloqueando sucesso parcial quando há operação suportada e segmento desconhecido", async () => {
+    const result = await executeWhatsappGramsIncrementIntent(42, {
+      text: "Adicionar 48g ao requeijão, 1 xícara de café e 1 fatia ao presunto",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      eventType: "whatsapp.intent.meal_item_increment_parse_incomplete",
+      data: expect.objectContaining({
+        parsedOperationCount: 2,
+        unparsedSegmentCount: 1,
+      }),
+    }));
+    expect(mocks.legacyIncrement).not.toHaveBeenCalled();
+    expect(mocks.continuePlan).not.toHaveBeenCalled();
+  });
 });
