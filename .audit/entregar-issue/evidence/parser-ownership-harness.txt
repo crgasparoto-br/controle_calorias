@@ -1,0 +1,18 @@
+Material head: be9ccab06cdaecf216f501181a3ed56e11c12d8f
+Remediation source: independent rejection audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed plus mandatory CI regressions discovered while remediating it.
+
+Parser ownership controls:
+- pure canonical addition with 3 xicaras of unsweetened coffee: mixed increment parser/intent falls through (null).
+- pure canonical addition with 1 copo of milk: mixed increment parser/intent falls through (null).
+- supported 48 g + unsupported xicara + supported fatia: specialized parser keeps ownership and returns parse-incomplete clarification, with no increment executor dispatched.
+- original 48 g + fatia + inherited fatia command remains three operations.
+
+Countable/specialized-flow controls:
+- explicit mass/volume (`200 ml`, `45 g`) cannot fall through to bare-count parsing.
+- coffee/tea household measures remain under their specialized preparation/sugar/low-calorie contracts instead of generic countable clarification.
+- one bare unit with a safe canonical unit portion stays on the preexisting canonical builder display path; this preserves `1 Bisnaguinha Panco` + `1 unidade`.
+- registration preflight is a separate responsibility and still rewrites `1 pão francês` to `50 g de pão francês` (and a safe single Panco to its canonical grams when the registration preflight is invoked).
+- multiplicities such as two paes franceses still use canonical safe scaling and resolve to 100 g.
+- unsafe slice/unit cases remain fail-closed instead of assuming 100 g.
+
+Historical remote failures are root-cause localization only and are not claimed as current-head success.
