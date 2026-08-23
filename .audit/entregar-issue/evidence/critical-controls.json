@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 895,
+  "pull_request": 996,
+  "subject_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+  "status": "passed",
+  "observed": "Exact-head CI passed Agent-first gate run 5759, Billing persistence TiDB gate run 471, and Onboarding activation TiDB gate run 267; billing tests cover idempotency, privacy, provider pending states, coupon boundaries, capacity and UI states.",
+  "runs": [
+    32642599647,
+    32642599596,
+    32642599599
+  ]
+}

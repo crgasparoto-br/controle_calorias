@@ -1,1 +1,186 @@
-{"schema_version":2,"status":"ready","created_at":"2026-08-21T16:55:35.161439+00:00","identity":{"head_sha":"442abe366b726fd429db3dba2e38607fe94ec426","material_head_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","merge_preview_sha":"31840ac62da62c3fff2682489244f10b26c3fcbb","material_merge_preview_sha":"31840ac62da62c3fff2682489244f10b26c3fcbb"},"subject":{"repository":"crgasparoto-br/controle_calorias","work_item_kind":"issue","work_item_number":897,"pull_request":985,"base_ref":"develop","head_ref":"feat/897-usage-governance"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/audit-escape-closure.json",".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/audit-source-result.json",".audit/entregar-issue/evidence-provenance.json",".audit/entregar-issue/evidence/audit-remediation-2026-08-21.json",".audit/entregar-issue/evidence/usage-governance-quantitative.json",".audit/entregar-issue/freeze.json",".audit/entregar-issue/gate-report.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/learning-closure.json",".audit/entregar-issue/remote-gate-evidence.json",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-003.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-004.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-005.b64",".audit/entregar-issue/requirement-closure.json",".audit/entregar-issue/requirement-closure.parts/part-000.b64",".audit/entregar-issue/requirement-closure.parts/part-001.b64",".audit/entregar-issue/requirement-closure.parts/part-002.b64",".audit/entregar-issue/requirement-closure.parts/part-003.b64",".audit/entregar-issue/requirement-closure.parts/part-004.b64",".audit/entregar-issue/requirement-closure.parts/part-005.b64",".audit/entregar-issue/risk-saturation.json",".audit/entregar-issue/risk-saturation.parts/part-000.b64",".audit/entregar-issue/specification-snapshot.json"]},"contract_version":"2026-08-20.3","producer":{"skill":"entregar-issue","skill_sha256":"be1062f6e8c76ca22f8e410b283c431ee31b58332948e3c7e5d7c4a86c95d187"},"validators":{"validate_specification_coverage.py":"01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b","validate_handoff_readiness.py":"28a675483775a7f6597192c1aeb1ab648845c87453d61065213c46ab9fd9a44e","validate_requirement_attack_matrix.py":"4a1e1e4494c54405bbd12d91e84ff60719449905acf9e3dbd0f49e32349aecd5","validate_evidence_freshness.py":"e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04","validate_risk_saturation.py":"5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac","validate_inherited_controls.py":"183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146","validate_learning_closure.py":"d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc","validate_independent_rejection_closure.py":"61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4"},"artifact_transport":{"version":1,"supported_formats":["plain-json","base64-shards-v1"]},"artifacts":{"specification_snapshot":{"name":"specification-snapshot.json","sha256":"9fa306bd8793a7db429946c93e2fd98650155c7b5beb552b3463754fba916418","logical_sha256":"9fa306bd8793a7db429946c93e2fd98650155c7b5beb552b3463754fba916418","logical_size":614,"artifact_transport":{"format":"plain-json","version":1}},"requirement_closure":{"name":"requirement-closure.json","sha256":"7ca275242f3ed80d0b25b8b37b0246512a04f4299add398b8a18439433424b29","logical_sha256":"146a58d568ef4edb0a34e68f7190da49c6c4ac3f3b4b8c234d49163bf8306032","logical_size":36840,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":11880,"decoded_size":36840,"decoded_sha256":"146a58d568ef4edb0a34e68f7190da49c6c4ac3f3b4b8c234d49163bf8306032","encoded_sha256":"6ae8bba1d1ee61985d822a4295bf76bb53500361c8560e181a910f3bb627dd0f","parts":[{"path":"requirement-closure.parts/part-000.b64","size":2048,"sha256":"236fa640c54a15a6f3d441d609370240270a9ba15243295a91b356c6155d5120"},{"path":"requirement-closure.parts/part-001.b64","size":2048,"sha256":"43e4348bcdfca3f08f94296c52148964c6a9b5a67ada6654b7def1fa1b68f204"},{"path":"requirement-closure.parts/part-002.b64","size":2048,"sha256":"7d05827040e402990500c6ead144f2fae825184ef968da4cf5d8e2e26f116c38"},{"path":"requirement-closure.parts/part-003.b64","size":2048,"sha256":"9d9ab5634fce4ed720d53a9c254c4154c1cb0efe83aa315ef83c580bfa47eb9b"},{"path":"requirement-closure.parts/part-004.b64","size":2048,"sha256":"b7badd93f46a13ea2266dfffa19dc3df823f15bd98ad56a1f883c9571ab19218"},{"path":"requirement-closure.parts/part-005.b64","size":1640,"sha256":"7cc7dfb8cbeff670674f2d92ff81a1d9c2e54715f32f28556577dbf88970b13b"}]}},"requirement_attack_matrix":{"name":"requirement-attack-matrix.json","sha256":"edb45fb859afd7e8476b173032b0adea381f1521477d363085f74ff561fe8cee","logical_sha256":"883544cd64f5b57c9779386ca07127d4f6acb5ddeb6fef5e9a6018b6e3e31a7b","logical_size":166822,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":11324,"decoded_size":166822,"decoded_sha256":"883544cd64f5b57c9779386ca07127d4f6acb5ddeb6fef5e9a6018b6e3e31a7b","encoded_sha256":"3b01eb40e4a298e657381af63c72897c6e6dad16ad36a610d104391ab58f6f0b","parts":[{"path":"requirement-attack-matrix.parts/part-000.b64","size":2048,"sha256":"ce91088ec3d71fb9cfebc5ac0023796f88df15ce7f1a49cb4be2d95ec4cbddc2"},{"path":"requirement-attack-matrix.parts/part-001.b64","size":2048,"sha256":"d9476f3c992db50204068f725029569665c623999974db2fc07ced797bd12668"},{"path":"requirement-attack-matrix.parts/part-002.b64","size":2048,"sha256":"091de502ad060d1cde6585c73495b9655103eb90a83ea106fd745a19ef446faf"},{"path":"requirement-attack-matrix.parts/part-003.b64","size":2048,"sha256":"a7bc9330083b781a78cac1add2fa12cf5f30790ebbfd75f2e360de662409294c"},{"path":"requirement-attack-matrix.parts/part-004.b64","size":2048,"sha256":"a65eba44074d6417b73e070835eacbfc5e7d4746d3b5aca31036fe1b9d2bb0d9"},{"path":"requirement-attack-matrix.parts/part-005.b64","size":1084,"sha256":"4ec5c972508436b1af7d14993fbc70afed56f8da97bb865e8d59f9446be52c21"}]}},"risk_saturation":{"name":"risk-saturation.json","sha256":"c44a23d3a06af52884f9e8c7a614c30d8dd1d5401c7b4c0fc38c76b904f477d4","logical_sha256":"5c7e37765d6e7c5c698f36fd5d1611dfdb9b42385fad6b34b291a0866336c46a","logical_size":10368,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":1880,"decoded_size":10368,"decoded_sha256":"5c7e37765d6e7c5c698f36fd5d1611dfdb9b42385fad6b34b291a0866336c46a","encoded_sha256":"88b0682ec4ad56f3e7d207d304eb4fb814bfaa1b5cb99ab2270bac79fd401875","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1880,"sha256":"88b0682ec4ad56f3e7d207d304eb4fb814bfaa1b5cb99ab2270bac79fd401875"}]}},"inherited_controls":{"name":"inherited-controls.json","sha256":"8fdebdb28e568f9de5ce4302c460ff2eba709e537af46acf326165591c6f332c","logical_sha256":"8fdebdb28e568f9de5ce4302c460ff2eba709e537af46acf326165591c6f332c","logical_size":12786,"artifact_transport":{"format":"plain-json","version":1}},"evidence_provenance":{"name":"evidence-provenance.json","sha256":"de4c8cde10d63ed968d2354c9dbd86229dc73779e488d1896e2fde95713ad1b2","logical_sha256":"de4c8cde10d63ed968d2354c9dbd86229dc73779e488d1896e2fde95713ad1b2","logical_size":1052,"artifact_transport":{"format":"plain-json","version":1}},"audit_escape_closure":{"name":"audit-escape-closure.json","sha256":"23f415f3395a39f3115482957ebd568e01d843a9c40bf70b9e28f9c49b7b173f","logical_sha256":"23f415f3395a39f3115482957ebd568e01d843a9c40bf70b9e28f9c49b7b173f","logical_size":11208,"artifact_transport":{"format":"plain-json","version":1}},"learning_closure":{"name":"learning-closure.json","sha256":"5779cb6afe04b31e758d5557de75f934af2965027ac19ff302c620332d92405e","logical_sha256":"5779cb6afe04b31e758d5557de75f934af2965027ac19ff302c620332d92405e","logical_size":662,"artifact_transport":{"format":"plain-json","version":1}},"audit_remediation":{"name":"audit-remediation.json","sha256":"7343ae0351e3eb7d9625b9ae325ea827796630e9b01ec3ad076d87b7746aa400","logical_sha256":"7343ae0351e3eb7d9625b9ae325ea827796630e9b01ec3ad076d87b7746aa400","logical_size":859,"artifact_transport":{"format":"plain-json","version":1}},"audit_source_result":{"name":"audit-source-result.json","sha256":"ce0b3ee86935195324512cbb962c77b64458e3069de2fd4fb818b3d45e9dd246","logical_sha256":"ce0b3ee86935195324512cbb962c77b64458e3069de2fd4fb818b3d45e9dd246","logical_size":574,"artifact_transport":{"format":"plain-json","version":1}}},"previous_independent_rejection":true}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-08-23T22:32:25.590098+00:00",
+  "identity": {
+    "head_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+    "material_head_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+    "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+    "merge_preview_sha": null,
+    "material_merge_preview_sha": null
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 895,
+    "pull_request_number": 996,
+    "work_item_kind": "pr",
+    "work_item_number": 996,
+    "pull_request": 996,
+    "base_ref": "develop",
+    "head_ref": "feat/895-billing-web"
+  },
+  "scope": null,
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/evidence-provenance.json",
+      ".audit/entregar-issue/evidence/billing-contract-quantitative.json",
+      ".audit/entregar-issue/evidence/critical-controls.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls-895.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-003.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-004.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-005.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-006.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-007.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-008.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-009.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-010.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-011.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-012.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-013.b64",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-002.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-003.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-004.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-005.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-006.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-007.b64",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/risk-saturation.parts/part-000.b64",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-COMMENT-5065480671.txt",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-895.txt"
+    ]
+  },
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "critical",
+  "remediation_mode": null,
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "a6759db3e34e2adf42ebde084f4d35d790a36ee1e3b9ca0f24a84a8899720921"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
+    "validate_handoff_readiness.py": "f0461d2b5201823011e85063f170fc6d09dd9067e2e0f145a543def3cc493abc",
+    "validate_standard_evidence.py": "87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588",
+    "validate_requirement_attack_matrix.py": "96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99",
+    "validate_evidence_freshness.py": "e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04",
+    "validate_risk_saturation.py": "5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac",
+    "validate_inherited_controls.py": "183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146",
+    "validate_learning_closure.py": "d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc",
+    "validate_independent_rejection_closure.py": "61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4"
+  },
+  "artifact_transport": {
+    "version": 1,
+    "supported_formats": [
+      "plain-json",
+      "base64-shards-v1"
+    ]
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "b9fe33b501cf77634665b8511ffa06a460a6d9ec46d99fff2917ae0e5d5bd0bb",
+      "logical_sha256": "b9fe33b501cf77634665b8511ffa06a460a6d9ec46d99fff2917ae0e5d5bd0bb",
+      "logical_size": 984,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "1e65b723d577c7d8cd318a0e89df66eb7ee213e3e5faed0b18e46e4167d94343",
+      "logical_sha256": "d4faddc2f59d77cdb84c9eb91548190447ef916d36ee16eee6810a148dfe1b94",
+      "logical_size": 78558,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 15692,
+        "decoded_size": 78558,
+        "decoded_sha256": "d4faddc2f59d77cdb84c9eb91548190447ef916d36ee16eee6810a148dfe1b94",
+        "encoded_sha256": "2ec8b9a89f623778b00a7f55572a02665630d0a89cef18fb336d784d36f7a4f0",
+        "parts": [
+          {"path": "requirement-closure.parts/part-000.b64", "size": 2048, "sha256": "c7ac7e43464aa123f547fc5a89aeef81f071e0829c6972984ccf8955a3a76869"},
+          {"path": "requirement-closure.parts/part-001.b64", "size": 2048, "sha256": "924accadc05cf0883298b024eb400352ee52afb578848b27085ec4f65aeb71fd"},
+          {"path": "requirement-closure.parts/part-002.b64", "size": 2048, "sha256": "e78d043903320a8bf28d4e68acdf1c3e9255f17598b109b849d92e8388cbd926"},
+          {"path": "requirement-closure.parts/part-003.b64", "size": 2048, "sha256": "c22028c8b8e6360b8e38904928cf2bb0bc34ff0d5edb1e52e57b64652a66c56a"},
+          {"path": "requirement-closure.parts/part-004.b64", "size": 2048, "sha256": "411cd2c08ef6ab557002bd0a28857a65498e1c3618d2bb280764b8cb7cfa3976"},
+          {"path": "requirement-closure.parts/part-005.b64", "size": 2048, "sha256": "f121f410261b368fcdc4276f9b279b74a36277eebf9385fd932d2bd8c30cdff5"},
+          {"path": "requirement-closure.parts/part-006.b64", "size": 2048, "sha256": "6fa41ecdf353ed966be15488e5313f8235d78316d71cc19ff21ce09b930585b9"},
+          {"path": "requirement-closure.parts/part-007.b64", "size": 1356, "sha256": "3e3dca78660e3a7f80e09c945a4241980a18def27e9385a60b2f69e341460173"}
+        ]
+      }
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "ccfdfe683f26dc91f03c2cfe97727adcb4e241c9c74a40e587f5ccf5443d2e07",
+      "logical_sha256": "09801091cb9ee8c620e247826af8ee257572e42cfe8e4be33ba6af6519731ce7",
+      "logical_size": 534409,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 27212,
+        "decoded_size": 534409,
+        "decoded_sha256": "09801091cb9ee8c620e247826af8ee257572e42cfe8e4be33ba6af6519731ce7",
+        "encoded_sha256": "f5a4dc78b9160b49805f7590c76207044d79415f6eaadccc8ab5d894c8a88a87",
+        "parts": [
+          {"path": "requirement-attack-matrix.parts/part-000.b64", "size": 2048, "sha256": "0904740bfe1bb11c5daf1f34e2ccba23e52e29cf4e6fdfdc4200439d5f2e6e3a"},
+          {"path": "requirement-attack-matrix.parts/part-001.b64", "size": 2048, "sha256": "f8e7c8f9420bbfc44b42ed572f72f7bb480415845779ddcc973a4ac2e81bff30"},
+          {"path": "requirement-attack-matrix.parts/part-002.b64", "size": 2048, "sha256": "1b5612387824fb2b747e23a0cf71ee08f01cea3d952064800c5fc90962076f23"},
+          {"path": "requirement-attack-matrix.parts/part-003.b64", "size": 2048, "sha256": "45c5ea345ea1b1a35cf63407e5bfe78501558f728e7125db28724745cb03daab"},
+          {"path": "requirement-attack-matrix.parts/part-004.b64", "size": 2048, "sha256": "d92a9d7ff8ef181d3ab8e1d67045da38322c0c407d7bdae493f931e1f260dc42"},
+          {"path": "requirement-attack-matrix.parts/part-005.b64", "size": 2048, "sha256": "8f25558dc7b5aeb85c5f3cd622cb3c71f3194995723882fcf047bb108e086e54"},
+          {"path": "requirement-attack-matrix.parts/part-006.b64", "size": 2048, "sha256": "d75081954547227b67f994b3c5513868656d772690babaf12503eb4af40fb52d"},
+          {"path": "requirement-attack-matrix.parts/part-007.b64", "size": 2048, "sha256": "fa0ae6dad8d773bb14927a238a41bf30296b239349be571ccd1bacfbd961a8fa"},
+          {"path": "requirement-attack-matrix.parts/part-008.b64", "size": 2048, "sha256": "4f23d4b66e0b63958861d180a693e3aaab60047e4f5838a6b3e3b02c6cc48509"},
+          {"path": "requirement-attack-matrix.parts/part-009.b64", "size": 2048, "sha256": "f0f804895d82f31aebe010eb4045a38373dd0983b3372c1f5e92b1cd06228f04"},
+          {"path": "requirement-attack-matrix.parts/part-010.b64", "size": 2048, "sha256": "24bcdb32e3c1cca64a4a9cfa2bc3840882c26a5b8f34e067902897cd0ad67bca"},
+          {"path": "requirement-attack-matrix.parts/part-011.b64", "size": 2048, "sha256": "49829a9fe030c0c6e09b74ab57a2c42e57e99d89c6ca032b18d75b010c848f3e"},
+          {"path": "requirement-attack-matrix.parts/part-012.b64", "size": 2048, "sha256": "0e8aeffe67294918776b922394f0632c66e23853342c9eef1127b4f982ccb1d1"},
+          {"path": "requirement-attack-matrix.parts/part-013.b64", "size": 588, "sha256": "d7e5b235d20d84d2c465facd6347235dbefafb890a6f6d525a989757b6f293ed"}
+        ]
+      }
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "21f573ce721104d4871a37c993651ece072d247caf0746f506717633c8e340b2",
+      "logical_sha256": "750cda157343c6c0ffc63d71e361062e4e6932023b2189672652d563b40c3030",
+      "logical_size": 9972,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 2044,
+        "decoded_size": 9972,
+        "decoded_sha256": "750cda157343c6c0ffc63d71e361062e4e6932023b2189672652d563b40c3030",
+        "encoded_sha256": "07720e6bf839c0da18253cbafa6040496591ec237074b1ecc25dfb1a802f4fa9",
+        "parts": [{"path": "risk-saturation.parts/part-000.b64", "size": 2044, "sha256": "07720e6bf839c0da18253cbafa6040496591ec237074b1ecc25dfb1a802f4fa9"}]
+      }
+    },
+    "inherited_controls": {
+      "name": "inherited-controls-895.json",
+      "sha256": "50b86d69fa5c63a9e47bd68eeb32d5f818606c773f5fdf2845914e24874eb3a3",
+      "logical_sha256": "50b86d69fa5c63a9e47bd68eeb32d5f818606c773f5fdf2845914e24874eb3a3",
+      "logical_size": 180,
+      "artifact_transport": {"format": "plain-json", "version": 1}
+    },
+    "evidence_provenance": {
+      "name": "evidence-provenance.json",
+      "sha256": "b7f8197cf565c99d7dbdda18982b8d9e0bcce51fbdf0605f72d1a2368b1f704c",
+      "logical_sha256": "b7f8197cf565c99d7dbdda18982b8d9e0bcce51fbdf0605f72d1a2368b1f704c",
+      "logical_size": 1076,
+      "artifact_transport": {"format": "plain-json", "version": 1}
+    }
+  },
+  "previous_independent_rejection": false
+}

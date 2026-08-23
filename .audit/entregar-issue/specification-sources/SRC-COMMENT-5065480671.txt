@@ -1,0 +1,25 @@
+## Complemento vinculante — central de notificações em Plano e acesso
+
+A área autenticada `/billing` deve ser a fonte principal e permanente das comunicações comerciais e financeiras do usuário, conforme #145.
+
+### Requisitos
+
+- Exibir notificações por campanha, versão, data, situação e ação esperada.
+- Permitir visualizar histórico de mensagens relevantes mesmo após falha de e-mail ou WhatsApp.
+- Marcar como lida sem marcar automaticamente a ação comercial como concluída.
+- Ocultar ou encerrar avisos obsoletos quando o backend confirmar que a situação foi resolvida.
+- Exibir falha de canal externo somente quando útil ao usuário, sem detalhes técnicos.
+- Usar links e ações autenticadas; não depender de parâmetros sensíveis vindos de e-mail ou WhatsApp.
+- Paciente coberto não visualiza comunicações financeiras, inadimplência, método ou capacidade do patrocinador.
+
+### Conteúdo mínimo
+
+Cada notificação deve explicar o que ocorreu, data efetiva, ação esperada, consequência de não agir e canal de suporte, sem IDs ou enums internos.
+
+### Critérios adicionais
+
+- [ ] A notificação interna existe antes das tentativas externas.
+- [ ] Falha externa não remove o aviso da área autenticada.
+- [ ] Ação concluída atualiza ou encerra o aviso de forma autoritativa.
+- [ ] Leitura, entrega e conclusão são estados distintos.
+- [ ] Acessibilidade e responsividade cobrem a central e os detalhes da notificação.
