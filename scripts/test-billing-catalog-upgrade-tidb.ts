@@ -85,7 +85,7 @@ async function main() {
         id, provider, payerUserId, planId, status, activeHolderPlanKey,
         currentPeriodStart, currentPeriodEnd, createdAt, updatedAt
       ) VALUES (?, 'integration-test', 9901, ?, 'active', ?,
-        '2026-07-24 12:00:00', '2026-08-24 12:00:00',
+        DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY),
         '2026-07-24 12:00:00', '2026-07-24 12:00:00')`,
       [
         "legacy-subscription-preserve",
