@@ -1,0 +1,155 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "/mnt/data/pr998-work/r4/specification-snapshot-aud998-r4.json",
+    "sha256": "53b7138f1f4291c9005f7ca1e3a210a1881159a8e952eb22abca6e46c881d373"
+  },
+  "primary_issue_source_id": "SRC-AUDIT-998-R4",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "aa81256665145c8f6bd11880399e368c4ca6a4e7827c8c91b1888214bf72dc52",
+      "source_id": "SRC-AUDIT-998-R4",
+      "source_sha256": "e33d3b8f12c832036661346c91c4cdd813e6522eb588194148c1ac79943489c9",
+      "source_line": 4,
+      "source_text": "A recuperacao deve respeitar o piso `post-write-refreeze` e `requires_refreeze=true`: o head material corrente deve ser refrozen depois dos gates afetados, sem reancorar evidencia ou certificado do SHA ancestral.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-R4-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto por revalidacao exact-head, fechamento cumulativo da rejeicao e protocolo terminal de refreeze desta rodada."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "d1d776f1d19f84381d4aa74c07fae0ec50b558ad1e39b894ca3c96f025928c77",
+      "source_id": "SRC-AUDIT-998-R4",
+      "source_sha256": "e33d3b8f12c832036661346c91c4cdd813e6522eb588194148c1ac79943489c9",
+      "source_line": 5,
+      "source_text": "Os controles funcionais e herdados aplicaveis devem ser revalidados no material head corrente; rejeicoes, escapes, source_audits e controles anteriores devem permanecer cumulativos e nenhum controle ativo pode ser fechado apenas por CI verde ou ausencia de diff.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "reference-liveness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-R4-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto por revalidacao exact-head, fechamento cumulativo da rejeicao e protocolo terminal de refreeze desta rodada."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "55db72a5aa297ec84c4259a580d1ebe6b4496ae6baeb10646440e79b75f833b9",
+      "source_id": "SRC-AUDIT-998-R4",
+      "source_sha256": "e33d3b8f12c832036661346c91c4cdd813e6522eb588194148c1ac79943489c9",
+      "source_line": 6,
+      "source_text": "A rejeicao `audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c` e o finding `DELIVERY-998-001` devem ser fechados explicitamente por `audit-source-result`, `audit-remediation`, `learning-closure` e `audit-escape-closure`, preservando a classificacao targeted/implementation-only sem inventar mudanca global de Skill.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-R4-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto por revalidacao exact-head, fechamento cumulativo da rejeicao e protocolo terminal de refreeze desta rodada."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "b1c69dab7b004b0f12d8e34634afc81e3a9025fb668a9dde17c50142d1e6b2c8",
+      "source_id": "SRC-AUDIT-998-R4",
+      "source_sha256": "e33d3b8f12c832036661346c91c4cdd813e6522eb588194148c1ac79943489c9",
+      "source_line": 7,
+      "source_text": "O novo handoff deve certificar issue 997 e PR 998 sobre `develop`/`feat/997-whatsapp-household-portions`, ser publicado como filho direto `result-only-child` do novo material head sem paths de produto e, apos nova leitura remota, o terminal guard deve confirmar o mesmo head publicado.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-R4-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto por revalidacao exact-head, fechamento cumulativo da rejeicao e protocolo terminal de refreeze desta rodada."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-AUDIT-998-R4",
+      "source_sha256": "e33d3b8f12c832036661346c91c4cdd813e6522eb588194148c1ac79943489c9",
+      "candidate_count": 4,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "No structural, canonical-path, precedence, dependency-independence, or forbidden-implementation obligation was detected.",
+    "entries": [],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "A remediacao nao altera read models do produto."
+  },
+  "canonical_source_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "A remediacao trata identidade de entrega e evidencia, sem alterar fonte canonica de dados do produto."
+  },
+  "documentation_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "A remediacao nao altera contrato documental do produto."
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-R4-001",
+      "REQ-R4-002",
+      "REQ-R4-003",
+      "REQ-R4-004"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004"
+    ],
+    "evidence": [
+      "evidence/exact-head-ci-r4.txt",
+      "evidence/product-controls-r4.txt",
+      "evidence/clarification-reprompt-r4.txt",
+      "evidence/handoff-recovery-r4.txt",
+      "evidence/audit-lineage-r4.txt"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}
