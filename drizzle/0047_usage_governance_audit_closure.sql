@@ -1,9 +1,19 @@
 ALTER TABLE `billingEconomicFacts`
-  ADD COLUMN `supersedesFactId` varchar(64) NULL AFTER `idempotencyKey`,
-  ADD COLUMN `supersededByFactId` varchar(64) NULL AFTER `supersedesFactId`,
-  ADD COLUMN `supersededAt` timestamp NULL AFTER `supersededByFactId`,
-  ADD COLUMN `payloadFingerprint` varchar(64) NULL AFTER `supersededAt`,
-  ADD UNIQUE KEY `billingEconomicFacts_supersedes_uq` (`supersedesFactId`),
+  ADD COLUMN `supersedesFactId` varchar(64) NULL AFTER `idempotencyKey`;
+--> statement-breakpoint
+ALTER TABLE `billingEconomicFacts`
+  ADD COLUMN `supersededByFactId` varchar(64) NULL AFTER `supersedesFactId`;
+--> statement-breakpoint
+ALTER TABLE `billingEconomicFacts`
+  ADD COLUMN `supersededAt` timestamp NULL AFTER `supersededByFactId`;
+--> statement-breakpoint
+ALTER TABLE `billingEconomicFacts`
+  ADD COLUMN `payloadFingerprint` varchar(64) NULL AFTER `supersededAt`;
+--> statement-breakpoint
+ALTER TABLE `billingEconomicFacts`
+  ADD UNIQUE KEY `billingEconomicFacts_supersedes_uq` (`supersedesFactId`);
+--> statement-breakpoint
+ALTER TABLE `billingEconomicFacts`
   ADD KEY `billingEconomicFacts_active_competence_idx` (`supersededAt`, `competenceStart`, `competenceEnd`);
 --> statement-breakpoint
 
@@ -45,8 +55,12 @@ END;
 --> statement-breakpoint
 
 ALTER TABLE `billingUsageLimitations`
-  MODIFY COLUMN `lifecycleKind` varchar(24) NOT NULL,
-  ADD UNIQUE KEY `billingUsageLimitations_case_lifecycle_uq` (`abuseCaseId`, `lifecycleKind`),
+  MODIFY COLUMN `lifecycleKind` varchar(24) NOT NULL;
+--> statement-breakpoint
+ALTER TABLE `billingUsageLimitations`
+  ADD UNIQUE KEY `billingUsageLimitations_case_lifecycle_uq` (`abuseCaseId`, `lifecycleKind`);
+--> statement-breakpoint
+ALTER TABLE `billingUsageLimitations`
   ADD CONSTRAINT `billingUsageLimitations_lifecycle_kind_chk` CHECK (`lifecycleKind` IN ('initial','extension','emergency'));
 --> statement-breakpoint
 

@@ -7,7 +7,8 @@ describe("usage governance canonical Drizzle installation", () => {
   it("keeps multi-statement governance migrations split for TiDB", () => {
     const expectedStatementCounts = {
       "drizzle/0043_billing_usage_economics_governance.sql": 11,
-      "drizzle/0047_usage_governance_audit_closure.sql": 11,
+      "drizzle/0046_billing_usage_provider_dispatch_state.sql": 2,
+      "drizzle/0047_usage_governance_audit_closure.sql": 18,
     };
 
     for (const [migrationPath, expectedStatementCount] of Object.entries(expectedStatementCounts)) {
@@ -20,6 +21,7 @@ describe("usage governance canonical Drizzle installation", () => {
       for (const statement of statements) {
         expect(statement, migrationPath).toMatch(/;$/);
         expect(statement.match(/;/g), migrationPath).toHaveLength(1);
+        expect(statement, migrationPath).not.toMatch(/ADD COLUMN[\s\S]+ADD (?:UNIQUE )?KEY/);
       }
     }
   });
