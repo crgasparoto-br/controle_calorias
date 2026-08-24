@@ -5,6 +5,7 @@ export type MixedIncrementTarget = {
   mealLabel: string;
   itemIndex: number;
   itemName: string;
+  itemFingerprint?: string;
 };
 
 export type MixedMealItemIncrementOperation = {

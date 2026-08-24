@@ -1,5 +1,6 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { createHash } from "node:crypto";
 import { convertFoodPortionToGrams, getGlobalFoodCatalogItem } from "../foods/service";
 import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
@@ -44,6 +45,35 @@ function toMutableMeals(meals: MealRecord[]): MutableMeal[] {
   return meals.map(meal => ({ ...meal, items: [...(meal.items ?? [])] as MealItemInput[] }));
 }
 
+function itemFingerprint(item: MealItemInput) {
+  const nutritionSource = item.nutritionSource;
+  const payload = [
+    item.foodId ?? null,
+    item.foodCatalogId ?? null,
+    item.portionId ?? null,
+    item.portionQuantity ?? null,
+    normalize(item.foodName),
+    normalize(item.canonicalName),
+    normalize(item.brand ?? ""),
+    normalize(item.portionText),
+    item.quantity ?? null,
+    normalize(item.unit ?? ""),
+    item.servings,
+    item.estimatedGrams,
+    item.calories,
+    item.protein,
+    item.carbs,
+    item.fat,
+    item.source,
+    nutritionSource?.type ?? null,
+    nutritionSource?.origin ?? null,
+    nutritionSource?.sourceVersion ?? null,
+    nutritionSource?.foodCode ?? null,
+    nutritionSource?.matchedBy ?? null,
+  ];
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
 function toTarget(meal: MutableMeal, itemIndex: number): MixedIncrementTarget {
   const item = meal.items[itemIndex];
   return {
@@ -51,11 +81,12 @@ function toTarget(meal: MutableMeal, itemIndex: number): MixedIncrementTarget {
     mealLabel: meal.mealLabel,
     itemIndex,
     itemName: item.foodName,
+    itemFingerprint: itemFingerprint(item),
   };
 }
 
 function sameCandidate(item: MealItemInput, target: MixedIncrementTarget) {
-  return normalize(item.foodName) === normalize(target.itemName);
+  return itemFingerprint(item) === target.itemFingerprint;
 }
 
 function normalizeCountableUnit(value: string) {
@@ -106,16 +137,14 @@ function selectionCandidate(input: { meal: MutableMeal; index: number }) {
     mealLabel: input.meal.mealLabel,
     itemIndex: input.index,
     itemName: item.foodName,
+    itemFingerprint: itemFingerprint(item),
   };
 }
 
 function targetStillValid(meals: MutableMeal[], target: MixedIncrementTarget) {
+  if (!target.itemFingerprint) return null;
   const meal = meals.find(candidate => candidate.id === target.mealId);
   if (!meal?.items?.length) return null;
-  const indexed = meal.items[target.itemIndex];
-  if (indexed && sameCandidate(indexed, target)) {
-    return { meal, index: target.itemIndex, item: indexed };
-  }
   const matches = meal.items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => sameCandidate(item, target));
@@ -183,6 +212,12 @@ async function applyReadyPlan(
   const actionLines = new Map<number, string[]>();
   const changed = new Set<number>();
 
+  const resolvedOperations: Array<{
+    operation: MixedMealItemIncrementOperation;
+    mealId: number;
+    itemIndex: number;
+  }> = [];
+
   for (const operation of plan.operations) {
     if (!operation.target || !operation.gramsDelta || operation.gramsDelta <= 0) {
       return {
@@ -199,15 +234,27 @@ async function applyReadyPlan(
     const resolved = targetStillValid(currentMeals, operation.target);
     if (!resolved) return stalePlanResult();
 
-    const previousGrams = Number(resolved.item.estimatedGrams || 0);
-    const nextItem = applyOperationToItem(resolved.item, operation);
-    resolved.meal.items = resolved.meal.items.map((item, index) =>
-      index === resolved.index ? nextItem : item,
+    resolvedOperations.push({
+      operation,
+      mealId: resolved.meal.id,
+      itemIndex: resolved.index,
+    });
+  }
+
+  for (const { operation, mealId, itemIndex } of resolvedOperations) {
+    const meal = currentMeals.find(candidate => candidate.id === mealId);
+    const item = meal?.items?.[itemIndex];
+    if (!meal || !item) return stalePlanResult();
+
+    const previousGrams = Number(item.estimatedGrams || 0);
+    const nextItem = applyOperationToItem(item, operation);
+    meal.items = meal.items.map((existingItem, index) =>
+      index === itemIndex ? nextItem : existingItem,
     );
-    changed.add(resolved.meal.id);
-    actionLines.set(resolved.meal.id, [
-      ...(actionLines.get(resolved.meal.id) ?? []),
-      `• ${resolved.item.foodName}: de ${previousGrams} g para ${nextItem.estimatedGrams} g`,
+    changed.add(meal.id);
+    actionLines.set(meal.id, [
+      ...(actionLines.get(meal.id) ?? []),
+      `• ${item.foodName}: de ${previousGrams} g para ${nextItem.estimatedGrams} g`,
     ]);
   }
 
