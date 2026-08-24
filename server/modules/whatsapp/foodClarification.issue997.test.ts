@@ -141,7 +141,7 @@ describe("issue #997 persistent mixed increment clarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(result?.action).toBe("food_clarification_requested");
+    expect(result?.action).toBe("food_clarification_reprompted");
     expect(claimPendingOperation).not.toHaveBeenCalled();
     expect(mocks.continuePlan).not.toHaveBeenCalled();
   });
