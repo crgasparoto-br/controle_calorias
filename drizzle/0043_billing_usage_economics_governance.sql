@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageEvents` (
   KEY `billingUsageEvents_operation_occurred_idx` (`operation`, `occurredAt`),
   KEY `billingUsageEvents_competence_idx` (`competenceDate`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageDailyAggregates` (
   `aggregateKey` varchar(191) NOT NULL,
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageDailyAggregates` (
   KEY `billingUsageDailyAggregates_payer_date_idx` (`payerUserId`, `usageDate`),
   KEY `billingUsageDailyAggregates_version_date_idx` (`versionCode`, `usageDate`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingEconomicFacts` (
   `id` varchar(64) NOT NULL,
@@ -101,6 +103,7 @@ CREATE TABLE IF NOT EXISTS `billingEconomicFacts` (
   KEY `billingEconomicFacts_payer_competence_idx` (`payerUserId`, `competenceStart`),
   KEY `billingEconomicFacts_type_competence_idx` (`factType`, `competenceStart`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingEconomicMonthlyAggregates` (
   `aggregateKey` varchar(191) NOT NULL,
@@ -132,6 +135,7 @@ CREATE TABLE IF NOT EXISTS `billingEconomicMonthlyAggregates` (
   KEY `billingEconomicMonthlyAggregates_month_idx` (`competenceMonth`),
   KEY `billingEconomicMonthlyAggregates_version_month_idx` (`versionCode`, `competenceMonth`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsagePolicies` (
   `id` varchar(64) NOT NULL,
@@ -153,6 +157,7 @@ CREATE TABLE IF NOT EXISTS `billingUsagePolicies` (
   UNIQUE KEY `billingUsagePolicies_active_scope_uq` (`activeScopeKey`),
   KEY `billingUsagePolicies_scope_idx` (`scopeType`, `scopeId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageAllowanceGrants` (
   `id` varchar(64) NOT NULL,
@@ -171,6 +176,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageAllowanceGrants` (
   PRIMARY KEY (`id`),
   KEY `billingUsageAllowanceGrants_subject_state_idx` (`subjectType`, `subjectId`, `state`, `endsAt`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageAbuseCases` (
   `id` varchar(64) NOT NULL,
@@ -194,6 +200,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageAbuseCases` (
   PRIMARY KEY (`id`),
   KEY `billingUsageAbuseCases_subject_state_idx` (`subjectUserId`, `state`, `createdAt`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageLimitations` (
   `id` varchar(64) NOT NULL,
@@ -217,6 +224,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageLimitations` (
   KEY `billingUsageLimitations_subject_state_idx` (`subjectUserId`, `state`, `endsAt`),
   KEY `billingUsageLimitations_case_idx` (`abuseCaseId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingConsumptionChargeAuthorizations` (
   `id` varchar(64) NOT NULL,
@@ -236,6 +244,7 @@ CREATE TABLE IF NOT EXISTS `billingConsumptionChargeAuthorizations` (
   PRIMARY KEY (`id`),
   KEY `billingConsumptionChargeAuthorizations_state_effective_idx` (`state`, `effectiveFrom`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageLegalHolds` (
   `id` varchar(64) NOT NULL,
@@ -253,6 +262,7 @@ CREATE TABLE IF NOT EXISTS `billingUsageLegalHolds` (
   UNIQUE KEY `billingUsageLegalHolds_active_scope_uq` (`activeScopeKey`),
   KEY `billingUsageLegalHolds_scope_idx` (`scopeType`, `scopeId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageRetentionAudit` (
   `id` varchar(64) NOT NULL,

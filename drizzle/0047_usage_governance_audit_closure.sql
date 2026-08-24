@@ -5,21 +5,29 @@ ALTER TABLE `billingEconomicFacts`
   ADD COLUMN `payloadFingerprint` varchar(64) NULL AFTER `supersededAt`,
   ADD UNIQUE KEY `billingEconomicFacts_supersedes_uq` (`supersedesFactId`),
   ADD KEY `billingEconomicFacts_active_competence_idx` (`supersededAt`, `competenceStart`, `competenceEnd`);
+--> statement-breakpoint
 
 ALTER TABLE `billingUsageEvents`
   ADD COLUMN `payloadFingerprint` varchar(64) NULL AFTER `idempotencyKey`;
+--> statement-breakpoint
 
 UPDATE billingEconomicFacts SET payloadFingerprint=SHA2(CONCAT('legacy:',id),256) WHERE payloadFingerprint IS NULL;
+--> statement-breakpoint
 UPDATE billingUsageEvents SET payloadFingerprint=SHA2(CONCAT('legacy:',id),256) WHERE payloadFingerprint IS NULL;
+--> statement-breakpoint
 ALTER TABLE billingEconomicFacts MODIFY COLUMN `payloadFingerprint` varchar(64) NOT NULL;
+--> statement-breakpoint
 ALTER TABLE billingUsageEvents MODIFY COLUMN `payloadFingerprint` varchar(64) NOT NULL;
+--> statement-breakpoint
 
 ALTER TABLE `billingUsageDailyAggregates`
   ADD COLUMN `patientUserId` int NULL AFTER `beneficiaryUserId`,
   ADD COLUMN `recognizedCostMicros` bigint NOT NULL DEFAULT 0 AFTER `effectiveCostMicros`;
+--> statement-breakpoint
 
 ALTER TABLE `billingUsageLimitations`
   ADD COLUMN `lifecycleKind` varchar(24) NULL AFTER `emergencySecurity`;
+--> statement-breakpoint
 
 UPDATE billingUsageLimitations limitation
 JOIN (
@@ -34,11 +42,13 @@ SET limitation.lifecycleKind=CASE
   WHEN ranked.lifecycleOrdinal=2 THEN 'extension'
   ELSE NULL
 END;
+--> statement-breakpoint
 
 ALTER TABLE `billingUsageLimitations`
   MODIFY COLUMN `lifecycleKind` varchar(24) NOT NULL,
   ADD UNIQUE KEY `billingUsageLimitations_case_lifecycle_uq` (`abuseCaseId`, `lifecycleKind`),
   ADD CONSTRAINT `billingUsageLimitations_lifecycle_kind_chk` CHECK (`lifecycleKind` IN ('initial','extension','emergency'));
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `billingUsageLimitationAppeals` (
   `id` varchar(64) NOT NULL,
