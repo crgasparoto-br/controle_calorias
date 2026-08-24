@@ -132,6 +132,67 @@ describe("billing web checkout cross-tab idempotency", () => {
     }
   });
 
+  it("reuses the same replacement key when an expired card trial is retried before callback", async () => {
+    mocks.getUserSubscriptionStatus.mockResolvedValue({
+      access: {
+        allowed: false,
+        reason: "no_access",
+        entitlements: [],
+        sourceAvailable: true,
+        evaluatedAt: new Date(),
+      },
+      subscription: {
+        id: "subscription-expired-1",
+        status: "expired",
+      },
+      professionalSubscription: null,
+    });
+    mocks.claimAttempt.mockResolvedValue({
+      status: "claimed",
+      contractKey: "web_replacement_canonical",
+      reused: true,
+      generation: 2,
+      persist: false,
+    });
+
+    const trialPayload = {
+      ...payload("web_expired_trial_123456"),
+      trialChoice: "request" as const,
+    };
+
+    await startBillingWebCheckout({
+      userId: 12,
+      accountName: "Conta",
+      accountEmail: "conta@example.com",
+      payload: trialPayload,
+    });
+    await startBillingWebCheckout({
+      userId: 12,
+      accountName: "Conta",
+      accountEmail: "conta@example.com",
+      payload: trialPayload,
+    });
+
+    expect(mocks.claimAttempt).toHaveBeenCalledTimes(2);
+    for (const call of mocks.claimAttempt.mock.calls) {
+      expect(call[0]).toMatchObject({
+        userId: 12,
+        replacementSubscriptionId: "subscription-expired-1",
+        paymentMethod: "credit_card",
+        trialChoice: "request",
+      });
+    }
+    expect(mocks.prepareAsaasBillingFlow).toHaveBeenCalledTimes(2);
+    for (const call of mocks.prepareAsaasBillingFlow.mock.calls) {
+      expect(call[0]).toMatchObject({
+        contractKey: "web_replacement_canonical",
+        payerUserId: 12,
+        paymentMethod: "credit_card",
+        trialChoice: "request",
+      });
+    }
+  });
+
   it("blocks an incompatible concurrent attempt before any provider call", async () => {
     mocks.claimAttempt.mockResolvedValueOnce({
       status: "conflict",
