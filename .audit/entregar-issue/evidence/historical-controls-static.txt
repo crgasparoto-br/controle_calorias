@@ -1,0 +1,6 @@
+subject_sha=9d87267cc53b29eff8cc8828b4d66a020e0d9aad
+Exact-head regression sources inspected through GitHub:
+- mixedIncrementParser.issue997.test.ts contains canonical fallthrough controls for xicara/copo and fail-closed mixed supported+unknown input.
+- gramsIncrementIntent.issue997.test.ts contains public-intent fallthrough and partial-success blocking controls.
+- countableFoodQuantity.issue997.test.ts preserves coffee/tea specialized handling, canonical countable conversion, local TACO matching, explicit mass and brand/light qualifiers.
+No production file participating in these inherited controls was changed by the remediation commits; the only material repository change is the clarification regression test.

@@ -13,6 +13,7 @@ import {
   parseQuantityUnitFromPortionText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
+import { parseCountableFoodQuantitySegment, resolveSafeCountableCatalogGrams } from "./countableFoodQuantity";
 import type { CatalogFood, ExplicitQuantity, LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
 const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
@@ -377,6 +378,34 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 }
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
+  const countableRequest = parseCountableFoodQuantitySegment(foodName);
+  if (countableRequest && !isKnownZeroBeverage(countableRequest.foodName, countableRequest.requestedUnit)) {
+    const safeCountable = resolveSafeCountableCatalogGrams(
+      countableRequest.foodName,
+      countableRequest.count,
+      countableRequest.requestedUnit,
+    );
+    if (safeCountable) {
+      const formattedFoodName = formatFoodNameTitleCase(countableRequest.foodName);
+      const servings = safeCountable.grams / safeCountable.food.gramsPerServing;
+      return buildItemFromCatalog(safeCountable.food, {
+        foodName: formattedFoodName,
+        quantity: countableRequest.count,
+        unit: countableRequest.requestedUnit,
+        portionText: buildPortionText(countableRequest.count, countableRequest.requestedUnit),
+        servings,
+        estimatedGrams: safeCountable.grams,
+        estimatedCalories: safeCountable.food.calories * servings,
+        estimatedMacros: {
+          protein: safeCountable.food.protein * servings,
+          carbs: safeCountable.food.carbs * servings,
+          fat: safeCountable.food.fat * servings,
+        },
+        confidence: 0.65,
+      });
+    }
+  }
+
   const parsed = parseFoodText(foodName);
   const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
   const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);

@@ -1,0 +1,16 @@
+Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
+Issue: #997
+PR: #998
+Verification kind: exact-head structural inspection through the GitHub connector.
+
+Observed product invariants at the material head:
+- server/modules/whatsapp/mixedMealItemIncrementPlan.ts resolves all targets and gramsDelta values before updateMealsWithCompensation is reachable.
+- g/ml increments set gramsDelta directly; fatia/unidade use getGlobalFoodCatalogItem + convertFoodPortionToGrams only when a unique matching persisted portion exists.
+- an unresolved countable measure returns requestWhatsappMealItemIncrementQuantityClarification before any meal mutation.
+- applyReadyPlan reloads meals, revalidates target identity, returns stale without mutation when the target changed, and applies the ready batch via updateMealsWithCompensation.
+- the mixed parser/test contract extracts 48 g + 1 fatia + inherited 1 fatia as three operations and does not invent a unit when the ellipsis has no unambiguous predecessor.
+- countableFoodQuantity.ts distinguishes known local/TACO food from arbitrary numeric non-food text before invoking persistent clarification.
+- intentActions.ts applies the known-countable preflight before generic text fallback, while pending interactions and specialized commands keep precedence.
+- server/tacoLookup.ts/catalog matching preserve fried preparation and normalize mussarela/mucarela to mozarela-compatible local identity.
+- server/modules/whatsapp/foodClarification.issue997.test.ts contains discriminating concurrency/retry assertions: two claims are attempted, but continueMixedMealItemIncrementPlan is expected exactly once.
+- server/modules/whatsapp/intentActions.issue997.test.ts contains a public-entrypoint regression for the full meal message and a negative numeric non-food control.

@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUD-998-F001",
+      "escape_class": "specialized-parser-ownership-overreach",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+        "finding_id": "AUD-998-F001",
+        "head_sha": "367e5c2d4d34e4b515fa8506fe9702dbf6ae7d41"
+      },
+      "plausible_wrong_implementation": "O parser especializado assume ownership apenas porque encontrou verbo e quantidade, mesmo quando nenhuma operacao suportada foi extraida, interceptando uma variante destinada ao caminho canonico.",
+      "literal_case": {
+        "procedure": "Executar a mensagem com tres xicaras no parser/intent especializado antes do executor textual canonico.",
+        "expected": "O intent especializado retorna null e nao impede o executor textual canonico.",
+        "observed": "No material head atual, xicara e copo sem operacao suportada caem no caminho canonico; comando misto com operacao suportada permanece fail-closed.",
+        "status": "passed",
+        "evidence": "evidence/historical-controls-static.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "household-glass-fallthrough",
+          "surface": "parser-ownership-precedence",
+          "dimension": "glass-canonical-fallthrough",
+          "status": "passed",
+          "evidence": "evidence/historical-controls-static.txt"
+        },
+        {
+          "id": "mixed-supported-plus-unknown",
+          "surface": "parser-ownership-precedence",
+          "dimension": "supported-plus-unknown-blocks-partial",
+          "status": "passed",
+          "evidence": "evidence/historical-controls-static.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "parser-ownership-precedence",
+          "dimension": "cup-canonical-fallthrough"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "parser-ownership-precedence",
+          "dimension": "glass-canonical-fallthrough"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "mixed increment parser ownership predicate",
+        "evidence": "server/modules/whatsapp/intent/mixedIncrementParser.ts"
+      },
+      "detection_change": {
+        "skill_or_gate": "repository regression tests",
+        "control_id": "NEG-AUD998-002",
+        "evidence": "evidence/historical-controls-static.txt"
+      },
+      "trigger_terms": [
+        "specialized parser",
+        "canonical fallthrough",
+        "unparsed segment",
+        "handler precedence"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "9d87267cc53b29eff8cc8828b4d66a020e0d9aad",
+      "status": "passed"
+    },
+    {
+      "escape_id": "AUD-998-F002",
+      "escape_class": "result-only-artifact-allowlist-drift",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:eed1aa42-cde8-4d18-9918-e08097fb4218",
+        "finding_id": "AUD-998-F002",
+        "head_sha": "88c814aba6f288b692ca0d1b59857c72b95bbf56"
+      },
+      "plausible_wrong_implementation": "Gerar um certificado que declara um artefato, mas publica o filho result-only sem incluir esse caminho na allowlist.",
+      "literal_case": {
+        "procedure": "Gerar certificado sintetico com artefato adicional e remover deliberadamente seu path de allowed_paths.",
+        "expected": "A validacao bloqueia o certificado antes da publicacao.",
+        "observed": "O novo validator bloqueou o certificado com artefato declarado fora da allowlist.",
+        "status": "passed",
+        "evidence": "evidence/skill-handoff-allowlist.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "sharded-transport-part",
+          "surface": "result-only-artifact-allowlist",
+          "dimension": "transport-part-coverage",
+          "status": "passed",
+          "evidence": "evidence/skill-handoff-allowlist.txt"
+        },
+        {
+          "id": "builder-declared-artifact",
+          "surface": "result-only-artifact-allowlist",
+          "dimension": "builder-artifact-enumeration",
+          "status": "passed",
+          "evidence": "evidence/skill-handoff-allowlist.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-artifact-allowlist",
+          "dimension": "plain-artifact-coverage"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-artifact-allowlist",
+          "dimension": "transport-part-coverage"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "generic handoff certificate builder postcondition",
+        "evidence": "evidence/skill-handoff-allowlist.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "generic handoff certificate validator",
+        "control_id": "NEG-R2-ALLOWLIST",
+        "evidence": "evidence/skill-handoff-allowlist.txt"
+      },
+      "trigger_terms": [
+        "result-only child",
+        "declared artifact",
+        "allowed paths",
+        "transport part"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "9d87267cc53b29eff8cc8828b4d66a020e0d9aad",
+      "status": "passed"
+    },
+    {
+      "escape_id": "AUD-998-F003",
+      "escape_class": "regression-expected-action-contract-drift",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:eed1aa42-cde8-4d18-9918-e08097fb4218",
+        "finding_id": "AUD-998-F003",
+        "head_sha": "88c814aba6f288b692ca0d1b59857c72b95bbf56"
+      },
+      "plausible_wrong_implementation": "Atualizar o runtime para um action canonico e deixar a regressao esperando um action historico, tornando o gate vermelho apesar do comportamento correto.",
+      "literal_case": {
+        "procedure": "Executar/inspecionar resposta de clarificacao com medida contavel sem massa segura.",
+        "expected": "food_clarification_reprompted sem claim nem continuacao.",
+        "observed": "O exact-head usa o action canonico e a regressao foi alinhada ao mesmo contrato.",
+        "status": "passed",
+        "evidence": "evidence/clarification-reprompt-contract.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "single-unit-reprompt",
+          "surface": "clarification-reprompt-contract",
+          "dimension": "single-unit-reprompt",
+          "status": "passed",
+          "evidence": "evidence/clarification-reprompt-contract.txt"
+        },
+        {
+          "id": "plural-slice-reprompt",
+          "surface": "clarification-reprompt-contract",
+          "dimension": "plural-countable-reprompt",
+          "status": "passed",
+          "evidence": "evidence/clarification-reprompt-contract.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "clarification-reprompt-contract",
+          "dimension": "countable-unit-reprompt"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "clarification-reprompt-contract",
+          "dimension": "no-consume-before-claim"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "repository regression contract aligned to canonical runtime action",
+        "evidence": "evidence/clarification-reprompt-contract.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "focused clarification regression and Agent-first gate",
+        "control_id": "NEG-R2-REPROMPT",
+        "evidence": "evidence/clarification-reprompt-contract.txt"
+      },
+      "trigger_terms": [
+        "expected action",
+        "reprompt",
+        "pending operation",
+        "regression contract"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "9d87267cc53b29eff8cc8828b4d66a020e0d9aad",
+      "status": "passed"
+    }
+  ]
+}

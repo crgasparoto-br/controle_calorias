@@ -1,0 +1,17 @@
+material_head=e07572da79d0b1289bc5f6c87a280b85dc87cb3f
+--- mixed parser exact source ---
+(node:5117) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("/opt/nvm/versions/node/v22.16.0/lib/node_modules/ts-node/esm.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5117) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"mixed":{"mealLabel":null,"operations":[{"quantity":48,"unit":"g","targetFood":"requeijao","sourceSegment":"48g ao requeijao","inheritedUnit":false},{"quantity":1,"unit":"fatia","targetFood":"presunto","sourceSegment":"1 fatia ao presunto","inheritedUnit":false},{"quantity":1,"unit":"fatia","targetFood":"mussarela","sourceSegment":"uma na mussarela","inheritedUnit":true}],"unparsedSegments":[]},"ambiguous":{"mealLabel":null,"operations":[{"quantity":1,"unit":null,"targetFood":"mussarela","sourceSegment":"uma na mussarela","inheritedUnit":false}],"unparsedSegments":[]}}
+--- TACO exact source ---
+(node:5129) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("/opt/nvm/versions/node/v22.16.0/lib/node_modules/ts-node/esm.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5129) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[["ovo frito","Ovo, de galinha, inteiro, frito"],["mussarela","Queijo, mozarela"],["muçarela","Queijo, mozarela"],["mozarela","Queijo, mozarela"]]
+--- countable logic exact source with boundary mocks ---
+{"breadOne":50,"breadTwo":100,"coffee200":null,"requeijao45":null,"unsafeEgg":true,"breadText":"50 g de pão francês"}

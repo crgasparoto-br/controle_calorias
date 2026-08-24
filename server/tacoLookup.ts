@@ -67,6 +67,7 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\w\s-]/g, "")
     .toLowerCase()
+    .replace(/\b(?:mussarela|mucarela)\b/g, "mozarela")
     .trim();
 }
 

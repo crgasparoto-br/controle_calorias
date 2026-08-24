@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-AUD998-001",
+        "NEG-AUD998-002",
+        "NEG-AUD998-002-CUP",
+        "NEG-AUD998-002-GLASS",
+        "NEG-AUD998-003",
+        "NEG-AUD998-004",
+        "NEG-AUD998-005",
+        "NEG-AUD998-006",
+        "NEG-AUD998-007",
+        "NEG-AUD998-008",
+        "NEG-AUD998-009",
+        "NEG-AUD998-010",
+        "NEG-AUD998-011",
+        "NEG-AUD998-012",
+        "NEG-AUD998-013",
+        "NEG-AUD998-014",
+        "NEG-AUD998-015",
+        "NEG-AUD998-016",
+        "NEG-AUD998-017",
+        "NEG-AUD998-018",
+        "NEG-AUD998-019",
+        "NEG-AUD998-020",
+        "NEG-AUD998-021",
+        "NEG-AUD998-022",
+        "NEG-AUD998-023"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-display-parity",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-021",
+            "NEG-AUD998-022",
+            "NEG-AUD998-023"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "countable-canonical-conversion",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-008"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "countable-preflight-precedence",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-015",
+            "NEG-AUD998-016",
+            "NEG-AUD998-017",
+            "NEG-AUD998-018",
+            "NEG-AUD998-019",
+            "NEG-AUD998-020"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "low-calorie-beverage-precedence",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-005",
+            "NEG-AUD998-006",
+            "NEG-AUD998-007",
+            "NEG-AUD998-014"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "mixed-increment-atomicity",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-004"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "parser-ownership-precedence",
+          "reason": "Material boundary derived from the remediation contract and mandatory gate findings.",
+          "control_ids": [
+            "NEG-AUD998-001",
+            "NEG-AUD998-002",
+            "NEG-AUD998-002-CUP",
+            "NEG-AUD998-002-GLASS",
+            "NEG-AUD998-003",
+            "NEG-AUD998-009",
+            "NEG-AUD998-010",
+            "NEG-AUD998-011",
+            "NEG-AUD998-012",
+            "NEG-AUD998-013"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-AUD998-023-DOC"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Cross-check that repository contract descriptions do not authorize the superseded fast-path behavior.",
+          "control_ids": [
+            "NEG-AUD998-023-DOC"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

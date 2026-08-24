@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUD-998-F001",
+      "escape_class": "specialized-parser-ownership-overreach",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+        "finding_id": "AUD-998-F001",
+        "head_sha": "367e5c2d4d34e4b515fa8506fe9702dbf6ae7d41"
+      },
+      "plausible_wrong_implementation": "O parser especializado assume ownership apenas porque encontrou verbo e quantidade, mesmo quando nenhuma operacao suportada foi extraida, interceptando uma variante destinada ao caminho canonico.",
+      "literal_case": {
+        "procedure": "Executar a mensagem com tres xicaras no parser/intent especializado antes do executor textual canonico.",
+        "expected": "O intent especializado retorna null e nao impede o executor textual canonico.",
+        "observed": "No material head atual, xicara e copo sem operacao suportada caem no caminho canonico; comando misto com operacao suportada permanece fail-closed.",
+        "status": "passed",
+        "evidence": "evidence/parser-ownership-harness.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "household-glass-fallthrough",
+          "surface": "parser-ownership-precedence",
+          "dimension": "glass-canonical-fallthrough",
+          "status": "passed",
+          "evidence": "evidence/parser-ownership-harness.txt"
+        },
+        {
+          "id": "mixed-supported-plus-unknown",
+          "surface": "parser-ownership-precedence",
+          "dimension": "supported-plus-unknown-blocks-partial",
+          "status": "passed",
+          "evidence": "evidence/parser-ownership-harness.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "parser-ownership-precedence",
+          "dimension": "cup-canonical-fallthrough"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "parser-ownership-precedence",
+          "dimension": "glass-canonical-fallthrough"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "mixed increment parser ownership predicate",
+        "evidence": "server/modules/whatsapp/intent/mixedIncrementParser.ts"
+      },
+      "detection_change": {
+        "skill_or_gate": "repository regression tests",
+        "control_id": "NEG-AUD998-002",
+        "evidence": "server/modules/whatsapp/intent/mixedIncrementParser.issue997.test.ts + server/modules/whatsapp/gramsIncrementIntent.issue997.test.ts"
+      },
+      "trigger_terms": [
+        "specialized parser",
+        "canonical fallthrough",
+        "unparsed segment",
+        "handler precedence"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "status": "passed"
+    }
+  ]
+}

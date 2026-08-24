@@ -1,46 +1,22 @@
 {
   "schema_version": 1,
-  "head_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
+  "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "o012",
-        "o060"
-      ],
-      "dimensions": [
-        {
-          "surface": "cb",
-          "reason": "Required risk.",
-          "control_ids": [
-            "o012",
-            "o060"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "TEN"
-      ],
-      "dimensions": [
-        {
-          "surface": "tenant-scope-isolation",
-          "reason": "Required risk.",
-          "control_ids": [
-            "TEN"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "public-boundary",
@@ -55,20 +31,32 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "o010",
-        "o020",
-        "o043",
-        "o065"
+        "NEG-R5-AMBIGUOUS-DUPLICATES",
+        "NEG-R5-HOMONYM-REORDER",
+        "NEG-R5-TARGET-FINGERPRINT"
       ],
       "dimensions": [
         {
-          "surface": "cb",
-          "reason": "Required risk.",
+          "surface": "fail-closed-target-ambiguity",
+          "reason": "If more than one current item matches the persisted identity, the plan cannot safely prove a unique target and must stop.",
           "control_ids": [
-            "o010",
-            "o020",
-            "o043",
-            "o065"
+            "NEG-R5-AMBIGUOUS-DUPLICATES"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "homonym-target-resolution",
+          "reason": "When homonymous but distinguishable items reorder, the original target must remain identifiable independent of its old index.",
+          "control_ids": [
+            "NEG-R5-HOMONYM-REORDER"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "persisted-target-identity",
+          "reason": "The persisted plan must retain enough stable identity to prove that the later item is the same selected item.",
+          "control_ids": [
+            "NEG-R5-TARGET-FINGERPRINT"
           ],
           "status": "passed"
         }
@@ -80,29 +68,32 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "TEMP-WINDOW-001",
-        "o009",
-        "o044",
-        "o076",
-        "o087"
+        "NEG-R5-PRE-MUTATION-FRESHNESS",
+        "NEG-R5-PREPUBLICATION-SOURCE-ORDER",
+        "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
       ],
       "dimensions": [
         {
-          "surface": "cb",
-          "reason": "Required risk.",
+          "surface": "pre-mutation-target-freshness",
+          "reason": "The final executor must revalidate target freshness after the pending interval and before any meal mutation.",
           "control_ids": [
-            "o009",
-            "o044",
-            "o076",
-            "o087"
+            "NEG-R5-PRE-MUTATION-FRESHNESS"
           ],
           "status": "passed"
         },
         {
-          "surface": "context-window-selection",
-          "reason": "Required risk.",
+          "surface": "prepublication-validation-order",
+          "reason": "Source/rejection binding must be validated before a new handoff is published.",
           "control_ids": [
-            "TEMP-WINDOW-001"
+            "NEG-R5-PREPUBLICATION-SOURCE-ORDER"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "same-index-identity-drift",
+          "reason": "A same-index same-name replacement can occur while the plan is pending and must be detected before the final write.",
+          "control_ids": [
+            "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
           ],
           "status": "passed"
         }
@@ -130,16 +121,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "o047",
-        "o054"
+        "NEG-R5-IDEMPOTENT-BATCH"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "Required risk.",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "o047",
-            "o054"
+            "NEG-R5-IDEMPOTENT-BATCH"
           ],
           "status": "passed"
         }
@@ -167,296 +156,85 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "AMBIG-FOLLOWUP-001",
-        "B1",
-        "C1",
-        "EHNE",
-        "EHNI",
-        "FA",
-        "HANDOFF-DRIFT-001",
-        "HANDOFF-LATCH-001",
-        "HANDOFF-PUBLISH-001",
-        "IRC-AUDITOR-001",
-        "IRC-PRODUCER-001",
-        "P1",
-        "TP",
-        "X1",
-        "o002",
-        "o005",
-        "o006",
-        "o007",
-        "o008",
-        "o014",
-        "o015",
-        "o016",
-        "o022",
-        "o024",
-        "o026",
-        "o027",
-        "o030",
-        "o031",
-        "o033",
-        "o035",
-        "o036",
-        "o037",
-        "o038",
-        "o041",
-        "o042",
-        "o048",
-        "o049",
-        "o051",
-        "o052",
-        "o055",
-        "o056",
-        "o057",
-        "o058",
-        "o059",
-        "o061",
-        "o062",
-        "o063",
-        "o064",
-        "o066",
-        "o067",
-        "o068",
-        "o069",
-        "o070",
-        "o071",
-        "o074",
-        "o075",
-        "o077",
-        "o079",
-        "o080",
-        "o081",
-        "o082",
-        "o083",
-        "o084",
-        "o085",
-        "o086",
-        "CONTEXT-GENERIC-COLLISION-001",
-        "CTX-AMBIG-001",
-        "CTX-HISTORY-BYPASS-001",
-        "HANDOFF-PHYSICAL-001",
-        "HANDOFF-CERT-ORDER-001",
-        "BASE-HEAD-FRESHNESS-001",
-        "QUANT-EVIDENCE-OBJECT-001"
+        "NEG-R5-ALLOWLIST",
+        "NEG-R5-CERT-REDERIVE",
+        "NEG-R5-PARSER-OWNERSHIP",
+        "NEG-R5-POST-WRITE-REFREEZE",
+        "NEG-R5-REPROMPT",
+        "NEG-R5-RESULT-PARENT",
+        "NEG-R5-SOURCE-BIND",
+        "NEG-R5-TEST-DUPLICATES",
+        "NEG-R5-TEST-HOMONYM-REORDER",
+        "NEG-R5-TEST-SAME-INDEX",
+        "NEG-R5-TEST-TWO-OPS",
+        "NEG-R5-TEST-UNIQUE-MOVED"
       ],
       "dimensions": [
         {
-          "surface": "audit-escape-literal-case",
-          "reason": "Required risk.",
+          "surface": "audit-remediation-source-binding",
+          "reason": "The newest rejection must be bound to stable source bytes and prior source-binding escape coverage must remain active.",
           "control_ids": [
-            "EHNE"
+            "NEG-R5-SOURCE-BIND"
           ],
           "status": "passed"
         },
         {
-          "surface": "auditor-preflight",
-          "reason": "Required risk.",
+          "surface": "certificate-semantic-revalidation",
+          "reason": "Certificate/audit source relationships must be rederived rather than trusted from producer-declared hashes.",
           "control_ids": [
-            "IRC-AUDITOR-001"
+            "NEG-R5-CERT-REDERIVE"
           ],
           "status": "passed"
         },
         {
-          "surface": "benchmark-execution",
-          "reason": "Required risk.",
+          "surface": "clarification-reprompt-contract",
+          "reason": "Cumulative clarification reprompt ordering remains active and must not be dropped from the re-audit lineage.",
           "control_ids": [
-            "P1"
+            "NEG-R5-REPROMPT"
           ],
           "status": "passed"
         },
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "Required risk.",
+          "surface": "parser-ownership-precedence",
+          "reason": "Cumulative parser ownership controls from the earlier audit escape remain active and must be reexecuted on the current material head.",
           "control_ids": [
-            "o007",
-            "o030",
-            "o031",
-            "o033",
-            "o035",
-            "o036",
-            "o037",
-            "o048",
-            "o049",
-            "o055",
-            "o056",
-            "o057",
-            "o058",
-            "o084"
+            "NEG-R5-PARSER-OWNERSHIP"
           ],
           "status": "passed"
         },
         {
-          "surface": "cb",
-          "reason": "Required risk.",
+          "surface": "post-write-refreeze-recovery",
+          "reason": "Any material write after a previous freeze must preserve the auditor recovery floor and force a new material refreeze.",
           "control_ids": [
-            "o005",
-            "o022",
-            "o027",
-            "o038",
-            "o061",
-            "o062",
-            "o063",
-            "o064",
-            "o068",
-            "o069",
-            "o070",
-            "o071",
-            "o074",
-            "o075",
-            "o077",
-            "o079",
-            "o080",
-            "o083",
-            "o085",
-            "o086"
+            "NEG-R5-POST-WRITE-REFREEZE"
           ],
           "status": "passed"
         },
         {
-          "surface": "context-scope",
-          "reason": "Required risk.",
+          "surface": "result-only-artifact-allowlist",
+          "reason": "The handoff child may contain only audit/result artifacts and must include every transported artifact part declared by the certificate.",
           "control_ids": [
-            "AMBIG-FOLLOWUP-001",
-            "X1",
-            "CONTEXT-GENERIC-COLLISION-001",
-            "CTX-AMBIG-001"
+            "NEG-R5-ALLOWLIST"
           ],
           "status": "passed"
         },
         {
-          "surface": "critical-path-necessity",
-          "reason": "Required risk.",
+          "surface": "result-only-parent-lineage",
+          "reason": "The result-only child must have the newly frozen material head as its direct parent.",
           "control_ids": [
-            "o002",
-            "o006",
-            "o008",
-            "o015",
-            "o024",
-            "o026",
-            "o041",
-            "o059",
-            "o066",
-            "o081",
-            "o082"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "critical-path-sequencing",
-          "reason": "Required risk.",
-          "control_ids": [
-            "C1"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "evidence-freshness",
-          "reason": "Required risk.",
-          "control_ids": [
-            "B1"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "failure-accounting",
-          "reason": "Required risk.",
-          "control_ids": [
-            "FA"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "handoff-identity",
-          "reason": "Required risk.",
-          "control_ids": [
-            "HANDOFF-DRIFT-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "handoff-publication",
-          "reason": "Required risk.",
-          "control_ids": [
-            "HANDOFF-PUBLISH-001",
-            "HANDOFF-PHYSICAL-001",
-            "HANDOFF-CERT-ORDER-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "handoff-terminal-identity",
-          "reason": "Required risk.",
-          "control_ids": [
-            "HANDOFF-LATCH-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "inherited-control-observed",
-          "reason": "Required risk.",
-          "control_ids": [
-            "EHNI"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "producer-handoff",
-          "reason": "Required risk.",
-          "control_ids": [
-            "IRC-PRODUCER-001"
+            "NEG-R5-RESULT-PARENT"
           ],
           "status": "passed"
         },
         {
           "surface": "specified-test-matrix",
-          "reason": "Required risk.",
+          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
           "control_ids": [
-            "o067"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "stage-attribution-completeness",
-          "reason": "Required risk.",
-          "control_ids": [
-            "o014",
-            "o016",
-            "o042",
-            "o051",
-            "o052"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "telemetry-payload",
-          "reason": "Required risk.",
-          "control_ids": [
-            "TP"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "history-bypass",
-          "reason": "The optimized QUESTION wrapper conditionally suppresses recent history based on context classification.",
-          "control_ids": [
-            "CTX-HISTORY-BYPASS-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "terminal-base-freshness",
-          "reason": "Fresh remote base identity and mergeability are required at terminal handoff.",
-          "control_ids": [
-            "BASE-HEAD-FRESHNESS-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "quantitative-evidence-object",
-          "reason": "Concrete quantitative result existence and byte hash must be verified.",
-          "control_ids": [
-            "QUANT-EVIDENCE-OBJECT-001"
+            "NEG-R5-TEST-DUPLICATES",
+            "NEG-R5-TEST-HOMONYM-REORDER",
+            "NEG-R5-TEST-SAME-INDEX",
+            "NEG-R5-TEST-TWO-OPS",
+            "NEG-R5-TEST-UNIQUE-MOVED"
           ],
           "status": "passed"
         }
@@ -465,31 +243,11 @@
     },
     {
       "family": "documentation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "BENCH-RESULT-CONTRACT-001",
-        "D1"
-      ],
-      "dimensions": [
-        {
-          "surface": "canonical-result-schema",
-          "reason": "Required risk.",
-          "control_ids": [
-            "BENCH-RESULT-CONTRACT-001"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "source-fidelity",
-          "reason": "Required risk.",
-          "control_ids": [
-            "D1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     }
   ],
   "material_families_missing_controls": []

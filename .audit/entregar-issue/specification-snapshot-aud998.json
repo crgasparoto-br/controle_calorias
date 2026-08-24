@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 997,
+  "created_at": "2026-08-23T23:38:39.800912+00:00",
+  "primary_source_id": "SRC-AUDIT-998-REMEDIATION",
+  "sources": [
+    {
+      "id": "SRC-AUDIT-998-REMEDIATION",
+      "kind": "issue-body",
+      "path": "specification-sources/SRC-AUDIT-998-REMEDIATION.txt",
+      "locator": "/mnt/data/issue997-delivery/audit-remediation-source.md",
+      "sha256": "df36e68a6178e3967e082522183a938bbfec282eed2d719a25bcb8b114740f61",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 34
+    }
+  ]
+}

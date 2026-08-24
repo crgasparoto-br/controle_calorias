@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c",
+  "head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+  "finding_ids": [
+    "DELIVERY-998-001"
+  ],
+  "findings": [
+    {
+      "id": "DELIVERY-998-001",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "summary": "O handoff publicado ficou stale após merge material de develop: certificado ancestral não representa o head corrente e exige post-write-refreeze."
+    }
+  ],
+  "recommendations": [],
+  "summary": "A auditoria independente rejeitou a PR apenas por delivery-not-ready/handoff-stale após mudança material; CI do head corrente estava verde e nenhum defeito funcional novo da issue #997 foi afirmado."
+}
