@@ -122,29 +122,33 @@ describe("issue #997 persistent mixed increment clarification", () => {
     expect(row.target.resolutionContext.inboundMessageId).toBe("wamid.issue997");
   });
 
-  it("resposta sem massa/volume não consome a pendência", async () => {
-    const { repository, claimPendingOperation } = createRepository();
-    const clarification = createFoodQuantityClarificationService({ repository });
-    await clarification.requestMealItemIncrementQuantity({
-      userId: 42,
-      foodName: "Presunto",
-      originalText: mixedPlan().originalText,
-      plan: mixedPlan(),
-      operationIndex: 1,
-      receivedAt: new Date(),
-    });
+  it.each(["1 fatia", "1 unidade", "2 fatias"])(
+    "resposta sem massa/volume não consome a pendência: %s",
+    async replyText => {
+      mocks.continuePlan.mockClear();
+      const { repository, claimPendingOperation } = createRepository();
+      const clarification = createFoodQuantityClarificationService({ repository });
+      await clarification.requestMealItemIncrementQuantity({
+        userId: 42,
+        foodName: "Presunto",
+        originalText: mixedPlan().originalText,
+        plan: mixedPlan(),
+        operationIndex: 1,
+        receivedAt: new Date(),
+      });
 
-    const result = await clarificationHandler(repository).handle({
-      userId: 42,
-      text: "1 fatia",
-      receivedAt: new Date(),
-      userTimezone: "America/Sao_Paulo",
-    });
+      const result = await clarificationHandler(repository).handle({
+        userId: 42,
+        text: replyText,
+        receivedAt: new Date(),
+        userTimezone: "America/Sao_Paulo",
+      });
 
-    expect(result?.action).toBe("food_clarification_reprompted");
-    expect(claimPendingOperation).not.toHaveBeenCalled();
-    expect(mocks.continuePlan).not.toHaveBeenCalled();
-  });
+      expect(result?.action).toBe("food_clarification_reprompted");
+      expect(claimPendingOperation).not.toHaveBeenCalled();
+      expect(mocks.continuePlan).not.toHaveBeenCalled();
+    },
+  );
 
   it("duas respostas concorrentes/retry continuam o plano exatamente uma vez", async () => {
     mocks.continuePlan.mockClear();
