@@ -1,0 +1,14 @@
+# Remediação independente PR 998
+
+## Requisitos
+
+- O certificado `result-only-child` deve incluir em `certificate_commit_policy.allowed_paths` todos os artefatos declarados em `artifacts` e todas as partes de transporte publicadas; a validação deve falhar antes da publicação quando um artefato certificado estiver fora da allowlist.
+- Uma resposta de clarificação de incremento que informe medida contável sem massa/volume seguro deve reapresentar a mesma pendência sem consumi-la, retornando a action `food_clarification_reprompted`; o plano pendente não pode continuar nem ser aplicado.
+
+## Critérios de aceite
+
+- `1 fatia` reapresenta a pendência com `food_clarification_reprompted`, sem `claimPendingOperation` e sem continuação do plano.
+- `1 unidade` reapresenta a pendência com `food_clarification_reprompted`, sem `claimPendingOperation` e sem continuação do plano.
+- `2 fatias` reapresenta a pendência com `food_clarification_reprompted`, sem `claimPendingOperation` e sem continuação do plano.
+- O builder genérico inclui `evidence-provenance.json` declarado na allowlist do `result-only-child`.
+- O validator genérico rejeita um certificado quando um artefato declarado é removido da allowlist do `result-only-child`.
