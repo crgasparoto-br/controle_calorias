@@ -1,0 +1,4 @@
+Issue 1006 inherited-control applicability review at material head 014125bfe3dcbbaf44ce5490af573ffb5f2eb974.
+Prior controls tied to issue 997 parser/countable/audit-remediation behaviors are retired as not-applicable to this delivery contract.
+The prior temporal target-identity control remains material by family and is superseded by the current exact-head explicit/implicit temporal control CTRL-EXPLICIT-DATE-TEMPORAL-LINEAGE-001, bound to attack CTRL-EXPLICIT-REPORTING-WINDOW.
+The current control inspects the issue 1006 timezone boundary regression at 2026-08-25T02:30:00Z and confirms that hoje resolves to local date 2026-08-24 in America/Sao_Paulo before strict same-day meal selection.
