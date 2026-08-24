@@ -8,6 +8,7 @@ on:
       - "server/repositories/billingRepository.ts"
       - "server/modules/professionals/entitlementService.ts"
       - "server/routers.ts"
+      - "scripts/test-billing-catalog-upgrade-tidb.ts"
       - "scripts/test-billing-persistence-tidb.ts"
       - "scripts/test-usage-governance-retention-tidb.ts"
       - "scripts/check-referential-integrity.mjs"
