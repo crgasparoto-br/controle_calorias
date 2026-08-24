@@ -1,1 +1,0 @@
-READY: remediation class and cumulative inherited controls are complete for independent re-audit

@@ -1,6 +1,0 @@
-Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
-Quantitative exact-head contract inspection for countable quantity behavior:
-- explicit mass fixture: 45 g remains 45 g (one explicit mass quantity, no household conversion).
-- unsafe known countable fixture: 1 fatia without a unique canonical portion leads to one clarification path and zero meal mutations before resolution.
-- canonical countable path: conversion is requested with the requested count and selected portion id; no implicit 100 g multiplier exists in the countable conversion branch.
-These values are exact assertions/invariants present in the material-head source/test contract; final CI execution was still queued at the allowed remote observation.

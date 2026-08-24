@@ -1,8 +1,0 @@
-Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
-Verification kind: exact-head documentation delta review through PR #998.
-
-Canonical documentation surfaces changed by the issue:
-- docs/design-docs/food-portions-household-measures.md: composition expressed per 100 g is not evidence that a slice/unit weighs 100 g; explicit mass/volume precedes canonical household portion and persistent clarification.
-- docs/design-docs/whatsapp-food-registration-clarification.md: the persistent clarification contract is extended to compound meal-item adjustment, including no partial persistence, stale blocking, and exactly-once final application.
-
-The reviewed product code follows those claims through countableFoodQuantity/countableFoodRegistrationGate, foodQuantityClarification/whatsappPendingOperations, and mixedMealItemIncrementPlan. No competing parser-local slice-weight table or process-memory pending store was identified in the issue delta.

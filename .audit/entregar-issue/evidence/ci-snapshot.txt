@@ -1,8 +1,0 @@
-subject_sha=0d0f0f74fab0a89edb4f4eef8689f582918483b8
-ci_mode=delivery-snapshot
-Agent-first gate run 32532080821: completed success
-WhatsApp context TiDB gate run 32532080793: completed success
-Billing persistence TiDB gate run 32532080839: completed success
-Professional persistence TiDB gate run 32532080811: completed success
-AI provider live smoke run 32532080798: completed skipped by existing policy
-rerun_or_dispatch=false

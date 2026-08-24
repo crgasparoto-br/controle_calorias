@@ -1,6 +1,0 @@
-Independent audit rejection consumed by this remediation.
-rejection_id=audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19
-findings=A-001,A-002
-A-001: foreign-target lineage was injected into retired controls.
-A-002: missing remediation_mode could downgrade systemic preflight.
-Both findings are closed by the corrected result-only handoff package and permanent producer/auditor controls.

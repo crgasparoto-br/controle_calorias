@@ -1,8 +1,0 @@
-material_head=f6388a3cf14708ab6b277dc49ddf57e52529172a
---- exact source binding: positive ---
-READY: 1 actionable audit items closed on f6388a3cf14708ab6b277dc49ddf57e52529172a
---- exact source binding: negative tamper control ---
-BLOCK: audit remediation audit_report_sha256 differs from source bytes
-EXPECTED: tampered source blocked by source.audit_report_sha256
---- learning closure ---
-READY: rejection learning is closed and generalized

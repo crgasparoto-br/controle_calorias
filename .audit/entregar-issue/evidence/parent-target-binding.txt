@@ -1,5 +1,0 @@
-Current-target package binding after rejection audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19.
-The material parent contained historical result artifacts originating from another delivery target.
-Those foreign issue/PR controls are diagnostic history only: they are not active controls, retired controls, source audits, or audit escapes of issue 989 / PR 993.
-The current issue-989 lineage is derived from the immutable immediately previous issue-989 snapshots plus the issue-989 independent rejections that followed.
-Material head remains 0d0f0f74fab0a89edb4f4eef8689f582918483b8.

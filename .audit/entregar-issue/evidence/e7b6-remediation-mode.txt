@@ -1,6 +1,0 @@
-Independent rejection audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19 A-002 remediation evidence.
-The delivery certificate builder derives remediation_mode from the certified audit-remediation ledger and persists it at certificate top level.
-For this remediation the certified mode is systemic-remediation.
-The auditor preflight no longer treats a missing certificate mode as targeted-remediation; it derives the mode from the certified audit-remediation artifact and executes systemic re-audit readiness.
-A behavioral regression proves that a systemic ledger with the certificate field omitted still enters systemic validation and rejects missing historical lineage.
-Focused handoff/auditor preflight tests: 15 passed.

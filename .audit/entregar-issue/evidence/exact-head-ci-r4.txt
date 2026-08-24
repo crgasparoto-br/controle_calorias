@@ -1,8 +1,0 @@
-material_head=f6388a3cf14708ab6b277dc49ddf57e52529172a
-base_sha=64a86e040ac656645557597d122019ee49e14ab7
-merge_preview_sha=7d8f915fd4f0eddbc06400a622527ef11470fad4
-Agent-first gate: run 32723139532, job 97418631571, conclusion=success, VERIFICATION_HEAD_SHA=f6388a3cf14708ab6b277dc49ddf57e52529172a.
-Observed successful steps: TypeScript check; 24/24 sequential Vitest shards; Architecture check; Documentation check; Build; Agent check; exact-head verification manifest; exact-head repository bundle.
-The full Vitest run includes server/modules/whatsapp/mixedMealItemIncrementPlan.issue997.test.ts (3 tests) and all shards completed successfully.
-WhatsApp context TiDB gate: run 32723139544, job 97418631316, conclusion=success. Schema, referential integrity, pending-operation insert, quick-edit and persistent-context regression steps passed.
-Database integrity step in Agent-first was skipped because DATABASE_URL was unavailable; the separate TiDB regression gate completed successfully.

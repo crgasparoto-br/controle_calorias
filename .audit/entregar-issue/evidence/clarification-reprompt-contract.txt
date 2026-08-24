@@ -1,5 +1,0 @@
-subject_sha=9d87267cc53b29eff8cc8828b4d66a020e0d9aad
-Exact-head source inspection shows resolvePendingText returns reprompt for complete_mixed_increment_plan/complete_confirmed_text_meal when estimateGramsFromQuantity cannot derive safe mass/volume, before claimPendingOperation is called.
-The canonical reprompt helper returns action=food_clarification_reprompted.
-The exact-head regression now exercises 1 fatia, 1 unidade and 2 fatias and asserts food_clarification_reprompted, zero claimPendingOperation and zero continuePlan calls.
-Remote Agent-first snapshot: TypeScript check passed; Tests were in_progress at the single delivery-snapshot observation.

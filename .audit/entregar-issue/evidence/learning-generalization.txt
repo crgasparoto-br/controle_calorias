@@ -1,8 +1,0 @@
-Systemic audit-escape remediation for terminal identity and quantitative object trust.
-Prevention/detection changes in entregar-issue:
-- quantitative evidence freshness resolves each quantitative path under an explicit repository root, requires the concrete object, hashes the actual bytes, and compares them with evidence-provenance.sha256;
-- terminal handoff requires a freshly observed remote base SHA and PR mergeability, blocking stale base identity or false/unknown mergeability;
-- handoff certificate/readiness requires an explicit repository root when quantitative provenance exists;
-- risk saturation preserves historical material-parent escape IDs from a foreign delivery target without importing that foreign target's attack obligations into the current canonical issue.
-Focused permanent contract tests: 25 passed in 16.71s.
-Skill genericity validator: READY.

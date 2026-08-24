@@ -1,6 +1,0 @@
-Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
-Single allowed remote observation after freeze:
-- WhatsApp context TiDB gate, run 32664274163: queued, conclusion unset.
-- Agent-first gate, run 32664274190: queued, conclusion unset.
-
-This file is not evidence that CI passed. It records only the observed remote state required by the connector-only delivery flow.

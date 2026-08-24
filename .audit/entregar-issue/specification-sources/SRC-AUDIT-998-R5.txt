@@ -1,9 +1,0 @@
-# Remediação da rejeição independente da PR 998 - R5
-
-## Requisitos
-- O alvo persistido deve preservar uma identidade estável do item além de nome e índice, incluindo identificadores e atributos semânticos suficientes para revalidar o mesmo item antes da mutação.
-- Se durante a pendência o item no mesmo índice mantiver o mesmo `foodName` mas mudar `foodId`, marca ou outra identidade material, o plano deve retornar `stale` e nenhuma mutação automática pode ocorrer.
-- Se itens homônimos com identidades distintas trocarem de posição, a revalidação deve localizar somente o item originalmente selecionado; quando a identidade não puder ser provada de forma única, o plano deve bloquear em modo fail-closed sem efeito parcial.
-- Os testes devem cobrir separadamente: troca no mesmo índice com mesmo nome e identidade diferente; troca de posição entre homônimos distinguíveis; item original movido de índice mas ainda inequivocamente identificável; duplicatas indistinguíveis; e duas operações válidas no mesmo item aplicadas exatamente uma vez.
-- A rejeição `audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af` e o finding `A-001` devem ser fechados explicitamente no ledger de remediação e no fechamento de escape, preservando cumulativamente rejeições, escapes, source_audits e controles anteriores.
-- O novo handoff deve certificar issue 997 e PR 998 sobre `develop`/`feat/997-whatsapp-household-portions`, ser publicado como filho direto `result-only-child` do material head R5 sem paths de produto e ser confirmado por nova leitura remota terminal.

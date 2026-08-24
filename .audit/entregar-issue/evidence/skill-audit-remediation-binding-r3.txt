@@ -1,9 +1,0 @@
-subject_sha=74804d699bf80c97fa34c19da2a6cf4f6d001644
-Systemic handoff-control remediation executed on patched generic skill copy.
---- pytest focused handoff controls
-...                                                                      [100%]
-3 passed, 6 deselected in 18.55s
---- genericity
-READY: skill permanent assets are free of obvious issue-number coupling
-prevention=build_handoff_certificate.py invokes validate_audit_remediation.py before certificate emission
-detection=validate_handoff_certificate.py independently rederives remediation/source binding from certified artifacts

@@ -1,6 +1,0 @@
-# Remediacao da rejeicao independente da PR 998
-
-## Requisitos
-- O `audit-remediation` da reauditoria deve vincular os bytes exatos do `audit-source-result` por `source.audit_report_sha256`; hash ausente ou divergente deve bloquear o handoff.
-- O builder do handoff deve validar esse vinculo antes de emitir o certificado e o validator deve rederiva-lo de forma independente a partir dos artefatos certificados.
-- O novo handoff deve recalcular os hashes dependentes, preservar cumulativamente rejeicoes/escapes/controles anteriores e ser publicado como novo `result-only-child` sem alterar codigo de producao.
