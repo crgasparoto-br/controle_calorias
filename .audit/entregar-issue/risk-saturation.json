@@ -1,22 +1,44 @@
 {
   "schema_version": 1,
-  "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+  "head_sha": "014125bfe3dcbbaf44ce5490af573ffb5f2eb974",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-EXPLICIT-TEMPORAL"
+      ],
+      "dimensions": [
+        {
+          "surface": "explicit-temporal-authority",
+          "reason": "Only a date explicitly supplied by the user may authorize disabling cross-day contextual fallback.",
+          "control_ids": [
+            "CTRL-EXPLICIT-TEMPORAL"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "tenant-isolation",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-CANON-CONTEXT-ISOLATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-context-isolation",
+          "reason": "Explicitness and local-day selection must remain bound to the current user operation context rather than a different contextual meal scope.",
+          "control_ids": [
+            "CTRL-CANON-CONTEXT-ISOLATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
@@ -31,32 +53,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R5-AMBIGUOUS-DUPLICATES",
-        "NEG-R5-HOMONYM-REORDER",
-        "NEG-R5-TARGET-FINGERPRINT"
+        "CTRL-IMPLICIT-REFERENCE"
       ],
       "dimensions": [
         {
-          "surface": "fail-closed-target-ambiguity",
-          "reason": "If more than one current item matches the persisted identity, the plan cannot safely prove a unique target and must stop.",
+          "surface": "contextual-reference-liveness",
+          "reason": "A valid recent contextual meal reference must remain usable when no temporal word was supplied.",
           "control_ids": [
-            "NEG-R5-AMBIGUOUS-DUPLICATES"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "homonym-target-resolution",
-          "reason": "When homonymous but distinguishable items reorder, the original target must remain identifiable independent of its old index.",
-          "control_ids": [
-            "NEG-R5-HOMONYM-REORDER"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "persisted-target-identity",
-          "reason": "The persisted plan must retain enough stable identity to prove that the later item is the same selected item.",
-          "control_ids": [
-            "NEG-R5-TARGET-FINGERPRINT"
+            "CTRL-IMPLICIT-REFERENCE"
           ],
           "status": "passed"
         }
@@ -68,32 +72,18 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R5-PRE-MUTATION-FRESHNESS",
-        "NEG-R5-PREPUBLICATION-SOURCE-ORDER",
-        "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
+        "CTRL-EXPLICIT-REPORTING-WINDOW",
+        "CTRL-IMPLICIT-TEMPORAL",
+        "CTRL-REGRESSION-TEMPORAL"
       ],
       "dimensions": [
         {
-          "surface": "pre-mutation-target-freshness",
-          "reason": "The final executor must revalidate target freshness after the pending interval and before any meal mutation.",
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
           "control_ids": [
-            "NEG-R5-PRE-MUTATION-FRESHNESS"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "prepublication-validation-order",
-          "reason": "Source/rejection binding must be validated before a new handoff is published.",
-          "control_ids": [
-            "NEG-R5-PREPUBLICATION-SOURCE-ORDER"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "same-index-identity-drift",
-          "reason": "A same-index same-name replacement can occur while the plan is pending and must be detected before the final write.",
-          "control_ids": [
-            "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
+            "CTRL-EXPLICIT-REPORTING-WINDOW",
+            "CTRL-IMPLICIT-TEMPORAL",
+            "CTRL-REGRESSION-TEMPORAL"
           ],
           "status": "passed"
         }
@@ -121,14 +111,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R5-IDEMPOTENT-BATCH"
+        "CTRL-ENTRYPOINT-DUPLICATE"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
           "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "NEG-R5-IDEMPOTENT-BATCH"
+            "CTRL-ENTRYPOINT-DUPLICATE"
           ],
           "status": "passed"
         }
@@ -156,85 +146,38 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R5-ALLOWLIST",
-        "NEG-R5-CERT-REDERIVE",
-        "NEG-R5-PARSER-OWNERSHIP",
-        "NEG-R5-POST-WRITE-REFREEZE",
-        "NEG-R5-REPROMPT",
-        "NEG-R5-RESULT-PARENT",
-        "NEG-R5-SOURCE-BIND",
-        "NEG-R5-TEST-DUPLICATES",
-        "NEG-R5-TEST-HOMONYM-REORDER",
-        "NEG-R5-TEST-SAME-INDEX",
-        "NEG-R5-TEST-TWO-OPS",
-        "NEG-R5-TEST-UNIQUE-MOVED"
+        "CTRL-CANON-RELATION",
+        "CTRL-CANON-SOURCE",
+        "CTRL-EXPLICIT-RELATION",
+        "CTRL-IMPLICIT-STRUCTURAL",
+        "CTRL-MISSING-CANONICAL",
+        "CTRL-MISSING-RELATION"
       ],
       "dimensions": [
         {
-          "surface": "audit-remediation-source-binding",
-          "reason": "The newest rejection must be bound to stable source bytes and prior source-binding escape coverage must remain active.",
+          "surface": "canonical-source-consistency",
+          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
           "control_ids": [
-            "NEG-R5-SOURCE-BIND"
+            "CTRL-CANON-SOURCE",
+            "CTRL-MISSING-CANONICAL"
           ],
           "status": "passed"
         },
         {
-          "surface": "certificate-semantic-revalidation",
-          "reason": "Certificate/audit source relationships must be rederived rather than trusted from producer-declared hashes.",
+          "surface": "explicitness-precedence",
+          "reason": "Explicit user text must take precedence over parser-produced contextual date values without removing the legacy default.",
           "control_ids": [
-            "NEG-R5-CERT-REDERIVE"
+            "CTRL-IMPLICIT-STRUCTURAL"
           ],
           "status": "passed"
         },
         {
-          "surface": "clarification-reprompt-contract",
-          "reason": "Cumulative clarification reprompt ordering remains active and must not be dropped from the re-audit lineage.",
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
           "control_ids": [
-            "NEG-R5-REPROMPT"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "parser-ownership-precedence",
-          "reason": "Cumulative parser ownership controls from the earlier audit escape remain active and must be reexecuted on the current material head.",
-          "control_ids": [
-            "NEG-R5-PARSER-OWNERSHIP"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "post-write-refreeze-recovery",
-          "reason": "Any material write after a previous freeze must preserve the auditor recovery floor and force a new material refreeze.",
-          "control_ids": [
-            "NEG-R5-POST-WRITE-REFREEZE"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "result-only-artifact-allowlist",
-          "reason": "The handoff child may contain only audit/result artifacts and must include every transported artifact part declared by the certificate.",
-          "control_ids": [
-            "NEG-R5-ALLOWLIST"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "result-only-parent-lineage",
-          "reason": "The result-only child must have the newly frozen material head as its direct parent.",
-          "control_ids": [
-            "NEG-R5-RESULT-PARENT"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "specified-test-matrix",
-          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
-          "control_ids": [
-            "NEG-R5-TEST-DUPLICATES",
-            "NEG-R5-TEST-HOMONYM-REORDER",
-            "NEG-R5-TEST-SAME-INDEX",
-            "NEG-R5-TEST-TWO-OPS",
-            "NEG-R5-TEST-UNIQUE-MOVED"
+            "CTRL-CANON-RELATION",
+            "CTRL-EXPLICIT-RELATION",
+            "CTRL-MISSING-RELATION"
           ],
           "status": "passed"
         }
@@ -243,11 +186,22 @@
     },
     {
       "family": "documentation",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-CANON-DOC"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "The existing whatsapp-ingestion design document must remain aligned with the implemented explicit-date behavior.",
+          "control_ids": [
+            "CTRL-CANON-DOC"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     }
   ],
   "material_families_missing_controls": []
