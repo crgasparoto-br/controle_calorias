@@ -114,6 +114,36 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
     });
   });
 
+  it("preserva o bloqueio fail-closed quando a data explícita cai no executor LLM tardio", async () => {
+    executeWhatsappLlmIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei a refeição Café da manhã em 24/08/2026. Nada foi alterado.",
+      eventType: "whatsapp.llm_intent.clarification_needed",
+      detail: "Executor tardio preservou o bloqueio de mutação.",
+      data: { mealLabel: "Café da manhã", explicitDate: true, mutationBlocked: true },
+    });
+
+    const result = await simulateWhatsappInbound(42, {
+      text: "Adicionar 60g de pão ao café da manhã de hoje",
+      receivedAt: new Date("2026-08-24T18:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+      messageId: "late-llm-explicit-date-1",
+    });
+
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledOnce();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      data: expect.objectContaining({
+        explicitDate: true,
+        mutationBlocked: true,
+        temporalContext: expect.objectContaining({ temporalExpression: "hoje" }),
+      }),
+    }));
+  });
+
   it("nao deixa o handler textual salvar em hoje quando a mensagem menciona cafe da manha de ontem", async () => {
     const result = await simulateWhatsappInbound(42, {
       text: "Adicionar 3 xícara de café sem açúcar à refeição Café da manhã de ontem",

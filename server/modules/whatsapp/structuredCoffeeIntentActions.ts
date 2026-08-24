@@ -32,6 +32,7 @@ import type { WhatsAppLogicalReply } from "./replyContract";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
+import { buildWhatsappExplicitMealTargetMissingClarification } from "./intent/explicitMealTargetGuard";
 
 export type StructuredCoffeeIntentInput = {
   text?: string | null;
@@ -378,6 +379,18 @@ async function executeResolvedCoffeeAddition(input: {
     input.timeZone,
     !targetDate.explicit,
   );
+  if (!existingMeal && targetDate.explicit) {
+    return clarificationResult({
+      ...buildWhatsappExplicitMealTargetMissingClarification({
+        mealLabel,
+        targetDate: targetDate.date,
+        timeZone: input.timeZone,
+        eventType: "whatsapp.coffee_preparation_clarification.target_missing_for_explicit_date",
+        detail: "Café com data explícita bloqueado porque a refeição indicada não existe no dia interpretado.",
+      }),
+      intent: input.intent,
+    });
+  }
   if (!existingMeal && !input.intent.meal.createIfMissing) return null;
 
   let processed: Awaited<ReturnType<typeof processMealInput>>;

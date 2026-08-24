@@ -3,10 +3,10 @@ import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
-import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { resolveWhatsappRelativeMealDateSelection } from "./intent/explicitMealDate";
 import { findMealByLabel } from "./intent/mealItemHelpers";
+import { buildWhatsappExplicitMealTargetMissingClarification } from "./intent/explicitMealTargetGuard";
 
 type ExistingMeal = {
   id: number;
@@ -83,17 +83,11 @@ export async function executeWhatsappDatedFoodAdditionIntent(
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(
-        `Não encontrei a refeição ${parsed.mealType} em ${formatReplyDate(dateSelection.date, timeZone)}. Nada foi alterado. Me diga em qual refeição devo adicionar os alimentos.`,
-      ),
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Adição com data explícita bloqueada porque a refeição indicada não existe no dia interpretado.",
-      data: {
+      ...buildWhatsappExplicitMealTargetMissingClarification({
         mealLabel: parsed.mealType,
-        requestedDate: dateSelection.date.toISOString(),
-        explicitDate: true,
-        mutationBlocked: true,
-      },
+        targetDate: dateSelection.date,
+        timeZone,
+      }),
     };
   }
 
