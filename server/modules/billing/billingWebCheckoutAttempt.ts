@@ -14,7 +14,7 @@ export type BillingWebCheckoutAttemptSignature = {
   paymentMethod: BillingPaymentMethod;
   trialChoice: BillingTrialChoice;
   couponCode?: string | null;
-  replaceExisting?: boolean;
+  replacementSubscriptionId?: string | null;
 };
 
 export type StoredBillingWebCheckoutAttempt = {
@@ -24,6 +24,7 @@ export type StoredBillingWebCheckoutAttempt = {
   paymentMethod: BillingPaymentMethod;
   trialChoice: BillingTrialChoice;
   couponCode: string | null;
+  replacementSubscriptionId: string | null;
   generation: number;
   released: boolean;
 };
@@ -49,6 +50,11 @@ export type BillingWebCheckoutAttemptDecision =
 
 function normalizedCoupon(value: string | null | undefined) {
   const normalized = value?.trim().toUpperCase() ?? "";
+  return normalized || null;
+}
+
+function normalizedSubscriptionId(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
   return normalized || null;
 }
 
@@ -134,6 +140,11 @@ function parseStoredAttempt(value: unknown): StoredBillingWebCheckoutAttempt | n
     couponCode: normalizedCoupon(
       typeof payload.couponCode === "string" ? payload.couponCode : null
     ),
+    replacementSubscriptionId: normalizedSubscriptionId(
+      typeof payload.replacementSubscriptionId === "string"
+        ? payload.replacementSubscriptionId
+        : null
+    ),
     generation,
     released: payload.released === true,
   };
@@ -154,6 +165,9 @@ function storedAttemptPayload(
     paymentMethod: input.paymentMethod,
     trialChoice: input.trialChoice,
     couponCode: normalizedCoupon(input.couponCode),
+    replacementSubscriptionId: normalizedSubscriptionId(
+      input.replacementSubscriptionId
+    ),
     generation,
     released,
     releaseReason,
@@ -177,8 +191,14 @@ export function decideBillingWebCheckoutAttempt(input: {
     };
   }
 
+  const replacementSubscriptionId = normalizedSubscriptionId(
+    input.incoming.replacementSubscriptionId
+  );
+  const startsNewReplacementLineage =
+    replacementSubscriptionId !== null &&
+    replacementSubscriptionId !== input.existing.replacementSubscriptionId;
   const terminal =
-    input.incoming.replaceExisting === true ||
+    startsNewReplacementLineage ||
     input.existing.released ||
     input.providerState === "failed";
   if (terminal) {

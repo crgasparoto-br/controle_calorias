@@ -24,6 +24,7 @@ function stored(
     paymentMethod: base.paymentMethod,
     trialChoice: base.trialChoice,
     couponCode: null,
+    replacementSubscriptionId: null,
     generation: 1,
     released: false,
     ...overrides,
@@ -102,12 +103,12 @@ describe("billing web checkout attempt decision", () => {
     });
   });
 
-  it("rotates after the backend confirms the previous subscription expired", () => {
+  it("starts a new replacement lineage for a newly expired subscription", () => {
     expect(
       decideBillingWebCheckoutAttempt({
         incoming: {
           ...base,
-          replaceExisting: true,
+          replacementSubscriptionId: "subscription-expired-1",
           versionCode: "individual_yearly_v1",
         },
         existing: stored(),
@@ -117,6 +118,75 @@ describe("billing web checkout attempt decision", () => {
     ).toEqual({
       status: "claimed",
       contractKey: "web_after_expiry",
+      reused: false,
+      generation: 2,
+      persist: true,
+    });
+  });
+
+  it("reuses the replacement checkout while the same expired subscription is still current", () => {
+    const replacement = stored({
+      replacementSubscriptionId: "subscription-expired-1",
+    });
+
+    for (const providerState of ["prepared", "created", "outcome_unknown"] as const) {
+      expect(
+        decideBillingWebCheckoutAttempt({
+          incoming: {
+            ...base,
+            replacementSubscriptionId: "subscription-expired-1",
+          },
+          existing: replacement,
+          providerState,
+          candidateContractKey: `web_retry_${providerState}`,
+        })
+      ).toEqual({
+        status: "claimed",
+        contractKey: "web_existing",
+        reused: true,
+        generation: 1,
+        persist: false,
+      });
+    }
+  });
+
+  it("blocks an incompatible retry inside the same expired-subscription replacement lineage", () => {
+    expect(
+      decideBillingWebCheckoutAttempt({
+        incoming: {
+          ...base,
+          replacementSubscriptionId: "subscription-expired-1",
+          paymentMethod: "pix_automatic",
+        },
+        existing: stored({
+          replacementSubscriptionId: "subscription-expired-1",
+        }),
+        providerState: "created",
+        candidateContractKey: "web_incompatible_retry",
+      })
+    ).toMatchObject({
+      status: "conflict",
+      contractKey: "web_existing",
+      paymentMethod: "credit_card",
+    });
+  });
+
+  it("rotates again only when a later subscription expires", () => {
+    expect(
+      decideBillingWebCheckoutAttempt({
+        incoming: {
+          ...base,
+          replacementSubscriptionId: "subscription-expired-2",
+        },
+        existing: stored({
+          replacementSubscriptionId: "subscription-expired-1",
+        }),
+        providerState: "created",
+        candidateContractKey: "web_later_expiry",
+      })
+    ).toEqual({
+      status: "claimed",
+      contractKey: "web_later_expiry",
       reused: false,
       generation: 2,
       persist: true,

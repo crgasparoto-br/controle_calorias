@@ -279,7 +279,10 @@ export async function startBillingWebCheckout(input: {
       paymentMethod: input.payload.paymentMethod,
       trialChoice: input.payload.trialChoice,
       couponCode: input.payload.couponCode,
-      replaceExisting: status.subscription?.status === "expired",
+      replacementSubscriptionId:
+        status.subscription?.status === "expired"
+          ? status.subscription.id
+          : null,
     });
     if (attempt.status === "conflict") {
       throw new TRPCError({
