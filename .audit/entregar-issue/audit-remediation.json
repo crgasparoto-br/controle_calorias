@@ -7,7 +7,7 @@
     "audited_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
     "audit_report_sha256": "08d7b3b46a91cf83bfc952e412fc47d17cf56cb011277ac0bee85b2c2aa5ae67"
   },
-  "candidate_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+  "candidate_head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -41,7 +41,7 @@
         "critical delivery artifacts are re-anchored to the current material head",
         "terminal result-only child must have the current material head as direct parent and only certificate-allowed paths"
       ],
-      "reason": "Refroze the current material candidate after post-freeze material drift and rebuilt exact-head audit evidence without changing billing product code."
+      "reason": "Refroze the current material candidate after the CI remediation commit and rebuilt exact-head audit evidence without changing billing production code."
     }
   ],
   "status": "closed"

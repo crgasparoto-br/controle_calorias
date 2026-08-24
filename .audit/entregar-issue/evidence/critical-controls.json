@@ -3,14 +3,14 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+  "subject_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
   "status": "passed",
-  "observed": "Current pull-request evidence is bound to head 3ba319e24f5330e5d68ae519e74f1f0fe85dd635 and merge preview bfd0d3a480c4d146c9a2f4742296f72b9241cdc3. Agent-first gate run 5792 (32723046609), Billing persistence TiDB gate run 485 (32723046636), and Onboarding activation TiDB gate run 271 (32723046610) all completed successfully. Agent-first executed TypeScript, tests, architecture, documentation, build and agent checks; the billing persistence gate executed persistence, concurrency and idempotency validation.",
+  "observed": "Current pull-request evidence is bound to head 69b5e0a749ed7f54c6a597076c0bae73e4c6f97e and merge preview cc592358a442dfc60efae380573b899833f0faf8. Agent-first gate run 5795 (32731243028), Billing persistence TiDB gate run 487 (32731243034), and Onboarding activation TiDB gate run 273 (32731242853) all completed successfully. Agent-first executed TypeScript, tests, architecture, documentation, build and agent checks; the billing persistence gate executed persistence, concurrency and idempotency validation.",
   "runs": [
-    32723046609,
-    32723046636,
-    32723046610
+    32731243028,
+    32731243034,
+    32731242853
   ],
-  "checkout_sha": "bfd0d3a480c4d146c9a2f4742296f72b9241cdc3",
-  "verification_manifest": "agent-first-verification-3ba319e/manifest.json"
+  "checkout_sha": "cc592358a442dfc60efae380573b899833f0faf8",
+  "verification_manifest": "agent-first-verification-69b5e0a/manifest.json"
 }

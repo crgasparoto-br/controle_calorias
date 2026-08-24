@@ -14,7 +14,7 @@
       "literal_case": {
         "procedure": "Classify the stale certificate bound to the prior material head against the current candidate while preserving the independent-audit refreeze floor.",
         "expected": "Recovery is post-write-refreeze and cannot be handoff-only.",
-        "observed": "The current recovery classifier returned post-write-refreeze under the auditor recovery floor for the current candidate.",
+        "observed": "The current recovery remains post-write-refreeze after the material CI-fix commit; handoff-only is rejected.",
         "status": "passed",
         "evidence": "evidence/handoff-post-write-refreeze-001.txt"
       },
@@ -65,7 +65,7 @@
         "structural-contract"
       ],
       "status": "passed",
-      "revalidated_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635"
+      "revalidated_head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e"
     }
   ]
 }
