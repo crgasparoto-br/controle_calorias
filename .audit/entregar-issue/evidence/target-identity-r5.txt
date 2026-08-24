@@ -1,0 +1,35 @@
+{
+  "material_head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+  "cases": [
+    [
+      "same-name-different-foodId",
+      "passed",
+      "5000d3a2a340b16848bdc9348c4d539698c09a2db940c580ff5948fc905dc5b9"
+    ],
+    [
+      "homonym-reorder-stable-id",
+      "passed",
+      "5000d3a2a340b16848bdc9348c4d539698c09a2db940c580ff5948fc905dc5b9"
+    ],
+    [
+      "same-name-semantic-brand-change",
+      "passed",
+      "a3b89ac9d044f4432232b44b41f3115b0c5cf9d072fc052794d4bf186edb69d7"
+    ],
+    [
+      "semantic-identity-moved-index",
+      "passed",
+      "a3b89ac9d044f4432232b44b41f3115b0c5cf9d072fc052794d4bf186edb69d7"
+    ],
+    [
+      "indistinguishable-duplicates-fail-closed",
+      "passed",
+      "df4c907e2766c9981532d2d2e3fff8d36bb5df7c73756fbfc4b0de4762e09838"
+    ],
+    [
+      "two-ops-same-item-exactly-once",
+      "passed",
+      "45+10+5=60"
+    ]
+  ]
+}

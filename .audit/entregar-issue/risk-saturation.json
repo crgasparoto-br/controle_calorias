@@ -1,25 +1,14 @@
 {
   "schema_version": 1,
-  "head_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+  "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-014-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "local-reference-availability",
-          "reason": "A decisão deve respeitar a disponibilidade da referência local compatível em vez de autorizar um fallback genérico indevido.",
-          "control_ids": [
-            "NC-014-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
@@ -31,77 +20,43 @@
     },
     {
       "family": "public-boundary",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-001-01",
-        "NC-001-02",
-        "NC-017-01",
-        "NC-017-02",
-        "NC-025-01",
-        "NC-025-02",
-        "NC-027-01",
-        "NC-027-02",
-        "NC-040-02",
-        "NC-040-03",
-        "NC-042-01",
-        "NC-042-02",
-        "NC-043-01",
-        "NC-043-02",
-        "NC-044-01",
-        "NC-044-02"
-      ],
-      "dimensions": [
-        {
-          "surface": "parser-boundary",
-          "reason": "Variações válidas de unidade ou elipse podem ser descartadas antes do plano composto se o parser público for incompleto.",
-          "control_ids": [
-            "NC-001-02",
-            "NC-017-02",
-            "NC-025-02",
-            "NC-027-02",
-            "NC-040-03",
-            "NC-042-02",
-            "NC-043-02",
-            "NC-044-02"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "text-intent-entrypoint",
-          "reason": "Texto não confiável pode contornar o preflight e alcançar o fallback genérico se a fronteira pública não aplicar o contrato.",
-          "control_ids": [
-            "NC-001-01",
-            "NC-017-01",
-            "NC-025-01",
-            "NC-027-01",
-            "NC-040-02",
-            "NC-042-01",
-            "NC-043-01",
-            "NC-044-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "reference-liveness",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NC-011-01",
-        "NC-032-01",
-        "NC-048-01"
+        "NEG-R5-AMBIGUOUS-DUPLICATES",
+        "NEG-R5-HOMONYM-REORDER",
+        "NEG-R5-TARGET-FINGERPRINT"
       ],
       "dimensions": [
         {
-          "surface": "final-target-revalidation",
-          "reason": "O alvo persistido pode mudar durante a clarificação e precisa ser revalidado imediatamente antes da escrita final.",
+          "surface": "fail-closed-target-ambiguity",
+          "reason": "If more than one current item matches the persisted identity, the plan cannot safely prove a unique target and must stop.",
           "control_ids": [
-            "NC-011-01",
-            "NC-032-01",
-            "NC-048-01"
+            "NEG-R5-AMBIGUOUS-DUPLICATES"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "homonym-target-resolution",
+          "reason": "When homonymous but distinguishable items reorder, the original target must remain identifiable independent of its old index.",
+          "control_ids": [
+            "NEG-R5-HOMONYM-REORDER"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "persisted-target-identity",
+          "reason": "The persisted plan must retain enough stable identity to prove that the later item is the same selected item.",
+          "control_ids": [
+            "NEG-R5-TARGET-FINGERPRINT"
           ],
           "status": "passed"
         }
@@ -113,45 +68,32 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NC-011-02",
-        "NC-012-01",
-        "NC-014-02",
-        "NC-018-01",
-        "NC-020-01",
-        "NC-021-02",
-        "NC-025-03",
-        "NC-029-05",
-        "NC-032-02",
-        "NC-034-01",
-        "NC-041-01",
-        "NC-047-03",
-        "NC-048-02"
+        "NEG-R5-PRE-MUTATION-FRESHNESS",
+        "NEG-R5-PREPUBLICATION-SOURCE-ORDER",
+        "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
       ],
       "dimensions": [
         {
-          "surface": "interaction-ordering",
-          "reason": "A decisão depende da ordem entre mensagem, clarificação, resolução e aplicação final sem confundir tempos históricos.",
+          "surface": "pre-mutation-target-freshness",
+          "reason": "The final executor must revalidate target freshness after the pending interval and before any meal mutation.",
           "control_ids": [
-            "NC-011-02",
-            "NC-012-01",
-            "NC-014-02",
-            "NC-018-01",
-            "NC-020-01",
-            "NC-025-03",
-            "NC-029-05",
-            "NC-032-02",
-            "NC-034-01",
-            "NC-041-01",
-            "NC-047-03",
-            "NC-048-02"
+            "NEG-R5-PRE-MUTATION-FRESHNESS"
           ],
           "status": "passed"
         },
         {
-          "surface": "reporting-availability-window",
-          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "surface": "prepublication-validation-order",
+          "reason": "Source/rejection binding must be validated before a new handoff is published.",
           "control_ids": [
-            "NC-021-02"
+            "NEG-R5-PREPUBLICATION-SOURCE-ORDER"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "same-index-identity-drift",
+          "reason": "A same-index same-name replacement can occur while the plan is pending and must be detected before the final write.",
+          "control_ids": [
+            "NEG-R5-TARGET-SAME-NAME-ID-DRIFT"
           ],
           "status": "passed"
         }
@@ -168,89 +110,25 @@
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-002-01",
-        "NC-002-02",
-        "NC-009-01",
-        "NC-009-02",
-        "NC-010-01",
-        "NC-010-02",
-        "NC-028-01",
-        "NC-028-02",
-        "NC-029-01",
-        "NC-029-02",
-        "NC-033-01",
-        "NC-033-02",
-        "NC-045-01",
-        "NC-045-02",
-        "NC-046-01",
-        "NC-046-02",
-        "NC-047-01",
-        "NC-047-02",
-        "NC-049-01",
-        "NC-049-02"
-      ],
-      "dimensions": [
-        {
-          "surface": "final-batch-mutation",
-          "reason": "A aplicação final precisa ocorrer somente depois de todas as operações estarem resolvidas e revalidadas.",
-          "control_ids": [
-            "NC-002-02",
-            "NC-009-02",
-            "NC-010-02",
-            "NC-028-02",
-            "NC-029-02",
-            "NC-033-02",
-            "NC-045-02",
-            "NC-046-02",
-            "NC-047-02",
-            "NC-049-02"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "pending-claim",
-          "reason": "Respostas concorrentes podem disputar a mesma pendência e precisam de claim condicional.",
-          "control_ids": [
-            "NC-002-01",
-            "NC-009-01",
-            "NC-010-01",
-            "NC-028-01",
-            "NC-029-01",
-            "NC-033-01",
-            "NC-045-01",
-            "NC-046-01",
-            "NC-047-01",
-            "NC-049-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "idempotency",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NC-010-03",
-        "NC-029-03",
-        "NC-033-03",
-        "NC-040-01",
-        "NC-049-03"
+        "NEG-R5-IDEMPOTENT-BATCH"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
           "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "NC-010-03",
-            "NC-029-03",
-            "NC-033-03",
-            "NC-040-01",
-            "NC-049-03"
+            "NEG-R5-IDEMPOTENT-BATCH"
           ],
           "status": "passed"
         }
@@ -259,26 +137,11 @@
     },
     {
       "family": "rollback",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-002-03",
-        "NC-029-04",
-        "NC-031-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "compensated-batch",
-          "reason": "Falha durante a escrita de múltiplas refeições não pode deixar um subconjunto do plano persistido.",
-          "control_ids": [
-            "NC-002-03",
-            "NC-029-04",
-            "NC-031-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "historical-immutability",
@@ -293,78 +156,85 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NC-003-01",
-        "NC-004-01",
-        "NC-005-01",
-        "NC-006-01",
-        "NC-007-01",
-        "NC-008-01",
-        "NC-013-01",
-        "NC-015-01",
-        "NC-016-01",
-        "NC-019-01",
-        "NC-021-01",
-        "NC-022-01",
-        "NC-023-01",
-        "NC-024-01",
-        "NC-026-01",
-        "NC-030-01",
-        "NC-035-01",
-        "NC-036-01",
-        "NC-037-01",
-        "NC-038-01",
-        "NC-039-01",
-        "NC-050-01",
-        "NC-051-01",
-        "NC-052-02",
-        "NC-053-02",
-        "NC-054-01"
+        "NEG-R5-ALLOWLIST",
+        "NEG-R5-CERT-REDERIVE",
+        "NEG-R5-PARSER-OWNERSHIP",
+        "NEG-R5-POST-WRITE-REFREEZE",
+        "NEG-R5-REPROMPT",
+        "NEG-R5-RESULT-PARENT",
+        "NEG-R5-SOURCE-BIND",
+        "NEG-R5-TEST-DUPLICATES",
+        "NEG-R5-TEST-HOMONYM-REORDER",
+        "NEG-R5-TEST-SAME-INDEX",
+        "NEG-R5-TEST-TWO-OPS",
+        "NEG-R5-TEST-UNIQUE-MOVED"
       ],
       "dimensions": [
         {
-          "surface": "behavior-contract",
-          "reason": "A implementação pode parecer correta no caminho feliz e ainda violar a obrigação estrutural ou semântica observável.",
+          "surface": "audit-remediation-source-binding",
+          "reason": "The newest rejection must be bound to stable source bytes and prior source-binding escape coverage must remain active.",
           "control_ids": [
-            "NC-003-01",
-            "NC-004-01",
-            "NC-005-01",
-            "NC-006-01",
-            "NC-013-01",
-            "NC-015-01",
-            "NC-019-01",
-            "NC-026-01",
-            "NC-030-01",
-            "NC-053-02",
-            "NC-054-01"
+            "NEG-R5-SOURCE-BIND"
           ],
           "status": "passed"
         },
         {
-          "surface": "canonical-source-consistency",
-          "reason": "Registro e ajuste precisam consumir a mesma fonte canônica de porções/clarificação, sem pesos paralelos no parser.",
+          "surface": "certificate-semantic-revalidation",
+          "reason": "Certificate/audit source relationships must be rederived rather than trusted from producer-declared hashes.",
           "control_ids": [
-            "NC-007-01",
-            "NC-008-01",
-            "NC-016-01",
-            "NC-036-01",
-            "NC-037-01",
-            "NC-038-01",
-            "NC-039-01",
-            "NC-052-02"
+            "NEG-R5-CERT-REDERIVE"
           ],
           "status": "passed"
         },
         {
-          "surface": "regression-contract",
-          "reason": "A regressão deve discriminar a implementação errada no entrypoint e nos estados persistentes, não apenas o caminho feliz.",
+          "surface": "clarification-reprompt-contract",
+          "reason": "Cumulative clarification reprompt ordering remains active and must not be dropped from the re-audit lineage.",
           "control_ids": [
-            "NC-021-01",
-            "NC-022-01",
-            "NC-023-01",
-            "NC-024-01",
-            "NC-035-01",
-            "NC-050-01",
-            "NC-051-01"
+            "NEG-R5-REPROMPT"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "parser-ownership-precedence",
+          "reason": "Cumulative parser ownership controls from the earlier audit escape remain active and must be reexecuted on the current material head.",
+          "control_ids": [
+            "NEG-R5-PARSER-OWNERSHIP"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-write-refreeze-recovery",
+          "reason": "Any material write after a previous freeze must preserve the auditor recovery floor and force a new material refreeze.",
+          "control_ids": [
+            "NEG-R5-POST-WRITE-REFREEZE"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-artifact-allowlist",
+          "reason": "The handoff child may contain only audit/result artifacts and must include every transported artifact part declared by the certificate.",
+          "control_ids": [
+            "NEG-R5-ALLOWLIST"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-parent-lineage",
+          "reason": "The result-only child must have the newly frozen material head as its direct parent.",
+          "control_ids": [
+            "NEG-R5-RESULT-PARENT"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
+          "control_ids": [
+            "NEG-R5-TEST-DUPLICATES",
+            "NEG-R5-TEST-HOMONYM-REORDER",
+            "NEG-R5-TEST-SAME-INDEX",
+            "NEG-R5-TEST-TWO-OPS",
+            "NEG-R5-TEST-UNIQUE-MOVED"
           ],
           "status": "passed"
         }
@@ -373,24 +243,11 @@
     },
     {
       "family": "documentation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-052-01",
-        "NC-053-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "canonical-claims",
-          "reason": "As fontes canônicas de documentação devem descrever o mesmo contrato de medida caseira e plano composto implementado no código.",
-          "control_ids": [
-            "NC-052-01",
-            "NC-053-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     }
   ],
   "material_families_missing_controls": []

@@ -1,59 +1,17 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
+  "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:6880b2e1-4dca-4783-b694-24bb41765d84",
+    "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
     "finding_ids": [
       "A-001"
     ],
-    "audit_report_sha256": "2db1a124ba8d3ea8865affc00fe31bf154bd01af1083e2f4abced64480a121c6"
+    "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
   },
   "generalized_learning": {
-    "escape_class": "rejected-snapshot-lineage-authority-conflation",
-    "generalized_failure_pattern": "A re-audit gate can accidentally promote every entry in a rejected historical snapshot into permanent obligations even after that same audit proves some entries belong to a different delivery target.",
-    "plausible_wrong_implementation": "Require raw set monotonicity against the entire rejected snapshot and then force foreign entries to remain active or retired, making a prior contamination impossible to remove without failing the next audit.",
-    "trigger_signals": [
-      "previous rejected snapshot",
-      "cumulative lineage",
-      "foreign-target",
-      "retired controls",
-      "audit escape closure",
-      "source audits",
-      "reaudit readiness"
-    ],
-    "risk_families": [
-      "structural-contract"
-    ],
-    "reusable_control": "Keep monotonicity strict by default, but allow exact target-bound quarantine only when an independent rejected audit result authorizes exact IDs/hashes against the canonical hash of the exact previous snapshot.",
-    "prevention_rule": "The producer must never infer foreign lineage from prose or silently subtract history; it may quarantine only the exact entries authorized by a structured independent rejection bound to the exact historical snapshot.",
-    "detection_rule": "The auditor must apply the same exact authorization and reject missing, stale-hash, partial, overbroad or retired-as-current-target quarantine attempts.",
-    "transfer_cases": [
-      {
-        "surface": "producer-lineage-validation",
-        "case": "a rejected snapshot contains one foreign control and one current control; only the explicitly authorized foreign ID and source audit may disappear",
-        "status": "passed"
-      },
-      {
-        "surface": "auditor-reaudit-preflight",
-        "case": "an authorization contains an extra current-target ID or a stale previous-snapshot hash; re-audit remains blocked",
-        "status": "passed"
-      }
-    ],
-    "promotion_status": "promoted"
+    "promotion_status": "not-required",
+    "reason": "The escape is a product-specific target-identity implementation gap. The installed delivery skill already requires discriminant negative controls, reference liveness, fail-closed revalidation, cumulative audit-escape closure, and terminal handoff checks; no repository- or issue-specific global skill rule is needed."
   },
-  "skill_changes": [
-    {
-      "role": "prevention",
-      "status": "passed",
-      "change": "Delivery validators use an exact structured foreign-target quarantine contract while preserving strict monotonicity as the default.",
-      "evidence": "evidence/6880-skill-remediation.txt"
-    },
-    {
-      "role": "detection",
-      "status": "passed",
-      "change": "Re-audit readiness consumes the certified audit source result and independently enforces the same exact target-scoped quarantine boundary.",
-      "evidence": "evidence/6880-skill-remediation.txt"
-    }
-  ]
+  "skill_changes": []
 }

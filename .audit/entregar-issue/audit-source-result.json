@@ -1,152 +1,26 @@
 {
+  "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "mode": "independent",
   "status": "rejected",
-  "approval_scope": "independent-release-gate",
-  "release_gate_satisfied": false,
-  "rejection_id": "audit-rejection:6880b2e1-4dca-4783-b694-24bb41765d84",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue": 989,
-  "pull_request": 993,
-  "base_ref": "develop",
-  "remote_base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
-  "certified_base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
-  "head_sha": "c43bf1cfa79fcb04843b347d43a06cb4de012649",
-  "material_head_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
-  "published_handoff_head_sha": "c43bf1cfa79fcb04843b347d43a06cb4de012649",
-  "blocker_bounded": true,
-  "requires_refreeze": false,
-  "return_control_to": "entregar-issue",
-  "recovery_scope": "handoff-only",
+  "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+  "head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
+  "material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+  "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8",
+  "finding_ids": [
+    "A-001"
+  ],
   "findings": [
     {
       "id": "A-001",
-      "severity": "blocking",
+      "status": "open",
       "disposition": "blocking",
       "actionable": true,
-      "remediation_mode": "systemic-remediation",
-      "category": "remediation-incomplete",
-      "title": "Rejected snapshot cumulativitiy conflates foreign-target contamination with current-target lineage",
-      "audit_escape": true,
-      "lineage_correction_authorizations": [
-        {
-          "mode": "foreign-target-quarantine",
-          "artifact_kind": "inherited-controls",
-          "previous_snapshot_canonical_sha256": "fc7f9f199da4c04d4b4bc3ecc050837e41c02d61bed384256e646660958657aa",
-          "excluded_ids": [
-            "AUTH-EFFECT-SCOPE-001",
-            "EMERGENCY-LIMITATION-RIGHTS-001",
-            "HANDOFF-LINEAGE-CHILD-001",
-            "HISTORICAL-ATTRIBUTION-IMMUTABILITY-001",
-            "IDEMPOTENCY-REPLAY-001",
-            "INH-CONTROL-EVIDENCE-001",
-            "INH-HANDOFF-READINESS-001",
-            "INH-SATURATION-SEMANTIC-001",
-            "LEGAL-HOLD-PROFESSIONAL-GRANT-001",
-            "PUBLIC-BOUNDARY-APPEAL-TARGET-001",
-            "QUANT-EXACT-SHA-001",
-            "REF-LIVE-EFFECT-SCOPE-001",
-            "ROLE-CONTEXT-SOURCE-001",
-            "ROLLBACK-FUTURE-CHARGE-001",
-            "SEMANTIC-IDENTITY-PROP-001",
-            "SPONSOR-SUBSCRIPTION-LOOKUP-001",
-            "TEMP-COVERAGE-001",
-            "TEMP-COVERAGE-DAILY-001",
-            "TIDB-RETENTION-PROVIDER-TERMINATION-001"
-          ],
-          "excluded_source_audit_sha256": [
-            "16a297050f38fd4e255add12a6b89563dacef44af670fb4b364df35afc1fe14e",
-            "1886c9d3cd8a359f5f620bbe599bef280162b60a17fc4d05dd8bb3f5612f7ceb",
-            "1d73116715bfcafe561e21aa1fa545854538d9d391cf1eeb1fe5fc631e7c1062",
-            "368e215fa83cf57ab191345008e5b44e660d012248e6d13ae77dbf61557af6cd",
-            "55dfc4596b1b13bb5921b6dad75a70bd52aae95bf6fc1d6d61a9dfded6aab21b",
-            "993a4da5378f555930962e330488d3542d07cb8d34e5940a3402922e42aa9788",
-            "abc99f672efd96029d439452fd9a3b7dead5f3494b6a7eacde8d6b376ee905fd",
-            "c3e0f004b58c2e002d4410396fb68125b54c261f43a1cec2b9f3571d921c052f",
-            "e2327b5b6d08b34d725ec06c2b10d8d33f82f22ca23694a768c307c2677909e7",
-            "e2fe22e6446b162595d565db944d904c729d30cfe13418a6e74ce1bd1e444ad6",
-            "efa9efe9be80a0aeb5fcb4b47c640fe5d00743e3761c56c88d3c57ab9472b7e2",
-            "fe374763217a67433fcff6e22058e67299719b227b03806be92bdc983b215613"
-          ]
-        },
-        {
-          "mode": "foreign-target-quarantine",
-          "artifact_kind": "audit-escape-closure",
-          "previous_snapshot_canonical_sha256": "dc51637a2220fe22ed99c94b0ec50280e44fde760cbbfff6630bccab8a76a4dd",
-          "excluded_ids": [
-            "A-003",
-            "A-004",
-            "A-005",
-            "A-006",
-            "AUD-985-001-EMERGENCY-RIGHTS",
-            "AUD-985-002-PUBLIC-BOUNDARY",
-            "AUD-985-003-LEGAL-HOLD-PROFESSIONAL-GRANT",
-            "AUD-985-004-TIDB-RESOURCE-TERMINATION",
-            "LATEST-IDEMPOTENCY-SATURATION",
-            "LATEST-QUANT-PROVENANCE",
-            "LATEST-SEMANTIC-IDENTITY"
-          ]
-        },
-        {
-          "mode": "foreign-target-quarantine",
-          "artifact_kind": "inherited-controls",
-          "previous_snapshot_canonical_sha256": "3f8e4f8cd14991335595acbfe463d28cecf49b5d25928e53ada1778df8ea1b9f",
-          "excluded_ids": [
-            "AUTH-EFFECT-SCOPE-001",
-            "EMERGENCY-LIMITATION-RIGHTS-001",
-            "HANDOFF-LINEAGE-CHILD-001",
-            "HISTORICAL-ATTRIBUTION-IMMUTABILITY-001",
-            "IDEMPOTENCY-REPLAY-001",
-            "INH-CONTROL-EVIDENCE-001",
-            "INH-HANDOFF-READINESS-001",
-            "INH-SATURATION-SEMANTIC-001",
-            "LEGAL-HOLD-PROFESSIONAL-GRANT-001",
-            "PUBLIC-BOUNDARY-APPEAL-TARGET-001",
-            "QUANT-EXACT-SHA-001",
-            "REF-LIVE-EFFECT-SCOPE-001",
-            "ROLE-CONTEXT-SOURCE-001",
-            "ROLLBACK-FUTURE-CHARGE-001",
-            "SEMANTIC-IDENTITY-PROP-001",
-            "SPONSOR-SUBSCRIPTION-LOOKUP-001",
-            "TEMP-COVERAGE-001",
-            "TEMP-COVERAGE-DAILY-001",
-            "TIDB-RETENTION-PROVIDER-TERMINATION-001"
-          ],
-          "excluded_source_audit_sha256": [
-            "16a297050f38fd4e255add12a6b89563dacef44af670fb4b364df35afc1fe14e",
-            "1886c9d3cd8a359f5f620bbe599bef280162b60a17fc4d05dd8bb3f5612f7ceb",
-            "1d73116715bfcafe561e21aa1fa545854538d9d391cf1eeb1fe5fc631e7c1062",
-            "368e215fa83cf57ab191345008e5b44e660d012248e6d13ae77dbf61557af6cd",
-            "55dfc4596b1b13bb5921b6dad75a70bd52aae95bf6fc1d6d61a9dfded6aab21b",
-            "993a4da5378f555930962e330488d3542d07cb8d34e5940a3402922e42aa9788",
-            "abc99f672efd96029d439452fd9a3b7dead5f3494b6a7eacde8d6b376ee905fd",
-            "c3e0f004b58c2e002d4410396fb68125b54c261f43a1cec2b9f3571d921c052f",
-            "e2327b5b6d08b34d725ec06c2b10d8d33f82f22ca23694a768c307c2677909e7",
-            "e2fe22e6446b162595d565db944d904c729d30cfe13418a6e74ce1bd1e444ad6",
-            "efa9efe9be80a0aeb5fcb4b47c640fe5d00743e3761c56c88d3c57ab9472b7e2",
-            "fe374763217a67433fcff6e22058e67299719b227b03806be92bdc983b215613"
-          ]
-        },
-        {
-          "mode": "foreign-target-quarantine",
-          "artifact_kind": "audit-escape-closure",
-          "previous_snapshot_canonical_sha256": "aa7bdd20645ef8aeeff2da24fa856f0ce3dc71cc79744246e2f8feec8df24238",
-          "excluded_ids": [
-            "A-003",
-            "A-004",
-            "A-005",
-            "A-006",
-            "AUD-985-001-EMERGENCY-RIGHTS",
-            "AUD-985-002-PUBLIC-BOUNDARY",
-            "AUD-985-003-LEGAL-HOLD-PROFESSIONAL-GRANT",
-            "AUD-985-004-TIDB-RESOURCE-TERMINATION",
-            "LATEST-IDEMPOTENCY-SATURATION",
-            "LATEST-QUANT-PROVENANCE",
-            "LATEST-SEMANTIC-IDENTITY"
-          ]
-        }
-      ]
+      "remediation_mode": "targeted-remediation",
+      "summary": "Stale revalidation could accept a same-name replacement or reordered homonym without proving the originally selected meal-item identity, allowing mutation of the wrong item."
     }
   ],
-  "recommendations": []
+  "recommendations": [
+    "Persist a stable target fingerprint, revalidate all targets before mutation, fail closed on ambiguity, and cover same-name identity drift/reorder/duplicates plus repeated operations."
+  ],
+  "summary": "Independent audit rejected the prior PR 998 candidate for insufficient stale target identity revalidation."
 }

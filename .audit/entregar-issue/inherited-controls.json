@@ -1,1 +1,161 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"inherited-controls","compression":"gzip","encoded_size":2764,"encoded_sha256":"36675960bbe2f41e184b3894c136618a707848a58fcaa86c4896afe3306f1be4","decoded_size":22103,"decoded_sha256":"8e3b730ddcb46ab94623f90b5f2fbd073f009c65eb5ce57c8d2441dc0180b519","parts":[{"path":"inherited-controls.parts/part-000.b64","size":2764,"sha256":"36675960bbe2f41e184b3894c136618a707848a58fcaa86c4896afe3306f1be4"}]}
+{
+  "schema_version": 1,
+  "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+  "controls": [
+    {
+      "id": "CTRL-PARSER-OWNERSHIP-FALLTHROUGH-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "procedure",
+      "evidence": "evidence/product-controls-r5.txt",
+      "evidence_sha256": "2251c78e2e675f03814d4ac49f1dcd4b431b2f44a6367ae25e4541e5bb4804c9",
+      "procedure": "Executar o parser misto com 48g + fatia + elipse e, como irmao negativo, elipse sem unidade anterior.",
+      "expected": "Operacoes suportadas sao extraidas sem perda; elipse so herda unidade quando existe antecedente inequivoco.",
+      "observed": "No material head corrente foram extraidas 3 operacoes no comando completo, com mussarela herdando fatia; no comando isolado \"uma na mussarela\", unit permaneceu null."
+    },
+    {
+      "id": "CTRL-LOW-CAL-BEVERAGE-PRECEDENCE-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "procedure",
+      "evidence": "evidence/product-controls-r5.txt",
+      "evidence_sha256": "2251c78e2e675f03814d4ac49f1dcd4b431b2f44a6367ae25e4541e5bb4804c9",
+      "procedure": "Executar a fronteira contavel com 200 ml de cafe com acucar e 45 g de requeijao light.",
+      "expected": "Massa/volume e bebida especializada nao sao capturados pelo parser contavel; texto explicito permanece intacto.",
+      "observed": "O parser contavel retornou null para ambos; o registrationText de 200 ml de cafe com acucar permaneceu inalterado."
+    },
+    {
+      "id": "CTRL-CANONICAL-DISPLAY-PARITY-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "procedure",
+      "evidence": "evidence/product-controls-r5.txt",
+      "evidence_sha256": "2251c78e2e675f03814d4ac49f1dcd4b431b2f44a6367ae25e4541e5bb4804c9",
+      "procedure": "Executar conversao canonica de uma e duas unidades de pao frances e aliases TACO de mozarela.",
+      "expected": "Uma unidade usa 50 g, duas usam 100 g e aliases lexicais mantem a identidade local correta.",
+      "observed": "O harness retornou 50 g, 100 g e registrationText \"50 g de pão francês\"; mussarela/muçarela/mozarela resolveram Queijo, mozarela."
+    },
+    {
+      "id": "CTRL-RESULT-ONLY-ARTIFACT-ALLOWLIST-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "evidence": "evidence/recovery-r5.txt",
+      "evidence_sha256": "f4a0cc8dc7af5479a72f02db88cf77fed1488631a979e9e1845d2225249a876f",
+      "procedure": "Executar controles genericos de result-only child, parent e material path apos handoff.",
+      "expected": "Filho direto somente de resultados e aceito; parent/material path incorretos exigem refreeze.",
+      "observed": "O classificador executado contra o material head corrente preservou recovery_scope=post-write-refreeze e bloqueou handoff-only para o certificado ancestral."
+    },
+    {
+      "id": "CTRL-CLARIFICATION-REPROMPT-CONTRACT-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "evidence": "evidence/exact-head-ci-r5.txt",
+      "evidence_sha256": "0c76574a71924251f0c1838c9831aa720944284b77e1fe7be284a64744431fe7",
+      "procedure": "Executar no exact-head as variantes 1 fatia, 1 unidade e 2 fatias e o retry concorrente.",
+      "expected": "Resposta contavel sem massa reprompta antes de claim/continue; retry continua o plano exatamente uma vez.",
+      "observed": "O exact-head Agent-first gate completou os 24 shards; a fonte do teste da issue 997 enumera 1 fatia, 1 unidade e 2 fatias e exige food_clarification_reprompted antes de claim/continue."
+    },
+    {
+      "id": "CTRL-AUDIT-REMEDIATION-SOURCE-BINDING-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "evidence": "evidence/audit-source-binding-r5.txt",
+      "evidence_sha256": "8951d3d6361576c2e1d9d5ab319a5ab7aa7f253d719866684819c9f10d9634fb",
+      "procedure": "Validar o ledger contra os bytes corretos e depois contra uma copia adulterada do mesmo audit source.",
+      "expected": "Bytes corretos passam; qualquer alteracao dos bytes bloqueia por audit_report_sha256 divergente.",
+      "observed": "O hash dos bytes da fonte R5 foi rederivado e coincide em remediation/source-result/learning/escape; uma variante adulterada produziu hash diferente e foi bloqueada."
+    },
+    {
+      "id": "CTRL-AUDIT-REMEDIATION-CERT-REDERIVE-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "evidence": "evidence/audit-source-binding-r5.txt",
+      "evidence_sha256": "8951d3d6361576c2e1d9d5ab319a5ab7aa7f253d719866684819c9f10d9634fb",
+      "procedure": "Recomputar independentemente o hash da fonte no validator auditor-side em vez de confiar no hash declarado pelo produtor.",
+      "expected": "A relacao remediation/source e rederivada a partir dos bytes e adulteracao coerente superficial nao passa.",
+      "observed": "O hash dos bytes da fonte R5 foi rederivado e coincide em remediation/source-result/learning/escape; uma variante adulterada produziu hash diferente e foi bloqueada."
+    },
+    {
+      "id": "CTRL-POST-WRITE-REFREEZE-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "evidence": "evidence/recovery-r5.txt",
+      "evidence_sha256": "f4a0cc8dc7af5479a72f02db88cf77fed1488631a979e9e1845d2225249a876f",
+      "procedure": "Classificar o handoff ancestral contra o head atual com auditor recovery floor post-write-refreeze e executar casos irmaos de parent drift/material path.",
+      "expected": "A recuperacao nunca e rebaixada para handoff-only; novo freeze e handoff sao obrigatorios.",
+      "observed": "O classificador executado contra o material head corrente preservou recovery_scope=post-write-refreeze e bloqueou handoff-only para o certificado ancestral."
+    },
+    {
+      "id": "CTRL-MIXED-TARGET-IDENTITY-001",
+      "status": "passed",
+      "head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "subject_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+      "control_type": "test",
+      "attack_control_id": "NEG-R5-TARGET-SAME-NAME-ID-DRIFT",
+      "risk_family": "temporal-consistency",
+      "surface": "same-index-identity-drift",
+      "dimension": "fail-closed-before-mutation",
+      "evidence": "evidence/target-identity-r5.txt",
+      "evidence_sha256": "b7539c016d4c5595e9a6d2b7ebfdb8d96db72df57d7a165a99cc7bd871714eb0",
+      "procedure": "Persist a target for a same-name item, alter its stable identity while the plan is pending, then invoke the public mixed-plan continuation boundary.",
+      "expected": "Identity drift is detected before mutation, while a uniquely identifiable moved target remains resolvable and ambiguous duplicates fail closed.",
+      "observed": "Same-name different-foodId and semantic-brand replacement returned stale with zero mutations; distinguishable reorder and unique moved identity resolved correctly; duplicate fingerprints failed closed."
+    }
+  ],
+  "retired_controls": [],
+  "source_audits": [
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+      "finding_ids": [
+        "AUD-998-F001"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:eed1aa42-cde8-4d18-9918-e08097fb4218",
+      "finding_ids": [
+        "AUD-998-F002",
+        "AUD-998-F003"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:577f8883-06ee-4b32-a49b-352b5975cc42",
+      "finding_ids": [
+        "AUD-998-F004"
+      ],
+      "audit_report_sha256": "d83c91d87ddcc97078a68787783616fd6ae805699fd930842ba850be5e788f91"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c",
+      "finding_ids": [
+        "DELIVERY-998-001"
+      ],
+      "audit_report_sha256": "f226dea8d1d94d612ad8242d6ed7fea82cf02a5e5ece25ca611f2d915f618695"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
+    }
+  ],
+  "unresolved_controls": []
+}

@@ -3,45 +3,37 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:6880b2e1-4dca-4783-b694-24bb41765d84",
-    "audited_head_sha": "c43bf1cfa79fcb04843b347d43a06cb4de012649",
-    "audit_report_sha256": "2db1a124ba8d3ea8865affc00fe31bf154bd01af1083e2f4abced64480a121c6"
+    "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+    "audited_head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
+    "audited_material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+    "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
   },
-  "candidate_head_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
-  "remediation_mode": "systemic-remediation",
+  "candidate_head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
+  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-001",
-      "remediation_mode": "systemic-remediation",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        "entregar-issue/scripts/lineage_correction.py",
-        "entregar-issue/scripts/validate_inherited_controls.py",
-        "entregar-issue/scripts/validate_audit_escape_lineage.py",
-        "entregar-issue/scripts/validate_handoff_readiness.py",
-        "entregar-issue/scripts/build_handoff_certificate.py",
-        "entregar-issue/scripts/validate_terminal_handoff.py",
-        "auditar-issue/scripts/lineage_correction.py",
-        "auditar-issue/scripts/check_reaudit_readiness.py",
-        "auditar-issue/scripts/check_delivery_preflight.py",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/inherited-controls.json",
-        ".audit/entregar-issue/learning-closure.json"
+        "server/modules/whatsapp/mixedMealItemIncrementPlanTypes.ts",
+        "server/modules/whatsapp/mixedMealItemIncrementPlan.ts",
+        "server/modules/whatsapp/mixedMealItemIncrementPlan.issue997.test.ts"
       ],
       "evidence": [
-        "evidence/6880-target-scoped-lineage.txt",
-        "evidence/6880-skill-remediation.txt"
+        "evidence/target-identity-r5.txt",
+        "evidence/exact-head-ci-r5.txt"
       ],
       "validations": [
-        "strict default still rejects silent historical control, escape and source-audit subtraction",
-        "exact foreign-target quarantine is accepted only when the independent result binds the exact prior logical snapshot hash and exact excluded IDs/hashes",
-        "overbroad quarantine authorization remains rejected",
-        "producer and auditor use the same transferable target-scoped authorization contract"
-      ],
-      "reason": "Separated current-target cumulative obligations from entries that the independent auditor proved were foreign-target contamination, without weakening default monotonicity."
+        "same-name identity replacement is stale without mutation",
+        "distinguishable homonyms can reorder while preserving the selected identity",
+        "semantic fallback identity works without foodId and indistinguishable duplicates fail closed",
+        "multiple valid operations against the same item apply exactly once",
+        "exact-head Agent-first and WhatsApp TiDB workflows completed successfully"
+      ]
     }
   ],
-  "status": "closed"
+  "status": "closed",
+  "all_actionable_items_closed": true
 }
