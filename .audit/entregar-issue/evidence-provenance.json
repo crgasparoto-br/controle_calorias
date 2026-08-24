@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "material_head_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
-  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+  "material_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+  "base_sha": "64a86e040ac656645557597d122019ee49e14ab7",
   "evidence": [
     {
       "evidence_id": "billing-contract-quantitative-v2",
       "kind": "quantitative",
       "status": "passed",
       "path": "evidence/billing-contract-quantitative.json",
-      "sha256": "72ce5cdd59ec8fa80dcfdcc04a08f500b2411f96f3a8428dd588e36329689309",
-      "subject_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+      "sha256": "fa7de06e6ecd594fcd4d0f33d9b0eeba408970d67c199d6e9a59d381ff1dd16c",
+      "subject_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
       "freshness_policy": "exact-material-head",
-      "procedure": "Execute deterministic billing contract probes in the exact-head Agent-first and persistence gates and compare trial, capacity and coupon boundaries.",
-      "expected": "Billing quantities and rejection boundaries match the canonical issue contract.",
-      "observed": "Exact-head CI passed and the recorded probes match 7/14-day trials, professional capacity limits, 30-day extension and coupon boundaries.",
-      "producer": "github-actions exact-head runs 5759/471/267 + handoff evidence index"
+      "procedure": "Read the current billing contract constants/tests and bind them to the successful pull-request CI snapshot for the current head and merge preview.",
+      "expected": "Trial, capacity and coupon boundaries match the canonical issue contract on the current candidate.",
+      "observed": "Current source/tests retain 7/14-day trials, professional capacities 30/100, 30-day extension and coupon rejection/duration boundaries; the current head merge-preview CI completed successfully.",
+      "producer": "GitHub Actions runs 5792/485/271 bound to head 3ba319e24f5330e5d68ae519e74f1f0fe85dd635 and merge preview bfd0d3a480c4d146c9a2f4742296f72b9241cdc3"
     }
   ]
 }

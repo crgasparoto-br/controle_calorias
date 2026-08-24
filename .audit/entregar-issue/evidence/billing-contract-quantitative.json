@@ -3,10 +3,10 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+  "subject_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
   "freshness_policy": "exact-material-head",
   "status": "passed",
-  "method": "Deterministic billing contract probes executed by the successful exact-head Agent-first gate and billing persistence gate.",
+  "method": "Deterministic billing contract probes are anchored to the current pull-request head and the successful merge-preview CI for that head. Values are read from the current source/tests and exercised by the successful Agent-first and billing persistence gates.",
   "probes": [
     {
       "id": "trial-duration",
@@ -45,10 +45,16 @@
     }
   ],
   "execution": {
-    "agent_first_run_id": 32642599647,
-    "agent_first_run_number": 5759,
+    "head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+    "checkout_sha": "bfd0d3a480c4d146c9a2f4742296f72b9241cdc3",
+    "agent_first_run_id": 32723046609,
+    "agent_first_run_number": 5792,
     "agent_first_conclusion": "success",
-    "billing_persistence_run_number": 471,
-    "billing_persistence_conclusion": "success"
+    "billing_persistence_run_id": 32723046636,
+    "billing_persistence_run_number": 485,
+    "billing_persistence_conclusion": "success",
+    "onboarding_activation_run_id": 32723046610,
+    "onboarding_activation_run_number": 271,
+    "onboarding_activation_conclusion": "success"
   }
 }

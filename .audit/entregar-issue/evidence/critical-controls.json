@@ -3,12 +3,14 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
+  "subject_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
   "status": "passed",
-  "observed": "Exact-head CI passed Agent-first gate run 5759, Billing persistence TiDB gate run 471, and Onboarding activation TiDB gate run 267; billing tests cover idempotency, privacy, provider pending states, coupon boundaries, capacity and UI states.",
+  "observed": "Current pull-request evidence is bound to head 3ba319e24f5330e5d68ae519e74f1f0fe85dd635 and merge preview bfd0d3a480c4d146c9a2f4742296f72b9241cdc3. Agent-first gate run 5792 (32723046609), Billing persistence TiDB gate run 485 (32723046636), and Onboarding activation TiDB gate run 271 (32723046610) all completed successfully. Agent-first executed TypeScript, tests, architecture, documentation, build and agent checks; the billing persistence gate executed persistence, concurrency and idempotency validation.",
   "runs": [
-    32642599647,
-    32642599596,
-    32642599599
-  ]
+    32723046609,
+    32723046636,
+    32723046610
+  ],
+  "checkout_sha": "bfd0d3a480c4d146c9a2f4742296f72b9241cdc3",
+  "verification_manifest": "agent-first-verification-3ba319e/manifest.json"
 }

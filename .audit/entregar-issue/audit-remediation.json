@@ -3,44 +3,45 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:6880b2e1-4dca-4783-b694-24bb41765d84",
-    "audited_head_sha": "c43bf1cfa79fcb04843b347d43a06cb4de012649",
-    "audit_report_sha256": "2db1a124ba8d3ea8865affc00fe31bf154bd01af1083e2f4abced64480a121c6"
+    "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
+    "audited_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+    "audit_report_sha256": "08d7b3b46a91cf83bfc952e412fc47d17cf56cb011277ac0bee85b2c2aa5ae67"
   },
-  "candidate_head_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
-  "remediation_mode": "systemic-remediation",
+  "candidate_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
+  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-001",
-      "remediation_mode": "systemic-remediation",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        "entregar-issue/scripts/lineage_correction.py",
-        "entregar-issue/scripts/validate_inherited_controls.py",
-        "entregar-issue/scripts/validate_audit_escape_lineage.py",
-        "entregar-issue/scripts/validate_handoff_readiness.py",
-        "entregar-issue/scripts/build_handoff_certificate.py",
-        "entregar-issue/scripts/validate_terminal_handoff.py",
-        "auditar-issue/scripts/lineage_correction.py",
-        "auditar-issue/scripts/check_reaudit_readiness.py",
-        "auditar-issue/scripts/check_delivery_preflight.py",
+        ".audit/entregar-issue/handoff-ready.json",
         ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/inherited-controls.json",
-        ".audit/entregar-issue/learning-closure.json"
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/learning-closure-895.json",
+        ".audit/entregar-issue/audit-escape-closure-895.json",
+        ".audit/entregar-issue/inherited-controls-895.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/evidence/critical-controls.json",
+        ".audit/entregar-issue/evidence/billing-contract-quantitative.json",
+        ".audit/entregar-issue/evidence/handoff-post-write-refreeze-001.txt"
       ],
       "evidence": [
-        "evidence/6880-target-scoped-lineage.txt",
-        "evidence/6880-skill-remediation.txt"
+        "evidence/handoff-post-write-refreeze-001.txt",
+        "evidence/critical-controls.json",
+        "evidence/billing-contract-quantitative.json"
       ],
       "validations": [
-        "strict default still rejects silent historical control, escape and source-audit subtraction",
-        "exact foreign-target quarantine is accepted only when the independent result binds the exact prior logical snapshot hash and exact excluded IDs/hashes",
-        "overbroad quarantine authorization remains rejected",
-        "producer and auditor use the same transferable target-scoped authorization contract"
+        "target binding resolves to the current issue/PR",
+        "recovery classifier preserves the independent audit post-write-refreeze floor",
+        "current pull-request CI gates are successful and bound to the current head/merge preview",
+        "critical delivery artifacts are re-anchored to the current material head",
+        "terminal result-only child must have the current material head as direct parent and only certificate-allowed paths"
       ],
-      "reason": "Separated current-target cumulative obligations from entries that the independent auditor proved were foreign-target contamination, without weakening default monotonicity."
+      "reason": "Refroze the current material candidate after post-freeze material drift and rebuilt exact-head audit evidence without changing billing product code."
     }
   ],
   "status": "closed"
