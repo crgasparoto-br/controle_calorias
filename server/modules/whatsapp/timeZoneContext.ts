@@ -4,6 +4,7 @@ import {
   type UserTimeZoneValueResolution,
 } from "../../../shared/timeZone";
 import { resolveEffectiveUserTimeZone } from "../timeZone/service";
+import { measureCurrentQuestionDbOperation } from "./questionLatencyContext";
 
 type WhatsAppTimeZoneRequestContext = {
   resolutions: Map<number, Promise<UserTimeZoneValueResolution>>;
@@ -20,12 +21,12 @@ export async function resolveWhatsAppOperationTimeZone(
 ): Promise<UserTimeZoneValueResolution> {
   const context = requestContext.getStore();
   if (!context) {
-    return resolveEffectiveUserTimeZone(userId);
+    return measureCurrentQuestionDbOperation(() => resolveEffectiveUserTimeZone(userId));
   }
 
   let resolution = context.resolutions.get(userId);
   if (!resolution) {
-    resolution = resolveEffectiveUserTimeZone(userId);
+    resolution = measureCurrentQuestionDbOperation(() => resolveEffectiveUserTimeZone(userId));
     context.resolutions.set(userId, resolution);
   }
   return resolution;

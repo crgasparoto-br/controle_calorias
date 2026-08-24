@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const logInferenceEventMock = vi.hoisted(() => vi.fn());
+
 const repositoryMock = vi.hoisted(() => ({
   createOrGetActiveConversation: vi.fn(),
   appendMessage: vi.fn(),
@@ -19,9 +21,16 @@ vi.mock("../../repositories/whatsappConversationRepository", () => ({
 vi.mock("../../db", () => ({
   getDb: vi.fn(async () => null),
   logPersistenceWarning: vi.fn(),
+  logInferenceEvent: logInferenceEventMock,
 }));
 
 import { beginInboundMessage, markMessageProcessed, recordDomainLink, recordOutboundReply, wasMessageAlreadyProcessed } from "./messageLifecycle";
+import {
+  recordCurrentQuestionAiStage,
+  recordCurrentQuestionDeliveryOutcome,
+  recordCurrentQuestionOutcome,
+  runWithQuestionLatencyContext,
+} from "./questionLatencyContext";
 
 describe("whatsapp messageLifecycle", () => {
   beforeEach(() => {
@@ -168,5 +177,89 @@ describe("whatsapp messageLifecycle", () => {
     await markMessageProcessed(null);
 
     expect(repositoryMock.markProcessed).not.toHaveBeenCalled();
+  });
+
+  it("mede persistência real e só fecha a latência QUESTION após markProcessed", async () => {
+    repositoryMock.createOrGetActiveConversation.mockResolvedValue({ id: 10 });
+    repositoryMock.appendMessage.mockResolvedValue({ message: { id: 100 }, wasNewInsert: true });
+    repositoryMock.markProcessed.mockResolvedValue(undefined);
+
+    await runWithQuestionLatencyContext(async () => {
+      const handle = await beginInboundMessage({
+        userId: 1,
+        whatsappConnectionId: null,
+        phoneNumber: "5511999999999",
+        externalMessageId: "wamid.question-latency",
+        contentType: "text",
+        text: "/ quanto de proteína devo consumir?",
+        occurredAt: new Date("2026-08-17T18:00:00Z"),
+      });
+      recordCurrentQuestionAiStage({
+        contextScope: "full",
+        dbMs: 3,
+        contextMs: 4,
+        llmMs: 5,
+        configuredProvider: "openai",
+        configuredModel: "gpt-test",
+        effectiveProvider: "openai",
+        effectiveModel: "gpt-test",
+        attempts: 1,
+        fallbackOccurred: false,
+        webSearchAvailable: true,
+        webSearchExecuted: false,
+      });
+      recordCurrentQuestionOutcome("success", null);
+      recordCurrentQuestionDeliveryOutcome(true);
+
+      expect(logInferenceEventMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "whatsapp.ai_question.latency" }),
+      );
+      await markMessageProcessed(handle);
+    });
+
+    const latencyCall = logInferenceEventMock.mock.calls.find(([event]) => event.eventType === "whatsapp.ai_question.latency");
+    expect(latencyCall).toBeDefined();
+    const payload = JSON.parse(latencyCall![0].detail);
+    expect(payload).toEqual(expect.objectContaining({
+      schemaVersion: 2,
+      boundary: "inbound_persistence_to_processed_reply",
+      context_scope: "full",
+      persist_ms: expect.any(Number),
+      total_ms: expect.any(Number),
+      delivery_ok: true,
+      outcome: "success",
+      error_code: null,
+    }));
+    expect(payload.total_ms).toBeGreaterThanOrEqual(payload.persist_ms);
+  });
+
+  it("inclui falha de persistência no mesmo evento fim a fim em vez de descartá-la", async () => {
+    repositoryMock.createOrGetActiveConversation.mockResolvedValue({ id: 10 });
+    repositoryMock.appendMessage.mockResolvedValue({ message: { id: 100 }, wasNewInsert: true });
+    repositoryMock.markProcessed.mockRejectedValueOnce(new Error("synthetic persistence failure"));
+
+    await expect(runWithQuestionLatencyContext(async () => {
+      const handle = await beginInboundMessage({
+        userId: 1,
+        whatsappConnectionId: null,
+        phoneNumber: "5511999999999",
+        externalMessageId: "wamid.question-latency-failure",
+        contentType: "text",
+        text: "/ como está meu consumo hoje?",
+        occurredAt: new Date("2026-08-17T18:00:00Z"),
+      });
+      recordCurrentQuestionOutcome("success", null);
+      recordCurrentQuestionDeliveryOutcome(true);
+      await markMessageProcessed(handle);
+    })).rejects.toThrow("synthetic persistence failure");
+
+    const latencyCall = logInferenceEventMock.mock.calls.find(([event]) => event.eventType === "whatsapp.ai_question.latency");
+    expect(latencyCall).toBeDefined();
+    const payload = JSON.parse(latencyCall![0].detail);
+    expect(payload).toEqual(expect.objectContaining({
+      persist_ms: expect.any(Number),
+      outcome: "error",
+      error_code: "persistence_failed",
+    }));
   });
 });

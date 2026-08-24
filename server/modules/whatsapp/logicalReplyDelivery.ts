@@ -2,6 +2,7 @@ import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
 import { logicalReplyFromLegacyText, withAuxiliaryImage, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import type { MessageLifecycleHandle } from "./messageLifecycle";
+import { recordCurrentQuestionDeliveryOutcome } from "./questionLatencyContext";
 
 export type WhatsAppAuxiliaryImage =
   | { url: string; caption: string }
@@ -58,6 +59,7 @@ export async function sendWhatsAppLogicalDomainReply(input: {
     ? { handle: input.lifecycleHandle, userId: input.userId }
     : undefined;
   const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
+  recordCurrentQuestionDeliveryOutcome(result.primaryOk);
   return { reply, result };
 }
 
