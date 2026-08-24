@@ -1,1 +1,17 @@
-{"schema_version":1,"material_head_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","evidence":[{"evidence_id":"BEHAVIOR-REMEDIATION-001","kind":"behavioral","path":"evidence/audit-remediation-2026-08-21.json","sha256":"b01073c84e458a7c9913ec484d699191f59a55a3cb304f310486f1d7e202049b","subject_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","freshness_policy":"exact-material-head","producer":"connector-only exact-head material-delta and resource-lifecycle harness","status":"passed"},{"evidence_id":"QUANT-ECON-001","kind":"quantitative","path":"evidence/usage-governance-quantitative.json","sha256":"8aeea2fab3426fcdad24656cecd5630cbd14a3c4f91c9cb24ef92f1389f770f7","subject_sha":"442abe366b726fd429db3dba2e38607fe94ec426","base_sha":"c1d178642418cf0a54a247f97e15da4d27b103b4","freshness_policy":"exact-material-head","producer":"40-check deterministic Node harness against unchanged current usage-governance formulas","status":"passed"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
+  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+  "evidence": [
+    {
+      "evidence_id": "question-latency-e2e-0d0f0f74",
+      "kind": "quantitative",
+      "path": "docs/benchmarks/question-latency/results/2026-08-21-0d0f0f74-e2e-summary.json",
+      "sha256": "1487eba3f78ebc6beac1e2325a28da05b389daba197c0832e1e96c1762ceef06",
+      "subject_sha": "0d0f0f74fab0a89edb4f4eef8689f582918483b8",
+      "freshness_policy": "exact-material-head",
+      "producer": "scripts/issue-989-question-latency-benchmark-v4.mjs exact-SHA production-pipeline harness",
+      "status": "passed"
+    }
+  ]
+}
