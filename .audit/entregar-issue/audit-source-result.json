@@ -1,35 +1,26 @@
 {
+  "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "mode": "independent",
   "status": "rejected",
-  "approval_scope": "independent-release-gate",
-  "release_gate_satisfied": false,
-  "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue": 895,
-  "pull_request": 996,
-  "base_ref": "develop",
-  "remote_base_sha": "64a86e040ac656645557597d122019ee49e14ab7",
-  "certified_base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
-  "head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
-  "material_head_sha": "0c13919a7cb85c484813d6c152e2412b81e46d3d",
-  "published_handoff_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
-  "blocker_bounded": true,
-  "requires_refreeze": true,
-  "return_control_to": "entregar-issue",
-  "reason": "handoff-stale",
-  "recovery_scope": "post-write-refreeze",
+  "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+  "head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
+  "material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+  "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8",
+  "finding_ids": [
+    "A-001"
+  ],
   "findings": [
     {
       "id": "A-001",
-      "severity": "blocking",
+      "status": "open",
       "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-not-ready",
-      "title": "Handoff stale after material writes",
-      "audit_escape": true
+      "summary": "Stale revalidation could accept a same-name replacement or reordered homonym without proving the originally selected meal-item identity, allowing mutation of the wrong item."
     }
   ],
-  "recommendations": []
+  "recommendations": [
+    "Persist a stable target fingerprint, revalidate all targets before mutation, fail closed on ambiguity, and cover same-name identity drift/reorder/duplicates plus repeated operations."
+  ],
+  "summary": "Independent audit rejected the prior PR 998 candidate for insufficient stale target identity revalidation."
 }

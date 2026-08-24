@@ -1,0 +1,6 @@
+Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
+Quantitative exact-head contract inspection for retry/concurrency:
+- concurrent valid clarification responses in foodClarification.issue997.test.ts attempt claimPendingOperation 2 times.
+- CAS semantics allow the mixed plan continuation exactly 1 time.
+- invalid response fixture consumes the pending operation 0 times and continues the mixed plan 0 times.
+These are exact assertions in the material-head test source; final CI execution was still queued at the allowed remote observation.

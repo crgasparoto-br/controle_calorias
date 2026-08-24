@@ -9,10 +9,13 @@ import {
   buildWhatsAppMealReplyMessage,
 } from "./replyMessages";
 import type { WhatsappIntentResult } from "./intent/types";
+import { prepareCountableFoodRegistration } from "../../countableFoodQuantity";
+import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
-  | { status: "details_needed"; prompt: string; detail: string }
+  | { status: "clarification_requested"; result: WhatsappIntentResult }
+  | { status: "details_needed"; prompt: string; detail: string; context?: nutritionRuntime.MealInferenceErrorContext }
   | { status: "safe_to_retry"; prompt: string; detail: string }
   | { status: "blocked_after_possible_mutation"; prompt: string; detail: string };
 
@@ -47,6 +50,9 @@ function safeClarificationPrompt(error: unknown) {
   return "Não consegui interpretar todos os dados da refeição. Informe somente o detalhe que ficou faltando, como quantidade, peso, volume ou marca.";
 }
 
+
+export const prepareCountableRegistration = prepareCountableFoodRegistration;
+
 export function createConfirmedMealRegistrationService(
   overrides: Partial<ConfirmedMealRegistrationDependencies> = {},
 ) {
@@ -58,12 +64,37 @@ export function createConfirmedMealRegistrationService(
     originalText: string;
     occurredAt: Date;
     userTimezone: string;
+    inboundMessageId?: string | null;
+    skipCountablePreflight?: boolean;
   }): Promise<ConfirmedMealRegistrationOutcome> {
     let mutationMayHaveStarted = false;
 
     try {
+      let registrationText = input.registrationText;
+      if (!input.skipCountablePreflight) {
+        const prepared = prepareCountableRegistration(input.registrationText);
+        registrationText = prepared.registrationText;
+        const firstPending = prepared.pendingItems[0];
+        if (firstPending) {
+          const clarification = await requestWhatsappConfirmedTextMealQuantityClarification({
+            userId: input.userId,
+            foodName: firstPending.foodName,
+            originalText: input.originalText,
+            registrationSegments: prepared.registrationSegments,
+            pendingItems: prepared.pendingItems,
+            currentPendingIndex: 0,
+            occurredAt: input.occurredAt,
+            receivedAt: new Date(),
+            userTimezone: input.userTimezone,
+            messageId: input.inboundMessageId,
+            instructionText: `Para registrar ${firstPending.segment} sem assumir 100 g, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+          });
+          return { status: "clarification_requested", result: clarification };
+        }
+      }
+
       const processed = await deps.processMeal({
-        text: input.registrationText,
+        text: registrationText,
         habits: await deps.getHabits(input.userId),
         occurredAt: input.occurredAt,
         timeZone: input.userTimezone,
@@ -158,6 +189,7 @@ export function createConfirmedMealRegistrationService(
           prompt: safeClarificationPrompt(error),
           detail:
             "O pipeline nutricional solicitou somente dados alimentares adicionais antes de qualquer mutação.",
+          context: error.context,
         };
       }
 

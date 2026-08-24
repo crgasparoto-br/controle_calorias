@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+    "audit_report_sha256": "2083d239e66951735dbe85eba23f0a1779c73a85fd733d831b4d8156a802e954",
+    "audited_head_sha": "367e5c2d4d34e4b515fa8506fe9702dbf6ae7d41"
+  },
+  "candidate_head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-998-F001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        "server/modules/whatsapp/intent/mixedIncrementParser.ts",
+        "server/modules/whatsapp/intent/mixedIncrementParser.issue997.test.ts",
+        "server/modules/whatsapp/gramsIncrementIntent.issue997.test.ts",
+        "server/mealItemBuilders.ts",
+        "server/foodSemanticCompatibility.ts",
+        "server/countableFoodQuantity.ts",
+        "server/countableFoodQuantity.issue997.test.ts"
+      ],
+      "evidence": [
+        "evidence/parser-ownership-harness.txt",
+        "evidence/low-calorie-contract-harness.txt",
+        "evidence/countable-boundary-harness.txt"
+      ],
+      "validations": [
+        "mixed parser ownership preserves canonical fallthrough for xicara and copo",
+        "low-calorie beverage precedence reexecuted exact-head",
+        "explicit mass/volume and coffee/tea remain outside countable preflight",
+        "single canonical unit display is preserved in builder while registration preflight still converts safe units to grams",
+        "critical readiness, risk saturation, inherited controls and audit escape lineage passed on material head"
+      ]
+    }
+  ],
+  "status": "closed",
+  "all_actionable_items_closed": true
+}

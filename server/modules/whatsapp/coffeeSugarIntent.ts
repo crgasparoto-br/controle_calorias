@@ -90,6 +90,7 @@ export async function handleCoffeeSugarRegistrationIntent(input: {
     occurredAt: input.receivedAt,
     userTimezone: input.userTimezone,
   });
+  if (outcome.status === "clarification_requested") return outcome.result;
   if (outcome.status === "registered") return outcome.result;
   if (outcome.status === "details_needed") {
     return requestWhatsappCaloricComplementQuantityClarification({

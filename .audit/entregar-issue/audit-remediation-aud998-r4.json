@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c",
+    "audited_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+    "audit_report_sha256": "f226dea8d1d94d612ad8242d6ed7fea82cf02a5e5ece25ca611f2d915f618695"
+  },
+  "candidate_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "DELIVERY-998-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [],
+      "evidence": [
+        "evidence/handoff-recovery-r4.txt",
+        "evidence/exact-head-ci-r4.txt"
+      ],
+      "validations": [
+        "recovery classifier preserved post-write-refreeze floor",
+        "current exact-head CI gates are green",
+        "new freeze/handoff package is rebuilt for the current material head and terminally revalidated"
+      ]
+    }
+  ],
+  "status": "closed",
+  "all_actionable_items_closed": true
+}

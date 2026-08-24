@@ -1,20 +1,37 @@
 {
   "schema_version": 1,
-  "material_head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
-  "base_sha": "64a86e040ac656645557597d122019ee49e14ab7",
+  "material_head_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
   "evidence": [
     {
-      "evidence_id": "billing-contract-quantitative-v2",
+      "evidence_id": "EVID-Q-COUNTABLE",
       "kind": "quantitative",
-      "status": "passed",
-      "path": "evidence/billing-contract-quantitative.json",
-      "sha256": "74c6c3a5369ff5817b80fb5dab6d4a51b17a72a1187f161d55df629e91a34170",
-      "subject_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+      "path": ".audit/entregar-issue/evidence/quantitative-countable.txt",
+      "sha256": "5f3b6252155b0f349696be3b5a1db309209f5aa1b7e86e3170856f8eda46d1ee",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
       "freshness_policy": "exact-material-head",
-      "procedure": "Read the current billing contract constants/tests and bind them to the successful pull-request CI snapshot for the current head and merge preview.",
-      "expected": "Trial, capacity and coupon boundaries match the canonical issue contract on the current candidate.",
-      "observed": "Current source/tests retain 7/14-day trials, professional capacities 30/100, 30-day extension and coupon rejection/duration boundaries; the current head merge-preview CI completed successfully.",
-      "producer": "GitHub Actions runs 5795/487/273 bound to head 69b5e0a749ed7f54c6a597076c0bae73e4c6f97e and merge preview cc592358a442dfc60efae380573b899833f0faf8"
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-Q-ATOMIC",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/quantitative-atomic.txt",
+      "sha256": "c9fbbd7d5109d94df0ceb7f08c1899931da475a3af90c9f2e07ce80bba501b03",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-Q-CONTINUITY",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/quantitative-continuity.txt",
+      "sha256": "df6df69862aa85331d0371a304dce4724deead28f23a04905920db8e3de52820",
+      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector-only exact-head inspection",
+      "status": "passed"
     }
   ]
 }

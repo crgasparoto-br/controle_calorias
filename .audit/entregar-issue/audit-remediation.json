@@ -3,11 +3,12 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
-    "audited_head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635",
-    "audit_report_sha256": "08d7b3b46a91cf83bfc952e412fc47d17cf56cb011277ac0bee85b2c2aa5ae67"
+    "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+    "audited_head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
+    "audited_material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
+    "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
   },
-  "candidate_head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+  "candidate_head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -16,33 +17,23 @@
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/learning-closure-895.json",
-        ".audit/entregar-issue/audit-escape-closure-895.json",
-        ".audit/entregar-issue/inherited-controls-895.json",
-        ".audit/entregar-issue/evidence-provenance.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/evidence/critical-controls.json",
-        ".audit/entregar-issue/evidence/billing-contract-quantitative.json",
-        ".audit/entregar-issue/evidence/handoff-post-write-refreeze-001.txt"
+        "server/modules/whatsapp/mixedMealItemIncrementPlanTypes.ts",
+        "server/modules/whatsapp/mixedMealItemIncrementPlan.ts",
+        "server/modules/whatsapp/mixedMealItemIncrementPlan.issue997.test.ts"
       ],
       "evidence": [
-        "evidence/handoff-post-write-refreeze-001.txt",
-        "evidence/critical-controls.json",
-        "evidence/billing-contract-quantitative.json"
+        "evidence/target-identity-r5.txt",
+        "evidence/exact-head-ci-r5.txt"
       ],
       "validations": [
-        "target binding resolves to the current issue/PR",
-        "recovery classifier preserves the independent audit post-write-refreeze floor",
-        "current pull-request CI gates are successful and bound to the current head/merge preview",
-        "critical delivery artifacts are re-anchored to the current material head",
-        "terminal result-only child must have the current material head as direct parent and only certificate-allowed paths"
-      ],
-      "reason": "Refroze the current material candidate after the CI remediation commit and rebuilt exact-head audit evidence without changing billing production code."
+        "same-name identity replacement is stale without mutation",
+        "distinguishable homonyms can reorder while preserving the selected identity",
+        "semantic fallback identity works without foodId and indistinguishable duplicates fail closed",
+        "multiple valid operations against the same item apply exactly once",
+        "exact-head Agent-first and WhatsApp TiDB workflows completed successfully"
+      ]
     }
   ],
-  "status": "closed"
+  "status": "closed",
+  "all_actionable_items_closed": true
 }

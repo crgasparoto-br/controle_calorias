@@ -116,3 +116,20 @@ As barreiras são:
 - `foodName: Registrar` é rejeitado pelo schema;
 - reentrega, expiração, cancelamento, callback repetido e isolamento entre usuários são fail-closed;
 - transições e retries seguros preservam o mesmo `interactionId`.
+
+## Extensão: refeição textual e ajuste misto (#997)
+
+Medidas contáveis em uma refeição textual e ajustes heterogêneos reutilizam a mesma infraestrutura persistente. O estado lógico do ajuste composto é `parsed -> awaiting_selection|awaiting_quantity -> ready_to_apply -> applied`, com `cancelled|expired|superseded|stale` como terminais sem mutação.
+
+O comando `Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela` é um único plano. `uma` herda `fatia` somente do segmento coordenado imediatamente anterior; sem antecedente inequívoco, a unidade fica sem resolução e exige clarificação.
+
+Regras de atomicidade:
+
+- nenhuma operação já resolvida é gravada enquanto outra operação do mesmo plano aguarda seleção ou quantidade;
+- seleção reutiliza `meal_item_selection` e carrega a continuação do plano; quantidade reutiliza `food_registration_clarification` com `allowedDomainEffect = complete_pending_food_operation_once`;
+- respostas incompatíveis não consomem a pendência; respostas válidas são claimadas por versão/CAS;
+- o plano preserva texto original, operações, quantidades/unidades e alvos já resolvidos;
+- antes da escrita final, refeição e identidade dos itens são recarregadas; alvo alterado torna o plano `stale` sem mutação;
+- o lote final usa a mutação compensada de refeições e retries/callbacks repetidos não aplicam o plano novamente.
+
+No registro textual, pão/café ou outra contagem com porção canônica segura pode ser convertida antes do pipeline nutricional. Itens sem porção segura, como uma fatia cuja única referência disponível seja composição por `100 g`, permanecem no contexto persistido até a resposta de peso/volume. A refeição somente é confirmada depois que todas as quantidades pendentes foram resolvidas.

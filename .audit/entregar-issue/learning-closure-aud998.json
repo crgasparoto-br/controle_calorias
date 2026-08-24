@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+    "finding_ids": ["AUD-998-F001"]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "A falha ficou localizada no ownership do parser deste repositorio e o gate remoto oficial ja a detectou antes de merge/release; a remediacao adiciona controles de regressao no proprio repositorio sem evidenciar lacuna nova nas regras globais da Skill."
+  }
+}

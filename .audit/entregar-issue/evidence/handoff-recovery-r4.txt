@@ -1,0 +1,9 @@
+material_head=f6388a3cf14708ab6b277dc49ddf57e52529172a
+base_sha=64a86e040ac656645557597d122019ee49e14ab7
+auditor_rejection=audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c
+auditor_finding=DELIVERY-998-001
+--- recovery classifier ---
+{"auditor_recovery_scope": "post-write-refreeze", "auditor_requires_refreeze": true, "certified_material_head_sha": "74804d699bf80c97fa34c19da2a6cf4f6d001644", "reason": "auditor-recovery-floor:post-write-refreeze", "recovery_scope": "post-write-refreeze"}
+--- generic prevention/detection controls ---
+.......                                                                  [100%]
+7 passed in 13.14s
