@@ -3,10 +3,10 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+  "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
   "freshness_policy": "exact-material-head",
   "status": "passed",
-  "method": "Deterministic billing contract probes are anchored to the current pull-request head and the successful merge-preview CI for that head. Values are read from the current source/tests and exercised by the successful Agent-first and billing persistence gates.",
+  "method": "Deterministic billing contract probes are bound to the exact current pull-request head and its successful merge-preview CI. Values are read from the current source/tests, whose billing paths are byte-identical to the previously validated billing material, and are exercised by the successful Agent-first and billing persistence gates.",
   "probes": [
     {
       "id": "trial-duration",
@@ -28,6 +28,7 @@
         "extension_days": 30
       },
       "evidence": [
+        "server/modules/billing/catalogPolicy.ts",
         "server/modules/billing/catalogPolicy.test.ts",
         "server/modules/billing/professionalCapacityRead.test.ts"
       ]
@@ -45,16 +46,16 @@
     }
   ],
   "execution": {
-    "head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
-    "checkout_sha": "cc592358a442dfc60efae380573b899833f0faf8",
-    "agent_first_run_id": 32731243028,
-    "agent_first_run_number": 5795,
+    "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+    "checkout_sha": "672bdd453ddcb85d0a21fe7701d6cdb3e5326437",
+    "agent_first_run_id": 32744407253,
+    "agent_first_run_number": 5802,
     "agent_first_conclusion": "success",
-    "billing_persistence_run_id": 32731243034,
-    "billing_persistence_run_number": 487,
+    "billing_persistence_run_id": 32744407261,
+    "billing_persistence_run_number": 490,
     "billing_persistence_conclusion": "success",
-    "onboarding_activation_run_id": 32731242853,
-    "onboarding_activation_run_number": 273,
+    "onboarding_activation_run_id": 32744407287,
+    "onboarding_activation_run_number": 276,
     "onboarding_activation_conclusion": "success"
   }
 }

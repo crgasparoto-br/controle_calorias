@@ -1,1 +1,137 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-closure-r5","compression":"gzip","encoded_size":5044,"encoded_sha256":"ad9b6745daf0f7fec4208fa47cf5321d8f9015858ad334ad0ca53d0b7b752393","decoded_size":17646,"decoded_sha256":"58f92fbb35575cbd69205aaeba1b1167eab1ba286bfa42dc87b3d14306a20850","parts":[{"path":"audit-escape-closure.parts/part-000.b64","size":5044,"sha256":"ad9b6745daf0f7fec4208fa47cf5321d8f9015858ad334ad0ca53d0b7b752393"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "HANDOFF-POST-WRITE-REFREEZE-001",
+      "escape_class": "post-freeze-material-drift-with-stale-handoff",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
+        "finding_id": "A-001",
+        "head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635"
+      },
+      "plausible_wrong_implementation": "Treat a previously valid handoff certificate as current after later material commits or a base merge, relying on green CI and the mere presence of the certificate to skip the required refreeze.",
+      "literal_case": {
+        "procedure": "Classify the stale certificate bound to the prior material head against the current candidate while preserving the independent-audit refreeze floor.",
+        "expected": "Recovery is post-write-refreeze and cannot be handoff-only.",
+        "observed": "The installed post-write-refreeze and recovery classifier controls remain active on the current delivery runtime; historical stale material heads are not promoted to the current candidate.",
+        "status": "passed",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "material-child-after-handoff",
+          "surface": "handoff-lineage",
+          "dimension": "post-handoff-material-child",
+          "status": "passed",
+          "evidence": "evidence/handoff-target-binding-001.txt"
+        },
+        {
+          "id": "auditor-refreeze-floor",
+          "surface": "recovery-floor",
+          "dimension": "explicit-refreeze-lower-bound",
+          "status": "passed",
+          "evidence": "evidence/handoff-target-binding-001.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-lineage",
+          "dimension": "post-handoff-material-child"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "recovery-floor",
+          "dimension": "explicit-refreeze-lower-bound"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing entregar-issue post-write-refreeze protocol",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "existing recovery classifier and terminal handoff guard",
+        "control_id": "HANDOFF-POST-WRITE-REFREEZE-001",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "trigger_terms": [
+        "handoff-stale",
+        "post-write-refreeze",
+        "requires_refreeze",
+        "material drift"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8"
+    },
+    {
+      "escape_id": "TARGET-BINDING-INHERITED-HANDOFF-001",
+      "escape_class": "inherited-base-foreign-handoff-reuse",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:b54e19cb-0378-45a7-b4c5-368e671e27b9",
+        "finding_id": "A-001",
+        "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8"
+      },
+      "plausible_wrong_implementation": "Treat an internally valid handoff inherited byte-for-byte from the base as if it were produced for the current issue/PR, skipping target reconstruction.",
+      "literal_case": {
+        "procedure": "Compare the current candidate handoff with the same path at the immutable base and then compare its subject with issue #895 / PR #996.",
+        "expected": "The identical foreign #997/#998 certificate is classified inherited-base-artifact and cannot satisfy readiness for #895/#996.",
+        "observed": "The candidate and base expose the same handoff Git blob for #997/#998; reuse was rejected and the current #895/#996 package is being rebuilt.",
+        "status": "passed",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "same-target-stale-history",
+          "surface": "handoff-target-binding",
+          "dimension": "historical-same-target-not-current",
+          "status": "passed",
+          "evidence": "evidence/handoff-target-binding-001.txt"
+        },
+        {
+          "id": "foreign-head-modified",
+          "surface": "handoff-target-binding",
+          "dimension": "foreign-artifact-not-base-identical",
+          "status": "passed",
+          "evidence": "evidence/handoff-target-binding-001.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-target-binding",
+          "dimension": "same-base-foreign-subject"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-target-binding",
+          "dimension": "foreign-artifact-not-base-identical"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing entregar-issue delivery-target-binding preflight",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "delivery_target_binding plus terminal target guard",
+        "control_id": "TARGET-BINDING-INHERITED-HANDOFF-001",
+        "evidence": "evidence/handoff-target-binding-001.txt"
+      },
+      "trigger_terms": [
+        "inherited-base-artifact",
+        "foreign-target",
+        "handoff-not-produced",
+        "same blob as base"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8"
+    }
+  ]
+}

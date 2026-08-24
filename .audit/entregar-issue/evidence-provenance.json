@@ -1,37 +1,20 @@
 {
   "schema_version": 1,
-  "material_head_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
-  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+  "material_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+  "base_sha": "519b4d36352aa43929d8ba3e114e15fbf2df54d5",
   "evidence": [
     {
-      "evidence_id": "EVID-Q-COUNTABLE",
+      "evidence_id": "billing-contract-quantitative-v3",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/quantitative-countable.txt",
-      "sha256": "5f3b6252155b0f349696be3b5a1db309209f5aa1b7e86e3170856f8eda46d1ee",
-      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
+      "status": "passed",
+      "path": "evidence/billing-contract-quantitative.json",
+      "sha256": "1fe7acf3dced634766f1539d94bda8751521f5cfd4b58638d7dadcc521c89a74",
+      "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue connector-only exact-head inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-Q-ATOMIC",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/quantitative-atomic.txt",
-      "sha256": "c9fbbd7d5109d94df0ceb7f08c1899931da475a3af90c9f2e07ce80bba501b03",
-      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
-      "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue connector-only exact-head inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-Q-CONTINUITY",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/quantitative-continuity.txt",
-      "sha256": "df6df69862aa85331d0371a304dce4724deead28f23a04905920db8e3de52820",
-      "subject_sha": "e54b81ebf62b02e2ed75c56c8676c5697f25799f",
-      "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue connector-only exact-head inspection",
-      "status": "passed"
+      "procedure": "Read the exact current billing source/tests and bind the deterministic contract probes to the successful exact-head pull-request CI snapshot.",
+      "expected": "Trial, capacity and coupon numeric boundaries match the canonical #895 contract on the current material head.",
+      "observed": "Current source/tests expose the 7/14-day trials, professional capacity values 30/100, 30-day extension and coupon boundaries; exact-head Agent-first and billing-persistence workflows completed successfully.",
+      "producer": "GitHub Actions runs 5802/490/276 bound to head bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8 and merge preview 672bdd453ddcb85d0a21fe7701d6cdb3e5326437"
     }
   ]
 }

@@ -1,0 +1,16 @@
+Target: crgasparoto-br/controle_calorias issue #895 / PR #996
+Material head: bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8
+Base: develop@519b4d36352aa43929d8ba3e114e15fbf2df54d5
+Merge preview: 672bdd453ddcb85d0a21fe7701d6cdb3e5326437
+Independent rejection: audit-rejection:b54e19cb-0378-45a7-b4c5-368e671e27b9
+Recovery received from audit: handoff-not-produced / handoff-only / requires_refreeze=false
+
+Observed inherited package: .audit/entregar-issue/handoff-ready.json at material head and immutable base has Git blob 09461aa2ca6138d7a9f685a6f13c35b5e8a24317 and subject issue #997 / PR #998. Therefore it is inherited-base-artifact and reuse is forbidden.
+Historical current-target package: issue #895 / PR #996 exists on the first-parent lineage, but its material head/base identities are older and it is used only as same-target source/evidence lineage, never as the current certificate.
+Current billing product/test/docs paths have no diff between cf36f61fdd9e3b1e20f14ac3a11ccb5de9a3aae3 and bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8; the develop merge changed unrelated product paths plus canonical .audit files.
+Exact-head CI: Agent-first 5802 success, Billing persistence TiDB 490 success, Onboarding activation TiDB 276 success.
+Generic delivery controls: test_delivery_target_binding.py and test_handoff_recovery_classifier.py passed (19 tests) in the installed entregar-issue skill runtime.
+
+Literal control: same-base foreign handoff is classified inherited-base-artifact, reuse_allowed=false, and a new current-target handoff is mandatory.
+Sibling A: a stale same-target historical certificate is not promoted to the current head/base merely because its functional paths are unchanged.
+Sibling B: a foreign target certificate altered on the candidate would remain foreign-target rather than being misclassified as inherited base state.
