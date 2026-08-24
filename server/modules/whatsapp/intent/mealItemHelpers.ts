@@ -24,6 +24,10 @@ const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
 
 type TargetMealItemResolution = MealItemTargetMatch<MealItemInput>;
 
+type FindMealByLabelOptions = {
+  allowCrossDayFallback?: boolean;
+};
+
 export function normalizeAdditionUnit(unit: string | null) {
   return unit ? normalizeMeasurementUnit(unit) : "g";
 }
@@ -254,7 +258,13 @@ export function findTargetMealItem(items: MealItemInput[], targetFood: string | 
   return target.kind === "matched" ? { item: target.item, index: target.index } : null;
 }
 
-export function findMealByLabel<T extends { mealLabel: string; occurredAt: number | string | Date }>(meals: T[], mealLabel: string, referenceDate: Date, timeZone = DEFAULT_APP_TIME_ZONE) {
+export function findMealByLabel<T extends { mealLabel: string; occurredAt: number | string | Date }>(
+  meals: T[],
+  mealLabel: string,
+  referenceDate: Date,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+  options: FindMealByLabelOptions = {},
+) {
   const normalizedLabel = normalizeIntentText(mealLabel);
   const dayStart = startOfZonedDay(referenceDate, timeZone).getTime();
   const dayEnd = endOfZonedDay(referenceDate, timeZone).getTime();
@@ -263,10 +273,13 @@ export function findMealByLabel<T extends { mealLabel: string; occurredAt: numbe
     return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
   });
 
-  return matches.find(meal => {
+  const sameDayMatch = matches.find(meal => {
     const occurredAt = new Date(meal.occurredAt).getTime();
     return occurredAt >= dayStart && occurredAt <= dayEnd;
-  }) ?? matches[0] ?? null;
+  });
+
+  return sameDayMatch
+    ?? (options.allowCrossDayFallback === false ? null : matches[0] ?? null);
 }
 
 export function parseItemQuantity(item: MealItemInput) {
