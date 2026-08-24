@@ -1,0 +1,52 @@
+subject_sha=74804d699bf80c97fa34c19da2a6cf4f6d001644
+Exact-head inherited controls re-executed against git objects:
+--- parser fallthrough and partial-success controls
+      "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
+    const parsed = parseMixedMealItemIncrementCommand("Adicionar uma na mussarela");
+      "Adicionar 1 fatia ao presunto e uma na mussarela e uma no queijo",
+        "Adicionar 3 xícaras de café sem açúcar no café da manhã",
+        "Adicionar 1 copo de leite no café da manhã",
+  it("mantém bloqueio de sucesso parcial quando existe operação suportada junto de segmento desconhecido", () => {
+--- countable nutrition/household controls
+    expect(resolveSafeCountableCatalogGrams("pão francês", 2, "un")?.grams).toBe(100);
+    const item = buildHeuristicItem("2 pão francês");
+  it.each(["1 ovo frito", "1 fatia presunto", "1 fatia mussarela"])(
+      "1 pão francês",
+      "1 ovo frito",
+      "1 fatia mussarela",
+      "3 xícaras de café sem açúcar",
+    expect(prepared.registrationText).toContain("50 g de pão francês");
+    expect(prepared.registrationText).toContain("3 xícaras de café sem açúcar");
+      "ovo frito",
+      "mussarela",
+    expect(parseCountableFoodQuantitySegment("200 ml café com açúcar")).toBeNull();
+    expect(parseCountableFoodQuantitySegment("45 g requeijão catupiry light")).toBeNull();
+    const prepared = prepareCountableFoodRegistration("200 ml café com açúcar");
+    expect(prepared.registrationText).toBe("200 ml café com açúcar");
+  it("preserva café e chá para os contratos especializados em vez de abrir clarificação contável", () => {
+      "1 xícara de café com açúcar",
+      "3 xícaras de café sem açúcar",
+      "1 xícara de café",
+      "2 xícaras de chá sem açúcar",
+    expect(findTacoFood("ovo frito")?.name).toBe("Ovo, de galinha, inteiro, frito");
+    for (const spelling of ["mussarela", "muçarela", "mozarela"]) {
+      expect(findTacoFood(spelling)?.name).toBe("Queijo, mozarela");
+  it("preserva 45 g e qualificadores de Catupiry Light", () => {
+    const item = buildHeuristicItem("45 g de requeijão catupiry light");
+--- clarification reprompt controls
+  continuePlan: vi.fn(async () => ({
+  continueMixedMealItemIncrementPlan: mocks.continuePlan,
+  const claimPendingOperation = vi.fn(async ({ id, expectedVersion }) => {
+    claimPendingOperation,
+  return { repository, rows, claimPendingOperation };
+    originalText: "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
+  it.each(["1 fatia", "1 unidade", "2 fatias"])(
+      mocks.continuePlan.mockClear();
+      const { repository, claimPendingOperation } = createRepository();
+      expect(result?.action).toBe("food_clarification_reprompted");
+      expect(claimPendingOperation).not.toHaveBeenCalled();
+      expect(mocks.continuePlan).not.toHaveBeenCalled();
+    mocks.continuePlan.mockClear();
+    const { repository, claimPendingOperation } = createRepository();
+    expect(claimPendingOperation).toHaveBeenCalledTimes(2);
+    expect(mocks.continuePlan).toHaveBeenCalledTimes(1);

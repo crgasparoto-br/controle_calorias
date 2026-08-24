@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:577f8883-06ee-4b32-a49b-352b5975cc42",
+    "finding_ids": [
+      "AUD-998-F004"
+    ],
+    "audit_report_sha256": "d83c91d87ddcc97078a68787783616fd6ae805699fd930842ba850be5e788f91"
+  },
+  "generalized_learning": {
+    "escape_class": "audit-remediation-source-byte-binding-drift",
+    "generalized_failure_pattern": "A remediation ledger can name the correct rejection while remaining unbound to the exact source report bytes, allowing a later rewrite or stale report to preserve superficial identity checks.",
+    "plausible_wrong_implementation": "Validate only rejection identifiers and individual artifact hashes without proving that the remediation source hash equals the exact audit report bytes.",
+    "trigger_signals": [
+      "independent rejection",
+      "audit remediation ledger",
+      "source report artifact",
+      "tamper-evident handoff"
+    ],
+    "risk_families": [
+      "structural-contract",
+      "temporal-consistency"
+    ],
+    "reusable_control": "Recompute the source report SHA-256 from bytes and require the remediation ledger to bind that value before certificate emission and again during certificate validation.",
+    "prevention_rule": "The handoff builder must fail closed when a remediation ledger is not byte-bound to its audit source report.",
+    "detection_rule": "The handoff validator must independently rederive the remediation/source relationship from certified artifacts rather than trusting builder output.",
+    "transfer_cases": [
+      {
+        "id": "synthetic-builder-missing-source-hash",
+        "surface": "handoff-builder",
+        "status": "passed"
+      },
+      {
+        "id": "synthetic-validator-coherent-artifact-tamper",
+        "surface": "handoff-validator",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "path": "scripts/build_handoff_certificate.py",
+      "evidence": "tests/test_handoff_certificate_contract.py"
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "path": "scripts/validate_handoff_certificate.py",
+      "evidence": "tests/test_handoff_certificate_contract.py"
+    }
+  ]
+}
