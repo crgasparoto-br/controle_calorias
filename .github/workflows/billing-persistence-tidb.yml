@@ -10,6 +10,7 @@ on:
       - "server/routers.ts"
       - "scripts/test-billing-catalog-upgrade-tidb.ts"
       - "scripts/test-billing-persistence-tidb.ts"
+      - "scripts/test-usage-governance-migrations-tidb.ts"
       - "scripts/test-usage-governance-retention-tidb.ts"
       - "scripts/check-referential-integrity.mjs"
       - "package.json"
@@ -51,6 +52,13 @@ jobs:
 
       - name: Apply current repository schema
         run: pnpm exec drizzle-kit push --force
+
+      - name: Validate usage governance migration chain on TiDB
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias_migrations
+        run: |
+          node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE controle_calorias_migrations"); await connection.end();'
+          pnpm exec tsx scripts/test-usage-governance-migrations-tidb.ts
 
       - name: Inspect Drizzle metadata drift
         id: drizzle-drift
