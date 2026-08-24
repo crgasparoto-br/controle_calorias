@@ -19,6 +19,8 @@ export type UserEntitlementsResult = {
   validUntil?: Date;
   sponsorUserId?: number;
   planCode?: string;
+  productCode?: string;
+  versionCode?: string;
   entitlements: string[];
   sourceAvailable: boolean;
   evaluatedAt: Date;
@@ -37,6 +39,8 @@ export type BillingEntitlementCandidate = {
   validUntil?: Date | null;
   sponsorUserId?: number | null;
   planCode?: string | null;
+  productCode?: string | null;
+  versionCode?: string | null;
   entitlements: string[];
 };
 
@@ -44,6 +48,8 @@ export type BillingSubscriptionSummary = {
   id: string;
   provider: string;
   planCode: string;
+  productCode?: string;
+  versionCode?: string;
   planName: string;
   status: "pending" | "active" | "past_due" | "suspended" | "canceled" | "expired";
   billingCycle: "monthly" | "yearly" | "custom";

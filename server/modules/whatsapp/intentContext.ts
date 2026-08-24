@@ -196,6 +196,10 @@ export async function buildWhatsappIntentContext(
     timeZone?: string;
     currentInboundExternalMessageId?: string | null;
     includeSummary?: boolean;
+    includeDomainSnapshot?: boolean;
+    includeContextualMemories?: boolean;
+    includeShadowIntentComparison?: boolean;
+    onRecentMessagesDbDurationMs?: (durationMs: number) => void;
   } = {},
 ): Promise<WhatsappIntentContext> {
   const receivedAt = options.receivedAt ?? new Date();
@@ -205,20 +209,32 @@ export async function buildWhatsappIntentContext(
   const conversationRepository = options.conversationRepository ?? defaultConversationRepository;
   const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
 
-  const meals = (await listMeals(userId)).slice(0, MAX_CONTEXT_MEALS);
+  const includeDomainSnapshot = options.includeDomainSnapshot !== false;
+  const includeContextualMemories = options.includeContextualMemories !== false;
+  const meals = includeDomainSnapshot
+    ? (await listMeals(userId)).slice(0, MAX_CONTEXT_MEALS)
+    : [];
   const compactMeals = meals.map(compactMeal);
   const mealsToday = compactMeals.filter(meal => sameLogicalDay(new Date(meal.occurredAt), receivedAt, timeZone));
   const recentFoodNames = Array.from(new Set(
     compactMeals.flatMap(meal => meal.items.map(item => item.foodName).filter(Boolean)),
   )).slice(0, 20);
-  const memoryContext = retrieveWhatsappContextMemory({
-    userId,
-    text: null,
-    intent: null,
-    now: receivedAt,
-  });
+  const memoryContext = includeContextualMemories
+    ? retrieveWhatsappContextMemory({
+        userId,
+        text: null,
+        intent: null,
+        now: receivedAt,
+      })
+    : { llmContext: [] };
 
-  const persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
+  const recentMessagesStartedAt = performance.now();
+  let persistedMessages: WhatsAppConversationMessageRecord[];
+  try {
+    persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
+  } finally {
+    options.onRecentMessagesDbDurationMs?.(performance.now() - recentMessagesStartedAt);
+  }
   const currentInboundExternalMessageId =
     options.currentInboundExternalMessageId?.trim()
     || getCurrentWhatsappInboundExternalMessageId()?.trim()
@@ -256,7 +272,8 @@ export async function buildWhatsappIntentContext(
     ? persistentConversationActive
     : legacyTurns.length > 0;
 
-  const compareStructuredIntent = rolloutSelection.mode === "shadow"
+  const compareStructuredIntent = options.includeShadowIntentComparison !== false
+    && rolloutSelection.mode === "shadow"
     && rolloutSelection.persistentEligible
     && isShadowIntentComparisonEnabled();
   let persistentSummary: WhatsappIntentContext["conversationSummary"] = null;

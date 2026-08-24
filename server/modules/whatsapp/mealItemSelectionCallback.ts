@@ -17,6 +17,8 @@ import {
 } from "./replyMessages";
 import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import type { MixedIncrementSelectionContinuation } from "./mixedMealItemIncrementPlanTypes";
+import type { WhatsappIntentResult } from "./intent/types";
 
 export const PENDING_MEAL_ITEM_SELECTION_TYPE = "meal_item_selection";
 const PENDING_MEAL_ITEM_SELECTION_TTL_MS = 10 * 60 * 1000;
@@ -37,7 +39,8 @@ export type MealItemSelectionAction =
   | { kind: "grams_delta"; delta: number }
   | { kind: "grams_absolute"; grams: number }
   | { kind: "quantity_absolute"; quantity: number; unit: string }
-  | { kind: "replace_food"; targetFood: string };
+  | { kind: "replace_food"; targetFood: string }
+  | { kind: "mixed_increment_target"; operationIndex: number };
 
 export type MealItemSelectionCompanionAction = {
   candidate: MealItemSelectionCandidate;
@@ -55,6 +58,7 @@ export type PendingMealItemSelection = MealItemPendingSelectionStep & {
   resultTitle: string;
   companionActions?: MealItemSelectionCompanionAction[];
   remainingSelections?: MealItemPendingSelectionStep[];
+  continuation?: MixedIncrementSelectionContinuation;
 };
 
 export type MealItemSelectionResult = {
@@ -177,6 +181,9 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
     const nextItem = scaleMealItemQuantity(item, action.quantity, action.unit);
     return { nextItem, actionLine: `${item.foodName}: de ${previousPortion} para ${nextItem.portionText}` };
   }
+  if (action.kind === "mixed_increment_target") {
+    throw new Error("A seleção de alvo misto não pode mutar o item diretamente.");
+  }
   return { nextItem: replaceMealItemFood(item, action.targetFood), actionLine: `${item.foodName} → ${action.targetFood}` };
 }
 
@@ -252,8 +259,11 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
   };
 }
 
-async function continueSelectionOrApply(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection) {
-  const resolvedActions: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+async function continueSelectionOrApply(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection): Promise<WhatsappIntentResult> {
+  const resolvedActions: MealItemSelectionCompanionAction[] = [
+    ...(pending.companionActions ?? []),
+    { candidate: selected, action: pending.action },
+  ];
   const [next, ...remaining] = pending.remainingSelections ?? [];
   if (next) {
     return createPendingMealItemSelection(userId, {
@@ -261,12 +271,32 @@ async function continueSelectionOrApply(userId: number, selected: MealItemSelect
       resultTitle: pending.resultTitle,
       companionActions: resolvedActions,
       remainingSelections: remaining,
+      continuation: pending.continuation,
     });
   }
+
+  if (pending.continuation?.kind === "mixed_increment_plan") {
+    const plan = {
+      ...pending.continuation.plan,
+      operations: pending.continuation.plan.operations.map(operation => ({
+        ...operation,
+        target: operation.target ? { ...operation.target } : undefined,
+      })),
+    };
+    for (const step of resolvedActions) {
+      if (step.action.kind !== "mixed_increment_target") continue;
+      const operation = plan.operations[step.action.operationIndex];
+      if (!operation) continue;
+      operation.target = { ...step.candidate };
+    }
+    const { continueMixedMealItemIncrementPlan } = await import("./mixedMealItemIncrementPlan");
+    return continueMixedMealItemIncrementPlan(userId, plan);
+  }
+
   return applySelectionPlan(userId, selected, pending);
 }
 
-export async function resolveTextMealItemSelection(userId: number, text?: string | null): Promise<MealItemSelectionResult | null> {
+export async function resolveTextMealItemSelection(userId: number, text?: string | null): Promise<WhatsappIntentResult | null> {
   const trimmed = text?.trim();
   if (!trimmed) return null;
   const pendingRow: WhatsAppPendingOperationRecord | null = await pendingOperationRepository.getActivePendingOperation(userId);
@@ -317,11 +347,22 @@ export async function resolveTextMealItemSelection(userId: number, text?: string
       "Índice inexistente reapresentou a mesma seleção persistida.",
     );
   }
-  await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
+  const claimed = await pendingOperationRepository.claimPendingOperation({
+    id: pendingRow.id,
+    expectedVersion: pendingRow.version,
+  });
+  if (!claimed.claimed) {
+    return clarificationResult(
+      buildWhatsAppCallbackResourceNotFoundReplyMessage(),
+      "whatsapp.intent.meal_item_selection_already_resolved",
+      "A seleção já foi consumida por outra resposta; nenhuma mutação duplicada foi executada.",
+      { pendingOperationId: pendingRow.id, fallbackBlocked: true },
+    );
+  }
   return continueSelectionOrApply(userId, selected, pending);
 }
 
-export async function completeMealItemSelectionInteractiveCallback(userId: number, pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">, action: string): Promise<MealItemSelectionResult> {
+export async function completeMealItemSelectionInteractiveCallback(userId: number, pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">, action: string): Promise<WhatsappIntentResult> {
   const pending = pendingOperation.target as PendingMealItemSelection;
   if (action === CANCEL_ACTION) return buildCancellationResult();
   if (action.startsWith(SELECT_ACTION_PREFIX)) {

@@ -268,7 +268,11 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
     markMessageProcessedMock.mockReset();
-    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
+    let nextLifecycleMessageId = 1;
+    beginInboundMessageMock.mockImplementation(async () => ({
+      conversationId: 1,
+      messageId: nextLifecycleMessageId++,
+    }));
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });

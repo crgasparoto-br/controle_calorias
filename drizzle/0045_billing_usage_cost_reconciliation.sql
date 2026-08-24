@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `billingUsageCostReconciliations` (
+  `id` varchar(64) NOT NULL,
+  `reconciliationKey` varchar(191) NOT NULL,
+  `usageEventId` varchar(64) NOT NULL,
+  `usageIdempotencyKey` varchar(191) NOT NULL,
+  `previousEstimatedCostMicros` bigint NULL,
+  `previousEffectiveCostMicros` bigint NULL,
+  `newEffectiveCostMicros` bigint NOT NULL,
+  `currency` varchar(3) NOT NULL,
+  `effectiveAt` timestamp NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `actorUserId` int NULL,
+  `ruleVersion` varchar(64) NOT NULL,
+  `correlationId` varchar(191) NOT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `billingUsageCostReconciliations_key_uq` (`reconciliationKey`),
+  KEY `billingUsageCostReconciliations_event_idx` (`usageEventId`, `createdAt`),
+  KEY `billingUsageCostReconciliations_usage_key_idx` (`usageIdempotencyKey`, `createdAt`)
+);

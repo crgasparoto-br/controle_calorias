@@ -23,6 +23,7 @@ export type AiNonRetryableErrorCode =
   | "incompatible_operation"
   | "safety_block"
   | "invalid_configuration"
+  | "usage_identity_required"
   | "functional_result"
   | "abort_not_acknowledged"
   | "unknown";

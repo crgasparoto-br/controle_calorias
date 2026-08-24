@@ -1,0 +1,6 @@
+Material head: e54b81ebf62b02e2ed75c56c8676c5697f25799f
+Quantitative exact-head contract inspection for the mixed command:
+- parsed operations required by the regression: 3 (48 g requeijao, 1 fatia presunto, inherited 1 fatia mussarela).
+- mutations before unresolved clarification: 0 updateMealsWithCompensation calls are reachable from the unresolved branch.
+- ready final application: 1 compensated batch call for the resolved plan.
+These counts are exact structural/test assertions at the material head; final CI execution was still queued at the allowed remote observation.

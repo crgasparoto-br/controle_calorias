@@ -81,9 +81,11 @@ function extractDbCauseDetail(cause: unknown): string {
 function isAiInferenceEventDetail(value: string): boolean {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
-    return parsed?.schemaVersion === 1
+    const hasKnownCorrelationId =
+      typeof parsed.executionId === "string" || typeof parsed.requestId === "string";
+    return (parsed?.schemaVersion === 1 || parsed?.schemaVersion === 2)
       && typeof parsed.capability === "string"
-      && typeof parsed.executionId === "string"
+      && hasKnownCorrelationId
       && typeof parsed.outcome === "string";
   } catch {
     return false;
@@ -139,12 +141,17 @@ export function safeStructuredLogDetail(value: unknown, maxLength = 4_096): stri
     }
     if (candidate && typeof candidate === "object") {
       return Object.fromEntries(
-        Object.entries(candidate as Record<string, unknown>).map(([entryKey, entryValue]) => [
-          entryKey,
-          SENSITIVE_KEY_PATTERN.test(entryKey)
-            ? "[redacted]"
-            : sanitizeStructuredValue(entryValue, entryKey),
-        ]),
+        Object.entries(candidate as Record<string, unknown>).map(([entryKey, entryValue]) => {
+          const safeLatencyMetric =
+            entryKey === "time_to_first_token_ms"
+            && (entryValue === null || typeof entryValue === "number");
+          return [
+            entryKey,
+            SENSITIVE_KEY_PATTERN.test(entryKey) && !safeLatencyMetric
+              ? "[redacted]"
+              : sanitizeStructuredValue(entryValue, entryKey),
+          ];
+        }),
       );
     }
     return candidate;

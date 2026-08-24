@@ -1,0 +1,7 @@
+# Remediacao da rejeicao independente da PR 998
+
+## Requisitos
+- A recuperacao deve respeitar o piso `post-write-refreeze` e `requires_refreeze=true`: o head material corrente deve ser refrozen depois dos gates afetados, sem reancorar evidencia ou certificado do SHA ancestral.
+- Os controles funcionais e herdados aplicaveis devem ser revalidados no material head corrente; rejeicoes, escapes, source_audits e controles anteriores devem permanecer cumulativos e nenhum controle ativo pode ser fechado apenas por CI verde ou ausencia de diff.
+- A rejeicao `audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c` e o finding `DELIVERY-998-001` devem ser fechados explicitamente por `audit-source-result`, `audit-remediation`, `learning-closure` e `audit-escape-closure`, preservando a classificacao targeted/implementation-only sem inventar mudanca global de Skill.
+- O novo handoff deve certificar issue 997 e PR 998 sobre `develop`/`feat/997-whatsapp-household-portions`, ser publicado como filho direto `result-only-child` do novo material head sem paths de produto e, apos nova leitura remota, o terminal guard deve confirmar o mesmo head publicado.

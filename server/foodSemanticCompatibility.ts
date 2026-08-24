@@ -159,3 +159,8 @@ export function isCoffeeWithAddedSugar(value: string) {
     return profile.family === "coffee" && profile.sugarState === "added";
   });
 }
+
+export function isCoffeeOrTeaBeverage(value: string) {
+  const profile = buildProfile(value);
+  return profile.family === "coffee" || profile.family === "tea";
+}

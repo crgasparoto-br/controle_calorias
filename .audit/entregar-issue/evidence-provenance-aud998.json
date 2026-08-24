@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+  "base_sha": "4c072c53e951f443bdd615ac17601ce572b80036",
+  "evidence": [
+    {
+      "evidence_id": "EVID-PARSER-OWNERSHIP",
+      "kind": "structural",
+      "path": "evidence/parser-ownership-harness.txt",
+      "sha256": "b9ba74c6037f97a18ba3ca210c67429f095c8e526e4b1b5ab88f51a06d82b789",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head parser ownership inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-LOW-CALORIE",
+      "kind": "quantitative",
+      "path": "evidence/low-calorie-contract-harness.txt",
+      "sha256": "eb5d853208b53c48f3e697f59fa83040a59ba203db519b948581b84cd8657898",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "freshness_policy": "exact-material-head",
+      "producer": "deterministic Node low-calorie contract harness",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-COUNTABLE-BOUNDARY",
+      "kind": "quantitative",
+      "path": "evidence/countable-boundary-harness.txt",
+      "sha256": "2415edb70ad521320007548560239900f47d8d4155692e3196bc91303d49b34d",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "freshness_policy": "exact-material-head",
+      "producer": "deterministic Node countable-boundary harness",
+      "status": "passed"
+    }
+  ]
+}

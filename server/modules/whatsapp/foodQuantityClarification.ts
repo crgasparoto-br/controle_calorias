@@ -18,6 +18,7 @@ import {
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
 import type { WhatsappIntentResult } from "./intent/types";
+import type { MixedMealItemIncrementPlan } from "./mixedMealItemIncrementPlanTypes";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
@@ -107,10 +108,38 @@ export type CaloricComplementQuantityContext = {
   operation: CaloricComplementOperation;
 };
 
+export type MealItemIncrementQuantityContext = {
+  mode: "complete_mixed_increment_plan";
+  plan: MixedMealItemIncrementPlan;
+  operationIndex: number;
+};
+
+export type ConfirmedTextMealPendingItem = {
+  segmentIndex: number;
+  segment: string;
+  foodName: string;
+  count: number;
+  requestedUnit: string;
+};
+
+export type ConfirmedTextMealQuantityContext = {
+  mode: "complete_confirmed_text_meal";
+  originalText: string;
+  registrationSegments: string[];
+  pendingItems: ConfirmedTextMealPendingItem[];
+  currentPendingIndex: number;
+  occurredAt: string;
+  receivedAt: string;
+  inboundMessageId?: string | null;
+  userTimezone: string;
+};
+
 export type FoodQuantityResolutionContext =
   | MealItemCorrectionContext
   | ImageMealQuantityContext
-  | CaloricComplementQuantityContext;
+  | CaloricComplementQuantityContext
+  | MealItemIncrementQuantityContext
+  | ConfirmedTextMealQuantityContext;
 
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
   resolutionContext?: FoodQuantityResolutionContext;
@@ -275,7 +304,11 @@ export function createFoodQuantityClarificationService(
             ? "Refeição identificada por imagem aguardando quantidades em sequência persistente."
             : input.resolutionContext?.mode === "complete_caloric_complement"
               ? "Operação alimentar aguardando quantidade do complemento calórico em pendência persistente."
-              : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
+              : input.resolutionContext?.mode === "complete_mixed_increment_plan"
+                ? "Plano de ajuste misto aguardando quantidade em pendência persistente, sem mutação parcial."
+                : input.resolutionContext?.mode === "complete_confirmed_text_meal"
+                  ? "Refeição textual aguardando quantidade segura antes do registro, sem persistência parcial."
+                  : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
       data: buildFoodClarificationPendingData(created, target),
     });
   };
@@ -364,6 +397,68 @@ export function createFoodQuantityClarificationService(
           replacementFoodName: input.replacementFoodName,
         },
       }),
+    requestMealItemIncrementQuantity: (input: {
+      userId: number;
+      foodName: string;
+      originalText: string;
+      plan: MixedMealItemIncrementPlan;
+      operationIndex: number;
+      receivedAt?: Date;
+      messageId?: string | null;
+      instructionText?: string;
+    }) =>
+      createQuantityClarification({
+        userId: input.userId,
+        foodName: input.foodName,
+        originalText: input.originalText,
+        receivedAt: input.receivedAt,
+        messageId: input.messageId,
+        resolutionContext: {
+          mode: "complete_mixed_increment_plan",
+          plan: {
+            ...input.plan,
+            operations: input.plan.operations.map(operation => ({
+              ...operation,
+              target: operation.target ? { ...operation.target } : undefined,
+            })),
+          },
+          operationIndex: input.operationIndex,
+        },
+        instructionText: input.instructionText,
+      }),
+    requestConfirmedTextMealQuantity: (input: {
+      userId: number;
+      foodName: string;
+      originalText: string;
+      registrationSegments: string[];
+      pendingItems: ConfirmedTextMealPendingItem[];
+      currentPendingIndex: number;
+      occurredAt: Date;
+      receivedAt?: Date;
+      userTimezone: string;
+      messageId?: string | null;
+      instructionText?: string;
+    }) =>
+      createQuantityClarification({
+        userId: input.userId,
+        foodName: input.foodName,
+        originalText: input.originalText,
+        receivedAt: input.receivedAt ?? new Date(),
+        messageId: input.messageId,
+        resolutionContext: {
+          mode: "complete_confirmed_text_meal",
+          originalText: input.originalText,
+          registrationSegments: [...input.registrationSegments],
+          pendingItems: input.pendingItems.map(item => ({ ...item })),
+          currentPendingIndex: input.currentPendingIndex,
+          occurredAt: input.occurredAt.toISOString(),
+          receivedAt: (input.receivedAt ?? new Date()).toISOString(),
+          inboundMessageId: input.messageId ?? null,
+          userTimezone: input.userTimezone,
+        },
+        instructionText: input.instructionText
+          ?? `Não encontrei uma porção contável segura para ${input.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g. Não vou assumir 100 g.`,
+      }),
     requestCaloricComplementQuantity: (input: {
       userId: number;
       originalFoodText: string;
@@ -407,3 +502,7 @@ export const requestWhatsappLatestFoodCorrectionQuantity =
   defaultService.requestLatestFoodCorrectionQuantity;
 export const requestWhatsappCaloricComplementQuantityClarification =
   defaultService.requestCaloricComplementQuantity;
+export const requestWhatsappMealItemIncrementQuantityClarification =
+  defaultService.requestMealItemIncrementQuantity;
+export const requestWhatsappConfirmedTextMealQuantityClarification =
+  defaultService.requestConfirmedTextMealQuantity;

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+  "controls": [
+    {
+      "id": "CTRL-PARSER-OWNERSHIP-FALLTHROUGH-001",
+      "status": "passed",
+      "head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "control_type": "scenario",
+      "attack_control_id": "NEG-AUD998-002-CUP",
+      "risk_family": "structural-contract",
+      "surface": "parser-ownership-precedence",
+      "dimension": "cup-canonical-fallthrough",
+      "evidence": "evidence/parser-ownership-harness.txt",
+      "evidence_sha256": "b9ba74c6037f97a18ba3ca210c67429f095c8e526e4b1b5ab88f51a06d82b789",
+      "procedure": "Executar adicao com medida domestica fora do vocabulario do parser misto antes do consumidor canonico.",
+      "expected": "Sem operacao suportada o parser especializado nao captura a mensagem.",
+      "observed": "No material head atual xicara e copo caem no consumidor canonico enquanto o caso misto suportado permanece fail-closed."
+    },
+    {
+      "id": "CTRL-LOW-CAL-BEVERAGE-PRECEDENCE-001",
+      "status": "passed",
+      "head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "control_type": "scenario",
+      "attack_control_id": "NEG-AUD998-005",
+      "risk_family": "structural-contract",
+      "surface": "low-calorie-beverage-precedence",
+      "dimension": "discriminant-005",
+      "evidence": "evidence/low-calorie-contract-harness.txt",
+      "evidence_sha256": "eb5d853208b53c48f3e697f59fa83040a59ba203db519b948581b84cd8657898",
+      "procedure": "Confrontar cafe e cha sem acucar com o fast-path contavel e com um alimento contavel comum.",
+      "expected": "Bebidas preservam o contrato especializado e alimentos comuns preservam a conversao canonica.",
+      "observed": "O harness exact-head manteve cafe e cha em 2 kcal e preservou conversao segura para alimento contavel ordinario."
+    },
+    {
+      "id": "CTRL-CANONICAL-DISPLAY-PARITY-001",
+      "status": "passed",
+      "head_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "subject_sha": "be9ccab06cdaecf216f501181a3ed56e11c12d8f",
+      "control_type": "scenario",
+      "attack_control_id": "NEG-AUD998-021",
+      "risk_family": "structural-contract",
+      "surface": "canonical-display-parity",
+      "dimension": "discriminant-021",
+      "evidence": "evidence/countable-boundary-harness.txt",
+      "evidence_sha256": "2415edb70ad521320007548560239900f47d8d4155692e3196bc91303d49b34d",
+      "procedure": "Comparar uma unidade canonica segura com uma multiplicidade da mesma classe antes do fast-path contavel.",
+      "expected": "Uma unidade preserva a representacao canonica existente; multiplicidade continua escalando pela porcao segura.",
+      "observed": "O harness exact-head delega 1 Bisnaguinha Panco ao fluxo canonico e mantem 2 paes franceses em 100 g."
+    }
+  ],
+  "retired_controls": [],
+  "source_audits": [
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+      "finding_ids": [
+        "AUD-998-F001"
+      ]
+    }
+  ],
+  "unresolved_controls": []
+}

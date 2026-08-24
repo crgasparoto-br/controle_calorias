@@ -288,6 +288,41 @@
       "when": 1786331570096,
       "tag": "0042_billing_subscription_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1786924800000,
+      "tag": "0043_billing_usage_economics_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1786924860000,
+      "tag": "0044_billing_usage_charge_revoke_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1786924920000,
+      "tag": "0045_billing_usage_cost_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1786924980000,
+      "tag": "0046_billing_usage_provider_dispatch_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1786925040000,
+      "tag": "0047_usage_governance_audit_closure",
+      "breakpoints": true
     }
   ]
 }

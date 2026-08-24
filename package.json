@@ -27,7 +27,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate:professionals": "tsx scripts/migrate-professional-persistence.ts",
     "db:test:professionals": "tsx scripts/test-professional-persistence-tidb.ts && tsx scripts/test-professional-operational-alerts-tidb.ts",
-    "db:test:billing": "tsx scripts/test-billing-catalog-upgrade-tidb.ts && NODE_OPTIONS=--import=./scripts/billing-test-json-value.mjs tsx scripts/test-billing-persistence-tidb.ts && tsx scripts/test-professional-capacity-alert-lifecycle-tidb.ts && tsx scripts/test-asaas-concurrency-tidb.ts && tsx scripts/test-billing-subscription-lifecycle-tidb.ts",
+    "db:test:billing": "tsx scripts/test-billing-catalog-upgrade-tidb.ts && NODE_OPTIONS=--import=./scripts/billing-test-json-value.mjs tsx scripts/test-billing-persistence-tidb.ts && tsx scripts/test-professional-capacity-alert-lifecycle-tidb.ts && tsx scripts/test-asaas-concurrency-tidb.ts && tsx scripts/test-billing-subscription-lifecycle-tidb.ts && tsx scripts/test-usage-governance-retention-tidb.ts",
     "db:test:whatsapp-onboarding-activation": "tsx scripts/test-whatsapp-onboarding-activation-tidb.ts",
     "db:test:whatsapp-active-phone-migration": "tsx scripts/test-whatsapp-active-phone-migration-tidb.ts",
     "db:repair-meal-inferences": "node scripts/repair-meal-inferences-schema.mjs",
@@ -43,7 +43,9 @@
     "issue-927:policy-controls": "tsx scripts/issue-927-policy-controls.ts",
     "issue-927:policy-controls:verify": "tsx scripts/issue-927-policy-controls.ts --verify-if-present",
     "issue-927:pricing-provenance": "node scripts/issue-927-pricing-provenance.mjs --self-test",
-    "db:seed:billing-catalog": "tsx scripts/seed-billing-catalog.ts"
+    "db:seed:billing-catalog": "tsx scripts/seed-billing-catalog.ts",
+    "benchmark:question-latency": "node scripts/issue-989-question-latency-benchmark.mjs",
+    "benchmark:question-latency:self-test": "node scripts/issue-989-question-latency-benchmark.mjs --self-test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

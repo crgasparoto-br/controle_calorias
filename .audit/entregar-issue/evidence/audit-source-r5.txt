@@ -1,0 +1,10 @@
+Independent audit source contract for PR 998 remediation R5.
+rejection_id=audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af
+finding_id=A-001
+disposition=blocking
+actionable=true
+remediation_mode=targeted-remediation
+audited_terminal_head_sha=f07215485a551b737da050b9e7673f5a42e37ff6
+audited_material_head_sha=f6388a3cf14708ab6b277dc49ddf57e52529172a
+finding_summary=Stale revalidation accepted same-name replacement/reorder without proving the originally selected item identity, allowing mutation of the wrong homonymous meal item.
+required_remediation=Persist a stable target identity/fingerprint, revalidate before the final mutation, fail closed when the same item cannot be uniquely proven, and add discriminant tests for identity drift, homonym reorder, unique moved target, indistinguishable duplicates, and multiple operations on the same item exactly once.

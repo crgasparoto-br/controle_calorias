@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
 import {
   buildSavedMedia,
@@ -64,12 +64,29 @@ function buildOpaqueIncomingMediaFileName(mediaType: "image" | "audio", extensio
 
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
+  const opaqueMediaId = createHash("sha256").update(mediaId).digest("hex").slice(0, 40);
+  if (usageUserId) {
+    const { recordDirectProcessingUsage } = await import("../usageGovernance/service");
+    await recordDirectProcessingUsage({
+      userId: usageUserId,
+      idempotencyKey: `traffic:whatsapp:${opaqueMediaId}`,
+      operation: "traffic_download",
+      channel: "whatsapp",
+      unitType: "bytes",
+      unitCount: downloaded.buffer.byteLength,
+      correlationId: `traffic:whatsapp:${opaqueMediaId}`,
+      metadata: { provider: "meta", mediaType },
+    });
+  }
   const analysisDataUrl = buildMediaDataUrl(downloaded.buffer, downloaded.mimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = buildOpaqueIncomingMediaFileName(mediaType, extension);
 
   try {
-    const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
+    const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType, {
+      ...(usageUserId ? { usage: { userId: usageUserId, correlationId: `traffic:whatsapp:${opaqueMediaId}` } } : {}),
+    });
     return {
       savedMedia: buildSavedMedia({
         mediaType,
@@ -176,6 +193,7 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
   }
 
   if (message.audio?.id) {
+    const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
     if (storedAudio.savedMedia) {
       prepared.media.push(storedAudio.savedMedia);
@@ -199,6 +217,10 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
       observability: {
         origin: "whatsapp",
         flow: "whatsapp_voice_transcription",
+        correlation: {
+          ...(usageUserId ? { userId: usageUserId } : {}),
+          conversationId: message.id,
+        },
       },
     });
 

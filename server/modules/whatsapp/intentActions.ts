@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
+import { runWithAiUsageScope } from "../../_core/ai/usageContext";
+import { hasUnsafeKnownCountableFoodQuantity } from "../../countableFoodQuantity";
 import {
   handleCoffeeSugarRegistrationIntent,
   isCoffeeSugarRegistrationText,
 } from "./coffeeSugarIntent";
 import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
+import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
@@ -171,6 +174,30 @@ function buildFoodMutationContext(
   };
 }
 
+async function resolveUnsafeKnownCountableFoodRegistration(
+  userId: number,
+  input: WhatsappIntentInput,
+  text: string,
+  receivedAt: Date,
+  userTimeZone: string,
+): Promise<WhatsappIntentResult | null> {
+  if (!hasUnsafeKnownCountableFoodQuantity(text)) return null;
+  const prepared = await prepareWhatsappCountableFoodRegistration({
+    userId,
+    text,
+    originalText: text,
+    inboundMessageId: resolveInboundCorrelationId(
+      userId,
+      text,
+      receivedAt,
+      input.messageId,
+    ),
+    receivedAt,
+    userTimezone: userTimeZone,
+  });
+  return prepared.kind === "clarification" ? prepared.result : null;
+}
+
 function isLatestFoodCorrectionText(text: string) {
   const normalized = text
     .normalize("NFD")
@@ -256,6 +283,15 @@ async function executeResumedFoodRegistration(
     );
   }
 
+  const countableClarification = await resolveUnsafeKnownCountableFoodRegistration(
+    userId,
+    input,
+    text,
+    receivedAt,
+    userTimeZone,
+  );
+  if (countableClarification) return countableClarification;
+
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   return foodAddition
     ? handleFoodAdditionIntent(
@@ -267,7 +303,7 @@ async function executeResumedFoodRegistration(
     : null;
 }
 
-export async function executeWhatsappTextIntent(
+async function executeWhatsappTextIntentAttributed(
   userId: number,
   input: WhatsappIntentInput
 ): Promise<WhatsappIntentResult | null> {
@@ -433,6 +469,15 @@ export async function executeWhatsappTextIntent(
     );
   }
 
+  const countableClarification = await resolveUnsafeKnownCountableFoodRegistration(
+    userId,
+    input,
+    text,
+    receivedAt,
+    userTimeZone,
+  );
+  if (countableClarification) return countableClarification;
+
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition)
     return handleFoodAdditionIntent(
@@ -486,4 +531,14 @@ export async function executeWhatsappTextIntent(
   }
 
   return handlePeriodReportIntent(userId, reportPeriod, userTimeZone);
+}
+
+export async function executeWhatsappTextIntent(
+  userId: number,
+  input: WhatsappIntentInput,
+): Promise<WhatsappIntentResult | null> {
+  return runWithAiUsageScope(
+    { userId, conversationId: input.messageId ?? getCurrentWhatsappInboundExternalMessageId() },
+    () => executeWhatsappTextIntentAttributed(userId, input),
+  );
 }

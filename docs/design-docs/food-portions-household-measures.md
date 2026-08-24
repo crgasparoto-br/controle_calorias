@@ -53,3 +53,18 @@ Esta PR precisa ser validada com:
 - `pnpm architecture:check`
 - `pnpm docs:check`
 - `pnpm agent:check`
+
+## WhatsApp: composição nutricional e medida contável
+
+A composição nutricional e a quantidade consumida são decisões distintas. Uma referência TACO ou de catálogo expressa por `100 g` pode resolver identidade e nutrientes por peso, mas **não** prova que `1 fatia` ou `1 unidade` pese 100 g.
+
+No registro textual do WhatsApp a precedência é:
+
+1. massa/volume explícitos informados pelo usuário;
+2. porção contável canônica e compatível do catálogo;
+3. clarificação persistente de peso/volume;
+4. nunca promover a base nutricional de `100 g` a medida caseira implícita.
+
+O preflight compartilhado por webhook, simulador e registro confirmado converte somente porções seguras. Enquanto algum item contável estiver sem peso seguro, a refeição completa permanece em `whatsappPendingOperations` e nenhum item da mesma mensagem é persistido.
+
+Para ajustes de refeições já persistidas, `fatia` e `unidade` usam exclusivamente `food_portions` do `foodId` do item e `convertFoodPortionToGrams`. Não existe tabela paralela de pesos no parser/intent. Sem uma única porção compatível, o plano do comando é persistido e o usuário informa somente o peso/volume faltante.

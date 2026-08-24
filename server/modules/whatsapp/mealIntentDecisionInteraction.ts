@@ -304,6 +304,8 @@ export async function completeWhatsappMealIntentDecisionCallback(input: {
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
   });
 
+  if (outcome.status === "clarification_requested") return outcome.result;
+
   if (outcome.status === "registered") {
     return {
       ...outcome.result,

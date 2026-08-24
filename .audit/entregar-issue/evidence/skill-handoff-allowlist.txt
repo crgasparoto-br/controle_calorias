@@ -1,0 +1,8 @@
+material context: systemic delivery control remediation
+prevention: build_handoff_certificate.py now verifies every declared artifact and transport part is included in result-only allowed_paths before emitting a certificate.
+detection: validate_handoff_certificate.py independently derives declared artifact repository paths and rejects any declared artifact or transport part missing from allowed_paths even at exact material head.
+focused controls executed:
+- test_handoff_certificate_allowlists_every_declared_artifact_before_publication: passed
+- test_validator_rejects_declared_transport_part_outside_result_allowlist: passed
+- test_build_and_validate_handoff_certificate: passed
+- validate_skill_genericity.py: READY

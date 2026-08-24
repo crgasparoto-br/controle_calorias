@@ -200,7 +200,11 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
     markMessageProcessedMock.mockReset();
-    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
+    let nextLifecycleMessageId = 1;
+    beginInboundMessageMock.mockImplementation(async () => ({
+      conversationId: 1,
+      messageId: nextLifecycleMessageId++,
+    }));
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: true, readFailed: false });

@@ -6,6 +6,7 @@ import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsa
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
 import { executeWhatsappGramsIncrementIntent } from "./modules/whatsapp/gramsIncrementIntent";
+import { prepareWhatsappCountableFoodRegistration } from "./modules/whatsapp/countableFoodRegistrationGate";
 import { parseMealCommandFromWhatsApp } from "./modules/whatsapp/mealCommandParser";
 import { resolveTextMealItemSelection } from "./modules/whatsapp/mealItemSelectionCallback";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
@@ -904,6 +905,8 @@ async function tryHandleTextIntent(
       : await executeWhatsappGramsIncrementIntent(userId, {
           text: textForIntent,
           receivedAt: occurredAt,
+          userTimezone,
+          messageId: message.id ?? null,
         });
     if (gramsIncrementResult) {
       markTextIntentMessageHandled(message.id);
@@ -938,7 +941,7 @@ async function tryHandleTextIntent(
       });
       if (llmResult && "handled" in llmResult && !llmResult.handled) {
         // Classificador decidiu encaminhar ao pipeline nutricional com contexto de intenção
-        nutritionFallback = llmResult;
+        nutritionFallback = llmResult as WhatsappLlmNutritionFallback;
       } else {
         result = llmResult as TextIntentResult | null;
       }
@@ -949,8 +952,33 @@ async function tryHandleTextIntent(
       // Se o classificador gerou um intentHint (fallback nutricional com contexto),
       // encaminha ao pipeline de imagem/nutricional com o hint para coordenar a extração
       if (nutritionFallback) {
+        const countableGate = await prepareWhatsappCountableFoodRegistration({
+          userId,
+          text,
+          originalText: text,
+          inboundMessageId: message.id ?? null,
+          receivedAt: occurredAt,
+          userTimezone,
+        });
+        if (countableGate.kind === "clarification") {
+          markTextIntentMessageHandled(message.id);
+          await clearPendingTextIntentContext(userId);
+          await sendAndLogTextReply({
+            userId,
+            sourcePhone,
+            userMessage: text,
+            reply: countableGate.result.reply,
+            eventType: countableGate.result.eventType,
+            detail: countableGate.result.detail,
+            status: "warning",
+            occurredAtMs,
+            lifecycleHandle,
+            interactiveReply: countableGate.result.interactiveReply,
+          });
+          return true;
+        }
         return {
-          passthroughText: text,
+          passthroughText: countableGate.registrationText,
           intentHint: nutritionFallback.intentHint,
         };
       }
