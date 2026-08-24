@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { AiInferenceEvent } from "../../_core/ai/observability";
+import { measureAiUsageGovernanceOperation } from "../../_core/ai/usageGate";
 import { recordUsageEvent } from "../../repositories/usageGovernanceRepository";
 
 const PROVIDER_ATTEMPT_RULE_VERSION = "2026-08-16.5";
@@ -40,7 +41,7 @@ export async function prepareAiProviderAttemptUsage(input: {
     dispatchStates().set(idempotencyKey, { state: "provider_dispatch_started" });
     return { idempotencyKey, correlationId: input.executionId };
   }
-  await recordUsageEvent({
+  await measureAiUsageGovernanceOperation(() => recordUsageEvent({
     id: crypto.randomUUID(), idempotencyKey, beneficiaryUserId,
     patientUserId: sponsorUserId ? beneficiaryUserId : null, sponsorUserId, payerUserId,
     subscriptionId: typeof input.correlation.subscriptionId === "string" ? input.correlation.subscriptionId : null,
@@ -56,9 +57,9 @@ export async function prepareAiProviderAttemptUsage(input: {
     ruleVersion: PROVIDER_ATTEMPT_RULE_VERSION,
     metadata: { capability: input.capability, measurementState: "reserved_before_provider_call", pricingState: "pending_observation" },
     occurredAt: new Date(),
-  });
+  }));
   const { claimUsageProviderDispatch } = await import("../../repositories/usageProviderDispatchRepository");
-  const claim = await claimUsageProviderDispatch(idempotencyKey);
+  const claim = await measureAiUsageGovernanceOperation(() => claimUsageProviderDispatch(idempotencyKey));
   if (!claim.claimed) throw new Error("usage_provider_dispatch_not_claimed");
   return { idempotencyKey, correlationId: input.executionId };
 }
@@ -70,7 +71,7 @@ export async function finalizeAiProviderAttemptUsage(reservation: AiProviderUsag
   }
   const units = usageUnits(event);
   const { finalizeUsageProviderDispatch } = await import("../../repositories/usageProviderDispatchRepository");
-  return finalizeUsageProviderDispatch({
+  return measureAiUsageGovernanceOperation(() => finalizeUsageProviderDispatch({
     idempotencyKey: reservation.idempotencyKey, eventState: event.outcome,
     operation: event.flow || event.capability, attemptRole: event.callRole,
     retryRootKey: event.callRole === "primary" ? null : event.executionId,
@@ -81,5 +82,5 @@ export async function finalizeAiProviderAttemptUsage(reservation: AiProviderUsag
     metadata: { capability: event.capability, pricingCatalogVersion: event.pricingCatalogVersion,
       pricingEffectiveDate: event.pricingEffectiveDate, fallbackKind: event.fallback.kind,
       degradation: event.degradation, measurementState: "finalized" },
-  });
+  }));
 }

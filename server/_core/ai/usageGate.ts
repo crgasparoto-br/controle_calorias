@@ -18,6 +18,7 @@ export type AiUsageGate = (
 ) => Promise<AiUsageGateResult | void>;
 
 let configuredUsageGate: AiUsageGate | null = null;
+let configuredUsageDurationObserver: ((durationMs: number) => void) | null = null;
 
 export function setAiUsageGate(gate: AiUsageGate | null): void {
   configuredUsageGate = gate;
@@ -27,9 +28,23 @@ export function getAiUsageGate(): AiUsageGate | null {
   return configuredUsageGate;
 }
 
+export function setAiUsageDurationObserver(observer: ((durationMs: number) => void) | null): void {
+  configuredUsageDurationObserver = observer;
+}
+
+export async function measureAiUsageGovernanceOperation<T>(operation: () => Promise<T>): Promise<T> {
+  if (!configuredUsageDurationObserver) return operation();
+  const startedAt = performance.now();
+  try {
+    return await operation();
+  } finally {
+    configuredUsageDurationObserver(Math.max(0, performance.now() - startedAt));
+  }
+}
+
 export async function enforceAiUsageGate(
   input: AiUsageGateInput,
 ): Promise<AiUsageGateResult | undefined> {
   if (!configuredUsageGate) return undefined;
-  return (await configuredUsageGate(input)) ?? undefined;
+  return (await measureAiUsageGovernanceOperation(() => configuredUsageGate!(input))) ?? undefined;
 }

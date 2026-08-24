@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 4,
+  "fixtureCount": 30,
+  "repetitionsPerFixture": 2,
+  "benchmark": "question-latency/end-to-end-productive-pipeline-hermetic-v4",
+  "syntheticOnly": true,
+  "baseSha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "candidateSha": "0f5fc1c547f8b7f0abd05c18fa240eb819688887",
+  "baseline": {
+    "totalRuns": 60,
+    "successfulRuns": 60,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 268,
+    "p90TotalMs": 269,
+    "p95TotalMs": 271
+  },
+  "candidate": {
+    "totalRuns": 60,
+    "successfulRuns": 60,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 177,
+    "p90TotalMs": 194,
+    "p95TotalMs": 267
+  },
+  "improvements": {
+    "p50": 33.96,
+    "p90": 27.88,
+    "p95": 1.48
+  },
+  "gate": {
+    "atLeast30SuccessfulRunsEachSide": true,
+    "atLeast60SuccessfulRunsEachSide": true,
+    "p90OrP95ImprovementAtLeast20Percent": true,
+    "noPercentileRegressionOver5Percent": true,
+    "noErrorIncrease": true,
+    "noTimeoutIncrease": true,
+    "productiveUserLookupAndTimeZoneExecuted": true,
+    "genericQuestionsSkipRecentHistory": true,
+    "candidateDbStageCoversPreparatoryAndContextReads": true
+  },
+  "passed": true,
+  "sourceEntrypoints": [
+    "server/db.ts#getUserIdByWhatsappPhone",
+    "server/modules/whatsapp/timeZoneContext.ts#resolveWhatsAppOperationTimeZone",
+    "server/modules/whatsapp/aiQuestionAssistant.ts#executeWhatsappAiQuestionIntent",
+    "server/modules/whatsapp/messageLifecycle.ts",
+    "server/modules/whatsapp/logicalReplyDelivery.ts"
+  ]
+}

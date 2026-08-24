@@ -1,0 +1,4 @@
+Focused permanent contract tests executed after the skill changes:
+- entregar-issue/tests/test_audit_escape_prevention_contract.py: 19 passed
+- entregar-issue/tests/test_independent_rejection_handoff_contract.py + auditar-issue/tests/test_certified_delivery_preflight.py: 15 passed
+No repository product code was changed by this remediation; the material QUESTION candidate remains frozen at the exact benchmarked SHA.

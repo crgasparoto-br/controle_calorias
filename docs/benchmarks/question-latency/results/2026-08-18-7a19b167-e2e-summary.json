@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 3,
+  "benchmark": "question-latency/end-to-end-productive-pipeline-hermetic-v3",
+  "cohort": "QUESTION/text-only",
+  "fixtureManifest": "docs/benchmarks/question-latency/fixtures/manifest.json",
+  "executionMode": "exact-sha-production-pipeline-with-hermetic-persistence-delivery-and-provider-doubles",
+  "baseSha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
+  "candidateSha": "7a19b16739b09ea414c166470a9d7e43499102c2",
+  "environment": {
+    "timezone": "America/Sao_Paulo",
+    "provider": "openai-adapter-contract-via-hermetic-provider-double",
+    "model": "gpt-4.1-mini",
+    "policy": {
+      "timeoutMs": 2000,
+      "maxAttempts": 1,
+      "fallback": false,
+      "webSearch": "auto-available-not-forced"
+    },
+    "stageDelaysMs": {
+      "userLookup": 5,
+      "conversation": 8,
+      "inboundPersist": 12,
+      "outboundPersist": 10,
+      "responseLinkPersist": 5,
+      "processedPersist": 8,
+      "delivery": 10,
+      "history": 10,
+      "today": 30,
+      "currentWeek": 45,
+      "last30Days": 120,
+      "llm": 80
+    },
+    "concurrency": "sequential-observations; production context branches retain their own Promise.all concurrency"
+  },
+  "provenance": {
+    "manifestSha256": "7891abb5e91e5b1d99c6718148d87b51e323ee957aba7890b26b13314d6e112f",
+    "benchmarkSha256": "d345590e52c6547185806a77ba23babe1cdb3e3fad83a826e059fd02b8c7dc59",
+    "loaderSha256": "3831e071f9ecaff9aedcc4ea5e4d940fab0c89a1c740dd59d84013b9e11a4463",
+    "workerSha256": "c768e1fe5c2132a011743e08b1958547b2ba10d37a0a2c2e2a361da9e253c97a",
+    "sourceIdentityVerifiedByGitWorktree": true
+  },
+  "baseline": {
+    "totalRuns": 120,
+    "successfulRuns": 120,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 261,
+    "p90TotalMs": 263,
+    "p95TotalMs": 269
+  },
+  "candidate": {
+    "totalRuns": 120,
+    "successfulRuns": 120,
+    "errors": 0,
+    "timeouts": 0,
+    "p50TotalMs": 170,
+    "p90TotalMs": 187,
+    "p95TotalMs": 260
+  },
+  "improvementsPercent": {
+    "p50": 34.87,
+    "p90": 28.9,
+    "p95": 3.35
+  },
+  "gate": {
+    "atLeast30SuccessfulRunsEachSide": true,
+    "p90OrP95ImprovementAtLeast20Percent": true,
+    "noPercentileRegressionOver5Percent": true,
+    "noErrorIncrease": true,
+    "noTimeoutIncrease": true,
+    "exactlyOneProviderCallPerSuccessfulQuestion": true,
+    "webSearchAvailableOnEverySuccessfulQuestion": true,
+    "productionEndToEndPipelineExecutedOnBothExactShas": true,
+    "candidateTelemetryMatchesEndToEndBoundary": true,
+    "persistenceMeasuredOnCandidate": true,
+    "deliveryIncludedInTotalMs": true,
+    "timeToFirstToken": "not-measurable-non-streaming-provider-contract"
+  },
+  "passed": true,
+  "privacy": {
+    "containsRawQuestionOrAnswer": false,
+    "containsPiiOrCredentials": false,
+    "syntheticOnly": true
+  },
+  "pipelineBoundary": "user_resolution_and_inbound_persistence_to_reply_delivery_and_mark_processed",
+  "observationEvidence": {
+    "baselineObservationCount": 120,
+    "candidateObservationCount": 120,
+    "baselineObservationSha256": "250c4ee4b1e1d7636c1afc2d56c68503bfae948246d18e7cef88024521ee4abd",
+    "candidateObservationSha256": "a6170c8c4f8fc6de42ddb0336266e38a38c179da114bb6d70b46687861976327",
+    "fullSanitizedRunSha256": "fda56b8942c655e099f4881be92008c650a276fa778f1f3516209d86f1b0eb2e",
+    "fullRunVersioned": false,
+    "rationale": "Compact canonical evidence remains reviewable; the exact-SHA end-to-end harness deterministically regenerates all sanitized observations from the fixed manifest."
+  }
+}

@@ -22,12 +22,23 @@ describe("AI consumer migration boundaries (#921/#922)", () => {
   it.each([
     "server/mealAiExtraction.ts",
     "server/modules/whatsapp/intentInterpreter.ts",
-    "server/modules/whatsapp/aiQuestionAssistant.ts",
+    "server/modules/whatsapp/aiQuestionAssistantCore.ts",
     "server/catalogSemanticSearch.ts",
   ])("%s uses the capability resolver and canonical executor", relativePath => {
     const source = readFileSync(join(REPO_ROOT, relativePath), "utf8");
     expect(source).toContain("resolveCapabilityConfig");
     expect(source).toContain("executeResolvedCapability");
+    expect(source).not.toContain("getAiProvider(");
+    expect(source).not.toContain("executeWithPolicy(");
+  });
+
+  it("keeps the QUESTION wrapper delegated to the capability-backed core", () => {
+    const source = readFileSync(
+      join(REPO_ROOT, "server/modules/whatsapp/aiQuestionAssistant.ts"),
+      "utf8",
+    );
+    expect(source).toContain('from "./aiQuestionAssistantCore"');
+    expect(source).toContain("executeWhatsappAiQuestionIntentCore");
     expect(source).not.toContain("getAiProvider(");
     expect(source).not.toContain("executeWithPolicy(");
   });
