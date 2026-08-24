@@ -82,6 +82,7 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 
 - `benchmarks/multi-provider/README.md` — contrato, fixtures, métricas e critérios de promoção da #927.
 - `benchmarks/multi-provider/fixtures/manifest.json` — cenários sintéticos e sem PII.
+- `benchmarks/question-latency/README.md` — coorte, protocolo before/after, métricas e gate de latência da capacidade `QUESTION` (#989).
 - `runbooks/multi-provider-rollout.md` — promoção e rollback por capacidade, sem autorização implícita de produção.
 - `design-docs/ai-observability-pricing.md` — usage normalizado e catálogo de preços versionado.
 

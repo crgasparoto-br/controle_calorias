@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "cohort": "QUESTION/text-only",
+  "timezone": "America/Sao_Paulo",
+  "repetitionsPerFixture": 4,
+  "fixtures": [
+    {
+      "id": "generic-deficit",
+      "question": "o que é déficit calórico?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-fiber",
+      "question": "qual é a recomendação atual de fibras?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-banana",
+      "question": "quantas calorias tem uma banana?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-water-goal-collision",
+      "question": "qual é a meta diária de água recomendada para adultos?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-bmi",
+      "question": "como calcular o IMC?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-creatine",
+      "question": "para que serve creatina?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-carb-types",
+      "question": "diferença entre carboidrato simples e complexo?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-protein-importance",
+      "question": "por que proteína é importante?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "today-consumption",
+      "question": "como está meu consumo hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-protein",
+      "question": "quanto eu consumi de proteína hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-water",
+      "question": "quanta água eu bebi hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-exercise",
+      "question": "como foram meus exercícios hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-goal",
+      "question": "como está minha meta hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-meals",
+      "question": "o que eu comi hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "week-consumption",
+      "question": "como foi meu consumo esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "week-exercise",
+      "question": "como foram meus exercícios esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "week-water",
+      "question": "como foi meu consumo de água esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "week-meals",
+      "question": "como foram minhas refeições esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "week-goal",
+      "question": "como fiquei em relação à minha meta esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "generic-ultraprocessed",
+      "question": "como saber se um alimento é ultraprocessado?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-water-consumption-collision",
+      "question": "qual é o consumo recomendado de água por dia?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-banana-weight-collision",
+      "question": "qual é o peso médio de uma banana?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "generic-habits-collision",
+      "question": "quais hábitos ajudam a dormir melhor?",
+      "expectedScope": "none"
+    },
+    {
+      "id": "today-carbs",
+      "question": "quanto de carboidrato eu consumi hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-water-status",
+      "question": "como está minha água hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "today-balance",
+      "question": "qual foi meu saldo calórico hoje?",
+      "expectedScope": "today"
+    },
+    {
+      "id": "week-protein",
+      "question": "quanto eu consumi de proteína esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "week-water-status",
+      "question": "como ficou minha água esta semana?",
+      "expectedScope": "week"
+    },
+    {
+      "id": "follow-up-ambiguous",
+      "question": "e proteína?",
+      "expectedScope": "full"
+    },
+    {
+      "id": "implicit-personal-advice",
+      "question": "quanto de proteína devo consumir?",
+      "expectedScope": "full"
+    }
+  ]
+}

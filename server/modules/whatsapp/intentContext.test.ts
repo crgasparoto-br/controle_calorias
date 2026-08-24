@@ -170,6 +170,31 @@ describe("buildWhatsappIntentContext", () => {
     expect(summaryInput.messagesBeyondWindow.every(message => message.conversationId === 20)).toBe(true);
   });
 
+  it("permite consumidor de histórico evitar snapshot/memória e medir somente a leitura persistida", async () => {
+    const dbDurations: number[] = [];
+
+    const context = await buildWhatsappIntentContext(1, {
+      receivedAt,
+      includeSummary: false,
+      includeDomainSnapshot: false,
+      includeContextualMemories: false,
+      includeShadowIntentComparison: false,
+      onRecentMessagesDbDurationMs: durationMs => dbDurations.push(durationMs),
+    });
+
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(retrieveWhatsappContextMemoryMock).not.toHaveBeenCalled();
+    expect(findRecentMessagesByUserMock).toHaveBeenCalledTimes(1);
+    expect(dbDurations).toHaveLength(1);
+    expect(dbDurations[0]).toEqual(expect.any(Number));
+    expect(context.currentDomainSnapshot).toEqual({
+      latestMeal: null,
+      mealsToday: [],
+      recentFoodNames: [],
+    });
+    expect(context.contextualMemories).toEqual([]);
+  });
+
   it("não gera resumo quando o consumidor declara que não usa resumo", async () => {
     const count = 20;
     findRecentMessagesByUserMock.mockResolvedValue(

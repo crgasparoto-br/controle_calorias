@@ -183,6 +183,20 @@ describe("handleWhatsAppWebhook slash AI question routing (webhook real)", () =>
     expect(sentWhatsAppPayloads[0]?.text?.body).toBe("Seu consumo de proteína hoje está abaixo da meta.");
     const savedMeals = (await listUserMeals(1)).filter(meal => meal.source === "whatsapp");
     expect(savedMeals).toHaveLength(0);
+    const snapshot = await getAdminSnapshot();
+    const latencyLog = snapshot.recentInferenceLogs.find(log => log.eventType === "whatsapp.ai_question.latency");
+    expect(latencyLog).toBeDefined();
+    const latency = JSON.parse(latencyLog!.detail);
+    expect(latency).toEqual(expect.objectContaining({
+      schemaVersion: 2,
+      boundary: "inbound_persistence_to_processed_reply",
+      persist_ms: expect.any(Number),
+      total_ms: expect.any(Number),
+      delivery_ok: true,
+      outcome: "success",
+      error_code: null,
+    }));
+    expect(latency.total_ms).toBeGreaterThanOrEqual(latency.persist_ms);
   });
 
   it("reconhece o prefixo / mesmo com espaços antes da barra", async () => {
@@ -324,6 +338,14 @@ describe("handleWhatsAppWebhook slash AI question routing (webhook real)", () =>
     expect(savedMeals).toHaveLength(0);
     const snapshot = await getAdminSnapshot();
     expect(snapshot.recentInferenceLogs.some(log => log.eventType === "whatsapp.reply_failed")).toBe(true);
+    const latencyLog = snapshot.recentInferenceLogs.find(log => log.eventType === "whatsapp.ai_question.latency");
+    expect(latencyLog).toBeDefined();
+    expect(JSON.parse(latencyLog!.detail)).toEqual(expect.objectContaining({
+      delivery_ok: false,
+      outcome: "error",
+      error_code: "delivery_failed",
+      persist_ms: expect.any(Number),
+    }));
   });
 
   it("é idempotente para reentrega do mesmo message.id", async () => {

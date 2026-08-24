@@ -1,0 +1,10 @@
+Independent rejection audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19 A-001 remediation evidence.
+Current target: crgasparoto-br/controle_calorias issue 989 / PR 993.
+Material head: 0d0f0f74fab0a89edb4f4eef8689f582918483b8.
+Rejected published handoff: 4913af78e9d8d676bec08162485554b170d2d52a.
+Immutable previous issue-989 inherited-controls snapshot contains 14 active controls and 0 retired controls.
+Rejected handoff injected 2 active controls, 17 retired controls, and foreign source audits from issue 897 / PR 985.
+Corrected ledger keeps the 14 prior issue-989 controls, the 2 controls from rejection audit-rejection:a083094b-e734-4539-a496-bb43f11b8b76, and the controls introduced for audit-rejection:e7b6e0c9-537e-4ca9-a80b-001ee9c05e19; retired_controls is empty.
+Foreign issue/PR controls and source audits are not represented as current-target lineage.
+Producer validator now rejects a retired ID absent from the immediately previous target snapshot even when a historical snapshot is supplied.
+Focused producer lineage tests: 19 passed.
