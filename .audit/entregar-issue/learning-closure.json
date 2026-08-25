@@ -1,17 +1,56 @@
 {
   "schema_version": 1,
-  "classification": "implementation-only",
+  "classification": "systemic-escape",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+    "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
     "finding_ids": [
       "A-001"
     ],
-    "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
+    "audit_report_sha256": "329ea905b5db844ba2313a8a05d3790e3607d06bd627bd9d625d863a66747450"
   },
   "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The escape is a product-specific target-identity implementation gap. The installed delivery skill already requires discriminant negative controls, reference liveness, fail-closed revalidation, cumulative audit-escape closure, and terminal handoff checks; no repository- or issue-specific global skill rule is needed."
+    "escape_class": "terminal-handoff-post-write-drift",
+    "generalized_failure_pattern": "A READY delivery certificate becomes invalid whenever any material repository write occurs after its freeze; unchanged semantic target identifiers do not preserve certificate freshness.",
+    "plausible_wrong_implementation": "Keep an older certificate after a later test, documentation or source commit because the work item and branch names are unchanged, and treat the later write as evidence-only.",
+    "trigger_signals": [
+      "material write after freeze",
+      "stale certificate",
+      "head moved after result publication",
+      "independent audit requires refreeze"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": "Maintain a monotonic post-write-refreeze latch: once material dirtiness or an auditor refreeze floor is observed, only a new material freeze plus direct result-only child can restore readiness.",
+    "prevention_rule": "Track material dirtiness after every freeze and forbid handoff-only recovery after any non-result path write or stricter independent-audit recovery floor.",
+    "detection_rule": "Before returning readiness, re-read the terminal head, compare it with the published handoff, validate direct parent and result-only allowlist, and require refreeze if any material path exists after freeze.",
+    "transfer_cases": [
+      {
+        "surface": "test-artifact",
+        "scenario": "A test-only commit lands after a valid handoff; recovery must require a new material freeze.",
+        "status": "passed"
+      },
+      {
+        "surface": "documentation-artifact",
+        "scenario": "A documentation-only commit lands after a valid handoff; recovery must require a new material freeze.",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
   },
-  "skill_changes": []
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "change": "Current delivery skill version enforces the material_dirty_since_freeze latch and treats independent-audit recovery scope as a lower bound.",
+      "evidence": "evidence/post-write-refreeze-1006.txt"
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "change": "Current delivery skill version validates terminal head, direct material parent and result-only changed paths before allowing re-audit.",
+      "evidence": "evidence/post-write-refreeze-1006.txt"
+    }
+  ]
 }

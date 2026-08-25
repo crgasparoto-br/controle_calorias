@@ -1,0 +1,6 @@
+Issue 1006 / PR 1009 post-write-refreeze evidence on material head 5aaca60792966e1bd82523cd1c96ae7c5a22757a.
+The previous certificate remained bound to material head 014125bfe3dcbbaf44ce5490af573ffb5f2eb974, but later material commits changed product documentation/code/tests and finally server/modules/whatsapp/service.explicitMealDate.test.ts.
+The auditor returned recovery_scope=post-write-refreeze and requires_refreeze=true. Running classify_handoff_recovery.py with that lower bound returned recovery_scope=post-write-refreeze and reason=auditor-recovery-floor:post-write-refreeze.
+The current entregar-issue skill hash is 4034af6086800630453804888ad874d8a8f8ba7e1520e2d8c60169d9dd5b9590; the stale certificate records producer skill hash 603076f5928f3a050cad513eefeb762e05878e4c6ababb699b38264e94006ce3.
+Generic prevention/detection controls were reexecuted with pytest against test_handoff_recovery_classifier.py, test_terminal_handoff_contract.py and test_universal_post_write_handoff_guard.py: 26 tests passed.
+The generic controls prove that an auditor post-write-refreeze floor cannot be downgraded, a result-only child must keep the frozen material head as direct parent, and any post-handoff material path requires a new refreeze.
