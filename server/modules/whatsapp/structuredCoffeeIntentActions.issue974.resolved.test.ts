@@ -3,13 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const interpretMock = vi.hoisted(() => vi.fn());
 const processMock = vi.hoisted(() => vi.fn());
 const createMealMock = vi.hoisted(() => vi.fn());
+const listMealsMock = vi.hoisted(() => vi.fn());
+const updateMealMock = vi.hoisted(() => vi.fn());
 const pendingRepo = vi.hoisted(() => ({ getActivePendingOperation: vi.fn() }));
 
 vi.mock("./intentContext", () => ({ buildWhatsappIntentContext: vi.fn(async () => ({})) }));
 vi.mock("./intentInterpreter", () => ({ interpretWhatsappMessageWithDiagnostics: interpretMock }));
 vi.mock("./intentAuditLog", () => ({ recordWhatsappIntentAuditLog: vi.fn() }));
 vi.mock("./intentValidation", () => ({ validateWhatsappRuntimeIntentForPersistence: vi.fn(() => ({ valid: true })) }));
-vi.mock("../meals/service", () => ({ listMeals: vi.fn(async () => []), createManualMeal: createMealMock, updateMeal: vi.fn() }));
+vi.mock("../meals/service", () => ({ listMeals: listMealsMock, createManualMeal: createMealMock, updateMeal: updateMealMock }));
 vi.mock("../../db", () => ({ getDb: vi.fn(), getHabitSnapshots: vi.fn(async () => []), logPersistenceWarning: vi.fn() }));
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({ createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => pendingRepo) }));
 vi.mock("../../nutritionEngine", () => ({ MealInferenceError: class extends Error {}, processMealInput: processMock }));
@@ -39,8 +41,49 @@ describe("issue #974 - preparo explícito", () => {
     interpretMock.mockReset();
     processMock.mockReset();
     createMealMock.mockReset();
+    listMealsMock.mockReset().mockResolvedValue([]);
+    updateMealMock.mockReset();
     pendingRepo.getActivePendingOperation.mockReset().mockResolvedValue(null);
   });
+
+
+  it.each(["hoje", "ontem"])(
+    "bloqueia criação de café em refeição ausente quando a data explícita é '%s'",
+    async relativeDate => {
+      interpretMock.mockResolvedValue({
+        source: "llm",
+        validationStatus: "valid",
+        operationalTrace: { strategy: "llm_structured", modelName: "test", latencyMs: 1, estimatedCostUnits: 1 },
+        intent: {
+          intent: "add_foods_to_meal",
+          confidence: 0.95,
+          date: null,
+          meal: { label: "café da manhã", createIfMissing: true },
+          items: [{ foodName: "Café", quantity: 3, unit: "xícaras", brand: null, preparation: "sem açúcar" }],
+          sourceFood: null, targetFood: null, quantity: null, requiresConfirmation: false,
+          clarificationQuestion: null, possibleIntents: [], reason: null,
+        },
+      });
+
+      const outcome = await tryExecuteWhatsappStructuredCoffeeIntent(42, {
+        text: `adicionar 3 xícaras de café sem açúcar ao café da manhã de ${relativeDate}`,
+        receivedAt: occurredAt,
+        messageId: `wamid-coffee-explicit-${relativeDate}`,
+      });
+
+      expect(outcome).toMatchObject({
+        matched: true,
+        result: {
+          action: "clarification_needed",
+          data: { explicitDate: true, mutationBlocked: true },
+        },
+      });
+      if (outcome.matched) expect(outcome.result.reply).toContain("Nada foi alterado");
+      expect(processMock).not.toHaveBeenCalled();
+      expect(createMealMock).not.toHaveBeenCalled();
+      expect(updateMealMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("resolve café sem açúcar pelo motor nutricional antes de persistir", async () => {
     interpretMock.mockResolvedValue({

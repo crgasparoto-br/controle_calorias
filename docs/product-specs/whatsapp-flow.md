@@ -66,7 +66,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Mensagens naturais de texto devem passar por uma camada de interpretação estruturada antes do fallback genérico de refeição.
 - O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
 - Mensagens de consulta como `refeições registradas` não devem cair na resposta de alimento incompleto.
-- Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`.
+- Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente **sem data explícita**, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`. Quando o comando trouxer data relativa explícita (`hoje`, `ontem`, `anteontem` ou `amanhã`) e a refeição indicada não existir no dia interpretado, o backend deve pedir esclarecimento antes de qualquer mutação, mesmo que `createIfMissing` esteja habilitado.
 - Envios de imagem e áudio pelo WhatsApp devem tentar usar o contexto ativo e a refeição lógica compatível do mesmo dia antes de criar um novo bloco de refeição.
 - A mensagem inbound deve permanecer única pelo `message.id` da Meta; depois do download ou da transcrição, a mesma entrada persistida deve ser enriquecida com transcrição sanitizada e referência opaca de mídia, sem criar outro turno.
 - Falha ao enriquecer o contexto persistente não pode bloquear o processamento nutricional já possível; o sistema deve seguir com o fallback seguro e registrar somente metadados operacionais.
