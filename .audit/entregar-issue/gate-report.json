@@ -1,47 +1,80 @@
 {
   "schema_version": 1,
-  "material_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
-  "status": "passed",
-  "local_gates": [
-    {
-      "name": "target-binding",
-      "status": "passed",
-      "evidence": "current-target"
-    },
-    {
-      "name": "recovery-classifier",
-      "status": "passed",
-      "evidence": "post-write-refreeze floor preserved"
-    },
-    {
-      "name": "product-discriminant-review",
-      "status": "passed",
-      "evidence": "evidence/product-controls-1006-r2.txt"
-    },
-    {
-      "name": "generic-skill-regressions",
-      "status": "passed",
-      "evidence": "34 passed"
-    }
-  ],
+  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+  "status": "ready-with-remote-green",
+  "local_gates": {
+    "resource_lifecycle_static": "passed",
+    "quantitative_current_source": "passed",
+    "handoff_readiness": "passed"
+  },
   "remote_gate": {
+    "schema_version": 1,
+    "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
     "status": "completed-success",
+    "observed_once": true,
     "runs": [
       {
-        "id": 32844718126,
-        "name": "Agent-first gate",
+        "id": 32503873474,
+        "name": "Onboarding activation TiDB gate",
+        "status": "completed",
         "conclusion": "success"
       },
       {
-        "id": 32844718108,
-        "name": "WhatsApp context TiDB gate",
+        "id": 32503872335,
+        "name": "Agent-first gate",
+        "status": "completed",
         "conclusion": "success"
+      },
+      {
+        "id": 32503872276,
+        "name": "WhatsApp context TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872367,
+        "name": "Billing persistence TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872274,
+        "name": "Professional persistence TiDB gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 32503872282,
+        "name": "AI provider live smoke",
+        "status": "completed",
+        "conclusion": "skipped"
       }
     ],
-    "evidence": "evidence/exact-head-ci-1006-r2.txt"
+    "billing_persistence": {
+      "run_id": 32503872367,
+      "job_id": 96839532758,
+      "status": "completed",
+      "conclusion": "success",
+      "critical_steps": [
+        {
+          "name": "Validate billing persistence, concurrency, and idempotency",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve billing integration diagnostics",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate referential integrity",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
   },
   "limitations": [
-    "Database integrity check was skipped by CI because DATABASE_URL was unavailable; this remediation changes no schema or persistence contract."
-  ],
-  "note": "Final material identity for post-write refreeze is exact head 9b3bd7b6; the terminal result-only child is generated only after semantic validators pass."
+    "AI provider live smoke was skipped by its workflow policy; all applicable persistence and agent gates completed successfully."
+  ]
 }

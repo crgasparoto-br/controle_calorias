@@ -1,7 +1,0 @@
-Cumulative inherited-control revalidation for issue #1006 at 9b3bd7b6c5db003e9809bf75918d1f88674b1735
-- Replayed target binding: current-target for repository/issue/PR/base/head.
-- Replayed recovery classifier with independent-audit floor recovery_scope=post-write-refreeze and requires_refreeze=true: result post-write-refreeze.
-- Re-ran exact-head product discriminant review from the CI repository bundle; explicit-date local-day selection remains strict and contextual fallback remains only for implicit dates.
-- Preserved every prior source_audit and control ID; issue-997 controls remain explicitly retired, and CTRL-MIXED-TARGET-IDENTITY-001 remains superseded by CTRL-EXPLICIT-DATE-TEMPORAL-LINEAGE-001.
-- Generic delivery Skill regression suite for post-write refreeze / terminal handoff / recovery / independent rejection / audit escape: 34 passed.
-This evidence is exact-head procedural evidence, not an inference from CI green alone.

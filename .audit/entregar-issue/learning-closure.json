@@ -1,16 +1,1 @@
-{
-  "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e",
-    "finding_ids": [
-      "A-002"
-    ],
-    "audit_report_sha256": "1d314452b48e85edb1f18bf32a2df95303734664e8351f8dde44058aefea50f0"
-  },
-  "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The rejected class is already represented by the generic audit-remediation source-byte-binding control. This targeted remediation re-executes that existing control against the final serialized source bytes and adds a mutation discriminator; no duplicate global rule is introduced."
-  }
-}
+{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:660a1686-6ed1-4d4c-96a6-241dcbb3dff2","audit_report_sha256":"41d6c987020b36d16a82bcea8c5bfc975bc1b3ceefc3a80f96a412575b5f102e","finding_ids":["A-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The defect is confined to this result-only remediation package. The producer and independent auditor now both enforce exact-byte binding between the remediation ledger and its structured audit source, so no product or repository-specific rule is promoted."}}

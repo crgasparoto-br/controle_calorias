@@ -201,8 +201,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
       await db.execute(sql`
         SELECT s.id, s.provider, s.status, s.currentPeriodStart,
           s.currentPeriodEnd, s.cancelAtPeriodEnd, bp.code AS productCode,
-          p.code AS planCode, p.versionCode, p.name AS planName,
-          p.billingCycle, p.currency, p.unitAmount
+          p.code AS planCode, p.versionCode, p.version AS planVersion,
+          p.name AS planName, p.billingCycle, p.currency, p.unitAmount
         FROM billingSubscriptions s
         INNER JOIN billingPlans p ON p.id = s.planId
         INNER JOIN billingProducts bp ON bp.id = p.productId
@@ -232,8 +232,8 @@ export function createBillingAccessRepository(deps: BillingRepositoryDeps) {
       await db.execute(sql`
         SELECT s.id, s.provider, s.planId, s.status, s.currentPeriodStart,
           s.currentPeriodEnd, s.cancelAtPeriodEnd, bp.code AS productCode,
-          p.code AS planCode, p.versionCode, p.name AS planName,
-          p.billingCycle, p.currency, p.unitAmount,
+          p.code AS planCode, p.versionCode, p.version AS planVersion,
+          p.name AS planName, p.billingCycle, p.currency, p.unitAmount,
           p.capacityLimit, p.entitlementsJson,
           (
             SELECT COUNT(*)
