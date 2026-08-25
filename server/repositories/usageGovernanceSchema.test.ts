@@ -4,6 +4,28 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("usage governance canonical Drizzle installation", () => {
+  it("keeps multi-statement governance migrations split for TiDB", () => {
+    const expectedStatementCounts = {
+      "drizzle/0043_billing_usage_economics_governance.sql": 11,
+      "drizzle/0046_billing_usage_provider_dispatch_state.sql": 2,
+      "drizzle/0047_usage_governance_audit_closure.sql": 18,
+    };
+
+    for (const [migrationPath, expectedStatementCount] of Object.entries(expectedStatementCounts)) {
+      const statements = read(migrationPath)
+        .split("--> statement-breakpoint")
+        .map(statement => statement.trim())
+        .filter(Boolean);
+
+      expect(statements, migrationPath).toHaveLength(expectedStatementCount);
+      for (const statement of statements) {
+        expect(statement, migrationPath).toMatch(/;$/);
+        expect(statement.match(/;/g), migrationPath).toHaveLength(1);
+        expect(statement, migrationPath).not.toMatch(/ADD COLUMN[\s\S]+ADD (?:UNIQUE )?KEY/);
+      }
+    }
+  });
+
   it("keeps migrations 0043-0047 journaled and represented by the canonical schema", () => {
     const journal = JSON.parse(read("drizzle/meta/_journal.json")) as {
       entries: Array<{ idx: number; tag: string }>;
