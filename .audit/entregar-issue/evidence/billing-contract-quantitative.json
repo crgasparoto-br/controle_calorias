@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 895,
+  "pull_request": 996,
+  "subject_sha": "251202d9918fe86c1260c81d904c75b5abad37bd",
+  "freshness_policy": "exact-material-head",
+  "status": "passed",
+  "method": "Revalidate canonical billing numeric boundaries on the exact material head and bind them to successful PR CI on merge preview 0cd685a0d4552a0ba33d6575b78bed1d2c0ac409.",
+  "probes": [
+    {"id":"trial-duration","observed":{"individual_days":7,"professional_days":14,"professional_capacity":5},"evidence":["client/src/pages/BillingPage.test.tsx","server/modules/billing/subscriptionLifecycleBase.ts"]},
+    {"id":"professional-capacity","observed":{"professional":30,"professional_plus":100,"extension_days":30},"evidence":["server/modules/billing/catalogPolicy.ts","server/modules/billing/catalogPolicy.test.ts","server/modules/billing/professionalCapacityRead.test.ts"]},
+    {"id":"coupon-boundaries","observed":{"hundred_percent_rejected":true,"monthly_max_discounted_charges":3,"annual_max_discounted_charges":1},"evidence":["server/modules/billing/catalogPolicy.test.ts"]}
+  ],
+  "execution": {
+    "head_sha":"251202d9918fe86c1260c81d904c75b5abad37bd",
+    "checkout_sha":"0cd685a0d4552a0ba33d6575b78bed1d2c0ac409",
+    "agent_first_run_id":32801485063,"agent_first_run_number":5834,"agent_first_conclusion":"success",
+    "billing_persistence_run_id":32801485087,"billing_persistence_run_number":504,"billing_persistence_conclusion":"success",
+    "onboarding_activation_run_id":32801485053,"onboarding_activation_run_number":284,"onboarding_activation_conclusion":"success"
+  }
+}

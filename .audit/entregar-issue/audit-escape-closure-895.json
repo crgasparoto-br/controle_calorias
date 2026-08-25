@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "HANDOFF-POST-WRITE-REFREEZE-001",
+      "escape_class": "post-freeze-material-drift-with-stale-handoff",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
+        "finding_id": "A-001",
+        "head_sha": "3ba319e24f5330e5d68ae519e74f1f0fe85dd635"
+      },
+      "plausible_wrong_implementation": "Treat a previously valid handoff certificate as current after later material commits or a base merge, relying on green CI and the mere presence of the certificate to skip the required refreeze.",
+      "literal_case": {
+        "procedure": "Classify the stale certificate bound to the prior material head against the current candidate while preserving the independent-audit refreeze floor.",
+        "expected": "Recovery is post-write-refreeze and cannot be handoff-only.",
+        "observed": "The current recovery remains post-write-refreeze after the material CI-fix commit; handoff-only is rejected.",
+        "status": "passed",
+        "evidence": "evidence/handoff-post-write-refreeze-001.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "material-child-after-handoff",
+          "surface": "handoff-lineage",
+          "dimension": "post-handoff-material-child",
+          "status": "passed",
+          "evidence": "evidence/handoff-post-write-refreeze-001.txt"
+        },
+        {
+          "id": "auditor-refreeze-floor",
+          "surface": "recovery-floor",
+          "dimension": "explicit-refreeze-lower-bound",
+          "status": "passed",
+          "evidence": "evidence/handoff-post-write-refreeze-001.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-lineage",
+          "dimension": "post-handoff-material-child"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "recovery-floor",
+          "dimension": "explicit-refreeze-lower-bound"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing entregar-issue post-write-refreeze protocol",
+        "evidence": "evidence/handoff-post-write-refreeze-001.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "existing recovery classifier and terminal handoff guard",
+        "control_id": "HANDOFF-POST-WRITE-REFREEZE-001",
+        "evidence": "evidence/handoff-post-write-refreeze-001.txt"
+      },
+      "trigger_terms": [
+        "handoff-stale",
+        "post-write-refreeze",
+        "requires_refreeze",
+        "material drift"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e"
+    }
+  ]
+}

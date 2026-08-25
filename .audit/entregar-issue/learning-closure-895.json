@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed delivery skill already contains generic post-write-refreeze recovery, auditor recovery-floor preservation, universal post-write handoff guarding and terminal result-only-child tests. This rejection is closed by applying those existing generic controls to the current delivery state rather than adding another permanent rule."
+  }
+}
