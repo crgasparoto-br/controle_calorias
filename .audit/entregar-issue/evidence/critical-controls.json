@@ -3,14 +3,19 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
+  "subject_sha": "251202d9918fe86c1260c81d904c75b5abad37bd",
+  "checkout_sha": "0cd685a0d4552a0ba33d6575b78bed1d2c0ac409",
   "status": "passed",
-  "observed": "Current pull-request evidence is bound to head 6090da07e0d85cfd775efcc22d13c34b0886d7c7 and merge preview b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845. Agent-first gate run 5828 (32777363558), Billing persistence TiDB gate run 500 (32777363614), and Onboarding activation TiDB gate run 280 (32777363575) all completed successfully. The Agent-first verification manifest independently records the same head and merge-preview checkout.",
-  "runs": [
-    32777363558,
-    32777363614,
-    32777363575
-  ],
-  "checkout_sha": "b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845",
-  "verification_manifest": "agent-first-verification-6090da07e0d85cfd775efcc22d13c34b0886d7c7/manifest.json"
+  "ci": {
+    "agent_first": {"run_id": 32801485063, "run_number": 5834, "conclusion": "success"},
+    "billing_persistence": {"run_id": 32801485087, "run_number": 504, "conclusion": "success"},
+    "onboarding_activation": {"run_id": 32801485053, "run_number": 284, "conclusion": "success"}
+  },
+  "adversarial_controls": {
+    "checkout_cross_tab_equivalent_single_lineage": true,
+    "checkout_cross_tab_incompatible_fail_closed": true,
+    "checkout_replacement_retry_single_generation": true,
+    "sponsored_public_boundary": true
+  },
+  "observed": "Exact-head PR CI completed successfully. Billing persistence #504 executed the real TiDB checkout claim boundary and the public web boundary test on merge preview 0cd685a0, proving one canonical durable lineage for equivalent tabs, fail-closed behavior for incompatible card/Pix attempts, single-generation replacement retry, and omission of sponsor financial/capacity data from the covered-patient public payload."
 }

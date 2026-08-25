@@ -1,29 +1,14 @@
-PR #996 / issue #895 terminal handoff refreeze evidence
-
-Repository: crgasparoto-br/controle_calorias
-Target: issue #895, PR #996, head ref feat/895-billing-web, base ref develop
-Material head: 6090da07e0d85cfd775efcc22d13c34b0886d7c7
-Current develop head: b2dd5076415e42a2ca385cc375a4dd20e55492e3
-Merge preview: b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845
-
-Target binding
-- The canonical handoff at the current develop base is for foreign issue #997 / PR #998 and therefore cannot satisfy #895 / #996.
-- The canonical handoff present at material head 6090da07e0d85cfd775efcc22d13c34b0886d7c7 is for issue #895 / PR #996, but its certificate and exact-head evidence still name the earlier material SHA bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8; it is same-target history, not terminal readiness for the current SHA.
-- Reuse of the foreign base package is denied. The same-target package is refrozen for the exact current material head rather than promoted by inference.
-
-Post-write refreeze / lineage
-- The current material tree is b13842059578748b9dc72afbb1ddc95e5221ab97, identical to the tree of the prior #895 result-only child d5dc37c3a45212b23a2ad6095db5c554dc366992.
-- An accidental audit-only auxiliary artifact was added and subsequently removed by forward commits. The final tree has no product/test/documentation delta relative to d5dc37c3, but the commit identity changed, so exact-SHA evidence was re-executed and the material head was conservatively refrozen at 6090da07e0d85cfd775efcc22d13c34b0886d7c7.
-- No force-push or history rewrite is used.
-
-Exact-head evidence
-- Agent-first gate #5828 (32777363558): success.
-- Billing persistence TiDB gate #500 (32777363614): success.
-- Onboarding activation TiDB gate #280 (32777363575): success.
-- Agent-first verification manifest: head 6090da07e0d85cfd775efcc22d13c34b0886d7c7, checkout b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845, pull request #996.
-
-Discriminating controls
-- TARGET-BINDING-INHERITED-HANDOFF-001: a base certificate whose subject is #997/#998 is rejected for #895/#996; a current-target certificate must be rebuilt and exact-head bound before audit readiness.
-- HANDOFF-POST-WRITE-REFREEZE-001: any post-freeze material identity drift keeps the refreeze floor active even when the final tree is byte-identical; stale exact-SHA evidence cannot be relabeled.
-- Sibling case historical-same-target-not-current: the #895/#996 package at 6090da07e0d85cfd775efcc22d13c34b0886d7c7 is recognized as same-target but stale until reanchored and revalidated.
-- Sibling case foreign-artifact-not-base-identical: a modified foreign artifact would remain foreign-target and would not become current-target merely by differing from the base.
+repository=crgasparoto-br/controle_calorias
+issue=895
+pull_request=996
+base_ref=develop
+base_sha=b2dd5076415e42a2ca385cc375a4dd20e55492e3
+head_ref=feat/895-billing-web
+work_item_start_sha=49b5d64128a449fa9d8d076b5945e4efe91aaaab
+material_head_sha=251202d9918fe86c1260c81d904c75b5abad37bd
+material_merge_preview_sha=0cd685a0d4552a0ba33d6575b78bed1d2c0ac409
+current_merge_preview_sha=6a7ea10f1117ef2610d81682a13748fc2dc8a363
+merge_preview_tree_sha=790f8be4aa3b2cea4092cd70d0e6f9ad24b625bd
+material_paths=scripts/test-asaas-concurrency-tidb.ts,server/modules/billing/webPublic.publicBoundary.test.ts
+result_policy=result-only-child
+observation=The PR material head and develop base match the exact CI-tested merge tree. GitHub regenerated the synthetic merge commit after ref restoration, but both the CI-tested preview 0cd685a0 and the current preview 6a7ea10f have identical parents and tree 790f8be4; the package remains scoped to PR #996 / issue #895.
