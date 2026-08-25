@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { dateOrNull, requireDb, resultRows } from "../../repositories/billingRepositorySupport";
 import { getWhatsAppChannelConfig } from "../../whatsappConfig";
-import { sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
+import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
 import {
   deliverBillingNotificationExternally,
   listBillingUserNotifications,
@@ -335,8 +335,11 @@ export async function retryBillingAdminNotification(input: {
       `));
       const phone = connection?.phoneNumber ? String(connection.phoneNumber) : "";
       if (!phone) return false;
-      const sent = await sendWhatsAppTextMessage(phone, safePresentationText(notification));
-      return sent.ok;
+      const sent = await sendWhatsAppLogicalReply(phone, {
+        kind: "functional",
+        messages: [{ type: "text", body: safePresentationText(notification) }],
+      });
+      return sent.primaryEffectiveOk;
     },
   });
   const resultAt = new Date();
