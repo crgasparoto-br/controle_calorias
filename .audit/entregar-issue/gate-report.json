@@ -1,80 +1,36 @@
 {
   "schema_version": 1,
-  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
-  "status": "ready-with-remote-green",
+  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "status": "passed",
   "local_gates": {
-    "resource_lifecycle_static": "passed",
-    "quantitative_current_source": "passed",
-    "handoff_readiness": "passed"
+    "handoff_readiness": "passed",
+    "terminal_handoff_contract_tests": "passed",
+    "requirement_attack_matrix": "passed",
+    "risk_saturation": "passed",
+    "inherited_controls": "passed",
+    "audit_escape_lineage": "passed",
+    "independent_rejection_closure": "passed"
   },
   "remote_gate": {
     "schema_version": 1,
-    "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
+    "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
     "status": "completed-success",
     "observed_once": true,
     "runs": [
       {
-        "id": 32503873474,
-        "name": "Onboarding activation TiDB gate",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "id": 32503872335,
+        "id": 32810555149,
         "name": "Agent-first gate",
         "status": "completed",
         "conclusion": "success"
       },
       {
-        "id": 32503872276,
+        "id": 32810555182,
         "name": "WhatsApp context TiDB gate",
         "status": "completed",
         "conclusion": "success"
-      },
-      {
-        "id": 32503872367,
-        "name": "Billing persistence TiDB gate",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "id": 32503872274,
-        "name": "Professional persistence TiDB gate",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "id": 32503872282,
-        "name": "AI provider live smoke",
-        "status": "completed",
-        "conclusion": "skipped"
       }
-    ],
-    "billing_persistence": {
-      "run_id": 32503872367,
-      "job_id": 96839532758,
-      "status": "completed",
-      "conclusion": "success",
-      "critical_steps": [
-        {
-          "name": "Validate billing persistence, concurrency, and idempotency",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Preserve billing integration diagnostics",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Validate referential integrity",
-          "status": "completed",
-          "conclusion": "success"
-        }
-      ]
-    }
+    ]
   },
-  "limitations": [
-    "AI provider live smoke was skipped by its workflow policy; all applicable persistence and agent gates completed successfully."
-  ]
+  "limitations": [],
+  "note": "Exact-head delivery gates and critical handoff readiness succeeded for issue #1006 material head 5aaca60792966e1bd82523cd1c96ae7c5a22757a."
 }

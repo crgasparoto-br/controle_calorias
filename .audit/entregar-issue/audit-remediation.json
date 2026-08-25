@@ -3,34 +3,43 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
-    "audited_head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
-    "audited_material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
-    "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
+    "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
+    "audited_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+    "audited_material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+    "audit_report_sha256": "329ea905b5db844ba2313a8a05d3790e3607d06bd627bd9d625d863a66747450"
   },
-  "candidate_head_sha": "e07572da79d0b1289bc5f6c87a280b85dc87cb3f",
-  "remediation_mode": "targeted-remediation",
+  "candidate_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "remediation_mode": "systemic-remediation",
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-001",
-      "remediation_mode": "targeted-remediation",
+      "remediation_mode": "systemic-remediation",
       "status": "fixed",
       "changed_files": [
-        "server/modules/whatsapp/mixedMealItemIncrementPlanTypes.ts",
-        "server/modules/whatsapp/mixedMealItemIncrementPlan.ts",
-        "server/modules/whatsapp/mixedMealItemIncrementPlan.issue997.test.ts"
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        "evidence/post-write-refreeze-1006.txt",
+        "evidence/refreeze-1006-current-head.txt",
+        "evidence/inherited-controls-1006.txt"
       ],
       "evidence": [
-        "evidence/target-identity-r5.txt",
-        "evidence/exact-head-ci-r5.txt"
+        "evidence/post-write-refreeze-1006.txt",
+        "evidence/refreeze-1006-current-head.txt",
+        "evidence/inherited-controls-1006.txt"
       ],
       "validations": [
-        "same-name identity replacement is stale without mutation",
-        "distinguishable homonyms can reorder while preserving the selected identity",
-        "semantic fallback identity works without foodId and indistinguishable duplicates fail closed",
-        "multiple valid operations against the same item apply exactly once",
-        "exact-head Agent-first and WhatsApp TiDB workflows completed successfully"
+        "recovery classifier preserved post-write-refreeze as the independent-audit lower bound",
+        "generic handoff recovery/terminal guard regression set passed 26 tests",
+        "exact-head Agent-first gate and WhatsApp TiDB gate completed successfully",
+        "current cumulative inherited control reactivates the post-write-refreeze control instead of retiring it as issue-local"
       ]
     }
   ],

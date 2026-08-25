@@ -1,0 +1,4 @@
+Material head frozen for issue #1006: 5aaca60792966e1bd82523cd1c96ae7c5a22757a
+Base: b2dd5076415e42a2ca385cc375a4dd20e55492e3 (develop)
+Exact-head workflows: Agent-first gate 32798065786=success; WhatsApp context TiDB gate 32798065755=success.
+No product write is introduced by the recovery handoff.
