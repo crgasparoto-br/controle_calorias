@@ -1,5 +1,6 @@
 import BillingAdminPanel from "@/components/admin/BillingAdminPanel";
 import BillingAdminStatusOverview from "@/components/admin/BillingAdminStatusOverview";
+import BillingCampaignAdminPanel from "@/components/admin/BillingCampaignAdminPanel";
 import BillingCatalogAdminPanel from "@/components/admin/BillingCatalogAdminPanel";
 import BillingGovernanceAdminPanel from "@/components/admin/BillingGovernanceAdminPanel";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -18,7 +19,7 @@ export default function AdminBillingPage() {
         <PageIntro
           eyebrow="Administração comercial"
           title="Billing, catálogo e governança"
-          description="Pesquise usuários, consulte a origem efetiva do acesso, administre catálogo, cupons e liberações auditáveis e acompanhe economia e governança de uso. Nenhuma ação desta tela cria cobrança ou assinatura fictícia fora dos fluxos financeiros autoritativos."
+          description="Pesquise usuários, consulte a origem efetiva do acesso, administre catálogo, cupons, campanhas e liberações auditáveis e acompanhe economia, retenção e governança de uso. Nenhuma ação desta tela cria cobrança ou assinatura fictícia fora dos fluxos financeiros autoritativos."
           actions={
             <Button variant="outline" onClick={() => setLocation("/admin")}>
               <Settings className="h-4 w-4" />
@@ -29,6 +30,7 @@ export default function AdminBillingPage() {
         <BillingAdminStatusOverview />
         <BillingAdminPanel />
         <BillingCatalogAdminPanel />
+        <BillingCampaignAdminPanel />
         <BillingGovernanceAdminPanel />
       </div>
     </DashboardLayout>

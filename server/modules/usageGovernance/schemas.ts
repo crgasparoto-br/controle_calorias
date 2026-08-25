@@ -79,9 +79,20 @@ const sanitizedEvidenceValue = z.union([
   z.null(),
 ]);
 
-const sanitizedEvidenceSchema = z.object({
-  affectedOperations: z.array(heavyUsageOperation).min(1).max(20).optional(),
-}).catchall(sanitizedEvidenceValue);
+const sanitizedEvidenceSchema = z.record(
+  z.string(),
+  z.union([sanitizedEvidenceValue, z.array(heavyUsageOperation).min(1).max(20)]),
+).superRefine((value, ctx) => {
+  for (const [key, nested] of Object.entries(value)) {
+    if (Array.isArray(nested) && key !== "affectedOperations") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: "Apenas affectedOperations pode conter uma lista de operações.",
+      });
+    }
+  }
+});
 
 export const openUsageAbuseCaseSchema = z.object({
   subjectUserId: z.number().int().positive(),
@@ -162,3 +173,18 @@ export const usageLegalHoldSchema = z.object({
 });
 
 export const revokeUsageLegalHoldSchema = z.object({ id, reason });
+
+export const usageAdminOverviewSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(100),
+});
+
+export const assignUsageAbuseCaseSchema = z.object({
+  caseId: id,
+  assignedToUserId: z.number().int().positive(),
+  reason,
+});
+
+export const reprocessUsageRetentionSchema = z.object({
+  sourceAuditId: id,
+  reason,
+});

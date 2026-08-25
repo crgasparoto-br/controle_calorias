@@ -8,6 +8,18 @@ import {
   resolveInternalUsageAnalyticsWindow,
 } from "../usageGovernance/schemas";
 import {
+  acknowledgeBillingNotificationFailure,
+  listBillingAdminNotifications,
+  retryBillingAdminNotification,
+  setBillingCampaignPaused,
+} from "./billingNotificationAdmin";
+import {
+  billingAdminCampaignControlSchema,
+  billingAdminNotificationFailureAckSchema,
+  billingAdminNotificationListSchema,
+  billingAdminNotificationRetrySchema,
+} from "./billingNotificationAdminSchemas";
+import {
   listBillingUserNotifications,
   markBillingNotificationRead,
 } from "./billingNotificationCenter";
@@ -125,6 +137,24 @@ function safeNotificationReadError(error: unknown): TRPCError {
   return new TRPCError({
     code: "INTERNAL_SERVER_ERROR",
     message: "Não foi possível atualizar o estado de leitura deste aviso.",
+  });
+}
+
+function safeNotificationAdminError(error: unknown): TRPCError {
+  if (error instanceof Error) {
+    if (error.message === "billing_admin_notification_not_found") {
+      return new TRPCError({ code: "NOT_FOUND", message: "A comunicação administrativa não foi encontrada." });
+    }
+    if (error.message === "billing_admin_notification_retry_override_required") {
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Esta comunicação está concluída, obsoleta ou pausada. Informe uma justificativa de override para reprocessar.",
+      });
+    }
+  }
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível executar a operação administrativa de comunicação.",
   });
 }
 
@@ -357,5 +387,29 @@ export const billingRouter = router({
       } catch (error) {
         governanceError(error, ctx.res);
       }
+    }),
+  adminNotifications: adminProcedure
+    .input(billingAdminNotificationListSchema)
+    .query(async ({ input }) => {
+      try { return await listBillingAdminNotifications(input); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminRetryNotification: adminProcedure
+    .input(billingAdminNotificationRetrySchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await retryBillingAdminNotification({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminAcknowledgeNotificationFailure: adminProcedure
+    .input(billingAdminNotificationFailureAckSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await acknowledgeBillingNotificationFailure({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminSetCampaignPaused: adminProcedure
+    .input(billingAdminCampaignControlSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await setBillingCampaignPaused({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
     }),
 });
