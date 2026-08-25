@@ -14,7 +14,7 @@
       "literal_case": {
         "procedure": "Classify the stale certificate bound to the prior material head against the current candidate while preserving the independent-audit refreeze floor.",
         "expected": "Recovery is post-write-refreeze and cannot be handoff-only.",
-        "observed": "The installed post-write-refreeze and recovery classifier controls remain active on the current delivery runtime; historical stale material heads are not promoted to the current candidate.",
+        "observed": "The post-write refreeze floor remained active after branch identity moved to 6090da07e0d85cfd775efcc22d13c34b0886d7c7; exact-head evidence was re-executed and no stale ancestor was promoted.",
         "status": "passed",
         "evidence": "evidence/handoff-target-binding-001.txt"
       },
@@ -65,7 +65,7 @@
         "structural-contract"
       ],
       "status": "passed",
-      "revalidated_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8"
+      "revalidated_head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7"
     },
     {
       "escape_id": "TARGET-BINDING-INHERITED-HANDOFF-001",
@@ -80,7 +80,7 @@
       "literal_case": {
         "procedure": "Compare the current candidate handoff with the same path at the immutable base and then compare its subject with issue #895 / PR #996.",
         "expected": "The identical foreign #997/#998 certificate is classified inherited-base-artifact and cannot satisfy readiness for #895/#996.",
-        "observed": "The candidate and base expose the same handoff Git blob for #997/#998; reuse was rejected and the current #895/#996 package is being rebuilt.",
+        "observed": "The current develop base exposes a foreign #997/#998 certificate; the candidate #895/#996 package is same-target history but exact-SHA stale. Base reuse was rejected and the current package is refrozen.",
         "status": "passed",
         "evidence": "evidence/handoff-target-binding-001.txt"
       },
@@ -131,7 +131,7 @@
         "structural-contract"
       ],
       "status": "passed",
-      "revalidated_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8"
+      "revalidated_head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7"
     }
   ]
 }

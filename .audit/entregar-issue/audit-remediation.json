@@ -7,7 +7,7 @@
     "audited_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
     "audit_report_sha256": "3239bfa43f1ef2850bacf829a91e70e1c5d7736f9056215614fe33a7f3f1e701"
   },
-  "candidate_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+  "candidate_head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -35,12 +35,12 @@
         "evidence/billing-contract-quantitative.json"
       ],
       "validations": [
-        "candidate/base foreign handoff is classified inherited-base-artifact and not reused",
-        "exact-head CI for the current material head is successful",
-        "historical #895 requirement closure and controls are re-anchored/revalidated for current material head",
-        "new certificate subject must bind repository/issue #895/PR #996/base/head and publish as a direct result-only child"
+        "foreign base handoff (#997/#998) is rejected for current target #895/#996",
+        "exact-head Agent-first #5828, Billing persistence #500 and Onboarding activation #280 all completed successfully",
+        "historical #895 closure, attack controls, inherited controls and audit escapes are revalidated on material head 6090da07",
+        "new certificate binds repository/issue #895/PR #996/current develop/current merge preview and must publish as a direct result-only child"
       ],
-      "reason": "Rebuilt the current-target delivery evidence after a develop merge inherited the #997/#998 canonical handoff; no billing production code change was required."
+      "reason": "Refroze the current-target delivery evidence after post-freeze audit-only branch identity drift. The final product tree is unchanged from the prior #895 result-only tree, but exact-SHA evidence was re-executed on the new material head; no billing production-code change was required."
     }
   ],
   "status": "closed"

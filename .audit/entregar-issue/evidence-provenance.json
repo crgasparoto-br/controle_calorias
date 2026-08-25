@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "material_head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
-  "base_sha": "519b4d36352aa43929d8ba3e114e15fbf2df54d5",
+  "material_head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
+  "base_sha": "b2dd5076415e42a2ca385cc375a4dd20e55492e3",
   "evidence": [
     {
       "evidence_id": "billing-contract-quantitative-v3",
       "kind": "quantitative",
       "status": "passed",
       "path": "evidence/billing-contract-quantitative.json",
-      "sha256": "1fe7acf3dced634766f1539d94bda8751521f5cfd4b58638d7dadcc521c89a74",
-      "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+      "sha256": "1ee99992804f2e890a4b26dc957a07ac63072e29baa570b165abcd84df6a02ad",
+      "subject_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
       "freshness_policy": "exact-material-head",
       "procedure": "Read the exact current billing source/tests and bind the deterministic contract probes to the successful exact-head pull-request CI snapshot.",
       "expected": "Trial, capacity and coupon numeric boundaries match the canonical #895 contract on the current material head.",
-      "observed": "Current source/tests expose the 7/14-day trials, professional capacity values 30/100, 30-day extension and coupon boundaries; exact-head Agent-first and billing-persistence workflows completed successfully.",
-      "producer": "GitHub Actions runs 5802/490/276 bound to head bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8 and merge preview 672bdd453ddcb85d0a21fe7701d6cdb3e5326437"
+      "observed": "Exact checkout source/tests expose 7/14-day trials, professional capacities 30/100, a 30-day extension and the coupon boundaries; exact-head Agent-first #5828, Billing persistence #500 and Onboarding activation #280 completed successfully.",
+      "producer": "GitHub Actions runs 5828/500/280 bound to head 6090da07e0d85cfd775efcc22d13c34b0886d7c7 and merge preview b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845"
     }
   ]
 }

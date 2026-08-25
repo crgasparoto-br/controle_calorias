@@ -3,10 +3,10 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 895,
   "pull_request": 996,
-  "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+  "subject_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
   "freshness_policy": "exact-material-head",
   "status": "passed",
-  "method": "Deterministic billing contract probes are bound to the exact current pull-request head and its successful merge-preview CI. Values are read from the current source/tests, whose billing paths are byte-identical to the previously validated billing material, and are exercised by the successful Agent-first and billing persistence gates.",
+  "method": "Deterministic billing contract probes were re-executed against the exact material head 6090da07 using the current source/tests and the successful pull-request merge-preview CI snapshot. Numeric values are read from the exact checkout and corroborated by Agent-first, Billing persistence TiDB and Onboarding activation TiDB gates for this head.",
   "probes": [
     {
       "id": "trial-duration",
@@ -46,16 +46,16 @@
     }
   ],
   "execution": {
-    "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
-    "checkout_sha": "672bdd453ddcb85d0a21fe7701d6cdb3e5326437",
-    "agent_first_run_id": 32744407253,
-    "agent_first_run_number": 5802,
+    "head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
+    "checkout_sha": "b43a7f1afdc7a46aee15d2a7ca8e31c2303ab845",
+    "agent_first_run_id": 32777363558,
+    "agent_first_run_number": 5828,
     "agent_first_conclusion": "success",
-    "billing_persistence_run_id": 32744407261,
-    "billing_persistence_run_number": 490,
+    "billing_persistence_run_id": 32777363614,
+    "billing_persistence_run_number": 500,
     "billing_persistence_conclusion": "success",
-    "onboarding_activation_run_id": 32744407287,
-    "onboarding_activation_run_number": 276,
+    "onboarding_activation_run_id": 32777363575,
+    "onboarding_activation_run_number": 280,
     "onboarding_activation_conclusion": "success"
   }
 }

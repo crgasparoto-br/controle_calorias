@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+  "head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
   "source_audits": [
     {
       "kind": "independent-rejection",
@@ -21,29 +21,29 @@
     {
       "id": "HANDOFF-POST-WRITE-REFREEZE-001",
       "status": "passed",
-      "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
-      "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+      "head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
+      "subject_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
       "control_type": "procedure",
       "procedure": "Apply the current target binding and recovery classifier to the stale handoff, then exercise the generic recovery/terminal guard regression suite.",
       "expected": "Material drift or an explicit independent-audit refreeze floor requires post-write-refreeze; a stale certificate cannot release audit readiness.",
-      "observed": "The existing post-write-refreeze/recovery control remains active; the installed recovery/target-binding regression controls passed, and no stale historical certificate was promoted to the current material head.",
+      "observed": "At 6090da07e0d85cfd775efcc22d13c34b0886d7c7, the final tree is byte-identical to the previous result-only tree but the commit identity moved after post-freeze audit-only writes. Exact-head billing evidence and CI were re-executed, so the refreeze floor was honored instead of reusing the stale certificate.",
       "evidence": "evidence/handoff-target-binding-001.txt",
-      "evidence_sha256": "e0937e357418b143248a93fd982b848f7d6019903e1428b77f9a51953c702129"
+      "evidence_sha256": "c9412b21e5e9175ef345ed1b2072eecb5c322f0010a34cf0462bf9495a8c1cf2"
     },
     {
       "id": "TARGET-BINDING-INHERITED-HANDOFF-001",
       "status": "passed",
-      "head_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
-      "subject_sha": "bccc5a846e9f9aa4541cca4e4db428f8b0c8d3e8",
+      "head_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
+      "subject_sha": "6090da07e0d85cfd775efcc22d13c34b0886d7c7",
       "control_type": "procedure",
       "risk_family": "structural-contract",
       "surface": "handoff-target-binding",
       "dimension": "same-base-foreign-subject",
       "procedure": "Compare candidate and immutable-base handoff bytes/Git blob identity and require the certificate subject to match the resolved repository/issue/PR/base/head before reuse.",
       "expected": "A byte-identical foreign certificate inherited from the base is rejected as inherited-base-artifact and forces a new current-target handoff.",
-      "observed": "The candidate and immutable base expose the same foreign #997/#998 handoff object; reuse was denied for #895/#996, and target-binding/recovery skill tests passed on the current delivery runtime.",
+      "observed": "The current develop base carries a foreign #997/#998 certificate while the candidate carries same-target #895/#996 history bound to an older material SHA. Foreign base reuse was denied and the current target package is being rebuilt for the exact current head.",
       "evidence": "evidence/handoff-target-binding-001.txt",
-      "evidence_sha256": "e0937e357418b143248a93fd982b848f7d6019903e1428b77f9a51953c702129",
+      "evidence_sha256": "c9412b21e5e9175ef345ed1b2072eecb5c322f0010a34cf0462bf9495a8c1cf2",
       "attack_control_id": "TARGET-BINDING-INHERITED-HANDOFF-001"
     }
   ],
