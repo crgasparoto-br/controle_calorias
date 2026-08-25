@@ -1,36 +1,47 @@
 {
   "schema_version": 1,
-  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "material_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
   "status": "passed",
-  "local_gates": {
-    "handoff_readiness": "passed",
-    "terminal_handoff_contract_tests": "passed",
-    "requirement_attack_matrix": "passed",
-    "risk_saturation": "passed",
-    "inherited_controls": "passed",
-    "audit_escape_lineage": "passed",
-    "independent_rejection_closure": "passed"
-  },
+  "local_gates": [
+    {
+      "name": "target-binding",
+      "status": "passed",
+      "evidence": "current-target"
+    },
+    {
+      "name": "recovery-classifier",
+      "status": "passed",
+      "evidence": "post-write-refreeze floor preserved"
+    },
+    {
+      "name": "product-discriminant-review",
+      "status": "passed",
+      "evidence": "evidence/product-controls-1006-r2.txt"
+    },
+    {
+      "name": "generic-skill-regressions",
+      "status": "passed",
+      "evidence": "34 passed"
+    }
+  ],
   "remote_gate": {
-    "schema_version": 1,
-    "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
     "status": "completed-success",
-    "observed_once": true,
     "runs": [
       {
-        "id": 32810555149,
+        "id": 32844718126,
         "name": "Agent-first gate",
-        "status": "completed",
         "conclusion": "success"
       },
       {
-        "id": 32810555182,
+        "id": 32844718108,
         "name": "WhatsApp context TiDB gate",
-        "status": "completed",
         "conclusion": "success"
       }
-    ]
+    ],
+    "evidence": "evidence/exact-head-ci-1006-r2.txt"
   },
-  "limitations": [],
-  "note": "Exact-head delivery gates and critical handoff readiness succeeded for issue #1006 material head 5aaca60792966e1bd82523cd1c96ae7c5a22757a."
+  "limitations": [
+    "Database integrity check was skipped by CI because DATABASE_URL was unavailable; this remediation changes no schema or persistence contract."
+  ],
+  "note": "Final material identity for post-write refreeze is exact head 9b3bd7b6; the terminal result-only child is generated only after semantic validators pass."
 }

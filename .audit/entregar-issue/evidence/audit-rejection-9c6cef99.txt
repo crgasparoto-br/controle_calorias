@@ -1,0 +1,13 @@
+Independent audit remediation source for PR #1013 / issue #1006
+rejection_id=audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e
+finding_id=A-002
+result=REPROVADA
+validity=independent
+reason=remediation-source-byte-binding-mismatch
+recovery_scope=handoff-only
+requires_refreeze=false
+material_head_sha=9b3bd7b6c5db003e9809bf75918d1f88674b1735
+audited_head_sha=a68a69bd54d81a9939fd2490c461812b3c8dd3ef
+finding=audit-remediation.json was not bound to the exact bytes of audit-source-result.json; audit_report_sha256 differed from source bytes.
+remediation_mode=targeted-remediation
+No functional product defect or material-head change was identified by this finding.

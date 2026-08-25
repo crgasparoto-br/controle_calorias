@@ -1,0 +1,9 @@
+Exact-head discriminant review for issue #1006 at 9b3bd7b6c5db003e9809bf75918d1f88674b1735
+1. git diff 5aaca60792966e1bd82523cd1c96ae7c5a22757a..9b3bd7b6c5db003e9809bf75918d1f88674b1735 -- server/** docs/** returned no paths: product and documentation bytes are unchanged after the previously validated product material.
+2. server/modules/whatsapp/intent/mealItemHelpers.ts retains allowCrossDayFallback and returns null instead of matches[0] when false.
+3. foodAdditionHandlers.ts passes allowCrossDayFallback: !dateSelection.explicit at all relevant addition selectors.
+4. datedFoodAdditionIntent.ts passes allowCrossDayFallback: false and does not fall back to createManualMeal when the explicit target is absent.
+5. issue #1006 tests explicitly cover hoje, ontem, anteontem, amanhã, America/Sao_Paulo boundary behavior, no update/create on missing explicit target, and the implicit-date regression path.
+6. Exact-head Agent-first run 32844718126 passed all 24 Vitest shards plus check/build/architecture/docs/agent checks.
+Expected discriminator: an implementation that re-enabled matches[0] cross-day fallback, converted every resolved parsed.date into explicitness, or created a missing explicit target would violate the inspected selectors and issue-specific assertions.
+Observed: strict explicit-date selection and contextual implicit-date fallback remain structurally separated at 9b3bd7b6c5db003e9809bf75918d1f88674b1735.

@@ -1,13 +1,18 @@
 {
   "schema_version": 1,
-  "status": "frozen",
-  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "status": "ready",
+  "material_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
   "base_sha": "b2dd5076415e42a2ca385cc375a4dd20e55492e3",
-  "merge_preview_sha": "09f333310afd2e41dce752167b0caeb38faaace0",
-  "reason": "independent-audit-remediation-post-write-refreeze",
-  "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
+  "merge_preview_sha": "75daa11552e8f36d5a361caab0e736e1bad46683",
+  "reason": "independent-audit-targeted-remediation-post-write-refreeze",
+  "rejection_id": "audit-rejection:51bdafa2-f565-4551-ab87-ab45d0cddcd6",
   "finding_id": "A-001",
   "recovery_scope": "post-write-refreeze",
-  "remote_gate": "completed-success",
-  "note": "Post-write refreeze for issue #1006 after exact-head Agent-first and WhatsApp context TiDB gates completed successfully; the recovery handoff introduces no product write."
+  "remote_gate": {
+    "agent_first_run_id": 32844718126,
+    "agent_first_conclusion": "success",
+    "whatsapp_tidb_run_id": 32844718108,
+    "whatsapp_tidb_conclusion": "success"
+  },
+  "note": "Material head was revalidated after post-handoff auxiliary-path drift. Product and documentation bytes are unchanged from the previously validated product material; all exact-head CI gates were green."
 }

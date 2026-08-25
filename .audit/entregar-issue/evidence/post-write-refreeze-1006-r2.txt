@@ -1,0 +1,9 @@
+Post-write-refreeze remediation evidence for PR #1013 at material head 9b3bd7b6c5db003e9809bf75918d1f88674b1735
+Independent rejection: audit-rejection:51bdafa2-f565-4551-ab87-ab45d0cddcd6 / A-001.
+The auditor floor requires post-write-refreeze; classify_handoff_recovery.py returned post-write-refreeze and was not downgraded to handoff-only.
+The previous certificate certified material 5aaca60792966e1bd82523cd1c96ae7c5a22757a; later commits introduced and then removed auxiliary path x. Net tree equality does not clear material_dirty_since_freeze.
+Current material head 9b3bd7b6c5db003e9809bf75918d1f88674b1735 is therefore revalidated as a new material identity before publishing another result-only child.
+Exact-head Agent-first run 32844718126 and WhatsApp context TiDB run 32844718108 both completed successfully.
+Generic Skill tests covering post-write refreeze, terminal handoff, universal post-write guard, recovery classifier, independent rejection closure and audit escape closure: 34 passed.
+Sibling transfer cases exercised by those generic tests include a test-path write after freeze and a documentation-path write after freeze; both require refreeze rather than stale certificate reuse.
+Expected terminal state: a single direct result-only child whose parent is 9b3bd7b6c5db003e9809bf75918d1f88674b1735, changed paths are restricted to the certificate allowlist, and a fresh remote reread equals the published handoff SHA.

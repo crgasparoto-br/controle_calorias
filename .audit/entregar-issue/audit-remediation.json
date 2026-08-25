@@ -3,43 +3,39 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
-    "audited_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
-    "audited_material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
-    "audit_report_sha256": "329ea905b5db844ba2313a8a05d3790e3607d06bd627bd9d625d863a66747450"
+    "rejection_id": "audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e",
+    "audited_head_sha": "a68a69bd54d81a9939fd2490c461812b3c8dd3ef",
+    "audited_material_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
+    "audit_report_sha256": "1d314452b48e85edb1f18bf32a2df95303734664e8351f8dde44058aefea50f0"
   },
-  "candidate_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
-  "remediation_mode": "systemic-remediation",
+  "candidate_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
+  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
-      "remediation_mode": "systemic-remediation",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/requirement-closure.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/inherited-controls.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/audit-remediation.json",
         ".audit/entregar-issue/audit-source-result.json",
-        "evidence/post-write-refreeze-1006.txt",
-        "evidence/refreeze-1006-current-head.txt",
-        "evidence/inherited-controls-1006.txt"
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/evidence/audit-rejection-9c6cef99.txt",
+        ".audit/entregar-issue/evidence/source-binding-1006-r3.txt"
       ],
       "evidence": [
-        "evidence/post-write-refreeze-1006.txt",
-        "evidence/refreeze-1006-current-head.txt",
-        "evidence/inherited-controls-1006.txt"
+        "evidence/audit-rejection-9c6cef99.txt",
+        "evidence/source-binding-1006-r3.txt"
       ],
       "validations": [
-        "recovery classifier preserved post-write-refreeze as the independent-audit lower bound",
-        "generic handoff recovery/terminal guard regression set passed 26 tests",
-        "exact-head Agent-first gate and WhatsApp TiDB gate completed successfully",
-        "current cumulative inherited control reactivates the post-write-refreeze control instead of retiring it as issue-local"
+        "exact audit-source-result bytes are hashed after final serialization and the ledger stores that exact SHA-256",
+        "validate_audit_remediation.py accepts the exact source and rejects a one-byte semantic mutation of the source",
+        "the current material head remains 9b3bd7b6c5db003e9809bf75918d1f88674b1735; no product or documentation bytes are changed by this remediation",
+        "the cumulative audit escape and inherited control lineages preserve every prior ID and add the latest independent rejection"
       ]
     }
   ],

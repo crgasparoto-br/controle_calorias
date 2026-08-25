@@ -1,0 +1,13 @@
+Independent audit remediation source for PR #1013 / issue #1006
+rejection_id=audit-rejection:51bdafa2-f565-4551-ab87-ab45d0cddcd6
+finding_id=A-001
+result=REPROVADA
+validity=independent
+reason=handoff-stale
+recovery_scope=post-write-refreeze
+requires_refreeze=true
+certified_material_head_sha=5aaca60792966e1bd82523cd1c96ae7c5a22757a
+audited_current_head_sha=9b3bd7b6c5db003e9809bf75918d1f88674b1735
+finding=the published result-only lineage was stale because the current head was not a direct child of the certified material and post-handoff material path x had been added then removed.
+remediation_mode=targeted-remediation
+No new functional product defect was identified by this finding.

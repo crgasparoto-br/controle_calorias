@@ -2,23 +2,23 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
-  "head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
-  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
-  "certified_material_head_sha_at_rejection": "014125bfe3dcbbaf44ce5490af573ffb5f2eb974",
+  "rejection_id": "audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e",
+  "head_sha": "a68a69bd54d81a9939fd2490c461812b3c8dd3ef",
+  "material_head_sha": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
+  "certified_material_head_sha_at_rejection": "9b3bd7b6c5db003e9809bf75918d1f88674b1735",
   "finding_ids": [
-    "A-001"
+    "A-002"
   ],
   "findings": [
     {
-      "id": "A-001",
+      "id": "A-002",
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
-      "remediation_mode": "systemic-remediation",
-      "summary": "The terminal delivery certificate was stale after material writes performed after the earlier freeze; the current candidate therefore required post-write refreeze and a new result-only handoff before independent audit could approve it."
+      "remediation_mode": "targeted-remediation",
+      "summary": "The remediation ledger was not cryptographically bound to the exact bytes of the audit-source-result it claimed to close: source.audit_report_sha256 differed from the SHA-256 of audit-source-result.json."
     }
   ],
   "recommendations": [],
-  "summary": "Independent audit rejected the candidate delivery state, not the product behavior: exact-head CI was green, but the published handoff still certified an ancestor and had to be regenerated from the current material head."
+  "summary": "Independent re-audit rejected the terminal delivery package because audit-remediation.json referenced a stale source hash. Product material remained unchanged; remediation is limited to the result-only handoff package."
 }

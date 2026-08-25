@@ -1,0 +1,16 @@
+Exact-head gate evidence for issue #1006 refreeze
+material_head_sha=9b3bd7b6c5db003e9809bf75918d1f88674b1735
+repository=crgasparoto-br/controle_calorias
+branch=fix/1006-whatsapp-explicit-date-handoff-lineage-final
+base_sha=b2dd5076415e42a2ca385cc375a4dd20e55492e3
+agent_first_run_id=32844718126
+agent_first_job_id=97791731150
+agent_first_conclusion=success
+whatsapp_tidb_run_id=32844718108
+whatsapp_tidb_conclusion=success
+repository_bundle_artifact_id=9562139753
+repository_bundle_zip_sha256=f9c1a2a9ef3e7e3ef667fd973ee5183288ea20ba93fe9894c06824bcfdda2971
+verification_artifact_id=9562138104
+verification_zip_sha256=ed6ec5eb0d818cde79fae70b4fb0b22b6142c43da6b4bb3d1a973ec7f66694f3
+Agent-first exact-head workflow passed TypeScript check, all 24 Vitest shards, architecture check, documentation check, build and agent:check. Database integrity was skipped because DATABASE_URL was unavailable; issue #1006/refreeze does not alter schema or database persistence contracts.
+The exact repository bundle contains refs/orchestrator/head=9b3bd7b6c5db003e9809bf75918d1f88674b1735 and refs/orchestrator/base=b2dd5076415e42a2ca385cc375a4dd20e55492e3 and was used for the local refreeze review.
