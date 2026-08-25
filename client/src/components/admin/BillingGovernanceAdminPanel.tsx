@@ -94,7 +94,7 @@ export default function BillingGovernanceAdminPanel() {
     openAbuseCase.mutate({
       subjectUserId: userId,
       signals,
-      evidence: { affectedOperations: [abuseOperation.trim()] },
+      evidence: { observedOperation: abuseOperation.trim() },
     });
   };
 
