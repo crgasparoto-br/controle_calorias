@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "31840ac62da62c3fff2682489244f10b26c3fcbb",
-  "reason": "independent-audit-remediation-tidb-resource-termination",
-  "changed_paths_from_previous_handoff": [
-    "scripts/test-usage-governance-retention-tidb.ts"
-  ],
-  "remote_gate": "completed-success"
+  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "base_sha": "b2dd5076415e42a2ca385cc375a4dd20e55492e3",
+  "merge_preview_sha": "09f333310afd2e41dce752167b0caeb38faaace0",
+  "reason": "independent-audit-remediation-post-write-refreeze",
+  "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
+  "finding_id": "A-001",
+  "recovery_scope": "post-write-refreeze",
+  "remote_gate": "completed-success",
+  "note": "Post-write refreeze for issue #1006 after exact-head Agent-first and WhatsApp context TiDB gates completed successfully; the recovery handoff introduces no product write."
 }

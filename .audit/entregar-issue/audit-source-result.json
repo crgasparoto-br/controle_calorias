@@ -2,10 +2,10 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
-  "head_sha": "f07215485a551b737da050b9e7673f5a42e37ff6",
-  "material_head_sha": "f6388a3cf14708ab6b277dc49ddf57e52529172a",
-  "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8",
+  "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
+  "head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "material_head_sha": "5aaca60792966e1bd82523cd1c96ae7c5a22757a",
+  "certified_material_head_sha_at_rejection": "014125bfe3dcbbaf44ce5490af573ffb5f2eb974",
   "finding_ids": [
     "A-001"
   ],
@@ -15,12 +15,10 @@
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "summary": "Stale revalidation could accept a same-name replacement or reordered homonym without proving the originally selected meal-item identity, allowing mutation of the wrong item."
+      "remediation_mode": "systemic-remediation",
+      "summary": "The terminal delivery certificate was stale after material writes performed after the earlier freeze; the current candidate therefore required post-write refreeze and a new result-only handoff before independent audit could approve it."
     }
   ],
-  "recommendations": [
-    "Persist a stable target fingerprint, revalidate all targets before mutation, fail closed on ambiguity, and cover same-name identity drift/reorder/duplicates plus repeated operations."
-  ],
-  "summary": "Independent audit rejected the prior PR 998 candidate for insufficient stale target identity revalidation."
+  "recommendations": [],
+  "summary": "Independent audit rejected the candidate delivery state, not the product behavior: exact-head CI was green, but the published handoff still certified an ancestor and had to be regenerated from the current material head."
 }

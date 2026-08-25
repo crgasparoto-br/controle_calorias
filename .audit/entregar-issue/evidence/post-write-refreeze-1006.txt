@@ -1,0 +1,5 @@
+Independent rejection: audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef
+Finding: A-001
+Recovery floor: post-write-refreeze
+Material head: 5aaca60792966e1bd82523cd1c96ae7c5a22757a
+The material candidate was revalidated after the post-freeze test writes. Generic terminal-handoff recovery tests passed and the exact-head Agent-first and WhatsApp TiDB workflows completed successfully. A fresh result-only child is required and handoff-only recovery from the stale certificate is prohibited.
