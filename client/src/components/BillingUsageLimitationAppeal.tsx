@@ -14,17 +14,27 @@ function formatDate(value: Date | string | null | undefined) {
 }
 
 export default function BillingUsageLimitationAppeal() {
+  const usageGovernance = trpc.usageGovernance;
+  if (!usageGovernance) return null;
+  return <BillingUsageLimitationAppealContent usageGovernance={usageGovernance} />;
+}
+
+function BillingUsageLimitationAppealContent({
+  usageGovernance,
+}: {
+  usageGovernance: typeof trpc.usageGovernance;
+}) {
   const utils = trpc.useUtils();
-  const overview = trpc.usageGovernance.myLimitations.useQuery(undefined, {
+  const overview = usageGovernance.myLimitations.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: true,
   });
   const [rationaleByLimitation, setRationaleByLimitation] = useState<Record<string, string>>({});
-  const appeal = trpc.usageGovernance.submitLimitationAppeal.useMutation({
+  const appeal = usageGovernance.submitLimitationAppeal.useMutation({
     onSuccess: async () => {
       toast.success("Seu recurso foi registrado para revisão administrativa.");
       setRationaleByLimitation({});
-      await utils.usageGovernance.myLimitations.invalidate();
+      await utils.usageGovernance?.myLimitations.invalidate();
     },
     onError: error => toast.error(error.message || "Não foi possível registrar o recurso."),
   });
