@@ -10,6 +10,7 @@ import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatReplyDate, resolveRelativeOccurredAt } from "./dateTime";
+import { resolveWhatsappRelativeMealDateSelection } from "./explicitMealDate";
 import {
   buildCoffeeLorCapsuleItem,
   buildFoodAdditionItem,
@@ -138,15 +139,29 @@ export async function handleFoodAdditionIntent(
   timeZone = DEFAULT_APP_TIME_ZONE,
   context?: AdditionExecutionContext,
 ): Promise<WhatsappIntentResult> {
+  const dateSelection = resolveWhatsappRelativeMealDateSelection({
+    text: context?.originalText,
+    receivedAt: context?.receivedAt ?? addition.date,
+    timeZone,
+    fallbackDate: addition.date,
+  });
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date, timeZone);
+  const targetMeal = findMealByLabel(
+    meals,
+    addition.mealLabel,
+    dateSelection.date,
+    timeZone,
+    { allowCrossDayFallback: !dateSelection.explicit },
+  );
   if (!targetMeal) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date, timeZone)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(dateSelection.date, timeZone)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
+      detail: dateSelection.explicit
+        ? "Pedido para adicionar alimento com data explícita sem refeição compatível no dia indicado; nenhuma mutação foi executada."
+        : "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
     };
   }
 
@@ -284,9 +299,20 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     };
   }
 
-  const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
+  const dateSelection = resolveWhatsappRelativeMealDateSelection({
+    text,
+    receivedAt,
+    timeZone,
+    fallbackDate: resolveRelativeOccurredAt(text, receivedAt, timeZone),
+  });
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate, timeZone);
+  const targetMeal = findMealByLabel(
+    meals,
+    addition.mealLabel,
+    dateSelection.date,
+    timeZone,
+    { allowCrossDayFallback: !dateSelection.explicit },
+  );
   if (!targetMeal) {
     return {
       handled: true,
@@ -338,9 +364,20 @@ export async function handleCoffeeLorCapsuleIntent(userId: number, text: string,
   let targetMeal: ExistingMeal | undefined;
 
   if (intent.mealLabel) {
-    const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
+    const dateSelection = resolveWhatsappRelativeMealDateSelection({
+      text,
+      receivedAt,
+      timeZone,
+      fallbackDate: resolveRelativeOccurredAt(text, receivedAt, timeZone),
+    });
     const meals = await listMeals(userId);
-    targetMeal = findMealByLabel(meals, intent.mealLabel, targetDate, timeZone);
+    targetMeal = findMealByLabel(
+      meals,
+      intent.mealLabel,
+      dateSelection.date,
+      timeZone,
+      { allowCrossDayFallback: !dateSelection.explicit },
+    ) ?? undefined;
     if (!targetMeal) {
       return {
         handled: true,

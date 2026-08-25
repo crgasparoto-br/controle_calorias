@@ -1,0 +1,20 @@
+Target: crgasparoto-br/controle_calorias issue #895 / PR #996
+Material head: 69b5e0a749ed7f54c6a597076c0bae73e4c6f97e
+Base: develop@64a86e040ac656645557597d122019ee49e14ab7
+Merge preview: cc592358a442dfc60efae380573b899833f0faf8
+Independent rejection: audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811
+Recovery floor: post-write-refreeze; requires_refreeze=true
+
+Target binding: current-target for issue 895 / PR 996.
+Post-CI recovery: previous frozen material 3ba319e24f5330e5d68ae519e74f1f0fe85dd635 -> current material 69b5e0a749ed7f54c6a597076c0bae73e4c6f97e; changed material path: scripts/test-billing-catalog-upgrade-tidb.ts.
+Generic skill regression controls: tests/test_handoff_recovery_classifier.py, tests/test_post_ci_refreeze_contract.py, tests/test_universal_post_write_handoff_guard.py, tests/test_terminal_handoff_contract.py passed in the current skill runtime.
+
+Current CI snapshot (read-only, no rerun):
+- Agent-first gate: run 5795 / id 32731243028 / success. TypeScript, tests, architecture, documentation, build and agent checks passed.
+- Billing persistence TiDB gate: run 487 / id 32731243034 / success. Persistence, concurrency and idempotency validation passed.
+- Onboarding activation TiDB gate: run 273 / id 32731242853 / success.
+- Agent-first exact-head artifact binds headSha=69b5e0a749ed7f54c6a597076c0bae73e4c6f97e to checkoutSha=cc592358a442dfc60efae380573b899833f0faf8.
+
+Literal escape control: the certificate bound to 3ba319e24f5330e5d68ae519e74f1f0fe85dd635 cannot authorize the current material head 69b5e0a749ed7f54c6a597076c0bae73e4c6f97e. Recovery remains post-write-refreeze; handoff-only is not sufficient after the material CI-fix commit.
+Sibling control A: a material child after a result-only handoff is rejected by the universal post-write handoff guard.
+Sibling control B: an explicit auditor requires_refreeze floor cannot be downgraded by a generic handoff-stale reason.

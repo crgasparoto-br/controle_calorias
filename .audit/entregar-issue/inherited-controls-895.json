@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+  "source_audits": [
+    {
+      "kind": "independent-rejection",
+      "rejection_id": "audit-rejection:6fc85db7-d1c9-47d1-bb24-30740f5aa811",
+      "finding_ids": [
+        "A-001"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "HANDOFF-POST-WRITE-REFREEZE-001",
+      "status": "passed",
+      "head_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+      "subject_sha": "69b5e0a749ed7f54c6a597076c0bae73e4c6f97e",
+      "control_type": "procedure",
+      "procedure": "Apply the current target binding and recovery classifier to the stale handoff, then exercise the generic recovery/terminal guard regression suite.",
+      "expected": "Material drift or an explicit independent-audit refreeze floor requires post-write-refreeze; a stale certificate cannot release audit readiness.",
+      "observed": "The post-CI material drift required post-write-refreeze; generic recovery and terminal handoff regression controls passed for the current skill runtime.",
+      "evidence": "evidence/handoff-post-write-refreeze-001.txt",
+      "evidence_sha256": "147063166769bbbdc9e176162b88e1a77052402166eea9ffb48ad441e58f1d18"
+    }
+  ],
+  "unresolved_controls": [],
+  "retired_controls": []
+}

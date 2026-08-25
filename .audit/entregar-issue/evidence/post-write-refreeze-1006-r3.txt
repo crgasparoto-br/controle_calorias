@@ -1,0 +1,8 @@
+Issue #1006 post-write-refreeze closure
+material_head_sha=a86c681a77ad309f6a476ab73e8a11ee21cb380d
+base_sha=c714fce595aa18775c885bd1f229e2934d872130
+independent_rejection=audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e
+- develop advanced after the prior freeze, so handoff-only was not used.
+- the functional patch was reanchored onto current develop.
+- target-specific cumulative lineage was restored in the material parent.
+- a new critical-profile certificate is generated only after exact-head artifact and source-binding validation.

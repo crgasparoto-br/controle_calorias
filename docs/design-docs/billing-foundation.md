@@ -2,11 +2,11 @@
 
 ## Objetivo e estado de rollout
 
-Esta fundação implementa as entregas técnicas provider-neutral da épica #145. Ela persiste planos, assinaturas, eventos normalizados, entitlements, cobertura profissional, capacidade e exceções administrativas sem escolher um provedor financeiro real nem cadastrar preço comercial definitivo.
+Esta fundação implementa a base técnica provider-neutral da épica #145. Ela persiste planos, assinaturas, eventos normalizados, entitlements, cobertura profissional, capacidade e exceções administrativas sem acoplar as regras comerciais ao provedor financeiro. O Asaas, implementado posteriormente pela #892, opera atrás dessa fronteira; catálogo, lifecycle e elegibilidade continuam provider-neutral.
 
 `BILLING_ACCESS_MODE=open_access` é o padrão. Nesse modo, ausência ou falha da persistência comercial mantém o acesso atual e registra apenas diagnóstico sanitizado. `BILLING_ACCESS_MODE=enforced` deve ser ativado somente depois de concluídos catálogo, migração dos usuários atuais, comunicação e rollback.
 
-As interfaces implementadas nesta etapa são consultivas e operacionais sobre o contrato provider-neutral. Elas não oferecem checkout, alteração de plano ou cancelamento.
+A etapa inicial da fundação expunha interfaces apenas consultivas. Com a #895, `/billing` passa a oferecer contratação e gestão da renovação por uma boundary autenticada: catálogo e capacidades efetivas do provider vêm do backend, checkout/autorizações permanecem pendentes até fatos financeiros autoritativos e o retorno do navegador nunca confirma acesso.
 
 ## Fronteiras do domínio
 
@@ -39,7 +39,7 @@ As migrations canônicas da fundação são `drizzle/0038_billing_foundation.sql
 
 ## Eventos do provider e minimização
 
-O domínio não persiste payload bruto de webhook. Um provider futuro deve autenticar o corpo original, normalizar o evento e entregar ao repositório somente metadata permitida por `sanitizeBillingProviderEventMetadata`.
+O domínio não persiste payload bruto de webhook. Providers autenticam o corpo original, normalizam o evento e entregam ao repositório somente metadata permitida por `sanitizeBillingProviderEventMetadata`.
 
 A lista permitida contém apenas identificadores operacionais, estado, motivo sanitizado, moeda, valor em unidade inteira, referências comerciais e instante do provider. Chaves de cartão, CVV, token, segredo, endereço, e-mail, telefone e objetos aninhados são descartados. A repetição do mesmo `providerEventId` retorna o evento já registrado, sem duplicar processamento.
 
@@ -102,21 +102,29 @@ Para planos com capacidade finita:
 - revogação do vínculo pelo paciente nunca depende do sucesso da integração comercial para concluir a decisão clínica;
 - o próprio pagador profissional nunca é representado como paciente coberto e não consome capacidade.
 
-## Interfaces provider-neutral
+A #894 adiciona os estados canônicos `within_capacity`, `grandfathered_active`, `grandfathered_expiring`, `grandfathered_expired` e `grandfathered_resolved`. A tela `/billing` consome um read model de capacidade somente leitura, com ownership do pagador, e traduz esses estados para texto de usuário. O GET não reconcilia nem cria fatos. Pacientes patrocinados nunca recebem o objeto financeiro ou de capacidade do patrocinador.
 
-A rota autenticada `/billing` apresenta origem efetiva, vigência, assinatura própria, plano profissional, capacidade e recursos retornados pelo backend sem inventar preço ou checkout.
+## Interface web de plano e acesso
 
-A rota `/admin/billing` é protegida no frontend pelo papel administrativo e no backend por `adminProcedure`. Ela permite pesquisa, concessão e revogação de override, histórico e indicadores provider-neutral.
+A rota autenticada `/billing` apresenta origem efetiva, vigência, assinatura própria, lifecycle canônico, plano profissional, capacidade e recursos retornados pelo backend. Ela também compara versões contratáveis do catálogo efetivo e só oferece meios presentes em `effectivePaymentMethods`.
 
-O frontend não mantém tabela comercial paralela, não calcula elegibilidade e não inventa preço, limite ou benefício.
+A contratação usa `billing.startCheckout`. Cartão usa o Checkout hospedado do Asaas; Pix Automático usa o fluxo de autorização implementado pelo adapter. Pix manual e boleto não são oferecidos. Pix Automático exige renúncia explícita ao trial antes da chamada ao provider. Cupons são validados no backend e o frontend apenas exibe elegibilidade, desconto, duração e valor final retornados.
+
+A identidade idempotente da tentativa não é escolhida pelo navegador. O backend serializa uma claim durável por pagador antes de chamar o provider e deriva um `contractKey` canônico da geração corrente. Abas, retries ou clientes que enviem chaves diferentes mas os mesmos produto/versão, ciclo, método, trial e cupom convergem para a mesma tentativa; uma combinação incompatível é recusada enquanto a tentativa anterior estiver ativa. Uma nova geração só é aberta depois de falha terminal do provider, falha comprovadamente anterior ao provider ou término confirmado da assinatura anterior. O retorno `/billing/return/success|cancel|expired` é apenas navegação: a UI permanece pendente até que webhook/reconciliação entregue um fato financeiro autoritativo ao lifecycle.
+
+A gestão da renovação usa operações autenticadas e com ownership do pagador. Cancelamento passa pelo runtime Asaas e preserva a vigência atual. Reativação é oferecida somente quando o backend informa que a operação é suportada; no Asaas atual, renovação de cartão cancelada pode ser reativada pela operação reconciliável, enquanto Pix Automático cancelado exige nova autorização. Atualização direta do método de pagamento continua indisponível enquanto o provider não expuser um fluxo externo recuperável.
+
+A boundary `billing.webOverview` suprime `professionalSubscription` e `professionalCapacity` quando a origem efetiva é `sponsored_by_professional`, impedindo exposição de preço, contrato ou capacidade do patrocinador ao paciente coberto. O frontend não mantém tabela comercial paralela, não calcula elegibilidade e não inventa preço, limite, benefício ou ação financeira.
+
+A rota `/admin/billing` é protegida no frontend pelo papel administrativo e no backend por `adminProcedure`. Ela permite pesquisa, concessão e revogação de override, histórico e indicadores comerciais/operacionais conforme as procedures administrativas existentes.
 
 ## Administração
 
 As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing.adminGrantOverride`, `billing.adminRevokeOverride` e `billing.adminAnalytics` usam `adminProcedure`. A autoria é sempre obtida de `ctx.user.id`; o cliente não informa quem concedeu ou revogou.
 
-## Contrato para provider financeiro futuro
+## Provider financeiro
 
-`BillingProvider` define checkout hospedado, sincronização, cancelamento e autenticação/normalização de webhook. Nenhuma implementação real é registrada nesta entrega. O retorno do navegador não confirma acesso; ativação futura depende de estado confirmado pelo backend.
+`BillingProvider` define checkout hospedado, sincronização, cancelamento e autenticação/normalização de webhook. O Asaas é o primeiro adapter real e permanece atrás desse contrato. O retorno do navegador nunca confirma acesso; ativação depende de estado confirmado pelo backend. Detalhes operacionais, idempotência local-first e reconciliação estão em `docs/design-docs/billing-asaas-adapter.md` e `docs/runbooks/billing-asaas.md`.
 
 ## Validação
 
@@ -124,6 +132,7 @@ As procedures `billing.adminSearchUsers`, `billing.adminListOverrides`, `billing
 - teste da matriz profissional combinada em uma única assinatura, sem reserva de capacidade pelo uso pessoal;
 - teste discriminante do WhatsApp para usuário inelegível antes do pipeline nutricional;
 - testes diretos da fronteira pública para não enumeração e exigência de sessão autenticada;
+- testes da boundary web para privacidade do patrocinador, prevenção de assinatura própria duplicada, waiver obrigatório do Pix, binding ao pagador autenticado, lifecycle, ações suportadas, callbacks pendentes e idempotência entre múltiplas abas;
 - teste TiDB de claim, ativação, retomada, disputa entre contas e rejeição de telefone ativo duplicado;
 - teste TiDB de concorrência, idempotência, cobertura, overrides, analytics, evento duplicado e metadata sanitizada;
 - `pnpm agent:check`;
@@ -136,7 +145,7 @@ O catálogo comercial é servido exclusivamente pelo backend. `billingProducts.c
 
 O seed inicial contém seis versões: Individual mensal/anual, Profissional mensal/anual e Profissional Plus mensal/anual. Os valores e capacidades seguem a #145. Profissional e Plus usam a mesma matriz de recursos combinada — recursos pessoais do Individual mais recursos profissionais — e diferem inicialmente apenas pela capacidade de 30 ou 100 pacientes. Cada versão profissional também congela a matriz pessoal dos pacientes cobertos. O uso pessoal do pagador profissional não cria cobertura sobre si mesmo nem reserva capacidade.
 
-`commercialPaymentMethodsJson` registra apenas a política comercial (`credit_card` e `pix_automatic` no lançamento). `billing.catalog` devolve essa política separadamente de `effectivePaymentMethods`, que é calculado no backend pela interseção com as capacidades do adapter financeiro registrado. Sem adapter da #892, a lista efetiva permanece vazia; o frontend nunca amplia a política por conta própria.
+`commercialPaymentMethodsJson` registra apenas a política comercial (`credit_card` e `pix_automatic` no lançamento). `billing.catalog` devolve essa política separadamente de `effectivePaymentMethods`, que é calculado no backend pela interseção com as capacidades do adapter financeiro registrado. Sem adapter ativo/configurado, a lista efetiva permanece vazia; o frontend nunca amplia a política por conta própria.
 
 Cupons são revisionados. Alterar uma política cria nova linha em `billingCoupons`, desativa a revisão anterior e mantém `billingCouponRedemptions` apontando para a revisão efetivamente aplicada. Percentual público é limitado a 30%; mensal aceita no máximo três cobranças; anual somente a primeira; desconto equivalente a 100% é rejeitado como cupom e pertence ao fluxo de isenção administrativa. A reserva de uso bloqueia a revisão ativa em transação, contabiliza reservas e confirmações e usa `contractKey` único para impedir estouro concorrente ou duplicação por retry.
 

@@ -132,7 +132,7 @@ Nesses casos, a resposta pode ser uma pergunta de esclarecimento, bloqueio segur
 - A execução continua em serviços de domínio do backend e ferramentas catalogadas.
 - O contexto enviado ao LLM deve ser mínimo e não deve incluir texto cru sensível desnecessário.
 - Mensagens de consulta, como `refeições registradas`, não devem cair no fallback de alimento incompleto.
-- Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing`, a ferramenta estiver autorizada e houver chave de idempotência.
+- Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing`, a ferramenta estiver autorizada, houver chave de idempotência **e o comando não trouxer uma data relativa explícita para uma refeição ausente**. Com `hoje`, `ontem`, `anteontem` ou `amanhã`, se a refeição indicada não existir no dia interpretado, o executor deve pedir esclarecimento e não criar nem alterar registros.
 - Troca de alimento só acontece quando há correspondência segura com item da última refeição.
 
 ## Relação com subissues da epic

@@ -28,6 +28,7 @@ import { formatDayMealListReply } from "./mealListIntent";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
+import { buildWhatsappExplicitMealTargetMissingClarification } from "./intent/explicitMealTargetGuard";
 
 const HEURISTIC_NUTRITION_PER_100G = {
   calories: 150,
@@ -415,6 +416,20 @@ async function handleAddFoodsToMeal(
 
   const meals = mealsResult.result;
   const existingMeal = findMealByLabel(meals, mealLabel, targetDate.date, timeZone, { allowCrossDayFallback: !targetDate.explicit });
+  if (!existingMeal && targetDate.explicit) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      ...buildWhatsappExplicitMealTargetMissingClarification({
+        mealLabel,
+        targetDate: targetDate.date,
+        timeZone,
+        eventType: "whatsapp.llm_intent.clarification_needed",
+        detail: "Intenção estruturada com data explícita bloqueada porque a refeição indicada não existe no dia interpretado.",
+      }),
+      toolTrace,
+    };
+  }
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
   }

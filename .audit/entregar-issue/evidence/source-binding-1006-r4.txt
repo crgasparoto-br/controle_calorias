@@ -1,0 +1,18 @@
+Exact-byte audit remediation source-binding control for issue #1006 / PR #1013
+material_head_sha=a86c681a77ad309f6a476ab73e8a11ee21cb380d
+audited_result_only_head_sha=a68a69bd54d81a9939fd2490c461812b3c8dd3ef
+rejection_id=audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e
+finding_id=A-002
+audit_source_result_sha256=94bde4607e2431142ec9629a11a93ec345eadd34867067bc836e7c7f81d638b3
+
+Positive control:
+- audit-source-result.json is finalized first.
+- audit-remediation.source.audit_report_sha256 is computed from those exact final bytes.
+- validate_audit_remediation.py must accept the exact source bytes for candidate material a86c681a77ad309f6a476ab73e8a11ee21cb380d.
+
+Negative controls:
+- mutate the final source summary without changing audit-remediation.json: validator must block with audit remediation audit_report_sha256 differs from source bytes.
+- re-derive the rejection/finding/source hash immediately before certificate generation; any same-identity/different-bytes source must fail closed.
+
+Prevention/detection:
+- source bytes -> exact hash -> remediation validator -> terminal certificate, in that order.

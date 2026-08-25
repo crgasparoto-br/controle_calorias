@@ -1,0 +1,7 @@
+Issue #1006 inherited-control revalidation on material a86c681a77ad309f6a476ab73e8a11ee21cb380d
+base_sha=c714fce595aa18775c885bd1f229e2934d872130
+mode=post-write-refreeze + targeted-remediation
+- explicit relative-date local-day boundary and strict same-day selector are unchanged from the previously green issue #1006 material bytes after reanchoring onto current develop.
+- no server/modules/whatsapp/** or issue #1006 documentation path was touched by the 90 intervening develop commits before reanchoring.
+- post-write-refreeze recovery floor was honored: a new material parent a86c681a77ad309f6a476ab73e8a11ee21cb380d was created and all critical structural/readiness validators were rerun before terminal publication.
+- audit source-byte binding and certificate semantic re-derivation controls are active for rejection audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e.

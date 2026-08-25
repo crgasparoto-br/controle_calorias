@@ -16,6 +16,7 @@ import {
 } from "./intentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
+import { hasExplicitWhatsappRelativeMealDate } from "./intent/explicitMealDate";
 import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
 import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
@@ -270,7 +271,7 @@ export function classifyWhatsappMessageDeterministically(text: string): Whatsapp
       confidence: items.length ? 0.84 : 0.6,
       meal: {
         label: addToMealMatch[1].trim(),
-        createIfMissing: true,
+        createIfMissing: !hasExplicitWhatsappRelativeMealDate(text),
       },
       items,
       requiresConfirmation: items.some(item => !item.quantity || !item.unit),
@@ -390,7 +391,7 @@ function buildInstructions(context: WhatsappIntentContext) {
     "Para consultas como 'refeicoes registradas' ou 'liste os alimentos', use list_meal_records, nao add_foods_to_meal.",
     "Para comandos curtos como 'resuma', 'resumo' ou 'quero um resumo', use daily_summary, nao add_foods_to_meal.",
     "Para correcoes como 'nao e A e sim B', use replace_food_in_meal e remova prefixos como 'sim' do alimento destino.",
-    "Para adicionar alimento a uma refeicao valida ainda inexistente, use meal.createIfMissing=true quando a mensagem contiver alimentos.",
+    "Para adicionar alimento a uma refeicao valida ainda inexistente, use meal.createIfMissing=true somente quando a mensagem nao trouxer data relativa explicita. Se houver hoje, ontem, anteontem ou amanha e a refeicao nao existir no dia interpretado, use meal.createIfMissing=false para preservar o esclarecimento sem mutacao.",
     "Use o historico recente da conversa para resolver ambiguidades referenciais. Exemplos: se o usuario perguntou sobre um alimento e agora diz 'registra', entenda como registro daquele alimento; se a mensagem for 'e o almoco?' apos uma troca sobre cafe da manha, interprete como consulta ou registro do almoco.",
     "Perguntas nutricionais como 'quanto tem de proteina no X?' ou 'X tem muita caloria?' devem ser classificadas como meal_suggestion (informacao consultiva), nao como add_foods_to_meal.",
     buildRecentConversationSection(context),

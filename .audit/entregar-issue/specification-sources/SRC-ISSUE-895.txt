@@ -1,0 +1,193 @@
+Parent: #145
+
+## Objetivo
+
+Evoluir `/billing` para permitir que o usuário compreenda sua origem de acesso, compare ofertas, escolha cartão ou Pix Automático, aplique cupom, contrate e gerencie assinatura, trial, transição, capacidade e recuperação sem expor estados técnicos ou confirmar pagamento de forma insegura.
+
+## Situação atual
+
+Exibir:
+
+- origem efetiva do acesso;
+- produto, versão, ciclo, preço, moeda, vigência e recursos;
+- próxima renovação, cancelamento programado, carência, suspensão, recuperação ou término;
+- capacidade profissional contratada, ocupada, temporária e excedente;
+- prazo e situação da capacidade temporária, quando aplicável;
+- ações e meios de pagamento disponíveis retornados pelo backend.
+
+Paciente coberto não visualiza preço, inadimplência, método de pagamento ou situação de capacidade do profissional.
+
+## Consulta e comparação
+
+- Consumir catálogo exclusivamente do backend.
+- Exibir somente ofertas, ciclos e meios de pagamento elegíveis.
+- Nos planos Profissional e Profissional Plus, informar claramente que o profissional pagador recebe os recursos pessoais do Individual e os recursos profissionais na mesma assinatura.
+- Explicar que o uso pessoal do profissional não consome vaga da carteira.
+- Profissional e Plus devem mostrar a diferença de capacidade, não benefícios inexistentes.
+- Não representar a matriz pessoal incluída como plano, assinatura, cobrança ou cobertura adicional.
+- Não manter tabela paralela de preço, recurso, cupom, limite ou meio de pagamento no frontend.
+- Não oferecer ação ou método não habilitado pelo backend.
+
+## Contratação
+
+- Permitir contratação mensal ou anual por cartão de crédito ou Pix Automático quando retornados pelo backend.
+- Boleto e Pix manual não devem aparecer no checkout público inicial.
+- Criar ou reutilizar intenção idempotente incluindo produto, versão, ciclo, método e cupom.
+- Redirecionar ao checkout hospedado do Asaas.
+- Ao retornar, mostrar estado pendente até confirmação autoritativa.
+- Duplo clique, retry, troca de método ou múltiplas abas não criam intenções incompatíveis.
+- Falha, abandono, recusa ou expiração deve oferecer nova tentativa ou troca de método sem prometer acesso.
+
+### Cartão de crédito
+
+- É o único método permitido para iniciar trial individual ou profissional.
+- Antes de iniciar o trial, exibir duração, data estimada da primeira cobrança, preço, ciclo e regra de cancelamento.
+- Contratação paga sem trial também pode utilizar cartão quando elegível.
+
+### Pix Automático
+
+- Exibir claramente que a escolha inicia contratação paga e não concede trial.
+- Exigir confirmação explícita da renúncia ao trial antes de criar a intenção.
+- Explicar que autorização ou retorno do checkout não significam ativação imediata.
+- Manter a tela em estado pendente até confirmação financeira autoritativa.
+- Não ampliar capacidade profissional enquanto a confirmação estiver pendente.
+
+## Cupom
+
+- Permitir inserir, remover e validar um único cupom antes da confirmação.
+- Exibir desconto, duração, cobranças afetadas, preço original e preço final.
+- Informar erro claro para cupom inválido, expirado, esgotado, inelegível ou já utilizado.
+- Nunca aplicar dois cupons.
+- Não aceitar desconto de 100%; orientar que gratuidade depende de isenção administrativa.
+- Trial + cupom: indicar que o desconto começa na primeira cobrança.
+- Mensal: informar duração máxima aprovada de até 3 cobranças.
+- Anual: informar que o desconto vale somente para a primeira cobrança.
+- Callback, retry, troca de método ou falha não podem consumir novamente o cupom.
+
+## Trials
+
+**Individual**
+
+- 7 dias, cartão obrigatório e primeira cobrança prevista.
+- Cancelamento durante o trial sem cobrança.
+- Não oferecer novo trial a inelegível.
+- Ao selecionar Pix Automático, não iniciar trial e solicitar confirmação da contratação paga.
+
+**Profissional**
+
+- 14 dias, cartão obrigatório, recursos pessoais e profissionais completos e limite de 5 pacientes.
+- O uso pessoal do profissional permanece disponível pela própria matriz do trial e não consome uma das 5 vagas.
+- Exibir ação “Ativar plano agora e liberar todos os pacientes”.
+- Antes da confirmação, mostrar versão, ciclo, preço, capacidade, recursos incluídos e primeira cobrança.
+- Manter limite de 5 enquanto pagamento estiver pendente ou falhar.
+- Nova contratação direta por Pix Automático não inicia trial e só libera a capacidade após confirmação autoritativa.
+
+## Gestão da assinatura
+
+- Exibir vigência, próxima renovação, histórico, status e método de pagamento sem expor dados sensíveis.
+- Para plano profissional, exibir uma única assinatura com matriz pessoal e profissional combinada.
+- Cancelar renovação explicando a data efetiva.
+- Reativar antes do encerramento, preservando versão e preço.
+- Permitir iniciar atualização/troca de método pelos fluxos suportados pelo backend, sem assumir confirmação imediata.
+- Exibir `past_due` com prazo de 7 dias e ação de regularização.
+- Exibir `suspended` com funções preservadas/bloqueadas e recuperação de 30 dias.
+- Exibir `expired` como nova contratação, sem prometer reativação por pagamento tardio.
+
+## Capacidade profissional e carteira excedida
+
+Quando o backend indicar carteira acima do limite:
+
+- exibir capacidade contratada, ocupação atual, quantidade excedente e limite temporário;
+- explicar que pacientes existentes permanecem preservados;
+- informar que novas aprovações, inclusões e reativações estão bloqueadas;
+- mostrar a data final dos 90 dias iniciais ou da extensão atual;
+- apresentar alternativas disponíveis: redução natural, upgrade ou contato administrativo/comercial;
+- não permitir que o frontend escolha, remova ou bloqueie pacientes para adequação automática;
+- não apresentar a capacidade temporária como aumento permanente do plano.
+
+### Estados de apresentação
+
+Mapear os estados canônicos da #894 para linguagem amigável:
+
+- `within_capacity`: carteira dentro do limite;
+- `grandfathered_active`: capacidade temporária ativa;
+- `grandfathered_expiring`: prazo próximo do vencimento;
+- `grandfathered_expired`: capacidade temporária vencida;
+- `grandfathered_resolved`: situação regularizada.
+
+Os identificadores internos não devem ser expostos diretamente ao usuário.
+
+### Avisos e vencimento
+
+- Exibir na tela os mesmos marcos enviados por comunicação: início, 60, 30, 15 e 7 dias antes e vencimento.
+- O alerta deve informar capacidade contratada, ocupação, excedente, prazo e ação recomendada.
+- Após o vencimento, explicar que pacientes e dados continuam preservados, mas novas inclusões/reativações permanecem bloqueadas.
+- Quando nenhum plano público for suficiente, mostrar que o caso está em análise administrativa/comercial.
+- Não prometer extensão; informar apenas extensão confirmada pelo backend, sempre por 30 dias.
+
+## Cobertura e transições
+
+- Explicar cobertura profissional sem dados financeiros do patrocinador.
+- Informar cancelamento da próxima renovação individual e permitir escolha explícita de mantê-la.
+- Exibir transição de 7 dias após perda de cobertura.
+- Exibir transição de 30 dias para usuários existentes.
+- Após perda de elegibilidade, explicar modo leitura, exportação e gestão.
+- Aplicar precedência de origem da #145 na apresentação.
+
+## Estados assíncronos e degradados
+
+- Distinguir loading, vazio, pendente, autorização pendente, confirmado, recusado, expirado, falha recuperável e reconciliação.
+- Falha temporária do Asaas não libera acesso nem apaga estado local.
+- Resposta atrasada não substitui usuário, versão, método, cupom ou intenção atual.
+- Falha ao carregar capacidade não pode liberar ação de inclusão por padrão.
+- A tela permanece acessível quando outras rotas estiverem bloqueadas.
+
+## Requisitos de experiência
+
+- Linguagem para usuário, sem enums ou IDs internos.
+- Confirmações financeiras mostram valor, ciclo, método, desconto e consequência.
+- A renúncia ao trial no Pix Automático deve ser explícita, compreensível e acessível.
+- A inclusão dos recursos pessoais no plano profissional deve ser apresentada como benefício da mesma assinatura, sem sugerir dupla cobrança.
+- Estados de capacidade devem explicar o impacto sem tom punitivo ou ameaça de perda automática de pacientes.
+- Não usar cor como único indicador.
+- Responsiva, acessível por teclado e leitores de tela.
+
+## Critérios de aceite
+
+- [ ] Origem de acesso e situação são compreensíveis.
+- [ ] Catálogo, preços, cupons, ações, capacidades e meios de pagamento vêm do backend.
+- [ ] Planos profissionais exibem recursos pessoais e profissionais em uma única assinatura.
+- [ ] A interface informa que o uso pessoal do profissional não consome vaga.
+- [ ] Profissional e Plus diferem visualmente somente pela capacidade prevista no catálogo.
+- [ ] Cartão e Pix Automático aparecem para mensal e anual quando elegíveis.
+- [ ] Boleto e Pix manual não aparecem no checkout público inicial.
+- [ ] Trial só pode ser iniciado por cartão.
+- [ ] Pix Automático exige confirmação de contratação paga sem trial.
+- [ ] Checkout e autorização permanecem pendentes até confirmação autoritativa.
+- [ ] Retry, múltiplas abas e troca de método não duplicam intenção, assinatura ou cupom.
+- [ ] Cupom único é validado e exibido com preço/duração corretos.
+- [ ] Cupons inválidos e desconto de 100% são rejeitados claramente.
+- [ ] Trial individual mostra 7 dias e cartão.
+- [ ] Trial profissional mostra 14 dias, cartão, matriz combinada, limite de 5 e efetivação antecipada.
+- [ ] Cancelamento e reativação respeitam a data e versão.
+- [ ] Estados `past_due`, `suspended` e `expired` seguem #893.
+- [ ] Carteira excedida mostra capacidade, ocupação, excedente, prazo e bloqueios corretos.
+- [ ] A tela apresenta os 90 dias e extensões confirmadas de 30 dias sem sugerir permanência.
+- [ ] Vencimento não comunica remoção automática de pacientes.
+- [ ] Caso sem plano suficiente orienta para análise administrativa/comercial.
+- [ ] Paciente não vê finanças ou capacidade do profissional.
+- [ ] Transições de 7 e 30 dias são exibidas corretamente.
+- [ ] Testes cobrem matriz profissional combinada, ausência de dupla assinatura, capacidade sem consumo pelo pagador, carteira excedida ativa/próxima/vencida/resolvida, cartão, Pix Automático, renúncia ao trial, autorização pendente/recusada/expirada/confirmada, cupom, callback, duplo clique, troca de método, contexto obsoleto, acessibilidade e responsividade.
+
+## Dependências
+
+- #145
+- #869 / PR #870
+- #891
+- #892
+- #893
+- #894
+
+## Prontidão
+
+**Pronta para implementação sobre contratos estabilizados.** Os meios de pagamento, a matriz profissional e os estados de capacidade temporária estão definidos; a entrega depende da estabilização das APIs de catálogo, domínio e adapter.

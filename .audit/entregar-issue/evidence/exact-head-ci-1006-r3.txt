@@ -1,0 +1,6 @@
+Exact-head delivery CI snapshot for issue #1006
+material_head_sha=a86c681a77ad309f6a476ab73e8a11ee21cb380d
+policy=single-snapshot-no-polling
+state=pending-no-run
+workflow_runs=[]
+The one allowed post-write observation returned no PR workflow run for this exact lineage-only material SHA. Terminal handoff validity is established independently by local/connector validation and does not poll CI.

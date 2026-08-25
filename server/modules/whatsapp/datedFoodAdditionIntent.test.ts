@@ -47,58 +47,54 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
   });
 
-  it("cria nova refeição na data de ontem quando o jantar ainda não existe", async () => {
-    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
-      text: "adicionar ao jantar de ontem, uma porção de canelone, 1 fatia de pão sovado, 20g requeijão catupiry, 1 fatia de peito de perú, 1 fatia de mussarela, 1 água tônica antartica, 15g koala, 110g leite integral",
-      receivedAt: new Date("2026-06-30T14:00:00.000Z"),
-    });
+  it.each(["hoje", "ontem", "anteontem", "amanhã"])(
+    "não cria nem altera outra refeição quando a data explícita '%s' não tem o alvo",
+    async relativeDate => {
+      const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+        text: `adicionar ao jantar de ${relativeDate}, 1 porção de canelone`,
+        receivedAt: new Date("2026-08-24T18:00:00.000Z"),
+        userTimezone: "America/Sao_Paulo",
+      });
 
-    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
-      text: expect.stringContaining("canelone"),
-      occurredAt: expect.any(Date),
-      timeZone: "America/Sao_Paulo",
-    }));
-    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealLabel: "jantar",
-      occurredAt: expect.stringMatching(/^2026-06-29T/),
-      items: [expect.objectContaining({ foodName: "Canelone" })],
-    }));
-    expect(updateMealMock).not.toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "meal_item_added",
-      data: expect.objectContaining({
-        mealId: 99,
-        mealLabel: "jantar",
-        occurredAt: expect.stringMatching(/^2026-06-29T/),
-      }),
-    }));
-    expect(result?.reply).toContain("Refeição registrada:");
-    expect(result?.reply).not.toContain("Refeição atualizada:");
-    expect(result?.reply).toContain("Canelone");
-    expect(result?.reply).toContain("Total da refeição:");
-  });
+      expect(result).toEqual(expect.objectContaining({
+        handled: true,
+        action: "clarification_needed",
+        data: expect.objectContaining({ explicitDate: true, mutationBlocked: true }),
+      }));
+      expect(result?.reply).toContain("Nada foi alterado");
+      expect(result?.reply).not.toContain("Refeição registrada:");
+      expect(createManualMealMock).not.toHaveBeenCalled();
+      expect(updateMealMock).not.toHaveBeenCalled();
+      expect(processMealInputMock).not.toHaveBeenCalled();
+    },
+  );
 
-  it("adiciona itens à refeição existente do dia interpretado e responde com a refeição completa", async () => {
+  it("adiciona itens somente à refeição existente do dia explicitamente interpretado", async () => {
     listMealsMock.mockResolvedValue([{
       id: 10,
       mealLabel: "Jantar",
       occurredAt: "2026-06-29T22:00:00.000Z",
       notes: "já existia",
       items: [buildItem("Arroz")],
+    }, {
+      id: 9,
+      mealLabel: "Jantar",
+      occurredAt: "2026-06-28T22:00:00.000Z",
+      notes: "mais antigo",
+      items: [buildItem("Feijão")],
     }]);
     processMealInputMock.mockResolvedValue({ items: [buildItem("Pão sovado")] });
 
     const result = await executeWhatsappDatedFoodAdditionIntent(42, {
       text: "adicionar ao jantar de ontem, 1 fatia de pão sovado",
       receivedAt: new Date("2026-06-30T14:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
     });
 
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealId: 10,
       mealLabel: "Jantar",
       occurredAt: "2026-06-29T22:00:00.000Z",
-      notes: "já existia",
       items: [
         expect.objectContaining({ foodName: "Arroz" }),
         expect.objectContaining({ foodName: "Pão sovado" }),
@@ -108,12 +104,25 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "meal_item_added",
-      data: expect.objectContaining({ mealId: 10 }),
+      data: expect.objectContaining({ mealId: 10, explicitDate: true }),
     }));
     expect(result?.reply).toContain("Alimento adicionado");
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Arroz");
     expect(result?.reply).toContain("Pão sovado");
-    expect(result?.reply).toContain("Total da refeição:");
+  });
+
+  it("não intercepta comando sem data explícita, preservando o fluxo contextual", async () => {
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar ao jantar, 1 porção de canelone",
+      receivedAt: new Date("2026-08-24T18:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toBeNull();
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(processMealInputMock).not.toHaveBeenCalled();
   });
 });

@@ -31,7 +31,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 19 | 10 | 9 | admin | Elegibilidade própria e administração comercial de billing |
+| `billing` | 27 | 12 | 15 | admin | Elegibilidade própria e administração comercial de billing |
 | `usageGovernance` | 16 | 1 | 15 | admin | Medição, economia gerencial, fair use, recurso e retenção |
 
 ## Procedures por grupo
@@ -287,8 +287,16 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 |---|---|---|
 | `me` | query | protected |
 | `subscriptionStatus` | query | protected |
+| `webOverview` | query | protected |
+| `notifications` | query | protected |
+| `markNotificationRead` | mutation | protected |
 | `catalog` | query | protected |
 | `couponEligibility` | query | protected |
+| `startCheckout` | mutation | protected |
+| `regularizeSubscription` | mutation | protected |
+| `cancelSubscription` | mutation | protected |
+| `reactivateSubscription` | mutation | protected |
+| `activateProfessionalTrialNow` | mutation | protected |
 | `refreshOnboardingActivation` | mutation | protected |
 | `adminSearchUsers` | query | admin |
 | `adminListOverrides` | query | admin |

@@ -72,6 +72,7 @@ function allowedResult(
   return {
     allowed: true,
     reason: candidate.reason,
+    ...(candidate.validFrom ? { validFrom: candidate.validFrom } : {}),
     ...(candidate.validUntil ? { validUntil: candidate.validUntil } : {}),
     ...(candidate.sponsorUserId
       ? { sponsorUserId: candidate.sponsorUserId }

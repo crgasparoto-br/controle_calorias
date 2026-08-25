@@ -1,14 +1,17 @@
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { activateWhatsappOnboardingUser } from "../onboarding/whatsappLeadService";
-import {
-  getInternalUsageAnalytics,
-} from "../usageGovernance/service";
+import { getInternalUsageAnalytics } from "../usageGovernance/service";
 import { governanceError } from "../usageGovernance/publicBoundary";
 import {
   internalUsageAnalyticsSchema,
   resolveInternalUsageAnalyticsWindow,
 } from "../usageGovernance/schemas";
+import {
+  listBillingUserNotifications,
+  markBillingNotificationRead,
+} from "./billingNotificationCenter";
+import { billingNotificationReadSchema } from "./billingNotificationSchemas";
 import {
   billingAdminCatalogListSchema,
   billingAdminCreateCouponRevisionSchema,
@@ -27,6 +30,17 @@ import {
   billingAdminSearchUsersSchema,
 } from "./schemas";
 import { billingService } from "./service";
+import {
+  activateProfessionalTrialNow,
+  billingProfessionalEarlyActivationSchema,
+  billingStartCheckoutSchema,
+  billingSubscriptionActionSchema,
+  cancelBillingWebSubscription,
+  getBillingWebOverview,
+  reactivateBillingWebSubscription,
+  regularizeBillingWebSubscription,
+  startBillingWebCheckout,
+} from "./webPublic";
 
 const SAFE_ADMIN_ERROR_PREFIXES = [
   "A vigência final",
@@ -74,7 +88,8 @@ function safeAdminMutationError(error: unknown): TRPCError {
     ) {
       return new TRPCError({
         code: "FORBIDDEN",
-        message: "Sua autorização administrativa mudou. Recarregue a sessão antes de tentar novamente.",
+        message:
+          "Sua autorização administrativa mudou. Recarregue a sessão antes de tentar novamente.",
       });
     }
     const safe = SAFE_ADMIN_ERROR_PREFIXES.some(prefix =>
@@ -97,6 +112,22 @@ function safeCatalogQueryError(): TRPCError {
   });
 }
 
+function safeNotificationReadError(error: unknown): TRPCError {
+  if (
+    error instanceof Error &&
+    error.message === "billing_notification_not_found"
+  ) {
+    return new TRPCError({
+      code: "NOT_FOUND",
+      message: "Este aviso não está disponível para esta conta.",
+    });
+  }
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível atualizar o estado de leitura deste aviso.",
+  });
+}
+
 export const billingRouter = router({
   me: protectedProcedure.query(({ ctx }) =>
     billingService.getUserEntitlements(ctx.user.id)
@@ -104,6 +135,24 @@ export const billingRouter = router({
   subscriptionStatus: protectedProcedure.query(({ ctx }) =>
     billingService.getUserSubscriptionStatus(ctx.user.id)
   ),
+  webOverview: protectedProcedure.query(({ ctx }) =>
+    getBillingWebOverview(ctx.user.id)
+  ),
+  notifications: protectedProcedure.query(({ ctx }) =>
+    listBillingUserNotifications(ctx.user.id)
+  ),
+  markNotificationRead: protectedProcedure
+    .input(billingNotificationReadSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await markBillingNotificationRead({
+          userId: ctx.user.id,
+          notificationId: input.notificationId,
+        });
+      } catch (error) {
+        throw safeNotificationReadError(error);
+      }
+    }),
   catalog: protectedProcedure.query(async () => {
     try {
       return await billingCatalogService.listCatalog();
@@ -123,6 +172,48 @@ export const billingRouter = router({
         throw safeCatalogQueryError();
       }
     }),
+  startCheckout: protectedProcedure
+    .input(billingStartCheckoutSchema)
+    .mutation(({ ctx, input }) =>
+      startBillingWebCheckout({
+        userId: ctx.user.id,
+        accountName: ctx.user.name,
+        accountEmail: ctx.user.email,
+        payload: input,
+      })
+    ),
+  regularizeSubscription: protectedProcedure
+    .input(billingSubscriptionActionSchema)
+    .mutation(({ ctx, input }) =>
+      regularizeBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
+  cancelSubscription: protectedProcedure
+    .input(billingSubscriptionActionSchema)
+    .mutation(({ ctx, input }) =>
+      cancelBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
+  reactivateSubscription: protectedProcedure
+    .input(billingSubscriptionActionSchema)
+    .mutation(({ ctx, input }) =>
+      reactivateBillingWebSubscription({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
+  activateProfessionalTrialNow: protectedProcedure
+    .input(billingProfessionalEarlyActivationSchema)
+    .mutation(({ ctx, input }) =>
+      activateProfessionalTrialNow({
+        userId: ctx.user.id,
+        subscriptionId: input.subscriptionId,
+      })
+    ),
   refreshOnboardingActivation: protectedProcedure.mutation(({ ctx }) =>
     activateWhatsappOnboardingUser(ctx.user.id)
   ),
@@ -260,7 +351,9 @@ export const billingRouter = router({
     .input(internalUsageAnalyticsSchema)
     .query(async ({ ctx, input }) => {
       try {
-        return await getInternalUsageAnalytics(resolveInternalUsageAnalyticsWindow(input));
+        return await getInternalUsageAnalytics(
+          resolveInternalUsageAnalyticsWindow(input)
+        );
       } catch (error) {
         governanceError(error, ctx.res);
       }
