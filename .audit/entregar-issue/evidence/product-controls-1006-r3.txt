@@ -1,0 +1,7 @@
+Issue #1006 product equivalence after develop reanchor
+material_head_sha=a86c681a77ad309f6a476ab73e8a11ee21cb380d
+base_sha=c714fce595aa18775c885bd1f229e2934d872130
+- remote comparison develop..material contains 17 issue functional/documentation paths plus 3 .audit lineage paths.
+- intervening develop commits do not overlap server/modules/whatsapp/** or the two issue #1006 documentation paths.
+- the issue #1006 functional blobs were reapplied unchanged onto current develop before the final refreeze.
+- focused/canonical critical artifact validators are rerun on the refrozen material identity.
