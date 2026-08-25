@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import mysql from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
@@ -25,7 +26,35 @@ function claimed(
   return decision;
 }
 
+function verifySponsoredPublicBoundary() {
+  const result = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "vitest",
+      "run",
+      "server/modules/billing/webPublic.publicBoundary.test.ts",
+    ],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        PROFESSIONAL_ACCESS_RECEIPT_STORAGE: "memory",
+      },
+    }
+  );
+  if (result.error) throw result.error;
+  assert.equal(
+    result.status,
+    0,
+    "sponsored billing public-boundary contract must pass inside the billing persistence gate"
+  );
+}
+
 async function main() {
+  verifySponsoredPublicBoundary();
+
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 8 });
@@ -208,6 +237,7 @@ async function main() {
         checkoutCrossTabEquivalentSingleLineage: true,
         checkoutCrossTabIncompatibleFailClosed: true,
         checkoutReplacementRetrySingleGeneration: true,
+        sponsoredPublicBoundary: true,
       })
     );
   } finally {
