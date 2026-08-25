@@ -10,6 +10,7 @@ import { reconcileUsageCost } from "./costReconciliation";
 import { configureUsagePolicy, resolveFairUsePolicy } from "./policyService";
 import { getInternalUsageAnalytics, registerEconomicFact } from "./service";
 import { governanceError } from "./publicBoundary";
+import { getUsageGovernanceUserOverview } from "./userOperations";
 import {
   applyUsageLimitationSchema,
   assignUsageAbuseCaseSchema,
@@ -69,6 +70,10 @@ export const usageGovernanceRouter = router({
     } catch (error) {
       governanceError(error, ctx.res);
     }
+  }),
+  myLimitations: protectedProcedure.query(async ({ ctx }) => {
+    try { return await getUsageGovernanceUserOverview(ctx.user.id); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
   adminOverview: adminProcedure.input(usageAdminOverviewSchema).query(async ({ ctx, input }) => {
     try { return await getUsageGovernanceAdminOverview(input.limit); }

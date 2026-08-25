@@ -32,7 +32,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
 | `billing` | 31 | 13 | 18 | admin | Elegibilidade própria e administração comercial de billing |
-| `usageGovernance` | 19 | 2 | 17 | admin | Medição, economia gerencial, fair use, recurso e retenção |
+| `usageGovernance` | 20 | 3 | 17 | admin | Medição, economia gerencial, fair use, recurso e retenção |
 
 ## Procedures por grupo
 
@@ -322,6 +322,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `analytics` | query | admin |
+| `myLimitations` | query | protected |
 | `adminOverview` | query | admin |
 | `configurePolicy` | mutation | admin |
 | `reconcileUsageCost` | mutation | admin |

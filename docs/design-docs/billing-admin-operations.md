@@ -56,9 +56,13 @@ Custo elevado isoladamente não comprova abuso. Casos normais exigem sinais comb
 
 As invariantes de duração, segundo administrador, emergência e operações permitidas permanecem exclusivamente em `server/modules/usageGovernance/`; o frontend não as substitui. Login, consulta, exportação e registros manuais não entram no escopo das operações pesadas limitáveis.
 
+O próprio usuário consulta suas limitações em **Plano e acesso** por `usageGovernance.myLimitations`. O read model devolve apenas escopo operacional, vigência, estado, comunicação e estado do recurso; evidências internas, sinais de investigação e responsáveis administrativos não são expostos. Quando `appealOfferedAt` existe e não há recurso pendente, a tela permite enviar manifestação por `usageGovernance.submitLimitationAppeal`. A decisão continua exclusiva da administração e uma aprovação usa a transação canônica que revoga a limitação ativa.
+
 ## Retenção e legal hold
 
 `usageGovernance.adminOverview` expõe execuções de `billingUsageRetentionAudit`, legal holds ativos/históricos e correlações de reprocessamento. Um administrador pode reprocessar uma execução com justificativa; o pedido e seu resultado são registrados em evento append-only, enquanto a eliminação continua sendo executada pela política canônica de retenção.
+
+A execução automática grava `status=success` somente dentro da mesma transação da purga. Se a transação falhar, o rollback preserva os dados e o repositório tenta gravar um registro separado `status=failed` com mensagem operacional estática e sanitizada, sem copiar SQL, payload ou conteúdo do erro. Quando até a persistência de auditoria estiver indisponível, o erro original continua sendo propagado para observabilidade externa.
 
 `legal hold` documentado impede a eliminação apenas do escopo protegido enquanto estiver ativo. Revogação não apaga o histórico do hold.
 
@@ -86,7 +90,7 @@ Falha de e-mail ou WhatsApp nunca elimina a notificação interna. No estado atu
 
 Categorias essenciais permanecem independentes de opt-out promocional. A classificação jurídica exibida é explicitamente pendente de homologação jurídica e de privacidade. Tokens, documentos, cartão, dados clínicos e payload bruto de provider não fazem parte do read model administrativo.
 
-Analytics são agregados por campanha, versão e canal para dados realmente disponíveis: criadas, entregues, falhas, retries, leitura da central interna e ação concluída. Abertura externa, tickets, opt-out e tempo de resolução permanecem `n/d` enquanto não houver fonte confiável, em vez de serem inferidos.
+Analytics são agregados por campanha, versão e canal para dados realmente disponíveis: criadas, enviadas, entregues, falhas, retries, deduplicações observáveis, leitura da central interna e ação concluída. Abertura externa, tickets, opt-out e tempo de resolução permanecem `n/d` enquanto não houver fonte confiável, em vez de serem inferidos.
 
 ## Rollout
 
