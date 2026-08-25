@@ -57,6 +57,7 @@ Exemplos principais:
 - `design-docs/whatsapp-onboarding.md`
 - `design-docs/professional-ai-assistance.md`
 - `design-docs/billing-foundation.md`
+- `design-docs/billing-admin-operations.md`
 - `design-docs/billing-subscription-lifecycle.md`
 - `design-docs/billing-professional-coverage.md`
 - `design-docs/billing-asaas-adapter.md`
