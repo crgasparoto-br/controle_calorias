@@ -115,6 +115,7 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
   });
 
   it("preserva o bloqueio fail-closed quando a data explícita cai no executor LLM tardio", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValueOnce(null);
     executeWhatsappLlmIntentMock.mockResolvedValueOnce({
       handled: true,
       action: "clarification_needed",
@@ -131,7 +132,7 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
       messageId: "late-llm-explicit-date-1",
     });
 
-    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledOnce();
     expect(executeWhatsappLlmIntentMock).toHaveBeenCalledOnce();
     expect(processMealDraftMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
