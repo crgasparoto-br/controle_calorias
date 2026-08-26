@@ -20,6 +20,7 @@ if (!UNSWEETENED_COFFEE_REFERENCE) {
 const COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
 const COFFEE_ML_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
 const SUGAR_CALORIES_PER_GRAM = 4;
+export const DEFAULT_SUGAR_GRAMS_PER_CANONICAL_COFFEE_CUP = 5;
 
 type ExplicitSugarQuantity = {
   quantity: number;
@@ -171,6 +172,12 @@ function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
   });
 }
 
+function isSimpleSweetenedCoffeeSegment(segment: string) {
+  return isCoffeeWithAddedSugar(segment)
+    && !extractExplicitSugarQuantity(segment)
+    && !hasAdditionalCaloricCoffeeComplement(segment);
+}
+
 function nutritionCoversExplicitSugar(
   sourceSegment: string,
   calories: number,
@@ -257,12 +264,6 @@ function isCoffeeDraftItem(item: MealDraftItem) {
   return isCoffeeIdentity(`${item.foodName} ${item.canonicalName}`);
 }
 
-function isExplicitlyUnsweetenedCoffee(item: MealDraftItem) {
-  return isExplicitlyUnsweetenedCoffeeIdentity(
-    `${item.foodName} ${item.canonicalName}`,
-  );
-}
-
 function isGenericCoffeeDraftItem(item: MealDraftItem) {
   return isGenericCoffeeIdentity(`${item.foodName} ${item.canonicalName}`);
 }
@@ -278,14 +279,16 @@ function hasCompanionFoodSegments(sourceText: string) {
   return splitFoodTextSegments(sourceText).length > 1;
 }
 
+function formatCoffeePortionUnit(coffee: CoffeeServingQuantity) {
+  return coffee.unit === "xícara" && coffee.quantity !== 1 ? "xícaras" : coffee.unit;
+}
+
 function createCoffeeWithExplicitSugarItemFromSegment(
   segment: string,
   sugar: ExplicitSugarQuantity,
 ): MealDraftItem {
   const coffee = extractCoffeeServingQuantity(segment);
-  const portionUnit = coffee.unit === "xícara" && coffee.quantity !== 1
-    ? "xícaras"
-    : coffee.unit;
+  const portionUnit = formatCoffeePortionUnit(coffee);
 
   return {
     foodName: "Café com açúcar",
@@ -301,6 +304,33 @@ function createCoffeeWithExplicitSugarItemFromSegment(
     ),
     protein: 0,
     carbs: sugar.grams,
+    fat: 0,
+    confidence: 0.72,
+    source: "heuristic",
+  };
+}
+
+function createCoffeeWithCanonicalSugarEstimateFromSegment(segment: string): MealDraftItem | null {
+  if (!isSimpleSweetenedCoffeeSegment(segment)) return null;
+  const coffee = extractCoffeeServingQuantity(segment);
+  const sugarGrams = roundNutritionValue(
+    coffee.cupsEquivalent * DEFAULT_SUGAR_GRAMS_PER_CANONICAL_COFFEE_CUP,
+  );
+  const portionUnit = formatCoffeePortionUnit(coffee);
+  return {
+    foodName: "Café com açúcar",
+    canonicalName: "Café com açúcar",
+    quantity: coffee.quantity,
+    unit: coffee.unit,
+    portionText: `${coffee.quantity} ${portionUnit} com açúcar (estimado ${sugarGrams} g)`,
+    servings: Math.max(coffee.cupsEquivalent, 0.1),
+    estimatedGrams: roundNutritionValue(coffee.estimatedMl + sugarGrams),
+    calories: roundNutritionValue(
+      coffee.cupsEquivalent * COFFEE_CALORIES_PER_CUP
+      + sugarGrams * SUGAR_CALORIES_PER_GRAM,
+    ),
+    protein: 0,
+    carbs: sugarGrams,
     fat: 0,
     confidence: 0.72,
     source: "heuristic",
@@ -402,6 +432,8 @@ export function normalizeSweetenedCoffeeDraftItems(
 
     if (sourceMatch) {
       usedSourceIndexes.add(sourceMatch.index);
+      const canonicalEstimate = createCoffeeWithCanonicalSugarEstimateFromSegment(sourceMatch.segment);
+      if (canonicalEstimate) return canonicalEstimate;
       if (hasAdditionalCaloricCoffeeComplement(sourceMatch.segment)) {
         return draftNutritionCoversExplicitSugar(sourceMatch.segment, item)
           ? normalizeCompositeSweetenedCoffeeItem(item, sourceMatch.segment)
@@ -447,7 +479,7 @@ export function normalizeSweetenedCoffeeDraftItems(
     }
 
     if (sourceCanQualifyGenericCoffee && isGenericCoffeeDraftItem(item)) {
-      return {
+      return createCoffeeWithCanonicalSugarEstimateFromSegment(sourceCoffeeSegments[0]) ?? {
         ...item,
         foodName: "Café com açúcar",
         canonicalName: "Café com açúcar",
@@ -465,10 +497,20 @@ export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftI
     : null;
 }
 
+export function buildCoffeeWithCanonicalSugarEstimateItem(sourceText: string): MealDraftItem | null {
+  const segments = getSweetenedCoffeeSourceSegments(sourceText)
+    .map(createCoffeeWithCanonicalSugarEstimateFromSegment)
+    .filter((item): item is MealDraftItem => Boolean(item));
+  return segments.length === 1 && !hasCompanionFoodSegments(sourceText)
+    ? segments[0]
+    : null;
+}
+
 export function shouldRequestSugarQuantity(sourceText: string, inferredItems: LlmItem[] | undefined) {
-  const sweetenedCoffeeSegments = getSweetenedCoffeeSourceSegments(sourceText);
-  return sweetenedCoffeeSegments.length > 0
-    && sweetenedCoffeeSegments.some(segment => !extractExplicitSugarQuantity(segment))
+  const unresolvedCompositeSegments = getSweetenedCoffeeSourceSegments(sourceText)
+    .filter(segment => !extractExplicitSugarQuantity(segment))
+    .filter(hasAdditionalCaloricCoffeeComplement);
+  return unresolvedCompositeSegments.length > 0
     && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText);
 }
 
