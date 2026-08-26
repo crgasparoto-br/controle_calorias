@@ -419,7 +419,7 @@ export function normalizeSweetenedCoffeeDraftItems(
     && isGenericCoffeeDraftItem(coffeeItems[0]);
   const usedSourceIndexes = new Set<number>();
 
-  return normalizedInputItems.map(item => {
+  const normalizedItems = normalizedInputItems.map(item => {
     if (!isCoffeeDraftItem(item)) return item;
 
     const identity = `${item.foodName} ${item.canonicalName}`;
@@ -479,6 +479,7 @@ export function normalizeSweetenedCoffeeDraftItems(
     }
 
     if (sourceCanQualifyGenericCoffee && isGenericCoffeeDraftItem(item)) {
+      usedSourceIndexes.add(0);
       return createCoffeeWithCanonicalSugarEstimateFromSegment(sourceCoffeeSegments[0]) ?? {
         ...item,
         foodName: "Café com açúcar",
@@ -488,6 +489,14 @@ export function normalizeSweetenedCoffeeDraftItems(
 
     return item;
   });
+
+  const missingCanonicalEstimates = sweetenedSourceSegments.flatMap((segment, index) => {
+    if (usedSourceIndexes.has(index)) return [];
+    const estimate = createCoffeeWithCanonicalSugarEstimateFromSegment(segment);
+    return estimate ? [estimate] : [];
+  });
+
+  return [...normalizedItems, ...missingCanonicalEstimates];
 }
 
 export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
