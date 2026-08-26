@@ -1,7 +1,14 @@
 Issue 1016 exact-head evidence
-material_head_sha=f21876f731d2097553f9a77780b1e694d6b37b90
+material_head_sha=e2c43990fda1489c4e52a84f181c34da507e95e1
 base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
 source_sha256=22538f38a0089d80f55133be0d4402589c06b32e33b0b8848f0aa0235752cad1
-Observed exact-head source/tests: household measure resolution validates food-specific grams and source binding; duplicate source references cannot fabricate a multisource average; coffee sugar canonical tests assert 5 g/200 ml, 22 kcal/5 g carbs for one cup, 2.5 g for 100 ml, 10 g for two cups, explicit 8 g precedence, composite complement protection, and shared addition/replacement semantics.
-The latest material change f21876f731d2097553f9a77780b1e694d6b37b90 aligns legacy coffee mutation tests with the issue-1016 canonical contract and adds the new food-addition clarification mock export.
-Remote CI snapshot for this exact material SHA was pending-no-run at the single permitted collection; no green CI claim is made by this evidence.
+agent_first_run_id=33003440460
+agent_first_status=completed/success
+whatsapp_context_tidb_run_id=33003440521
+whatsapp_context_tidb_status=completed/success
+Exact-head Agent-first verification executed on e2c43990fda1489c4e52a84f181c34da507e95e1 and completed successfully: TypeScript check, Tests, Architecture check, Documentation check, Build, Agent check, and CI gate docs check all concluded success.
+Exact-head household-measure regressions include A-001 rejection of same-brand/different-food food_portions and linked references, A-002 rejection of unsupported typical/usual metadata when the bound source text does not state typicality, and the positive sibling when the source itself declares a typical measure.
+Exact-head coffee regressions assert the canonical simple sweetened-coffee rule: 1 cup uses estimated 5 g sugar and 22 kcal/5 g carbs; 100 ml scales to 2.5 g; 2 cups scale to 10 g; explicit 8 g wins; free-form AI estimates cannot override the canonical rule.
+Exact-head canonical addition regressions cover household-measure resolution before nutrition calculation, specific-brand nutrition with contextual quantity estimates, clarification only after measure resolution fails, and no partial batch result before all items are resolved.
+The material commit e2c43990fda1489c4e52a84f181c34da507e95e1 additionally binds sweetened-coffee source matching to both canonicalName and foodName in server/coffeeSugarNutrition.ts.
+This evidence is bound only to material head e2c43990fda1489c4e52a84f181c34da507e95e1; older candidate SHAs are historical and are not represented as the current or exact head.

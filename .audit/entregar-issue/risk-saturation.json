@@ -1,1 +1,565 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":2648,"encoded_sha256":"e1d3b3f28ea5a2e6dfd63e29f586748eda8b53c0caf45b36d9013e105cb372a1","decoded_size":13432,"decoded_sha256":"18d5cbe4363d7432fd00b0e278364ad277b18fa5600b1e1e6522f3a17ca45c10","parts":[{"path":"risk-saturation.parts/part-000.b64","size":2648,"sha256":"e1d3b3f28ea5a2e6dfd63e29f586748eda8b53c0caf45b36d9013e105cb372a1"}]}
+{
+  "schema_version": 1,
+  "head_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-048-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "policy-degradation-boundary",
+          "reason": "Exact-head adversarial coverage is required for authorization:policy-degradation-boundary.",
+          "control_ids": [
+            "NEG-REQ-048-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-102-02",
+        "NEG-ESC-A-001-01",
+        "NEG-ESC-A-001-02",
+        "NEG-ESC-A-001-04",
+        "NEG-ESC-ISSUE1016-A-002-F146439F-01",
+        "NEG-ESC-ISSUE1016-A-002-F146439F-02",
+        "NEG-ESC-ISSUE1016-A002-TYPICAL-TEXT",
+        "NEG-ESC-ISSUE1016-A-002-81996BC0-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "fail-closed-target-ambiguity",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:fail-closed-target-ambiguity.",
+          "control_ids": [
+            "NEG-ESC-A-001-04"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "homonym-target-resolution",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:homonym-target-resolution.",
+          "control_ids": [
+            "NEG-ESC-A-001-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "independent-source-basis",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:independent-source-basis.",
+          "control_ids": [
+            "NEG-ESC-ISSUE1016-A-002-F146439F-02",
+            "NEG-ESC-ISSUE1016-A-002-81996BC0-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "measure-evidence-binding",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:measure-evidence-binding.",
+          "control_ids": [
+            "NEG-ESC-ISSUE1016-A-002-F146439F-01",
+            "NEG-ESC-ISSUE1016-A002-TYPICAL-TEXT"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "persisted-target-identity",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:persisted-target-identity.",
+          "control_ids": [
+            "NEG-ESC-A-001-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reference-validity",
+          "reason": "Exact-head adversarial coverage is required for reference-liveness:reference-validity.",
+          "control_ids": [
+            "NEG-REQ-102-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-003-02",
+        "NEG-REQ-013-01",
+        "NEG-REQ-014-01",
+        "NEG-REQ-041-01",
+        "NEG-REQ-045-01",
+        "NEG-REQ-047-01",
+        "NEG-REQ-052-01",
+        "NEG-REQ-063-01",
+        "NEG-REQ-076-01",
+        "NEG-REQ-077-01",
+        "NEG-REQ-102-03",
+        "NEG-REQ-103-01",
+        "NEG-ESC-AUD-998-F004-03",
+        "NEG-ESC-A-001-03",
+        "NEG-ESC-ISSUE1016-A-001-F146439F-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "execution-state-gap",
+          "reason": "Exact-head adversarial coverage is required for temporal-consistency:execution-state-gap.",
+          "control_ids": [
+            "NEG-ESC-ISSUE1016-A-001-F146439F-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "prepublication-validation-order",
+          "reason": "Exact-head adversarial coverage is required for temporal-consistency:prepublication-validation-order.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F004-03"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "Exact-head adversarial coverage is required for temporal-consistency:reporting-availability-window.",
+          "control_ids": [
+            "NEG-REQ-103-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "same-index-identity-drift",
+          "reason": "Exact-head adversarial coverage is required for temporal-consistency:same-index-identity-drift.",
+          "control_ids": [
+            "NEG-ESC-A-001-03"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "temporal-value-consistency",
+          "reason": "Exact-head adversarial coverage is required for temporal-consistency:temporal-value-consistency.",
+          "control_ids": [
+            "NEG-REQ-003-02",
+            "NEG-REQ-013-01",
+            "NEG-REQ-014-01",
+            "NEG-REQ-041-01",
+            "NEG-REQ-045-01",
+            "NEG-REQ-047-01",
+            "NEG-REQ-052-01",
+            "NEG-REQ-063-01",
+            "NEG-REQ-076-01",
+            "NEG-REQ-077-01",
+            "NEG-REQ-102-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-025-01",
+        "NEG-REQ-062-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Exact-head adversarial coverage is required for idempotency:duplicate-processing.",
+          "control_ids": [
+            "NEG-REQ-025-01",
+            "NEG-REQ-062-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No canonical issue obligation or cumulative control requires this family for the current delivery.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-001-01",
+        "NEG-REQ-002-01",
+        "NEG-REQ-003-01",
+        "NEG-REQ-004-01",
+        "NEG-REQ-005-01",
+        "NEG-REQ-006-01",
+        "NEG-REQ-007-01",
+        "NEG-REQ-008-01",
+        "NEG-REQ-009-01",
+        "NEG-REQ-010-01",
+        "NEG-REQ-011-01",
+        "NEG-REQ-012-01",
+        "NEG-REQ-015-01",
+        "NEG-REQ-016-01",
+        "NEG-REQ-017-01",
+        "NEG-REQ-018-01",
+        "NEG-REQ-019-01",
+        "NEG-REQ-020-01",
+        "NEG-REQ-021-01",
+        "NEG-REQ-022-01",
+        "NEG-REQ-023-01",
+        "NEG-REQ-024-01",
+        "NEG-REQ-025-02",
+        "NEG-REQ-025-03",
+        "NEG-REQ-026-01",
+        "NEG-REQ-027-01",
+        "NEG-REQ-028-01",
+        "NEG-REQ-029-01",
+        "NEG-REQ-030-01",
+        "NEG-REQ-031-01",
+        "NEG-REQ-032-01",
+        "NEG-REQ-033-01",
+        "NEG-REQ-034-01",
+        "NEG-REQ-035-01",
+        "NEG-REQ-036-01",
+        "NEG-REQ-037-01",
+        "NEG-REQ-038-01",
+        "NEG-REQ-039-01",
+        "NEG-REQ-040-01",
+        "NEG-REQ-042-01",
+        "NEG-REQ-043-01",
+        "NEG-REQ-044-01",
+        "NEG-REQ-046-01",
+        "NEG-REQ-049-01",
+        "NEG-REQ-050-01",
+        "NEG-REQ-051-01",
+        "NEG-REQ-053-01",
+        "NEG-REQ-054-01",
+        "NEG-REQ-055-01",
+        "NEG-REQ-056-01",
+        "NEG-REQ-057-01",
+        "NEG-REQ-058-01",
+        "NEG-REQ-059-01",
+        "NEG-REQ-060-01",
+        "NEG-REQ-061-01",
+        "NEG-REQ-062-02",
+        "NEG-REQ-062-03",
+        "NEG-REQ-064-01",
+        "NEG-REQ-065-01",
+        "NEG-REQ-066-01",
+        "NEG-REQ-067-01",
+        "NEG-REQ-068-01",
+        "NEG-REQ-069-01",
+        "NEG-REQ-070-01",
+        "NEG-REQ-071-01",
+        "NEG-REQ-072-01",
+        "NEG-REQ-073-01",
+        "NEG-REQ-074-01",
+        "NEG-REQ-075-01",
+        "NEG-REQ-078-01",
+        "NEG-REQ-079-01",
+        "NEG-REQ-080-01",
+        "NEG-REQ-081-01",
+        "NEG-REQ-082-01",
+        "NEG-REQ-083-01",
+        "NEG-REQ-084-01",
+        "NEG-REQ-085-01",
+        "NEG-REQ-086-01",
+        "NEG-REQ-087-01",
+        "NEG-REQ-088-01",
+        "NEG-REQ-089-01",
+        "NEG-REQ-090-01",
+        "NEG-REQ-090-02",
+        "NEG-REQ-091-01",
+        "NEG-REQ-092-01",
+        "NEG-REQ-093-01",
+        "NEG-REQ-094-01",
+        "NEG-REQ-095-01",
+        "NEG-REQ-096-01",
+        "NEG-REQ-097-01",
+        "NEG-REQ-098-01",
+        "NEG-REQ-099-01",
+        "NEG-REQ-100-01",
+        "NEG-REQ-101-01",
+        "NEG-ESC-AUD-998-F001-01",
+        "NEG-ESC-AUD-998-F001-02",
+        "NEG-ESC-AUD-998-F002-01",
+        "NEG-ESC-AUD-998-F002-02",
+        "NEG-ESC-AUD-998-F003-01",
+        "NEG-ESC-AUD-998-F003-02",
+        "NEG-ESC-AUD-998-F004-01",
+        "NEG-ESC-AUD-998-F004-02",
+        "NEG-ESC-DELIVERY-998-001-01",
+        "NEG-ESC-DELIVERY-998-001-02",
+        "NEG-ESC-ISSUE1016-A-001-F146439F-01",
+        "NEG-ESC-ISSUE1016-A001-SAME-BRAND",
+        "NEG-ESC-ISSUE1016-A-001-81996BC0-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "adapter-support-drift",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:adapter-support-drift.",
+          "control_ids": [
+            "NEG-ESC-ISSUE1016-A-001-F146439F-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "audit-remediation-source-binding",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:audit-remediation-source-binding.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F004-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-boundary",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:canonical-boundary.",
+          "control_ids": [
+            "NEG-REQ-001-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:canonical-source-consistency.",
+          "control_ids": [
+            "NEG-REQ-002-01",
+            "NEG-REQ-003-01",
+            "NEG-REQ-004-01",
+            "NEG-REQ-005-01",
+            "NEG-REQ-006-01",
+            "NEG-REQ-007-01",
+            "NEG-REQ-008-01",
+            "NEG-REQ-009-01",
+            "NEG-REQ-010-01",
+            "NEG-REQ-011-01",
+            "NEG-REQ-012-01",
+            "NEG-REQ-015-01",
+            "NEG-REQ-016-01",
+            "NEG-REQ-017-01",
+            "NEG-REQ-018-01",
+            "NEG-REQ-019-01",
+            "NEG-REQ-020-01",
+            "NEG-REQ-021-01",
+            "NEG-REQ-022-01",
+            "NEG-REQ-023-01",
+            "NEG-REQ-024-01",
+            "NEG-REQ-025-02",
+            "NEG-REQ-026-01",
+            "NEG-REQ-027-01",
+            "NEG-REQ-028-01",
+            "NEG-REQ-029-01",
+            "NEG-REQ-030-01",
+            "NEG-REQ-031-01",
+            "NEG-REQ-032-01",
+            "NEG-REQ-033-01",
+            "NEG-REQ-034-01",
+            "NEG-REQ-035-01",
+            "NEG-REQ-036-01",
+            "NEG-REQ-037-01",
+            "NEG-REQ-038-01",
+            "NEG-REQ-039-01",
+            "NEG-REQ-040-01",
+            "NEG-REQ-042-01",
+            "NEG-REQ-043-01",
+            "NEG-REQ-044-01",
+            "NEG-REQ-046-01",
+            "NEG-REQ-049-01",
+            "NEG-REQ-050-01",
+            "NEG-REQ-051-01",
+            "NEG-REQ-053-01",
+            "NEG-REQ-054-01",
+            "NEG-REQ-055-01",
+            "NEG-REQ-056-01",
+            "NEG-REQ-057-01",
+            "NEG-REQ-058-01",
+            "NEG-REQ-059-01",
+            "NEG-REQ-060-01",
+            "NEG-REQ-061-01",
+            "NEG-REQ-062-02",
+            "NEG-REQ-064-01",
+            "NEG-REQ-065-01",
+            "NEG-REQ-066-01",
+            "NEG-REQ-067-01",
+            "NEG-REQ-068-01",
+            "NEG-REQ-069-01",
+            "NEG-REQ-070-01",
+            "NEG-REQ-071-01",
+            "NEG-REQ-072-01",
+            "NEG-REQ-073-01",
+            "NEG-REQ-074-01",
+            "NEG-REQ-075-01",
+            "NEG-REQ-078-01",
+            "NEG-REQ-079-01",
+            "NEG-REQ-080-01",
+            "NEG-REQ-081-01",
+            "NEG-REQ-082-01",
+            "NEG-REQ-083-01",
+            "NEG-REQ-084-01",
+            "NEG-REQ-085-01",
+            "NEG-REQ-086-01",
+            "NEG-REQ-087-01",
+            "NEG-REQ-088-01",
+            "NEG-REQ-089-01",
+            "NEG-REQ-090-01",
+            "NEG-REQ-091-01",
+            "NEG-REQ-092-01",
+            "NEG-REQ-093-01",
+            "NEG-REQ-094-01",
+            "NEG-REQ-095-01",
+            "NEG-REQ-096-01",
+            "NEG-REQ-097-01",
+            "NEG-REQ-098-01",
+            "NEG-REQ-099-01",
+            "NEG-REQ-100-01",
+            "NEG-REQ-101-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "certificate-semantic-revalidation",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:certificate-semantic-revalidation.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F004-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "clarification-reprompt-contract",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:clarification-reprompt-contract.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F003-01",
+            "NEG-ESC-AUD-998-F003-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "parser-ownership-precedence",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:parser-ownership-precedence.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F001-01",
+            "NEG-ESC-AUD-998-F001-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-write-refreeze-recovery",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:post-write-refreeze-recovery.",
+          "control_ids": [
+            "NEG-ESC-DELIVERY-998-001-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:relational-semantic-integrity.",
+          "control_ids": [
+            "NEG-REQ-025-03",
+            "NEG-REQ-062-03",
+            "NEG-REQ-090-02",
+            "NEG-ESC-ISSUE1016-A-001-81996BC0-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-artifact-allowlist",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:result-only-artifact-allowlist.",
+          "control_ids": [
+            "NEG-ESC-AUD-998-F002-01",
+            "NEG-ESC-AUD-998-F002-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-parent-lineage",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:result-only-parent-lineage.",
+          "control_ids": [
+            "NEG-ESC-DELIVERY-998-001-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "semantic-identity-propagation",
+          "reason": "Exact-head adversarial coverage is required for structural-contract:semantic-identity-propagation.",
+          "control_ids": [
+            "NEG-ESC-ISSUE1016-A001-SAME-BRAND"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from canonical requirement/escape/inherited-control coverage on the current exact material head.",
+      "control_ids": [
+        "NEG-REQ-102-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-contract-drift",
+          "reason": "Exact-head adversarial coverage is required for documentation:canonical-contract-drift.",
+          "control_ids": [
+            "NEG-REQ-102-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

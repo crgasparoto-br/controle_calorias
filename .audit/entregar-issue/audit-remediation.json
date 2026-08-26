@@ -1,13 +1,16 @@
 {
   "schema_version": 1,
-  "rejection_id": "audit-rejection:f146439f-cc35-4eca-958f-833e0052c363",
-  "finding_ids": ["A-001", "A-002"],
-  "material_head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90",
+  "rejection_id": "audit-rejection:81996bc0-54d7-4e48-9be6-65f5fd005490",
+  "finding_ids": [
+    "A-001",
+    "A-002"
+  ],
+  "material_head_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
   "mode": "targeted-remediation",
   "status": "passed",
   "changes": [
-    "Compatibilidade do novo resolvedor com mocks/consumidores legados e regressões atuais de café com açúcar.",
-    "Vínculo verificável de quantidade+unidade+gramas e independência de fontes para média usual."
+    "General-food semantic identity is required before household portion/source reuse, preventing same-brand different-food matches.",
+    "Single-source usual_average promotion requires source text that actually states typical/usual/average; model/structured flags alone cannot invent it."
   ],
   "evidence": ".audit/entregar-issue/evidence/issue1016-exact-head.txt"
 }

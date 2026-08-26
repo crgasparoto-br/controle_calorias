@@ -1,1 +1,183 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"evidence-provenance","compression":"gzip","encoded_size":612,"encoded_sha256":"f524c5c27f396d2b6ffc57298231069c36664db4ff3270a4f09b485f8f9d56af","decoded_size":8107,"decoded_sha256":"effd77d87a2d5393a67c9dac1b361b7c67d432e1b6038fd0070d6f165f5f98ab","parts":[{"path":"evidence-provenance.parts/part-000.b64","size":612,"sha256":"f524c5c27f396d2b6ffc57298231069c36664db4ff3270a4f09b485f8f9d56af"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+  "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+  "evidence": [
+    {
+      "evidence_id": "EVID-REQ-001",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-003",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-013",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-018",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-019",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-020",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-022",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-033",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-044",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-045",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-053",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-072",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-079",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-084",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-087",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-102",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "cf49fa155978323bb8e10b3ff726737d4cb87b2594c82a9316f6b8a3368bf810",
+      "subject_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head regression and CI verification",
+      "status": "passed"
+    }
+  ]
+}

@@ -3,11 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:f146439f-cc35-4eca-958f-833e0052c363",
-    "finding_ids": ["A-001", "A-002"]
+    "rejection_id": "audit-rejection:81996bc0-54d7-4e48-9be6-65f5fd005490",
+    "finding_ids": [
+      "A-001",
+      "A-002"
+    ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "Os dois findings são fechados por controles genéricos já existentes: compatibilidade de consumidores/mocks após mudança de dependência e validação de evidência de medida com relação completa e independência de fontes. Não é necessária nova regra global duplicada."
+    "reason": "Both findings are product implementation escapes already representable by existing structural-contract and reference-liveness families: bind reused records to the same semantic food identity and require source-backed typicality before promoting a single-source usual average."
   }
 }
