@@ -2,6 +2,7 @@ import BillingAdminPanel from "@/components/admin/BillingAdminPanel";
 import BillingAdminStatusOverview from "@/components/admin/BillingAdminStatusOverview";
 import BillingCampaignAdminPanel from "@/components/admin/BillingCampaignAdminPanel";
 import BillingCatalogAdminPanel from "@/components/admin/BillingCatalogAdminPanel";
+import BillingEconomicIdentityPanel from "@/components/admin/BillingEconomicIdentityPanel";
 import BillingGovernanceAdminPanel from "@/components/admin/BillingGovernanceAdminPanel";
 import BillingRolloutAdminPanel from "@/components/admin/BillingRolloutAdminPanel";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -33,6 +34,7 @@ export default function AdminBillingPage() {
         <BillingCatalogAdminPanel />
         <BillingCampaignAdminPanel />
         <BillingGovernanceAdminPanel />
+        <BillingEconomicIdentityPanel />
         <BillingRolloutAdminPanel />
       </div>
     </DashboardLayout>
