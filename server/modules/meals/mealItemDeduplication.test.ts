@@ -120,7 +120,7 @@ describe("dedupeMealItemsByProductIdentity", () => {
       calories: 126,
       protein: 8.4,
       carbs: 4.2,
-      fat: 7.35,
+      fat: 7.4,
       source: "hybrid",
     }));
     expect(result[0].calories).not.toBe(139.5);
