@@ -20,8 +20,11 @@ function baseRuntime() {
   };
 }
 
-function searchedResponse(references: unknown[]) {
-  const sources = (references as Array<{ sourceUrl: string; evidence: string }>).map(reference => ({
+function searchedResponse(
+  references: unknown[],
+  sources?: Array<{ url: string; title?: string; supportingText?: string[] }>,
+) {
+  const linkedSources = sources ?? (references as Array<{ sourceUrl: string; evidence: string }>).map(reference => ({
     url: reference.sourceUrl,
     title: "Fonte de medida caseira",
     supportingText: [reference.evidence],
@@ -29,7 +32,7 @@ function searchedResponse(references: unknown[]) {
   return {
     id: "resp-1016",
     outputText: JSON.stringify({ found: true, references }),
-    webSearch: { executed: true, searchCount: 1, sources },
+    webSearch: { executed: true, searchCount: 1, sources: linkedSources },
     raw: {},
   };
 }
@@ -115,6 +118,86 @@ describe("resolveHouseholdMeasure (#1016)", () => {
       sourceUrls: ["https://example.com/presunto-sadia"],
       referenceCount: 1,
     }));
+  });
+
+  it("escala referência exata quando a própria fonte declara múltiplas medidas", async () => {
+    const runtime = baseRuntime();
+    const exact = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      measureQuantity: 2,
+      grams: 34,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.com/presunto-sadia-2-fatias",
+      evidence: "Presunto cozido Sadia: 2 fatias correspondem a 34 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([exact]) as any);
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Presunto cozido Sadia",
+      brand: "Sadia",
+      quantity: 1,
+      unit: "fatia",
+    }, runtime as any);
+
+    expect(result).toEqual(expect.objectContaining({
+      kind: "researched_exact",
+      grams: 17,
+      referenceCount: 1,
+    }));
+  });
+
+  it("rejeita quantidade estruturada que não corresponde à relação física publicada pela fonte", async () => {
+    const runtime = baseRuntime();
+    const tampered = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      measureQuantity: 1,
+      grams: 40,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.com/presunto-relacao",
+      evidence: "1 fatia de presunto cozido Sadia corresponde a 40 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([tampered], [{
+      url: "https://example.com/presunto-relacao",
+      title: "Tabela de porções",
+      supportingText: ["2 fatias de presunto cozido Sadia correspondem a 40 g."],
+    }]) as any);
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Presunto cozido Sadia",
+      brand: "Sadia",
+      quantity: 1,
+      unit: "fatia",
+    }, runtime as any);
+
+    expect(result).toBeNull();
+  });
+
+  it("rejeita unidade estruturada que não é a mesma unidade sustentada pela fonte", async () => {
+    const runtime = baseRuntime();
+    const tampered = reference({
+      describesTypicalMeasure: true,
+      evidence: "1 fatia de queijo mussarela pesa em média 20 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([tampered], [{
+      url: "https://example.com/mussarela-a",
+      title: "Tabela de porções",
+      supportingText: ["1 unidade de queijo mussarela pesa em média 20 g."],
+    }]) as any);
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Queijo mussarela",
+      quantity: 1,
+      unit: "fatia",
+    }, runtime as any);
+
+    expect(result).toBeNull();
   });
 
   it("rejeita uma referência marcada como exata quando pertence a outra marca", async () => {
@@ -236,6 +319,34 @@ describe("resolveHouseholdMeasure (#1016)", () => {
       grams: 21,
       referenceCount: 2,
     }));
+  });
+
+  it("não conta a mesma URL normalizada duas vezes para fabricar base multi-fonte", async () => {
+    const runtime = baseRuntime();
+    const first = reference({ grams: 20 });
+    const duplicate = reference({
+      matchedFoodName: "Mussarela Marca B",
+      brandName: "Marca B",
+      sourceUrl: "https://example.com/mussarela-a/#porcao",
+      evidence: "1 fatia de mussarela Marca B pesa 20 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([first, duplicate], [{
+      url: "https://example.com/mussarela-a/",
+      title: "Fonte de medida caseira",
+      supportingText: [
+        "1 fatia de queijo mussarela pesa 20 g.",
+        "1 fatia de mussarela Marca B pesa 20 g.",
+      ],
+    }]) as any);
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Queijo mussarela",
+      quantity: 1,
+      unit: "fatia",
+    }, runtime as any);
+
+    expect(result).toBeNull();
   });
 
   it("não fabrica média quando referências compatíveis divergem materialmente", async () => {

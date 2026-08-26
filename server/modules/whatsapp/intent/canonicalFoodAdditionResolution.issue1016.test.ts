@@ -27,7 +27,6 @@ function draftItem(overrides: Record<string, unknown> = {}) {
 
 function runtime() {
   return {
-    getHabitSnapshots: vi.fn(async () => []),
     processMealInput: vi.fn(async () => ({
       detectedMealLabel: "Café da manhã",
       sourceText: "",
@@ -111,6 +110,42 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
         }),
       })],
     });
+  });
+
+  it("não exige acesso ao histórico de hábitos para reutilizar o pipeline nutricional canônico", async () => {
+    const deps = runtime();
+    deps.processMealInput.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      reasoning: "",
+      confidence: 0.95,
+      needsConfirmation: false,
+      items: [draftItem({
+        foodName: "Queijo mussarela",
+        canonicalName: "Queijo mussarela",
+        brand: null,
+        quantity: 37,
+        unit: "g",
+        portionText: "37 g",
+        estimatedGrams: 37,
+      })],
+      totals: { calories: 100, protein: 8, carbs: 1, fat: 7 },
+    } as any);
+
+    await resolveCanonicalFoodAdditionItems({
+      userId: 7,
+      addition: {
+        mealLabel: "Lanche",
+        date,
+        items: [{ foodName: "Queijo mussarela", brand: null, quantity: 37, unit: "g" }],
+      },
+      occurredAt: date,
+      timeZone: "America/Sao_Paulo",
+    }, deps as any);
+
+    expect(deps.processMealInput).toHaveBeenCalledWith(expect.not.objectContaining({
+      habits: expect.anything(),
+    }));
   });
 
   it("não pesquisa medida quando o usuário já informou massa explícita", async () => {

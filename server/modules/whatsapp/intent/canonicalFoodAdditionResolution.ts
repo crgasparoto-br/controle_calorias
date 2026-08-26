@@ -1,5 +1,4 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
-import { getHabitSnapshots } from "../../../db";
 import { isCoffeeOrTeaBeverage } from "../../../foodSemanticCompatibility";
 import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "../../../householdMeasureResolution";
 import { processMealInput } from "../../../nutritionEngine";
@@ -31,13 +30,11 @@ export type CanonicalFoodAdditionResolution =
     };
 
 type ResolverRuntime = {
-  getHabitSnapshots: typeof getHabitSnapshots;
   processMealInput: typeof processMealInput;
   resolveHouseholdMeasure: typeof resolveHouseholdMeasure;
 };
 
 const defaultRuntime: ResolverRuntime = {
-  getHabitSnapshots,
   processMealInput,
   resolveHouseholdMeasure,
 };
@@ -110,7 +107,6 @@ export async function resolveCanonicalFoodAdditionItems(
   },
   runtime: ResolverRuntime = defaultRuntime,
 ): Promise<CanonicalFoodAdditionResolution> {
-  const habits = await runtime.getHabitSnapshots(input.userId);
   const resolvedItems: CanonicalFoodAdditionItem[] = [];
 
   for (const [itemIndex, item] of input.addition.items.entries()) {
@@ -164,7 +160,6 @@ export async function resolveCanonicalFoodAdditionItems(
 
     const processed = await runtime.processMealInput({
       text: processingText,
-      habits,
       occurredAt: input.occurredAt,
       timeZone: input.timeZone,
     });

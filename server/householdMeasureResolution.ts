@@ -260,13 +260,51 @@ function sourceForReference(webSearch: AiWebSearchResult | undefined, reference:
   return webSearch.sources.find(source => normalizeHttpUrl(source.url) === requested) ?? null;
 }
 
-function evidenceContainsGrams(text: string, grams: number) {
-  const normalizedText = text.replace(",", ".");
-  const rounded = Number(grams.toFixed(2));
-  const values = [...normalizedText.matchAll(/\b\d+(?:\.\d+)?\b/g)]
-    .map(match => Number(match[0]))
-    .filter(Number.isFinite);
-  return values.some(value => Math.abs(value - rounded) <= Math.max(0.05, rounded * 0.01));
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizedEvidenceText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function numberPattern(value: number, includeOneWords = false) {
+  const rounded = Number(value.toFixed(2));
+  const numeric = Number.isInteger(rounded)
+    ? `${rounded}(?:[.,]0+)?`
+    : String(rounded).replace(".", "[.,]");
+  if (includeOneWords && rounded === 1) return `(?:${numeric}|um|uma)`;
+  return `(?:${numeric})`;
+}
+
+function measureUnitPattern(value: string) {
+  const normalized = normalize(normalizeCountableUnit(value));
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  const pluralWords = [...words];
+  const first = words[0];
+  pluralWords[0] = first.endsWith("r") ? `${first}es` : `${first}s`;
+  return [...new Set([normalized, pluralWords.join(" ")])]
+    .map(escapeRegExp)
+    .join("|");
+}
+
+function evidenceSupportsMeasureRelation(text: string, reference: PortionReference) {
+  const evidence = normalizedEvidenceText(text);
+  const unit = measureUnitPattern(reference.measureUnit);
+  if (!unit) return false;
+  const quantity = numberPattern(reference.measureQuantity, true);
+  const grams = numberPattern(reference.grams);
+  const measure = `${quantity}\\s*(?:${unit})`;
+  const mass = `${grams}\\s*(?:g|gr|grama|gramas)`;
+  const forward = new RegExp(`\\b${measure}\\b[^\\n;!?]{0,140}\\b${mass}\\b`, "i");
+  const reverse = new RegExp(`\\b${mass}\\b[^\\n;!?]{0,140}\\b${measure}\\b`, "i");
+  return forward.test(evidence) || reverse.test(evidence);
 }
 
 function sameFoodTypeIsSupported(input: HouseholdMeasureResolutionInput, reference: PortionReference) {
@@ -294,8 +332,8 @@ function verifiedReference(
   const source = sourceForReference(webSearch, reference);
   if (!source) return false;
   const sourceText = [source.title ?? "", ...(source.supportingText ?? [])].join(" ");
-  const evidence = [reference.evidence, sourceText].join(" ");
-  if (!evidenceContainsGrams(evidence, reference.grams)) return false;
+  if (!evidenceSupportsMeasureRelation(sourceText, reference)) return false;
+  if (reference.evidence.trim() && !evidenceSupportsMeasureRelation(reference.evidence, reference)) return false;
 
   if (reference.referenceKind === "exact_product") {
     const identity = [reference.matchedFoodName, reference.brandName, reference.foodTypeName]
@@ -329,6 +367,16 @@ function averageIsCoherent(values: number[]) {
   return Math.max(...values) - Math.min(...values) <= center * MAX_REFERENCE_SPREAD_RATIO;
 }
 
+function uniqueReferencesBySource(references: PortionReference[]) {
+  const seen = new Set<string>();
+  return references.filter(reference => {
+    const source = normalizeHttpUrl(reference.sourceUrl);
+    if (!source || seen.has(source)) return false;
+    seen.add(source);
+    return true;
+  });
+}
+
 function buildSearchResolution(
   input: HouseholdMeasureResolutionInput,
   result: SearchedPortionResult,
@@ -350,7 +398,9 @@ function buildSearchResolution(
     };
   }
 
-  const usual = verified.filter(reference => reference.referenceKind === "same_food_type");
+  const usual = uniqueReferencesBySource(
+    verified.filter(reference => reference.referenceKind === "same_food_type"),
+  );
   const canUseSingleTypical = usual.length === 1 && usual[0].describesTypicalMeasure;
   const hasMultisourceBasis = usual.length >= MIN_MULTISOURCE_REFERENCES;
   if (!canUseSingleTypical && !hasMultisourceBasis) return null;
@@ -364,7 +414,7 @@ function buildSearchResolution(
     requestedQuantity: input.quantity,
     requestedUnit: normalizeCountableUnit(input.unit),
     evidence: usual.map(reference => reference.evidence.trim()).filter(Boolean).join(" | ") || null,
-    sourceUrls: [...new Set(usual.map(reference => reference.sourceUrl))],
+    sourceUrls: usual.map(reference => reference.sourceUrl),
     referenceCount: usual.length,
   };
 }
@@ -390,6 +440,7 @@ async function searchVerifiedMeasure(
               "Para referenceKind=same_food_type, outra marca pode contribuir somente como referência de quantidade do mesmo alimento/tipo/preparo; nunca a apresente como produto exato.",
               "describesTypicalMeasure=true somente quando a fonte declarar explicitamente média, usual, típica ou equivalente.",
               "Não invente gramatura e não use categoria ampla quando o alimento específico estiver identificado.",
+              "Cada evidência deve sustentar explicitamente a relação entre quantidade, unidade da medida e gramatura retornadas.",
               "Retorne referências independentes; não duplique a mesma fonte para fabricar uma média.",
               "Retorne apenas JSON válido no schema solicitado.",
             ].join("\n"),
@@ -401,7 +452,7 @@ async function searchVerifiedMeasure(
                   `Alimento: ${input.foodName}`,
                   input.brand ? `Marca/variante informada: ${input.brand}` : "Marca/variante informada: não especificada",
                   `Medida: ${input.quantity} ${input.unit}`,
-                  "Busque a gramatura dessa medida. Cada referência deve citar URL e evidência verificável que contenha a gramatura.",
+                  "Busque a gramatura dessa medida. Cada referência deve citar URL e evidência verificável com quantidade, unidade e gramatura da mesma relação física.",
                 ].join("\n"),
               }],
             }],
