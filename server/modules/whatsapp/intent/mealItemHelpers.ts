@@ -2,6 +2,7 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { roundNutritionValue } from "../../../../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { getCatalogCache } from "../../../catalogRuntime";
+import { FOOD_CATALOG_REFERENCE } from "../../../foodCatalogReference";
 import type { MealItemInput } from "../../meals/schemas";
 import type { MealDraftItem } from "../../../nutritionEngine";
 import { findCatalogFood } from "./catalogLookup";
@@ -11,8 +12,12 @@ import type { NutritionTotals, QuantityCorrectionIntent } from "./types";
 import { formatMealItemTargetOptions, resolveMealItemTarget, type MealItemTargetMatch } from "../mealItemTargetMatcher";
 
 export const MIN_FOOD_GRAMS = 1;
-const UNSWEETENED_COFFEE_CUP_ML = 50;
-const UNSWEETENED_COFFEE_CALORIES_PER_CUP = 2;
+const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(food => food.slug === "cafe-sem-acucar");
+if (!UNSWEETENED_COFFEE_REFERENCE) {
+  throw new Error("A referência canônica de café sem açúcar não está disponível.");
+}
+const UNSWEETENED_COFFEE_CUP_ML = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
+const UNSWEETENED_COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
 const COFFEE_CAPSULE_ML = 40;
 const COFFEE_CAPSULE_CALORIES_PER_CAPSULE = 2;
 const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
@@ -50,26 +55,18 @@ export function quantityToEstimatedGrams(quantity: number, unit: string) {
 
 function deriveQuantityFromPortionText(portionText: string) {
   const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
-  if (!match) {
-    return null;
-  }
-
+  if (!match) return null;
   const value = Number(match[1].replace(",", "."));
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function deriveUnitFromPortionText(portionText: string) {
-  const normalized = portionText
-    .trim()
-    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
-    .trim();
-
+  const normalized = portionText.trim().replace(/^\d+(?:[,.]\d+)?\s*/u, "").trim();
   return normalized || "porção";
 }
 
 export function toMealItemInput(item: MealDraftItem): MealItemInput {
   const quantityUnit = item as MealDraftItem & Partial<Pick<MealItemInput, "quantity" | "unit" | "brand">>;
-
   return {
     ...item,
     ...(quantityUnit.brand ? { brand: quantityUnit.brand } : {}),
@@ -153,13 +150,11 @@ function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string
 export function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
   const nextGrams = Math.max(Number(item.estimatedGrams || 0), MIN_FOOD_GRAMS);
   const catalogFood = findCatalogFood(nextFoodName);
-  if (catalogFood) {
-    return buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood);
-  }
-
+  if (catalogFood) return buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood);
   return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
 }
 
+/** @deprecated Use resolveCanonicalFoodAdditionItems for WhatsApp additions. */
 export function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): MealItemInput {
   const normalizedUnit = normalizeAdditionUnit(unit);
   const estimatedGrams = quantityToEstimatedGrams(quantity, normalizedUnit);
@@ -167,37 +162,31 @@ export function buildFoodAdditionItem(foodName: string, quantity: number, unit =
   const item = catalogFood
     ? buildCatalogMealItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams, catalogFood)
     : buildHeuristicReplacementItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams);
-
-  return {
-    ...item,
-    quantity,
-    unit: normalizedUnit,
-    portionText: `${formatNumber(quantity)} ${normalizedUnit}`,
-  };
+  return { ...item, quantity, unit: normalizedUnit, portionText: `${formatNumber(quantity)} ${normalizedUnit}` };
 }
 
 export function buildUnsweetenedCoffeeItem(quantity: number, unit = "xícara"): MealItemInput {
   const normalizedUnit = normalizeAdditionUnit(unit);
   const volumeMl = Math.round(quantity * UNSWEETENED_COFFEE_CUP_ML);
-  const calories = Math.round(quantity * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
+  const calories = roundNutritionValue(quantity * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
   const householdUnitLabel = normalizedUnit === "copo"
     ? (quantity === 1 ? "copo" : "copos")
     : (quantity === 1 ? "xícara" : "xícaras");
 
   return {
     foodName: "Café sem açúcar",
-    canonicalName: "Café preto sem açúcar",
+    canonicalName: UNSWEETENED_COFFEE_REFERENCE.name,
     quantity,
     unit: normalizedUnit,
     portionText: `${formatNumber(quantity)} ${householdUnitLabel} (${formatNumber(volumeMl)} ml)`,
     servings: Math.max(quantity, 0.1),
     estimatedGrams: volumeMl,
     calories,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    confidence: 0.8,
-    source: "heuristic",
+    protein: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.protein * quantity),
+    carbs: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.carbs * quantity),
+    fat: roundNutritionValue(UNSWEETENED_COFFEE_REFERENCE.fat * quantity),
+    confidence: 0.9,
+    source: "catalog",
   };
 }
 
@@ -238,10 +227,7 @@ export function formatTotalsLine(totals: NutritionTotals) {
 
 export function formatAddedItemsList(items: MealItemInput[]) {
   const labels = items.map(item => `${item.portionText} de ${item.foodName}`);
-  if (labels.length <= 1) {
-    return labels[0] ?? "";
-  }
-
+  if (labels.length <= 1) return labels[0] ?? "";
   return `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
 }
 
@@ -272,29 +258,19 @@ export function findMealByLabel<T extends { mealLabel: string; occurredAt: numbe
     const candidate = normalizeIntentText(meal.mealLabel);
     return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
   });
-
   const sameDayMatch = matches.find(meal => {
     const occurredAt = new Date(meal.occurredAt).getTime();
     return occurredAt >= dayStart && occurredAt <= dayEnd;
   });
-
-  return sameDayMatch
-    ?? (options.allowCrossDayFallback === false ? null : matches[0] ?? null);
+  return sameDayMatch ?? (options.allowCrossDayFallback === false ? null : matches[0] ?? null);
 }
 
 export function parseItemQuantity(item: MealItemInput) {
   if (item.quantity && item.unit) {
-    return {
-      quantity: item.quantity,
-      unit: normalizeAdditionUnit(item.unit),
-    };
+    return { quantity: item.quantity, unit: normalizeAdditionUnit(item.unit) };
   }
-
   const match = item.portionText?.match(/(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
-  if (!match) {
-    return null;
-  }
-
+  if (!match) return null;
   return {
     quantity: Number(match[1].replace(",", ".")),
     unit: normalizeAdditionUnit(normalizeIntentText(match[2])),
@@ -304,10 +280,7 @@ export function parseItemQuantity(item: MealItemInput) {
 function itemMatchesQuantity(item: MealItemInput, quantity: number, unit: string | null) {
   const normalizedUnit = normalizeAdditionUnit(unit);
   const parsedPortion = parseItemQuantity(item);
-  if (parsedPortion?.quantity === quantity && (!unit || parsedPortion.unit === normalizedUnit)) {
-    return true;
-  }
-
+  if (parsedPortion?.quantity === quantity && (!unit || parsedPortion.unit === normalizedUnit)) return true;
   const estimatedTarget = quantityToEstimatedGrams(quantity, normalizedUnit);
   return Number(item.estimatedGrams || 0) === estimatedTarget;
 }
@@ -318,13 +291,10 @@ export function findQuantityCorrectionTargets(items: MealItemInput[], correction
       .map((item, index) => ({ item, index }))
       .filter(candidate => itemMatchesQuantity(candidate.item, correction.previousQuantity!, correction.previousUnit));
   }
-
   const lastItemIndex = items.length - 1;
   return lastItemIndex >= 0 ? [{ item: items[lastItemIndex], index: lastItemIndex }] : [];
 }
 
 export function formatCorrectionOptions(targets: Array<{ item: MealItemInput }>) {
-  return targets
-    .map((target, index) => `${index + 1}. ${target.item.foodName}`)
-    .join(" ");
+  return targets.map((target, index) => `${index + 1}. ${target.item.foodName}`).join(" ");
 }
