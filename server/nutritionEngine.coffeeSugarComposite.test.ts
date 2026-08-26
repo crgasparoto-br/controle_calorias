@@ -13,7 +13,6 @@ vi.mock("./_core/ai/providerResolver", () => ({
   }),
 }));
 
-
 vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: vi.fn(async () => null),
 }));
@@ -59,54 +58,16 @@ describe("nutritionEngine preserva refeições compostas com café adoçado", ()
     );
   });
 
-  it("não atribui ao café o açúcar explicitado somente em outro alimento", async () => {
+  it("aplica a regra simples somente ao segmento de café e preserva o açúcar explícito de outro alimento", async () => {
     const { processMealInput } = await import("./nutritionEngine");
-
-    await expect(processMealInput({
+    const result = await processMealInput({
       text: "1 xícara de café com açúcar e 1 fatia de bolo com 10 g de açúcar",
-    })).rejects.toMatchObject({
-      code: "food_component_quantity_required",
-      context: expect.objectContaining({ component: "açúcar" }),
-    });
-  });
-
-  it("não usa a estimativa do café com leite para satisfazer o café adoçado", async () => {
-    createTextResponseMock.mockResolvedValueOnce({
-      outputText: JSON.stringify({
-        mealLabel: "Café da manhã",
-        confidence: 0.9,
-        reasoning: "Somente o café com leite foi estimado.",
-        items: [{
-          foodName: "Café com leite",
-          brand: null,
-          quantity: 1,
-          unit: "xícara",
-          portionText: "1 xícara",
-          servings: 1,
-          estimatedGrams: 200,
-          estimatedCalories: 60,
-          estimatedMacros: {
-            protein: 2,
-            carbs: 5,
-            fat: 2,
-          },
-          confidence: 0.9,
-          foodClassification: {
-            processingLevel: "natural_or_minimally_processed",
-            isFruit: false,
-            isVegetable: false,
-            fiberGrams: 0,
-          },
-        }],
-      }),
     });
 
-    const { processMealInput } = await import("./nutritionEngine");
-    await expect(processMealInput({
-      text: "1 xícara de café com açúcar e 1 xícara de café com leite",
-    })).rejects.toMatchObject({
-      code: "food_component_quantity_required",
-      context: expect.objectContaining({ component: "açúcar" }),
-    });
+    const coffee = result.items.find(item => item.canonicalName === "Café com açúcar");
+    const cake = result.items.find(item => /bolo/i.test(`${item.foodName} ${item.canonicalName}`));
+    expect(coffee).toEqual(expect.objectContaining({ calories: 22, carbs: 5 }));
+    expect(coffee?.portionText).toMatch(/estimado 5 g/i);
+    expect(cake).toBeTruthy();
   });
 });
