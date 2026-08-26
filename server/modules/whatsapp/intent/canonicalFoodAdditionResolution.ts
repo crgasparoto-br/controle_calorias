@@ -181,6 +181,7 @@ export async function resolveCanonicalFoodAdditionItems(
         }
       : {
           ...resolved,
+          foodName: item.foodName.trim(),
           brand: item.brand ?? resolved.brand ?? null,
           quantityResolution,
         };
