@@ -12,10 +12,14 @@ import type { NutritionTotals, QuantityCorrectionIntent } from "./types";
 import { formatMealItemTargetOptions, resolveMealItemTarget, type MealItemTargetMatch } from "../mealItemTargetMatcher";
 
 export const MIN_FOOD_GRAMS = 1;
-const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(food => food.slug === "cafe-sem-acucar");
-if (!UNSWEETENED_COFFEE_REFERENCE) {
-  throw new Error("A referência canônica de café sem açúcar não está disponível.");
+function getUnsweetenedCoffeeReference() {
+  const reference = FOOD_CATALOG_REFERENCE.find(food => food.slug === "cafe-sem-acucar");
+  if (!reference) {
+    throw new Error("A referência canônica de café sem açúcar não está disponível.");
+  }
+  return reference;
 }
+const UNSWEETENED_COFFEE_REFERENCE = getUnsweetenedCoffeeReference();
 const UNSWEETENED_COFFEE_CUP_ML = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
 const UNSWEETENED_COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
 const COFFEE_CAPSULE_ML = 40;
