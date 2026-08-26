@@ -87,8 +87,26 @@ export function formatWhatsAppPortionText(item: WhatsAppFoodReplyItem) {
   return `${compactPortion}${gramsLabel}`;
 }
 
+function normalizeReplyFoodText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function formatEstimatedSugarCorrectionSuffix(item: WhatsAppFoodReplyItem) {
+  const identity = normalizeReplyFoodText(`${item.foodName ?? ""} ${item.canonicalName ?? ""}`);
+  const portion = normalizeReplyFoodText(item.portionText);
+  const isEstimatedSweetenedCoffee = /\bcafe\b/.test(identity)
+    && /\bcom acucar\b/.test(identity)
+    && /\bestimad[oa]\b/.test(portion);
+  return isEstimatedSweetenedCoffee
+    ? " — açúcar estimado; você pode corrigir depois pelo WhatsApp ou na tela da refeição"
+    : "";
+}
+
 export function formatWhatsAppFoodDescription(item: WhatsAppFoodReplyItem) {
-  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}`.trim();
+  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}${formatEstimatedSugarCorrectionSuffix(item)}`.trim();
 }
 
 export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
