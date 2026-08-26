@@ -1,1 +1,8 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","status":"rejected","rejection_id":"audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e","head_sha":"a68a69bd54d81a9939fd2490c461812b3c8dd3ef","material_head_sha":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","certified_material_head_sha_at_rejection":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","finding_ids":["A-002"],"findings":[{"id":"A-002","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","summary":"The remediation ledger was not cryptographically bound to the exact bytes of the audit-source-result it claimed to close: source.audit_report_sha256 differed from the SHA-256 of audit-source-result.json."}],"recommendations":[],"summary":"Independent re-audit rejected the terminal delivery package because audit-remediation.json referenced a stale source hash. Product material remained unchanged at the rejection; the current recovery reanchored the same functional patch onto the newer develop base and refroze before rebuilding the result-only handoff."}
+{
+  "schema_version": 1,
+  "kind": "independent-audit-rejection",
+  "rejection_id": "audit-rejection:f146439f-cc35-4eca-958f-833e0052c363",
+  "finding_ids": ["A-001", "A-002"],
+  "status": "remediated",
+  "material_head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90"
+}

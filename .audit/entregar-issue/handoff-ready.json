@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-26T11:37:15.762956+00:00",
+  "created_at": "2026-08-26T15:48:12.855782+00:00",
   "identity": {
-    "head_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
-    "material_head_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+    "head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90",
+    "material_head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90",
     "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
-    "merge_preview_sha": "da044691ba41058f36e4905fc74ebdb7690d96d9",
-    "material_merge_preview_sha": "da044691ba41058f36e4905fc74ebdb7690d96d9"
+    "merge_preview_sha": "1f9870c53671595d528ded53c747ed72e33064f7",
+    "material_merge_preview_sha": "1f9870c53671595d528ded53c747ed72e33064f7"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1016,
     "pull_request_number": 1018,
-    "work_item_kind": "issue",
-    "work_item_number": 1016,
+    "work_item_kind": "pr",
+    "work_item_number": 1018,
     "pull_request": 1018,
     "base_ref": "develop",
     "head_ref": "fix/1016-canonical-food-addition"
@@ -22,7 +22,7 @@
   "scope": {
     "schema_version": 1,
     "work_item_start_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
-    "material_head_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+    "material_head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90",
     "issue_changed_paths": [
       "server/coffeeSugarNutrition.ts",
       "server/countableFoodQuantity.ts",
@@ -36,6 +36,7 @@
       "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts",
       "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts",
       "server/modules/whatsapp/intent/coffeeSugarCompositeAddition.test.ts",
+      "server/modules/whatsapp/intent/coffeeSugarMutationHandlers.test.ts",
       "server/modules/whatsapp/intent/foodAdditionHandlers.issue1006.test.ts",
       "server/modules/whatsapp/intent/foodAdditionHandlers.issue1016.test.ts",
       "server/modules/whatsapp/intent/foodAdditionHandlers.issue975.test.ts",
@@ -45,29 +46,41 @@
       "server/modules/whatsapp/replyTemplates.test.ts",
       "server/modules/whatsapp/replyTemplates.ts",
       "server/nutritionEngine.coffeeSugar.test.ts",
-      "server/nutritionEngine.coffeeSugarComposite.test.ts"
+      "server/nutritionEngine.coffeeSugarComposite.test.ts",
+      "server/whatsappIntentWebhook.test.ts"
     ],
-    "issue_delta_sha256": "e69948dafb286a7e61ee089610f0d320e28f4823be9d407d294fc016966909e0"
+    "issue_delta_sha256": "1028cca6357a16d3d1437495e433dbaf4c602d255a8e6bc63d8fa8a23d2abeff"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-escape-closure.parts/part-000.b64",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
       ".audit/entregar-issue/evidence-provenance.json",
+      ".audit/entregar-issue/evidence-provenance.parts/part-000.b64",
       ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/inherited-controls.parts/part-000.b64",
+      ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
       ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/risk-saturation.parts/part-000.b64",
       ".audit/entregar-issue/specification-snapshot.json",
       ".audit/entregar-issue/specification-sources/SRC-ISSUE.txt"
     ]
   },
   "contract_version": "2026-08-20.3",
   "evidence_profile": "critical",
-  "remediation_mode": null,
+  "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
     "skill_sha256": "b900ee181c65cc657451f4d31c0b0e9092787d139efe96f49ea40a7b1a55da25"
@@ -93,8 +106,8 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "c5222309c151c2d6b0317cb213b697432b42b2fc0a65544a1668fe1ca0953ce5",
-      "logical_sha256": "c5222309c151c2d6b0317cb213b697432b42b2fc0a65544a1668fe1ca0953ce5",
+      "sha256": "c51bc4d7d004140822302c30fcf21781f33e712755964ad4b600ac575fc436b2",
+      "logical_sha256": "c51bc4d7d004140822302c30fcf21781f33e712755964ad4b600ac575fc436b2",
       "logical_size": 569,
       "artifact_transport": {
         "format": "plain-json",
@@ -103,78 +116,181 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "46842841c86543eb58ab57f49e566a5535e94e3a1e5a957cd3b717cdfaf4c819",
-      "logical_sha256": "94423da59a7ece9f1fe7b8f78baa8dd6a5c8c3e026c2184e1d0595ce8294b8d5",
-      "logical_size": 94791,
+      "sha256": "d1f2d2a6c80f76f3d66d5e0411f6ffb0e22f932a720417f615bff75a073d6ce1",
+      "logical_sha256": "941b337f7a1e7f12c8110795df84c84216b2a50286d2b62241ecbe417e25b5f5",
+      "logical_size": 95318,
       "artifact_transport": {
         "format": "base64-shards-v1",
         "version": 1,
         "compression": "gzip",
-        "encoded_size": 20512,
-        "decoded_size": 94791,
-        "decoded_sha256": "94423da59a7ece9f1fe7b8f78baa8dd6a5c8c3e026c2184e1d0595ce8294b8d5",
-        "encoded_sha256": "13420718931a0466b985904ca3586432c2a6e2d94603c627541517d264981b3c",
+        "encoded_size": 19760,
+        "decoded_size": 95318,
+        "decoded_sha256": "941b337f7a1e7f12c8110795df84c84216b2a50286d2b62241ecbe417e25b5f5",
+        "encoded_sha256": "6dc34fdbb4a9ce5e98e6a798721428931c0dfedea344d48d6b4ec317982ee0d3",
         "parts": [
           {
             "path": "requirement-closure.parts/part-000.b64",
-            "size": 20512,
-            "sha256": "13420718931a0466b985904ca3586432c2a6e2d94603c627541517d264981b3c"
+            "size": 12288,
+            "sha256": "9202c66e451fcf44d0d4ed1a5364e6247b2a108e48014bcee0202248e29f632c"
+          },
+          {
+            "path": "requirement-closure.parts/part-001.b64",
+            "size": 7472,
+            "sha256": "ac4f333bc857badaf0d27b6d884bc80ca10fd51ada879d45abef95b51157462a"
           }
         ]
       }
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "ee66c3168db9b185a84c2fc6ea64236eae37789f9a4541b94d91b4868ca3818f",
-      "logical_sha256": "a72d1c90e1082b13df995747c6179b1c087651250addafd19351c5ec122427b4",
-      "logical_size": 88047,
+      "sha256": "77df2e8ec8e03e913d281d56adf918fcd586fe1522a880509ce732b497fbd529",
+      "logical_sha256": "9dcea911fd99a382ba996aa66f712f765bb22188b5ad31a4a565a106d3042a7d",
+      "logical_size": 478988,
       "artifact_transport": {
         "format": "base64-shards-v1",
         "version": 1,
         "compression": "gzip",
-        "encoded_size": 17364,
-        "decoded_size": 88047,
-        "decoded_sha256": "a72d1c90e1082b13df995747c6179b1c087651250addafd19351c5ec122427b4",
-        "encoded_sha256": "b9dd86f972ededfd3a95391f392f1934f474368b891506c5513676132e85941e",
+        "encoded_size": 34276,
+        "decoded_size": 478988,
+        "decoded_sha256": "9dcea911fd99a382ba996aa66f712f765bb22188b5ad31a4a565a106d3042a7d",
+        "encoded_sha256": "d83c4dd696d0fa29e67a1267d2d7fe018a373d51fee89b427b9164f5db23751a",
         "parts": [
           {
             "path": "requirement-attack-matrix.parts/part-000.b64",
-            "size": 17364,
-            "sha256": "b9dd86f972ededfd3a95391f392f1934f474368b891506c5513676132e85941e"
+            "size": 12288,
+            "sha256": "986d6cadf7a23938ba015b01db4059ccec4f54e91a63d5fca5b63d4a5e2ef62e"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-001.b64",
+            "size": 12288,
+            "sha256": "115ca71ff70c1941b84f65c4e9a7a1b47e2848aa15a3ded4b4a61aeea256c52f"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-002.b64",
+            "size": 9700,
+            "sha256": "04a7c6e7a2c812a5f4dbd8c740494f8746cce72515ad3e44f841803a67b072c7"
           }
         ]
       }
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "101db38ede0193317010729051b1f8b8b6b15593d948e923dbd3cc8844accdd2",
-      "logical_sha256": "101db38ede0193317010729051b1f8b8b6b15593d948e923dbd3cc8844accdd2",
-      "logical_size": 7469,
+      "sha256": "6843b856f5df45cda00967ed0b87af594b4ae26662b082c50c6cb450b111dcf3",
+      "logical_sha256": "18d5cbe4363d7432fd00b0e278364ad277b18fa5600b1e1e6522f3a17ca45c10",
+      "logical_size": 13432,
       "artifact_transport": {
-        "format": "plain-json",
-        "version": 1
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 2648,
+        "decoded_size": 13432,
+        "decoded_sha256": "18d5cbe4363d7432fd00b0e278364ad277b18fa5600b1e1e6522f3a17ca45c10",
+        "encoded_sha256": "e1d3b3f28ea5a2e6dfd63e29f586748eda8b53c0caf45b36d9013e105cb372a1",
+        "parts": [
+          {
+            "path": "risk-saturation.parts/part-000.b64",
+            "size": 2648,
+            "sha256": "e1d3b3f28ea5a2e6dfd63e29f586748eda8b53c0caf45b36d9013e105cb372a1"
+          }
+        ]
       }
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "4d5f3a3c3c1d050051bd890cad9831e6acb3f62d4be4176fda555e6e256ccd67",
-      "logical_sha256": "4d5f3a3c3c1d050051bd890cad9831e6acb3f62d4be4176fda555e6e256ccd67",
-      "logical_size": 14284,
+      "sha256": "3c265f9dbcbc5650b5988fa9d6c257ff788c671d42fccabfec63ab992df23df8",
+      "logical_sha256": "bc2425ea9c0312f33285c91225920bf598728b3a0acf51e7c1ff5888b7faa45f",
+      "logical_size": 14780,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 3352,
+        "decoded_size": 14780,
+        "decoded_sha256": "bc2425ea9c0312f33285c91225920bf598728b3a0acf51e7c1ff5888b7faa45f",
+        "encoded_sha256": "375cf3c5955f30c69abab3896146ffeb2a3156601b29b3d301895c48c17f82e8",
+        "parts": [
+          {
+            "path": "inherited-controls.parts/part-000.b64",
+            "size": 3352,
+            "sha256": "375cf3c5955f30c69abab3896146ffeb2a3156601b29b3d301895c48c17f82e8"
+          }
+        ]
+      }
+    },
+    "evidence_provenance": {
+      "name": "evidence-provenance.json",
+      "sha256": "8b7ecab9cf3385b9eaf08d1b4d6ba31b6f080c26627712abd897a21ee3696ce4",
+      "logical_sha256": "effd77d87a2d5393a67c9dac1b361b7c67d432e1b6038fd0070d6f165f5f98ab",
+      "logical_size": 8107,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 612,
+        "decoded_size": 8107,
+        "decoded_sha256": "effd77d87a2d5393a67c9dac1b361b7c67d432e1b6038fd0070d6f165f5f98ab",
+        "encoded_sha256": "f524c5c27f396d2b6ffc57298231069c36664db4ff3270a4f09b485f8f9d56af",
+        "parts": [
+          {
+            "path": "evidence-provenance.parts/part-000.b64",
+            "size": 612,
+            "sha256": "f524c5c27f396d2b6ffc57298231069c36664db4ff3270a4f09b485f8f9d56af"
+          }
+        ]
+      }
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "2fc3b5a3c35718b44185cb2abebf814da571225adaad645e8b630ea8cb359d53",
+      "logical_sha256": "769dbe478b3ce84fca1e6325cad5e0994110ce4cecf195de8574ae0e35811817",
+      "logical_size": 38546,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 8168,
+        "decoded_size": 38546,
+        "decoded_sha256": "769dbe478b3ce84fca1e6325cad5e0994110ce4cecf195de8574ae0e35811817",
+        "encoded_sha256": "0238d2483658b48e216ef999a96426f55ad8cc5bc53ffa100a8baa9efb33f3ed",
+        "parts": [
+          {
+            "path": "audit-escape-closure.parts/part-000.b64",
+            "size": 8168,
+            "sha256": "0238d2483658b48e216ef999a96426f55ad8cc5bc53ffa100a8baa9efb33f3ed"
+          }
+        ]
+      }
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "e37f92e41b7d4d1f8661dbbc59bba6bc11ca407b1e3e890bf27063ea8431d071",
+      "logical_sha256": "e37f92e41b7d4d1f8661dbbc59bba6bc11ca407b1e3e890bf27063ea8431d071",
+      "logical_size": 613,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     },
-    "evidence_provenance": {
-      "name": "evidence-provenance.json",
-      "sha256": "087d44187788545bf360daa3822677edffe04f21289031caae28a8abc893bf40",
-      "logical_sha256": "087d44187788545bf360daa3822677edffe04f21289031caae28a8abc893bf40",
-      "logical_size": 3268,
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "de846883977395d03013704d93abec2f37f4906ce7fb2a842d210d1c87a93d0a",
+      "logical_sha256": "de846883977395d03013704d93abec2f37f4906ce7fb2a842d210d1c87a93d0a",
+      "logical_size": 573,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "1f5355f5c49fdd02dbdc36020e7a6f3c5c1e6a698978228f2cce875f034a1e51",
+      "logical_sha256": "1f5355f5c49fdd02dbdc36020e7a6f3c5c1e6a698978228f2cce875f034a1e51",
+      "logical_size": 271,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     }
   },
-  "previous_independent_rejection": false
+  "previous_independent_rejection": true
 }

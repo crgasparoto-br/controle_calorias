@@ -1,1 +1,13 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","source":{"rejection_id":"audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e","audited_head_sha":"a68a69bd54d81a9939fd2490c461812b3c8dd3ef","audited_material_head_sha":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","audit_report_sha256":"94bde4607e2431142ec9629a11a93ec345eadd34867067bc836e7c7f81d638b3"},"candidate_head_sha":"a86c681a77ad309f6a476ab73e8a11ee21cb380d","remediation_mode":"targeted-remediation","items":[{"source_kind":"finding","source_id":"A-002","remediation_mode":"targeted-remediation","status":"fixed","changed_files":[".audit/entregar-issue/audit-source-result.json",".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/learning-closure.json",".audit/entregar-issue/audit-escape-closure.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/evidence/source-binding-1006-r4.txt",".audit/entregar-issue/evidence/inherited-controls-1006-r3.txt"],"evidence":["evidence/source-binding-1006-r4.txt","evidence/inherited-controls-1006-r3.txt"],"validations":["exact audit-source-result bytes are finalized before their SHA-256 is persisted in the remediation ledger","validate_audit_remediation.py accepts the exact source and rejects a semantic mutation of the source","post-write-refreeze reanchors the unchanged issue #1006 functional patch onto current develop before certificate generation","cumulative audit escape and inherited-control lineages preserve prior IDs and explicitly close the latest independent rejection"]}],"status":"closed","all_actionable_items_closed":true}
+{
+  "schema_version": 1,
+  "rejection_id": "audit-rejection:f146439f-cc35-4eca-958f-833e0052c363",
+  "finding_ids": ["A-001", "A-002"],
+  "material_head_sha": "f21876f731d2097553f9a77780b1e694d6b37b90",
+  "mode": "targeted-remediation",
+  "status": "passed",
+  "changes": [
+    "Compatibilidade do novo resolvedor com mocks/consumidores legados e regressões atuais de café com açúcar.",
+    "Vínculo verificável de quantidade+unidade+gramas e independência de fontes para média usual."
+  ],
+  "evidence": ".audit/entregar-issue/evidence/issue1016-exact-head.txt"
+}
