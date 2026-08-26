@@ -361,7 +361,7 @@ function mergeExplicitSugarCoffeeItems(
     if (!remaining.length || !isCoffeeDraftItem(item)) return [item];
 
     const compatibleIndex = remaining.findIndex(entry =>
-      isFoodCandidateSemanticallyCompatible(entry.segment, [item.canonicalName])
+      isFoodCandidateSemanticallyCompatible(entry.segment, [item.canonicalName, item.foodName])
     );
     const selectedIndex = compatibleIndex >= 0
       ? compatibleIndex
@@ -384,7 +384,7 @@ function findCompatibleSweetenedSourceSegment(
 ) {
   for (const [index, segment] of sourceSegments.entries()) {
     if (usedSourceIndexes.has(index)) continue;
-    if (isFoodCandidateSemanticallyCompatible(segment, [item.canonicalName])) {
+    if (isFoodCandidateSemanticallyCompatible(segment, [item.canonicalName, item.foodName])) {
       return { index, segment };
     }
   }
