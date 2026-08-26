@@ -164,6 +164,54 @@ describe("resolveHouseholdMeasure (#1016)", () => {
     }));
   });
 
+  it.each(["mussarela", "muçarela", "mozarela"])(
+    "normaliza a grafia %s sem ampliar a categoria para queijo genérico",
+    async spelling => {
+      const runtime = baseRuntime();
+      const typical = reference({
+        describesTypicalMeasure: true,
+        grams: 20,
+        evidence: "Uma fatia típica de queijo mussarela pesa em média 20 g.",
+      });
+      runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([typical]) as any);
+
+      const result = await resolveHouseholdMeasure({
+        userId: 7,
+        foodName: `Queijo ${spelling}`,
+        quantity: 1,
+        unit: "fatia",
+      }, runtime as any);
+
+      expect(result).toEqual(expect.objectContaining({
+        kind: "usual_average",
+        grams: 20,
+      }));
+    },
+  );
+
+  it("rejeita categoria ampla de queijo quando o alimento específico é mussarela", async () => {
+    const runtime = baseRuntime();
+    const genericCheese = reference({
+      matchedFoodName: "Queijo fatiado",
+      foodTypeName: "queijo",
+      brandName: "",
+      grams: 25,
+      describesTypicalMeasure: true,
+      sourceUrl: "https://example.com/queijo-generico",
+      evidence: "Uma fatia típica de queijo pesa 25 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([genericCheese]) as any);
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Queijo mussarela",
+      quantity: 1,
+      unit: "fatia",
+    }, runtime as any);
+
+    expect(result).toBeNull();
+  });
+
   it("calcula média usual somente com referências coerentes do mesmo tipo e medida", async () => {
     const runtime = baseRuntime();
     const first = reference({ grams: 20 });
