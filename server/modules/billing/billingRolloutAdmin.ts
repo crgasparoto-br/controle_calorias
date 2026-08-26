@@ -13,6 +13,7 @@ import type {
 } from "./billingRolloutAdminSchemas";
 
 type Row = Record<string, unknown>;
+type AdminEventView = Record<string, unknown> & { recordedAt: Date | null };
 type Phase = z.infer<typeof billingRolloutPhaseSchema>;
 type SnapshotInput = z.infer<typeof billingRolloutSnapshotSchema>;
 type GateInput = z.infer<typeof billingRolloutGateDecisionSchema>;
@@ -51,6 +52,14 @@ function dateOrNull(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function adminEventView(row: Row, extra: Record<string, unknown> = {}): AdminEventView {
+  return {
+    ...jsonObject(row.payloadJson),
+    ...extra,
+    recordedAt: dateOrNull(row.createdAt),
+  };
 }
 
 export function selectDeterministicRolloutCohort(input: {
@@ -116,7 +125,7 @@ export async function getBillingRolloutAdminOverview() {
   const events = await loadEvents();
   const incidents = events
     .filter(row => row.eventType === "rollout_incident")
-    .map(row => ({ ...jsonObject(row.payloadJson), recordedAt: dateOrNull(row.createdAt) }));
+    .map(row => adminEventView(row));
   const latestIncidentById = new Map<string, Record<string, unknown>>();
   for (const item of incidents) {
     const id = String(item.incidentId ?? "");
@@ -130,15 +139,15 @@ export async function getBillingRolloutAdminOverview() {
   const snapshots = events
     .filter(row => row.eventType === "rollout_cohort_snapshot")
     .slice(0, 30)
-    .map(row => ({ ...jsonObject(row.payloadJson), recordedAt: dateOrNull(row.createdAt) }));
+    .map(row => adminEventView(row));
   const controls = events
     .filter(row => ["rollout_pause_control", "rollout_rollback"].includes(String(row.eventType)))
     .slice(0, 30)
-    .map(row => ({ eventType: String(row.eventType), ...jsonObject(row.payloadJson), recordedAt: dateOrNull(row.createdAt) }));
+    .map(row => adminEventView(row, { eventType: String(row.eventType) }));
   return {
     runtimeAccessMode: process.env.BILLING_ACCESS_MODE?.trim().toLowerCase() === "enforced" ? "enforced" as const : "open_access" as const,
     currentApprovedPhase: advancePayload?.phase ? String(advancePayload.phase) : "fake",
-    latestGate: gatePayload ? { ...gatePayload, recordedAt: dateOrNull(latestGate?.createdAt) } : null,
+    latestGate: latestGate && gatePayload ? adminEventView(latestGate) : null,
     snapshots,
     openIncidents,
     recentControls: controls,
