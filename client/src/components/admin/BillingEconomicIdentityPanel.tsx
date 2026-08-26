@@ -102,7 +102,7 @@ export default function BillingEconomicIdentityPanel() {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <div className="space-y-2">
             <Label htmlFor="economic-identity-month">Competência</Label>
-            <Input id="economic-identity-month" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+            <Input id="economic-identity-month" type="month" value={month} onChange={event => { if (event.target.value) setMonth(event.target.value); }} />
           </div>
           <FilterField id="economic-identity-user" label="Usuário" value={userFilter} onChange={setUserFilter} placeholder="ID pagador/beneficiário" />
           <FilterField id="economic-identity-sponsor" label="Patrocinador" value={sponsorFilter} onChange={setSponsorFilter} placeholder="ID do patrocinador" />
