@@ -17,7 +17,7 @@ import {
   type FoodClarificationCandidate,
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
-import type { WhatsappIntentResult } from "./intent/types";
+import type { FoodAdditionIntent, WhatsappIntentResult } from "./intent/types";
 import type { MixedMealItemIncrementPlan } from "./mixedMealItemIncrementPlanTypes";
 import {
   buildWhatsAppClarificationReplyMessage,
@@ -134,12 +134,25 @@ export type ConfirmedTextMealQuantityContext = {
   userTimezone: string;
 };
 
+export type FoodAdditionQuantityContext = {
+  mode: "complete_food_addition";
+  originalText: string;
+  addition: Omit<FoodAdditionIntent, "date"> & { date: string };
+  itemIndex: number;
+  expectedMealId: number;
+  expectedMealLabel: string;
+  expectedOccurredAt: string;
+  receivedAt: string;
+  inboundMessageId?: string | null;
+};
+
 export type FoodQuantityResolutionContext =
   | MealItemCorrectionContext
   | ImageMealQuantityContext
   | CaloricComplementQuantityContext
   | MealItemIncrementQuantityContext
-  | ConfirmedTextMealQuantityContext;
+  | ConfirmedTextMealQuantityContext
+  | FoodAdditionQuantityContext;
 
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {
   resolutionContext?: FoodQuantityResolutionContext;
@@ -308,7 +321,9 @@ export function createFoodQuantityClarificationService(
                 ? "Plano de ajuste misto aguardando quantidade em pendência persistente, sem mutação parcial."
                 : input.resolutionContext?.mode === "complete_confirmed_text_meal"
                   ? "Refeição textual aguardando quantidade segura antes do registro, sem persistência parcial."
-                  : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
+                  : input.resolutionContext?.mode === "complete_food_addition"
+                    ? "Adição alimentar aguardando uma quantidade segura em pendência persistente, sem mutação parcial."
+                    : "Alimento identificado por imagem aguardando quantidade em pendência persistente.",
       data: buildFoodClarificationPendingData(created, target),
     });
   };
@@ -459,6 +474,42 @@ export function createFoodQuantityClarificationService(
         instructionText: input.instructionText
           ?? `Não encontrei uma porção contável segura para ${input.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g. Não vou assumir 100 g.`,
       }),
+    requestFoodAdditionQuantity: (input: {
+      userId: number;
+      foodName: string;
+      originalText: string;
+      addition: FoodAdditionIntent;
+      itemIndex: number;
+      expectedMealId: number;
+      expectedMealLabel: string;
+      expectedOccurredAt: string;
+      receivedAt?: Date;
+      messageId?: string | null;
+      instructionText?: string;
+    }) =>
+      createQuantityClarification({
+        userId: input.userId,
+        foodName: input.foodName,
+        originalText: input.originalText,
+        receivedAt: input.receivedAt,
+        messageId: input.messageId,
+        resolutionContext: {
+          mode: "complete_food_addition",
+          originalText: input.originalText,
+          addition: {
+            mealLabel: input.addition.mealLabel,
+            date: input.addition.date.toISOString(),
+            items: input.addition.items.map(item => ({ ...item })),
+          },
+          itemIndex: input.itemIndex,
+          expectedMealId: input.expectedMealId,
+          expectedMealLabel: input.expectedMealLabel,
+          expectedOccurredAt: input.expectedOccurredAt,
+          receivedAt: (input.receivedAt ?? new Date()).toISOString(),
+          inboundMessageId: input.messageId ?? null,
+        },
+        instructionText: input.instructionText,
+      }),
     requestCaloricComplementQuantity: (input: {
       userId: number;
       originalFoodText: string;
@@ -506,3 +557,5 @@ export const requestWhatsappMealItemIncrementQuantityClarification =
   defaultService.requestMealItemIncrementQuantity;
 export const requestWhatsappConfirmedTextMealQuantityClarification =
   defaultService.requestConfirmedTextMealQuantity;
+export const requestWhatsappFoodAdditionQuantityClarification =
+  defaultService.requestFoodAdditionQuantity;
