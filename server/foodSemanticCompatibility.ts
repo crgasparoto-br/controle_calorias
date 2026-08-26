@@ -20,6 +20,16 @@ const COMPLEMENT_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
 
 const EXPLICIT_SUGAR_UNIT = "(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)";
 const ADDED_SUGAR_CONNECTOR = "(?:com|e)";
+const FOOD_IDENTITY_STOP_WORDS = new Set([
+  "a", "as", "o", "os", "um", "uma", "de", "da", "das", "do", "dos", "com", "sem",
+  "fatia", "fatias", "unidade", "unidades", "colher", "colheres", "xicara", "xicaras",
+  "copo", "copos", "porcao", "porcoes", "grama", "gramas", "mililitro", "mililitros",
+  "litro", "litros", "pesa", "pesam", "corresponde", "correspondem", "aproximadamente",
+  "media", "medio", "usual", "tipica", "tipico", "tipicas", "tipicos", "normalmente", "geralmente",
+]);
+const BROAD_FOOD_IDENTITY_TOKENS = new Set([
+  "alimento", "produto", "queijo", "carne", "embutido", "laticinio",
+]);
 
 function normalizeSemanticText(value: string) {
   return value
@@ -29,6 +39,20 @@ function normalizeSemanticText(value: string) {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeFoodIdentityText(value: string) {
+  return normalizeSemanticText(value)
+    .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")
+    .replace(/\blaticinios?\b/g, "laticinio");
+}
+
+function foodIdentityTokens(value: string) {
+  const tokens = normalizeFoodIdentityText(value)
+    .split(/\s+/)
+    .filter(token => token.length >= 3 && !FOOD_IDENTITY_STOP_WORDS.has(token));
+  const specificTokens = tokens.filter(token => !BROAD_FOOD_IDENTITY_TOKENS.has(token));
+  return [...new Set(specificTokens.length > 0 ? specificTokens : tokens)];
 }
 
 function hasExplicitSugarFreeMarker(normalized: string) {
@@ -145,6 +169,29 @@ export function isFoodCandidateSemanticallyCompatible(
     return false;
   }
   return candidates.some(candidate => profilesAreCompatible(query, candidate));
+}
+
+/**
+ * Complementa a compatibilidade semântica de bebidas com identidade lexical de
+ * alimentos comuns. É usada nas fronteiras canônicas que precisam provar que a
+ * referência pertence ao mesmo alimento/tipo antes de reaproveitar quantidade
+ * ou composição de outra fonte.
+ */
+export function isFoodIdentitySemanticallyCompatible(
+  sourceText: string,
+  candidateTexts: ReadonlyArray<string | null | undefined>,
+) {
+  if (!isFoodCandidateSemanticallyCompatible(sourceText, candidateTexts)) return false;
+  const sourceTokens = foodIdentityTokens(sourceText);
+  if (!sourceTokens.length) return false;
+
+  return candidateTexts
+    .map(value => value?.trim() ?? "")
+    .filter(Boolean)
+    .some(candidate => {
+      const candidateTokens = new Set(foodIdentityTokens(candidate));
+      return sourceTokens.every(token => candidateTokens.has(token));
+    });
 }
 
 export function hasCaloricCoffeeComplement(value: string) {

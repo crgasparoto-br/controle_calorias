@@ -3,7 +3,7 @@ import { resolveCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
-import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import {
   convertFoodPortionToGrams,
@@ -190,6 +190,10 @@ function candidateIdentity(candidate: CatalogSearchResult | CatalogItem) {
   return [candidate.name, candidate.brandName ?? ""].filter(Boolean).join(" ");
 }
 
+function requestedIdentity(input: HouseholdMeasureResolutionInput) {
+  return [input.foodName, input.brand].filter(Boolean).join(" ");
+}
+
 function explicitBrandMatches(input: HouseholdMeasureResolutionInput, candidate: CatalogSearchResult | CatalogItem) {
   const requestedBrand = normalize(input.brand ?? "");
   if (!requestedBrand) return true;
@@ -208,8 +212,9 @@ async function resolveStoredPortion(
     });
     for (const candidate of candidates) {
       if (!explicitBrandMatches(input, candidate)) continue;
-      if (!isFoodCandidateSemanticallyCompatible(input.foodName, [candidateIdentity(candidate)])) continue;
+      if (!isFoodIdentitySemanticallyCompatible(requestedIdentity(input), [candidateIdentity(candidate)])) continue;
       const food = await runtime.getGlobalFoodCatalogItem(input.userId, candidate.id);
+      if (!isFoodIdentitySemanticallyCompatible(requestedIdentity(input), [candidateIdentity(food)])) continue;
       const portions = food.portions.filter(portion => portionSupportsUnit(portion, input.unit));
       if (portions.length !== 1) continue;
       const portion = portions[0];
@@ -307,6 +312,17 @@ function evidenceSupportsMeasureRelation(text: string, reference: PortionReferen
   return forward.test(evidence) || reverse.test(evidence);
 }
 
+function evidenceSupportsTypicalMeasure(text: string) {
+  const evidence = normalizedEvidenceText(text);
+  return /\b(?:media|medio|usual|tipic[oa]s?|normalmente|geralmente)\b/.test(evidence);
+}
+
+function sourceContainsBrand(sourceText: string, brand: string | null | undefined) {
+  const normalizedBrand = normalizeFoodLexemes(brand ?? "");
+  if (!normalizedBrand) return true;
+  return ` ${normalizeFoodLexemes(sourceText)} `.includes(` ${normalizedBrand} `);
+}
+
 function sameFoodTypeIsSupported(input: HouseholdMeasureResolutionInput, reference: PortionReference) {
   const requested = normalizeFoodLexemes(input.foodName);
   const type = normalizeFoodLexemes(reference.foodTypeName);
@@ -319,6 +335,28 @@ function sameFoodTypeIsSupported(input: HouseholdMeasureResolutionInput, referen
 
   const requestedQualifiers = PHYSICAL_PREPARATION_QUALIFIERS.filter(qualifier => requested.includes(qualifier));
   return requestedQualifiers.every(qualifier => referenceIdentity.includes(qualifier));
+}
+
+function referenceFoodIdentityIsSupported(
+  input: HouseholdMeasureResolutionInput,
+  reference: PortionReference,
+  sourceText: string,
+) {
+  const identity = [reference.matchedFoodName, reference.brandName, reference.foodTypeName]
+    .filter(Boolean)
+    .join(" ");
+
+  if (reference.referenceKind === "exact_product") {
+    const requested = requestedIdentity(input);
+    if (!isFoodIdentitySemanticallyCompatible(requested, [identity])) return false;
+    if (!isFoodIdentitySemanticallyCompatible(requested, [sourceText])) return false;
+    if (!sourceContainsBrand(sourceText, input.brand)) return false;
+    return true;
+  }
+
+  if (!sameFoodTypeIsSupported(input, reference)) return false;
+  if (!isFoodIdentitySemanticallyCompatible(reference.foodTypeName, [identity])) return false;
+  return isFoodIdentitySemanticallyCompatible(reference.foodTypeName, [sourceText]);
 }
 
 function verifiedReference(
@@ -334,18 +372,19 @@ function verifiedReference(
   const sourceText = [source.title ?? "", ...(source.supportingText ?? [])].join(" ");
   if (!evidenceSupportsMeasureRelation(sourceText, reference)) return false;
   if (reference.evidence.trim() && !evidenceSupportsMeasureRelation(reference.evidence, reference)) return false;
+  if (!referenceFoodIdentityIsSupported(input, reference, sourceText)) return false;
 
-  if (reference.referenceKind === "exact_product") {
-    const identity = [reference.matchedFoodName, reference.brandName, reference.foodTypeName]
-      .filter(Boolean)
-      .join(" ");
-    if (!isFoodCandidateSemanticallyCompatible(input.foodName, [identity])) return false;
-    const requestedBrand = normalize(input.brand ?? "");
-    if (requestedBrand && normalize(reference.brandName) !== requestedBrand) return false;
-    return true;
+  if (reference.referenceKind === "same_food_type" && reference.describesTypicalMeasure) {
+    if (!evidenceSupportsTypicalMeasure(sourceText)) return false;
+    if (reference.evidence.trim() && !evidenceSupportsTypicalMeasure(reference.evidence)) return false;
   }
 
-  return sameFoodTypeIsSupported(input, reference);
+  if (reference.referenceKind === "exact_product") {
+    const requestedBrand = normalize(input.brand ?? "");
+    if (requestedBrand && normalize(reference.brandName) !== requestedBrand) return false;
+  }
+
+  return true;
 }
 
 function gramsForRequestedQuantity(reference: PortionReference, requestedQuantity: number) {
