@@ -13,6 +13,31 @@ import {
 
 const MAX_REFERENCE_SPREAD_RATIO = 0.35;
 const MIN_MULTISOURCE_REFERENCES = 2;
+const BROAD_FOOD_TYPE_TOKENS = new Set([
+  "alimento",
+  "produto",
+  "queijo",
+  "carne",
+  "embutido",
+  "laticinio",
+]);
+const PHYSICAL_PREPARATION_QUALIFIERS = [
+  "light",
+  "zero",
+  "integral",
+  "desnatado",
+  "sem lactose",
+  "frito",
+  "frita",
+  "assado",
+  "assada",
+  "cozido",
+  "cozida",
+  "defumado",
+  "defumada",
+  "fatiado",
+  "fatiada",
+];
 
 type PortionReferenceKind = "exact_product" | "same_food_type";
 
@@ -129,6 +154,12 @@ function normalize(value: string) {
     .trim();
 }
 
+function normalizeFoodLexemes(value: string) {
+  return normalize(value)
+    .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")
+    .replace(/\blaticinios?\b/g, "laticinio");
+}
+
 function normalizeHttpUrl(value: string | undefined) {
   if (!value?.trim()) return null;
   try {
@@ -239,11 +270,17 @@ function evidenceContainsGrams(text: string, grams: number) {
 }
 
 function sameFoodTypeIsSupported(input: HouseholdMeasureResolutionInput, reference: PortionReference) {
-  const requested = normalize(input.foodName);
-  const type = normalize(reference.foodTypeName);
+  const requested = normalizeFoodLexemes(input.foodName);
+  const type = normalizeFoodLexemes(reference.foodTypeName);
+  const referenceIdentity = normalizeFoodLexemes(`${reference.foodTypeName} ${reference.matchedFoodName}`);
   if (!requested || !type) return false;
+
   const typeTokens = type.split(/\s+/).filter(token => token.length >= 3);
-  return typeTokens.length > 0 && typeTokens.every(token => requested.includes(token));
+  if (!typeTokens.length || typeTokens.every(token => BROAD_FOOD_TYPE_TOKENS.has(token))) return false;
+  if (!typeTokens.every(token => requested.includes(token))) return false;
+
+  const requestedQualifiers = PHYSICAL_PREPARATION_QUALIFIERS.filter(qualifier => requested.includes(qualifier));
+  return requestedQualifiers.every(qualifier => referenceIdentity.includes(qualifier));
 }
 
 function verifiedReference(
