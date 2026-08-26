@@ -61,10 +61,42 @@ A composição nutricional e a quantidade consumida são decisões distintas. Um
 No registro textual do WhatsApp a precedência é:
 
 1. massa/volume explícitos informados pelo usuário;
-2. porção contável canônica e compatível do catálogo;
-3. clarificação persistente de peso/volume;
-4. nunca promover a base nutricional de `100 g` a medida caseira implícita.
+2. porção contável canônica e compatível do catálogo, usando `food_portions`/`convertFoodPortionToGrams` quando disponível;
+3. referência exata e verificável da mesma medida para o mesmo alimento/produto;
+4. média usual contextual e defensável da medida para o mesmo alimento/tipo/preparo;
+5. clarificação persistente de peso/volume somente quando nenhuma das etapas anteriores resolver ou estimar a quantidade com segurança suficiente;
+6. nunca promover a base nutricional de `100 g` a medida caseira implícita.
 
-O preflight compartilhado por webhook, simulador e registro confirmado converte somente porções seguras. Enquanto algum item contável estiver sem peso seguro, a refeição completa permanece em `whatsappPendingOperations` e nenhum item da mesma mensagem é persistido.
+O preflight compartilhado por webhook, simulador e registro confirmado deve tentar resolver cada item seguindo essa precedência antes de criar uma pendência. Itens resolvidos por porção canônica, referência exata ou média usual contextual são considerados quantitativamente resolvidos. Enquanto existir item que realmente dependa de clarificação, a refeição completa permanece em `whatsappPendingOperations` e nenhum item da mesma mensagem é persistido.
 
-Para ajustes de refeições já persistidas, `fatia` e `unidade` usam exclusivamente `food_portions` do `foodId` do item e `convertFoodPortionToGrams`. Não existe tabela paralela de pesos no parser/intent. Sem uma única porção compatível, o plano do comando é persistido e o usuário informa somente o peso/volume faltante.
+### Média usual contextual
+
+A média usual existe para evitar perguntas desnecessárias quando o sistema já possui base suficiente para estimar uma medida caseira de forma útil. Ela **não** é uma constante universal da unidade.
+
+Exemplos de interpretações válidas:
+
+- `1 fatia de presunto` pode usar uma média usual de fatia de presunto;
+- `1 fatia de mussarela` pode usar uma média usual de fatia de mussarela, ainda que o peso seja diferente do presunto;
+- `1 colher de requeijão` pode usar uma média usual de colher para requeijão, sem reaproveitar a mesma gramatura para outros alimentos;
+- `1 unidade` só pode ser estimada quando a identidade do alimento tornar a unidade física suficientemente definida.
+
+Uma média usual pode ser aceita quando houver uma fonte compatível que declare explicitamente a medida como média/usual/típica, ou quando duas ou mais referências compatíveis permitirem derivar um valor central coerente sem dispersão que torne a estimativa enganosa.
+
+Para produto com marca/variante explícita, uma porção exata da mesma marca/variante tem precedência. Na ausência dela, uma média usual do mesmo alimento/tipo e da mesma medida física pode estimar apenas a **quantidade**. Isso não transforma outra marca em correspondência exata nem autoriza substituir a composição nutricional específica do produto quando ela estiver disponível.
+
+Não é permitido criar mapas ou constantes paralelas como `PRESUNTO_SLICE_GRAMS` no parser, intent ou handler. A resolução deve passar por uma fronteira canônica reutilizável. Se uma medida obtida externamente for persistida para reutilização futura, deve entrar na fonte canônica de porções com a procedência aplicável.
+
+### Transparência da estimativa
+
+Quando uma média usual for usada, a resposta deve indicar que a gramatura é aproximada e que os nutrientes foram calculados com base nessa estimativa. O usuário não precisa confirmar antes do registro quando a estimativa cumprir os critérios acima.
+
+A resposta deve permitir compreender algo equivalente a:
+
+```text
+Presunto — 1 fatia (aprox. 18 g)
+Estimativa baseada na medida média usual para fatia de presunto.
+```
+
+A correção posterior deve continuar disponível pelos fluxos canônicos de ajuste no WhatsApp e pela tela de ajuste da refeição.
+
+Para ajustes de refeições já persistidas, `fatia`, `unidade` e demais medidas contáveis seguem a mesma precedência do registro: `food_portions` -> referência exata verificável -> média usual contextual -> clarificação. Não existe tabela paralela de pesos no parser/intent. Se uma medida permanecer sem resolução segura, o plano do comando é persistido e o usuário informa somente o peso/volume faltante. Operações já resolvidas ou estimadas permanecem no plano e só são aplicadas quando todo o comando estiver pronto, preservando atomicidade e exactly-once.
