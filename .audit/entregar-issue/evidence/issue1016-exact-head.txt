@@ -1,0 +1,39 @@
+Issue #1016 exact-head evidence
+Material SHA: 1268046792bbff56d3fc28dfd211acbf1faf6a79
+Base SHA: 657373adf6542ae27e10b96df89369dbfaa019e5
+Remote CI snapshot: Agent-first gate=in_progress; WhatsApp context TiDB gate=in_progress. No CI-green claim is made by this evidence.
+
+===== req-atomic-add.txt =====
+Exact-head inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+The production handler resolves all requested items through resolveCanonicalFoodAdditionItems before calling updateMeal once. If quantity resolution returns quantity_clarification, foodAdditionHandlers returns the persisted clarification before any updateMeal call. foodAdditionHandlers.issue1016.test.ts and coffeeSugarCompositeAddition.test.ts encode the no-partial-write discriminant.
+
+===== req-canonical-path.txt =====
+Exact-head inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+foodAdditionHandlers.ts imports resolveCanonicalFoodAdditionItems and does not import provider/web adapters. canonicalFoodAdditionResolution.ts delegates household measures to resolveHouseholdMeasure and nutrition to processMealInput; householdMeasureResolution.ts invokes the shared NUTRITION_SEARCH capability boundary. mealItemHelpers.buildFoodAdditionItem is deprecated for WhatsApp additions.
+
+===== req-coffee-sugar.txt =====
+Exact-head quantitative inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+coffeeSugarNutrition.ts defines DEFAULT_SUGAR_GRAMS_PER_CANONICAL_COFFEE_CUP = 5 and derives the canonical coffee cup volume from the shared unsweetened coffee reference of 200 ml. The deterministic simple-coffee calculation therefore yields 5 g sugar and about 22 kcal for 200 ml, 2.5 g for 100 ml, and 10 g for two cups. Explicit sugar bypasses the default. Compound coffee segments with milk, honey, cream or condensed milk are excluded from the simple rule.
+
+===== req-doc-compat.txt =====
+Exact-head documentation inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+Base SHA 657373adf6542ae27e10b96df89369dbfaa019e5 already contains the documentation contract from merged PR #1017: food-portions-household-measures.md describes exact researched/usual-average resolution before clarification, whatsapp-food-registration-clarification.md makes clarification last resort, and nutrition-engine.md documents deterministic 5 g/200 ml simple sweetened coffee. The issue branch does not reintroduce the superseded simple-sugar clarification contract.
+
+===== req-household-measure.txt =====
+Exact-head inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+householdMeasureResolution.ts first searches canonical catalog food portions and converts through convertFoodPortionToGrams. Without a local portion, verified web-search references must match the requested measure and food type; exact-product references enforce brand identity, while same-food-type references can only form an usual-average quantity estimate. Multiple-source averages use a median and reject spreads above 35 percent; a single source is accepted as usual only when it explicitly describes a typical measure. Tests cover distinct presunto/mussarela weights, local precedence, broad-category rejection and mussarela/muçarela/mozarela spellings.
+
+===== req-nutrition-identity.txt =====
+Exact-head quantitative inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+canonicalFoodAdditionResolution preserves the requested food and brand while using processMealInput for nutrition. householdMeasureResolution treats another compatible brand only as same_food_type quantity evidence and exact_product requires requested brand equality. The 60 g Catupiry Light path keeps explicit 60 g and the canonical nutrition pipeline is responsible for product-specific composition before fallback. mealItemDeduplication recalculates a legacy heuristic aggregate from the stronger incoming reference instead of adding stale heuristic macros.
+
+===== req-nutrition-scaling.txt =====
+Exact-head quantitative inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+For countable measures, canonicalFoodAdditionResolution rewrites the nutrition input to the resolved gram amount, then persists estimatedGrams equal to that resolution while preserving the user's household quantity/unit. Nutrition-engine results are therefore proportional to the resolved grams rather than 1 g or 100 g conventions. The focused #1016 tests assert exact researched grams and product nutrition scaling.
+
+===== req-transparency.txt =====
+Exact-head quantitative inspection for issue #1016 at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79.
+foodAdditionHandlers.formatQuantityResolutionNote emits a user-visible note only for usual_average, stating that gram weight was estimated by the usual average, nutrients used that estimate, and the user can correct it later by WhatsApp or meal screen. Sweetened coffee portionText includes the estimated sugar grams; the deterministic default remains in coffeeSugarNutrition.ts rather than the WhatsApp handler.
+
+===== reply-template-sugar-correction =====
+Exact-head inspection at material SHA 1268046792bbff56d3fc28dfd211acbf1faf6a79 confirms server/modules/whatsapp/replyTemplates.ts detects only an estimated sweetened-coffee portion (identity contains Café com açúcar and portion text contains estimado) and appends: "açúcar estimado; você pode corrigir depois pelo WhatsApp ou na tela da refeição". The sibling test in replyTemplates.test.ts asserts the correction message for estimated sugar and asserts that explicit 8 g sugar is not labeled as estimated. Because reply templates are shared by registration/action meal responses, the correction affordance is not duplicated with the 5 g domain constant in a WhatsApp handler or prompt.

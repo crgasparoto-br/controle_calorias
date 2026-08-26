@@ -1,0 +1,219 @@
+specification_version: 4
+
+## Objetivo
+
+Corrigir o fluxo de **adição de alimentos a uma refeição existente via WhatsApp** para que ele reutilize a resolução nutricional canônica do sistema, determine a gramatura de medidas caseiras conforme o alimento/produto e calcule os nutrientes para a quantidade efetivamente consumida.
+
+Sempre que o sistema tiver base suficiente para resolver uma medida diretamente ou produzir uma **estimativa média usual contextual e defensável**, deve preferir concluir o registro sem interromper o usuário. Quando usar estimativa, deve informar isso claramente e permitir correção posterior pelo WhatsApp ou pela tela de ajuste.
+
+Como extensão do mesmo princípio de **estimativa transparente antes de clarificação**, esta especificação também atualiza o contrato compartilhado de `café com açúcar` simples sem quantidade explícita de açúcar. Nesse caso, o sistema deve usar uma média operacional canônica e determinística em vez de perguntar ao usuário uma quantidade que o próprio domínio consegue estimar.
+
+A implementação deve usar a branch base `develop`.
+
+## Regra funcional desejada
+
+### 1. Resolver primeiro a identidade nutricional
+
+Para cada alimento adicionado, o sistema deve identificar a referência nutricional mais específica possível, preservando alimento, marca, variante, tipo/preparo e qualificadores como `light`, `zero`, `integral`, `frito`, etc.
+
+A precedência deve seguir o pipeline nutricional canônico, sem criar outro matcher paralelo: catálogo local compatível; TACO ou outra fonte local já integrada; busca semântica/catálogo ampliado; para produto com marca/variante explícita, busca nutricional específica e verificável do produto quando aplicável; fallback genérico somente quando todas as fontes anteriores realmente falharem.
+
+`60 g requeijão Catupiry Light` não deve ser tratado automaticamente como alimento genérico. O sistema deve procurar os valores nutricionais específicos de **Requeijão Catupiry Light**, validar que a marca e a variante correspondem ao pedido e então calcular os nutrientes para exatamente 60 g.
+
+### 2. Resolver medidas caseiras de acordo com o alimento, evitando clarificação desnecessária
+
+Medidas como `fatia`, `unidade`, `colher`, `xícara` etc. **não possuem um peso universal**. O sistema deve descobrir ou estimar quantos gramas correspondem à medida **para aquele alimento específico**, sem transformar a clarificação ao usuário no fallback padrão quando houver informação suficiente para uma estimativa útil.
+
+A resolução deve seguir, nesta ordem: massa/volume explícitos; `food_portions` / `convertFoodPortionToGrams`; porção canônica específica; busca de porção/medida verificável para o mesmo alimento/produto pela infraestrutura canônica; referência exata verificável; média usual contextual defensável; somente então clarificação persistente.
+
+A estimativa média usual não pode ser uma constante universal da unidade. `1 fatia de presunto` e `1 fatia de mussarela` podem e normalmente devem ter pesos diferentes. `1 colher de requeijão` pode usar média usual do mesmo tipo de alimento, mas não uma constante global de colher. `1 unidade` só pode ser estimada quando a identidade tornar a unidade física suficientemente definida.
+
+Uma média usual pode ser utilizada quando uma fonte compatível e confiável declarar explicitamente a medida como média/usual/típica para o mesmo alimento/tipo, ou quando duas ou mais referências compatíveis da mesma medida e do mesmo alimento/tipo/preparo permitirem derivar valor central coerente.
+
+Para produto com marca/variante explícita, uma porção exata da mesma marca/variante tem precedência; sem porção exata, uma média usual do mesmo alimento/tipo e medida física pode resolver apenas a gramatura como estimativa, sem transformar outra marca em correspondência exata do produto. A composição nutricional deve continuar usando a referência mais específica compatível com o produto informado.
+
+### 3. Separar referência de porção, estimativa de quantidade e referência nutricional
+
+A referência usada para descobrir quantos gramas tem uma medida, a eventual média usual e a referência usada para nutrientes por peso são decisões distintas e devem ser validadas separadamente. Uma média usual de outro produto compatível pode contribuir para estimar quantidade, mas não pode substituir silenciosamente a composição nutricional nem ser apresentada como porção exata do produto.
+
+Não é permitido usar gramatura de categoria ampla e incompatível, como `fatia de queijo` genérica, quando o sistema consegue distinguir `mussarela`, `queijo prato`, `cheddar` ou outra preparação relevante.
+
+### 4. Calcular a nutrição usando a gramatura resolvida
+
+Depois de determinar composição nutricional e quantidade em gramas, o sistema deve calcular proporcionalmente os nutrientes para os gramas consumidos. Se uma fatia corresponder a 18 g, os valores exibidos devem representar 18 g, não 1 g nem 100 g. O mesmo princípio deve valer para múltiplas fatias/unidades.
+
+### 5. Informar claramente quando foi utilizada média usual
+
+Quando o sistema concluir usando média usual estimada, a resposta do WhatsApp deve informar que a gramatura foi estimada, que os nutrientes foram calculados com essa estimativa e que o usuário pode corrigir depois pelo WhatsApp ou pela tela de ajuste. Não é necessário solicitar confirmação antes de salvar quando a média usual cumprir os critérios.
+
+A procedência interna deve distinguir pelo menos `porção exata/canônica`, `medida exata pesquisada`, `média usual estimada` e `clarificação necessária`.
+
+### 6. Reutilizar o pipeline canônico no fluxo de adição
+
+O fluxo `handleFoodAdditionIntent` não deve manter implementação nutricional paralela. Deve reutilizar matching, marca/variante, TACO, pesquisa nutricional específica, resolução/conversão de medidas, pesquisa verificável de gramatura, média usual contextual, fallback, telemetria/procedência e clarificação.
+
+É proibido duplicar no handler tabela de pesos ou médias por `fatia`, `unidade`, `colher`, `xícara` ou equivalentes. O handler do WhatsApp não pode chamar provider/web diretamente.
+
+### 7. Comandos com múltiplos alimentos
+
+Cada item deve ser resolvido de forma independente quanto à identidade e quantidade, mas a operação deve respeitar o contrato de atomicidade já existente. Itens resolvidos por porção canônica, referência exata ou média usual são considerados resolvidos. Apenas itens que permaneçam sem quantidade resolvível/estimável entram em clarificação. Se algum item depender de clarificação, não persistir silenciosamente os demais como se o comando completo tivesse sido concluído.
+
+### 8. Café com açúcar simples sem quantidade explícita de açúcar
+
+`café com açúcar`, `café adoçado`, `café açucarado` ou equivalente indica açúcar. Para o caso simples em que açúcar é o único complemento calórico, a ausência de quantidade não deve gerar pergunta.
+
+A precedência deve ser: quantidade explícita de açúcar; na ausência dela, média operacional canônica de `5 g` por xícara canônica de `200 ml`; clarificação somente se a preparação possuir outros complementos calóricos ou contexto que torne a estimativa enganosa.
+
+Para o caso simples, `1 xícara de café com açúcar` deve resultar em aproximadamente 200 ml de café-base + 5 g de açúcar, cerca de 22 kcal e 5 g de carboidratos. `100 ml` deve escalar para cerca de 2,5 g de açúcar; `2 xícaras` para cerca de 10 g. Se nenhum volume for informado, usar a xícara canônica de 200 ml.
+
+Uma estimativa livre da IA não pode substituir silenciosamente a média canônica de `5 g/200 ml`. Quantidade explícita sempre vence; `1 xícara de café com 8 g de açúcar` usa 8 g e não soma 5 g.
+
+A média simples não pode resolver sozinha `café com açúcar e leite`, `café com açúcar e mel`, `café com açúcar e creme` ou `café com açúcar e leite condensado`. Nesses casos, o sistema deve resolver/estimar a preparação completa ou clarificar se algum complemento relevante não puder ser resolvido com segurança.
+
+Quando a média operacional for usada, a resposta deve informar que o açúcar foi estimado e que o usuário pode corrigir posteriormente pelo WhatsApp ou pela tela da refeição.
+
+A média de açúcar deve existir em **uma única fonte canônica do domínio** e ser reutilizada por registro, adição e substituição; não deve ser duplicada em prompt, parser, formatter ou handler do WhatsApp.
+
+## Tratamento de erro e fallback
+
+- Porção local encontrada: não executar busca externa para aquela medida; usar conversão canônica.
+- Porção local ausente: tentar busca verificável da gramatura.
+- Referência exata encontrada: usar gramatura exata compatível.
+- Sem referência exata, mas com base suficiente para média usual: usar a estimativa, registrar procedência e informar o usuário; não abrir clarificação.
+- Sem referência exata nem média usual defensável: abrir clarificação persistente e não mutar parcialmente o comando.
+- Composição nutricional específica sem resultado: degradar conforme política canônica, preservando identidade/procedência; não apresentar fallback genérico como correspondência exata.
+- Fonte incompatível não pode ser tratada como referência exata e só pode contribuir para média se cumprir compatibilidade.
+- Café com açúcar simples sem açúcar explícito deve usar 5 g/200 ml e não retornar `food_component_quantity_required` só por faltarem gramas.
+- Café com açúcar com quantidade explícita deve usar a quantidade informada sem somar média adicional.
+- Café com açúcar com outros complementos deve resolver a preparação completa e só clarificar quando necessário.
+
+## Critérios de aceite
+
+1. `1 fatia de presunto` nunca pode ser convertida automaticamente para `1 g`.
+2. `1 fatia de mussarela` nunca pode ser convertida automaticamente para `1 g`.
+3. Referência nutricional por `100 g` nunca pode ser interpretada como se `1 fatia = 100 g`.
+4. A gramatura de uma fatia deve ser resolvida ou estimada conforme o alimento/produto.
+5. Presunto e mussarela devem poder ter pesos por fatia diferentes.
+6. Quando `food_portions` tiver conversão segura, ela deve vencer e nenhuma busca externa de gramatura deve ser necessária.
+7. Quando `food_portions` não tiver conversão segura, o sistema deve tentar busca verificável antes de clarificar.
+8. Com base suficiente para média usual contextual, o sistema deve usar a estimativa e concluir sem perguntar peso ao usuário.
+9. Uma média usual nunca pode ser universal por unidade; deve ser contextual ao alimento/tipo/preparo.
+10. Média derivada de outro produto compatível pode servir apenas como estimativa de quantidade e deve ser apresentada como estimativa, nunca como correspondência exata da marca/variante.
+11. Depois de resolver/estimar gramas, calorias e macros devem ser calculados proporcionalmente para essa quantidade.
+12. Quando média usual for utilizada, a resposta deve informar gramatura aproximada e possibilidade de correção posterior.
+13. `60 g de requeijão Catupiry Light` deve preservar exatamente 60 g e buscar referência nutricional específica compatível com `Catupiry` + `Light` antes do fallback genérico.
+14. Se a busca nutricional específica não encontrar informação confiável, o sistema deve degradar conforme política canônica sem aparentar correspondência exata usando perfil genérico.
+15. O fluxo de adição deve reutilizar matcher/pipeline nutricional canônico, sem segunda cadeia divergente.
+16. Clarificação persistente deve ser o último recurso para medida.
+17. Mensagens com múltiplos alimentos não podem gerar sucesso parcial silencioso quando algum item ainda depende de clarificação.
+18. O fallback genérico `150/6/15/5 por 100 g` só pode ser usado depois de esgotadas as fontes compatíveis do pipeline.
+19. A resposta final deve exibir quantidade/medida coerente, gramatura coerente e nutrientes correspondentes à quantidade consumida ou estimada.
+20. O handler não pode chamar provider/web diretamente nem manter constantes próprias de peso/média por medida.
+21. `1 xícara de café com açúcar` simples sem açúcar explícito deve usar `5 g` para `200 ml` e resultar em aproximadamente `22 kcal` e `5 g` de carboidratos.
+22. `100 ml de café com açúcar` deve usar cerca de `2,5 g`; `2 xícaras`, cerca de `10 g`.
+23. `1 xícara de café com 8 g de açúcar` deve usar exatamente `8 g`, sem somar/substituir pela média.
+24. Uma estimativa livre da IA não pode substituir a média determinística de `5 g/200 ml`.
+25. Quando a média de açúcar for utilizada, a resposta deve informar estimativa e permitir correção posterior.
+26. `café com açúcar e leite` ou outra preparação composta não pode ser reduzida ao cálculo simples ignorando o complemento.
+27. Registro inicial, adição e substituição/correção devem usar a mesma regra de café com açúcar simples.
+28. A média de açúcar deve ter uma única fonte canônica no domínio e não pode ser duplicada em prompt/handler/formatter.
+
+## Cobertura automatizada mínima
+
+### Caso 1 — presunto com gramatura exata encontrada
+Deve validar busca de porção, `estimatedGrams = X` nunca 1/100 por convenção, nutrientes proporcionais, nutrição local compatível quando disponível e ausência de clarificação.
+
+### Caso 2 — mussarela com gramatura diferente
+Deve validar `Y` distinto de `X` e aceitar grafias `mussarela`, `muçarela` e `mozarela`.
+
+### Caso 3 — prioridade da porção local
+Deve validar que `food_portions` vence e busca externa não é chamada.
+
+### Caso 4 — média usual calculável
+Deve validar média usual pela fronteira canônica, registro com gramatura estimada, nutrientes proporcionais, transparência, ausência de clarificação e correção posterior.
+
+### Caso 5 — produto de marca usa média de quantidade sem perder nutrição específica
+Deve validar composição nutricional do produto específico, média somente para gramatura, transparência e não apresentar outra marca como identidade.
+
+### Caso 6 — nenhuma média defensável
+Deve validar que nenhuma gramatura é inventada, abre clarificação persistente, não persiste parcialmente e referência incompatível/categoria ampla não fabrica média.
+
+### Caso 7 — produto com marca e variante
+Deve validar 60 g, identidade `Catupiry` + `Light`, evitar fallback genérico quando há referência verificável e nutrientes escalados para 60 g.
+
+### Caso 8 — comando composto
+Deve validar fluxo completo; se todos itens resolvidos/estimados, concluir sem clarificação e informar estimativas; se algum irresolvido, impedir persistência parcial.
+
+### Caso 9 — regressão do cenário observado
+Deve validar consolidação de quantidades/nutrientes corretos sem perpetuar item histórico derivado de fallback genérico como referência específica.
+
+### Caso 10 — café com açúcar simples
+Deve validar ausência de clarificação, 5 g/200 ml, ~22 kcal e 5 g C, quantidade estimada e identidade não `Café sem açúcar`.
+
+### Caso 11 — escala por volume e quantidade
+Deve validar 100 ml -> ~2,5 g e 2 xícaras -> ~10 g, com valores proporcionais.
+
+### Caso 12 — quantidade explícita vence
+Deve validar 8 g uma única vez, sem adicionar 5 g e sem depender de IA para substituir valor explícito.
+
+### Caso 13 — preparação composta
+Deve validar que café com açúcar e leite não ignora leite; resolve composição completa ou clarifica com segurança; identidade final não é `Café sem açúcar`.
+
+## Invariantes estruturais
+
+### `must_behave`
+- Medida caseira deve ser resolvida para gramas conforme a identidade do alimento antes do cálculo nutricional.
+- Ausência de porção exata deve provocar tentativa de resolução verificável e, quando possível, média usual contextual antes de clarificação.
+- Quando média usual for suficiente, o sistema deve concluir e avisar o usuário.
+- Café com açúcar simples sem quantidade explícita deve usar 5 g/200 ml, escalar proporcionalmente e informar estimativa.
+
+### `must_not_behave`
+- `1 fatia` não pode virar `1 g` nem `100 g` por default.
+- Média de `fatia`, `colher` ou `unidade` não pode ser universal para todos alimentos.
+- Resultado incompatível não pode ser apresentado como referência exata.
+- Não pode abrir clarificação só por ausência de porção exata se houver média usual defensável.
+- Café com açúcar simples não pode solicitar gramas só por ausência de quantidade explícita.
+- IA não pode sobrepor média canônica do caso simples.
+- Média simples não pode apagar leite, mel, creme ou leite condensado.
+
+### `must_reuse`
+- Matching, guard semântico, pesquisa nutricional, `food_portions`/`convertFoodPortionToGrams`, telemetria/procedência, estimativa de quantidade e clarificação devem reutilizar contratos canônicos.
+- Cálculo de café com açúcar deve reutilizar referência canônica de café-base e política central de componentes calóricos.
+
+### `must_be_single_source`
+- Não pode existir tabela/constante paralela de pesos ou médias por medida em parser/handler.
+- A média operacional de açúcar `5 g/200 ml` deve existir em uma única fonte canônica do domínio.
+
+### `precedence_invariants`
+- Medidas: `massa/volume explícitos -> food_portions/porção canônica -> referência exata pesquisada -> média usual contextual -> clarificação`.
+- Café com açúcar: `açúcar explícito -> média canônica 5 g/200 ml -> clarificação somente se regra simples não aplicável`.
+- Composição nutricional geral deve preservar precedência do motor canônico até fallback.
+
+### `forbidden_implementation`
+- Não pode adicionar constantes fixas de peso por fatia de presunto/mussarela ou `DEFAULT_SLICE_GRAMS` no handler/helper.
+- Não pode aplicar a mesma média de fatia a alimentos diferentes.
+- Não pode usar outra marca/produto como correspondência exata.
+- Não pode usar gramatura externa/estimada sem procedência/transparência.
+- Não pode chamar pesquisa web diretamente dentro de `foodAdditionHandlers.ts`.
+- Não pode deixar IA escolher livremente açúcar do caso simples.
+- Não pode implementar `5 g` diretamente em handler/formatter/prompt do WhatsApp.
+- Não pode aplicar 5 g a preparação composta e ignorar complemento adicional.
+
+## Impacto na documentação
+
+A implementação altera contratos documentados atuais: medidas caseiras passam por resolução exata/média usual antes de clarificação; café com açúcar simples sem quantidade explícita passa a usar média determinística 5 g/200 ml. A PR #1017 prepara `food-portions-household-measures.md`, `whatsapp-food-registration-clarification.md` e `nutrition-engine.md`. Também deve revisar `nutrition-low-calorie-beverages.md` se ainda descrever contrato antigo. `pnpm docs:check` deve permanecer aprovado e não pode haver documentação concorrente sobre pedir açúcar versus usar média canônica.
+
+## Fora de escopo
+
+- criar pesos universais fixos por unidade;
+- manter tabela paralela de medidas/médias no parser/handler;
+- apresentar produto semelhante como porção exata do solicitado;
+- usar média de categoria ampla quando tipo/preparo distinguível;
+- persistir automaticamente resultado externo em `food_portions` sem curadoria;
+- recalcular automaticamente históricos de café com açúcar;
+- usar média simples como regra completa para preparações com outros complementos;
+- alterar contratos de atomicidade, CAS, exactly-once ou isolamento da #997 além do necessário para inserir resolução antes da clarificação.
+
+## Relação com trabalho anterior
+
+A issue é regressão/lacuna de cobertura de #997 / PR #998 e deve estender essas garantias ao fluxo de adição. Para café adoçado, #903 corrigiu incompatibilidade com `Café sem açúcar` e #974 preservou ambiguidade de café genérico; esta revisão não reverte essas proteções e substitui apenas a política de pedir açúcar no caso simples explicitamente adoçado.

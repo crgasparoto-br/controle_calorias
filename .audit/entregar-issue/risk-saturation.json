@@ -1,1 +1,212 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":2436,"encoded_sha256":"5f9646839ef4dc3e1d9704919fe4af0a7c6177e4ae291daa53c0e39781429dbf","decoded_size":7929,"decoded_sha256":"afb7752b8f10a52d0109e6ba62a2320840d0430e8f793b4e2c59c3682f45fb88","parts":[{"path":"risk-saturation.parts/part-000.b64","size":2436,"sha256":"5f9646839ef4dc3e1d9704919fe4af0a7c6177e4ae291daa53c0e39781429dbf"}]}
+{
+  "schema_version": 1,
+  "head_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-nutrition-identity-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "nutrition-identity-scope",
+          "reason": "Issue #1016 requires discriminant coverage for authorization on the nutrition-identity-scope surface.",
+          "control_ids": [
+            "NEG-req-nutrition-identity-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-doc-compat-03"
+      ],
+      "dimensions": [
+        {
+          "surface": "reference-currentness",
+          "reason": "Issue #1016 requires discriminant coverage for reference-liveness on the reference-currentness surface.",
+          "control_ids": [
+            "NEG-req-doc-compat-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-atomic-add-01",
+        "NEG-req-canonical-path-02",
+        "NEG-req-coffee-sugar-04",
+        "NEG-req-doc-compat-01",
+        "NEG-req-household-measure-01",
+        "NEG-req-nutrition-identity-03",
+        "NEG-req-nutrition-scaling-01",
+        "NEG-req-transparency-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NEG-req-doc-compat-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "resolution-order",
+          "reason": "Issue #1016 requires discriminant coverage for temporal-consistency on the resolution-order surface.",
+          "control_ids": [
+            "NEG-req-atomic-add-01",
+            "NEG-req-canonical-path-02",
+            "NEG-req-coffee-sugar-04",
+            "NEG-req-household-measure-01",
+            "NEG-req-nutrition-identity-03",
+            "NEG-req-nutrition-scaling-01",
+            "NEG-req-transparency-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-coffee-sugar-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NEG-req-coffee-sugar-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No canonical issue #1016 obligation, attack surface, inherited control or audit escape requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-canonical-path-01",
+        "NEG-req-coffee-sugar-02",
+        "NEG-req-coffee-sugar-03",
+        "NEG-req-nutrition-identity-02",
+        "NEG-req-transparency-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-boundary",
+          "reason": "Issue #1016 requires discriminant coverage for structural-contract on the canonical-boundary surface.",
+          "control_ids": [
+            "NEG-req-canonical-path-01",
+            "NEG-req-nutrition-identity-02",
+            "NEG-req-transparency-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
+          "control_ids": [
+            "NEG-req-coffee-sugar-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-req-coffee-sugar-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Current issue #1016 attack matrix declares this family and all declared surfaces have discriminant exact-head controls.",
+      "control_ids": [
+        "NEG-req-doc-compat-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-contract-drift",
+          "reason": "Issue #1016 requires discriminant coverage for documentation on the canonical-contract-drift surface.",
+          "control_ids": [
+            "NEG-req-doc-compat-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

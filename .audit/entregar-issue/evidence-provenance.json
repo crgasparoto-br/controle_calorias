@@ -1,1 +1,73 @@
-{"schema_version":1,"material_head_sha":"251202d9918fe86c1260c81d904c75b5abad37bd","base_sha":"b2dd5076415e42a2ca385cc375a4dd20e55492e3","evidence":[{"evidence_id":"billing-contract-quantitative-v4","kind":"quantitative","status":"passed","path":"evidence/billing-contract-quantitative.json","sha256":"3858f7b23f77ca7e3a1a1dabce0aef2bd2559814e508b33a4e82769f2b99ca9a","subject_sha":"251202d9918fe86c1260c81d904c75b5abad37bd","freshness_policy":"exact-material-head","producer":"Billing persistence TiDB #504 plus exact-head billing contract probes"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+  "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+  "evidence": [
+    {
+      "evidence_id": "EVID-REQ-ATOMIC-ADD",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-COFFEE-SUGAR",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-DOC-COMPAT",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-NUTRITION-IDENTITY",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-NUTRITION-SCALING",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ-TRANSPARENCY",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1016-exact-head.txt",
+      "sha256": "7ca5c57f567f384bab6e3bdd7ae058830e2e724a6e7ff996dbd7d721d378f80c",
+      "subject_sha": "1268046792bbff56d3fc28dfd211acbf1faf6a79",
+      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue connector exact-head inspection",
+      "status": "passed"
+    }
+  ]
+}
