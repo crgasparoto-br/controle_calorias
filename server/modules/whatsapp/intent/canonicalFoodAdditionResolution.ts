@@ -5,7 +5,7 @@ import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "../../
 import { processMealInput } from "../../../nutritionEngine";
 import type { MealItemInput } from "../../meals/schemas";
 import type { FoodAdditionIntent } from "./types";
-import { toMealItemInputs } from "./mealItemHelpers";
+import { buildUnsweetenedCoffeeItem, toMealItemInputs } from "./mealItemHelpers";
 
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
@@ -44,6 +44,22 @@ const defaultRuntime: ResolverRuntime = {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))).replace(".", ",");
+}
+
+function normalizeFoodText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isExplicitlyUnsweetenedCoffee(value: string) {
+  const normalized = normalizeFoodText(value);
+  return /\bcafe\b/.test(normalized)
+    && /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
 }
 
 function buildFoodIdentity(item: FoodAdditionIntent["items"][number]) {
@@ -101,6 +117,18 @@ export async function resolveCanonicalFoodAdditionItems(
     const normalizedUnit = normalizeMeasurementUnit(item.unit);
     const originalFoodText = buildOriginalFoodText(item, normalizedUnit);
     const beverage = isCoffeeOrTeaBeverage(item.foodName);
+
+    if (
+      !isMassOrVolume(normalizedUnit)
+      && isExplicitlyUnsweetenedCoffee(item.foodName)
+    ) {
+      resolvedItems.push({
+        ...buildUnsweetenedCoffeeItem(item.quantity, normalizedUnit),
+        brand: item.brand ?? null,
+      });
+      continue;
+    }
+
     let processingText = originalFoodText;
     let quantityResolution: FoodAdditionQuantityResolution | undefined;
     let householdMeasure: HouseholdMeasureResolution | null = null;
