@@ -40,16 +40,56 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Fuzzy matching e aliases aprendidos não podem remover, inverter ou inventar qualificadores nutricionais.
 - Quantidades e unidades de porção, como `1 xícara`, participam do cálculo, mas não impedem a identificação lexical do alimento.
 
+## Política de estimativas transparentes
+
+A ausência de um valor exato não deve transformar a clarificação ao usuário no primeiro fallback quando o domínio possui base suficiente para produzir uma estimativa útil e defensável.
+
+Para quantidade/medida caseira, a precedência é:
+
+```text
+massa/volume explícitos
+-> porção canônica local
+-> referência exata verificável da medida
+-> média usual contextual defensável
+-> clarificação
+```
+
+Regras:
+
+- uma média usual deve continuar vinculada ao alimento/tipo/preparo e à medida física; não existe peso universal de `fatia`, `unidade`, `colher` ou `xícara`;
+- uma referência explícita da mesma marca/variante tem precedência sobre média de categoria;
+- quando a média usual de um alimento genérico compatível for usada para estimar **quantidade** de um produto de marca, isso não autoriza substituir a composição nutricional específica do produto;
+- a média usual deve vir de fonte que declare medida média/usual/típica ou de múltiplas referências compatíveis que permitam derivar um valor central coerente;
+- a primeira referência encontrada não pode ser tratada automaticamente como média;
+- gramatura estimada e composição nutricional são decisões separadas e devem ter compatibilidade semântica independente;
+- toda estimativa utilizada deve manter procedência suficiente para distinguir valor exato/canônico, medida exata pesquisada, média usual estimada e fallback nutricional;
+- a resposta ao usuário deve marcar a quantidade como aproximada quando aplicável e oferecer correção posterior, sem exigir confirmação prévia se a estimativa cumprir o contrato;
+- handlers de canal não devem manter tabelas/constantes paralelas de médias; a política pertence ao domínio nutricional e deve ser reutilizada por web e WhatsApp.
+
 ## Componentes calóricos sem quantidade
 
 - Quando a preparação contém açúcar e a quantidade está explícita, o motor incorpora o açúcar uma única vez aos macros e calorias do café.
 - A heurística determinística de café-base mais açúcar só é válida quando açúcar é o único complemento calórico do segmento. Preparações também qualificadas por leite, mel, creme, leite condensado ou outro complemento devem preservar uma estimativa coerente da preparação completa ou usar fallback baseado no segmento completo; nunca podem ser reduzidas a `Café com açúcar` com os demais macros zerados.
 - A porção-base do café adoçado deve vir da referência canônica `cafe-sem-acucar`; atualmente `1 xícara` equivale a `200 ml` e `2 kcal`. Não é permitido manter outra constante local para o tamanho da xícara.
-- Por isso, `1 xícara de café com 5 g de açúcar` e `200 ml de café com 5 g de açúcar` são nutricionalmente equivalentes: aproximadamente `205 g`, `22 kcal` e `5 g` de carboidratos.
-- Quando uma estimativa utilizável da IA já representa a preparação adoçada, essa estimativa pode ser preservada, desde que passe pelo guard semântico. Se houver quantidade explícita de açúcar, a estimativa também deve cobrir ao menos as calorias e os carboidratos desse açúcar.
-- Quando a quantidade do açúcar não está explícita e não há estimativa utilizável, o motor retorna `food_component_quantity_required`; não deve cair em uma estimativa genérica nem persistir alimento antes da resposta.
-- O WhatsApp transforma esse erro em `food_clarification.quantity`, preservando texto original, correlação inbound e operação pendente de registro, adição ou substituição.
+- A energia do açúcar continua usando `4 kcal/g` no cálculo determinístico vigente.
+- Quantidade explícita de açúcar sempre tem precedência. Por isso, `1 xícara de café com 5 g de açúcar` e `200 ml de café com 5 g de açúcar` são nutricionalmente equivalentes: aproximadamente `205 g`, `22 kcal` e `5 g` de carboidratos.
+- Para **café com açúcar simples** sem quantidade explícita de açúcar, a média operacional canônica inicial do produto é **5 g de açúcar por xícara de 200 ml**. Essa é uma regra operacional para permitir registro sem interrupção, não uma afirmação de que todos os usuários adoçam o café dessa forma.
+- A média escala proporcionalmente ao volume ou ao número de xícaras reconhecido. Exemplo: `100 ml de café com açúcar` usa aproximadamente `2,5 g` de açúcar; `2 xícaras` usam aproximadamente `10 g`.
+- Se o usuário não informar volume, o motor usa a porção canônica de uma xícara (`200 ml`) e, portanto, estima aproximadamente `22 kcal` e `5 g` de carboidratos para `café com açúcar` simples.
+- Quando uma estimativa utilizável da IA já representa a preparação adoçada, ela pode ser preservada desde que passe pelo guard semântico e seja coerente com a preparação. Se houver quantidade explícita de açúcar, a estimativa também deve cobrir ao menos as calorias e os carboidratos desse açúcar.
+- Para o caso simples sem açúcar explícito, `food_component_quantity_required` **não** deve ser retornado apenas porque faltaram os gramas de açúcar. O motor deve registrar usando a média operacional, marcar o açúcar como estimado e informar o usuário de que a estimativa pode ser corrigida depois pelo WhatsApp ou pela tela de ajuste.
+- `food_component_quantity_required` continua válido quando houver complemento calórico cuja quantidade não possa ser resolvida nem estimada com segurança suficiente, especialmente em preparações compostas nas quais aplicar a média simples produziria composição enganosa.
+- O WhatsApp só transforma esse erro em `food_clarification.quantity` quando a estimativa realmente não for possível pelo contrato acima; não deve criar pendência para `café com açúcar` simples.
 - A resposta pode usar massa ou medidas domésticas suportadas pelo contrato (`g`, colher de chá, colher de sopa, sachê ou pacote). A unidade anunciada ao usuário deve ser aceita pelo parser e convertida uma única vez pelo cálculo do complemento.
+- A média operacional de `5 g/200 ml` deve existir em uma única fonte canônica do domínio. Não deve ser duplicada em prompts, parsers, handlers ou código específico do WhatsApp.
+
+Exemplo de resposta conceitual para ausência de quantidade explícita:
+
+```text
+Café com açúcar — 1 xícara (200 ml)
+≈ 22 kcal | C 5 g
+Açúcar estimado: 5 g (média operacional). Você pode ajustar depois pelo WhatsApp ou na tela da refeição.
+```
 
 ## Pontos de atenção para agentes
 
