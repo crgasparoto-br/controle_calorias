@@ -31,7 +31,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 31 | 13 | 18 | admin | Elegibilidade própria e administração comercial de billing |
+| `billing` | 37 | 14 | 23 | admin | Elegibilidade própria e administração comercial de billing |
 | `usageGovernance` | 20 | 3 | 17 | admin | Medição, economia gerencial, fair use, recurso e retenção |
 
 ## Procedures por grupo
@@ -316,6 +316,12 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `adminRetryNotification` | mutation | admin |
 | `adminAcknowledgeNotificationFailure` | mutation | admin |
 | `adminSetCampaignPaused` | mutation | admin |
+| `adminRolloutOverview` | query | admin |
+| `adminCreateRolloutSnapshot` | mutation | admin |
+| `adminRecordRolloutGateDecision` | mutation | admin |
+| `adminRecordRolloutIncident` | mutation | admin |
+| `adminSetRolloutPause` | mutation | admin |
+| `adminRecordRolloutRollback` | mutation | admin |
 
 ### usageGovernance
 

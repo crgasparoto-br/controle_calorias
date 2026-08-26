@@ -94,7 +94,11 @@ Analytics são agregados por campanha, versão e canal para dados realmente disp
 
 ## Rollout
 
-A #896 entrega as superfícies e controles administrativos. Coortes, fases, kill switch, migração e ativação de `BILLING_ACCESS_MODE=enforced` continuam pertencendo à #898. Nenhum controle desta tela, isoladamente, autoriza rollout ou cobrança variável em produção.
+A #896 entrega também o **control plane administrativo** consumível pela #898 sem ativar cobrança: snapshots de coorte imutáveis e determinísticos por regra/chave, decisões manuais de gate com responsáveis nominais e métricas, incidentes, pausa/retomada com confirmação reforçada e registro de rollback para `open_access` por fase/snapshot. Esses fatos são append-only em `billingProviderEvents` e não alteram retroativamente cobranças, assinaturas, cancelamentos, estornos, capacidade ou eventos legítimos.
+
+Não existe progressão automática por data. Avanço é bloqueado quando os mínimos operacionais não são atendidos, quando há incidente crítico/alto aberto ou quando existe qualquer incidente absoluto de cobrança duplicada, ativação indevida, bloqueio indevido, perda de dados ou exposição sensível. Progressão para qualquer fase `enforced` e retomada depois de incidente exigem confirmação reforçada.
+
+O control plane **não muda `BILLING_ACCESS_MODE`**, não classifica/migra automaticamente usuários e não cria cobranças. A execução das coortes, migração e ativação progressiva continuam pertencendo à #898; até lá, `open_access` permanece o padrão seguro e obrigatório.
 
 ## Validação
 

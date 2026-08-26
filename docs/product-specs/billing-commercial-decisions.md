@@ -88,7 +88,7 @@ A precedência define origem efetiva, atribuição de consumo e comunicação. O
 
 As subissues #891–#897 materializam o programa de billing antes do rollout: catálogo versionado, adapter Asaas, lifecycle, cobertura/capacidade profissional, experiência web, administração comercial/governança e medição econômica/fair use. A #896 completa a superfície administrativa de catálogo, cupons, campanhas/entregas, visão econômica, retenção, legal hold e ciclo de possível abuso, além de oferecer ao próprio usuário a consulta de limitações e o envio de recurso quando aplicável.
 
-A ativação operacional continua separada. Coortes, classificação/migração dos usuários atuais, kill switch, comunicação final de rollout, rollback e mudança para `BILLING_ACCESS_MODE=enforced` pertencem à #898. `BILLING_ACCESS_MODE=open_access` permanece o padrão obrigatório até a aprovação explícita desse rollout.
+A ativação operacional continua separada. A #896 fornece o control plane auditável para a #898 — snapshots determinísticos de coorte, gates manuais, responsáveis, incidentes, pausa/retomada e registro de rollback — sem alterar `BILLING_ACCESS_MODE`. A classificação/migração dos usuários atuais, a execução das coortes, a comunicação final de rollout e a mudança progressiva para `BILLING_ACCESS_MODE=enforced` pertencem à #898. `BILLING_ACCESS_MODE=open_access` permanece o padrão obrigatório até a aprovação explícita desse rollout.
 
 ## Implementação do catálogo versionado — #891
 

@@ -3,6 +3,7 @@ import BillingAdminStatusOverview from "@/components/admin/BillingAdminStatusOve
 import BillingCampaignAdminPanel from "@/components/admin/BillingCampaignAdminPanel";
 import BillingCatalogAdminPanel from "@/components/admin/BillingCatalogAdminPanel";
 import BillingGovernanceAdminPanel from "@/components/admin/BillingGovernanceAdminPanel";
+import BillingRolloutAdminPanel from "@/components/admin/BillingRolloutAdminPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export default function AdminBillingPage() {
         <BillingCatalogAdminPanel />
         <BillingCampaignAdminPanel />
         <BillingGovernanceAdminPanel />
+        <BillingRolloutAdminPanel />
       </div>
     </DashboardLayout>
   );
