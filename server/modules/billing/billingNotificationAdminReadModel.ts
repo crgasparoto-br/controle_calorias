@@ -21,19 +21,50 @@ export type BillingAdminDeliverySnapshot = {
   state: BillingAdminExternalDeliveryState | "available";
   attempts: number;
   definitiveFailure: boolean;
+  acknowledged: boolean;
+  responsibleUserId: number | null;
+  nextAttemptAt: Date | null;
+  updatedAt: Date | null;
 };
 
 export type BillingAdminNotificationReadItem = {
   notificationId: string;
   campaign: string;
   campaignVersion: string;
+  title: string;
+  whatOccurred: string;
+  effectiveAt: Date;
+  expectedAction: string | null;
+  consequence: string;
+  support: string;
+  actionHref: "/billing" | null;
+  payerUserId: number;
+  factType: string;
   category: BillingAdminNotificationCategory;
   audience: BillingAdminNotificationAudience;
   trigger: string;
   milestone: string | null;
+  correlationId: string;
+  obsolete: boolean;
+  paused: boolean;
+  pauseReason: string | null;
+  optOutApplicable: boolean;
+  legalBasisClassification: string;
   completionState: "open" | "completed";
   readState: "read" | "unread";
+  readAt: Date | null;
+  deliveryState: BillingAdminExternalDeliveryState;
+  deliveryChannel: Exclude<BillingAdminChannel, "internal"> | null;
+  deliveryUpdatedAt: Date | null;
+  situation: string;
+  senders: Record<BillingAdminChannel, { configured: boolean; label: string }>;
   channels: BillingAdminDeliverySnapshot[];
+  audit: {
+    sourceFactVersion: number;
+    sourceEffectiveAt: Date | null;
+    latestCampaignControlAt: Date | null;
+    latestCampaignControlActorUserId: number | null;
+  };
 };
 
 export function matchesBillingAdminNotification(
