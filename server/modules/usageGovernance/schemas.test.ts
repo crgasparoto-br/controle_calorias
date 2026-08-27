@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openUsageAbuseCaseSchema } from "./schemas";
+import { openUsageAbuseCaseSchema, usageAdminEconomicRowsSchema } from "./schemas";
 
 describe("usage governance abuse evidence schema", () => {
   it("accepts a proven security signal with a sanitized heavy-operation list", () => {
@@ -21,4 +21,10 @@ describe("usage governance abuse evidence schema", () => {
       evidence: { affectedOperations: ["ai_heavy_processing"] },
     })).toThrow(/high_cost_not_sufficient/);
   });
+  it("accepts only canonical monthly economic periods", () => {
+    expect(usageAdminEconomicRowsSchema.parse({ month: "2026-08" }).month).toBe("2026-08");
+    expect(() => usageAdminEconomicRowsSchema.parse({ month: "2026-13" })).toThrow();
+    expect(() => usageAdminEconomicRowsSchema.parse({ month: "2026-8" })).toThrow();
+  });
+
 });

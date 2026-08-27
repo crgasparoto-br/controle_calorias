@@ -29,6 +29,8 @@ A visão econômica é **gerencial**, não escrituração contábil oficial. A i
 
 Os marcos de orçamento 70%, 85% e 100% servem para alerta e revisão. O orçamento não é, isoladamente, uma autorização para alterar acesso ou criar cobrança. Moedas não comparáveis permanecem fora do índice até reconciliação.
 
+A consulta detalhada por competência usa `usageGovernance.adminEconomicRows`: produto, versão e ciclo são aplicados no banco antes da materialização, sem `LIMIT` amostral de linhas recentes. Para preservar a média móvel, a leitura inclui somente os dois meses anteriores necessários e devolve ao painel apenas a competência solicitada. Pagador, beneficiário e patrocinador continuam identidades separadas; filtros de beneficiário/patrocinador são aplicados depois da correlação com a telemetria da mesma janela.
+
 Retenção vigente:
 
 - detalhe: 13 meses;
@@ -92,6 +94,8 @@ Categorias essenciais permanecem independentes de opt-out promocional. A classif
 
 Analytics são agregados por campanha, versão e canal para dados realmente disponíveis: criadas, enviadas, entregues, falhas, retries, deduplicações observáveis, leitura da central interna e ação concluída. Abertura externa, tickets, opt-out e tempo de resolução permanecem `n/d` enquanto não houver fonte confiável, em vez de serem inferidos.
 
+A listagem administrativa percorre o histórico autoritativo em páginas até o fim antes de aplicar o limite visual. Os filtros e os analytics operam sobre toda a população correspondente, e ações manuais localizam a notificação pelo histórico paginado do usuário; uma comunicação válida não desaparece apenas por estar além da amostra mais recente.
+
 ## Rollout
 
 A #896 entrega também o **control plane administrativo** consumível pela #898 sem ativar cobrança: snapshots de coorte imutáveis e determinísticos por regra/chave, decisões manuais de gate com responsáveis nominais e métricas, incidentes, pausa/retomada com confirmação reforçada e registro de rollback para `open_access` por fase/snapshot. Esses fatos são append-only em `billingProviderEvents` e não alteram retroativamente cobranças, assinaturas, cancelamentos, estornos, capacidade ou eventos legítimos.
@@ -112,4 +116,6 @@ Billing é área sensível. Antes do merge são necessários:
 - `pnpm agent:check`;
 - `Agent-first gate` verde no SHA congelado;
 - smoke de `/admin/billing` com administrador e bloqueio de não administrador;
+- `pnpm billing-admin:visual`, renderizando a página administrativa real com fixture determinística de administrador em 1440x900, 1024x768 e 390x844, além de teclado, árvore de acessibilidade e zoom de 200%;
+- artefato `billing-admin-visual-<SHA>` publicado pelo `Agent-first gate`, contendo os três screenshots, `browser-evidence.json` e `manifest.txt`;
 - validação de banco quando a execução dispuser de `DATABASE_URL`.

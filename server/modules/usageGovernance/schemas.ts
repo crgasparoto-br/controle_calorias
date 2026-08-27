@@ -178,6 +178,14 @@ export const usageAdminOverviewSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
 
+export const usageAdminEconomicRowsSchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  payerUserId: z.number().int().positive().optional(),
+  productCode: z.string().trim().min(1).max(120).optional(),
+  versionCode: z.string().trim().min(1).max(191).optional(),
+  billingCycle: z.string().trim().min(1).max(32).optional(),
+});
+
 export const assignUsageAbuseCaseSchema = z.object({
   caseId: id,
   assignedToUserId: z.number().int().positive(),

@@ -1,3 +1,4 @@
+import { getUsageGovernanceAdminEconomicRows } from "./adminEconomicRows";
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { usageGovernanceAdminService } from "./adminService";
@@ -29,6 +30,7 @@ import {
   revokeUsageLimitationSchema,
   reviewUsageLimitationAppealSchema,
   submitUsageLimitationAppealSchema,
+  usageAdminEconomicRowsSchema,
   usageAdminOverviewSchema,
   usageLegalHoldSchema,
 } from "./schemas";
@@ -77,6 +79,10 @@ export const usageGovernanceRouter = router({
   }),
   adminOverview: adminProcedure.input(usageAdminOverviewSchema).query(async ({ ctx, input }) => {
     try { return await getUsageGovernanceAdminOverview(input.limit); }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  adminEconomicRows: adminProcedure.input(usageAdminEconomicRowsSchema).query(async ({ ctx, input }) => {
+    try { return await getUsageGovernanceAdminEconomicRows(input); }
     catch (error) { governanceError(error, ctx.res); }
   }),
 

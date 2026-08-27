@@ -9,7 +9,6 @@ import React, { useMemo, useState } from "react";
 import {
   collectEconomicIdentityContext,
   economicMonthWindow,
-  isEconomicRowInMonth,
 } from "./billingEconomicIdentity";
 
 function moneyMinor(value: number, currency: string) {
@@ -38,18 +37,18 @@ export default function BillingEconomicIdentityPanel() {
   const [cycleFilter, setCycleFilter] = useState("");
   const window = useMemo(() => economicMonthWindow(month), [month]);
   const analytics = trpc.usageGovernance.analytics.useQuery(window, { retry: false });
-  const overview = trpc.usageGovernance.adminOverview.useQuery({ limit: 200 }, { retry: false });
+  const economic = trpc.usageGovernance.adminEconomicRows.useQuery({
+    month,
+    ...(productFilter.trim() ? { productCode: productFilter.trim() } : {}),
+    ...(versionFilter.trim() ? { versionCode: versionFilter.trim() } : {}),
+    ...(cycleFilter.trim() ? { billingCycle: cycleFilter.trim() } : {}),
+  }, { retry: false });
 
   const rows = useMemo(() => {
     const dimensions = analytics.data?.byDimensions ?? [];
     const userId = Number(userFilter);
     const sponsorId = Number(sponsorFilter);
-    const normalizedProduct = productFilter.trim().toLowerCase();
-    const normalizedVersion = versionFilter.trim().toLowerCase();
-    const normalizedCycle = cycleFilter.trim().toLowerCase();
-
-    return (overview.data?.economicRows ?? [])
-      .filter(row => isEconomicRowInMonth(row.competenceMonth, month))
+    return (economic.data?.rows ?? [])
       .map(row => ({
         ...row,
         identity: collectEconomicIdentityContext(
@@ -72,19 +71,16 @@ export default function BillingEconomicIdentityPanel() {
           Number.isInteger(sponsorId) && sponsorId > 0 &&
           !row.identity.sponsorUserIds.includes(sponsorId)
         ) return false;
-        if (normalizedProduct && !(row.productCode ?? "").toLowerCase().includes(normalizedProduct)) return false;
-        if (normalizedVersion && !(row.versionCode ?? "").toLowerCase().includes(normalizedVersion)) return false;
-        if (normalizedCycle && !(row.billingCycle ?? "").toLowerCase().includes(normalizedCycle)) return false;
         return true;
       });
-  }, [analytics.data?.byDimensions, cycleFilter, month, overview.data?.economicRows, productFilter, sponsorFilter, userFilter, versionFilter]);
+  }, [analytics.data?.byDimensions, economic.data?.rows, sponsorFilter, userFilter]);
 
-  const loading = analytics.isLoading || overview.isLoading;
-  const failed = analytics.isError || overview.isError;
+  const loading = analytics.isLoading || economic.isLoading;
+  const failed = analytics.isError || economic.isError;
   const usageCoverage = analytics.data?.coverage.usage;
 
   const refresh = async () => {
-    await Promise.all([analytics.refetch(), overview.refetch()]);
+    await Promise.all([analytics.refetch(), economic.refetch()]);
   };
 
   return (
