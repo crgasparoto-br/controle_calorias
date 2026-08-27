@@ -6,7 +6,7 @@ vi.mock("../../db", async importOriginal => {
   const actual = await importOriginal<typeof import("../../db")>();
   return {
     ...actual,
-    getDb: vi.fn(async () => ({ execute: mocks.execute })),
+    getDb: vi.fn(async () => ({ execute: mocks.execute, transaction: vi.fn() })),
   };
 });
 
