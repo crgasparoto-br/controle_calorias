@@ -307,9 +307,22 @@ function evidenceSupportsMeasureRelation(text: string, reference: PortionReferen
   const grams = numberPattern(reference.grams);
   const measure = `${quantity}\\s*(?:${unit})`;
   const mass = `${grams}\\s*(?:g|gr|grama|gramas)`;
-  const forward = new RegExp(`\\b${measure}\\b[^\\n;!?]{0,140}\\b${mass}\\b`, "i");
-  const reverse = new RegExp(`\\b${mass}\\b[^\\n;!?]{0,140}\\b${measure}\\b`, "i");
-  return forward.test(evidence) || reverse.test(evidence);
+  const relationVerb = "(?:pesa(?:m)?|corresponde(?:m)?(?:\\s+a)?|equivale(?:m)?(?:\\s+a)?|representa(?:m)?|tem|contem|mede(?:m)?)";
+  const approximation = "(?:\\s+(?:aproximadamente|aprox|cerca\\s+de|em\\s+media|na\\s+media))?";
+  const forward = new RegExp(
+    `\\b${measure}\\b[^\\n.;!?]{0,100}?\\b${relationVerb}\\b${approximation}\\s*\\b${mass}\\b`,
+    "i",
+  );
+  const compact = new RegExp(`\\b${measure}\\b\\s*(?:=|:|-)\\s*\\b${mass}\\b`, "i");
+  const parenthetical = new RegExp(
+    `\\b${measure}\\b[^\\n.;!?()]{0,80}\\(\\s*${mass}\\s*\\)`,
+    "i",
+  );
+  const reverse = new RegExp(`\\b${mass}\\b\\s*(?:por|para|/|=)\\s*\\b${measure}\\b`, "i");
+  return forward.test(evidence)
+    || compact.test(evidence)
+    || parenthetical.test(evidence)
+    || reverse.test(evidence);
 }
 
 function evidenceSupportsTypicalMeasure(text: string) {
