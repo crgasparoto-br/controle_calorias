@@ -32,6 +32,7 @@ try {
   let nextId = 1;
   let responseBuffer = Buffer.alloc(0);
   const pending = new Map();
+  const runtimeEvents = [];
   responsePipe.on("data", chunk => {
     responseBuffer = Buffer.concat([responseBuffer, chunk]);
     let separatorIndex;
@@ -40,7 +41,26 @@ try {
       responseBuffer = responseBuffer.subarray(separatorIndex + 1);
       if (!frame) continue;
       const message = JSON.parse(frame);
-      if (!message.id) continue;
+      if (!message.id) {
+        if (message.method === "Runtime.exceptionThrown") {
+          runtimeEvents.push({
+            method: message.method,
+            text: message.params?.exceptionDetails?.text ?? "runtime exception",
+            description: message.params?.exceptionDetails?.exception?.description ?? null,
+            url: message.params?.exceptionDetails?.url ?? null,
+            lineNumber: message.params?.exceptionDetails?.lineNumber ?? null,
+            columnNumber: message.params?.exceptionDetails?.columnNumber ?? null,
+          });
+        }
+        if (message.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(message.params?.type)) {
+          runtimeEvents.push({
+            method: message.method,
+            type: message.params?.type ?? null,
+            args: (message.params?.args ?? []).map(arg => arg.value ?? arg.description ?? arg.type).slice(0, 6),
+          });
+        }
+        continue;
+      }
       const waiter = pending.get(message.id);
       if (!waiter) continue;
       pending.delete(message.id);
@@ -66,24 +86,33 @@ try {
 
   const readBillingState = async sessionId => {
     const { result } = await call("Runtime.evaluate", {
-      expression: `(() => ({title: document.body.innerText.includes('Billing, catálogo e governança'), campaigns: document.body.innerText.includes('Campanhas e entregas'), economics: document.body.innerText.includes('Economia por identidade comercial'), rollout: document.body.innerText.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length}))()`,
+      expression: `(() => { const text = document.body?.innerText ?? ''; const root = document.getElementById('root'); return {title: text.includes('Billing, catálogo e governança'), campaigns: text.includes('Campanhas e entregas'), economics: text.includes('Economia por identidade comercial'), rollout: text.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || (document.body?.scrollWidth ?? 0) > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length, readyState: document.readyState, href: location.href, rootChildCount: root?.childElementCount ?? 0, bodyText: text.trim().slice(0, 1200), rootHtml: (root?.innerHTML ?? '').slice(0, 1200)}; })()`,
       returnByValue: true,
     }, sessionId);
     return result.value;
   };
   const waitForBillingState = async sessionId => {
     let value;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       value = await readBillingState(sessionId);
       if (value.title && value.campaigns && value.economics && value.rollout) return value;
       await delay(100);
     }
     return value;
   };
+  const assertBillingReady = (label, value) => {
+    if (value.title && value.campaigns && value.economics && value.rollout) return;
+    const diagnostics = {
+      state: value,
+      runtimeEvents: runtimeEvents.slice(-12),
+    };
+    throw new Error(`${label}: required billing sections were not rendered; diagnostics=${JSON.stringify(diagnostics)}`);
+  };
 
   const { targetId } = await call("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await call("Target.attachToTarget", { targetId, flatten: true });
   await call("Page.enable", {}, sessionId);
+  await call("Runtime.enable", {}, sessionId);
   await call("Accessibility.enable", {}, sessionId);
 
   const viewports = [
@@ -102,17 +131,17 @@ try {
     const navigation = await call("Page.navigate", { url }, sessionId);
     if (navigation.errorText) throw new Error(`${viewport.name}: navigation failed: ${navigation.errorText}`);
     const value = await waitForBillingState(sessionId);
-    if (!value.title || !value.campaigns || !value.economics || !value.rollout) throw new Error(`${viewport.name}: required billing sections were not rendered`);
+    assertBillingReady(viewport.name, value);
     if (value.overflow) throw new Error(`${viewport.name}: root horizontal overflow detected`);
     if (value.focusable < 10) throw new Error(`${viewport.name}: insufficient focusable controls rendered`);
-    viewportEvidence.push({ ...viewport, ...value });
+    viewportEvidence.push({ ...viewport, ...value, bodyText: undefined, rootHtml: undefined });
   }
 
   await call("Emulation.setDeviceMetricsOverride", { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
   const keyboardNavigation = await call("Page.navigate", { url }, sessionId);
   if (keyboardNavigation.errorText) throw new Error(`keyboard: navigation failed: ${keyboardNavigation.errorText}`);
   const keyboardReady = await waitForBillingState(sessionId);
-  if (!keyboardReady.title || !keyboardReady.campaigns || !keyboardReady.economics || !keyboardReady.rollout) throw new Error("keyboard: required billing sections were not rendered");
+  assertBillingReady("keyboard", keyboardReady);
   await call("Runtime.evaluate", { expression: "document.body.tabIndex=-1; document.body.focus();" }, sessionId);
   const keyboardSequence = [];
   for (let index = 0; index < 10; index += 1) {
