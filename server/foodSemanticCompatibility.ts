@@ -26,6 +26,10 @@ const FOOD_IDENTITY_STOP_WORDS = new Set([
   "copo", "copos", "porcao", "porcoes", "grama", "gramas", "mililitro", "mililitros",
   "litro", "litros", "pesa", "pesam", "corresponde", "correspondem", "aproximadamente",
   "media", "medio", "usual", "tipica", "tipico", "tipicas", "tipicos", "normalmente", "geralmente",
+  "tabela", "tabelas", "medida", "medidas", "peso", "pesos", "nutricional", "nutricionais",
+  "nutricao", "referencia", "referencias", "fonte", "fontes", "dado", "dados", "informacao",
+  "informacoes", "descricao", "descricoes", "receita", "receitas", "marca", "marcas", "categoria",
+  "categorias",
 ]);
 const BROAD_FOOD_IDENTITY_TOKENS = new Set([
   "alimento", "produto", "queijo", "carne", "embutido", "laticinio",
@@ -58,6 +62,30 @@ function foodIdentityTokens(value: string) {
 
 export function hasFoodIdentityLexemes(value: string) {
   return foodIdentityTokens(value).length > 0;
+}
+
+function splitFoodIdentityContextSegments(value: string) {
+  return splitFoodTextSegments(
+    value
+      .replace(/[|/]+/g, "\n")
+      .replace(/\bou\b/giu, "\n"),
+  );
+}
+
+function hasCompetingFoodIdentityContext(sourceTokens: string[], candidate: string) {
+  const segmentTokens = splitFoodIdentityContextSegments(candidate)
+    .map(segment => foodIdentityTokens(segment))
+    .filter(tokens => tokens.length > 0);
+  if (segmentTokens.length <= 1) return false;
+
+  const hasSourceIdentitySegment = segmentTokens.some(tokens =>
+    sourceTokens.every(token => tokens.includes(token))
+  );
+  if (!hasSourceIdentitySegment) return false;
+
+  return segmentTokens.some(tokens =>
+    sourceTokens.every(token => !tokens.includes(token))
+  );
 }
 
 function hasExplicitSugarFreeMarker(normalized: string) {
@@ -194,6 +222,7 @@ export function isFoodIdentitySemanticallyCompatible(
     .map(value => value?.trim() ?? "")
     .filter(Boolean)
     .some(candidate => {
+      if (hasCompetingFoodIdentityContext(sourceTokens, candidate)) return false;
       const candidateTokens = new Set(foodIdentityTokens(candidate));
       return sourceTokens.every(token => candidateTokens.has(token));
     });
