@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
 
-vi.mock("../../db", () => ({
-  getDb: vi.fn(async () => ({ execute: mocks.execute })),
-}));
+vi.mock("../../db", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../db")>();
+  return {
+    ...actual,
+    getDb: vi.fn(async () => ({ execute: mocks.execute })),
+  };
+});
 
 import { getUsageGovernanceAdminEconomicRows } from "./adminEconomicRows";
 
