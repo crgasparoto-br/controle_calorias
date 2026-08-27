@@ -49,6 +49,7 @@ function normalizeFoodIdentityText(value: string) {
 
 function foodIdentityTokens(value: string) {
   const tokens = normalizeFoodIdentityText(value)
+    .replace(/\b(?:\d+(?:[,.]\d+)?\s*)?colher(?:es)?\s+de\s+(?:sopa|cha)\b/g, " ")
     .split(/\s+/)
     .filter(token => token.length >= 3 && !FOOD_IDENTITY_STOP_WORDS.has(token));
   const specificTokens = tokens.filter(token => !BROAD_FOOD_IDENTITY_TOKENS.has(token));
