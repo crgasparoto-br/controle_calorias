@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../db", () => ({
-  getDb: vi.fn(async () => ({ execute: mocks.execute })),
+  getDb: vi.fn(async () => ({ execute: mocks.execute, transaction: vi.fn() })),
 }));
 
 import {
