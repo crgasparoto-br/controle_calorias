@@ -55,6 +55,10 @@ function foodIdentityTokens(value: string) {
   return [...new Set(specificTokens.length > 0 ? specificTokens : tokens)];
 }
 
+export function hasFoodIdentityLexemes(value: string) {
+  return foodIdentityTokens(value).length > 0;
+}
+
 function hasExplicitSugarFreeMarker(normalized: string) {
   if (/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar|diet)\b/.test(normalized)) {
     return true;

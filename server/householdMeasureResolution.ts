@@ -3,7 +3,7 @@ import { resolveCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
-import { isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
+import { hasFoodIdentityLexemes, isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import {
   convertFoodPortionToGrams,
@@ -336,6 +336,13 @@ function sourceContainsBrand(sourceText: string, brand: string | null | undefine
   return ` ${normalizeFoodLexemes(sourceText)} `.includes(` ${normalizedBrand} `);
 }
 
+function semanticEvidenceSpans(value: string) {
+  return value
+    .split(/[\n;!?]+|(?<!\d)\.(?!\d)/u)
+    .map(span => span.trim())
+    .filter(Boolean);
+}
+
 function sameFoodTypeIsSupported(input: HouseholdMeasureResolutionInput, reference: PortionReference) {
   const requested = normalizeFoodLexemes(input.foodName);
   const type = normalizeFoodLexemes(reference.foodTypeName);
@@ -372,6 +379,45 @@ function referenceFoodIdentityIsSupported(
   return isFoodIdentitySemanticallyCompatible(reference.foodTypeName, [sourceText]);
 }
 
+function evidenceSpanSupportsReference(
+  input: HouseholdMeasureResolutionInput,
+  reference: PortionReference,
+  span: string,
+  identityContext?: string,
+) {
+  if (!evidenceSupportsMeasureRelation(span, reference)) return false;
+  const identityText = hasFoodIdentityLexemes(span)
+    ? span
+    : [identityContext ?? "", span].filter(Boolean).join(" ");
+  if (!identityText || !referenceFoodIdentityIsSupported(input, reference, identityText)) return false;
+  if (reference.referenceKind === "same_food_type" && reference.describesTypicalMeasure) {
+    if (!evidenceSupportsTypicalMeasure(span)) return false;
+  }
+  return true;
+}
+
+function sourceSupportsReferenceEvidence(
+  input: HouseholdMeasureResolutionInput,
+  reference: PortionReference,
+  source: NonNullable<ReturnType<typeof sourceForReference>>,
+) {
+  const title = source.title?.trim() ?? "";
+  const supportingText = Array.isArray(source.supportingText) ? source.supportingText : [];
+  return supportingText.some(fragment =>
+    semanticEvidenceSpans(fragment).some(span => evidenceSpanSupportsReference(input, reference, span, title))
+  );
+}
+
+function structuredEvidenceSupportsReference(
+  input: HouseholdMeasureResolutionInput,
+  reference: PortionReference,
+) {
+  const evidence = reference.evidence.trim();
+  if (!evidence) return true;
+  return semanticEvidenceSpans(evidence)
+    .some(span => evidenceSpanSupportsReference(input, reference, span));
+}
+
 function verifiedReference(
   input: HouseholdMeasureResolutionInput,
   reference: PortionReference,
@@ -382,15 +428,8 @@ function verifiedReference(
   if (normalizeCountableUnit(reference.measureUnit) !== normalizeCountableUnit(input.unit)) return false;
   const source = sourceForReference(webSearch, reference);
   if (!source) return false;
-  const sourceText = [source.title ?? "", ...(source.supportingText ?? [])].join(" ");
-  if (!evidenceSupportsMeasureRelation(sourceText, reference)) return false;
-  if (reference.evidence.trim() && !evidenceSupportsMeasureRelation(reference.evidence, reference)) return false;
-  if (!referenceFoodIdentityIsSupported(input, reference, sourceText)) return false;
-
-  if (reference.referenceKind === "same_food_type" && reference.describesTypicalMeasure) {
-    if (!evidenceSupportsTypicalMeasure(sourceText)) return false;
-    if (reference.evidence.trim() && !evidenceSupportsTypicalMeasure(reference.evidence)) return false;
-  }
+  if (!sourceSupportsReferenceEvidence(input, reference, source)) return false;
+  if (!structuredEvidenceSupportsReference(input, reference)) return false;
 
   if (reference.referenceKind === "exact_product") {
     const requestedBrand = normalize(input.brand ?? "");
