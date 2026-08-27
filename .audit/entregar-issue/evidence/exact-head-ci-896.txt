@@ -1,0 +1,20 @@
+Issue #896 / PR #1015 exact-material-head evidence
+material_head_sha=ef6909bf77a6c180c6614d26b1d6cc11f69b4518
+base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
+merge_preview_sha=933dc275e5b6a7622b856fbecb9c3341c27862fb
+
+GitHub Actions delivery snapshot:
+- Agent-first gate: run 33004655231, completed/success
+- Billing persistence TiDB gate: run 33004655150, completed/success
+- Onboarding activation TiDB gate: run 33004655167, completed/success
+
+Material-head verification retained from the delivery cycle:
+- billing admin authorization and session-derived authorship
+- immutable catalog/version semantics and coupon constraints
+- professional capacity 30/100, grandfather 90d, extension 30d, notices 60/30/15/7/0
+- budget alerts 70/85/100 without automatic billing/access mutation
+- retention 13m detail / 24m daily / 5y monthly economic+audit
+- abuse review 7+7d, second administrator, emergency <=24h, basic operations preserved
+- campaign retry idempotency, pause/history, channel-specific delivery states
+- rollout phases including enforced 10/25/50/100, deterministic snapshots, blocking incidents and rollback
+- economic identity preserves payer/beneficiary/sponsor/product/version/cycle dimensions

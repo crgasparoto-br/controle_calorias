@@ -1,0 +1,45 @@
+## Complemento vinculante — administração de campanhas e entregas
+
+`/admin/billing` deve administrar e observar as comunicações definidas na #145 sem permitir edição retroativa silenciosa do conteúdo já enviado.
+
+### Gestão de campanhas
+
+Exibir e permitir filtrar por:
+
+- campanha, versão e categoria;
+- público, evento de disparo e marco;
+- canal e remetente configurado;
+- status interno e status por canal;
+- tentativas, próxima tentativa e falha definitiva;
+- ação esperada, obsolescência e conclusão;
+- opt-out aplicável;
+- correlação, responsável e auditoria.
+
+### Operação
+
+- Permitir reconhecer e atribuir falhas definitivas.
+- Permitir reprocessamento manual com motivo, preservando a chave e a correlação originais.
+- Proibir reenvio quando a ação já estiver concluída ou a comunicação estiver obsoleta, salvo override administrativo justificado e auditado.
+- Permitir pausar campanha futura sem apagar notificações e entregas já criadas.
+- Alteração de conteúdo cria nova versão; não modifica retrospectivamente o texto associado a envios anteriores.
+- Falha de e-mail ou WhatsApp nunca elimina a notificação interna.
+
+### Opt-out e segurança
+
+- Separar categorias promocional, operacional, financeira e segurança.
+- Opt-out promocional não deve bloquear avisos essenciais.
+- Exibir a base/classificação configurada, sujeita à homologação jurídica e de privacidade antes do rollout.
+- Não exibir tokens, documentos, cartão, dados clínicos ou payloads brutos dos provedores.
+
+### Analytics
+
+Acompanhar por campanha, versão e canal: criadas, enviadas, entregues, falhas, retries, deduplicações, abertura quando disponível, ação concluída, opt-out, tickets e tempo até resolução.
+
+### Critérios adicionais
+
+- [ ] Não administrador não acessa campanhas, entregas ou reprocessamento.
+- [ ] Reprocessamento é idempotente, justificado e auditável.
+- [ ] Conteúdo enviado permanece vinculado à versão histórica correta.
+- [ ] Falha definitiva gera fila operacional.
+- [ ] Campanha pausada não apaga histórico.
+- [ ] Métricas distinguem notificação interna, e-mail e WhatsApp.

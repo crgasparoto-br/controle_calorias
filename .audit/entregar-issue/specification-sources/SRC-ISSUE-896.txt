@@ -1,0 +1,290 @@
+Parent: #145
+
+## Objetivo
+
+Evoluir `/admin/billing` para administrar catálogo, versões, assinaturas, pagamentos, cupons, transições, isenções, capacidade temporária, alertas de estouro, limites de uso e exceções operacionais com autorização backend-first, confirmação explícita e auditoria.
+
+## Acesso e autorização
+
+- Modelo canônico: **administrador autorizado**.
+- Proteger todas as procedures por `adminProcedure` e `users.role = admin`.
+- O requisito anterior de “usuário master” fica substituído por autorização backend-first e auditoria individual de cada administrador.
+- Ocultar navegação e bloquear rota para não administradores, sem depender apenas do frontend.
+- Obter autoria da sessão; o cliente não informa quem executou.
+- Permissões mais restritas podem ser aplicadas por ação financeira, em lote ou destrutiva.
+
+## Pesquisa e visão do usuário
+
+- Pesquisar por nome, e-mail, telefone, perfil, produto, versão e situação.
+- Exibir origem efetiva, assinatura, trial, cobertura, transição, isenção e ausência de acesso.
+- Aplicar e exibir a precedência da #145: isenção, cobertura, assinatura paga, trial, transição e leitura.
+- Diferenciar estado local, remoto e divergência de reconciliação.
+- Separar pagador, beneficiário e patrocinador.
+- Permitir filtrar profissionais por capacidade dentro do limite, excedida ativa, próxima do vencimento, vencida e resolvida.
+
+## Produtos e versões
+
+- Criar família de produto e novas versões conforme #891.
+- Ativar/desativar versões para novas contratações.
+- Não editar preço, capacidade ou recurso de versão já contratada.
+- Migrar usuário ou lote com prévia de impacto, confirmação, resultado por item e auditoria.
+- Falha parcial permanece visível e reexecutável.
+- Exibir a matriz efetiva de cada versão com entitlements canônicos, sem depender de rótulos de interface.
+- Profissional e Profissional Plus devem incluir, na própria versão, a matriz pessoal do Individual e a matriz profissional.
+- O uso pessoal do profissional pagador não consome capacidade de pacientes e não cria assinatura, cobrança, cobertura sobre si mesmo ou origem comercial adicional.
+- Profissional e Plus continuam com a mesma matriz de recursos e diferem inicialmente somente pela capacidade de 30 ou 100 pacientes.
+- Alterar a composição da matriz exige nova versão ou migração explícita e auditável; contratos existentes não podem ser modificados silenciosamente.
+
+## Gestão de capacidade temporária
+
+A administração deve exibir para cada profissional:
+
+- plano e versão contratados;
+- capacidade contratada;
+- ocupação atual;
+- quantidade excedente;
+- limite temporário;
+- data de início e término;
+- estado canônico da capacidade;
+- avisos enviados e pendentes;
+- responsável e motivo da concessão ou extensão;
+- existência de plano público suficiente.
+
+### Concessão inicial de migração
+
+- A concessão inicial de 90 dias decorre da política de migração da #145/#894 e deve ser criada idempotentemente após contratação confirmada de plano inferior à carteira preservada.
+- Registrar ocupação inicial, limite contratado, limite temporário, início, término e origem de migração.
+- A administração não pode ampliar silenciosamente o limite temporário para absorver novos pacientes.
+- Redução natural ou upgrade suficiente encerra a exceção automaticamente e registra a resolução.
+
+### Extensões administrativas
+
+- Permitir extensão somente em blocos de 30 dias.
+- Exigir motivo, responsável, início, término, limite temporário e situação da análise comercial.
+- Exibir prévia do impacto antes da confirmação.
+- Proibir extensão automática, retroativa, sem data final ou acumulada sem nova avaliação.
+- Não permitir que a extensão crie, altere ou simule plano customizado.
+- Nova extensão após vencimento exige nova ação explícita e auditada.
+
+### Carteira sem plano suficiente
+
+- Criar fila/pendência administrativa e comercial quando nenhum plano público comportar a carteira.
+- Exibir quantidade de pacientes, maior plano disponível, excedente e prazo restante.
+- Permitir registrar encaminhamento, responsável, observações e resultado da análise.
+- Eventual plano customizado ou empresarial depende de decisão comercial e versão própria do catálogo; não nasce da exceção administrativa.
+
+### Vencimento
+
+- Marcar `grandfathered_expired` quando o prazo terminar sem regularização ou extensão válida.
+- Preservar pacientes, vínculos, prontuários, autorizações e históricos.
+- Manter bloqueadas novas aprovações, inclusões e reativações.
+- Não oferecer ação de remoção automática ou seleção arbitrária de pacientes.
+- Gerar alerta administrativo explícito e manter trilha da decisão adotada.
+
+### Avisos
+
+- Exibir e permitir auditar os avisos no início, a 60, 30, 15 e 7 dias do fim e no vencimento.
+- Cada marco possui chave idempotente e resultado por canal.
+- Reenvio manual deve manter correlação com o marco original e registrar responsável e motivo.
+
+## Alertas de capacidade e revisão de catálogo
+
+A entrada de qualquer profissional em capacidade excedida deve criar uma notificação administrativa persistente, visível na fila de `/admin/billing`.
+
+Cada alerta deve apresentar:
+
+- profissional e organização, quando aplicável;
+- plano e versão atuais;
+- capacidade contratada;
+- ocupação atual e quantidade excedente;
+- maior capacidade oferecida pelo catálogo público ativo;
+- causa do estouro;
+- data de detecção;
+- prazo da capacidade temporária;
+- prioridade, responsável, situação e histórico de decisões.
+
+### Regras de disparo
+
+- Gerar alerta ao transicionar de `within_capacity` para qualquer estado excedido.
+- Não duplicar alerta em leituras, retries ou jobs sem mudança material.
+- Reabrir ou criar novo alerta quando a ocupação cruzar faixa superior, a exceção vencer ou a análise anterior deixar de atender ao cenário atual.
+- Quando a ocupação superar o maior plano público ativo, classificar como prioridade alta e `catalog_range_review_required`.
+- A falha de um canal externo não pode apagar o alerta persistido no painel administrativo.
+
+### Tratamento administrativo
+
+A administração deve poder:
+
+- reconhecer o alerta;
+- atribuir responsável;
+- registrar análise de demanda e quantidade de profissionais na mesma faixa;
+- indicar range de capacidade candidato;
+- registrar impactos esperados de preço, suporte, IA/WhatsApp e operação;
+- escolher entre novo plano público, proposta customizada, extensão temporária ou nenhuma alteração;
+- definir data de próxima revisão;
+- encerrar o alerta com decisão e justificativa auditáveis.
+
+O painel deve agregar alertas por faixa de ocupação e por maior plano insuficiente para apoiar a decisão de produto. Essa análise não cria nem publica plano automaticamente. Um novo range exige nova versão no catálogo, precificação, critérios de elegibilidade, comunicação e rollout próprios.
+
+## Cupons e descontos
+
+Permitir criar e administrar cupons com:
+
+- código;
+- percentual ou valor fixo;
+- produtos, versões e ciclos elegíveis;
+- início/fim;
+- limite total e por usuário;
+- primeira contratação, quando aplicável;
+- duração em cobranças;
+- ativação/desativação;
+- histórico de utilização.
+
+Regras vinculantes:
+
+- um cupom por contratação;
+- não acumulável;
+- desconto público máximo de 30%;
+- mensal: no máximo 3 cobranças;
+- anual: somente primeira cobrança;
+- 100% deve ser tratado como isenção, não cupom;
+- trial + cupom começa na primeira cobrança;
+- nenhuma alteração retroativa em cobranças já confirmadas.
+
+A tela deve exibir utilizações, falhas, reservas pendentes, consumos confirmados e divergências com o Asaas.
+
+## Isenção administrativa
+
+- Conceder acesso sem cobrança a individual ou profissional.
+- Exigir plano/versão de referência, motivo, vigência e administrador.
+- Permitir data final ou sem fim.
+- Expirar automaticamente e permitir revogação.
+- Não criar assinatura, checkout, cobrança ou evento falso no Asaas.
+- Não contabilizar como receita ou MRR.
+- Profissional isento recebe a matriz pessoal e profissional, além da capacidade da versão profissional de referência.
+- O uso pessoal do profissional isento também não consome vaga da carteira.
+
+Ao conceder isenção sobre assinatura ativa:
+
+- exigir escolha entre manter ou interromper próxima renovação;
+- explicar que isenção local e cancelamento remoto são operações distintas;
+- manter estado pendente até resposta autoritativa;
+- permitir reconciliação sem duplicar cancelamento.
+
+## Inadimplência e segurança
+
+- Estender carência com data final e justificativa.
+- Suspensão/encerramento imediato apenas para fraude, chargeback, segurança, obrigação legal, reembolso integral aprovado ou erro operacional.
+- Exigir motivo, confirmação, impacto e auditoria.
+- Não apagar dados, vínculos ou histórico.
+
+## Limites de IA e WhatsApp
+
+- Exibir consumo, custo, orçamento e alertas em 70%, 85% e 100%.
+- Permitir liberar franquia adicional ou isentar temporariamente limites.
+- Exigir motivo, início, término e administrador.
+- Permitir reversão.
+- Essas ações não criam cobrança no Asaas.
+- Atingir 100% não bloqueia automaticamente uso normal no lançamento.
+- Limitação por abuso exige evidência, vigência, responsável e preserva funções básicas.
+
+## Autorização para cobrança futura por consumo
+
+Nenhuma cobrança por excedente, crédito, pacote ou franquia pode ser ativada por simples configuração ou feature flag.
+
+A administração somente poderá habilitá-la após autorização explícita de administrador autorizado, registrando:
+
+- responsável;
+- motivo e data;
+- política e preços;
+- planos/versões afetados;
+- início da vigência;
+- comunicação prévia;
+- confirmação de ausência de retroatividade;
+- plano de desativação e rollback.
+
+- Contratos existentes não podem mudar silenciosamente.
+- A autorização deve possuir estado de rascunho, aprovada, ativa, suspensa e revogada.
+- Ativação em produção deve exigir confirmação reforçada e trilha append-only.
+
+## Reconciliação
+
+- Reprocessar divergências por usuário, assinatura, cobrança, cupom, capacidade, alerta ou período.
+- Pagamento tardio após `expired` não reativa automaticamente.
+- Reconciliação é idempotente e registra fatos externos, estado anterior e resultado.
+- Divergência de ocupação, limite temporário, prazo, estado de capacidade ou alerta deve gerar pendência sem liberar novas inclusões por padrão.
+
+## Analytics
+
+Separar:
+
+- assinaturas pagas;
+- trials;
+- transições de 7 e 30 dias;
+- coberturas;
+- isenções;
+- acesso aberto;
+- usuários sem acesso;
+- estados financeiros;
+- cupons e descontos;
+- divergências;
+- consumo e custo variável;
+- capacidade excedida ativa, próxima do vencimento, vencida e resolvida;
+- extensões de 30 dias concedidas;
+- tempo médio em capacidade temporária;
+- casos sem plano público suficiente;
+- alertas de capacidade por faixa, prioridade e situação;
+- quantidade de casos marcados como `catalog_range_review_required`;
+- decisões de criação ou não criação de novo range.
+
+Receita não inclui isenções, trials, transições ou cobertura patrocinada e deve manter moedas separadas.
+
+## Auditoria
+
+Registrar administrador, motivo, alvo, valores/estados anteriores e novos, versão, data/hora, operação remota, resultado, correlação e falha sanitizada.
+
+## Critérios de aceite
+
+- [ ] Não administrador não acessa menu, rota ou endpoints.
+- [ ] Precedência de origens é exibida e aplicada corretamente.
+- [ ] Administrador cria versões sem alterar contratos existentes.
+- [ ] Matriz de versões profissionais inclui recursos pessoais e profissionais na mesma origem comercial.
+- [ ] Uso pessoal do profissional não consome vaga nem gera assinatura ou cobrança adicional.
+- [ ] Profissional e Plus diferem somente pela capacidade prevista no catálogo inicial.
+- [ ] Concessão inicial de capacidade temporária registra os 90 dias e dados da migração.
+- [ ] Administração visualiza capacidade contratada, ocupação, excedente, prazo e estado.
+- [ ] Extensão somente pode ser concedida por 30 dias, com motivo, responsável e auditoria.
+- [ ] Extensão automática, retroativa ou sem prazo é rejeitada.
+- [ ] Caso sem plano suficiente entra em fila administrativa/comercial.
+- [ ] Entrada em capacidade excedida gera alerta persistente na administração.
+- [ ] Ocupação acima do maior plano público gera alerta prioritário de revisão de novo range.
+- [ ] Alerta pode ser reconhecido, atribuído, analisado e encerrado com justificativa.
+- [ ] Painel agrega demanda por faixa sem criar plano automaticamente.
+- [ ] Vencimento preserva pacientes e mantém bloqueio de novas inclusões.
+- [ ] Avisos nos seis marcos são auditáveis e idempotentes.
+- [ ] Cupons seguem limites, duração, não acumulação e rejeição de 100%.
+- [ ] Isenção exige versão, motivo e vigência e não entra em receita.
+- [ ] Isenção profissional aplica matriz combinada e capacidade da versão de referência.
+- [ ] Usuário com cobrança ativa exige decisão explícita.
+- [ ] Extensão de carência e suspensão imediata são auditadas.
+- [ ] Alertas de consumo usam 70%, 85% e 100%.
+- [ ] Liberação de franquia não cria cobrança.
+- [ ] Cobrança futura por consumo exige autorização explícita, comunicação, vigência e rollback.
+- [ ] Pagamento tardio não reativa automaticamente.
+- [ ] Analytics separam origens, descontos, capacidade temporária e alertas de revisão de catálogo.
+- [ ] Testes cobrem autorização, matriz profissional combinada, concessão de 90 dias, extensão de 30 dias, avisos, alerta de estouro, revisão de range, expiração, resolução, capacidade sem consumo pelo pagador, cupom, isenção, limites, cobrança futura e reconciliação.
+- [ ] Evidência visual cobre desktop, tablet e mobile.
+
+## Dependências
+
+- #145
+- #869 / PR #870
+- #891
+- #892
+- #893
+- #894
+- #897
+
+## Prontidão
+
+**Pronta para implementação sobre os contratos comerciais estabilizados.** A matriz profissional, a governança da capacidade temporária e o alerta administrativo para avaliação de novo range estão definidos.
