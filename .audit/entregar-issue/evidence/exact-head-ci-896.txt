@@ -1,20 +1,27 @@
-Issue #896 / PR #1015 exact-material-head evidence
-material_head_sha=ef6909bf77a6c180c6614d26b1d6cc11f69b4518
-base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
-merge_preview_sha=933dc275e5b6a7622b856fbecb9c3341c27862fb
-
-GitHub Actions delivery snapshot:
-- Agent-first gate: run 33004655231, completed/success
-- Billing persistence TiDB gate: run 33004655150, completed/success
-- Onboarding activation TiDB gate: run 33004655167, completed/success
-
-Material-head verification retained from the delivery cycle:
-- billing admin authorization and session-derived authorship
-- immutable catalog/version semantics and coupon constraints
-- professional capacity 30/100, grandfather 90d, extension 30d, notices 60/30/15/7/0
-- budget alerts 70/85/100 without automatic billing/access mutation
-- retention 13m detail / 24m daily / 5y monthly economic+audit
-- abuse review 7+7d, second administrator, emergency <=24h, basic operations preserved
-- campaign retry idempotency, pause/history, channel-specific delivery states
-- rollout phases including enforced 10/25/50/100, deterministic snapshots, blocking incidents and rollback
-- economic identity preserves payer/beneficiary/sponsor/product/version/cycle dimensions
+Issue: 896
+Pull request: 1015
+Repository: crgasparoto-br/controle_calorias
+Base ref: develop
+Base SHA: 657373adf6542ae27e10b96df89369dbfaa019e5
+Material head SHA: ba567cf95a3dda430bb8dda9e6cb09f624873942
+Material merge preview SHA: bf467cc48072c7f69e2222dc30af962ef8971e3c
+Verification workflow: Agent-first gate
+Verification run ID: 33098300966
+Verification status: completed/success
+Verification artifact: agent-first-verification-ba567cf95a3dda430bb8dda9e6cb09f624873942 (artifact 9657582339, sha256:f0bc883c1ac66e8d7c8da02f433dd4b61adc44304255594c868b40abf23eb440)
+Repository bundle: agent-first-repository-ba567cf95a3dda430bb8dda9e6cb09f624873942 (artifact 9657583728, sha256:d2b31804274ea48645650d8bf54dce319f1cc1e716a3f7f6864c1169c558b382)
+Visual artifact: billing-admin-visual-ba567cf95a3dda430bb8dda9e6cb09f624873942 (artifact 9657581457, sha256:690ebab39fa8b73b1e1b13b3ba35c645647d2a4a2bde0d0e2bb8488427a9468f)
+Agent-first exact-head commands: TypeScript check success; 24 Vitest shards success; architecture check success; documentation check success; build success; pnpm agent:check success; billing-admin:visual success; CI-gate docs success.
+Visual runtime evidence: actual AdminBillingPage with deterministic authenticated-admin tRPC fixture.
+Desktop 1440x900: required sections rendered; root overflow=false; focusable=111; tables=4.
+Tablet 1024x768: required sections rendered; root overflow=false; focusable=111; tables=4.
+Mobile 390x844: required sections rendered; root overflow=false; focusable=97; tables=4.
+Keyboard: 10 unique focus targets observed.
+Accessibility: heading/button/textbox/table roles observed; page heading observed.
+200% zoom: zoom=2 observed.
+Visual hashes: desktop=e7916c4cf837ade0011c3d0933837e7ea26e25d78c2fe8ce7d420ba7cdfdff97; tablet=42693f6e1c8821923e3ab871332d9d64c9bbfd558c5e7ccd93a30e0eedea7917; mobile=d52d0e45602c4551d114664e8dffe8d980929b63e15001eb331506f47130926a; browser-evidence=a26013b12cc7a417dafd142f9c6e45a383632a611e4eeaf8d1705f8101b4d7c7.
+Billing persistence TiDB gate: run 33098300951 completed/success.
+Onboarding activation TiDB gate: run 33098300895 completed/success.
+Professional persistence TiDB gate: run 33098300912 completed/success.
+AI provider live smoke: run 33098300865 completed/skipped by workflow condition.
+Independent rejection remediated: audit-rejection:bb350a82-eeb0-40c8-b9cd-edf963efd5c4; findings AUD-1015-F001, AUD-1015-F002, AUD-1015-F003, AUD-1015-F004.

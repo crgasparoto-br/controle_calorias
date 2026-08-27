@@ -1,1 +1,52 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","status":"rejected","rejection_id":"audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e","head_sha":"a68a69bd54d81a9939fd2490c461812b3c8dd3ef","material_head_sha":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","certified_material_head_sha_at_rejection":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","finding_ids":["A-002"],"findings":[{"id":"A-002","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","summary":"The remediation ledger was not cryptographically bound to the exact bytes of the audit-source-result it claimed to close: source.audit_report_sha256 differed from the SHA-256 of audit-source-result.json."}],"recommendations":[],"summary":"Independent re-audit rejected the terminal delivery package because audit-remediation.json referenced a stale source hash. Product material remained unchanged at the rejection; the current recovery reanchored the same functional patch onto the newer develop base and refroze before rebuilding the result-only handoff."}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014",
+  "head_sha": "b96fcab1f628349b1577795a07651c05d1692406",
+  "identity": {
+    "published_head_sha": "b96fcab1f628349b1577795a07651c05d1692406",
+    "material_head_sha": "ba567cf95a3dda430bb8dda9e6cb09f624873942"
+  },
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false,
+  "findings": [
+    {
+      "id": "AUD-1015-R2-F001",
+      "source_label": "BLOCKER 1",
+      "title": "certificate issue scope differs from observed work-item delta",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "AUD-1015-R2-F002",
+      "source_label": "BLOCKER 2",
+      "title": "audit escape closure is not cumulative across the previous independent audit lineage",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "AUD-1015-R2-F003",
+      "source_label": "BLOCKER 3",
+      "title": "active semantic-effect inherited controls are not represented as an applicable saturated risk family",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "AUD-1015-R2-F004",
+      "source_label": "BLOCKER 4",
+      "title": "audit remediation is not bound to the exact audit source bytes",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    }
+  ],
+  "summary": "Independent re-audit rejected only the result-only handoff package: issue-local scope mismatch, non-cumulative escape lineage, unsaturated semantic-effect inherited controls, and missing exact-byte audit source binding."
+}
