@@ -17,46 +17,51 @@ async function executable() {
 
 const chromeBin = await executable();
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), "billing-admin-cdp-"));
-const port = 9337;
 const child = spawn(chromeBin, [
   "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
-  `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "about:blank",
-], { stdio: "ignore" });
+  "--remote-debugging-pipe", `--user-data-dir=${profile}`, "about:blank",
+], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 try {
-  let version;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
-      if (response.ok) { version = await response.json(); break; }
-    } catch {}
-    await delay(100);
-  }
-  if (!version?.webSocketDebuggerUrl) throw new Error("Chrome DevTools endpoint did not start");
-
-  const ws = new WebSocket(version.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    ws.addEventListener("open", resolve, { once: true });
-    ws.addEventListener("error", reject, { once: true });
-  });
+  const requestPipe = child.stdio[3];
+  const responsePipe = child.stdio[4];
+  if (!requestPipe || !responsePipe) throw new Error("Chrome DevTools pipe did not start");
 
   let nextId = 1;
+  let responseBuffer = Buffer.alloc(0);
   const pending = new Map();
-  ws.addEventListener("message", event => {
-    const message = JSON.parse(String(event.data));
-    if (!message.id) return;
-    const waiter = pending.get(message.id);
-    if (!waiter) return;
-    pending.delete(message.id);
-    if (message.error) waiter.reject(new Error(message.error.message));
-    else waiter.resolve(message.result ?? {});
+  responsePipe.on("data", chunk => {
+    responseBuffer = Buffer.concat([responseBuffer, chunk]);
+    let separatorIndex;
+    while ((separatorIndex = responseBuffer.indexOf(0)) >= 0) {
+      const frame = responseBuffer.subarray(0, separatorIndex).toString("utf8");
+      responseBuffer = responseBuffer.subarray(separatorIndex + 1);
+      if (!frame) continue;
+      const message = JSON.parse(frame);
+      if (!message.id) continue;
+      const waiter = pending.get(message.id);
+      if (!waiter) continue;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message));
+      else waiter.resolve(message.result ?? {});
+    }
+  });
+  responsePipe.on("error", error => {
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
+  });
+  child.on("exit", code => {
+    if (code === 0 || pending.size === 0) return;
+    const error = new Error(`Chrome DevTools pipe exited with code ${code}`);
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
   });
   const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
     const id = nextId++;
     pending.set(id, { resolve, reject });
-    ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+    requestPipe.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
   });
 
   const { targetId } = await call("Target.createTarget", { url: "about:blank" });
@@ -139,8 +144,9 @@ try {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
   console.log(JSON.stringify(evidence));
-  ws.close();
 } finally {
+  const exited = new Promise(resolve => child.once("exit", resolve));
   child.kill("SIGTERM");
-  await fs.rm(profile, { recursive: true, force: true });
+  await Promise.race([exited, delay(1000)]);
+  await fs.rm(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }
