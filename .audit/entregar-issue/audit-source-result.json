@@ -1,11 +1,10 @@
 {
   "schema_version": 1,
   "kind": "independent-audit-rejection",
-  "rejection_id": "audit-rejection:81996bc0-54d7-4e48-9be6-65f5fd005490",
+  "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
   "finding_ids": [
-    "A-001",
-    "A-002"
+    "A-004"
   ],
   "status": "remediated",
-  "material_head_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1"
+  "material_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb"
 }

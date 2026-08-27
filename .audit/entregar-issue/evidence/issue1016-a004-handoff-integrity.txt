@@ -1,0 +1,14 @@
+Issue 1016 A-004 handoff transport integrity evidence
+material_head_sha=62649935430aaad3c2632cf60f7ca6bb4d82eccb
+rejection_id=audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6
+finding_id=A-004
+control=base64-shards-v1 strict round-trip and manifest-part integrity
+positive_roundtrip=passed
+encoded_size=1928
+decoded_size=50920
+logical_sha256=d5368be4436033254b58f9ea0e9b37fffb87ff153a90a85b885c9e302987cfe5
+literal_size_mismatch=ValueError: artifact part sample.parts/part-000.b64 size mismatch
+sibling_sha256_mismatch=ValueError: artifact part sample.parts/part-000.b64 SHA-256 mismatch
+positive_after_restore=passed
+expected=the loader must reject a shard whose byte size differs from the manifest and must separately reject same-size content whose SHA-256 differs; intact shards must reconstruct the exact logical JSON.
+observed=both corruptions were rejected before JSON consumption, and the intact artifact reconstructed byte-equivalent logical content before and after the negative probes.

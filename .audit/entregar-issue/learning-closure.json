@@ -3,14 +3,13 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:81996bc0-54d7-4e48-9be6-65f5fd005490",
+    "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
     "finding_ids": [
-      "A-001",
-      "A-002"
+      "A-004"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "Both findings are product implementation escapes already representable by existing structural-contract and reference-liveness families: bind reused records to the same semantic food identity and require source-backed typicality before promoting a single-source usual average."
+    "reason": "The existing generic base64-shards-v1 contract already requires exact part size/SHA validation and round-trip reconstruction; this rejection exposed a delivery-instance packaging mismatch rather than a missing reusable global rule."
   }
 }

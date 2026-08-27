@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "rejection_id": "audit-rejection:81996bc0-54d7-4e48-9be6-65f5fd005490",
+  "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
   "finding_ids": [
-    "A-001",
-    "A-002"
+    "A-004"
   ],
-  "material_head_sha": "e2c43990fda1489c4e52a84f181c34da507e95e1",
+  "material_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb",
   "mode": "targeted-remediation",
   "status": "passed",
   "changes": [
-    "General-food semantic identity is required before household portion/source reuse, preventing same-brand different-food matches.",
-    "Single-source usual_average promotion requires source text that actually states typical/usual/average; model/structured flags alone cannot invent it."
+    "Rebuilt requirement-attack-matrix transport from valid logical content instead of reusing the corrupt result-only shards.",
+    "Added discriminant controls that independently reject manifest part-size mismatch and same-size SHA-256 mismatch before artifact consumption.",
+    "Kept the frozen functional material head unchanged; recovery is limited to the result-only handoff package and its cumulative audit lineage."
   ],
-  "evidence": ".audit/entregar-issue/evidence/issue1016-exact-head.txt"
+  "evidence": ".audit/entregar-issue/evidence/issue1016-a004-handoff-integrity.txt"
 }
