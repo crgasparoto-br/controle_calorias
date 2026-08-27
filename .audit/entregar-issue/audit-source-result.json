@@ -1,10 +1,42 @@
 {
   "schema_version": 1,
   "kind": "independent-audit-rejection",
-  "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
-  "finding_ids": [
-    "A-004"
+  "rejection_id": "audit-rejection:f278d567-3fff-4e99-a403-cc638e101d46",
+  "head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb",
+  "published_head_sha": "1bae1edba116cde74f5a6a98a0123b3ebe737572",
+  "status": "rejected",
+  "findings": [
+    {
+      "id": "A-005",
+      "title": "Household-measure evidence can cross food identity spans",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "control-propagation-gap",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
+      "requirements": [
+        "REQ-008",
+        "REQ-009",
+        "REQ-010",
+        "REQ-011",
+        "REQ-012"
+      ]
+    }
   ],
-  "status": "remediated",
-  "material_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb"
+  "recommendations": [],
+  "delivery_blockers": [
+    {
+      "source_rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
+      "description": "Previous A-004 remediation/source artifacts did not satisfy the 2026-08-20.3 one-to-one remediation contract.",
+      "status": "superseded-by-current-valid-ledger"
+    }
+  ],
+  "previous_independent_rejection": {
+    "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
+    "finding_ids": [
+      "A-004"
+    ]
+  }
 }

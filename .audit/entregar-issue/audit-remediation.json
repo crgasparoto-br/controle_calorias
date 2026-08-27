@@ -1,16 +1,49 @@
 {
   "schema_version": 1,
-  "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
-  "finding_ids": [
-    "A-004"
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:f278d567-3fff-4e99-a403-cc638e101d46",
+    "audit_report_sha256": "1899a40c117673b0b99360d9de4eb575c32b21889df7ee58ec7261da2e01f0f8",
+    "audited_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb"
+  },
+  "candidate_head_sha": "4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-005",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        "server/foodSemanticCompatibility.ts",
+        "server/householdMeasureResolution.ts",
+        "server/householdMeasureResolution.audit1016.a005.test.ts",
+        "docs/design-docs/food-portions-household-measures.md"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/evidence/issue1016-a005-evidence-binding.txt",
+        ".audit/entregar-issue/evidence/issue1016-exact-head.txt"
+      ],
+      "validations": [
+        "git diff --check",
+        "node --experimental-strip-types --check on all changed TypeScript files",
+        "focused exact-source A-001/A-002/A-003/A-005 resolver harness on material head",
+        "A-004 sharded transport size and SHA-256 corruption controls",
+        "GitHub Actions delivery snapshot observed as pending-no-run; no polling/rerun/dispatch"
+      ]
+    }
   ],
-  "material_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb",
-  "mode": "targeted-remediation",
-  "status": "passed",
-  "changes": [
-    "Rebuilt requirement-attack-matrix transport from valid logical content instead of reusing the corrupt result-only shards.",
-    "Added discriminant controls that independently reject manifest part-size mismatch and same-size SHA-256 mismatch before artifact consumption.",
-    "Kept the frozen functional material head unchanged; recovery is limited to the result-only handoff package and its cumulative audit lineage."
-  ],
-  "evidence": ".audit/entregar-issue/evidence/issue1016-a004-handoff-integrity.txt"
+  "status": "closed",
+  "historical_closures": [
+    {
+      "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
+      "finding_ids": [
+        "A-004"
+      ],
+      "status": "preserved",
+      "evidence": ".audit/entregar-issue/evidence/issue1016-a004-handoff-integrity.txt",
+      "note": "A-004 transport controls remain cumulative; the current ledger replaces the previously incomplete remediation contract without dropping its lineage."
+    }
+  ]
 }

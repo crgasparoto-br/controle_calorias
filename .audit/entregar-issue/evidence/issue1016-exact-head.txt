@@ -1,19 +1,14 @@
-Issue 1016 exact-head evidence
-material_head_sha=62649935430aaad3c2632cf60f7ca6bb4d82eccb
+Issue 1016 exact material-head evidence
+material_head_sha=4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2
 base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
-source_sha256=22538f38a0089d80f55133be0d4402589c06b32e33b0b8848f0aa0235752cad1
-agent_first_run_id=33030338839
-agent_first_status=completed/success
-whatsapp_context_tidb_run_id=33030338830
-whatsapp_context_tidb_status=completed/success
-Agent-first exact-head verification for 62649935430aaad3c2632cf60f7ca6bb4d82eccb completed successfully on 2026-08-27: TypeScript check, the complete Vitest suite (24 sequential shards), Architecture check, Documentation check, Build, Agent check, and CI gate docs check all concluded success.
-The exact-head verification artifact identifies repository crgasparoto-br/controle_calorias, PR #1018 material head 62649935430aaad3c2632cf60f7ca6bb4d82eccb, merge checkout b0db9936b5c3dc62e2935c2ec6cf5d346b1ed685, and workflow run 33030338839.
-The WhatsApp context TiDB gate for material head 62649935430aaad3c2632cf60f7ca6bb4d82eccb also completed successfully in run 33030338830.
-A-001 inherited regressions remain active on this exact head and reject same-brand/different-food food_portions and linked references before reuse.
-A-002 inherited regressions remain active on this exact head and reject unsupported typical/usual metadata when the bound source text does not state typicality, while retaining the positive sibling when the source itself declares a typical measure.
-A-003 focused discriminants on this exact material code reject proximity-only nutritional bases for all three sibling measure classes: 'Porção: 1 fatia. Informação nutricional declarada por 100 g.', 'Porção: 1 unidade. Valores nutricionais por 100 g.', and 'Porção: 1 colher de sopa. Tabela nutricional a cada 100 g.' when structured grams=100.
-A-003 positive controls accept an explicit physical relation '1 fatia pesa 18 g' even when the same source also states nutrition per 100 g, and accept a parenthetical physical relation '1 colher de sopa (15 g)' with quantity scaling to 30 g for two tablespoons. These cases are encoded in server/householdMeasureResolution.audit1016.a003.test.ts and the complete exact-head Vitest suite passed.
-The corrected evidenceSupportsMeasureRelation requires an explicit physical relation verb, compact relation, parenthetical gram weight, or reverse gram-per-measure relation; sentence proximity alone and a separate nutritional basis per 100 g are not accepted as a household-measure mass relation.
-Exact-head coffee regressions retain the canonical simple sweetened-coffee rule: 1 cup uses estimated 5 g sugar and 22 kcal/5 g carbs; 100 ml scales to 2.5 g; 2 cups scale to 10 g; explicit 8 g wins; free-form AI estimates cannot override the canonical rule.
-Exact-head canonical addition regressions cover household-measure resolution before nutrition calculation, specific-brand nutrition with contextual quantity estimates, clarification only after measure resolution fails, and no partial batch result before all items are resolved.
-This evidence is bound only to material head 62649935430aaad3c2632cf60f7ca6bb4d82eccb; older candidate SHAs are historical and are not represented as the current or exact head.
+recovery_scope=post-write-refreeze
+focused_household_harness_sha256=f927543a144eac74d24c0f40d93570a34d6f4353209d0ac9ea118247d7e1da9c
+focused_household_harness=PASS A-001, A-002, A-003 and A-005 discriminants against actual transpiled current TypeScript; adapters only were stubbed.
+a004_transport_evidence_sha256=5d717b2d6b32075baca3f9a75203a7e5731e4d5b434bb9881f51fe4be33aeac3
+a004_transport_controls=PASS size mismatch and same-size SHA-256 mismatch are rejected by audit_artifact_io.
+typescript_syntax=PASS householdMeasureResolution.ts, foodSemanticCompatibility.ts, householdMeasureResolution.audit1016.a005.test.ts via node --experimental-strip-types --check.
+git_diff_check=PASS.
+canonical_path=PASS canonicalFoodAdditionResolution imports resolveHouseholdMeasure and processMealInput; no createDomainTextResponse, executeResolvedCapability or web_search marker in WhatsApp addition handlers.
+documentation_consistency=PASS canonical household-measure design states identity and measure-to-grams evidence must remain bound to the same supporting context; no competing manual measure table introduced.
+ci_snapshot=pending-no-run for material head 4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2; GitHub Actions was queried once and returned no runs; no polling/rerun/dispatch performed.
+status=passed-local-gates-ci-pending

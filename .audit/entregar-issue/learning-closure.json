@@ -3,13 +3,13 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
+    "rejection_id": "audit-rejection:f278d567-3fff-4e99-a403-cc638e101d46",
     "finding_ids": [
-      "A-004"
+      "A-005"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The existing generic base64-shards-v1 contract already requires exact part size/SHA validation and round-trip reconstruction; this rejection exposed a delivery-instance packaging mismatch rather than a missing reusable global rule."
+    "reason": "The installed delivery skill already defines relational semantic integrity and cumulative audit-escape controls. The escaped behavior is a repository implementation gap: source fragments were flattened before food-identity and physical-relation validation."
   }
 }
