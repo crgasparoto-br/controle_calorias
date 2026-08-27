@@ -27,13 +27,20 @@ const analytics = {
   activeOverrides: 2,
   usersWithoutCommercialAccess: 5,
   subscriptionStatusTotals: { pending: 2, active: 18, past_due: 1, canceled: 3, expired: 1 },
+  estimatedMonthlyRecurringRevenue: [
+    { currency: "BRL", amountMinor: 449100, estimated: true },
+  ],
+  generatedAt: new Date("2026-08-27T12:00:00.000Z"),
   plans: [
     {
       planId: "professional-monthly",
+      planCode: "professional",
       planName: "Profissional",
       versionCode: "professional-v1",
+      audience: "professional",
       billingCycle: "monthly",
       currency: "BRL",
+      unitAmount: 49900,
       active: true,
       subscriptionsByStatus: { pending: 1, active: 9, past_due: 1, canceled: 1, expired: 0 },
       coveredBeneficiaries: 146,
