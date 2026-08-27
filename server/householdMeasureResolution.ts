@@ -396,6 +396,20 @@ function evidenceSpanSupportsReference(
   return true;
 }
 
+function evidenceFragmentSupportsReference(
+  input: HouseholdMeasureResolutionInput,
+  reference: PortionReference,
+  fragment: string,
+  outerIdentityContext?: string,
+) {
+  const spans = semanticEvidenceSpans(fragment);
+  return spans.some((span, index) => {
+    const precedingSpan = index > 0 ? spans[index - 1] : "";
+    const identityContext = [outerIdentityContext ?? "", precedingSpan].filter(Boolean).join(" ");
+    return evidenceSpanSupportsReference(input, reference, span, identityContext);
+  });
+}
+
 function sourceSupportsReferenceEvidence(
   input: HouseholdMeasureResolutionInput,
   reference: PortionReference,
@@ -404,7 +418,7 @@ function sourceSupportsReferenceEvidence(
   const title = source.title?.trim() ?? "";
   const supportingText = Array.isArray(source.supportingText) ? source.supportingText : [];
   return supportingText.some(fragment =>
-    semanticEvidenceSpans(fragment).some(span => evidenceSpanSupportsReference(input, reference, span, title))
+    evidenceFragmentSupportsReference(input, reference, fragment, title)
   );
 }
 
@@ -414,8 +428,7 @@ function structuredEvidenceSupportsReference(
 ) {
   const evidence = reference.evidence.trim();
   if (!evidence) return true;
-  return semanticEvidenceSpans(evidence)
-    .some(span => evidenceSpanSupportsReference(input, reference, span));
+  return evidenceFragmentSupportsReference(input, reference, evidence);
 }
 
 function verifiedReference(
