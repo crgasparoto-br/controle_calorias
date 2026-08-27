@@ -64,6 +64,23 @@ try {
     requestPipe.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
   });
 
+  const readBillingState = async sessionId => {
+    const { result } = await call("Runtime.evaluate", {
+      expression: `(() => ({title: document.body.innerText.includes('Billing, catálogo e governança'), campaigns: document.body.innerText.includes('Campanhas e entregas'), economics: document.body.innerText.includes('Economia por identidade comercial'), rollout: document.body.innerText.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length}))()`,
+      returnByValue: true,
+    }, sessionId);
+    return result.value;
+  };
+  const waitForBillingState = async sessionId => {
+    let value;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      value = await readBillingState(sessionId);
+      if (value.title && value.campaigns && value.economics && value.rollout) return value;
+      await delay(100);
+    }
+    return value;
+  };
+
   const { targetId } = await call("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await call("Target.attachToTarget", { targetId, flatten: true });
   await call("Page.enable", {}, sessionId);
@@ -82,13 +99,9 @@ try {
       deviceScaleFactor: 1,
       mobile: viewport.width < 600,
     }, sessionId);
-    await call("Page.navigate", { url }, sessionId);
-    await delay(900);
-    const { result } = await call("Runtime.evaluate", {
-      expression: `(() => ({title: document.body.innerText.includes('Billing, catálogo e governança'), campaigns: document.body.innerText.includes('Campanhas e entregas'), economics: document.body.innerText.includes('Economia por identidade comercial'), rollout: document.body.innerText.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length}))()`,
-      returnByValue: true,
-    }, sessionId);
-    const value = result.value;
+    const navigation = await call("Page.navigate", { url }, sessionId);
+    if (navigation.errorText) throw new Error(`${viewport.name}: navigation failed: ${navigation.errorText}`);
+    const value = await waitForBillingState(sessionId);
     if (!value.title || !value.campaigns || !value.economics || !value.rollout) throw new Error(`${viewport.name}: required billing sections were not rendered`);
     if (value.overflow) throw new Error(`${viewport.name}: root horizontal overflow detected`);
     if (value.focusable < 10) throw new Error(`${viewport.name}: insufficient focusable controls rendered`);
@@ -96,8 +109,10 @@ try {
   }
 
   await call("Emulation.setDeviceMetricsOverride", { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await call("Page.navigate", { url }, sessionId);
-  await delay(900);
+  const keyboardNavigation = await call("Page.navigate", { url }, sessionId);
+  if (keyboardNavigation.errorText) throw new Error(`keyboard: navigation failed: ${keyboardNavigation.errorText}`);
+  const keyboardReady = await waitForBillingState(sessionId);
+  if (!keyboardReady.title || !keyboardReady.campaigns || !keyboardReady.economics || !keyboardReady.rollout) throw new Error("keyboard: required billing sections were not rendered");
   await call("Runtime.evaluate", { expression: "document.body.tabIndex=-1; document.body.focus();" }, sessionId);
   const keyboardSequence = [];
   for (let index = 0; index < 10; index += 1) {
