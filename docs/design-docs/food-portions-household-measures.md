@@ -82,6 +82,8 @@ Exemplos de interpretações válidas:
 
 Uma média usual pode ser aceita quando houver uma fonte compatível que declare explicitamente a medida como média/usual/típica, ou quando duas ou mais referências compatíveis permitirem derivar um valor central coerente sem dispersão que torne a estimativa enganosa.
 
+A evidência que sustenta a relação entre a medida e a gramatura deve estar semanticamente vinculada ao mesmo alimento/tipo no próprio trecho de suporte. Menções ao alimento em um trecho e a relação `medida -> gramas` de outro alimento em outro trecho da mesma página não podem ser combinadas para formar uma referência exata nem uma média usual.
+
 Para produto com marca/variante explícita, uma porção exata da mesma marca/variante tem precedência. Na ausência dela, uma média usual do mesmo alimento/tipo e da mesma medida física pode estimar apenas a **quantidade**. Isso não transforma outra marca em correspondência exata nem autoriza substituir a composição nutricional específica do produto quando ela estiver disponível.
 
 Não é permitido criar mapas ou constantes paralelas como `PRESUNTO_SLICE_GRAMS` no parser, intent ou handler. A resolução deve passar por uma fronteira canônica reutilizável. Se uma medida obtida externamente for persistida para reutilização futura, deve entrar na fonte canônica de porções com a procedência aplicável.

@@ -48,6 +48,40 @@ describe("replyTemplates", () => {
     expect(buildWhatsAppFoodLines({ ...banana, source: "heuristic" })).toEqual(expected);
   });
 
+  it("informa correção posterior quando o açúcar do café foi estimado", () => {
+    const coffee = {
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      portionText: "1 xícara com açúcar (estimado 5 g)",
+      estimatedGrams: 205,
+      calories: 22,
+      protein: 0,
+      carbs: 5,
+      fat: 0,
+      source: "heuristic",
+    };
+
+    const lines = buildWhatsAppFoodLines(coffee);
+    expect(lines[0]).toMatch(/açúcar estimado/i);
+    expect(lines[0]).toMatch(/pode corrigir depois pelo WhatsApp ou na tela da refeição/i);
+  });
+
+  it("não marca açúcar explícito como estimativa corrigível", () => {
+    const coffee = {
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      portionText: "1 xícara com 8 g de açúcar",
+      estimatedGrams: 208,
+      calories: 34,
+      protein: 0,
+      carbs: 8,
+      fat: 0,
+      source: "heuristic",
+    };
+
+    expect(buildWhatsAppFoodLines(coffee)[0]).not.toMatch(/açúcar estimado/i);
+  });
+
   it("destaca em negrito o total da refeição e seus valores", () => {
     const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([

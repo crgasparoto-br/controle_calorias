@@ -1,5 +1,6 @@
 import { findCatalogFood } from "./catalogMatching";
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
+import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "./householdMeasureResolution";
 import {
   normalizeUnit,
   parseFoodText,
@@ -24,6 +25,15 @@ export type CountableFoodQuantityRequest = {
   foodName: string;
   count: number;
   requestedUnit: string;
+};
+
+export type CountableFoodResolvedMeasure = {
+  segmentIndex: number;
+  request: CountableFoodQuantityRequest;
+  resolution: HouseholdMeasureResolution | {
+    kind: "canonical_static_portion";
+    grams: number;
+  };
 };
 
 function parseBareCount(segment: string): CountableFoodQuantityRequest | null {
@@ -145,6 +155,70 @@ export function prepareCountableFoodRegistration(registrationText: string) {
   return {
     registrationSegments: rewrittenSegments,
     pendingItems,
+    registrationText: rewrittenSegments.join("\n"),
+  };
+}
+
+export async function prepareCountableFoodRegistrationResolved(
+  userId: number,
+  registrationText: string,
+) {
+  const registrationSegments = splitFoodTextSegments(registrationText);
+  const rewrittenSegments = [...registrationSegments];
+  const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
+  const resolutions: CountableFoodResolvedMeasure[] = [];
+
+  for (const [segmentIndex, segment] of registrationSegments.entries()) {
+    const request = parseCountableFoodQuantitySegment(segment);
+    if (!request) {
+      const bare = parseBareCount(segment);
+      if (!bare || bare.count !== 1) continue;
+      const safeBare = resolveSafeCountableCatalogGrams(bare.foodName, bare.count, bare.requestedUnit);
+      if (safeBare) {
+        rewrittenSegments[segmentIndex] = `${safeBare.grams} g de ${bare.foodName}`;
+        resolutions.push({
+          segmentIndex,
+          request: bare,
+          resolution: { kind: "canonical_static_portion", grams: safeBare.grams },
+        });
+      }
+      continue;
+    }
+
+    const safe = resolveSafeCountableCatalogGrams(
+      request.foodName,
+      request.count,
+      request.requestedUnit,
+    );
+    if (safe) {
+      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${request.foodName}`;
+      resolutions.push({
+        segmentIndex,
+        request,
+        resolution: { kind: "canonical_static_portion", grams: safe.grams },
+      });
+      continue;
+    }
+
+    const resolved = await resolveHouseholdMeasure({
+      userId,
+      foodName: request.foodName,
+      quantity: request.count,
+      unit: request.requestedUnit,
+    });
+    if (resolved) {
+      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${request.foodName}`;
+      resolutions.push({ segmentIndex, request, resolution: resolved });
+      continue;
+    }
+
+    pendingItems.push({ ...request, segmentIndex });
+  }
+
+  return {
+    registrationSegments: rewrittenSegments,
+    pendingItems,
+    resolutions,
     registrationText: rewrittenSegments.join("\n"),
   };
 }

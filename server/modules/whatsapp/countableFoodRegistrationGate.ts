@@ -1,5 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
-import { prepareCountableFoodRegistration } from "../../countableFoodQuantity";
+import { prepareCountableFoodRegistrationResolved } from "../../countableFoodQuantity";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
 
@@ -16,7 +16,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   userTimezone?: string;
 }): Promise<CountableFoodRegistrationGateResult> {
   const text = input.text?.trim() ?? "";
-  const prepared = prepareCountableFoodRegistration(text);
+  const prepared = await prepareCountableFoodRegistrationResolved(input.userId, text);
   const firstPending = prepared.pendingItems[0];
   if (!firstPending) {
     return { kind: "ready", registrationText: prepared.registrationText || text };
@@ -39,7 +39,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
     occurredAt,
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
     messageId: input.inboundMessageId,
-    instructionText: `Para registrar ${firstPending.segment} sem assumir 100 g, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+    instructionText: `Não encontrei uma gramatura verificável nem uma média usual segura para ${firstPending.segment}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
   });
   return { kind: "clarification", result: clarification };
 }

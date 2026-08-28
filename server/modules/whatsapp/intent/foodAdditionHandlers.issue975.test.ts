@@ -4,35 +4,19 @@ const mocks = vi.hoisted(() => ({
   listMeals: vi.fn(),
   updateMeal: vi.fn(),
   findMealByLabel: vi.fn(),
-  buildFoodAdditionItem: vi.fn(),
+  resolveCanonicalFoodAdditionItems: vi.fn(),
   composeWhatsAppMealActionReply: vi.fn(async (input: any) => input.options.actionLines.join("\n")),
-}));
-
-vi.mock("../../../../shared/measurementUnits", () => ({
-  normalizeMeasurementUnit: vi.fn((value: string) => value),
 }));
 
 vi.mock("../../../../shared/timeZone", () => ({
   DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo",
 }));
 
-vi.mock("../../../db", () => ({
-  getHabitSnapshots: vi.fn(async () => []),
-}));
-
-vi.mock("../../../foodSemanticCompatibility", () => ({
-  isCoffeeWithAddedSugar: vi.fn(() => false),
-}));
-
 vi.mock("../../../nutritionEngine", () => {
   class MealInferenceError extends Error {
     readonly code = "meal_inference_unavailable";
   }
-
-  return {
-    MealInferenceError,
-    processMealInput: vi.fn(),
-  };
+  return { MealInferenceError };
 });
 
 vi.mock("../coffeeAdditionClarification", () => ({
@@ -41,6 +25,7 @@ vi.mock("../coffeeAdditionClarification", () => ({
 
 vi.mock("../foodQuantityClarification", () => ({
   requestWhatsappCaloricComplementQuantityClarification: vi.fn(),
+  requestWhatsappFoodAdditionQuantityClarification: vi.fn(),
 }));
 
 vi.mock("../replyMessages", () => ({
@@ -61,14 +46,20 @@ vi.mock("./dateTime", () => ({
   resolveRelativeOccurredAt: vi.fn((_text: string, receivedAt: Date) => receivedAt),
 }));
 
+vi.mock("./explicitMealDate", () => ({
+  resolveWhatsappRelativeMealDateSelection: vi.fn((input: any) => ({ date: input.fallbackDate, explicit: false })),
+}));
+
+vi.mock("./canonicalFoodAdditionResolution", () => ({
+  resolveCanonicalFoodAdditionItems: mocks.resolveCanonicalFoodAdditionItems,
+}));
+
 vi.mock("./mealItemHelpers", () => ({
   buildCoffeeLorCapsuleItem: vi.fn(),
-  buildFoodAdditionItem: mocks.buildFoodAdditionItem,
   buildUnsweetenedCoffeeItem: vi.fn(),
   findMealByLabel: mocks.findMealByLabel,
   formatAddedItemsList: vi.fn(),
   formatTotalsLine: vi.fn((item: any) => `${item.calories} kcal | P ${item.protein} g | C ${item.carbs} g | G ${item.fat} g`),
-  toMealItemInputs: vi.fn((items: unknown[]) => items ?? []),
 }));
 
 import { handleFoodAdditionIntent } from "./foodAdditionHandlers";
@@ -101,6 +92,10 @@ function buildResolvedItem(foodName: string, quantity: number, unit: string) {
 }
 
 async function executeAddition(foodName: string) {
+  mocks.resolveCanonicalFoodAdditionItems.mockResolvedValueOnce({
+    kind: "items",
+    items: [buildResolvedItem(foodName, 100, "g")],
+  });
   return handleFoodAdditionIntent(
     7,
     {
@@ -117,7 +112,6 @@ describe("handleFoodAdditionIntent — origem nutricional do item único (#975)"
     vi.clearAllMocks();
     mocks.listMeals.mockResolvedValue([targetMeal]);
     mocks.findMealByLabel.mockReturnValue(targetMeal);
-    mocks.buildFoodAdditionItem.mockImplementation(buildResolvedItem);
     mocks.updateMeal.mockImplementation(async (_userId: number, input: any) => ({
       ...targetMeal,
       ...input,
@@ -127,25 +121,13 @@ describe("handleFoodAdditionIntent — origem nutricional do item único (#975)"
   it("preserva 'Estimativa com base no catálogo' para source catalog", async () => {
     const result = await executeAddition("Arroz catalogado");
     const expectedActionLine = "Adicionei 100 g de Arroz catalogado à refeição Almoço de 13/08/2026. Estimativa com base no catálogo: 100 kcal | P 5 g | C 10 g | G 2 g.";
-
     expect(result.reply).toBe(expectedActionLine);
-    expect(mocks.composeWhatsAppMealActionReply).toHaveBeenCalledWith(expect.objectContaining({
-      options: expect.objectContaining({
-        actionLines: [expectedActionLine],
-      }),
-    }));
   });
 
   it("usa somente 'Estimativa:' para source não catálogo e elimina a duplicação", async () => {
     const result = await executeAddition("Alimento estimado");
     const expectedActionLine = "Adicionei 100 g de Alimento estimado à refeição Almoço de 13/08/2026. Estimativa: 100 kcal | P 5 g | C 10 g | G 2 g.";
-
     expect(result.reply).toBe(expectedActionLine);
     expect(result.reply).not.toContain("Estimativa por estimativa:");
-    expect(mocks.composeWhatsAppMealActionReply).toHaveBeenCalledWith(expect.objectContaining({
-      options: expect.objectContaining({
-        actionLines: [expectedActionLine],
-      }),
-    }));
   });
 });

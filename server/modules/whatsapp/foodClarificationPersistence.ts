@@ -410,6 +410,57 @@ async function persistResolvedConfirmedTextMeal(
   };
 }
 
+async function persistResolvedFoodAddition(
+  deps: FoodClarificationDependencies,
+  userId: number,
+  target: FoodQuantityClarificationTarget,
+  timeZone: string,
+  explicitQuantity?: { quantity: number; unit: string },
+): Promise<WhatsappIntentResult> {
+  const context = target.resolutionContext;
+  if (!context || context.mode !== "complete_food_addition" || !explicitQuantity) {
+    throw new Error("Contexto da adição ou quantidade ausente.");
+  }
+  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
+  if (!grams || grams <= 0) {
+    throw new Error("A quantidade da adição deve ser informada em massa ou volume.");
+  }
+
+  const meals = await deps.listMeals(userId);
+  const expectedMeal = meals.find(meal => meal.id === context.expectedMealId);
+  if (
+    !expectedMeal
+    || normalizeText(expectedMeal.mealLabel) !== normalizeText(context.expectedMealLabel)
+    || new Date(expectedMeal.occurredAt).toISOString() !== context.expectedOccurredAt
+  ) {
+    throw new Error("A refeição alvo mudou antes da conclusão da adição.");
+  }
+
+  const currentItem = context.addition.items[context.itemIndex];
+  if (!currentItem) throw new Error("Item pendente da adição não existe.");
+  const items = context.addition.items.map((item, index) =>
+    index === context.itemIndex
+      ? { ...item, quantity: explicitQuantity.quantity, unit: explicitQuantity.unit }
+      : { ...item }
+  );
+  const { handleFoodAdditionIntent } = await import("./intent/foodAdditionHandlers");
+  return handleFoodAdditionIntent(
+    userId,
+    {
+      mealLabel: context.addition.mealLabel,
+      date: new Date(context.addition.date),
+      items,
+    },
+    timeZone,
+    {
+      originalText: context.originalText,
+      receivedAt: new Date(context.receivedAt),
+      messageId: context.inboundMessageId ?? null,
+      expectedMealId: context.expectedMealId,
+    },
+  );
+}
+
 async function persistResolvedFood(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -425,6 +476,9 @@ async function persistResolvedFood(
   }
   if (quantityTarget.resolutionContext?.mode === "complete_confirmed_text_meal") {
     return persistResolvedConfirmedTextMeal(deps, userId, quantityTarget, explicitQuantity);
+  }
+  if (quantityTarget.resolutionContext?.mode === "complete_food_addition") {
+    return persistResolvedFoodAddition(deps, userId, quantityTarget, timeZone, explicitQuantity);
   }
   if (quantityTarget.resolutionContext?.mode === "complete_caloric_complement") {
     return persistResolvedCaloricComplement(

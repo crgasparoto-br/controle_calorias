@@ -52,8 +52,8 @@ describe("normalização discriminante de café adoçado", () => {
     expect(result[0]).toEqual(expect.objectContaining({
       foodName: "Café com açúcar",
       canonicalName: "Café com açúcar",
-      calories: 34,
-      carbs: 8,
+      calories: 22,
+      carbs: 5,
     }));
     expect(result[1]).toEqual(expect.objectContaining({
       foodName: "Café sem açúcar",
@@ -79,8 +79,8 @@ describe("normalização discriminante de café adoçado", () => {
     expect(result[0]).toEqual(expect.objectContaining({
       foodName: "Café com açúcar",
       canonicalName: "Café com açúcar",
-      calories: 34,
-      carbs: 8,
+      calories: 22,
+      carbs: 5,
     }));
   });
 
@@ -110,7 +110,7 @@ describe("normalização discriminante de café adoçado", () => {
     }));
   });
 
-  it("não renomeia café com leite como café adoçado em entrada composta", () => {
+  it("não renomeia café com leite e adiciona separadamente o café adoçado omitido pela IA", () => {
     const result = normalizeSweetenedCoffeeDraftItems(
       [
         item({
@@ -123,16 +123,22 @@ describe("normalização discriminante de café adoçado", () => {
       "1 xícara de café com açúcar e 1 xícara de café com leite",
     );
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result[0]).toEqual(expect.objectContaining({
       foodName: "Café com leite",
       canonicalName: "Café com leite",
       calories: 60,
       carbs: 5,
     }));
+    expect(result[1]).toEqual(expect.objectContaining({
+      foodName: "Café com açúcar",
+      canonicalName: "Café com açúcar",
+      calories: 22,
+      carbs: 5,
+    }));
   });
 
-  it("não aceita a estimativa de outro café como nutrição do café adoçado", () => {
+  it("não pede clarificação para café simples quando outra bebida de café também aparece", () => {
     const shouldClarify = shouldRequestSugarQuantity(
       "1 xícara de café com açúcar e 1 xícara de café com leite",
       [{
@@ -159,6 +165,6 @@ describe("normalização discriminante de café adoçado", () => {
       }],
     );
 
-    expect(shouldClarify).toBe(true);
+    expect(shouldClarify).toBe(false);
   });
 });

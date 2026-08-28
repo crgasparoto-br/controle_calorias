@@ -1,0 +1,14 @@
+Issue 1016 exact material-head evidence
+material_head_sha=4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2
+base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
+recovery_scope=post-write-refreeze
+focused_household_harness_sha256=f927543a144eac74d24c0f40d93570a34d6f4353209d0ac9ea118247d7e1da9c
+focused_household_harness=PASS A-001, A-002, A-003 and A-005 discriminants against actual transpiled current TypeScript; adapters only were stubbed.
+a004_transport_evidence_sha256=5d717b2d6b32075baca3f9a75203a7e5731e4d5b434bb9881f51fe4be33aeac3
+a004_transport_controls=PASS size mismatch and same-size SHA-256 mismatch are rejected by audit_artifact_io.
+typescript_syntax=PASS householdMeasureResolution.ts, foodSemanticCompatibility.ts, householdMeasureResolution.audit1016.a005.test.ts via node --experimental-strip-types --check.
+git_diff_check=PASS.
+canonical_path=PASS canonicalFoodAdditionResolution imports resolveHouseholdMeasure and processMealInput; no createDomainTextResponse, executeResolvedCapability or web_search marker in WhatsApp addition handlers.
+documentation_consistency=PASS canonical household-measure design states identity and measure-to-grams evidence must remain bound to the same supporting context; no competing manual measure table introduced.
+ci_snapshot=pending-no-run for material head 4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2; GitHub Actions was queried once and returned no runs; no polling/rerun/dispatch performed.
+status=passed-local-gates-ci-pending

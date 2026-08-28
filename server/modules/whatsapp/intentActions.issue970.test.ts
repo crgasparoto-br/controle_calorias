@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const processMealInputMock = vi.fn();
+const resolveHouseholdMeasureMock = vi.fn();
 const resolveWhatsAppPrecedenceGateMock = vi.fn(async () => ({ step: "continue_pipeline" as const }));
 
 vi.mock("../../db", () => ({
@@ -17,6 +18,10 @@ vi.mock("../../nutritionEngine", () => ({
     code = "meal_inference_failed";
   },
   processMealInput: processMealInputMock,
+}));
+
+vi.mock("../../householdMeasureResolution", () => ({
+  resolveHouseholdMeasure: resolveHouseholdMeasureMock,
 }));
 
 vi.mock("../meals/service", () => ({
@@ -54,12 +59,50 @@ const breakfast = {
   items: [],
 };
 
+function canonicalBananaResult() {
+  return {
+    items: [{
+      foodName: "Banana",
+      canonicalName: "Banana",
+      quantity: 86,
+      unit: "g",
+      portionText: "86 g",
+      servings: 1,
+      estimatedGrams: 86,
+      calories: 76.5,
+      protein: 1,
+      carbs: 20,
+      fat: 0.2,
+      confidence: 0.9,
+      source: "catalog",
+    }],
+  };
+}
+
 describe("issue #970 - cadeia real do interpretador de texto", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     processMealInputMock.mockReset();
+    resolveHouseholdMeasureMock.mockReset();
     resolveWhatsAppPrecedenceGateMock.mockClear();
+
+    resolveHouseholdMeasureMock.mockImplementation(async (input: { foodName: string; quantity: number; unit: string }) => {
+      if (!/banana/i.test(input.foodName)) return null;
+      return {
+        kind: "canonical_portion",
+        grams: 86 * input.quantity,
+        requestedQuantity: input.quantity,
+        requestedUnit: input.unit,
+        evidence: "1 unidade de banana = 86 g",
+        sourceUrls: [],
+        referenceCount: 1,
+      };
+    });
+    processMealInputMock.mockImplementation(async (input: { text?: string }) => {
+      if (/banana/i.test(input.text ?? "")) return canonicalBananaResult();
+      throw new Error(`processMealInput não deveria ser chamado para: ${input.text ?? ""}`);
+    });
   });
 
   it.each([
@@ -90,11 +133,11 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
       items: [
         expect.objectContaining({
           foodName: "Café sem açúcar",
-          canonicalName: "Café preto sem açúcar",
+          canonicalName: "Café sem açúcar",
           quantity: 3,
           unit: "xícara",
-          portionText: "3 xícaras (150 ml)",
-          estimatedGrams: 150,
+          portionText: "3 xícaras (600 ml)",
+          estimatedGrams: 600,
           calories: 6,
         }),
       ],
@@ -105,7 +148,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
       action: "meal_item_added",
       eventType: "whatsapp.intent.meal_item_added",
     }));
-    expect(result?.reply).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
+    expect(result?.reply).toContain("Adicionei 3 xícaras (600 ml) de café sem açúcar");
     expect(result?.reply).not.toContain("Me diga a quantidade e a refeição");
   });
 
@@ -154,15 +197,17 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
           foodName: "Café sem açúcar",
           quantity: 3,
           unit: "xícara",
+          estimatedGrams: 600,
         }),
         expect.objectContaining({
           foodName: "banana",
           quantity: 1,
           unit: "un",
+          estimatedGrams: 86,
         }),
       ],
     }));
-    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(processMealInputMock).toHaveBeenCalledOnce();
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "meal_item_added",
@@ -186,11 +231,11 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     expect(updateMealMock).toHaveBeenCalledOnce();
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       items: [
-        expect.objectContaining({ foodName: "banana", quantity: 1, unit: "un" }),
-        expect.objectContaining({ foodName: "Café sem açúcar", quantity: 3, unit: "xícara" }),
+        expect.objectContaining({ foodName: "banana", quantity: 1, unit: "un", estimatedGrams: 86 }),
+        expect.objectContaining({ foodName: "Café sem açúcar", quantity: 3, unit: "xícara", estimatedGrams: 600 }),
       ],
     }));
-    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(processMealInputMock).toHaveBeenCalledOnce();
   });
 
   it("preserva copo como unidade canônica no executor e na resposta", async () => {
@@ -212,7 +257,8 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
         foodName: "Café sem açúcar",
         quantity: 3,
         unit: "copo",
-        portionText: expect.stringContaining("3 copos"),
+        portionText: "3 copos (600 ml)",
+        estimatedGrams: 600,
       })],
     }));
     expect(processMealInputMock).not.toHaveBeenCalled();

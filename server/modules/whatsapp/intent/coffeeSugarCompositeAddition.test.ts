@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getDb: vi.fn(async () => null),
-  getHabitSnapshots: vi.fn(async () => []),
-  getUserWhatsappConnection: vi.fn(),
-  logPersistenceWarning: vi.fn(),
-  normalizeWhatsAppPhoneNumber: vi.fn((value: string) => value),
-  processMealInput: vi.fn(),
+  listMeals: vi.fn(),
+  updateMeal: vi.fn(),
+  findMealByLabel: vi.fn(),
+  resolveCanonicalFoodAdditionItems: vi.fn(),
   requestClarification: vi.fn(async () => ({
     handled: true,
     action: "food_clarification_requested",
@@ -14,16 +12,6 @@ const mocks = vi.hoisted(() => ({
     eventType: "whatsapp.food_clarification.requested",
     detail: "Pendência persistida.",
   })),
-  listMeals: vi.fn(),
-  updateMeal: vi.fn(),
-}));
-
-vi.mock("../../../db", () => ({
-  getDb: mocks.getDb,
-  getHabitSnapshots: mocks.getHabitSnapshots,
-  getUserWhatsappConnection: mocks.getUserWhatsappConnection,
-  logPersistenceWarning: mocks.logPersistenceWarning,
-  normalizeWhatsAppPhoneNumber: mocks.normalizeWhatsAppPhoneNumber,
 }));
 
 vi.mock("../../../nutritionEngine", () => {
@@ -37,14 +25,24 @@ vi.mock("../../../nutritionEngine", () => {
     }
   }
 
-  return {
-    MealInferenceError,
-    processMealInput: mocks.processMealInput,
-  };
+  return { MealInferenceError };
 });
+
+vi.mock("../coffeeAdditionClarification", () => ({
+  createWhatsappCoffeeAdditionClarification: vi.fn(),
+}));
 
 vi.mock("../foodQuantityClarification", () => ({
   requestWhatsappCaloricComplementQuantityClarification: mocks.requestClarification,
+  requestWhatsappFoodAdditionQuantityClarification: vi.fn(),
+}));
+
+vi.mock("../replyMessages", () => ({
+  buildWhatsAppClarificationReplyMessage: vi.fn((value: string) => value),
+}));
+
+vi.mock("../mealActionReplyComposer", () => ({
+  composeWhatsAppMealActionReply: vi.fn(async () => "Resumo atualizado."),
 }));
 
 vi.mock("../../meals/service", () => ({
@@ -52,8 +50,25 @@ vi.mock("../../meals/service", () => ({
   updateMeal: mocks.updateMeal,
 }));
 
-vi.mock("../mealActionReplyComposer", () => ({
-  composeWhatsAppMealActionReply: vi.fn(async () => "Resumo atualizado."),
+vi.mock("./dateTime", () => ({
+  formatReplyDate: vi.fn(() => "24/07/2026"),
+  resolveRelativeOccurredAt: vi.fn((_text: string, receivedAt: Date) => receivedAt),
+}));
+
+vi.mock("./explicitMealDate", () => ({
+  resolveWhatsappRelativeMealDateSelection: vi.fn((input: any) => ({ date: input.fallbackDate, explicit: false })),
+}));
+
+vi.mock("./canonicalFoodAdditionResolution", () => ({
+  resolveCanonicalFoodAdditionItems: mocks.resolveCanonicalFoodAdditionItems,
+}));
+
+vi.mock("./mealItemHelpers", () => ({
+  buildCoffeeLorCapsuleItem: vi.fn(),
+  buildUnsweetenedCoffeeItem: vi.fn(),
+  findMealByLabel: mocks.findMealByLabel,
+  formatAddedItemsList: vi.fn(),
+  formatTotalsLine: vi.fn(),
 }));
 
 import { MealInferenceError } from "../../../nutritionEngine";
@@ -72,13 +87,14 @@ describe("adição composta com café adoçado", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listMeals.mockResolvedValue([targetMeal]);
-    mocks.processMealInput.mockRejectedValue(new MealInferenceError(
-      "Informe a quantidade de açúcar.",
+    mocks.findMealByLabel.mockReturnValue(targetMeal);
+    mocks.resolveCanonicalFoodAdditionItems.mockRejectedValue(new MealInferenceError(
+      "Informe a quantidade do complemento.",
       { code: "food_component_quantity_required" },
     ));
   });
 
-  it("persiste na pendência o lote alimentar completo antes da pergunta", async () => {
+  it("persiste o lote completo antes de perguntar por complemento calórico não coberto pela regra simples", async () => {
     const result = await handleFoodAdditionIntent(
       7,
       {
@@ -86,12 +102,12 @@ describe("adição composta com café adoçado", () => {
         date: occurredAt,
         items: [
           { foodName: "Pão francês", quantity: 1, unit: "unidade" },
-          { foodName: "Café com açúcar", quantity: 1, unit: "xícara" },
+          { foodName: "Café com leite e açúcar", quantity: 1, unit: "xícara" },
         ],
       } as any,
       "America/Sao_Paulo",
       {
-        originalText: "Adicionar pão e café com açúcar ao café da manhã",
+        originalText: "Adicionar pão e café com leite e açúcar ao café da manhã",
         receivedAt: occurredAt,
         messageId: "wamid-composite-addition",
       },
@@ -100,8 +116,8 @@ describe("adição composta com café adoçado", () => {
     expect(result.action).toBe("food_clarification_requested");
     expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
       userId: 7,
-      originalFoodText: "1 unidade de Pão francês e 1 xícara de Café com açúcar",
-      originalText: "Adicionar pão e café com açúcar ao café da manhã",
+      originalFoodText: "1 unidade de Pão francês e 1 xícara de Café com leite e açúcar",
+      originalText: "Adicionar pão e café com leite e açúcar ao café da manhã",
       operation: expect.objectContaining({
         kind: "add_to_meal",
         mealId: 903,

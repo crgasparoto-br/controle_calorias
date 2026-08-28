@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   requestClarification: vi.fn(async () => ({
     handled: true,
     action: "food_clarification_requested",
-    reply: "Informe somente a quantidade de açúcar em gramas.",
+    reply: "Informe a quantidade necessária.",
     eventType: "whatsapp.food_clarification.requested",
     detail: "Pendência persistida.",
   })),
@@ -49,8 +49,8 @@ vi.mock("../../../nutritionEngine", () => {
 });
 
 vi.mock("../foodQuantityClarification", () => ({
-  requestWhatsappCaloricComplementQuantityClarification:
-    mocks.requestClarification,
+  requestWhatsappCaloricComplementQuantityClarification: mocks.requestClarification,
+  requestWhatsappFoodAdditionQuantityClarification: mocks.requestClarification,
 }));
 
 vi.mock("../../meals/service", () => ({
@@ -63,7 +63,6 @@ vi.mock("../mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReplies: vi.fn(async () => "Resumo atualizado."),
 }));
 
-import { MealInferenceError } from "../../../nutritionEngine";
 import { handleFoodAdditionIntent } from "./foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./foodReplacementHandlers";
 
@@ -82,7 +81,23 @@ const coffeeItem = {
   carbs: 0,
   fat: 0,
   confidence: 0.95,
-  source: "catalog",
+  source: "catalog" as const,
+};
+const coffeeWithSugarItem = {
+  foodName: "Café com açúcar",
+  canonicalName: "Café com açúcar",
+  brand: null,
+  quantity: 1,
+  unit: "xícara",
+  portionText: "1 xícara (200 ml; açúcar estimado 5 g)",
+  servings: 1,
+  estimatedGrams: 205,
+  calories: 22,
+  protein: 0,
+  carbs: 5,
+  fat: 0,
+  confidence: 0.95,
+  source: "catalog" as const,
 };
 const targetMeal = {
   id: 903,
@@ -92,37 +107,51 @@ const targetMeal = {
   items: [coffeeItem],
 };
 
-function missingSugarError() {
-  return new MealInferenceError(
-    "Informe a quantidade de açúcar.",
-    {
-      code: "food_component_quantity_required",
-      context: { component: "açúcar" },
-    },
-  );
-}
-
 function draftItem(input: {
   foodName: string;
   canonicalName: string;
   calories: number;
   carbs: number;
+  quantity?: number;
+  unit?: string;
+  estimatedGrams?: number;
+  portionText?: string;
 }) {
   return {
     foodName: input.foodName,
     canonicalName: input.canonicalName,
     brand: null,
-    quantity: 1,
-    unit: "unidade",
-    portionText: "1 unidade",
+    quantity: input.quantity ?? 1,
+    unit: input.unit ?? "unidade",
+    portionText: input.portionText ?? "1 unidade",
     servings: 1,
-    estimatedGrams: 50,
+    estimatedGrams: input.estimatedGrams ?? 50,
     calories: input.calories,
     protein: 0,
     carbs: input.carbs,
     fat: 0,
     confidence: 0.9,
     source: "heuristic" as const,
+  };
+}
+
+function mealResult(items: any[]) {
+  return {
+    detectedMealLabel: "Café da manhã",
+    sourceText: "teste",
+    confidence: 0.9,
+    needsConfirmation: false,
+    reasoning: "resultado canônico controlado no teste",
+    items,
+    totals: items.reduce(
+      (totals, item) => ({
+        calories: totals.calories + item.calories,
+        protein: totals.protein + item.protein,
+        carbs: totals.carbs + item.carbs,
+        fat: totals.fat + item.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    ),
   };
 }
 
@@ -137,14 +166,14 @@ describe("mutações de café com açúcar no WhatsApp", () => {
       ...input,
       id: input.mealId,
     }));
-    mocks.processMealInput.mockRejectedValue(missingSugarError());
+    mocks.processMealInput.mockResolvedValue(mealResult([coffeeWithSugarItem]));
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("abre pendência antes de adicionar à refeição", async () => {
+  it("adiciona café simples com açúcar usando a média canônica sem abrir pendência", async () => {
     const result = await handleFoodAdditionIntent(
       7,
       {
@@ -164,47 +193,39 @@ describe("mutações de café com açúcar no WhatsApp", () => {
       },
     );
 
-    expect(result.action).toBe("food_clarification_requested");
-    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 7,
-      originalFoodText: "1 xícara de Café com açúcar",
-      operation: expect.objectContaining({
-        kind: "add_to_meal",
-        mealId: 903,
-      }),
-      messageId: "wamid-add-sugar",
+    expect(result.action).toBe("meal_item_added");
+    expect(mocks.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
+      text: "1 xícara de Café com açúcar",
     }));
-    expect(mocks.updateMeal).not.toHaveBeenCalled();
+    expect(mocks.updateMeal).toHaveBeenCalledWith(7, expect.objectContaining({
+      mealId: 903,
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          canonicalName: "Café com açúcar",
+          estimatedGrams: 205,
+          calories: 22,
+          carbs: 5,
+        }),
+      ]),
+    }));
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
   });
 
-  it("usa o café resolvido, e não o primeiro item retornado, em adição com vários alimentos", async () => {
-    mocks.processMealInput.mockResolvedValueOnce({
-      detectedMealLabel: "Café da manhã",
-      sourceText: "1 xícara de Café com açúcar",
-      confidence: 0.9,
-      needsConfirmation: false,
-      reasoning: "itens deliberadamente fora da ordem do alvo",
-      items: [
-        draftItem({
-          foodName: "Pão francês",
-          canonicalName: "Pão francês",
-          calories: 135,
-          carbs: 28,
-        }),
-        {
-          ...draftItem({
-            foodName: "Café com açúcar",
-            canonicalName: "Café com açúcar",
-            calories: 34,
-            carbs: 8,
-          }),
-          unit: "xícara",
-          portionText: "1 xícara",
-          estimatedGrams: 200,
-        },
-      ],
-      totals: { calories: 169, protein: 0, carbs: 36, fat: 0 },
+  it("resolve adições múltiplas de forma independente e preserva o café canônico", async () => {
+    const breadItem = draftItem({
+      foodName: "Pão francês",
+      canonicalName: "Pão francês",
+      calories: 135,
+      carbs: 28,
+      quantity: 50,
+      unit: "g",
+      estimatedGrams: 50,
+      portionText: "50 g",
     });
+    mocks.processMealInput.mockReset();
+    mocks.processMealInput
+      .mockResolvedValueOnce(mealResult([breadItem]))
+      .mockResolvedValueOnce(mealResult([coffeeWithSugarItem]));
 
     const result = await handleFoodAdditionIntent(
       7,
@@ -212,33 +233,41 @@ describe("mutações de café com açúcar no WhatsApp", () => {
         mealLabel: "Café da manhã",
         date: occurredAt,
         items: [
-          { foodName: "Pão francês", quantity: 1, unit: "unidade" },
+          { foodName: "Pão francês", quantity: 50, unit: "g" },
           { foodName: "Café com açúcar", quantity: 1, unit: "xícara" },
         ],
       } as any,
       "America/Sao_Paulo",
       {
-        originalText: "Adicionar pão e 1 xícara de café com açúcar ao café da manhã",
+        originalText: "Adicionar 50 g de pão e 1 xícara de café com açúcar ao café da manhã",
         receivedAt: occurredAt,
         messageId: "wamid-add-multiple-sugar",
       },
     );
 
     expect(result.action).toBe("meal_item_added");
-    expect(mocks.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.processMealInput).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      text: "50 g de Pão francês",
+    }));
+    expect(mocks.processMealInput).toHaveBeenNthCalledWith(2, expect.objectContaining({
       text: "1 xícara de Café com açúcar",
     }));
     const updateInput = mocks.updateMeal.mock.calls[0][1];
-    expect(updateInput.items.at(-2).foodName).toBe("Pão francês");
+    expect(updateInput.items.at(-2)).toEqual(expect.objectContaining({
+      foodName: "Pão francês",
+      estimatedGrams: 50,
+    }));
     expect(updateInput.items.at(-1)).toEqual(expect.objectContaining({
       foodName: "Café com açúcar",
       canonicalName: "Café com açúcar",
-      calories: 34,
-      carbs: 8,
+      estimatedGrams: 205,
+      calories: 22,
+      carbs: 5,
     }));
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
   });
 
-  it("abre pendência antes de substituir o item", async () => {
+  it("substitui café sem açúcar por café com açúcar usando a mesma regra canônica", async () => {
     const result = await handleFoodReplacementIntents(
       7,
       [{
@@ -253,23 +282,15 @@ describe("mutações de café com açúcar no WhatsApp", () => {
       },
     );
 
-    expect(result.action).toBe("food_clarification_requested");
-    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 7,
-      originalFoodText: "1 xícara de Café com açúcar",
-      operation: expect.objectContaining({
-        kind: "replace_item",
-        mealId: 903,
-        itemIndex: 0,
-        originalFoodName: "Café sem açúcar",
-        companionReplacements: [],
-      }),
-      messageId: "wamid-replace-sugar",
+    expect(result.action).toBe("meal_item_replaced");
+    expect(mocks.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
+      text: "1 xícara de Café com açúcar",
     }));
-    expect(mocks.updateMeal).not.toHaveBeenCalled();
+    expect(mocks.updateMeal).toHaveBeenCalled();
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
   });
 
-  it("preserva substituições companheiras quando uma troca exige açúcar", async () => {
+  it("preserva substituições companheiras quando a troca de café usa a média canônica", async () => {
     mocks.listMeals.mockResolvedValueOnce([{
       ...targetMeal,
       items: [
@@ -297,17 +318,11 @@ describe("mutações de café com açúcar no WhatsApp", () => {
       },
     );
 
-    expect(result.action).toBe("food_clarification_requested");
-    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
-      originalText: "Trocar banana por maçã e café sem açúcar por café com açúcar",
-      operation: expect.objectContaining({
-        kind: "replace_item",
-        mealId: 903,
-        itemIndex: 1,
-        originalFoodName: "Café sem açúcar",
-        companionReplacements: [{ fromFood: "Banana", toFood: "Maçã" }],
-      }),
+    expect(result.action).toBe("meal_item_replaced");
+    expect(mocks.updateMeal).toHaveBeenCalled();
+    expect(mocks.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
+      text: "1 xícara de Café com açúcar",
     }));
-    expect(mocks.updateMeal).not.toHaveBeenCalled();
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
   });
 });

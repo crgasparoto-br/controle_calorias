@@ -453,14 +453,14 @@ describe("executeWhatsappTextIntent", () => {
         riceItem,
         expect.objectContaining({
           foodName: "Café sem açúcar",
-          canonicalName: "Café preto sem açúcar",
-          portionText: "3 xícaras (150 ml)",
-          estimatedGrams: 150,
+          canonicalName: "Café sem açúcar",
+          portionText: "3 xícaras (600 ml)",
+          estimatedGrams: 600,
           calories: 6,
           protein: 0,
           carbs: 0,
           fat: 0,
-          source: "heuristic",
+          source: "catalog",
         }),
       ],
     }));
@@ -468,7 +468,7 @@ describe("executeWhatsappTextIntent", () => {
       handled: true,
       action: "meal_item_added",
       eventType: "whatsapp.intent.meal_item_added",
-      reply: expect.stringContaining("Adicionei 3 xícaras (150 ml) de café sem açúcar"),
+      reply: expect.stringContaining("Adicionei 3 xícaras (600 ml) de café sem açúcar"),
     }));
   });
 
@@ -495,12 +495,41 @@ describe("executeWhatsappTextIntent", () => {
       id: input.mealId,
       ...input,
     }));
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Jantar",
+      sourceText: "300 g de amendoim japonês Elma Chips",
+      confidence: 0.95,
+      needsConfirmation: false,
+      reasoning: "Referência nutricional canônica resolvida.",
+      items: [
+        {
+          foodName: "amendoim japonês Elma Chips",
+          canonicalName: "amendoim japonês Elma Chips",
+          brand: "Elma Chips",
+          portionText: "300 g",
+          quantity: 300,
+          unit: "g",
+          servings: 1,
+          estimatedGrams: 300,
+          calories: 450,
+          protein: 18,
+          carbs: 45,
+          fat: 15,
+          confidence: 0.95,
+          source: "catalog",
+        },
+      ],
+      totals: { calories: 450, protein: 18, carbs: 45, fat: 15 },
+    });
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem",
       receivedAt: new Date("2026-06-04T15:00:00.000Z"),
     });
 
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
+      text: "300 g de amendoim japonês Elma Chips",
+    }));
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealId: 16,
       mealLabel: "Jantar",
@@ -515,7 +544,7 @@ describe("executeWhatsappTextIntent", () => {
           protein: 18,
           carbs: 45,
           fat: 15,
-          source: "heuristic",
+          source: "catalog",
         }),
       ],
     }));
@@ -525,7 +554,7 @@ describe("executeWhatsappTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_added",
       reply: expect.stringContaining("Adicionei 300 g de amendoim japonês Elma Chips à refeição Jantar"),
     }));
-    expect(result?.reply).toContain("Estimativa: 450 kcal | P 18 g | C 45 g | G 15 g.");
+    expect(result?.reply).toContain("Estimativa com base no catálogo: 450 kcal | P 18 g | C 45 g | G 15 g.");
     expect(result?.reply).not.toContain("por estimativa");
   });
 
