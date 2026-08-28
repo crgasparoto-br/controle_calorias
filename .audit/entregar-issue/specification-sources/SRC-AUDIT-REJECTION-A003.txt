@@ -1,0 +1,14 @@
+Independent audit result for PR #1020
+Rejection ID: audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340
+Verdict: REPROVADA
+
+Finding A-003 — ALTO — certified issue-local scope does not match the immutable Git delta
+The published handoff certified work_item_start_sha 6fa1db325250607296776b3f7747d86e63d607d1 while listing only three server paths. The immutable compare from that SHA to material head 6fe172fd055d944717937c724853b50c97b4ba5d also contains delivery artifacts under .audit/entregar-issue, so the declared scope is not exact.
+
+The functional remediation remains valid: the material candidate 6fe172fd055d944717937c724853b50c97b4ba5d keeps persisted food_portions ahead of the static catalog fallback, includes deliberately divergent precedence regressions, and already passed the Agent-first gate.
+
+Required remediation
+1. Preserve the functional material head; no product-code change is required by this finding.
+2. Rebuild the target-bound handoff using the actual pre-write remediation boundary d91b94342766087e24d8d9a2cf9793337b9cecbe.
+3. Certify exactly the paths in the immutable d91b94342766087e24d8d9a2cf9793337b9cecbe..6fe172fd055d944717937c724853b50c97b4ba5d compare.
+4. Publish a coherent direct result-only child in the same PR and revalidate terminal identity before independent re-audit.

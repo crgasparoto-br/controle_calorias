@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "AUD-1020-HANDOFF-NOT-PRODUCED-253C643D",
+    "rejection_id": "audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340",
     "finding_ids": [
-      "A-001"
+      "A-003"
     ],
-    "audit_report_sha256": "5f907a1219edf606ced67ba9151c52a6764fbce7c3c363a85c07a5b817e7768a"
+    "audit_report_sha256": "85a5f7a397dd28185c90e6bad6a72cb17a80c955c6163a1b9f196cdc9f10bdbf"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The reusable prevention and detection rules already exist in delivery-target binding, recovery classification, and terminal handoff validation. This rejection was caused by a delivery invocation that had not produced its target-bound result package, so no new global invariant is required."
+    "reason": "The existing delivery-target-binding and handoff-certificate contracts already require work_item_start_sha and issue_changed_paths to match the exact issue-local Git delta; this rejection is a target-specific application failure rather than a missing global rule."
   },
   "skill_changes": []
 }

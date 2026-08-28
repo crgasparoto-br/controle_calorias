@@ -5,7 +5,8 @@ specification_version: 5
 ## Requisitos
 
 - O registro normal e o fluxo `Adicionar...` devem reutilizar a mesma fronteira de resolução de medidas; para a mesma identidade, quantidade e unidade, ambos devem produzir a mesma gramatura ou a mesma necessidade de clarificação.
-- Para `1,5 pão francês`, quando a referência do catálogo local informa `1 unidade = 50 g`, o resultado deve ser `75 g` nos dois fluxos, sem pesquisa externa e sem clarificação.
+- Para `1,5 pão francês`, quando não existir porção persistida segura e a referência do catálogo local informar `1 unidade = 50 g`, o resultado deve ser `75 g` nos dois fluxos, sem pesquisa externa e sem clarificação.
+- Quando existir porção persistida segura em `food_portions` resolvida por `convertFoodPortionToGrams`, ela deve ter precedência sobre qualquer porção estática/local do catálogo; a porção estática só pode ser usada quando a porção persistida estiver ausente ou incompatível.
 - A vírgula entre dígitos em uma quantidade decimal pt-BR não é separador de alimentos; vírgulas que realmente separam itens devem continuar funcionando.
 - A validação de evidência de medida deve aceitar relações físicas explícitas tanto em `medida -> massa` quanto em formatos equivalentes de rótulo como `massa (medida)`, sem relaxar identidade, unidade, quantidade ou vínculo da fonte.
 - Quando existirem duas ou mais referências compatíveis da mesma medida e do mesmo alimento/tipo/preparo, a resolução pode derivar uma média usual contextual coerente em vez de selecionar arbitrariamente a primeira referência.

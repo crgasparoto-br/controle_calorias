@@ -1,30 +1,31 @@
 {
   "schema_version": 1,
-  "status": "passed",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 1016,
-  "pull_request_number": 1020,
-  "rejection_id": "AUD-1020-HANDOFF-NOT-PRODUCED-253C643D",
-  "finding_ids": [
-    "A-001"
-  ],
-  "material_head_sha": "253c643dd10d9c7b95638060edf0ba437d702f13",
-  "requested_recovery_scope": "handoff-only",
-  "effective_recovery_scope": "fresh-handoff-required",
-  "effective_recovery_reason": "target-binding:foreign-target; prior independent audit additionally proved inherited-base-artifact",
-  "material_code_changed": false,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "6fe172fd055d944717937c724853b50c97b4ba5d",
   "remediation_mode": "targeted-remediation",
-  "actions": [
-    "Rebound specification and evidence to PR #1020 without reusing the PR #1018 certificate.",
-    "Preserved cumulative historical escape IDs for material-parent monotonicity and revalidated them on the current material head.",
-    "Added explicit closure for the independent rejection and prepared a new target-bound result-only handoff."
-  ],
-  "remote_validation": {
-    "workflow_run_id": 33182755471,
-    "workflow_run_number": 5935,
-    "workflow_name": "Agent-first gate",
-    "status": "completed",
-    "conclusion": "success",
-    "subject_sha": "253c643dd10d9c7b95638060edf0ba437d702f13"
-  }
+  "source": {
+    "kind": "independent-audit-result",
+    "rejection_id": "audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340",
+    "audited_head_sha": "cb95cc0276462b9f205564d6b66778c064b08898",
+    "audit_report_sha256": "6660f1e460e8eb8dac23afec2238e4adc18f183b579edf6e0bcd03a1bcb07713"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-003",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        "Immutable compare d91b94342766087e24d8d9a2cf9793337b9cecbe..6fe172fd055d944717937c724853b50c97b4ba5d returns exactly two material paths.",
+        "The rebuilt certificate uses that pre-write SHA and exact path set; no product code is changed by the handoff repair."
+      ],
+      "validations": [
+        "HANDOFF-SCOPE-EXACT-001: exact Git compare path equality",
+        "issue_delta_sha256=c7fc086ec75de3f2459e471c518aaaace4c33dc597d02ed3e1d6bcd45485af27",
+        "result-only child parent must remain 6fe172fd055d944717937c724853b50c97b4ba5d"
+      ]
+    }
+  ]
 }
