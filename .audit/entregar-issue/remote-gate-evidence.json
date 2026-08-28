@@ -1,10 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48",
-  "status": "pending-no-run",
-  "observed_once": true,
+  "contract_version": "2026-08-20.3",
   "ci_mode": "delivery-snapshot",
-  "observation": "The single allowed workflow-run snapshot for this material SHA returned no eligible pull-request workflow runs.",
-  "runs": [],
-  "rerun_or_dispatch_attempted": false
+  "material_head_sha": "f83f378097213b05acb9f271c6122f85b71e85a0",
+  "status": "in_progress",
+  "single_snapshot": true,
+  "rerun_or_dispatch": false,
+  "workflow_runs": [
+    {"id":33180570662,"name":"Onboarding activation TiDB gate","status":"in_progress","conclusion":null},
+    {"id":33180570630,"name":"WhatsApp context TiDB gate","status":"in_progress","conclusion":null},
+    {"id":33180570586,"name":"Billing persistence TiDB gate","status":"in_progress","conclusion":null},
+    {"id":33180570627,"name":"Agent-first gate","status":"in_progress","conclusion":null},
+    {"id":33180570587,"name":"Professional persistence TiDB gate","status":"in_progress","conclusion":null},
+    {"id":33180570598,"name":"AI provider live smoke","status":"completed","conclusion":"skipped"}
+  ]
 }
