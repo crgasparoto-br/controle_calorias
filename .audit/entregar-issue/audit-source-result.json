@@ -1,1 +1,39 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","status":"rejected","rejection_id":"audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e","head_sha":"a68a69bd54d81a9939fd2490c461812b3c8dd3ef","material_head_sha":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","certified_material_head_sha_at_rejection":"9b3bd7b6c5db003e9809bf75918d1f88674b1735","finding_ids":["A-002"],"findings":[{"id":"A-002","status":"open","disposition":"blocking","actionable":true,"remediation_mode":"targeted-remediation","summary":"The remediation ledger was not cryptographically bound to the exact bytes of the audit-source-result it claimed to close: source.audit_report_sha256 differed from the SHA-256 of audit-source-result.json."}],"recommendations":[],"summary":"Independent re-audit rejected the terminal delivery package because audit-remediation.json referenced a stale source hash. Product material remained unchanged at the rejection; the current recovery reanchored the same functional patch onto the newer develop base and refroze before rebuilding the result-only handoff."}
+{
+  "schema_version": 1,
+  "kind": "independent-audit-rejection",
+  "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
+  "head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
+  "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f",
+  "status": "rejected",
+  "findings": [
+    {
+      "id": "A-006",
+      "title": "Critical handoff packet does not close INHERITED-AUDIT-ESCAPES with candidate-head controls",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-evidence-gap",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "requirements": [
+        "INHERITED-AUDIT-ESCAPES"
+      ]
+    },
+    {
+      "id": "A-007",
+      "title": "Inherited active controls are inconsistent with risk-family saturation",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "risk-saturation-gap",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "requirements": [
+        "INHERITED-AUDIT-ESCAPES"
+      ]
+    }
+  ],
+  "recommendations": []
+}

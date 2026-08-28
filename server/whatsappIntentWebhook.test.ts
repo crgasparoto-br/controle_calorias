@@ -630,11 +630,11 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealId: 12,
       mealLabel: "Café da manhã",
-      items: [riceItem, expect.objectContaining({ foodName: "Café sem açúcar", portionText: "3 xícaras (150 ml)", calories: 6 })],
+      items: [riceItem, expect.objectContaining({ foodName: "Café sem açúcar", portionText: "3 xícaras (600 ml)", calories: 6 })],
     }));
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_added" }));
-    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
+    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (600 ml) de café sem açúcar");
   });
 
   it("envia sugestão de lanche e não delega para inferência nutricional", async () => {

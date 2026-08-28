@@ -1,0 +1,5 @@
+material_head_sha=4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2
+PASS baseline sharded artifact verified
+PASS A004 size mismatch rejected: artifact part artifact.parts/part-000.b64 size mismatch
+PASS A004 same-size SHA-256 mutation rejected: artifact part artifact.parts/part-000.b64 SHA-256 mismatch
+status=passed

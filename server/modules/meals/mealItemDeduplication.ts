@@ -76,6 +76,44 @@ function buildProductIdentityKey(item: MealItemWithOptionalBrand) {
   ].join("::");
 }
 
+function selectPreferredNutritionReference(
+  base: MealItemWithOptionalBrand,
+  next: MealItemWithOptionalBrand,
+) {
+  if (base.source === "heuristic" && next.source !== "heuristic") return next;
+  if (next.source === "heuristic" && base.source !== "heuristic") return base;
+  return null;
+}
+
+function rebuildMergedNutritionFromReference(
+  reference: MealItemWithOptionalBrand,
+  input: {
+    totalEstimatedGrams: number;
+    mergedQuantity: number;
+    unit: string;
+    confidence: number;
+  },
+): MealItemInput | null {
+  const referenceGrams = Number(reference.estimatedGrams || 0);
+  if (!Number.isFinite(referenceGrams) || referenceGrams <= 0) return null;
+  const factor = input.totalEstimatedGrams / referenceGrams;
+  if (!Number.isFinite(factor) || factor <= 0) return null;
+
+  return {
+    ...reference,
+    quantity: input.mergedQuantity,
+    unit: input.unit,
+    portionText: `${input.mergedQuantity} ${input.unit}`,
+    servings: Math.max(roundNutritionValue(Number(reference.servings || 0) * factor), 0.1),
+    estimatedGrams: input.totalEstimatedGrams,
+    calories: roundNutritionValue(Number(reference.calories || 0) * factor),
+    protein: roundNutritionValue(Number(reference.protein || 0) * factor),
+    carbs: roundNutritionValue(Number(reference.carbs || 0) * factor),
+    fat: roundNutritionValue(Number(reference.fat || 0) * factor),
+    confidence: input.confidence,
+  };
+}
+
 function mergeMealItems(base: MealItemWithOptionalBrand, next: MealItemWithOptionalBrand): MealItemInput {
   const unit = getPortionUnit(base);
   const baseQuantity = parsePortionQuantity(base);
@@ -84,9 +122,22 @@ function mergeMealItems(base: MealItemWithOptionalBrand, next: MealItemWithOptio
   const mergedQuantity = baseQuantity !== null && nextQuantity !== null
     ? roundNutritionValue(baseQuantity + nextQuantity)
     : nextEstimatedGrams;
+  const confidence = Math.min(Number(base.confidence || 0.8), Number(next.confidence || 0.8));
+  const preferredReference = selectPreferredNutritionReference(base, next);
+  if (preferredReference) {
+    const rebuilt = rebuildMergedNutritionFromReference(preferredReference, {
+      totalEstimatedGrams: nextEstimatedGrams,
+      mergedQuantity,
+      unit,
+      confidence,
+    });
+    if (rebuilt) return rebuilt;
+  }
 
   return {
     ...base,
+    quantity: mergedQuantity,
+    unit,
     portionText: `${mergedQuantity} ${unit}`,
     servings: Math.max(roundNutritionValue(Number(base.servings || 0) + Number(next.servings || 0)), 0.1),
     estimatedGrams: nextEstimatedGrams,
@@ -94,7 +145,7 @@ function mergeMealItems(base: MealItemWithOptionalBrand, next: MealItemWithOptio
     protein: roundNutritionValue(Number(base.protein || 0) + Number(next.protein || 0)),
     carbs: roundNutritionValue(Number(base.carbs || 0) + Number(next.carbs || 0)),
     fat: roundNutritionValue(Number(base.fat || 0) + Number(next.fat || 0)),
-    confidence: Math.min(Number(base.confidence || 0.8), Number(next.confidence || 0.8)),
+    confidence,
     source: base.source === next.source ? base.source : "hybrid",
   };
 }

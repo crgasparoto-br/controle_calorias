@@ -1,0 +1,7 @@
+## Critérios de aceite — recorte material da Issue #1016 afetado por A-005
+
+8. Quando não houver porção exata, mas houver base compatível suficiente para uma média usual do mesmo alimento/tipo/medida, o sistema deve usar essa estimativa e concluir a operação sem pedir ao usuário um peso que ele próprio pode estimar.
+9. Uma média usual nunca pode ser universal por unidade (`fatia`, `colher`, `unidade`); deve ser contextual ao alimento/tipo/preparo.
+10. Uma média derivada de outro produto compatível pode servir apenas como estimativa de quantidade e deve ser apresentada como estimativa, nunca como correspondência exata da marca/variante.
+11. Depois de resolver ou estimar os gramas da medida, calorias e macros devem ser calculados proporcionalmente para essa quantidade.
+12. Quando média usual for utilizada, a resposta deve informar que a gramatura é aproximada e que o usuário pode corrigi-la pelo WhatsApp ou pela tela de ajuste.

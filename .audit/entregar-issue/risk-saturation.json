@@ -1,1 +1,409 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":2436,"encoded_sha256":"5f9646839ef4dc3e1d9704919fe4af0a7c6177e4ae291daa53c0e39781429dbf","decoded_size":7929,"decoded_sha256":"afb7752b8f10a52d0109e6ba62a2320840d0430e8f793b4e2c59c3682f45fb88","parts":[{"path":"risk-saturation.parts/part-000.b64","size":2436,"sha256":"5f9646839ef4dc3e1d9704919fe4af0a7c6177e4ae291daa53c0e39781429dbf"}]}
+{
+  "schema_version": 1,
+  "head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Required and revalidated on the current candidate.",
+      "control_ids": [
+        "HIST-ESC-012",
+        "HIST-ESC-013",
+        "HIST-ESC-015",
+        "HIST-ESC-027",
+        "HIST-ESC-028",
+        "HIST-ESC-031",
+        "HIST-ESC-032"
+      ],
+      "dimensions": [
+        {
+          "surface": "fail-closed-target-ambiguity",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-015"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "homonym-target-resolution",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-013"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "independent-source-basis",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-028",
+            "HIST-ESC-032"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "measure-evidence-binding",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-027",
+            "HIST-ESC-031"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "persisted-target-identity",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-012"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Required and revalidated on the current candidate.",
+      "control_ids": [
+        "A005-NUTR-011",
+        "HIST-ESC-009",
+        "HIST-ESC-014",
+        "HIST-ESC-024",
+        "HIST-ESC-026"
+      ],
+      "dimensions": [
+        {
+          "surface": "execution-state-gap",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-026"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-resolution-nutrition-scaling",
+          "reason": "Nutrition must remain consistent with the resolved gram quantity after measure resolution instead of retaining a stale 100 g or 1 g basis.",
+          "control_ids": [
+            "A005-NUTR-011"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "prepublication-validation-order",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-009",
+            "HIST-ESC-024"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "same-index-identity-drift",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-014"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Required and revalidated on the current candidate.",
+      "control_ids": [
+        "A005-REL-010",
+        "HIST-ESC-001",
+        "HIST-ESC-002",
+        "HIST-ESC-003",
+        "HIST-ESC-004",
+        "HIST-ESC-005",
+        "HIST-ESC-006",
+        "HIST-ESC-007",
+        "HIST-ESC-008",
+        "HIST-ESC-010",
+        "HIST-ESC-011",
+        "HIST-ESC-016",
+        "HIST-ESC-017",
+        "HIST-ESC-018",
+        "HIST-ESC-019",
+        "HIST-ESC-020",
+        "HIST-ESC-021",
+        "HIST-ESC-022",
+        "HIST-ESC-023",
+        "HIST-ESC-025",
+        "HIST-ESC-029",
+        "HIST-ESC-030",
+        "HIST-ESC-033",
+        "HIST-ESC-034",
+        "HIST-ESC-035",
+        "HIST-ESC-036",
+        "HIST-ESC-037",
+        "HIST-ESC-038",
+        "HIST-ESC-039",
+        "PKG-A006-PREFLIGHT-001",
+        "PKG-A007-RISK-UNION-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "adapter-support-drift",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-025"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "audit-remediation-source-binding",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-007",
+            "HIST-ESC-022"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "certificate-semantic-revalidation",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-008",
+            "HIST-ESC-023"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "clarification-reprompt-contract",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-005",
+            "HIST-ESC-006"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "inherited-audit-matrix-evidence-completeness",
+          "reason": "Critical handoff synthetic inherited-audit controls must be executable and bound to the current material candidate.",
+          "control_ids": [
+            "PKG-A006-PREFLIGHT-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "inherited-risk-family-saturation-alignment",
+          "reason": "Active inherited-control families and surfaces must remain material in risk saturation.",
+          "control_ids": [
+            "PKG-A007-RISK-UNION-001"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "measure-evidence-food-span-binding",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-037",
+            "HIST-ESC-038",
+            "HIST-ESC-039"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "measure-evidence-relation",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-033",
+            "HIST-ESC-034"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "parser-ownership-precedence",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-001",
+            "HIST-ESC-002"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-write-refreeze-recovery",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-010",
+            "HIST-ESC-016",
+            "HIST-ESC-018",
+            "HIST-ESC-020"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "A005-REL-010",
+            "HIST-ESC-030"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-artifact-allowlist",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-003",
+            "HIST-ESC-004"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-artifact-transport-integrity",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-035",
+            "HIST-ESC-036"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-parent-lineage",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-011",
+            "HIST-ESC-017",
+            "HIST-ESC-019",
+            "HIST-ESC-021"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "semantic-identity-propagation",
+          "reason": "Retained cumulative independent-audit surface.",
+          "control_ids": [
+            "HIST-ESC-029"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": false,
+      "reason": "No current or cumulative contract requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "semantic-effect",
+      "applicable": true,
+      "reason": "Required by current issue controls and active inherited controls; consumer audit preflight treats inherited non-canonical families as material.",
+      "control_ids": [
+        "A005-BRAND-010",
+        "A005-CONTEXT-009",
+        "A005-ID-BIND-008",
+        "A005-UX-012"
+      ],
+      "dimensions": [
+        {
+          "surface": "brand-quantity-classification",
+          "reason": "Active current-head semantic-effect surface required by the attack matrix and inherited controls.",
+          "control_ids": [
+            "A005-BRAND-010"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "contextual-measure-identity",
+          "reason": "Active current-head semantic-effect surface required by the attack matrix and inherited controls.",
+          "control_ids": [
+            "A005-CONTEXT-009"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "food-identity-evidence-binding",
+          "reason": "Active current-head semantic-effect surface required by the attack matrix and inherited controls.",
+          "control_ids": [
+            "A005-ID-BIND-008"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "usual-average-user-transparency",
+          "reason": "Active current-head semantic-effect surface required by the attack matrix and inherited controls.",
+          "control_ids": [
+            "A005-UX-012"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
