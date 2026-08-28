@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "ba567cf95a3dda430bb8dda9e6cb09f624873942",
-  "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+  "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
+  "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
   "evidence": [
     {
       "evidence_id": "QUANT-EXACT-896",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/exact-head-ci-896.txt",
-      "sha256": "bff147bedbb8baaafb52a0eba39e660a7269b951e2ed090bd25db4f7b5bd707d",
-      "subject_sha": "ba567cf95a3dda430bb8dda9e6cb09f624873942",
-      "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+      "path": ".audit/entregar-issue/evidence/exact-head-ci-896-b686.txt",
+      "sha256": "e1d40df8ee7402322c270fc1bdc6898937a20fa9640dec62bd76a3f7581467cd",
+      "subject_sha": "cc47377936566568939628659c3594b1fa1f2189",
+      "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue post-ci-refreeze using exact-head Agent-first and TiDB workflow evidence",
+      "producer": "entregar-issue exact-head Agent-first and persistence gate observation after targeted audit remediation",
       "status": "passed"
     }
   ]

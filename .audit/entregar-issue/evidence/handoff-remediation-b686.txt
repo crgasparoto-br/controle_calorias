@@ -1,0 +1,23 @@
+Independent rejection audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3 remediation handoff evidence
+
+- Auditor recovery floor: post-write-refreeze; requires_refreeze=true.
+- Material fix commit: cc47377936566568939628659c3594b1fa1f2189.
+- The stale f83f378097213b05acb9f271c6122f85b71e85a0 certificate is not reused.
+- Exact-head Agent-first and sibling persistence/context gates completed successfully before the new freeze.
+- freeze.json now binds material head cc47377936566568939628659c3594b1fa1f2189, base 6fa1db325250607296776b3f7747d86e63d607d1 and merge preview 638464fb2d660726b07680375c921f40291287f5.
+- Current critical delivery artifacts are rederived/revalidated against the exact material head before certificate generation.
+- Final certificate build, synthetic result-only validation and remote terminal validation are appended below by the same delivery cycle before audit release.
+
+Pre-certificate validation results on material head cc47377936566568939628659c3594b1fa1f2189:
+- validate_audit_remediation.py: READY, 2 actionable items closed.
+- validate_learning_closure.py: READY, implementation-only learning justified.
+- validate_audit_escape_lineage.py: READY, cumulative lineage monotonic against the immutable previous closure snapshot.
+- validate_independent_rejection_closure.py: READY, rejection b686 is represented and passed.
+- validate_evidence_freshness.py: READY, quantitative provenance is exact-material-head.
+- validate_specification_coverage.py: READY, canonical specification coverage complete.
+- validate_requirement_attack_matrix.py: READY, covered requirements have adversarial/regression/provenance closure.
+- validate_risk_saturation.py: READY, canonical families/surfaces and latest escape dimensions saturated.
+- validate_inherited_controls.py: READY, current controls/dispositions are exact-head and discriminant.
+- validate_handoff_readiness.py: READY, critical handoff readiness closed.
+
+The next result-only commit is required to have parent cc47377936566568939628659c3594b1fa1f2189 and only certificate-allowlisted .audit/entregar-issue paths. Remote publication is performed only after local certificate and result-only validation.

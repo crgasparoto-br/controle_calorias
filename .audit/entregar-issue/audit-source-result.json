@@ -2,18 +2,34 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:5ecee57a-239d-412d-ba30-f82abaad470f",
-  "head_sha": "87eb3ea454829bd5496a9822e71033c5190b8141",
+  "rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
+  "head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
   "identity": {
-    "published_head_sha": "87eb3ea454829bd5496a9822e71033c5190b8141",
-    "material_head_sha": "ba567cf95a3dda430bb8dda9e6cb09f624873942"
+    "published_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
+    "material_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed"
   },
   "recovery_scope": "post-write-refreeze",
   "requires_refreeze": true,
   "findings": [
-    {"id":"LOCAL-AUD-1015-STATE-MACHINE","title":"future consumption charging state machine incomplete","disposition":"blocking","status":"open","actionable":true,"audit_escape":true},
-    {"id":"LOCAL-AUD-1015-IDENTITY","title":"campaign notification identity/correlation not preserved","disposition":"blocking","status":"open","actionable":true,"audit_escape":true},
-    {"id":"LOCAL-AUD-1015-RESTART-IDEM","title":"manual retry restart/idempotency gap","disposition":"blocking","status":"open","actionable":true,"audit_escape":true}
+    {
+      "id": "A-001",
+      "title": "handoff stale after material write",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "audit_escape": true
+    },
+    {
+      "id": "A-002",
+      "title": "Agent-first exact-head test double violates transition return contract",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "audit_escape": true
+    }
   ],
-  "summary": "Independent audit rejected the candidate on the charging state machine, canonical notification identity propagation, and restart-safe manual retry behavior."
+  "recommendations": [],
+  "summary": "Independent audit rejected PR #1015 because the terminal handoff was stale after later material writes and the exact-head Agent-first tests failed on a transition mock that returned undefined instead of the service result."
 }

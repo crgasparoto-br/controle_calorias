@@ -1,19 +1,13 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "f83f378097213b05acb9f271c6122f85b71e85a0",
+  "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
   "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
-  "merge_preview_sha": "4a16002cdc5f9f3275e50845f34aaec469608684",
-  "reason": "develop-conflict-resolution-post-write-refreeze",
-  "previous_head_sha": "e9a24b1556391679d98516c521988cc812ad46b0",
-  "merge_parents": [
-    "e9a24b1556391679d98516c521988cc812ad46b0",
-    "6fa1db325250607296776b3f7747d86e63d607d1"
-  ],
-  "conflict_resolution": {
-    "strategy": "preserve-pr1015-audit-and-billing; incorporate-develop-product-delta",
-    "functional_overlap_outside_audit": false,
-    "pr_mergeable_after_resolution": true
-  },
-  "remote_gate": "in_progress"
+  "merge_preview_sha": "638464fb2d660726b07680375c921f40291287f5",
+  "reason": "independent-audit-b686-post-write-refreeze",
+  "source_rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
+  "previous_audited_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
+  "material_fix_commit": "cc47377936566568939628659c3594b1fa1f2189",
+  "remote_gate": "exact-head-agent-first-and-persistence-gates-green",
+  "recovery_scope": "post-write-refreeze"
 }

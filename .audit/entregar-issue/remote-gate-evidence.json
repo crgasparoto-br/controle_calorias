@@ -1,17 +1,21 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "ci_mode": "delivery-snapshot",
-  "material_head_sha": "f83f378097213b05acb9f271c6122f85b71e85a0",
-  "status": "in_progress",
-  "single_snapshot": true,
-  "rerun_or_dispatch": false,
-  "workflow_runs": [
-    {"id":33180570662,"name":"Onboarding activation TiDB gate","status":"in_progress","conclusion":null},
-    {"id":33180570630,"name":"WhatsApp context TiDB gate","status":"in_progress","conclusion":null},
-    {"id":33180570586,"name":"Billing persistence TiDB gate","status":"in_progress","conclusion":null},
-    {"id":33180570627,"name":"Agent-first gate","status":"in_progress","conclusion":null},
-    {"id":33180570587,"name":"Professional persistence TiDB gate","status":"in_progress","conclusion":null},
-    {"id":33180570598,"name":"AI provider live smoke","status":"completed","conclusion":"skipped"}
-  ]
+  "status": "terminal-green",
+  "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
+  "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
+  "merge_preview_sha": "638464fb2d660726b07680375c921f40291287f5",
+  "runs": [
+    {"id": 33186912609, "name": "Agent-first gate", "conclusion": "success"},
+    {"id": 33186912603, "name": "Billing persistence TiDB gate", "conclusion": "success"},
+    {"id": 33186912594, "name": "Professional persistence TiDB gate", "conclusion": "success"},
+    {"id": 33186912607, "name": "Onboarding activation TiDB gate", "conclusion": "success"},
+    {"id": 33186912619, "name": "WhatsApp context TiDB gate", "conclusion": "success"},
+    {"id": 33186912674, "name": "AI provider live smoke", "conclusion": "skipped", "reason": "workflow condition"}
+  ],
+  "agent_first_artifacts": {
+    "visual": {"id": 9692390447, "digest": "sha256:7039bc3487d57684647f043d179ed90e96336ed9f5ad166d18786128d77b2965"},
+    "verification": {"id": 9692391525, "digest": "sha256:b65b7cd8156a982b7bae5c6564f89a51f3c4b7833f61b82183a054837bd61054"},
+    "repository_bundle": {"id": 9692393336, "digest": "sha256:357df7fdf93580a3c7e67d86bdb4f6576ec72e0715fd4df0ce413a3fd6dfe47c"}
+  }
 }

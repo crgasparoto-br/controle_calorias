@@ -3,31 +3,50 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:5ecee57a-239d-412d-ba30-f82abaad470f",
-    "audited_head_sha": "87eb3ea454829bd5496a9822e71033c5190b8141"
+    "rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
+    "audited_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
+    "audit_report_sha256": "881a6518e2e66051f0141ff7b274cfba0c39707c33a512800a57e6ed8c3b4e01"
   },
-  "candidate_head_sha": "a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48",
+  "candidate_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
-      "source_kind":"finding","source_id":"LOCAL-AUD-1015-STATE-MACHINE","status":"fixed-awaiting-runtime-evidence",
-      "control_id":"ADMIN-STATE-MACHINE-001",
-      "changed_files":["server/repositories/consumptionChargeAuthorizationRepository.ts","server/modules/usageGovernance/consumptionChargeAdmin.ts","server/modules/usageGovernance/router.ts","server/modules/usageGovernance/schemas.ts","drizzle/0048_billing_consumption_charge_state_machine.sql"],
-      "validations":["draft/approved/active/suspended/revoked transition map","reinforced activation","prior communication","future effective date","revoked terminal","append-only transition trail"]
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/freeze.json",
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json"
+      ],
+      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-b686.txt",
+      "validations": [
+        "post-write-refreeze recovery floor preserved",
+        "material head frozen after exact-head gates",
+        "fresh result-only child has material head as direct parent",
+        "result-only child changes only certificate allowlisted paths",
+        "terminal handoff validator passes after remote publication"
+      ]
     },
     {
-      "source_kind":"finding","source_id":"LOCAL-AUD-1015-IDENTITY","status":"fixed-awaiting-runtime-evidence",
-      "control_id":"IDENTITY-PROP-001",
-      "changed_files":["server/modules/billing/billingNotificationAdminReadModel.ts","server/modules/billing/billingNotificationAdmin.ts","client/src/components/admin/BillingCampaignAdminPanel.tsx"],
-      "validations":["fact id, idempotencyKey and correlationId remain separate","retry audit payload preserves source identities"]
-    },
-    {
-      "source_kind":"finding","source_id":"LOCAL-AUD-1015-RESTART-IDEM","status":"fixed-awaiting-runtime-evidence",
-      "control_id":"RESTART-IDEM-001",
-      "changed_files":["server/modules/billing/billingNotificationAdminRetry.ts","client/src/components/admin/BillingCampaignAdminPanel.tsx","scripts/check-billing-admin-browser-evidence.mjs","visual-tests/billing-admin/trpcMock.ts"],
-      "validations":["stable requestId","durable retry lease","stable transport traceId","lost-response browser scenario encoded"]
+      "source_kind": "finding",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        "server/modules/usageGovernance/chargingRollbackSaturation.auditRemediation.test.ts"
+      ],
+      "evidence": ".audit/entregar-issue/evidence/exact-head-ci-896-b686.txt",
+      "validations": [
+        "transition test double returns id/state result contract",
+        "rollback saturation regression reaches revoke result assertion",
+        "exact-head Agent-first Tests step passes on cc47377936566568939628659c3594b1fa1f2189"
+      ]
     }
   ],
-  "status": "material-fixed-awaiting-ci",
-  "all_actionable_items_closed": false
+  "status": "closed"
 }

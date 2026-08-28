@@ -3,10 +3,11 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:5ecee57a-239d-412d-ba30-f82abaad470f"
+    "rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
+    "finding_ids": ["A-001", "A-002"]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery contract already contains reusable controls for state-machine semantics, semantic identity propagation, restart idempotency, and browser execution of retry flows. The remediation applies those existing controls to this implementation; no new global rule is claimed in this delivery context."
+    "reason": "The installed delivery contract already enforces post-write refreeze, result-only terminal lineage, exact-head execution, and discriminating regression evidence. This remediation applies those existing controls to the current candidate and fixes a local test-double return contract; no new global rule is required."
   }
 }
