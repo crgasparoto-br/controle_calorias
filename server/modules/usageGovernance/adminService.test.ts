@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   createAbuseCase: vi.fn(),
   createAllowanceGrant: vi.fn(),
   createConsumptionChargeAuthorizationDraft: vi.fn(),
-  transitionConsumptionChargeAuthorization: vi.fn(),
+  transitionConsumptionChargeAuthorization: vi.fn(async (input: { id: string; toState: string }) => ({ id: input.id, state: input.toState })),
   createLegalHold: vi.fn(),
   createLimitation: vi.fn(),
   revokeAllowanceGrant: vi.fn(),
