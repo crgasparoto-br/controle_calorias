@@ -1,203 +1,118 @@
 {
   "schema_version": 3,
   "specification_snapshot": {
-    "path": "/mnt/data/issue1016-fix/handoff/specification-snapshot.json",
-    "sha256": "f115290dc5992d762bf68b69ad1a076542d8558e13e84ada131c707832a2146c"
+    "path": "/mnt/data/delivery1020/audit/specification-snapshot.json",
+    "sha256": "655d6c182003b3f2f0aeea63c0d96ceac07f46042406f85b3743b982003a7d26"
   },
   "primary_issue_source_id": "SRC-ISSUE",
   "obligations": [
     {
       "id": "OBL-001",
-      "candidate_key": "cdafc2678271d05a91cf488c65501b0cb0a162a2483a4d1e92c10141521624e8",
+      "candidate_key": "a428d9c03c7647a13687271423452ac00b4cf1cbd5233049b62b957bf2281fb3",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
-      "source_line": 3,
-      "source_text": "Quando não houver porção exata, mas houver base compatível suficiente para uma média usual do mesmo alimento/tipo/medida, o sistema deve usar essa estimativa e concluir a operação sem pedir ao usuário um peso que ele próprio pode estimar.",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
+      "source_line": 7,
+      "source_text": "O registro normal e o fluxo `Adicionar...` devem reutilizar a mesma fronteira de resolução de medidas; para a mesma identidade, quantidade e unidade, ambos devem produzir a mesma gramatura ou a mesma necessidade de clarificação.",
+      "flags": [
+        "review-surface",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-PARITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Required by the regression-specific issue contract represented by PR #1020."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "1ff7dc56f72e0cf0497e0a68eec34da3317b61797119e4e5230c0e5ac1f98ca5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
+      "source_line": 8,
+      "source_text": "Para `1,5 pão francês`, quando a referência do catálogo local informa `1 unidade = 50 g`, o resultado deve ser `75 g` nos dois fluxos, sem pesquisa externa e sem clarificação.",
+      "flags": [
+        "negative",
+        "review-surface",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-PARITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Required by the regression-specific issue contract represented by PR #1020."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "ea6885fb903f66d76a4191199e78a175b99c3c88f2e7959626b11a6a50c054f5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
+      "source_line": 9,
+      "source_text": "A vírgula entre dígitos em uma quantidade decimal pt-BR não é separador de alimentos; vírgulas que realmente separam itens devem continuar funcionando.",
       "flags": [
         "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "REQ-008"
+        "REQ-DECIMAL-COMMA"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
+      "scope_decision": "in-scope",
+      "rationale": "Required by the regression-specific issue contract represented by PR #1020."
     },
     {
-      "id": "OBL-002",
-      "candidate_key": "89162abc89d8f7b494a913fbd4ea37132a6c503b8b23a3de05d285fbdf6a25bc",
+      "id": "OBL-004",
+      "candidate_key": "32750952f0597cd83759485b8bd5d15662ceefb9b88329b85c90eb269665a8c6",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
-      "source_line": 4,
-      "source_text": "Uma média usual nunca pode ser universal por unidade (`fatia`, `colher`, `unidade`); deve ser contextual ao alimento/tipo/preparo.",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
+      "source_line": 10,
+      "source_text": "A validação de evidência de medida deve aceitar relações físicas explícitas tanto em `medida -> massa` quanto em formatos equivalentes de rótulo como `massa (medida)`, sem relaxar identidade, unidade, quantidade ou vínculo da fonte.",
       "flags": [
         "exhaustive",
         "negative",
         "review-surface",
-        "semantic-effect"
+        "source-catalog"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "REQ-009"
+        "REQ-LABEL-EVIDENCE"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-003",
-      "candidate_key": "8ad72e3ef6e1a4f3565ecb574f59c32ec5ebc98d95cb333a3dbff66fd3c31124",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
-      "source_line": 5,
-      "source_text": "Uma média derivada de outro produto compatível pode servir apenas como estimativa de quantidade e deve ser apresentada como estimativa, nunca como correspondência exata da marca/variante.",
-      "flags": [
-        "exhaustive",
-        "negative",
-        "semantic-effect"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-010"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-004",
-      "candidate_key": "047eeb35f45aa5c234eec9e517aa20c7308e05b2f0f0538df41939efa044b380",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
-      "source_line": 6,
-      "source_text": "Depois de resolver ou estimar os gramas da medida, calorias e macros devem ser calculados proporcionalmente para essa quantidade.",
-      "flags": [
-        "temporal"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-011"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
+      "scope_decision": "in-scope",
+      "rationale": "Required by the regression-specific issue contract represented by PR #1020."
     },
     {
       "id": "OBL-005",
-      "candidate_key": "eb31391fdeeca0e48e6024e65b84d989cc39136dc346f2d85b22b29ab63e51ff",
+      "candidate_key": "2e037081b6929d59f4a926811733abd0043212b700dd36a65ba2746e7de20b79",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
-      "source_line": 7,
-      "source_text": "Quando média usual for utilizada, a resposta deve informar que a gramatura é aproximada e que o usuário pode corrigi-la pelo WhatsApp ou pela tela de ajuste.",
-      "flags": [],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-012"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-006",
-      "candidate_key": "3fd0223c91e34cc2080c8e0a8e3493ec48a45bc88b764c6a589755c451632f48",
-      "source_id": "SRC-AUDIT-A005",
-      "source_sha256": "2ca72e6c89b00b0372f974a105e261b1acae6f6d69aebe963c128bf182237b43",
-      "source_line": 3,
-      "source_text": "Quando a relação física não identificar diretamente o alimento, o contexto usado como identidade deve ser inequívoco para o alimento solicitado.",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
+      "source_line": 11,
+      "source_text": "Quando existirem duas ou mais referências compatíveis da mesma medida e do mesmo alimento/tipo/preparo, a resolução pode derivar uma média usual contextual coerente em vez de selecionar arbitrariamente a primeira referência.",
       "flags": [
-        "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "REQ-008",
-        "REQ-009"
+        "REQ-USUAL-AVERAGE"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-007",
-      "candidate_key": "f2ad2a7c08b8c6a907dd595ac2bd0a19e0d04101fa6d6a6fe456d93a26272cb0",
-      "source_id": "SRC-AUDIT-A005",
-      "source_sha256": "2ca72e6c89b00b0372f974a105e261b1acae6f6d69aebe963c128bf182237b43",
-      "source_line": 4,
-      "source_text": "Um título ou contexto que enumere o alimento solicitado e outro alimento não pode emprestar identidade para um trecho neutro de medida para gramas.",
-      "flags": [
-        "negative",
-        "semantic-effect"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-008",
-        "REQ-009",
-        "REQ-010"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-008",
-      "candidate_key": "57fcdef8ee32871a81288e18874bc00383faec2dc52c85234dac7f100f6cb999",
-      "source_id": "SRC-AUDIT-A005",
-      "source_sha256": "2ca72e6c89b00b0372f974a105e261b1acae6f6d69aebe963c128bf182237b43",
-      "source_line": 5,
-      "source_text": "A correção deve rejeitar pelo menos os casos irmãos separados por `e`, `/` e `|`, mantendo válido um título descritivo que contenha somente a identidade alimentar solicitada.",
-      "flags": [
-        "exhaustive",
-        "observable",
-        "negative",
-        "semantic-effect"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-008",
-        "REQ-009",
-        "REQ-010"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
-    },
-    {
-      "id": "OBL-009",
-      "candidate_key": "aff842b99c86518828f16b1254790c3d2abd1a66f3318301ff49505112c5eb73",
-      "source_id": "SRC-AUDIT-A005",
-      "source_sha256": "2ca72e6c89b00b0372f974a105e261b1acae6f6d69aebe963c128bf182237b43",
-      "source_line": 6,
-      "source_text": "A evidência de detecção deve cobrir `fatia`, `colher de sopa` e `unidade`, incluindo um caso positivo que continue resolvendo uma referência exata inequívoca.",
-      "flags": [
-        "review-surface"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-008",
-        "REQ-009",
-        "REQ-010"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Coberto pela remediação A-005 no material head 9522932fbdc82f47b899c27afae0c68b00cb3316 e pelos controles adversariais desta rodada."
+      "scope_decision": "in-scope",
+      "rationale": "Required by the regression-specific issue contract represented by PR #1020."
     }
   ],
   "source_coverage": [
     {
       "source_id": "SRC-ISSUE",
-      "source_sha256": "aac390f584a4020a444d5d5f57a7e7f3217103e13df57456c99a84903e725cd9",
+      "source_sha256": "1e80c7e338c3a54cc0c846a602ca9a259c1b53ba1eb4ff5f3ae6dd4b1ba0aa03",
       "candidate_count": 5,
       "obligation_ids": [
         "OBL-001",
@@ -207,86 +122,86 @@
         "OBL-005"
       ],
       "unmapped_candidate_keys": []
-    },
-    {
-      "source_id": "SRC-AUDIT-A005",
-      "source_sha256": "2ca72e6c89b00b0372f974a105e261b1acae6f6d69aebe963c128bf182237b43",
-      "candidate_count": 4,
-      "obligation_ids": [
-        "OBL-006",
-        "OBL-007",
-        "OBL-008",
-        "OBL-009"
-      ],
-      "unmapped_candidate_keys": []
     }
   ],
   "domain_inventories": [],
   "observable_assertions": [],
   "structural_invariant_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "Nenhuma obrigação deste recorte de remediação impõe forma estrutural, caminho canônico ou implementação proibida.",
-    "entries": [],
+    "status": "passed",
+    "applicability_reason": "The issue explicitly requires both WhatsApp flows to reuse the same measure-resolution boundary.",
+    "entries": [
+      {
+        "id": "STRUCT-SHARED-BOUNDARY-001",
+        "obligation_ids": [
+          "OBL-001"
+        ],
+        "plausible_wrong_implementation": "Keep separate conversion logic in the normal and Add flows while making the example case coincidentally return the same grams.",
+        "negative_control_evidence": [
+          "Exact-head regression test invokes normal registration and canonical food addition with the same 1.5 bread quantity and asserts 75 g on both paths."
+        ]
+      }
+    ],
     "unresolved_invariants": []
   },
   "read_model_closures": {
     "status": "not-applicable",
-    "applicability_reason": "O recorte A-005 não define histórico, paginação, versão ou outro contrato de leitura derivada.",
+    "applicability_reason": "The contract concerns request parsing and household-measure resolution and defines no historical/read-model behavior.",
     "entries": [],
     "unconsumed_outputs": [],
     "unmapped_required_fields": []
   },
   "canonical_source_consistency": {
-    "status": "not-applicable",
-    "applicability_reason": "O recorte A-005 valida vínculo semântico de evidência e não altera uma fonte canônica de dados do domínio.",
-    "entries": [],
+    "status": "passed",
+    "applicability_reason": "The same catalog reference and measure-resolution result must remain coherent across both producer paths.",
+    "entries": [
+      {
+        "id": "CONSISTENCY-PORTION-001",
+        "obligation_ids": [
+          "OBL-001",
+          "OBL-002",
+          "OBL-005"
+        ],
+        "evidence": [
+          "Exact-head regression test asserts 1.5 bread units resolve to 75 g in both flows and multi-source slice evidence resolves to the 41 g central value."
+        ]
+      }
+    ],
     "unverified_surfaces": [],
     "missing_divergent_tests": []
   },
   "documentation_consistency": {
     "status": "not-applicable",
-    "applicability_reason": "A remediação A-005 não altera rota, permissão, default, feature flag, seed ou transição documental normativa.",
+    "applicability_reason": "No route, permission, default, provisioning rule, or repository documentation contract changes in this narrow regression fix.",
     "old_contract_terms": [],
     "new_contract_terms": [],
     "occurrences": [],
     "unresolved_contradictions": [],
-    "searched_outside_diff": false,
-    "search_evidence": []
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "Changed-path inventory is limited to server runtime code and one regression test."
+    ]
   },
   "scope_reduction_review": {
     "status": "passed",
-    "matches": [
-      {
-        "text": "Escopo deliberadamente limitado aos requisitos REQ-008..REQ-012 afetados pelo finding independente A-005; os demais requisitos da #1016 permanecem fora desta escrita material e são herdados do candidato anterior.",
-        "decision": "accepted-audit-remediation-scope",
-        "evidence": "audit-rejection:c8045893-2eff-46cf-8c11-70f073b5e76b + diff 95a3737..9522932"
-      }
-    ]
+    "matches": []
   },
   "pass_c": {
     "status": "passed",
     "requirement_ids": [
-      "REQ-008",
-      "REQ-009",
-      "REQ-010",
-      "REQ-011",
-      "REQ-012"
+      "REQ-DECIMAL-COMMA",
+      "REQ-LABEL-EVIDENCE",
+      "REQ-PARITY",
+      "REQ-USUAL-AVERAGE"
     ],
     "obligation_ids": [
       "OBL-001",
       "OBL-002",
       "OBL-003",
       "OBL-004",
-      "OBL-005",
-      "OBL-006",
-      "OBL-007",
-      "OBL-008",
-      "OBL-009"
+      "OBL-005"
     ],
     "evidence": [
-      "Independent audit A-005 rederived against the exact material delta without relying on the PR description.",
-      "Negative controls cover competing identities separated by e, slash and pipe across fatia, colher de sopa and unidade.",
-      "Positive control preserves an unambiguous descriptive title and exact 2-fatia scaling to 36 g."
+      "Regression-specific issue obligations were rederived from the current source slice and checked against the exact-head regression test and CI snapshot."
     ],
     "rederived_without_pr_description": true,
     "reviewed_user_visible_semantics": true,

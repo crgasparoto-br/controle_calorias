@@ -1,0 +1,7 @@
+PR #1020 cumulative escape revalidation
+Material head: 253c643dd10d9c7b95638060edf0ba437d702f13
+Remote exact-head snapshot: GitHub Actions Agent-first gate run 33182755471 (run 5935) completed successfully.
+The run is the current material-head validation snapshot and covers the repository gate described by the issue comment: TypeScript, tests, architecture, docs, build, agent checks and exact-head checks.
+Historical escape IDs from the material parent are retained only to preserve cumulative lineage. Their prior target certificate is not reused as PR #1020 readiness.
+Current delivery target binding was rederived for PR #1020; the inherited PR #1018 subject is non-reusable and recovery is fresh-handoff-required.
+Handoff-specific structural controls are revalidated again by build_handoff_certificate.py and validate_terminal_handoff.py before publication.

@@ -1,54 +1,30 @@
 {
   "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
-    "audit_report_sha256": "7a1443df491d427929d000d281f575dde4de9875d3ea1532828c9b490d8fa634",
-    "audited_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-    "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f"
-  },
-  "candidate_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-  "remediation_mode": "targeted-remediation",
-  "items": [
-    {
-      "source_kind": "finding",
-      "source_id": "A-006",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "changed_files": [
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/inherited-controls.json"
-      ],
-      "evidence": [
-        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
-      ],
-      "validations": [
-        "auditar-issue check_delivery_saturation.py accepts the corrected critical packet",
-        "negative mutation: missing synthetic positive control is rejected",
-        "negative mutation: stale synthetic negative control is rejected"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-007",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "changed_files": [
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/inherited-controls.json"
-      ],
-      "evidence": [
-        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
-      ],
-      "validations": [
-        "semantic-effect family is explicit and passed in risk saturation",
-        "negative mutation: inherited family marked not-applicable is rejected",
-        "negative mutation: inherited risk surface omitted from matrix is rejected"
-      ]
-    }
+  "status": "passed",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1016,
+  "pull_request_number": 1020,
+  "rejection_id": "AUD-1020-HANDOFF-NOT-PRODUCED-253C643D",
+  "finding_ids": [
+    "A-001"
   ],
-  "status": "closed"
+  "material_head_sha": "253c643dd10d9c7b95638060edf0ba437d702f13",
+  "requested_recovery_scope": "handoff-only",
+  "effective_recovery_scope": "fresh-handoff-required",
+  "effective_recovery_reason": "target-binding:foreign-target; prior independent audit additionally proved inherited-base-artifact",
+  "material_code_changed": false,
+  "remediation_mode": "targeted-remediation",
+  "actions": [
+    "Rebound specification and evidence to PR #1020 without reusing the PR #1018 certificate.",
+    "Preserved cumulative historical escape IDs for material-parent monotonicity and revalidated them on the current material head.",
+    "Added explicit closure for the independent rejection and prepared a new target-bound result-only handoff."
+  ],
+  "remote_validation": {
+    "workflow_run_id": 33182755471,
+    "workflow_run_number": 5935,
+    "workflow_name": "Agent-first gate",
+    "status": "completed",
+    "conclusion": "success",
+    "subject_sha": "253c643dd10d9c7b95638060edf0ba437d702f13"
+  }
 }

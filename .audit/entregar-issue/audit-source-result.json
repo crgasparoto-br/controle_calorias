@@ -1,39 +1,20 @@
 {
   "schema_version": 1,
-  "kind": "independent-audit-rejection",
-  "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
-  "head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-  "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f",
-  "status": "rejected",
-  "findings": [
-    {
-      "id": "A-006",
-      "title": "Critical handoff packet does not close INHERITED-AUDIT-ESCAPES with candidate-head controls",
-      "status": "open",
-      "disposition": "blocking",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "category": "delivery-evidence-gap",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
-      "requirements": [
-        "INHERITED-AUDIT-ESCAPES"
-      ]
-    },
-    {
-      "id": "A-007",
-      "title": "Inherited active controls are inconsistent with risk-family saturation",
-      "status": "open",
-      "disposition": "blocking",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "category": "risk-saturation-gap",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
-      "requirements": [
-        "INHERITED-AUDIT-ESCAPES"
-      ]
-    }
+  "kind": "independent-audit-result",
+  "status": "rejected-delivery-not-ready",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1016,
+  "pull_request_number": 1020,
+  "rejection_id": "AUD-1020-HANDOFF-NOT-PRODUCED-253C643D",
+  "finding_ids": [
+    "A-001"
   ],
-  "recommendations": []
+  "reason": "handoff-not-produced",
+  "audit_report_sha256": "5f907a1219edf606ced67ba9151c52a6764fbce7c3c363a85c07a5b817e7768a",
+  "audit_report_source": ".audit/entregar-issue/specification-sources/SRC-AUDIT-REJECTION.txt",
+  "auditor_recovery_scope": "handoff-only",
+  "auditor_requires_refreeze": false,
+  "certified_material_head_sha": "253c643dd10d9c7b95638060edf0ba437d702f13",
+  "current_head_sha_at_audit": "253c643dd10d9c7b95638060edf0ba437d702f13",
+  "finding_summary": "Existing handoff belonged to PR #1018 and was inherited from the base, so PR #1020 had no target-bound terminal handoff."
 }

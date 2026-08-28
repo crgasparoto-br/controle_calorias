@@ -1,7 +1,11 @@
-## Critérios de aceite — recorte material da Issue #1016 afetado por A-005
+specification_version: 5
 
-8. Quando não houver porção exata, mas houver base compatível suficiente para uma média usual do mesmo alimento/tipo/medida, o sistema deve usar essa estimativa e concluir a operação sem pedir ao usuário um peso que ele próprio pode estimar.
-9. Uma média usual nunca pode ser universal por unidade (`fatia`, `colher`, `unidade`); deve ser contextual ao alimento/tipo/preparo.
-10. Uma média derivada de outro produto compatível pode servir apenas como estimativa de quantidade e deve ser apresentada como estimativa, nunca como correspondência exata da marca/variante.
-11. Depois de resolver ou estimar os gramas da medida, calorias e macros devem ser calculados proporcionalmente para essa quantidade.
-12. Quando média usual for utilizada, a resposta deve informar que a gramatura é aproximada e que o usuário pode corrigi-la pelo WhatsApp ou pela tela de ajuste.
+# Issue #1016 — recorte normativo normalizado para a regressão tratada pela PR #1020
+
+## Requisitos
+
+- O registro normal e o fluxo `Adicionar...` devem reutilizar a mesma fronteira de resolução de medidas; para a mesma identidade, quantidade e unidade, ambos devem produzir a mesma gramatura ou a mesma necessidade de clarificação.
+- Para `1,5 pão francês`, quando a referência do catálogo local informa `1 unidade = 50 g`, o resultado deve ser `75 g` nos dois fluxos, sem pesquisa externa e sem clarificação.
+- A vírgula entre dígitos em uma quantidade decimal pt-BR não é separador de alimentos; vírgulas que realmente separam itens devem continuar funcionando.
+- A validação de evidência de medida deve aceitar relações físicas explícitas tanto em `medida -> massa` quanto em formatos equivalentes de rótulo como `massa (medida)`, sem relaxar identidade, unidade, quantidade ou vínculo da fonte.
+- Quando existirem duas ou mais referências compatíveis da mesma medida e do mesmo alimento/tipo/preparo, a resolução pode derivar uma média usual contextual coerente em vez de selecionar arbitrariamente a primeira referência.

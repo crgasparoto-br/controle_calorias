@@ -1,0 +1,8 @@
+# Auditoria independente da PR #1020
+
+## Requisitos
+
+- Rejection ID: `AUD-1020-HANDOFF-NOT-PRODUCED-253C643D`.
+- Finding `A-001`: o `handoff-ready.json` observado no HEAD da PR #1020 pertence à PR #1018 e é byte-identico ao artefato herdado da base; portanto deve ser tratado como `inherited-base-artifact`, não como evidência produzida pela PR #1020.
+- A entrega deve publicar um handoff terminal específico da PR #1020 antes de nova auditoria independente.
+- Recovery scope informado pela auditoria: `handoff-only`, desde que o código material permaneça no HEAD `253c643dd10d9c7b95638060edf0ba437d702f13`.

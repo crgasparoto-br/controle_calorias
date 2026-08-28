@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "head_sha": "253c643dd10d9c7b95638060edf0ba437d702f13",
+  "requirements": [
+    {
+      "requirement_id": "REQ-DECIMAL-COMMA",
+      "positive_evidence": [
+        "The regression test calls prepareCountableFoodRegistrationResolved(7, \"1,5 pão francês\") and asserts pendingItems=[] and registrationText=\"75 g de pão fransês\".",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ],
+      "primary_negative_control": {
+        "id": "STD-DECIMAL-SPLIT-001",
+        "status": "passed",
+        "procedure": "Feed the pt-BR decimal input \"1,5 pão francês\" through the countable-food preflight and inspect the resulting registration text and pending-item list.",
+        "expected": "The comma remains inside the numeric quantity; the input is not split into separate food segments and resolves directly to 75 g.",
+        "observed": "The exact-head regression assertion expects no pending items and exactly \"75 g de pão francês\"; the exact-head Agent-first gate passed."
+      },
+      "regression_evidence": [
+        "server/householdMeasureResolution.regression1016.test.ts covers the decimal-comma path that failed in the first CI before commit 253c643d.",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ]
+    },
+    {
+      "requirement_id": "REQ-LABEL-EVIDENCE",
+      "positive_evidence": [
+        "The regression test supplies two explicit label evidences in mass-before-measure form: \"Porção de 40 g (2 fatias)\" and \"Porção de 42 g (2 fatias)\".",
+        "resolveHouseholdMeasure is expected to accept those references and return kind=\"usual_average\", grams=41, requestedUnit=\"fatia\", referenceCount=2.",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ],
+      "primary_negative_control": {
+        "id": "STD-LABEL-MASS-FIRST-001",
+        "status": "passed",
+        "procedure": "Resolve 2 fatias de queijo mussarela using only verified references whose supporting text is written as mass before measure, 40 g (2 fatias) and 42 g (2 fatias).",
+        "expected": "A validator restricted to the inverse \"2 fatias = X g\" orientation would reject the references; the corrected validator accepts the physical relation without dropping identity/unit/quantity checks.",
+        "observed": "The exact-head regression test expects a successful usual_average result from those mass-before-measure references and the exact-head Agent-first gate passed."
+      },
+      "regression_evidence": [
+        "server/householdMeasureResolution.regression1016.test.ts — test \"aceita evidência verificável de rótulo no formato massa antes da medida e calcula média usual multi-fonte\".",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ]
+    },
+    {
+      "requirement_id": "REQ-PARITY",
+      "positive_evidence": [
+        "server/householdMeasureResolution.regression1016.test.ts invokes prepareCountableFoodRegistrationResolved(\"1,5 pão fransês\") and resolveCanonicalFoodAdditionItems for the same quantity and asserts 75 g on both paths.",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ],
+      "primary_negative_control": {
+        "id": "STD-PARITY-DIVERGENCE-001",
+        "status": "passed",
+        "procedure": "Use the same 1.5-unit pão francês input in normal registration and Add flow; assert the normal path emits \"75 g de pão francês\" and the Add path forwards \"75 g de Pão francês\" with estimatedGrams=75.",
+        "expected": "A parallel or divergent resolver would make at least one path produce a different gram value or require clarification.",
+        "observed": "The exact-head regression test encodes both assertions and the exact-head Agent-first gate completed successfully."
+      },
+      "regression_evidence": [
+        "server/householdMeasureResolution.regression1016.test.ts — test \"mantém a mesma conversão no registro normal e no fluxo de adicionar à refeição\".",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ]
+    },
+    {
+      "requirement_id": "REQ-USUAL-AVERAGE",
+      "positive_evidence": [
+        "The exact-head regression fixture provides two compatible slice references, 40 g and 42 g for 2 fatias, and expects the central result 41 g with referenceCount=2.",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ],
+      "primary_negative_control": {
+        "id": "STD-AVERAGE-FIRST-REFERENCE-001",
+        "status": "passed",
+        "procedure": "Provide two compatible sources with deliberately different masses, 40 g and 42 g for the same 2-fatias measure, then resolve the measure.",
+        "expected": "The resolver must derive the coherent central value 41 g from both references instead of selecting the first 40 g value arbitrarily.",
+        "observed": "The exact-head regression assertion requires grams=41 and referenceCount=2; the exact-head Agent-first gate passed."
+      },
+      "regression_evidence": [
+        "server/householdMeasureResolution.regression1016.test.ts explicitly guards multi-source averaging for slices.",
+        "GitHub Actions Agent-first gate run 33182755471 / run_number 5935 completed successfully for exact material head 253c643dd10d9c7b95638060edf0ba437d702f13."
+      ]
+    }
+  ]
+}
