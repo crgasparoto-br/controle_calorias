@@ -3,7 +3,9 @@ import { resolveCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
+import { findCatalogFood } from "./catalogMatching";
 import { hasFoodIdentityLexemes, isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
+import { parseQuantityUnitFromPortionText } from "./mealTextParsing";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import {
   convertFoodPortionToGrams,
@@ -200,6 +202,33 @@ function explicitBrandMatches(input: HouseholdMeasureResolutionInput, candidate:
   return normalize(candidate.brandName ?? "") === requestedBrand;
 }
 
+function resolveStaticCatalogPortion(
+  input: HouseholdMeasureResolutionInput,
+): HouseholdMeasureResolution | null {
+  const food = findCatalogFood(requestedIdentity(input), input.userId);
+  if (!food?.servingLabel || !food.gramsPerServing) return null;
+
+  const requestedBrand = normalize(input.brand ?? "");
+  if (requestedBrand && normalize(food.brandName ?? "") !== requestedBrand) return null;
+
+  const serving = parseQuantityUnitFromPortionText(food.servingLabel);
+  if (!serving?.quantity || !serving.unit) return null;
+  if (normalizeCountableUnit(serving.unit) !== normalizeCountableUnit(input.unit)) return null;
+
+  const grams = (food.gramsPerServing * input.quantity) / serving.quantity;
+  if (!Number.isFinite(grams) || grams <= 0) return null;
+
+  return {
+    kind: "canonical_portion",
+    grams: Number(grams.toFixed(2)),
+    requestedQuantity: input.quantity,
+    requestedUnit: normalizeCountableUnit(input.unit),
+    evidence: `${food.servingLabel} = ${food.gramsPerServing} g`,
+    sourceUrls: [],
+    referenceCount: 1,
+  };
+}
+
 async function resolveStoredPortion(
   input: HouseholdMeasureResolutionInput,
   runtime: HouseholdMeasureResolutionRuntime,
@@ -319,10 +348,15 @@ function evidenceSupportsMeasureRelation(text: string, reference: PortionReferen
     "i",
   );
   const reverse = new RegExp(`\\b${mass}\\b\\s*(?:por|para|/|=)\\s*\\b${measure}\\b`, "i");
+  const reverseParenthetical = new RegExp(
+    `\\b${mass}\\b[^\\n.;!?()]{0,80}\\(\\s*${measure}\\s*\\)`,
+    "i",
+  );
   return forward.test(evidence)
     || compact.test(evidence)
     || parenthetical.test(evidence)
-    || reverse.test(evidence);
+    || reverse.test(evidence)
+    || reverseParenthetical.test(evidence);
 }
 
 function evidenceSupportsTypicalMeasure(text: string) {
@@ -545,6 +579,7 @@ async function searchVerifiedMeasure(
               "describesTypicalMeasure=true somente quando a fonte declarar explicitamente média, usual, típica ou equivalente.",
               "Não invente gramatura e não use categoria ampla quando o alimento específico estiver identificado.",
               "Cada evidência deve sustentar explicitamente a relação entre quantidade, unidade da medida e gramatura retornadas.",
+              "Aceite também rótulos em que a massa aparece antes da medida, por exemplo 'Porção de 40 g (2 fatias)'.",
               "Retorne referências independentes; não duplique a mesma fonte para fabricar uma média.",
               "Retorne apenas JSON válido no schema solicitado.",
             ].join("\n"),
@@ -587,7 +622,11 @@ export async function resolveHouseholdMeasure(
   const normalizedUnit = normalizeCountableUnit(input.unit);
   if (["mg", "g", "kg", "ml", "l"].includes(normalizedUnit)) return null;
 
-  const stored = await resolveStoredPortion({ ...input, unit: normalizedUnit }, runtime);
+  const normalizedInput = { ...input, unit: normalizedUnit };
+  const staticCatalog = resolveStaticCatalogPortion(normalizedInput);
+  if (staticCatalog) return staticCatalog;
+
+  const stored = await resolveStoredPortion(normalizedInput, runtime);
   if (stored) return stored;
-  return searchVerifiedMeasure({ ...input, unit: normalizedUnit }, runtime);
+  return searchVerifiedMeasure(normalizedInput, runtime);
 }
