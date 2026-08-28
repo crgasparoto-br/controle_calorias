@@ -2,51 +2,18 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014",
-  "head_sha": "b96fcab1f628349b1577795a07651c05d1692406",
+  "rejection_id": "audit-rejection:5ecee57a-239d-412d-ba30-f82abaad470f",
+  "head_sha": "87eb3ea454829bd5496a9822e71033c5190b8141",
   "identity": {
-    "published_head_sha": "b96fcab1f628349b1577795a07651c05d1692406",
+    "published_head_sha": "87eb3ea454829bd5496a9822e71033c5190b8141",
     "material_head_sha": "ba567cf95a3dda430bb8dda9e6cb09f624873942"
   },
-  "recovery_scope": "handoff-only",
-  "requires_refreeze": false,
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true,
   "findings": [
-    {
-      "id": "AUD-1015-R2-F001",
-      "source_label": "BLOCKER 1",
-      "title": "certificate issue scope differs from observed work-item delta",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation"
-    },
-    {
-      "id": "AUD-1015-R2-F002",
-      "source_label": "BLOCKER 2",
-      "title": "audit escape closure is not cumulative across the previous independent audit lineage",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation"
-    },
-    {
-      "id": "AUD-1015-R2-F003",
-      "source_label": "BLOCKER 3",
-      "title": "active semantic-effect inherited controls are not represented as an applicable saturated risk family",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation"
-    },
-    {
-      "id": "AUD-1015-R2-F004",
-      "source_label": "BLOCKER 4",
-      "title": "audit remediation is not bound to the exact audit source bytes",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation"
-    }
+    {"id":"LOCAL-AUD-1015-STATE-MACHINE","title":"future consumption charging state machine incomplete","disposition":"blocking","status":"open","actionable":true,"audit_escape":true},
+    {"id":"LOCAL-AUD-1015-IDENTITY","title":"campaign notification identity/correlation not preserved","disposition":"blocking","status":"open","actionable":true,"audit_escape":true},
+    {"id":"LOCAL-AUD-1015-RESTART-IDEM","title":"manual retry restart/idempotency gap","disposition":"blocking","status":"open","actionable":true,"audit_escape":true}
   ],
-  "summary": "Independent re-audit rejected only the result-only handoff package: issue-local scope mismatch, non-cumulative escape lineage, unsaturated semantic-effect inherited controls, and missing exact-byte audit source binding."
+  "summary": "Independent audit rejected the candidate on the charging state machine, canonical notification identity propagation, and restart-safe manual retry behavior."
 }

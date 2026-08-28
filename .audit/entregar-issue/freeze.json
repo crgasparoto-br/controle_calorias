@@ -1,12 +1,37 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "31840ac62da62c3fff2682489244f10b26c3fcbb",
-  "reason": "independent-audit-remediation-tidb-resource-termination",
+  "material_head_sha": "a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48",
+  "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+  "merge_preview_sha": null,
+  "reason": "independent-audit-remediation-post-write-refreeze",
   "changed_paths_from_previous_handoff": [
-    "scripts/test-usage-governance-retention-tidb.ts"
+    "client/src/components/admin/BillingCampaignAdminPanel.tsx",
+    "docs/design-docs/billing-audit-remediation-1015.md",
+    "drizzle/0048_billing_consumption_charge_state_machine.sql",
+    "drizzle/meta/_journal.json",
+    "drizzle/usage-governance-schema.ts",
+    "scripts/check-billing-admin-browser-evidence.mjs",
+    "server/modules/billing/billingNotificationAdmin.auditRemediation.test.ts",
+    "server/modules/billing/billingNotificationAdmin.ts",
+    "server/modules/billing/billingNotificationAdminCore.ts",
+    "server/modules/billing/billingNotificationAdminReadModel.ts",
+    "server/modules/billing/billingNotificationAdminRetry.ts",
+    "server/modules/usageGovernance/adminService.test.ts",
+    "server/modules/usageGovernance/adminService.ts",
+    "server/modules/usageGovernance/adminServiceCore.ts",
+    "server/modules/usageGovernance/chargingRollbackSaturation.auditRemediation.test.ts",
+    "server/modules/usageGovernance/consumptionChargeAdmin.ts",
+    "server/modules/usageGovernance/router.ts",
+    "server/modules/usageGovernance/schemas.test.ts",
+    "server/modules/usageGovernance/schemas.ts",
+    "server/modules/usageGovernance/schemasCore.ts",
+    "server/repositories/consumptionChargeAuthorizationRepository.test.ts",
+    "server/repositories/consumptionChargeAuthorizationRepository.ts",
+    "server/repositories/usageGovernanceAdminRepository.ts",
+    "server/repositories/usageGovernanceAdminRepositoryCore.ts",
+    "server/repositories/usageGovernanceSchema.test.ts",
+    "visual-tests/billing-admin/trpcMock.ts"
   ],
-  "remote_gate": "completed-success"
+  "remote_gate": "pending-no-run"
 }

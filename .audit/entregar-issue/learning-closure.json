@@ -3,17 +3,10 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014",
-    "finding_ids": [
-      "AUD-1015-R2-F001",
-      "AUD-1015-R2-F002",
-      "AUD-1015-R2-F003",
-      "AUD-1015-R2-F004"
-    ],
-    "audit_report_sha256": "a7ba7992190c647360575c2cf7647ee39a9c06a8c80c01634122d69111c2ec25"
+    "rejection_id": "audit-rejection:5ecee57a-239d-412d-ba30-f82abaad470f"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery contract already requires exact issue-local scope binding, cumulative audit-escape lineage, active inherited-risk saturation, and exact-byte audit-source binding. This rejection came from constructing the result-only package without applying those existing guards together; no new global rule is needed."
+    "reason": "The installed delivery contract already contains reusable controls for state-machine semantics, semantic identity propagation, restart idempotency, and browser execution of retry flows. The remediation applies those existing controls to this implementation; no new global rule is claimed in this delivery context."
   }
 }

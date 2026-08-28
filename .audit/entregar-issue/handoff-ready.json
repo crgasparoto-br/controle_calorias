@@ -1,1 +1,46 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"handoff-certificate","compression":"gzip","encoded_size":5648,"encoded_sha256":"7d878f2d794b93c129ed8a81ba319e95b0ab7bb27abed6e6d20a579d7cb9d1a7","decoded_size":17863,"decoded_sha256":"764e44bfe87d29cd297ebb557eeedf03f284ab2cc3772bddeea305af1b04da6f","parts":[{"path":"handoff-ready.parts/part-000.b64","size":2000,"sha256":"d77a347f1ae2bcd646a0dfa4fc15a307a749b9135ff26e0e8e8827bdc8ff72f2"},{"path":"handoff-ready.parts/part-001.b64","size":2000,"sha256":"d2bfa8a54864feb343174faf2482eca71aa4e6c13dab9a922c437d18c0d1fb7c"},{"path":"handoff-ready.parts/part-002.b64","size":1648,"sha256":"e5deb76b82ff147f34694de0790e1a767d36553920371fea576b784af261d39a"}]}
+{
+  "schema_version": 2,
+  "status": "pending-ci",
+  "created_at": "2026-08-28T13:30:00Z",
+  "identity": {
+    "head_sha": "a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48",
+    "material_head_sha": "a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48",
+    "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+    "merge_preview_sha": null,
+    "material_merge_preview_sha": null
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 896,
+    "pull_request_number": 1015,
+    "work_item_kind": "pr",
+    "work_item_number": 1015,
+    "pull_request": 1015,
+    "base_ref": "develop",
+    "head_ref": "feat/896-monetization-admin-campaign-abuse"
+  },
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "critical",
+  "remediation_mode": "targeted-remediation",
+  "previous_independent_rejection": true,
+  "pending": {
+    "reason": "ci-and-runtime-evidence-pending",
+    "remote_gate_status": "pending-no-run",
+    "local_runtime_blocker": "pnpm unavailable; registry.npmjs.org EAI_AGAIN",
+    "controls_awaiting_exact_head_runtime_confirmation": ["CTRL-896-AUD-F004-RUNTIME-VISUAL-ARTIFACT","ADMIN-STATE-MACHINE-001","IDENTITY-PROP-001","RESTART-IDEM-001"],
+    "local_evidence_path": ".audit/entregar-issue/evidence/current-remediation-local-checks.txt",
+    "local_evidence_sha256": "5a33e621bbe293482dfc6933602dbcf3e6ed0e5527a62bd21fd6529d2946b2b8"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/freeze.json",
+      ".audit/entregar-issue/remote-gate-evidence.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/evidence/current-remediation-local-checks.txt",
+      ".audit/entregar-issue/handoff-ready.json"
+    ]
+  }
+}
