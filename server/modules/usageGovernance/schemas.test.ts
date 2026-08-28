@@ -28,8 +28,9 @@ describe("usage governance abuse evidence schema", () => {
   });
 
   it("requires literal reinforced confirmation for activation", () => {
-    expect(() => authorizeConsumptionChargingSchema.parse({ action: "activate", id: "auth-1", reason: "activate", reinforcedConfirmation: false })).toThrow();
-    const parsed = authorizeConsumptionChargingSchema.parse({ action: "activate", id: "auth-1", reason: "activate", reinforcedConfirmation: true });
+    const authorizationId = "00000000-0000-4000-8000-000000000001";
+    expect(() => authorizeConsumptionChargingSchema.parse({ action: "activate", id: authorizationId, reason: "activate", reinforcedConfirmation: false })).toThrow();
+    const parsed = authorizeConsumptionChargingSchema.parse({ action: "activate", id: authorizationId, reason: "activate", reinforcedConfirmation: true });
     expect("reinforcedConfirmation" in parsed && parsed.reinforcedConfirmation).toBe(true);
   });
 
