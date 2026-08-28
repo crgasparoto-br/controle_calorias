@@ -3,47 +3,52 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:f278d567-3fff-4e99-a403-cc638e101d46",
-    "audit_report_sha256": "1899a40c117673b0b99360d9de4eb575c32b21889df7ee58ec7261da2e01f0f8",
-    "audited_head_sha": "62649935430aaad3c2632cf60f7ca6bb4d82eccb"
+    "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
+    "audit_report_sha256": "7a1443df491d427929d000d281f575dde4de9875d3ea1532828c9b490d8fa634",
+    "audited_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
+    "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f"
   },
-  "candidate_head_sha": "4df49e32ce5d5804d1156eb19ddaef3bd6dcd2d2",
+  "candidate_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-005",
+      "source_id": "A-006",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
-        "server/foodSemanticCompatibility.ts",
-        "server/householdMeasureResolution.ts",
-        "server/householdMeasureResolution.audit1016.a005.test.ts",
-        "docs/design-docs/food-portions-household-measures.md"
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/inherited-controls.json"
       ],
       "evidence": [
-        ".audit/entregar-issue/evidence/issue1016-a005-evidence-binding.txt",
-        ".audit/entregar-issue/evidence/issue1016-exact-head.txt"
+        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
       ],
       "validations": [
-        "git diff --check",
-        "node --experimental-strip-types --check on all changed TypeScript files",
-        "focused exact-source A-001/A-002/A-003/A-005 resolver harness on material head",
-        "A-004 sharded transport size and SHA-256 corruption controls",
-        "GitHub Actions delivery snapshot observed as pending-no-run; no polling/rerun/dispatch"
+        "auditar-issue check_delivery_saturation.py accepts the corrected critical packet",
+        "negative mutation: missing synthetic positive control is rejected",
+        "negative mutation: stale synthetic negative control is rejected"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-007",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/inherited-controls.json"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
+      ],
+      "validations": [
+        "semantic-effect family is explicit and passed in risk saturation",
+        "negative mutation: inherited family marked not-applicable is rejected",
+        "negative mutation: inherited risk surface omitted from matrix is rejected"
       ]
     }
   ],
-  "status": "closed",
-  "historical_closures": [
-    {
-      "rejection_id": "audit-rejection:fc986010-b32d-4afc-b9e9-e22559922cc6",
-      "finding_ids": [
-        "A-004"
-      ],
-      "status": "preserved",
-      "evidence": ".audit/entregar-issue/evidence/issue1016-a004-handoff-integrity.txt",
-      "note": "A-004 transport controls remain cumulative; the current ledger replaces the previously incomplete remediation contract without dropping its lineage."
-    }
-  ]
+  "status": "closed"
 }
