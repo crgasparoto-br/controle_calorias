@@ -2,53 +2,30 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
-    "audit_report_sha256": "7a1443df491d427929d000d281f575dde4de9875d3ea1532828c9b490d8fa634",
-    "audited_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-    "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f"
-  },
-  "candidate_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
+  "status": "closed",
+  "candidate_head_sha": "6fe172fd055d944717937c724853b50c97b4ba5d",
   "remediation_mode": "targeted-remediation",
+  "source": {
+    "kind": "independent-audit-result",
+    "rejection_id": "audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340",
+    "audited_head_sha": "cb95cc0276462b9f205564d6b66778c064b08898",
+    "audit_report_sha256": "6660f1e460e8eb8dac23afec2238e4adc18f183b579edf6e0bcd03a1bcb07713"
+  },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-006",
+      "source_id": "A-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "changed_files": [
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/inherited-controls.json"
-      ],
       "evidence": [
-        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
+        "Immutable compare d91b94342766087e24d8d9a2cf9793337b9cecbe..6fe172fd055d944717937c724853b50c97b4ba5d returns exactly two material paths.",
+        "The rebuilt certificate uses that pre-write SHA and exact path set; no product code is changed by the handoff repair."
       ],
       "validations": [
-        "auditar-issue check_delivery_saturation.py accepts the corrected critical packet",
-        "negative mutation: missing synthetic positive control is rejected",
-        "negative mutation: stale synthetic negative control is rejected"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-007",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "changed_files": [
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/inherited-controls.json"
-      ],
-      "evidence": [
-        ".audit/entregar-issue/evidence/issue1016-a006-a007-handoff-controls.txt"
-      ],
-      "validations": [
-        "semantic-effect family is explicit and passed in risk saturation",
-        "negative mutation: inherited family marked not-applicable is rejected",
-        "negative mutation: inherited risk surface omitted from matrix is rejected"
+        "HANDOFF-SCOPE-EXACT-001: exact Git compare path equality",
+        "issue_delta_sha256=c7fc086ec75de3f2459e471c518aaaace4c33dc597d02ed3e1d6bcd45485af27",
+        "result-only child parent must remain 6fe172fd055d944717937c724853b50c97b4ba5d"
       ]
     }
-  ],
-  "status": "closed"
+  ]
 }
