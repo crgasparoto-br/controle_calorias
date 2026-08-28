@@ -623,10 +623,10 @@ export async function resolveHouseholdMeasure(
   if (["mg", "g", "kg", "ml", "l"].includes(normalizedUnit)) return null;
 
   const normalizedInput = { ...input, unit: normalizedUnit };
-  const staticCatalog = resolveStaticCatalogPortion(normalizedInput);
-  if (staticCatalog) return staticCatalog;
-
   const stored = await resolveStoredPortion(normalizedInput, runtime);
   if (stored) return stored;
+
+  const staticCatalog = resolveStaticCatalogPortion(normalizedInput);
+  if (staticCatalog) return staticCatalog;
   return searchVerifiedMeasure(normalizedInput, runtime);
 }

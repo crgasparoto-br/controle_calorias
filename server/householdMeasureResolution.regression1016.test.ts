@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { findCatalogFood } from "./catalogMatching";
 import { prepareCountableFoodRegistrationResolved } from "./countableFoodQuantity";
 import { resolveHouseholdMeasure } from "./householdMeasureResolution";
 import { resolveCanonicalFoodAdditionItems } from "./modules/whatsapp/intent/canonicalFoodAdditionResolution";
@@ -20,6 +21,39 @@ function baseRuntime() {
     })),
     createDomainTextResponse: vi.fn(),
   };
+}
+
+function runtimeWithStoredPortion(input: {
+  foodName: string;
+  brandName?: string | null;
+  portionLabel: string;
+  portionUnit: string;
+  portionQuantity: number;
+  portionGrams: number;
+  convertedGrams: number;
+}) {
+  const runtime = baseRuntime();
+  runtime.searchGlobalFoodCatalog.mockResolvedValueOnce([{
+    id: `stored-${input.foodName}`,
+    name: input.foodName,
+    brandName: input.brandName ?? null,
+  }] as any);
+  runtime.getGlobalFoodCatalogItem.mockResolvedValueOnce({
+    id: `stored-${input.foodName}`,
+    name: input.foodName,
+    brandName: input.brandName ?? null,
+    portions: [{
+      id: `portion-${input.foodName}`,
+      label: input.portionLabel,
+      unit: input.portionUnit,
+      quantity: input.portionQuantity,
+      grams: input.portionGrams,
+    }],
+  } as any);
+  runtime.convertFoodPortionToGrams.mockResolvedValueOnce({
+    grams: input.convertedGrams,
+  } as any);
+  return runtime;
 }
 
 function searchedResponse(references: Array<Record<string, unknown>>) {
@@ -60,7 +94,96 @@ function slicedFoodReference(input: {
 }
 
 describe("regressão #1016 — medidas caseiras no WhatsApp", () => {
-  it("resolve 1,5 pão francês pela porção canônica local antes de pesquisar ou clarificar", async () => {
+  it("usa a porção persistida antes da porção estática quando as duas divergem", async () => {
+    const runtime = runtimeWithStoredPortion({
+      foodName: "Pão francês",
+      portionLabel: "1 unidade",
+      portionUnit: "un",
+      portionQuantity: 1,
+      portionGrams: 45,
+      convertedGrams: 67.5,
+    });
+
+    expect(findCatalogFood("Pão francês", 7)).toEqual(expect.objectContaining({
+      servingLabel: "1 unidade",
+      gramsPerServing: 50,
+    }));
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName: "Pão francês",
+      quantity: 1.5,
+      unit: "un",
+    }, runtime as any);
+
+    expect(result).toEqual(expect.objectContaining({
+      kind: "canonical_portion",
+      grams: 67.5,
+      requestedQuantity: 1.5,
+      requestedUnit: "unidade",
+    }));
+    expect(runtime.searchGlobalFoodCatalog).toHaveBeenCalledTimes(1);
+    expect(runtime.convertFoodPortionToGrams).toHaveBeenCalledWith(7, expect.objectContaining({
+      quantity: 1.5,
+    }));
+    expect(runtime.createDomainTextResponse).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "banana por unidade",
+      foodName: "Banana",
+      brandName: null,
+      quantity: 1,
+      unit: "un",
+      portionLabel: "1 unidade",
+      portionUnit: "un",
+      portionGrams: 70,
+      convertedGrams: 70,
+      staticGramsPerServing: 80,
+    },
+    {
+      label: "queijo Polenghi por fatia",
+      foodName: "Queijo Polenghi light",
+      brandName: "Polenghi",
+      quantity: 2,
+      unit: "fatias",
+      portionLabel: "1 fatia",
+      portionUnit: "fatia",
+      portionGrams: 18,
+      convertedGrams: 36,
+      staticGramsPerServing: 20,
+    },
+  ])("mantém a precedência persistida no caso irmão: $label", async ({
+    foodName, brandName, quantity, unit, portionLabel, portionUnit, portionGrams, convertedGrams, staticGramsPerServing,
+  }) => {
+    const runtime = runtimeWithStoredPortion({
+      foodName,
+      brandName,
+      portionLabel,
+      portionUnit,
+      portionQuantity: 1,
+      portionGrams,
+      convertedGrams,
+    });
+
+    expect(findCatalogFood(foodName, 7)).toEqual(expect.objectContaining({
+      gramsPerServing: staticGramsPerServing,
+    }));
+
+    const result = await resolveHouseholdMeasure({
+      userId: 7,
+      foodName,
+      quantity,
+      unit,
+    }, runtime as any);
+
+    expect(result).toEqual(expect.objectContaining({ grams: convertedGrams }));
+    expect(runtime.convertFoodPortionToGrams).toHaveBeenCalledTimes(1);
+    expect(runtime.createDomainTextResponse).not.toHaveBeenCalled();
+  });
+
+  it("usa a porção estática somente quando nenhuma porção persistida segura existe", async () => {
     const runtime = baseRuntime();
 
     const result = await resolveHouseholdMeasure({
@@ -76,7 +199,7 @@ describe("regressão #1016 — medidas caseiras no WhatsApp", () => {
       requestedQuantity: 1.5,
       requestedUnit: "unidade",
     }));
-    expect(runtime.searchGlobalFoodCatalog).not.toHaveBeenCalled();
+    expect(runtime.searchGlobalFoodCatalog).toHaveBeenCalledTimes(1);
     expect(runtime.createDomainTextResponse).not.toHaveBeenCalled();
   });
 
