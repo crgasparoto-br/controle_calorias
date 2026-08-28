@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createConsumptionChargeAuthorizationDraft: vi.fn(),
-  transitionConsumptionChargeAuthorization: vi.fn(),
+  transitionConsumptionChargeAuthorization: vi.fn(async (input: { id: string; toState: string }) => ({ id: input.id, state: input.toState })),
 }));
 
 vi.mock("../../repositories/usageGovernanceRepository", () => ({
