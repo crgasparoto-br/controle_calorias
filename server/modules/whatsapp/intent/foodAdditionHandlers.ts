@@ -1,10 +1,10 @@
-import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
-import { getHabitSnapshots } from "../../../db";
-import { isCoffeeWithAddedSugar } from "../../../foodSemanticCompatibility";
-import { MealInferenceError, processMealInput } from "../../../nutritionEngine";
+import { MealInferenceError } from "../../../nutritionEngine";
 import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
-import { requestWhatsappCaloricComplementQuantityClarification } from "../foodQuantityClarification";
+import {
+  requestWhatsappCaloricComplementQuantityClarification,
+  requestWhatsappFoodAdditionQuantityClarification,
+} from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
@@ -12,13 +12,15 @@ import type { MealItemInput } from "../../meals/schemas";
 import { formatReplyDate, resolveRelativeOccurredAt } from "./dateTime";
 import { resolveWhatsappRelativeMealDateSelection } from "./explicitMealDate";
 import {
+  resolveCanonicalFoodAdditionItems,
+  type CanonicalFoodAdditionItem,
+} from "./canonicalFoodAdditionResolution";
+import {
   buildCoffeeLorCapsuleItem,
-  buildFoodAdditionItem,
   buildUnsweetenedCoffeeItem,
   findMealByLabel,
   formatAddedItemsList,
   formatTotalsLine,
-  toMealItemInputs,
 } from "./mealItemHelpers";
 import type { CoffeeAdditionIntent, CoffeeLorCapsuleIntent, ExistingMeal, FoodAdditionIntent, WhatsappIntentResult } from "./types";
 
@@ -26,6 +28,7 @@ type AdditionExecutionContext = {
   originalText?: string;
   receivedAt?: Date;
   messageId?: string | null;
+  expectedMealId?: number;
 };
 
 type FoodAdditionItem = FoodAdditionIntent["items"][number];
@@ -54,11 +57,9 @@ function formatAdditionActionFoodName(item: MealItemInput) {
     : item.foodName;
 }
 
-function findResolvedSweetenedCoffee(items: MealItemInput[]) {
-  const matches = items.filter(item =>
-    isCoffeeWithAddedSugar(`${item.foodName} ${item.canonicalName ?? ""}`)
-  );
-  return matches.length === 1 ? matches[0] : null;
+function formatQuantityResolutionNote(item: CanonicalFoodAdditionItem) {
+  if (item.quantityResolution?.kind !== "usual_average") return null;
+  return `A gramatura de ${item.foodName} foi estimada pela média usual da mesma medida e os nutrientes foram calculados com essa estimativa. Você pode corrigir depois pelo WhatsApp ou na tela da refeição.`;
 }
 
 async function resolveAdditionItems(input: {
@@ -68,69 +69,61 @@ async function resolveAdditionItems(input: {
   timeZone: string;
   context?: AdditionExecutionContext;
 }): Promise<
-  | { kind: "items"; items: MealItemInput[] }
+  | { kind: "items"; items: CanonicalFoodAdditionItem[] }
   | { kind: "clarification"; result: WhatsappIntentResult }
 > {
-  const resolvedItems = input.addition.items.map(item => {
-    const normalizedUnit = normalizeMeasurementUnit(item.unit);
-    const normalizedName = normalizeCoffeeAdditionText(item.foodName);
-    const isUnsweetenedCoffee = /\bcafe\b/.test(normalizedName)
-      && /\bsem acucar\b/.test(normalizedName);
-    if (isUnsweetenedCoffee && (normalizedUnit === "xícara" || normalizedUnit === "copo")) {
-      return buildUnsweetenedCoffeeItem(item.quantity, normalizedUnit);
-    }
-    return buildFoodAdditionItem(item.foodName, item.quantity, normalizedUnit);
-  });
-  const coffeeIndexes = input.addition.items
-    .map((item, index) => isCoffeeWithAddedSugar(item.foodName) ? index : -1)
-    .filter(index => index >= 0);
-  if (!coffeeIndexes.length) return { kind: "items", items: resolvedItems };
-
   const receivedAt = input.context?.receivedAt ?? input.addition.date;
-  const habits = await getHabitSnapshots(input.userId);
   const completeFoodText = buildCompleteAdditionFoodText(input.addition.items);
 
-  for (const coffeeIndex of coffeeIndexes) {
-    const originalFoodText = buildAdditionFoodText(input.addition.items[coffeeIndex]);
-    try {
-      const processed = await processMealInput({
-        text: originalFoodText,
-        habits,
-        occurredAt: receivedAt,
-        timeZone: input.timeZone,
-      });
-      const resolvedCoffee = findResolvedSweetenedCoffee(
-        toMealItemInputs(processed.items),
-      );
-      if (!resolvedCoffee) throw new MealInferenceError();
-      resolvedItems[coffeeIndex] = resolvedCoffee;
-    } catch (error) {
-      if (
-        error instanceof MealInferenceError
-        && error.code === "food_component_quantity_required"
-      ) {
-        return {
-          kind: "clarification",
-          result: await requestWhatsappCaloricComplementQuantityClarification({
-            userId: input.userId,
-            originalFoodText: completeFoodText,
-            originalText: input.context?.originalText,
-            operation: {
-              kind: "add_to_meal",
-              mealId: input.targetMeal.id,
-              expectedMealLabel: input.targetMeal.mealLabel,
-              expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
-            },
-            receivedAt,
-            messageId: input.context?.messageId,
-          }),
-        };
-      }
-      throw error;
-    }
-  }
+  try {
+    const resolution = await resolveCanonicalFoodAdditionItems({
+      userId: input.userId,
+      addition: input.addition,
+      occurredAt: receivedAt,
+      timeZone: input.timeZone,
+    });
+    if (resolution.kind === "items") return resolution;
 
-  return { kind: "items", items: resolvedItems };
+    return {
+      kind: "clarification",
+      result: await requestWhatsappFoodAdditionQuantityClarification({
+        userId: input.userId,
+        foodName: resolution.item.foodName,
+        originalText: input.context?.originalText?.trim() || completeFoodText,
+        addition: input.addition,
+        itemIndex: resolution.itemIndex,
+        expectedMealId: input.targetMeal.id,
+        expectedMealLabel: input.targetMeal.mealLabel,
+        expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+        receivedAt,
+        messageId: input.context?.messageId,
+        instructionText: `Não encontrei uma gramatura verificável nem uma média usual segura para ${resolution.item.quantity} ${resolution.item.unit} de ${resolution.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+      }),
+    };
+  } catch (error) {
+    if (
+      error instanceof MealInferenceError
+      && error.code === "food_component_quantity_required"
+    ) {
+      return {
+        kind: "clarification",
+        result: await requestWhatsappCaloricComplementQuantityClarification({
+          userId: input.userId,
+          originalFoodText: completeFoodText,
+          originalText: input.context?.originalText,
+          operation: {
+            kind: "add_to_meal",
+            mealId: input.targetMeal.id,
+            expectedMealLabel: input.targetMeal.mealLabel,
+            expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+          },
+          receivedAt,
+          messageId: input.context?.messageId,
+        }),
+      };
+    }
+    throw error;
+  }
 }
 
 export async function handleFoodAdditionIntent(
@@ -153,15 +146,17 @@ export async function handleFoodAdditionIntent(
     timeZone,
     { allowCrossDayFallback: !dateSelection.explicit },
   );
-  if (!targetMeal) {
+  if (!targetMeal || (context?.expectedMealId && targetMeal.id !== context.expectedMealId)) {
     return {
       handled: true,
       action: "clarification_needed",
       reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(dateSelection.date, timeZone)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
       eventType: "whatsapp.intent.clarification_needed",
-      detail: dateSelection.explicit
-        ? "Pedido para adicionar alimento com data explícita sem refeição compatível no dia indicado; nenhuma mutação foi executada."
-        : "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
+      detail: context?.expectedMealId
+        ? "A refeição alvo mudou antes da continuação da adição; nenhuma mutação foi executada."
+        : dateSelection.explicit
+          ? "Pedido para adicionar alimento com data explícita sem refeição compatível no dia indicado; nenhuma mutação foi executada."
+          : "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
     };
   }
 
@@ -186,6 +181,7 @@ export async function handleFoodAdditionIntent(
   if (addedItems.length === 1) {
     const addedItem = addedItems[0];
     const estimationLabel = addedItem.source === "catalog" ? "Estimativa com base no catálogo" : "Estimativa";
+    const quantityNote = formatQuantityResolutionNote(addedItem);
     return {
       handled: true,
       action: "meal_item_added",
@@ -197,6 +193,7 @@ export async function handleFoodAdditionIntent(
           title: "Alimento adicionado",
           actionLines: [
             `Adicionei ${addedItem.portionText} de ${formatAdditionActionFoodName(addedItem)} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. ${estimationLabel}: ${formatTotalsLine(addedItem)}.`,
+            ...(quantityNote ? [quantityNote] : []),
           ],
         },
       }),
@@ -214,10 +211,14 @@ export async function handleFoodAdditionIntent(
         carbs: addedItem.carbs,
         fat: addedItem.fat,
         nutritionSource: addedItem.source,
+        quantityResolution: addedItem.quantityResolution,
       },
     };
   }
 
+  const quantityNotes = addedItems
+    .map(formatQuantityResolutionNote)
+    .filter((value): value is string => Boolean(value));
   return {
     handled: true,
     action: "meal_item_added",
@@ -229,6 +230,7 @@ export async function handleFoodAdditionIntent(
         title: "Alimentos adicionados",
         actionLines: [
           `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}: ${formatAddedItemsList(addedItems)}.`,
+          ...quantityNotes,
         ],
       },
     }),
@@ -248,6 +250,7 @@ export async function handleFoodAdditionIntent(
         carbs: item.carbs,
         fat: item.fat,
         nutritionSource: item.source,
+        quantityResolution: item.quantityResolution,
       })),
     },
   };

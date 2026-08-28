@@ -167,7 +167,7 @@ describe("issue #970 - webhook textual real", () => {
           foodName: "Café sem açúcar",
           quantity: 3,
           unit: "xícara",
-          portionText: "3 xícaras (150 ml)",
+          portionText: "3 xícaras (600 ml)",
         }),
       ],
     }));
@@ -177,6 +177,6 @@ describe("issue #970 - webhook textual real", () => {
       status: "success",
       eventType: "whatsapp.intent.meal_item_added",
     }));
-    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
+    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (600 ml) de café sem açúcar");
   });
 });
