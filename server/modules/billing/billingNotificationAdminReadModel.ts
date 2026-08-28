@@ -45,6 +45,7 @@ export type BillingAdminNotificationReadItem = {
   trigger: string;
   milestone: string | null;
   correlationId: string;
+  idempotencyKey?: string;
   obsolete: boolean;
   paused: boolean;
   pauseReason: string | null;

@@ -4,11 +4,11 @@ const mocks = vi.hoisted(() => ({
   approveAbuseReview: vi.fn(),
   createAbuseCase: vi.fn(),
   createAllowanceGrant: vi.fn(),
-  createConsumptionChargeAuthorization: vi.fn(),
+  createConsumptionChargeAuthorizationDraft: vi.fn(),
+  transitionConsumptionChargeAuthorization: vi.fn(),
   createLegalHold: vi.fn(),
   createLimitation: vi.fn(),
   revokeAllowanceGrant: vi.fn(),
-  revokeConsumptionChargeAuthorization: vi.fn(),
   revokeLegalHold: vi.fn(),
   revokeLimitation: vi.fn(),
   getAbuseCase: vi.fn(),
@@ -21,15 +21,18 @@ vi.mock("../../repositories/usageGovernanceRepository", () => ({
 vi.mock("../../repositories/usageGovernancePolicyRepository", () => ({
   listUsageLimitationsForCase: mocks.listUsageLimitationsForCase,
 }));
+vi.mock("../../repositories/consumptionChargeAuthorizationRepository", () => ({
+  createConsumptionChargeAuthorizationDraft: mocks.createConsumptionChargeAuthorizationDraft,
+  transitionConsumptionChargeAuthorization: mocks.transitionConsumptionChargeAuthorization,
+  listConsumptionChargeAuthorizations: vi.fn(async () => []),
+}));
 vi.mock("../../repositories/usageGovernanceAdminRepository", () => ({
   approveAbuseReview: mocks.approveAbuseReview,
   createAbuseCase: mocks.createAbuseCase,
   createAllowanceGrant: mocks.createAllowanceGrant,
-  createConsumptionChargeAuthorization: mocks.createConsumptionChargeAuthorization,
   createLegalHold: mocks.createLegalHold,
   createLimitation: mocks.createLimitation,
   revokeAllowanceGrant: mocks.revokeAllowanceGrant,
-  revokeConsumptionChargeAuthorization: mocks.revokeConsumptionChargeAuthorization,
   revokeLegalHold: mocks.revokeLegalHold,
   revokeLimitation: mocks.revokeLimitation,
 }));
@@ -90,7 +93,7 @@ describe("usage governance charging rollback", () => {
       rollback: {},
       actorUserId: 11,
     })).rejects.toThrow("consumption_charge_rollback_required");
-    expect(mocks.createConsumptionChargeAuthorization).not.toHaveBeenCalled();
+    expect(mocks.createConsumptionChargeAuthorizationDraft).not.toHaveBeenCalled();
   });
 
   it("persists the rollback plan and the later deactivation reason", async () => {
@@ -105,10 +108,10 @@ describe("usage governance charging rollback", () => {
       rollback,
       actorUserId: 11,
     });
-    expect(authorization).toMatchObject({ state: "approved", noRetroactive: true });
-    expect(mocks.createConsumptionChargeAuthorization).toHaveBeenCalledWith(expect.objectContaining({ rollback, actorUserId: 11 }));
+    expect(authorization).toMatchObject({ state: "draft", noRetroactive: true });
+    expect(mocks.createConsumptionChargeAuthorizationDraft).toHaveBeenCalledWith(expect.objectContaining({ rollback, actorUserId: 11 }));
     await expect(revokeFutureConsumptionCharging(authorization.id, 12, " commercial rollback ")).resolves.toMatchObject({ id: authorization.id, state: "revoked" });
-    expect(mocks.revokeConsumptionChargeAuthorization).toHaveBeenCalledWith(authorization.id, 12, "commercial rollback");
+    expect(mocks.transitionConsumptionChargeAuthorization).toHaveBeenCalledWith(expect.objectContaining({ id: authorization.id, actorUserId: 12, reason: "commercial rollback", toState: "revoked" }));
   });
 
   it("requires a distinct second administrator for the single seven-day extension", async () => {

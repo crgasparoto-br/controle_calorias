@@ -156,6 +156,25 @@ try {
   const uniqueFocus = new Set(keyboardSequence.map(item => `${item.tag}:${item.text}`).filter(value => !value.startsWith("BODY:") && !value.startsWith("HTML:")));
   if (uniqueFocus.size < 5) throw new Error(`keyboard navigation reached only ${uniqueFocus.size} unique controls`);
 
+  const retryIdentity = await call("Runtime.evaluate", {
+    expression: `(() => {
+      const reason = document.getElementById('campaign-reason');
+      if (!reason) return {ok:false, reason:'reason-control-missing'};
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(reason, 'retry audit evidence');
+      reason.dispatchEvent(new Event('input', {bubbles:true}));
+      reason.dispatchEvent(new Event('change', {bubbles:true}));
+      const button = Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Retry WhatsApp'));
+      if (!button) return {ok:false, reason:'retry-button-missing'};
+      button.click();
+      button.click();
+      const attempts = globalThis.__billingRetryAttempts ?? [];
+      return {ok:true, attempts, sameRequestId: attempts.length === 2 && attempts[0].requestId === attempts[1].requestId};
+    })()`,
+    returnByValue: true,
+  }, sessionId);
+  if (!retryIdentity.result.value?.sameRequestId) throw new Error(`retry identity was not stable: ${JSON.stringify(retryIdentity.result.value)}`);
+
   const ax = await call("Accessibility.getFullAXTree", {}, sessionId);
   const roles = new Map();
   const names = [];
@@ -183,6 +202,7 @@ try {
     viewports: viewportEvidence,
     keyboard: { sequence: keyboardSequence, uniqueFocusCount: uniqueFocus.size },
     accessibility: { roleCounts: Object.fromEntries(roles), pageHeadingObserved: true },
+    retryIdentity: retryIdentity.result.value,
     zoom200: zoomResult.result.value,
   };
   await fs.mkdir(path.dirname(outputPath), { recursive: true });

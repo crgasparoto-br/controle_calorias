@@ -12,9 +12,19 @@ function query(data: unknown) {
   };
 }
 
-function mutation() {
+function mutation(path: string, options?: { onSuccess?: (data: any, variables: any) => void; onError?: (error: Error, variables: any) => void }) {
   return {
-    mutate: () => undefined,
+    mutate: (variables: any) => {
+      if (path === "billing.adminRetryNotification") {
+        const g = globalThis as any;
+        g.__billingRetryAttempts = g.__billingRetryAttempts ?? [];
+        g.__billingRetryAttempts.push(variables);
+        if (g.__billingRetryAttempts.length === 1) options?.onError?.(new Error("synthetic lost response"), variables);
+        else options?.onSuccess?.({ status: "delivered", idempotent: true }, variables);
+        return;
+      }
+      options?.onSuccess?.({}, variables);
+    },
     mutateAsync: async () => undefined,
     reset: () => undefined,
     isPending: false,
@@ -122,7 +132,13 @@ const rolloutOverview = {
 };
 
 const notifications = {
-  items: [],
+  items: [{
+    notificationId: "fact-visual-1", campaign: "Cobrança", campaignVersion: "v3", title: "Pagamento pendente", whatOccurred: "Pagamento não confirmado", effectiveAt: new Date("2026-08-27T10:00:00Z"), expectedAction: "regularizar", consequence: "acompanhar", support: "suporte", actionHref: "/billing",
+    payerUserId: 44, factType: "past_due_reminder", category: "financial", audience: "individual", trigger: "past_due_reminder", milestone: null, correlationId: "corr-visual-456", idempotencyKey: "idem-visual-123", obsolete: false, paused: false, pauseReason: null, optOutApplicable: false, legalBasisClassification: "operacional", completionState: "open", readState: "unread", readAt: null, deliveryState: "failed", deliveryChannel: "whatsapp", deliveryUpdatedAt: new Date("2026-08-27T10:05:00Z"), situation: "Ação pendente",
+    senders: { internal: { configured: true, label: "Central interna" }, email: { configured: false, label: "E-mail" }, whatsapp: { configured: true, label: "WhatsApp oficial" } },
+    channels: [{ channel: "internal", state: "available", attempts: 1, definitiveFailure: false, acknowledged: true, responsibleUserId: null, nextAttemptAt: null, updatedAt: new Date("2026-08-27T10:00:00Z") }, { channel: "email", state: "not_attempted", attempts: 0, definitiveFailure: false, acknowledged: false, responsibleUserId: null, nextAttemptAt: null, updatedAt: null }, { channel: "whatsapp", state: "failed", attempts: 1, definitiveFailure: true, acknowledged: false, responsibleUserId: 9, nextAttemptAt: null, updatedAt: new Date("2026-08-27T10:05:00Z") }],
+    audit: { sourceFactVersion: 3, sourceEffectiveAt: new Date("2026-08-27T10:00:00Z"), latestCampaignControlAt: null, latestCampaignControlActorUserId: null },
+  }],
   analytics: [
     {
       campaign: "Renovação",
@@ -155,6 +171,7 @@ const dataByPath: Record<string, unknown> = {
   "usageGovernance.analytics": usageAnalytics,
   "usageGovernance.adminOverview": adminOverview,
   "usageGovernance.adminEconomicRows": economicRows,
+  "usageGovernance.consumptionChargingAuthorizations": [],
 };
 
 function branch(path: string[]): any {
@@ -162,7 +179,7 @@ function branch(path: string[]): any {
     get(_target, property) {
       const key = String(property);
       if (key === "useQuery") return () => query(dataByPath[path.join(".")]);
-      if (key === "useMutation") return () => mutation();
+      if (key === "useMutation") return (options: any) => mutation(path.join("."), options);
       return branch([...path, key]);
     },
   });

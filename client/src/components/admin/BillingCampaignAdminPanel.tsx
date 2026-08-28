@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { MailWarning, PauseCircle, RefreshCw, Send, ShieldCheck } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 function formatDate(value: Date | string | null | undefined) {
@@ -28,6 +28,7 @@ export default function BillingCampaignAdminPanel() {
   const [reason, setReason] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [responsibleUserId, setResponsibleUserId] = useState("");
+  const retryRequestIds = useRef(new Map<string, string>());
 
   const queryInput = useMemo(() => ({
     limit: 100,
@@ -48,13 +49,23 @@ export default function BillingCampaignAdminPanel() {
   };
 
   const retry = trpc.billing.adminRetryNotification.useMutation({
-    onSuccess: async result => {
+    onSuccess: async (result, variables) => {
       if (result.status === "delivered") toast.success("Comunicação reprocessada.");
+      else if (result.status === "pending") toast.info("Tentativa ainda em processamento; a mesma chave será reutilizada.");
       else toast.warning("Tentativa registrada, mas o canal não confirmou entrega.");
+      if (result.status !== "pending") retryRequestIds.current.delete(`${variables.notificationId}:${variables.channel}`);
       await refresh();
     },
     onError: error => toast.error(error.message || "Não foi possível reprocessar a comunicação."),
   });
+  const requestIdForRetry = (notificationId: string, channel: "email" | "whatsapp") => {
+    const key = `${notificationId}:${channel}`;
+    const current = retryRequestIds.current.get(key);
+    if (current) return current;
+    const created = window.crypto.randomUUID();
+    retryRequestIds.current.set(key, created);
+    return created;
+  };
   const acknowledge = trpc.billing.adminAcknowledgeNotificationFailure.useMutation({
     onSuccess: async () => { toast.success("Falha reconhecida e atribuída."); await refresh(); },
     onError: error => toast.error(error.message || "Não foi possível reconhecer a falha."),
@@ -114,7 +125,7 @@ export default function BillingCampaignAdminPanel() {
                     <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{item.campaign}</p><Badge variant="outline">{item.campaignVersion}</Badge><Badge variant="secondary">{item.category}</Badge><Badge variant="outline">{item.audience}</Badge>{item.paused ? <Badge variant="destructive">pausada</Badge> : null}{item.obsolete ? <Badge variant="destructive">obsoleta</Badge> : null}</div>
                     <p className="mt-1 text-sm">{item.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Usuário {item.payerUserId} · gatilho {item.trigger}{item.milestone ? ` · marco ${item.milestone}` : ""} · {formatDate(item.effectiveAt)}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Correlação {item.correlationId} · factVersion {item.audit.sourceFactVersion} · opt-out {item.optOutApplicable ? "aplicável" : "não aplicável"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Correlação {item.correlationId} · idempotência {item.idempotencyKey} · factVersion {item.audit.sourceFactVersion} · opt-out {item.optOutApplicable ? "aplicável" : "não aplicável"}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Base/classificação: {item.legalBasisClassification}</p>
                   </div>
                   <Badge variant={item.completionState === "open" ? "default" : "secondary"}>{item.completionState === "open" ? "ação pendente" : "concluída/informativa"}</Badge>
@@ -127,8 +138,8 @@ export default function BillingCampaignAdminPanel() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" disabled={pause.isPending} onClick={() => { if (!requireReason()) return; pause.mutate({ campaign: item.campaign, campaignVersion: item.campaignVersion, paused: !item.paused, reason: reason.trim() }); }}><PauseCircle className="h-4 w-4" />{item.paused ? "Retomar campanha" : "Pausar campanha"}</Button>
-                  <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => { if (!requireReason()) return; retry.mutate({ requestId: window.crypto.randomUUID(), notificationId: item.notificationId, userId: item.payerUserId, channel: "whatsapp", reason: reason.trim(), ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}) }); }}><Send className="h-4 w-4" />Retry WhatsApp</Button>
-                  <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => { if (!requireReason()) return; retry.mutate({ requestId: window.crypto.randomUUID(), notificationId: item.notificationId, userId: item.payerUserId, channel: "email", reason: reason.trim(), ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}) }); }}><Send className="h-4 w-4" />Retry e-mail</Button>
+                  <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => { if (!requireReason()) return; retry.mutate({ requestId: requestIdForRetry(item.notificationId, "whatsapp"), notificationId: item.notificationId, userId: item.payerUserId, channel: "whatsapp", reason: reason.trim(), ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}) }); }}><Send className="h-4 w-4" />Retry WhatsApp</Button>
+                  <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => { if (!requireReason()) return; retry.mutate({ requestId: requestIdForRetry(item.notificationId, "email"), notificationId: item.notificationId, userId: item.payerUserId, channel: "email", reason: reason.trim(), ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}) }); }}><Send className="h-4 w-4" />Retry e-mail</Button>
                   {item.channels.filter(delivery => delivery.definitiveFailure && delivery.channel !== "internal").map(delivery => <Button key={delivery.channel} size="sm" variant="secondary" disabled={acknowledge.isPending} onClick={() => { const assignedToUserId = Number(responsibleUserId); if (!requireReason()) return; if (!Number.isInteger(assignedToUserId) || assignedToUserId <= 0) { toast.error("Informe o ID do responsável administrativo."); return; } acknowledge.mutate({ notificationId: item.notificationId, userId: item.payerUserId, channel: delivery.channel as "email" | "whatsapp", assignedToUserId, reason: reason.trim() }); }}><ShieldCheck className="h-4 w-4" />Reconhecer {delivery.channel}</Button>)}
                 </div>
               </article>

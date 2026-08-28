@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openUsageAbuseCaseSchema, usageAdminEconomicRowsSchema } from "./schemas";
+import { authorizeConsumptionChargingSchema, openUsageAbuseCaseSchema, usageAdminEconomicRowsSchema } from "./schemas";
 
 describe("usage governance abuse evidence schema", () => {
   it("accepts a proven security signal with a sanitized heavy-operation list", () => {
@@ -25,6 +25,12 @@ describe("usage governance abuse evidence schema", () => {
     expect(usageAdminEconomicRowsSchema.parse({ month: "2026-08" }).month).toBe("2026-08");
     expect(() => usageAdminEconomicRowsSchema.parse({ month: "2026-13" })).toThrow();
     expect(() => usageAdminEconomicRowsSchema.parse({ month: "2026-8" })).toThrow();
+  });
+
+  it("requires literal reinforced confirmation for activation", () => {
+    expect(() => authorizeConsumptionChargingSchema.parse({ action: "activate", id: "auth-1", reason: "activate", reinforcedConfirmation: false })).toThrow();
+    const parsed = authorizeConsumptionChargingSchema.parse({ action: "activate", id: "auth-1", reason: "activate", reinforcedConfirmation: true });
+    expect("reinforcedConfirmation" in parsed && parsed.reinforcedConfirmation).toBe(true);
   });
 
 });

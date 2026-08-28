@@ -179,6 +179,11 @@ export const usageGovernanceRouter = router({
 
   authorizeConsumptionCharging: adminProcedure.input(authorizeConsumptionChargingSchema).mutation(async ({ ctx, input }) => {
     try {
+      if ("action" in input) {
+        if (input.action === "approve") return await usageGovernanceAdminService.approveFutureConsumptionCharging(input.id, ctx.user.id, input.reason);
+        if (input.action === "activate") return await usageGovernanceAdminService.activateFutureConsumptionCharging(input.id, ctx.user.id, input.reason, input.reinforcedConfirmation);
+        return await usageGovernanceAdminService.suspendFutureConsumptionCharging(input.id, ctx.user.id, input.reason);
+      }
       return await usageGovernanceAdminService.authorizeFutureConsumptionCharging({
         ...input,
         effectiveFrom: new Date(input.effectiveFrom),

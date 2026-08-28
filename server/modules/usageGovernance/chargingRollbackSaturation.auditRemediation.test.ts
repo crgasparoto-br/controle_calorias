@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  createConsumptionChargeAuthorization: vi.fn(),
-  revokeConsumptionChargeAuthorization: vi.fn(),
+  createConsumptionChargeAuthorizationDraft: vi.fn(),
+  transitionConsumptionChargeAuthorization: vi.fn(),
 }));
 
 vi.mock("../../repositories/usageGovernanceRepository", () => ({
@@ -15,15 +15,19 @@ vi.mock("../../repositories/usageGovernanceAdminRepository", () => ({
   approveAbuseReview: vi.fn(),
   createAbuseCase: vi.fn(),
   createAllowanceGrant: vi.fn(),
-  createConsumptionChargeAuthorization: mocks.createConsumptionChargeAuthorization,
   createLegalHold: vi.fn(),
   createLimitation: vi.fn(),
   revokeAllowanceGrant: vi.fn(),
-  revokeConsumptionChargeAuthorization: mocks.revokeConsumptionChargeAuthorization,
   revokeLegalHold: vi.fn(),
   revokeLimitation: vi.fn(),
   reviewLimitationAppeal: vi.fn(),
   submitLimitationAppeal: vi.fn(),
+}));
+
+vi.mock("../../repositories/consumptionChargeAuthorizationRepository", () => ({
+  createConsumptionChargeAuthorizationDraft: mocks.createConsumptionChargeAuthorizationDraft,
+  transitionConsumptionChargeAuthorization: mocks.transitionConsumptionChargeAuthorization,
+  listConsumptionChargeAuthorizations: vi.fn(async () => []),
 }));
 
 import {
@@ -54,26 +58,26 @@ describe("future consumption charging rollback saturation", () => {
       ...validAuthorization,
       rollback: {},
     })).rejects.toThrow("consumption_charge_rollback_required");
-    expect(mocks.createConsumptionChargeAuthorization).not.toHaveBeenCalled();
+    expect(mocks.createConsumptionChargeAuthorizationDraft).not.toHaveBeenCalled();
   });
 
   it("persists the rollback contract and records a trimmed deactivation reason", async () => {
     const result = await authorizeFutureConsumptionCharging(validAuthorization);
 
-    expect(result).toMatchObject({ state: "approved", noRetroactive: true });
-    expect(mocks.createConsumptionChargeAuthorization).toHaveBeenCalledWith(
+    expect(result).toMatchObject({ state: "draft", noRetroactive: true });
+    expect(mocks.createConsumptionChargeAuthorizationDraft).toHaveBeenCalledWith(
       expect.objectContaining({ rollback: validAuthorization.rollback, actorUserId: 11 }),
     );
 
     await expect(revokeFutureConsumptionCharging(result.id, 12, " rollback after review "))
       .resolves.toEqual({ id: result.id, state: "revoked" });
-    expect(mocks.revokeConsumptionChargeAuthorization)
-      .toHaveBeenCalledWith(result.id, 12, "rollback after review");
+    expect(mocks.transitionConsumptionChargeAuthorization)
+      .toHaveBeenCalledWith(expect.objectContaining({ id: result.id, actorUserId: 12, reason: "rollback after review", toState: "revoked" }));
   });
 
   it("rejects deactivation without a reason and performs no revoke write", async () => {
     await expect(revokeFutureConsumptionCharging("auth-1", 12, "   "))
       .rejects.toThrow("consumption_charge_revoke_reason_required");
-    expect(mocks.revokeConsumptionChargeAuthorization).not.toHaveBeenCalled();
+    expect(mocks.transitionConsumptionChargeAuthorization).not.toHaveBeenCalled();
   });
 });

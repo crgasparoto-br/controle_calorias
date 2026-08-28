@@ -154,7 +154,7 @@ export const billingUsageLimitationAppeals = mysqlTable("billingUsageLimitationA
 }, table => ({ limitationUq: uniqueIndex("billingUsageLimitationAppeals_limitation_uq").on(table.limitationId), caseStateIdx: index("billingUsageLimitationAppeals_case_state_idx").on(table.abuseCaseId, table.state, table.submittedAt) }));
 
 export const billingConsumptionChargeAuthorizations = mysqlTable("billingConsumptionChargeAuthorizations", {
-  id: varchar("id", { length: 64 }).primaryKey(), state: varchar("state", { length: 24 }).default("approved").notNull(), policyVersion: varchar("policyVersion", { length: 64 }).notNull(),
+  id: varchar("id", { length: 64 }).primaryKey(), state: varchar("state", { length: 24 }).default("draft").notNull(), policyVersion: varchar("policyVersion", { length: 64 }).notNull(),
   reason: varchar("reason", { length: 255 }).notNull(), pricingJson: json("pricingJson").notNull(), affectedPlansJson: json("affectedPlansJson").notNull(), effectiveFrom: timestamp("effectiveFrom").notNull(),
   communicationAt: timestamp("communicationAt").notNull(), noRetroactive: boolean("noRetroactive").default(true).notNull(), rollbackJson: json("rollbackJson").notNull(),
   authorizedByUserId: int("authorizedByUserId").notNull(), revokedByUserId: int("revokedByUserId"), revokedAt: timestamp("revokedAt"), revokeReason: varchar("revokeReason", { length: 255 }),
