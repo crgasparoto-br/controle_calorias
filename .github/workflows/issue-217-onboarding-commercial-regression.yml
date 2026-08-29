@@ -68,7 +68,7 @@ jobs:
     name: Issue 217 TiDB regression
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
       NODE_ENV: test
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
 
@@ -90,11 +90,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run TiDB regression when database credentials are available
+      - name: Start TiDB
         shell: bash
         run: |
-          if [ -z "${DATABASE_URL}" ]; then
-            echo "DATABASE_URL unavailable; TiDB regression remains covered by the repository-specific TiDB workflows."
-            exit 0
-          fi
-          pnpm exec tsx scripts/test-issue-217-regression.ts --tidb-only
+          docker run -d --name issue-217-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 issue-217-tidb
+          exit 1
+
+      - name: Apply current repository schema
+        run: pnpm exec drizzle-kit push --force
+
+      - name: Run required TiDB regression
+        run: pnpm exec tsx scripts/test-issue-217-regression.ts --tidb-only
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 issue-217-tidb

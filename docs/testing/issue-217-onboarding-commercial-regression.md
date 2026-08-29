@@ -43,9 +43,13 @@ pnpm exec tsx scripts/test-issue-217-regression.ts --with-tidb
 | Persistencia/concorrencia/uniqueness | `db:test:whatsapp-onboarding-activation`, `db:test:whatsapp-active-phone-migration`, `db:test:billing` |
 | Suite completa, frontend e regressao transversal | `pnpm test`, `pnpm check`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build`, executados pelo `Agent-first gate` |
 
-## Dependencia futura #898
+## Dependencia bloqueante #898
 
-Os cenarios exclusivos de piloto/rollout comercial permanecem fora do contrato de fechamento da #217 enquanto a #898 estiver aberta. A #217 nao considera esses cenarios aprovados nem cria um falso positivo: o gate registra explicitamente a dependencia. Quando a #898 for implementada, seus cenarios devem ser incorporados a esta matriz ou a um gate sucessor com os mesmos controles de rastreabilidade.
+A especificacao vigente da #217 inclui, por comentario vinculante, a validacao automatizada do rollout progressivo definido na #898. Como a #898 ainda nao possui implementacao de rollout/coortes disponivel para ser exercitada, esta PR e este gate sao **incrementais e nao encerram a #217**.
+
+O fechamento da #217 permanece bloqueado ate que a #898 disponibilize comportamento executavel para provider fake em tres ciclos, sandbox, coortes internas, pilotos A/B, progressao `enforced` em 10%/25%/50%/100%, gates de avancao, concorrencia de aprovacoes, pausa, rollback e retomada. Quando esse comportamento existir, os testes correspondentes devem ser incorporados a esta matriz antes de qualquer `Closes #217`.
+
+Nao e permitido substituir esses cenarios por placeholders, fixtures que apenas repetem constantes da especificacao ou uma declaracao de adiamento tratada como aprovacao.
 
 ## Regras do gate
 
@@ -54,4 +58,4 @@ Os cenarios exclusivos de piloto/rollout comercial permanecem fora do contrato d
 - `describe.skip`, `it.skip`, `test.skip`, `test.todo`, `it.todo`, `xdescribe`, `xit` e `xtest` reprovam o contrato;
 - os scripts TiDB obrigatorios precisam existir;
 - a regressao focada nao chama Meta ou Asaas reais; ela reutiliza as suites fake-driven do repositorio;
-- a regressao TiDB exige `DATABASE_URL` e falha explicitamente quando solicitada sem a configuracao necessaria.
+- o workflow dedicado sobe uma instancia efemera de TiDB, aplica o schema corrente e executa a regressao TiDB sem depender de segredo externo; sucesso do job significa que `--tidb-only` foi realmente alcancado e aprovado.

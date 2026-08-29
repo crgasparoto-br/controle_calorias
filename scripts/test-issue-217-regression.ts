@@ -86,7 +86,7 @@ function validateContract() {
   }
 
   console.log(`[issue-217] contrato valido: ${unitSuites.length} suites Vitest e ${tidbFiles.length} gates TiDB rastreados.`);
-  console.log("[issue-217] rollout/piloto da #898 permanece fora deste gate enquanto a issue estiver aberta.");
+  console.log("[issue-217] gate incremental: a #217 permanece aberta ate a cobertura vinculante de rollout da #898 existir e ser incorporada a regressao.");
 }
 
 function run(command: string, args: readonly string[]) {
