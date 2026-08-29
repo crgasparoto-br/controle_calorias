@@ -28,10 +28,13 @@ export type WhatsappActivationReconciliationResult = {
  * remains authoritative: this worker never infers activation from a provider
  * callback, checkout return or local client state.
  *
- * The scan is intentionally bounded and idempotent. Multiple billing events,
- * retries or workers can call it safely because activateWhatsappOnboardingUser
- * owns the conditional pending_activation -> active transition and the
- * idempotent welcome-message contract.
+ * The scan is intentionally bounded and idempotent. Candidates are ordered by
+ * the oldest pending evaluation and moved to the back of that queue before the
+ * eligibility check, so a blocked or transiently failing prefix cannot starve
+ * later eligible users across repeated runs. Multiple billing events, retries or
+ * workers can call it safely because activateWhatsappOnboardingUser owns the
+ * conditional pending_activation -> active transition and the idempotent
+ * welcome-message contract.
  */
 export async function reconcilePendingWhatsappOnboardingActivations(
   limit = 100
@@ -52,11 +55,12 @@ export async function reconcilePendingWhatsappOnboardingActivations(
   let rows: PendingActivationRow[];
   try {
     const result = await db.execute(sql`
-      SELECT DISTINCT converted_user_id AS user_id
+      SELECT converted_user_id AS user_id, MIN(updated_at) AS oldest_pending_at
       FROM whatsapp_onboarding_leads
       WHERE status = 'pending_activation'
         AND converted_user_id IS NOT NULL
-      ORDER BY converted_user_id ASC
+      GROUP BY converted_user_id
+      ORDER BY oldest_pending_at ASC, converted_user_id ASC
       LIMIT ${safeLimit}
     `);
     rows = rowsFromResult<PendingActivationRow>(result);
@@ -70,6 +74,22 @@ export async function reconcilePendingWhatsappOnboardingActivations(
     const userId = Number(row.user_id);
     if (!Number.isSafeInteger(userId) || userId <= 0) {
       summary.failed += 1;
+      continue;
+    }
+
+    try {
+      await db.execute(sql`
+        UPDATE whatsapp_onboarding_leads
+        SET updated_at = ${new Date()}
+        WHERE status = 'pending_activation'
+          AND converted_user_id = ${userId}
+      `);
+    } catch (error) {
+      summary.failed += 1;
+      logPersistenceWarning(
+        "whatsapp_onboarding_activation_queue_rotation",
+        error
+      );
       continue;
     }
 
