@@ -10,6 +10,7 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { registerBillingAccessPolicy } from "./modules/billing/accessPolicy";
 import { configureBillingProfessionalEntitlementProvider } from "./modules/billing/professionalProvider";
 import { billingRouter } from "./modules/billing/router";
+import { getBillingWebOverview } from "./modules/billing/webPublic";
 import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
 import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
@@ -97,6 +98,17 @@ async function setSessionCookie(
     ...cookieOptions,
     maxAge: ONE_YEAR_MS,
   });
+}
+
+async function getWhatsappOnboardingCommercialSnapshot(userId: number) {
+  try {
+    return await getBillingWebOverview(userId);
+  } catch {
+    // Registration/linking remains successful even if the commercial read model
+    // is temporarily unavailable. The authenticated /billing page can retry it
+    // without reusing the onboarding token or creating a parallel checkout.
+    return null;
+  }
 }
 
 export const appRouter = router({
@@ -201,11 +213,15 @@ export const appRouter = router({
           try {
             const result = await completeWhatsappOnboarding(input);
             await setSessionCookie(ctx, result.user);
+            const commercial = await getWhatsappOnboardingCommercialSnapshot(
+              result.user.id
+            );
             return {
               user: await sessionUser(result.user),
               eligibility: result.eligibility,
               nextAction: result.nextAction,
               resumed: result.resumed,
+              commercial,
             };
           } catch (error) {
             throw new TRPCError(
@@ -217,10 +233,16 @@ export const appRouter = router({
         .input(whatsappOnboardingTokenSchema)
         .mutation(async ({ input, ctx }) => {
           try {
-            return await linkWhatsappOnboardingToAuthenticatedUser(
+            const result = await linkWhatsappOnboardingToAuthenticatedUser(
               ctx.user.id,
               input.token
             );
+            return {
+              ...result,
+              commercial: await getWhatsappOnboardingCommercialSnapshot(
+                ctx.user.id
+              ),
+            };
           } catch (error) {
             throw new TRPCError(getPublicWhatsappAuthenticatedLinkError(error));
           }
