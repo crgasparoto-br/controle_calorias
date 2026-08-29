@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
     "finding_ids": [
       "A-001"
     ],
-    "audit_report_sha256": "d0012f26b6a775c2accbffeb92533d895674d24ba792916b4825bcd6ee3396ca"
+    "audit_report_sha256": "33e89f3cd8078d4f8fe4a88673dc585a2244db3a5e6161519845b215b731774f"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery skill already has explicit inherited-base target-binding and terminal handoff guards. This targeted remediation executes those existing controls and fixes the delivery package without introducing a new global rule."
+    "reason": "The rejection exposed a localized liveness defect in this reconciliation implementation. Repository regression controls and the existing reference-liveness risk family cover the transferable class; no permanent global Skill rule specific to this repository or issue is introduced."
   }
 }

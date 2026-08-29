@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
   "families": [
     {
       "family": "authorization",
@@ -75,7 +75,8 @@
       "control_ids": [
         "NC-REQ-022-01",
         "NC-REQ-029-01",
-        "NC-REQ-042-02"
+        "NC-REQ-042-02",
+        "NC-REQ-052-03"
       ],
       "dimensions": [
         {
@@ -84,7 +85,8 @@
           "control_ids": [
             "NC-REQ-022-01",
             "NC-REQ-029-01",
-            "NC-REQ-042-02"
+            "NC-REQ-042-02",
+            "NC-REQ-052-03"
           ],
           "status": "passed"
         }

@@ -3,24 +3,40 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 215,
   "pull_request": 1021,
-  "material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "material_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
   "base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
+  "work_item_start_sha": "c48ec232d117d5bedc06246311ecc711c0282315",
   "changed_paths": [
-    "docs/design-docs/whatsapp-onboarding.md",
-    "server/auth.whatsappOnboarding.test.ts",
-    "server/modules/billing/subscriptionLifecycleRuntime.ts",
     "server/modules/onboarding/whatsappActivationReconciler.test.ts",
-    "server/modules/onboarding/whatsappActivationReconciler.ts",
-    "server/routers.ts"
+    "server/modules/onboarding/whatsappActivationReconciler.ts"
   ],
   "remote_ci": [
     {
-      "workflow": "Onboarding activation TiDB gate",
-      "run_id": 33252255345,
-      "job_id": 99099846068,
+      "workflow": "Agent-first gate",
+      "run_id": 33257441318,
+      "job_id": 99113514196,
       "status": "completed",
       "conclusion": "success",
-      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+      "observations": [
+        "TypeScript check: success",
+        "Tests: success",
+        "Architecture check: success",
+        "Documentation check: success",
+        "Build: success",
+        "Agent check: success",
+        "CI gate docs check: success",
+        "Exact-head verification manifest: success",
+        "Exact-head repository bundle: success"
+      ]
+    },
+    {
+      "workflow": "Onboarding activation TiDB gate",
+      "run_id": 33257441412,
+      "job_id": 99113514792,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
       "observations": [
         "Validate migration and concurrent transitions: success",
         "Preserve onboarding activation diagnostics: success"
@@ -28,38 +44,39 @@
     },
     {
       "workflow": "Billing persistence TiDB gate",
-      "run_id": 33252255338,
-      "job_id": 99099845946,
+      "run_id": 33257441319,
+      "job_id": 99113514225,
       "status": "completed",
       "conclusion": "success",
-      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
       "observations": [
         "Apply current repository schema: success",
         "Validate billing persistence, concurrency, and idempotency: success",
         "Validate referential integrity: success"
       ]
-    },
-    {
-      "workflow": "Agent-first gate",
-      "run_id": 33252255350,
-      "status": "in_progress",
-      "conclusion": null,
-      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79"
     }
   ],
+  "exact_head_repository_artifact": {
+    "artifact_id": 9716346283,
+    "name": "agent-first-repository-c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+    "digest": "sha256:d12a7e3eb3a4f4e6f5d337f89af8331abaf4d5e0c5b8b5c620a2173ddd1c4267",
+    "manifest_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+    "manifest_base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
+    "workflow_run_id": 33257441318
+  },
   "exact_head_static_observations": [
-    "whatsappActivationReconciler.ts performs a bounded pending_activation scan and delegates each candidate to activateWhatsappOnboardingUser; per-user failures are logged and do not stop later candidates.",
-    "subscriptionLifecycleRuntime.ts calls onboarding reconciliation after startContract, financial facts, ticks and due processing, and catches reconciliation failure so authoritative commercial state is not rolled back.",
-    "routers.ts returns getBillingWebOverview after creating the new-account session and only from a protected procedure for existing-account linking; commercial read failure returns null.",
-    "auth.whatsappOnboarding.test.ts contains direct public-boundary assertions for generic conflict messaging, authenticated linking, authenticated-user target binding and recoverable commercial read failure.",
-    "whatsappActivationReconciler.test.ts contains focused controls for activated/blocked/already_active outcomes, isolated per-user failure, unavailable persistence and scan failure.",
-    "docs/design-docs/whatsapp-onboarding.md is updated in the issue-local delta to document authoritative backend billing, commercial activation reconciliation, eligibility precedence, pre-pipeline blocking and privacy constraints."
+    "The pending scan groups by converted_user_id and orders by MIN(updated_at), then converted_user_id, before applying the bounded LIMIT.",
+    "Each selected pending user is rotated by updating updated_at before the authoritative eligibility/activation check, so blocked and transiently failing users move behind untouched pending users.",
+    "The focused regression with limit=2 processes a blocked prefix (users 1 and 2), then a second reconciliation reaches later eligible user 3 and activates it.",
+    "A sibling regression with a transiently failing prefix (users 11 and 12) still reaches later eligible user 13 on the next reconciliation.",
+    "The existing same-batch failure-isolation regression remains present, proving one per-user failure does not stop the following user.",
+    "Agent-first Tests completed successfully on the exact material head, so the new starvation regressions executed in the repository test suite."
   ],
   "audit_remediation": {
-    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
     "finding_id": "A-001",
-    "reason": "handoff-not-produced",
+    "reason": "bounded fixed-prefix starvation",
     "remediation_mode": "targeted-remediation",
-    "observation": "The previous .audit package is inherited byte-identically from the immutable base and belongs to issue #896 / PR #1015; it is not reused for this package."
+    "observation": "The reconciler now implements durable queue rotation using persisted updated_at ordering, preserving bounded work while guaranteeing repeated scans progress beyond blocked or failing prefixes."
   }
 }

@@ -3,11 +3,11 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
-    "audit_report_sha256": "d0012f26b6a775c2accbffeb92533d895674d24ba792916b4825bcd6ee3396ca",
-    "audited_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79"
+    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
+    "audit_report_sha256": "33e89f3cd8078d4f8fe4a88673dc585a2244db3a5e6161519845b215b731774f",
+    "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315"
   },
-  "candidate_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "candidate_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -17,23 +17,19 @@
       "status": "fixed",
       "closure_kind": "behavioral-fix",
       "changed_files": [
-        ".audit/entregar-issue/specification-snapshot.json",
-        ".audit/entregar-issue/requirement-closure.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/inherited-controls.json",
-        ".audit/entregar-issue/evidence-provenance.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/handoff-ready.json"
+        "server/modules/onboarding/whatsappActivationReconciler.ts",
+        "server/modules/onboarding/whatsappActivationReconciler.test.ts"
       ],
       "evidence": [
-        "The inherited package from the immutable develop base is excluded from reuse and a complete package is rebuilt for repository controle_calorias, issue 215, PR 1021 and the unchanged material head."
+        "The scan now orders pending users by oldest persisted updated_at and rotates each selected pending user before eligibility evaluation, so bounded repeated runs progress beyond unchanged blockers.",
+        "Focused exact-head regressions cover a blocked prefix larger than the bound and a transiently failing prefix; both reach a later eligible user on the next reconciliation.",
+        "Agent-first, Onboarding activation TiDB, and Billing persistence TiDB workflows all completed successfully on the candidate SHA."
       ],
       "validations": [
-        "Canonical specification coverage, attack matrix, evidence freshness, risk saturation and target binding are validated before publication; terminal handoff is revalidated after the result-only child is published."
+        "Agent-first run 33257441318: success",
+        "Onboarding activation TiDB run 33257441412: success",
+        "Billing persistence TiDB run 33257441319: success",
+        "Critical artifact validators and terminal handoff simulation are required before publication."
       ]
     }
   ],

@@ -1,26 +1,26 @@
 {
   "schema_version": 1,
-  "material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "material_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
   "base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
   "evidence": [
     {
       "evidence_id": "EV-REQ-010-Q",
       "kind": "quantitative",
       "path": "docs/design-docs/whatsapp-onboarding.md",
-      "sha256": "551c48882f74122708616db6115dd79e8a0749f4804261d5d4afe9f03d2f84bb",
-      "subject_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "sha256": "e1d5ca3eff507fc1d56378e4837c6dc35d02753749f246dfc01ae84a4fea3dea",
+      "subject_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
       "freshness_policy": "exact-material-head",
-      "producer": "connector-only exact-head contract review",
+      "producer": "exact-head Agent-first repository bundle run 33257441318 plus connector-only revalidation",
       "status": "passed"
     },
     {
       "evidence_id": "EV-REQ-079-Q",
       "kind": "quantitative",
       "path": "docs/design-docs/whatsapp-onboarding.md",
-      "sha256": "551c48882f74122708616db6115dd79e8a0749f4804261d5d4afe9f03d2f84bb",
-      "subject_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "sha256": "e1d5ca3eff507fc1d56378e4837c6dc35d02753749f246dfc01ae84a4fea3dea",
+      "subject_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
       "freshness_policy": "exact-material-head",
-      "producer": "connector-only exact-head contract review",
+      "producer": "exact-head Agent-first repository bundle run 33257441318 plus connector-only revalidation",
       "status": "passed"
     }
   ]

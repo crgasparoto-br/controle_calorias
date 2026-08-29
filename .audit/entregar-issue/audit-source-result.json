@@ -1,20 +1,27 @@
 {
-  "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
-  "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
-  "status": "rejected",
+  "schema_version": 1,
+  "result": "rejected",
+  "independence": "independent",
+  "release_allowed": false,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 215,
+  "pull_request_number": 1021,
+  "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315",
+  "certified_material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
   "findings": [
     {
       "id": "A-001",
-      "disposition": "blocking",
-      "status": "open",
-      "severity": "blocking",
-      "remediation_mode": "targeted-remediation",
-      "actionable": true,
-      "reason": "handoff-not-produced",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false
+      "severity": "blocker/high",
+      "category": "execution-state-gap",
+      "title": "Starvation permanente no backlog de pending_activation",
+      "cause": "A bounded scan ordered by converted_user_id ASC repeatedly selected the same blocked prefix; blocked leads remain pending, so later eligible users could remain unvisited indefinitely.",
+      "required_remediation": [
+        "Use a bounded traversal strategy that guarantees progress beyond blocked users.",
+        "Add a regression with more pending leads than the limit, a fully blocked prefix, and a later eligible lead.",
+        "Prove repeated reconciliation eventually reaches eligible pending leads beyond the prefix.",
+        "Refreeze the material candidate and produce a fresh independent-audit handoff."
+      ]
     }
-  ],
-  "recommendations": []
+  ]
 }
