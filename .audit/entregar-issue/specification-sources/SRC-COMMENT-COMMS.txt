@@ -1,0 +1,27 @@
+# Complemento vinculante — comunicação no onboarding
+
+O onboarding deve aderir à política de comunicações da #145.
+
+## Regras específicas
+- A confirmação de cadastro, conta existente, checkout pendente e ativação deve ser registrada primeiro como estado/notificação interna autenticada.
+- O WhatsApp usado para iniciar o onboarding pode receber lembretes complementares, mas não pode ser a única fonte de estado.
+- Antes da autenticação, mensagens devem permanecer genéricas e não revelar existência de conta, e-mail, nome, plano, elegibilidade ou status financeiro.
+- Após autenticação e autorização, detalhes devem ficar na área autenticada; o WhatsApp envia apenas resumo e link seguro.
+- Falha de saudação ou de lembrete não reverte cadastro, vínculo, checkout, elegibilidade ou ativação.
+- Retentativas seguem a política geral: WhatsApp inicial, +2 horas e +24 horas, reutilizando a mesma chave lógica.
+- Não reenviar após ativação, retomada concluída ou evento posterior que torne o aviso obsoleto.
+- Token, magic link reutilizável, documento, dados clínicos e detalhes financeiros não devem constar no conteúdo de lembrete.
+
+## Campanhas aplicáveis
+- onboarding iniciado e não concluído;
+- conta existente aguardando autenticação/prova de posse;
+- checkout pendente, recusado ou expirado;
+- ativação confirmada;
+- saudação pós-ativação, no máximo uma vez.
+
+## Critérios adicionais
+- Estado interno persiste mesmo quando o WhatsApp falha.
+- Retry não cria novo lead, token, vínculo, intenção ou saudação.
+- Mensagem pré-autenticação não enumera conta existente.
+- Ação concluída invalida retries pendentes.
+- Conteúdo e versão da campanha ficam auditáveis.

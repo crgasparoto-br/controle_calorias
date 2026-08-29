@@ -3,32 +3,33 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
-    "audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-    "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
+    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
+    "audit_report_sha256": "33e89f3cd8078d4f8fe4a88673dc585a2244db3a5e6161519845b215b731774f",
+    "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315"
   },
-  "candidate_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "candidate_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-003",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
+      "closure_kind": "behavioral-fix",
       "changed_files": [
-        "server/countableFoodQuantity.ts",
-        "server/householdMeasureResolution.ts",
-        "server/householdMeasureResolution.regression1016.test.ts",
-        ".audit/entregar-issue/freeze.json",
-        ".audit/entregar-issue/handoff-ready.json"
+        "server/modules/onboarding/whatsappActivationReconciler.ts",
+        "server/modules/onboarding/whatsappActivationReconciler.test.ts"
       ],
-      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-a003.txt",
+      "evidence": [
+        "The scan now orders pending users by oldest persisted updated_at and rotates each selected pending user before eligibility evaluation, so bounded repeated runs progress beyond unchanged blockers.",
+        "Focused exact-head regressions cover a blocked prefix larger than the bound and a transiently failing prefix; both reach a later eligible user on the next reconciliation.",
+        "Agent-first, Onboarding activation TiDB, and Billing persistence TiDB workflows all completed successfully on the candidate SHA."
+      ],
       "validations": [
-        "current develop is incorporated as a direct merge parent of the remediated material",
-        "PR #1015 is mergeable against the current develop base",
-        "exact-head Agent-first full gate completed successfully",
-        "all applicable exact-head TiDB gates completed successfully",
-        "post-write refreeze recovery floor is preserved before terminal handoff"
+        "Agent-first run 33257441318: success",
+        "Onboarding activation TiDB run 33257441412: success",
+        "Billing persistence TiDB run 33257441319: success",
+        "Critical artifact validators and terminal handoff simulation are required before publication."
       ]
     }
   ],

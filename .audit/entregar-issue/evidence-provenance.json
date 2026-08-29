@@ -1,17 +1,26 @@
 {
   "schema_version": 1,
-  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
-  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
+  "material_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+  "base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
   "evidence": [
     {
-      "evidence_id": "QUANT-EXACT-896",
+      "evidence_id": "EV-REQ-010-Q",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/exact-head-ci-896-a003.txt",
-      "sha256": "ea76da11852542390277efc93a2c3ceba1b73f80ebccc3ab7841be4c596753d6",
-      "subject_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
-      "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
+      "path": "docs/design-docs/whatsapp-onboarding.md",
+      "sha256": "e1d5ca3eff507fc1d56378e4837c6dc35d02753749f246dfc01ae84a4fea3dea",
+      "subject_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head Agent-first and persistence gate observation after current develop synchronization remediation",
+      "producer": "exact-head Agent-first repository bundle run 33257441318 plus connector-only revalidation",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-REQ-079-Q",
+      "kind": "quantitative",
+      "path": "docs/design-docs/whatsapp-onboarding.md",
+      "sha256": "e1d5ca3eff507fc1d56378e4837c6dc35d02753749f246dfc01ae84a4fea3dea",
+      "subject_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head Agent-first repository bundle run 33257441318 plus connector-only revalidation",
       "status": "passed"
     }
   ]

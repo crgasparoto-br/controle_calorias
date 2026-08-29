@@ -1,26 +1,27 @@
 {
   "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "status": "rejected",
-  "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
-  "head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-  "identity": {
-    "published_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-    "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189"
-  },
-  "recovery_scope": "post-write-refreeze",
-  "requires_refreeze": true,
+  "result": "rejected",
+  "independence": "independent",
+  "release_allowed": false,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 215,
+  "pull_request_number": 1021,
+  "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315",
+  "certified_material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
   "findings": [
     {
-      "id": "A-003",
-      "title": "handoff and gates bound to an outdated develop base",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "audit_escape": true
+      "id": "A-001",
+      "severity": "blocker/high",
+      "category": "execution-state-gap",
+      "title": "Starvation permanente no backlog de pending_activation",
+      "cause": "A bounded scan ordered by converted_user_id ASC repeatedly selected the same blocked prefix; blocked leads remain pending, so later eligible users could remain unvisited indefinitely.",
+      "required_remediation": [
+        "Use a bounded traversal strategy that guarantees progress beyond blocked users.",
+        "Add a regression with more pending leads than the limit, a fully blocked prefix, and a later eligible lead.",
+        "Prove repeated reconciliation eventually reaches eligible pending leads beyond the prefix.",
+        "Refreeze the material candidate and produce a fresh independent-audit handoff."
+      ]
     }
-  ],
-  "recommendations": [],
-  "summary": "Independent audit rejected PR #1015 because develop advanced after the certified handoff, leaving the published candidate behind the current base and non-mergeable until the branch was synchronized and re-frozen."
+  ]
 }

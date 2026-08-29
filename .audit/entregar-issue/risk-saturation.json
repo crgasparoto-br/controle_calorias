@@ -1,1 +1,323 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":2756,"encoded_sha256":"4a4984e8d54dc32a3e08bb9e9110134e4e5b50d1d35305d1da3d27de421fde3b","decoded_size":11799,"decoded_sha256":"4db519ebdff4b2494ac2724af8edeb94ce5533e4e8d744495e3e89654ce71bfa","parts":[{"path":"risk-saturation.parts/part-000.b64","size":2048,"sha256":"a8c29a4d4f689a847b60a245e9a4ddd58ec19b4befd882276ebecdbe8f0fac52"},{"path":"risk-saturation.parts/part-001.b64","size":708,"sha256":"81e508a111fb2380c95c8086dc59df8508df3ee2dfd778c1e902cddaed187e0e"}]}
+{
+  "schema_version": 1,
+  "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-005-01",
+        "NC-REQ-012-01",
+        "NC-REQ-023-01",
+        "NC-REQ-027-01",
+        "NC-REQ-033-01",
+        "NC-REQ-035-01",
+        "NC-REQ-054-01",
+        "NC-REQ-055-01",
+        "NC-REQ-082-01",
+        "NC-REQ-085-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "access-decision",
+          "reason": "Internal delivery control surface for authorization derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-005-01",
+            "NC-REQ-012-01",
+            "NC-REQ-023-01",
+            "NC-REQ-027-01",
+            "NC-REQ-033-01",
+            "NC-REQ-035-01",
+            "NC-REQ-054-01",
+            "NC-REQ-055-01",
+            "NC-REQ-082-01",
+            "NC-REQ-085-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-027-02",
+        "NC-REQ-084-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "public-response",
+          "reason": "Internal delivery control surface for public-boundary derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-027-02",
+            "NC-REQ-084-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-022-01",
+        "NC-REQ-029-01",
+        "NC-REQ-042-02",
+        "NC-REQ-052-03"
+      ],
+      "dimensions": [
+        {
+          "surface": "reference-revalidation",
+          "reason": "Internal delivery control surface for reference-liveness derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-022-01",
+            "NC-REQ-029-01",
+            "NC-REQ-042-02",
+            "NC-REQ-052-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-005-02",
+        "NC-REQ-015-01",
+        "NC-REQ-023-02",
+        "NC-REQ-026-01",
+        "NC-REQ-028-01",
+        "NC-REQ-034-02",
+        "NC-REQ-035-02",
+        "NC-REQ-038-01",
+        "NC-REQ-050-01",
+        "NC-REQ-053-01",
+        "NC-REQ-061-01",
+        "NC-REQ-063-01",
+        "NC-REQ-071-01",
+        "NC-REQ-076-01",
+        "NC-REQ-080-01",
+        "NC-REQ-080-03",
+        "NC-REQ-084-02",
+        "NC-REQ-085-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NC-REQ-080-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "time-semantics",
+          "reason": "Internal delivery control surface for temporal-consistency derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-005-02",
+            "NC-REQ-015-01",
+            "NC-REQ-023-02",
+            "NC-REQ-026-01",
+            "NC-REQ-028-01",
+            "NC-REQ-034-02",
+            "NC-REQ-035-02",
+            "NC-REQ-038-01",
+            "NC-REQ-050-01",
+            "NC-REQ-053-01",
+            "NC-REQ-061-01",
+            "NC-REQ-063-01",
+            "NC-REQ-071-01",
+            "NC-REQ-076-01",
+            "NC-REQ-080-03",
+            "NC-REQ-084-02",
+            "NC-REQ-085-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-060-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "concurrent-transition",
+          "reason": "Internal delivery control surface for concurrency-atomicity derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-060-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-011-01",
+        "NC-REQ-048-01",
+        "NC-REQ-051-01",
+        "NC-REQ-052-01",
+        "NC-REQ-060-01",
+        "NC-REQ-086-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NC-REQ-011-01",
+            "NC-REQ-048-01",
+            "NC-REQ-051-01",
+            "NC-REQ-052-01",
+            "NC-REQ-060-01",
+            "NC-REQ-086-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-001-03",
+        "NC-REQ-001-04",
+        "NC-REQ-002-01",
+        "NC-REQ-011-02",
+        "NC-REQ-012-02",
+        "NC-REQ-017-01",
+        "NC-REQ-034-01",
+        "NC-REQ-042-01",
+        "NC-REQ-042-03",
+        "NC-REQ-052-02",
+        "NC-REQ-075-01",
+        "NC-REQ-075-02",
+        "NC-REQ-075-03",
+        "NC-REQ-075-04",
+        "NC-REQ-080-02",
+        "NC-REQ-086-02",
+        "NC-REQ-087-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-contract",
+          "reason": "Internal delivery control surface for structural-contract derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-001-03",
+            "NC-REQ-002-01",
+            "NC-REQ-011-02",
+            "NC-REQ-012-02",
+            "NC-REQ-017-01",
+            "NC-REQ-034-01",
+            "NC-REQ-042-03",
+            "NC-REQ-052-02",
+            "NC-REQ-075-04",
+            "NC-REQ-080-02",
+            "NC-REQ-086-02",
+            "NC-REQ-087-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Delivery artifacts must bind to the current target rather than inherit another target package.",
+          "control_ids": [
+            "NC-REQ-001-04"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "semantic-identity-propagation",
+          "reason": "Adjacent identity fields can be swapped, omitted or conflated while the happy path still produces a valid-looking record; fields=billing-cycle,product,version",
+          "control_ids": [
+            "NC-REQ-042-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
+          "control_ids": [
+            "NC-REQ-075-01",
+            "NC-REQ-075-02",
+            "NC-REQ-075-03"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NC-REQ-001-01",
+        "NC-REQ-062-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Internal delivery control surface for documentation derived from the canonical requirement.",
+          "control_ids": [
+            "NC-REQ-001-01",
+            "NC-REQ-062-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
