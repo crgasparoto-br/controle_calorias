@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "merge_preview_sha": "31840ac62da62c3fff2682489244f10b26c3fcbb",
-  "reason": "independent-audit-remediation-tidb-resource-termination",
-  "changed_paths_from_previous_handoff": [
-    "scripts/test-usage-governance-retention-tidb.ts"
-  ],
-  "remote_gate": "completed-success"
+  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
+  "merge_preview_sha": "85be13eed1b67904e3e04bb1fcdb4f6a415f95bb",
+  "reason": "independent-audit-a003-base-drift-post-write-refreeze",
+  "source_rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+  "previous_audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+  "material_fix_commit": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "remote_gate": "exact-head-agent-first-and-persistence-gates-green",
+  "recovery_scope": "post-write-refreeze"
 }

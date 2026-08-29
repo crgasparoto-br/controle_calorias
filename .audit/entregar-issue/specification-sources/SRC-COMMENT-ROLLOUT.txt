@@ -1,0 +1,37 @@
+## Complemento obrigatório — operação administrativa do rollout
+
+A administração de billing deve suportar o plano vinculante da #898.
+
+### Coortes e fases
+
+- Exibir fase atual: fake, sandbox, internos, piloto A, piloto B, geral não bloqueante, `enforced` 10%, 25%, 50% ou 100%.
+- Persistir composição da coorte por critério determinístico, snapshot, data, responsável e versão da regra.
+- Impedir oscilação de usuário entre coortes por reexecução ou mudança de ordenação.
+- Permitir pausar novas ativações, comunicações ou bloqueios por fase sem apagar fatos já legítimos.
+
+### Aprovação e gates
+
+- Registrar checklist de gates, métricas, evidências, incidentes abertos e decisão de avançar, reprovar ou manter a etapa.
+- Exigir responsável nominal para produto, técnico, billing, suporte e administrador autorizador; registrar privacidade/jurídico e contador quando aplicável.
+- Não permitir progressão automática por data.
+- `enforced` e retomada após incidente exigem confirmação reforçada e auditoria append-only.
+
+### Incidentes e rollback
+
+- Disponibilizar ação de pausa e rollback para `open_access` por coorte/fase.
+- Preservar cobranças, assinaturas, estornos, cancelamentos, capacidade, auditoria e eventos legítimos.
+- Exibir usuários afetados, reconciliação pendente, causa, impacto, correção e autorização de retomada.
+- Cobrança duplicada, ativação indevida, bloqueio indevido, perda de dados ou exposição sensível devem impedir aprovação da etapa independentemente de taxa percentual.
+
+### Analytics
+
+Exibir por fase e coorte:
+
+- população planejada e efetiva;
+- fluxos executados;
+- eventos processados em até 5 minutos e reconciliados em até 30 minutos;
+- divergências financeiras e prazo de resolução;
+- notificações internas persistidas e falhas externas;
+- incidentes, tickets, pausa, rollback e decisão final.
+
+Testes administrativos devem cobrir autorização, seleção determinística, progressão manual, pausa, rollback, retomada e preservação dos fatos financeiros.

@@ -1,4 +1,5 @@
 import React from "react";
+import BillingUsageLimitationAppeal from "@/components/BillingUsageLimitationAppeal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +40,7 @@ export default function BillingNotificationCenter() {
   });
 
   return (
-    <section aria-labelledby="billing-notifications-heading">
+    <section aria-labelledby="billing-notifications-heading" className="space-y-6">
       <Card>
         <CardHeader>
           <h2
@@ -160,6 +161,7 @@ export default function BillingNotificationCenter() {
           )}
         </CardContent>
       </Card>
+      <BillingUsageLimitationAppeal />
     </section>
   );
 }

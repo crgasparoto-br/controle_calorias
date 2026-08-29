@@ -1,18 +1,27 @@
+import { getUsageGovernanceAdminEconomicRows } from "./adminEconomicRows";
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "../../_core/trpc";
 import { usageGovernanceAdminService } from "./adminService";
+import {
+  assignUsageAbuseCase,
+  getUsageGovernanceAdminOverview,
+  reprocessUsageRetention,
+} from "./adminOperations";
 import { reconcileUsageCost } from "./costReconciliation";
 import { configureUsagePolicy, resolveFairUsePolicy } from "./policyService";
 import { getInternalUsageAnalytics, registerEconomicFact } from "./service";
 import { governanceError } from "./publicBoundary";
+import { getUsageGovernanceUserOverview } from "./userOperations";
 import {
   applyUsageLimitationSchema,
+  assignUsageAbuseCaseSchema,
   authorizeConsumptionChargingSchema,
   configureUsagePolicySchema,
   grantUsageAllowanceSchema,
   internalUsageAnalyticsSchema,
   openUsageAbuseCaseSchema,
   reconcileUsageCostSchema,
+  reprocessUsageRetentionSchema,
   resolveInternalUsageAnalyticsWindow,
   reviewUsageAbuseCaseSchema,
   revokeConsumptionChargingSchema,
@@ -21,6 +30,8 @@ import {
   revokeUsageLimitationSchema,
   reviewUsageLimitationAppealSchema,
   submitUsageLimitationAppealSchema,
+  usageAdminEconomicRowsSchema,
+  usageAdminOverviewSchema,
   usageLegalHoldSchema,
 } from "./schemas";
 
@@ -61,6 +72,18 @@ export const usageGovernanceRouter = router({
     } catch (error) {
       governanceError(error, ctx.res);
     }
+  }),
+  myLimitations: protectedProcedure.query(async ({ ctx }) => {
+    try { return await getUsageGovernanceUserOverview(ctx.user.id); }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  adminOverview: adminProcedure.input(usageAdminOverviewSchema).query(async ({ ctx, input }) => {
+    try { return await getUsageGovernanceAdminOverview(input.limit); }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  adminEconomicRows: adminProcedure.input(usageAdminEconomicRowsSchema).query(async ({ ctx, input }) => {
+    try { return await getUsageGovernanceAdminEconomicRows(input); }
+    catch (error) { governanceError(error, ctx.res); }
   }),
 
   configurePolicy: adminProcedure.input(configureUsagePolicySchema).mutation(async ({ ctx, input }) => {
@@ -121,6 +144,10 @@ export const usageGovernanceRouter = router({
     try { return await usageGovernanceAdminService.openUsageAbuseCase({ ...input, sponsorUserId: input.sponsorUserId ?? null, actorUserId: ctx.user.id }); }
     catch (error) { governanceError(error, ctx.res); }
   }),
+  assignAbuseCase: adminProcedure.input(assignUsageAbuseCaseSchema).mutation(async ({ ctx, input }) => {
+    try { return await assignUsageAbuseCase({ ...input, actorUserId: ctx.user.id }); }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
   reviewAbuseCase: adminProcedure.input(reviewUsageAbuseCaseSchema).mutation(async ({ ctx, input }) => {
     try { return await usageGovernanceAdminService.reviewUsageAbuseCase({ ...input, reviewerUserId: ctx.user.id }); }
     catch (error) { governanceError(error, ctx.res); }
@@ -152,6 +179,11 @@ export const usageGovernanceRouter = router({
 
   authorizeConsumptionCharging: adminProcedure.input(authorizeConsumptionChargingSchema).mutation(async ({ ctx, input }) => {
     try {
+      if ("action" in input) {
+        if (input.action === "approve") return await usageGovernanceAdminService.approveFutureConsumptionCharging(input.id, ctx.user.id, input.reason);
+        if (input.action === "activate") return await usageGovernanceAdminService.activateFutureConsumptionCharging(input.id, ctx.user.id, input.reason, input.reinforcedConfirmation);
+        return await usageGovernanceAdminService.suspendFutureConsumptionCharging(input.id, ctx.user.id, input.reason);
+      }
       return await usageGovernanceAdminService.authorizeFutureConsumptionCharging({
         ...input,
         effectiveFrom: new Date(input.effectiveFrom),
@@ -177,6 +209,10 @@ export const usageGovernanceRouter = router({
   }),
   revokeLegalHold: adminProcedure.input(revokeUsageLegalHoldSchema).mutation(async ({ ctx, input }) => {
     try { await usageGovernanceAdminService.revokeUsageLegalHold(input.id, ctx.user.id); return { revoked: true as const }; }
+    catch (error) { governanceError(error, ctx.res); }
+  }),
+  reprocessRetention: adminProcedure.input(reprocessUsageRetentionSchema).mutation(async ({ ctx, input }) => {
+    try { return await reprocessUsageRetention({ ...input, actorUserId: ctx.user.id }); }
     catch (error) { governanceError(error, ctx.res); }
   }),
 });

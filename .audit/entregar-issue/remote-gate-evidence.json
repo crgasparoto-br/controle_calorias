@@ -1,67 +1,56 @@
 {
   "schema_version": 1,
-  "material_head_sha": "442abe366b726fd429db3dba2e38607fe94ec426",
-  "status": "completed-success",
-  "observed_once": true,
+  "contract_version": "2026-08-20.3",
+  "status": "terminal-green",
+  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
+  "merge_preview_sha": "85be13eed1b67904e3e04bb1fcdb4f6a415f95bb",
+  "ci_mode": "delivery-snapshot",
   "runs": [
     {
-      "id": 32503873474,
-      "name": "Onboarding activation TiDB gate",
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "id": 32503872335,
+      "id": 33221107032,
       "name": "Agent-first gate",
-      "status": "completed",
       "conclusion": "success"
     },
     {
-      "id": 32503872276,
-      "name": "WhatsApp context TiDB gate",
-      "status": "completed",
-      "conclusion": "success"
-    },
-    {
-      "id": 32503872367,
+      "id": 33221107020,
       "name": "Billing persistence TiDB gate",
-      "status": "completed",
       "conclusion": "success"
     },
     {
-      "id": 32503872274,
+      "id": 33221107078,
       "name": "Professional persistence TiDB gate",
-      "status": "completed",
       "conclusion": "success"
     },
     {
-      "id": 32503872282,
+      "id": 33221107053,
+      "name": "Onboarding activation TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107018,
+      "name": "WhatsApp context TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107019,
       "name": "AI provider live smoke",
-      "status": "completed",
-      "conclusion": "skipped"
+      "conclusion": "skipped",
+      "reason": "workflow condition"
     }
   ],
-  "billing_persistence": {
-    "run_id": 32503872367,
-    "job_id": 96839532758,
-    "status": "completed",
-    "conclusion": "success",
-    "critical_steps": [
-      {
-        "name": "Validate billing persistence, concurrency, and idempotency",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "name": "Preserve billing integration diagnostics",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "name": "Validate referential integrity",
-        "status": "completed",
-        "conclusion": "success"
-      }
-    ]
+  "agent_first_artifacts": {
+    "repository_bundle": {
+      "id": 9705331022,
+      "digest": "sha256:8b31af4a5216f0ddf029d4ae901943bcd08387fdaad864a049064f47e1e40d66"
+    },
+    "verification": {
+      "id": 9705330230,
+      "digest": "sha256:f61497fb73030885e807d5f4c29ef088dc7b46e1972a1dbdc6ee096de6b802da"
+    },
+    "visual": {
+      "id": 9705329675,
+      "digest": "sha256:105623e802619cdbc6d89a5570be37aad77c9304fb6302876e9cb13b67aaea45"
+    }
   }
 }

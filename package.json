@@ -21,7 +21,7 @@
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
     "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/generate-trpc-routes-doc.ts --check && tsx scripts/check-docs-freshness.ts",
-    "agent:check": "pnpm check && if [ \"${CI_SHARDED_TESTS_COMPLETE:-0}\" != \"1\" ]; then pnpm test; fi && pnpm architecture:check && pnpm professional-retirement:check && pnpm docs:check && pnpm smoke:issue-927 && pnpm benchmark:ai:multi-provider:verify && pnpm issue-927:policy-controls && pnpm issue-927:policy-controls:verify && pnpm issue-927:pricing-provenance",
+    "agent:check": "pnpm check && if [ \"${CI_SHARDED_TESTS_COMPLETE:-0}\" != \"1\" ]; then pnpm test; fi && pnpm architecture:check && pnpm professional-retirement:check && pnpm docs:check && pnpm smoke:issue-927 && pnpm benchmark:ai:multi-provider:verify && pnpm issue-927:policy-controls && pnpm issue-927:policy-controls:verify && pnpm issue-927:pricing-provenance && pnpm billing-admin:visual",
     "professional-retirement:check": "tsx scripts/check-professional-legacy-retirement.ts",
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
@@ -45,7 +45,8 @@
     "issue-927:pricing-provenance": "node scripts/issue-927-pricing-provenance.mjs --self-test",
     "db:seed:billing-catalog": "tsx scripts/seed-billing-catalog.ts",
     "benchmark:question-latency": "node scripts/issue-989-question-latency-benchmark.mjs",
-    "benchmark:question-latency:self-test": "node scripts/issue-989-question-latency-benchmark.mjs --self-test"
+    "benchmark:question-latency:self-test": "node scripts/issue-989-question-latency-benchmark.mjs --self-test",
+    "billing-admin:visual": "bash scripts/render-billing-admin-visual.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

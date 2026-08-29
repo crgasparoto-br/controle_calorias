@@ -1,34 +1,26 @@
 {
   "schema_version": 1,
-  "kind": "independent-audit-result",
-  "status": "rejected-delivery-state",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 1016,
-  "pull_request_number": 1020,
-  "rejection_id": "audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340",
-  "head_sha": "cb95cc0276462b9f205564d6b66778c064b08898",
-  "material_head_sha": "6fe172fd055d944717937c724853b50c97b4ba5d",
-  "finding_ids": [
-    "A-003"
-  ],
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+  "head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+  "identity": {
+    "published_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+    "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189"
+  },
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true,
   "findings": [
     {
       "id": "A-003",
-      "status": "open",
+      "title": "handoff and gates bound to an outdated develop base",
       "disposition": "blocking",
-      "severity": "high",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "reason": "The certified issue-local scope used the PR base instead of the pre-write remediation boundary and therefore did not equal its own immutable Git compare.",
-      "requested": "Preserve the material candidate and rebuild a direct result-only handoff whose work_item_start_sha and issue_changed_paths exactly match the remediation delta."
+      "audit_escape": true
     }
   ],
-  "reason": "handoff-scope-contract-mismatch",
-  "audit_report_sha256": "85a5f7a397dd28185c90e6bad6a72cb17a80c955c6163a1b9f196cdc9f10bdbf",
-  "audit_report_source": ".audit/entregar-issue/specification-sources/SRC-AUDIT-REJECTION-A003.txt",
-  "auditor_recovery_scope": "handoff-only",
-  "auditor_requires_refreeze": false,
-  "certified_material_head_sha": "6fe172fd055d944717937c724853b50c97b4ba5d",
-  "current_head_sha_at_audit": "cb95cc0276462b9f205564d6b66778c064b08898",
-  "finding_summary": "The result-only handoff certified a non-exact issue-local scope even though the functional material candidate remained valid."
+  "recommendations": [],
+  "summary": "Independent audit rejected PR #1015 because develop advanced after the certified handoff, leaving the published candidate behind the current base and non-mergeable until the branch was synchronized and re-frozen."
 }

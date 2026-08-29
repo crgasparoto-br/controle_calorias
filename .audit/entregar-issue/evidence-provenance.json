@@ -1,36 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-  "base_sha": "657373adf6542ae27e10b96df89369dbfaa019e5",
+  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
   "evidence": [
     {
-      "evidence_id": "E-A005-BEHAVIOR-001",
-      "kind": "behavioral",
-      "path": ".audit/entregar-issue/evidence/issue1016-a005-ambiguous-context.txt",
-      "sha256": "06b80c2f08bac992350ae08a65e4ac779325610a5b3490724324008faf81400b",
-      "subject_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-      "freshness_policy": "exact-material-head",
-      "producer": "tsc + node exact-source semantic compatibility probe",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "E-QTY-NUTR-001",
+      "evidence_id": "QUANT-EXACT-896",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue1016-quantity-nutrition.txt",
-      "sha256": "7762cf3ed331ba5c4ecef0f9b4c7e927bb6075f00e312d21d86a347678b4b293",
-      "subject_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
+      "path": ".audit/entregar-issue/evidence/exact-head-ci-896-a003.txt",
+      "sha256": "ea76da11852542390277efc93a2c3ceba1b73f80ebccc3ab7841be4c596753d6",
+      "subject_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+      "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
       "freshness_policy": "exact-material-head",
-      "producer": "node exact-head quantity and nutrition formula probe",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "E-SOURCE-CTRL-001",
-      "kind": "structural",
-      "path": ".audit/entregar-issue/evidence/issue1016-exact-head-source-controls.txt",
-      "sha256": "d187bbc085a3749642cc38d7975e30d3e5696917f37ecabf2cba4e2d20c3fa05",
-      "subject_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-      "freshness_policy": "exact-material-head",
-      "producer": "connector exact-head Git blob inspection",
+      "producer": "entregar-issue exact-head Agent-first and persistence gate observation after current develop synchronization remediation",
       "status": "passed"
     }
   ]

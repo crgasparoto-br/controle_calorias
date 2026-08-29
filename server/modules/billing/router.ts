@@ -8,6 +8,33 @@ import {
   resolveInternalUsageAnalyticsWindow,
 } from "../usageGovernance/schemas";
 import {
+  acknowledgeBillingNotificationFailure,
+  listBillingAdminNotifications,
+  retryBillingAdminNotification,
+  setBillingCampaignPaused,
+} from "./billingNotificationAdmin";
+import {
+  billingAdminCampaignControlSchema,
+  billingAdminNotificationFailureAckSchema,
+  billingAdminNotificationListSchema,
+  billingAdminNotificationRetrySchema,
+} from "./billingNotificationAdminSchemas";
+import {
+  createBillingRolloutSnapshot,
+  getBillingRolloutAdminOverview,
+  recordBillingRolloutGateDecision,
+  recordBillingRolloutIncident,
+  recordBillingRolloutRollback,
+  setBillingRolloutPause,
+} from "./billingRolloutAdmin";
+import {
+  billingRolloutGateDecisionSchema,
+  billingRolloutIncidentSchema,
+  billingRolloutPauseSchema,
+  billingRolloutRollbackSchema,
+  billingRolloutSnapshotSchema,
+} from "./billingRolloutAdminSchemas";
+import {
   listBillingUserNotifications,
   markBillingNotificationRead,
 } from "./billingNotificationCenter";
@@ -126,6 +153,39 @@ function safeNotificationReadError(error: unknown): TRPCError {
     code: "INTERNAL_SERVER_ERROR",
     message: "Não foi possível atualizar o estado de leitura deste aviso.",
   });
+}
+
+function safeNotificationAdminError(error: unknown): TRPCError {
+  if (error instanceof Error) {
+    if (error.message === "billing_admin_notification_not_found") {
+      return new TRPCError({ code: "NOT_FOUND", message: "A comunicação administrativa não foi encontrada." });
+    }
+    if (error.message === "billing_admin_notification_retry_override_required") {
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Esta comunicação está concluída, obsoleta ou pausada. Informe uma justificativa de override para reprocessar.",
+      });
+    }
+  }
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível executar a operação administrativa de comunicação.",
+  });
+}
+
+function safeRolloutAdminError(error: unknown): TRPCError {
+  if (error instanceof Error) {
+    if (error.message === "billing_rollout_snapshot_immutable") {
+      return new TRPCError({ code: "CONFLICT", message: "Este snapshot de coorte já foi congelado com outra composição ou regra." });
+    }
+    if (error.message === "billing_rollout_gate_blocked") {
+      return new TRPCError({ code: "PRECONDITION_FAILED", message: "A etapa não pode avançar enquanto houver gates ou incidentes bloqueantes." });
+    }
+    if (error.message === "billing_rollout_resume_confirmation_required") {
+      return new TRPCError({ code: "PRECONDITION_FAILED", message: "A retomada após pausa exige confirmação reforçada." });
+    }
+  }
+  return new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível executar a operação administrativa de rollout." });
 }
 
 export const billingRouter = router({
@@ -357,5 +417,63 @@ export const billingRouter = router({
       } catch (error) {
         governanceError(error, ctx.res);
       }
+    }),
+  adminNotifications: adminProcedure
+    .input(billingAdminNotificationListSchema)
+    .query(async ({ input }) => {
+      try { return await listBillingAdminNotifications(input); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminRetryNotification: adminProcedure
+    .input(billingAdminNotificationRetrySchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await retryBillingAdminNotification({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminAcknowledgeNotificationFailure: adminProcedure
+    .input(billingAdminNotificationFailureAckSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await acknowledgeBillingNotificationFailure({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminSetCampaignPaused: adminProcedure
+    .input(billingAdminCampaignControlSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await setBillingCampaignPaused({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeNotificationAdminError(error); }
+    }),
+  adminRolloutOverview: adminProcedure.query(async () => {
+    try { return await getBillingRolloutAdminOverview(); }
+    catch (error) { throw safeRolloutAdminError(error); }
+  }),
+  adminCreateRolloutSnapshot: adminProcedure
+    .input(billingRolloutSnapshotSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await createBillingRolloutSnapshot({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeRolloutAdminError(error); }
+    }),
+  adminRecordRolloutGateDecision: adminProcedure
+    .input(billingRolloutGateDecisionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await recordBillingRolloutGateDecision({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeRolloutAdminError(error); }
+    }),
+  adminRecordRolloutIncident: adminProcedure
+    .input(billingRolloutIncidentSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await recordBillingRolloutIncident({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeRolloutAdminError(error); }
+    }),
+  adminSetRolloutPause: adminProcedure
+    .input(billingRolloutPauseSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await setBillingRolloutPause({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeRolloutAdminError(error); }
+    }),
+  adminRecordRolloutRollback: adminProcedure
+    .input(billingRolloutRollbackSchema)
+    .mutation(async ({ ctx, input }) => {
+      try { return await recordBillingRolloutRollback({ ...input, actorUserId: ctx.user.id }); }
+      catch (error) { throw safeRolloutAdminError(error); }
     }),
 });

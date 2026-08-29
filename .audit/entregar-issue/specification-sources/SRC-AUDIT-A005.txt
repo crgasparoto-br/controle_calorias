@@ -1,6 +1,0 @@
-## Rejeição independente A-005 — audit-rejection:c8045893-2eff-46cf-8c11-70f073b5e76b
-
-Quando a relação física não identificar diretamente o alimento, o contexto usado como identidade deve ser inequívoco para o alimento solicitado.
-Um título ou contexto que enumere o alimento solicitado e outro alimento não pode emprestar identidade para um trecho neutro de medida para gramas.
-A correção deve rejeitar pelo menos os casos irmãos separados por `e`, `/` e `|`, mantendo válido um título descritivo que contenha somente a identidade alimentar solicitada.
-A evidência de detecção deve cobrir `fatia`, `colher de sopa` e `unidade`, incluindo um caso positivo que continue resolvendo uma referência exata inequívoca.

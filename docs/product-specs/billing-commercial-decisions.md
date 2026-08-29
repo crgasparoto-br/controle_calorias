@@ -86,9 +86,9 @@ A precedência define origem efetiva, atribuição de consumo e comunicação. O
 
 ## Estado atual
 
-A #869 entrega somente a fundação provider-neutral: persistência, elegibilidade central, capacidade profissional, overrides administrativos, onboarding recuperável e superfícies de consulta/administração.
+As subissues #891–#897 materializam o programa de billing antes do rollout: catálogo versionado, adapter Asaas, lifecycle, cobertura/capacidade profissional, experiência web, administração comercial/governança e medição econômica/fair use. A #896 completa a superfície administrativa de catálogo, cupons, campanhas/entregas, visão econômica, retenção, legal hold e ciclo de possível abuso, além de oferecer ao próprio usuário a consulta de limitações e o envio de recurso quando aplicável.
 
-Provider real, checkout, catálogo final, preços, cobrança, ciclo comercial, interfaces finais, medição e rollout permanecem nas subissues da épica. `BILLING_ACCESS_MODE=open_access` continua sendo o padrão obrigatório até a aprovação do rollout.
+A ativação operacional continua separada. A #896 fornece o control plane auditável para a #898 — snapshots determinísticos de coorte, gates manuais, responsáveis, incidentes, pausa/retomada e registro de rollback — sem alterar `BILLING_ACCESS_MODE`. A classificação/migração dos usuários atuais, a execução das coortes, a comunicação final de rollout e a mudança progressiva para `BILLING_ACCESS_MODE=enforced` pertencem à #898. `BILLING_ACCESS_MODE=open_access` permanece o padrão obrigatório até a aprovação explícita desse rollout.
 
 ## Implementação do catálogo versionado — #891
 

@@ -1,0 +1,62 @@
+## Complemento vinculante — gestão econômica e governança de abuso
+
+A administração de `/admin/billing` deve consumir e operar a política da #897.
+
+### Painel econômico
+
+Exibir, por produto, versão, ciclo, usuário, patrocinador e período:
+
+- receita contratual reconhecida;
+- descontos, cupons, créditos, impostos, reembolsos, chargebacks e taxas de recebimento;
+- receita líquida econômica reconhecida;
+- custos variáveis diretamente atribuíveis;
+- índice mensal e média móvel de três meses;
+- faixas saudável, atenção, revisão e revisão obrigatória;
+- custos financeiros e indiretos em indicadores separados;
+- qualidade, cobertura e moeda dos dados.
+
+O painel não pode apresentar a visão gerencial como informação contábil oficial sem homologação do contador.
+
+### Retenção e eliminação
+
+A administração deve permitir acompanhar os jobs de retenção definidos na #897:
+
+- detalhados por 13 meses;
+- agregados diários por 24 meses;
+- agregados mensais e auditoria por 5 anos;
+- `legal hold` documentado;
+- eliminação automática com resultado, falha e reprocessamento auditáveis.
+
+Não disponibilizar conteúdo bruto de mensagens, prompts, respostas, imagens, áudios ou transcrições apenas para análise econômica.
+
+### Casos de possível abuso
+
+A interface deve separar alerta econômico, consumo atípico e caso de possível abuso.
+
+Permitir:
+
+- abrir ou receber caso por sinais combinados;
+- consultar evidências técnicas sanitizadas;
+- excluir falhas e retries causados pelo próprio sistema;
+- atribuir responsável;
+- comunicar o usuário;
+- registrar manifestação ou recurso;
+- aprovar limitação inicial de até 7 dias;
+- exigir segundo administrador para uma extensão de até 7 dias;
+- registrar proteção emergencial de até 24 horas somente por risco de segurança comprovado;
+- selecionar somente operações pesadas relacionadas;
+- preservar login, consulta, exportação e registros manuais;
+- reverter antecipadamente e registrar o resultado.
+
+Custo elevado isoladamente não pode habilitar a ação de limitação. Toda decisão deve registrar motivo, evidência, responsáveis, vigência, comunicação e resultado do recurso.
+
+### Critérios adicionais
+
+- [ ] Painel separa visão gerencial e contábil.
+- [ ] KPI mensal e média móvel usam a fórmula versionada da #897.
+- [ ] Custos indiretos e antecipação permanecem separados.
+- [ ] Jobs de retenção e `legal hold` são observáveis e auditáveis.
+- [ ] Caso de abuso exige revisão humana antes da limitação, salvo proteção emergencial documentada.
+- [ ] Limitação de 7 dias e extensão de 7 dias aplicam as aprovações corretas.
+- [ ] Recurso, comunicação, expiração e reversão são administráveis.
+- [ ] Nenhuma ação econômica cria cobrança ou muda plano automaticamente.

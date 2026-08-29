@@ -2,30 +2,35 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "status": "closed",
-  "candidate_head_sha": "6fe172fd055d944717937c724853b50c97b4ba5d",
-  "remediation_mode": "targeted-remediation",
   "source": {
-    "kind": "independent-audit-result",
-    "rejection_id": "audit-rejection:d2ea86d7-5440-431a-8489-b77dd877c340",
-    "audited_head_sha": "cb95cc0276462b9f205564d6b66778c064b08898",
-    "audit_report_sha256": "6660f1e460e8eb8dac23afec2238e4adc18f183b579edf6e0bcd03a1bcb07713"
+    "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+    "audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+    "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
   },
+  "candidate_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": [
-        "Immutable compare d91b94342766087e24d8d9a2cf9793337b9cecbe..6fe172fd055d944717937c724853b50c97b4ba5d returns exactly two material paths.",
-        "The rebuilt certificate uses that pre-write SHA and exact path set; no product code is changed by the handoff repair."
+      "changed_files": [
+        "server/countableFoodQuantity.ts",
+        "server/householdMeasureResolution.ts",
+        "server/householdMeasureResolution.regression1016.test.ts",
+        ".audit/entregar-issue/freeze.json",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
+      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-a003.txt",
       "validations": [
-        "HANDOFF-SCOPE-EXACT-001: exact Git compare path equality",
-        "issue_delta_sha256=c7fc086ec75de3f2459e471c518aaaace4c33dc597d02ed3e1d6bcd45485af27",
-        "result-only child parent must remain 6fe172fd055d944717937c724853b50c97b4ba5d"
+        "current develop is incorporated as a direct merge parent of the remediated material",
+        "PR #1015 is mergeable against the current develop base",
+        "exact-head Agent-first full gate completed successfully",
+        "all applicable exact-head TiDB gates completed successfully",
+        "post-write refreeze recovery floor is preserved before terminal handoff"
       ]
     }
-  ]
+  ],
+  "status": "closed"
 }

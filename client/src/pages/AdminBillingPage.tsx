@@ -1,5 +1,10 @@
 import BillingAdminPanel from "@/components/admin/BillingAdminPanel";
 import BillingAdminStatusOverview from "@/components/admin/BillingAdminStatusOverview";
+import BillingCampaignAdminPanel from "@/components/admin/BillingCampaignAdminPanel";
+import BillingCatalogAdminPanel from "@/components/admin/BillingCatalogAdminPanel";
+import BillingEconomicIdentityPanel from "@/components/admin/BillingEconomicIdentityPanel";
+import BillingGovernanceAdminPanel from "@/components/admin/BillingGovernanceAdminPanel";
+import BillingRolloutAdminPanel from "@/components/admin/BillingRolloutAdminPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Button } from "@/components/ui/button";
@@ -15,8 +20,8 @@ export default function AdminBillingPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <PageIntro
           eyebrow="Administração comercial"
-          title="Billing e elegibilidade"
-          description="Pesquise usuários, consulte a origem efetiva do acesso, administre liberações auditáveis e acompanhe indicadores provider-neutral. Nenhuma ação desta tela cria cobrança ou assinatura fictícia."
+          title="Billing, catálogo e governança"
+          description="Pesquise usuários, consulte a origem efetiva do acesso, administre catálogo, cupons, campanhas e liberações auditáveis e acompanhe economia, retenção e governança de uso. Nenhuma ação desta tela cria cobrança ou assinatura fictícia fora dos fluxos financeiros autoritativos."
           actions={
             <Button variant="outline" onClick={() => setLocation("/admin")}>
               <Settings className="h-4 w-4" />
@@ -26,6 +31,11 @@ export default function AdminBillingPage() {
         />
         <BillingAdminStatusOverview />
         <BillingAdminPanel />
+        <BillingCatalogAdminPanel />
+        <BillingCampaignAdminPanel />
+        <BillingGovernanceAdminPanel />
+        <BillingEconomicIdentityPanel />
+        <BillingRolloutAdminPanel />
       </div>
     </DashboardLayout>
   );
