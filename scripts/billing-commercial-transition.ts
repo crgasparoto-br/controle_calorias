@@ -4,6 +4,7 @@ import {
   runBillingCommercialTransitionFinalizeBatch,
   runBillingCommercialTransitionNotificationBatch,
 } from "../server/modules/billing/billingCommercialTransition";
+import { obsoleteSupersededCommercialTransitionDeliveryAttempts } from "../server/modules/billing/billingCommercialTransitionSupersession";
 import {
   billingCommercialTransitionMaintenanceSchema,
   billingCommercialTransitionReconcileSchema,
@@ -51,6 +52,18 @@ function maintenanceInput() {
   return { ...parsed, actorUserId };
 }
 
+async function withSupersession<T extends { dryRun: boolean; cutoverKey: string }>(
+  input: T,
+  run: () => Promise<Record<string, unknown>>
+) {
+  const result = await run();
+  if (input.dryRun) return { ...result, supersession: { obsoleteAttempts: 0 } };
+  const supersession = await obsoleteSupersededCommercialTransitionDeliveryAttempts(
+    input.cutoverKey
+  );
+  return { ...result, supersession };
+}
+
 async function main() {
   if (has("reconcile")) {
     const input = billingCommercialTransitionReconcileSchema.parse({
@@ -61,8 +74,11 @@ async function main() {
   }
 
   if (has("notify")) {
+    const input = maintenanceInput();
     console.log(JSON.stringify(
-      await runBillingCommercialTransitionNotificationBatch(maintenanceInput()),
+      await withSupersession(input, () =>
+        runBillingCommercialTransitionNotificationBatch(input)
+      ),
       null,
       2
     ));
@@ -70,8 +86,11 @@ async function main() {
   }
 
   if (has("finalize")) {
+    const input = maintenanceInput();
     console.log(JSON.stringify(
-      await runBillingCommercialTransitionFinalizeBatch(maintenanceInput()),
+      await withSupersession(input, () =>
+        runBillingCommercialTransitionFinalizeBatch(input)
+      ),
       null,
       2
     ));
@@ -94,12 +113,12 @@ async function main() {
     retryFailed: has("retry-failed"),
     confirmation: flag("confirm"),
   });
-
-  const result = await runBillingCommercialTransitionBatch({
-    ...parsed,
-    actorUserId,
-  });
-  console.log(JSON.stringify(result, null, 2));
+  const input = { ...parsed, actorUserId };
+  console.log(JSON.stringify(
+    await withSupersession(input, () => runBillingCommercialTransitionBatch(input)),
+    null,
+    2
+  ));
 }
 
 main().catch(error => {
