@@ -4,12 +4,45 @@ import { requireDb } from "../../repositories/billingRepositorySupport";
 
 const PROVIDER = "billing-commercial-transition";
 
+function affectedRows(result: unknown) {
+  return Number(
+    (result as [{ affectedRows?: number }])[0]?.affectedRows ?? 0
+  );
+}
+
 export async function obsoleteSupersededCommercialTransitionDeliveryAttempts(
   cutoverKey: string
 ) {
   const db = await requireDb(getDb);
   const supersededAt = new Date();
-  const result = await db.execute(sql`
+
+  const invalidWhatsappResult = await db.execute(sql`
+    UPDATE billingProviderEvents attempt
+    SET attempt.status = 'ignored',
+        attempt.processedAt = ${supersededAt},
+        attempt.payloadJson = JSON_SET(
+          COALESCE(attempt.payloadJson, JSON_OBJECT()),
+          '$.state', 'ineligible',
+          '$.obsoleteReason', 'whatsapp_not_validated_or_active',
+          '$.supersededAt', ${supersededAt.toISOString()}
+        ),
+        attempt.updatedAt = ${supersededAt}
+    WHERE attempt.provider = ${PROVIDER}
+      AND attempt.eventType = 'commercial_transition_delivery_attempt'
+      AND attempt.status = 'received'
+      AND JSON_UNQUOTE(JSON_EXTRACT(attempt.payloadJson, '$.cutoverKey')) = ${cutoverKey}
+      AND JSON_UNQUOTE(JSON_EXTRACT(attempt.payloadJson, '$.channel')) = 'whatsapp'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM whatsappConnections wc
+        WHERE wc.userId = CAST(
+          JSON_UNQUOTE(JSON_EXTRACT(attempt.payloadJson, '$.userId')) AS UNSIGNED
+        )
+          AND wc.status = 'active'
+      )
+  `);
+
+  const supersededResult = await db.execute(sql`
     UPDATE billingProviderEvents attempt
     INNER JOIN billingProviderEvents source
       ON source.id = JSON_UNQUOTE(JSON_EXTRACT(attempt.payloadJson, '$.sourceNotificationId'))
@@ -41,8 +74,10 @@ export async function obsoleteSupersededCommercialTransitionDeliveryAttempts(
           JSON_UNQUOTE(JSON_EXTRACT(newer.payloadJson, '$.communicationKey'))
   `);
 
-  const affectedRows = Number(
-    (result as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0
-  );
-  return { cutoverKey, obsoleteAttempts: affectedRows, supersededAt };
+  return {
+    cutoverKey,
+    ineligibleWhatsappAttempts: affectedRows(invalidWhatsappResult),
+    obsoleteAttempts: affectedRows(supersededResult),
+    supersededAt,
+  };
 }
