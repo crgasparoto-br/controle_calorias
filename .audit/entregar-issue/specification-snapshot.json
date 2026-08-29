@@ -1,53 +1,20 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 215,
-  "created_at": "2026-08-29T12:40:14.533635+00:00",
-  "primary_source_id": "SRC-ISSUE-215",
+  "issue": 217,
+  "created_at": "2026-08-29T16:29:29.228979+00:00",
+  "primary_source_id": "SRC-ISSUE-217",
   "sources": [
     {
-      "id": "SRC-ISSUE-215",
+      "id": "SRC-ISSUE-217",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-215.txt",
-      "locator": "/tmp/cc215handoff/issue-215.md",
-      "sha256": "f1f0b9d952fc181bdd4bfe8e9b2a180f554f9376b44de0a9925595b15e48aca2",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 196
-    },
-    {
-      "id": "SRC-COMMENT-ADMIN",
-      "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-ADMIN.txt",
-      "locator": "/tmp/cc215handoff/comment-admin.md",
-      "sha256": "a86005394c26d853b8d0f7d9470ead4d34c752032bc1cb218bd2595d457305e8",
+      "path": "specification-sources/SRC-ISSUE-217.txt",
+      "locator": "/mnt/data/cc217handoff/issue-217-contract.md",
+      "sha256": "ae182a2bb20a239e7e86e0a85ce900a2f8a2aeebd32614beeba7117d98ba10eb",
       "textual": true,
       "extract_source_id": null,
       "required": true,
       "line_count": 19
-    },
-    {
-      "id": "SRC-COMMENT-COMMERCIAL",
-      "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-COMMERCIAL.txt",
-      "locator": "/tmp/cc215handoff/comment-commercial.md",
-      "sha256": "5a94de9df1f85cde90f166a75e68c7eff3acd1a55be016792f6e23f455c46d60",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 14
-    },
-    {
-      "id": "SRC-COMMENT-COMMS",
-      "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-COMMS.txt",
-      "locator": "/tmp/cc215handoff/comment-communications.md",
-      "sha256": "2d11512556a9c0f1210df30c30d3dbbf3945efdbd2b579ec29a9f0563d79ba9d",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 27
     }
   ]
 }

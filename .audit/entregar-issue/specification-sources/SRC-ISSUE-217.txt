@@ -1,0 +1,19 @@
+# Issue #217 - contrato de regressao consolidado
+
+Este contrato normaliza os criterios de aceite e os cenarios obrigatorios da issue #217 revisados no GitHub para produzir o handoff do gate de regressao, sem alterar as regras comerciais implementadas pelas issues dependentes.
+
+## Requisitos
+
+- A suite deve consolidar provas executaveis de lead, token, cadastro recuperavel, conta existente, catalogo, cupom, checkout, elegibilidade, ativacao, saudacao, capacidade, migracao e continuidade nutricional.
+- Todos os grupos aplicaveis devem ter testes executaveis e nenhum cenario obrigatorio pode permanecer com skip ou todo.
+- Os testes devem usar provider fake e fixtures Asaas sanitizadas; nunca devem chamar Meta ou Asaas real nem imprimir token, telefone completo, credencial, dados de saude ou conteudo sensivel.
+- Concorrencia, unicidade e migrations devem ser validadas em TiDB quando aplicavel, incluindo conclusao de onboarding, vinculo de telefone, concessao, extensao, aviso e resolucao idempotentes.
+- O vinculo de conta existente deve exigir autenticacao da conta e prova de posse do WhatsApp, usar resposta publica generica, impedir transferencia automatica de numero, preservar historico/origem comercial e nao conceder novo trial.
+- Usuario pendente deve permanecer bloqueado para efeitos nutricionais; usuario elegivel deve continuar registrando texto, imagem, audio, agua e exercicio.
+- Catalogo, cupom, checkout, callback e webhook devem ser cobertos com fakes; trial individual e profissional exigem cartao previo, Pix Automatico nao inicia trial nem ativa antes da confirmacao, cupons respeitam limites e idempotencia, e a precedencia de acesso deve ser deterministica.
+- Suspensao deve preservar reservas profissionais; recuperacao deve reutilizar as mesmas vagas; pagamento tardio nao deve reativar automaticamente.
+- Capacidade temporaria profissional deve iniciar na confirmacao por 90 dias, bloquear somente crescimento quando excedida, preservar pacientes e dados, emitir avisos idempotentes nos marcos definidos, aceitar apenas extensao auditada de 30 dias e preservar concessoes/auditoria no rollback para open_access.
+- Administracao, matriz profissional, capacidade temporaria, alertas de consumo e trava de cobranca futura devem permanecer cobertos; paciente coberto nao deve receber informacao financeira ou de capacidade do profissional.
+- Frontend deve cobrir estados comerciais e de conta existente, retorno de autenticacao/recuperacao, capacidade excedida, mensagens publicas genericas, acessibilidade e responsividade, sem expor IDs ou enums internos.
+- O gate final deve executar ou permanecer vinculado a pnpm test, pnpm check, pnpm architecture:check, pnpm docs:check, pnpm build e aos gates TiDB aplicaveis.
+- Os cenarios exclusivos de piloto e rollout comercial da issue #898 devem permanecer explicitamente adiados enquanto a funcionalidade correspondente nao estiver implementada; o gate da #217 nao pode marca-los como aprovados por placeholder.

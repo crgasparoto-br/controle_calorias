@@ -1,0 +1,10 @@
+Issue #217 internal delivery evidence
+material_head_sha=aa301b3f8117278ada8b57f32c5833bc08f2870f
+base_sha=5887f31c3b9c16a59abff404aa4f42d9fe81a7c4
+pr=1022
+Material delta changes only scripts/test-issue-217-regression.ts, docs/testing/issue-217-onboarding-commercial-regression.md and .github/workflows/issue-217-onboarding-commercial-regression.yml.
+Exact-head source inspection confirms the aggregator executes focused Vitest suites, rejects required skip/todo markers, and can invoke the existing TiDB gates; no product rule is reimplemented in the material delta.
+Repository searches on the selected server/billing scope returned no .skip( and no .todo( occurrences at delivery review time.
+Immediately preceding integrated onboarding implementation PR #1021 head eab0e4720bdd6c39e9e6fcb815a8a50c2e66ada8 completed successfully: Agent-first gate, Billing persistence TiDB gate, and Onboarding activation TiDB gate.
+The product behavior covered by those gates is unchanged by material head aa301b3f8117278ada8b57f32c5833bc08f2870f; the new issue-217 workflow was in_progress in the single allowed remote snapshot and is not claimed as completed evidence.
+Issue #898 rollout remains open and is explicitly deferred, not treated as passed.
