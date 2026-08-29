@@ -2,27 +2,18 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
-  "head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
+  "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+  "head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
   "identity": {
-    "published_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
-    "material_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed"
+    "published_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+    "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189"
   },
   "recovery_scope": "post-write-refreeze",
   "requires_refreeze": true,
   "findings": [
     {
-      "id": "A-001",
-      "title": "handoff stale after material write",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "audit_escape": true
-    },
-    {
-      "id": "A-002",
-      "title": "Agent-first exact-head test double violates transition return contract",
+      "id": "A-003",
+      "title": "handoff and gates bound to an outdated develop base",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
@@ -31,5 +22,5 @@
     }
   ],
   "recommendations": [],
-  "summary": "Independent audit rejected PR #1015 because the terminal handoff was stale after later material writes and the exact-head Agent-first tests failed on a transition mock that returned undefined instead of the service result."
+  "summary": "Independent audit rejected PR #1015 because develop advanced after the certified handoff, leaving the published candidate behind the current base and non-mergeable until the branch was synchronized and re-frozen."
 }

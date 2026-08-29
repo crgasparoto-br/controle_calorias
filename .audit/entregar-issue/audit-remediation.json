@@ -3,48 +3,32 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3",
-    "audited_head_sha": "9b1842824d2a46c9ec7c425a8b88b917e3756bed",
-    "audit_report_sha256": "881a6518e2e66051f0141ff7b274cfba0c39707c33a512800a57e6ed8c3b4e01"
+    "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+    "audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
+    "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
   },
-  "candidate_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
+  "candidate_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "A-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "changed_files": [
+        "server/countableFoodQuantity.ts",
+        "server/householdMeasureResolution.ts",
+        "server/householdMeasureResolution.regression1016.test.ts",
         ".audit/entregar-issue/freeze.json",
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/learning-closure.json"
+        ".audit/entregar-issue/handoff-ready.json"
       ],
-      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-b686.txt",
+      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-a003.txt",
       "validations": [
-        "post-write-refreeze recovery floor preserved",
-        "material head frozen after exact-head gates",
-        "fresh result-only child has material head as direct parent",
-        "result-only child changes only certificate allowlisted paths",
-        "terminal handoff validator passes after remote publication"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "changed_files": [
-        "server/modules/usageGovernance/chargingRollbackSaturation.auditRemediation.test.ts"
-      ],
-      "evidence": ".audit/entregar-issue/evidence/exact-head-ci-896-b686.txt",
-      "validations": [
-        "transition test double returns id/state result contract",
-        "rollback saturation regression reaches revoke result assertion",
-        "exact-head Agent-first Tests step passes on cc47377936566568939628659c3594b1fa1f2189"
+        "current develop is incorporated as a direct merge parent of the remediated material",
+        "PR #1015 is mergeable against the current develop base",
+        "exact-head Agent-first full gate completed successfully",
+        "all applicable exact-head TiDB gates completed successfully",
+        "post-write refreeze recovery floor is preserved before terminal handoff"
       ]
     }
   ],

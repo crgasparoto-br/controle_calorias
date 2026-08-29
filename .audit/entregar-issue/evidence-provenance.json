@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189",
-  "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
+  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
   "evidence": [
     {
       "evidence_id": "QUANT-EXACT-896",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/exact-head-ci-896-b686.txt",
-      "sha256": "e1d40df8ee7402322c270fc1bdc6898937a20fa9640dec62bd76a3f7581467cd",
-      "subject_sha": "cc47377936566568939628659c3594b1fa1f2189",
-      "base_sha": "6fa1db325250607296776b3f7747d86e63d607d1",
+      "path": ".audit/entregar-issue/evidence/exact-head-ci-896-a003.txt",
+      "sha256": "ea76da11852542390277efc93a2c3ceba1b73f80ebccc3ab7841be4c596753d6",
+      "subject_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+      "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head Agent-first and persistence gate observation after targeted audit remediation",
+      "producer": "entregar-issue exact-head Agent-first and persistence gate observation after current develop synchronization remediation",
       "status": "passed"
     }
   ]
