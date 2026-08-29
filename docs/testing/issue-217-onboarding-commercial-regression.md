@@ -16,7 +16,7 @@ Somente o contrato estrutural da matriz, incluindo a proibicao de `skip`/`todo` 
 pnpm exec tsx scripts/test-issue-217-regression.ts --contract-only
 ```
 
-Regressao TiDB, com `DATABASE_URL` apontando para o ambiente de teste autorizado:
+Regressao TiDB, com `DATABASE_URL` apontando para um servidor TiDB de teste. O agregador cria bancos scratch isolados para onboarding/migracao e billing:
 
 ```bash
 pnpm exec tsx scripts/test-issue-217-regression.ts --tidb-only
@@ -58,4 +58,5 @@ Nao e permitido substituir esses cenarios por placeholders, fixtures que apenas 
 - `describe.skip`, `it.skip`, `test.skip`, `test.todo`, `it.todo`, `xdescribe`, `xit` e `xtest` reprovam o contrato;
 - os scripts TiDB obrigatorios precisam existir;
 - a regressao focada nao chama Meta ou Asaas reais; ela reutiliza as suites fake-driven do repositorio;
-- o workflow dedicado sobe uma instancia efemera de TiDB, aplica o schema corrente e executa a regressao TiDB sem depender de segredo externo; sucesso do job significa que `--tidb-only` foi realmente alcancado e aprovado.
+- o gate TiDB exige `DATABASE_URL`, cria bancos scratch deterministas e isolados, executa onboarding/migracao sem o schema completo que introduz FKs alheias ao harness e aplica o schema corrente somente no banco de billing antes de `db:test:billing`;
+- sucesso do job TiDB significa que os tres comandos obrigatorios foram realmente alcancados e aprovados; ausencia de banco ou falha de qualquer comando reprova o job.

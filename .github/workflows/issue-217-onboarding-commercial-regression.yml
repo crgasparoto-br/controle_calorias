@@ -95,7 +95,7 @@ jobs:
         run: |
           docker run -d --name issue-217-tidb -p 4000:4000 pingcap/tidb:v8.5.1
           for attempt in $(seq 1 90); do
-            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("SELECT 1"); await connection.end();'; then
               exit 0
             fi
             sleep 2
@@ -103,10 +103,7 @@ jobs:
           docker logs --tail 100 issue-217-tidb
           exit 1
 
-      - name: Apply current repository schema
-        run: pnpm exec drizzle-kit push --force
-
-      - name: Run required TiDB regression
+      - name: Run required isolated TiDB regression
         run: pnpm exec tsx scripts/test-issue-217-regression.ts --tidb-only
 
       - name: Show TiDB logs on failure

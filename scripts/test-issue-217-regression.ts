@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import mysql from "mysql2/promise";
 
 const unitSuites = [
   "server/auth.whatsappOnboarding.test.ts",
@@ -85,14 +86,22 @@ function validateContract() {
     process.exit(1);
   }
 
-  console.log(`[issue-217] contrato valido: ${unitSuites.length} suites Vitest e ${tidbFiles.length} gates TiDB rastreados.`);
-  console.log("[issue-217] gate incremental: a #217 permanece aberta ate a cobertura vinculante de rollout da #898 existir e ser incorporada a regressao.");
+  console.log(
+    `[issue-217] contrato valido: ${unitSuites.length} suites Vitest e ${tidbFiles.length} gates TiDB rastreados.`
+  );
+  console.log(
+    "[issue-217] gate incremental: a #217 permanece aberta ate a cobertura vinculante de rollout da #898 existir e ser incorporada a regressao."
+  );
 }
 
-function run(command: string, args: readonly string[]) {
+function run(
+  command: string,
+  args: readonly string[],
+  envOverrides: NodeJS.ProcessEnv = {}
+) {
   const result = spawnSync(command, [...args], {
     stdio: "inherit",
-    env: process.env,
+    env: { ...process.env, ...envOverrides },
     shell: process.platform === "win32",
   });
 
@@ -111,12 +120,64 @@ function runUnitRegression() {
   ]);
 }
 
-function runTidbRegression() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL e obrigatoria para executar a regressao TiDB da issue #217");
+function scratchDatabaseName(databaseUrl: string, suffix: string) {
+  const url = new URL(databaseUrl);
+  const rawBase = url.pathname.replace(/^\/+/, "") || "controle_calorias";
+  const safeBase = rawBase.replace(/[^a-zA-Z0-9_]/g, "_");
+  const marker = `_issue217_${suffix}`;
+  return `${safeBase.slice(0, 64 - marker.length)}${marker}`;
+}
+
+function withDatabase(databaseUrl: string, database: string) {
+  const url = new URL(databaseUrl);
+  url.pathname = `/${database}`;
+  return url.toString();
+}
+
+async function resetDatabase(databaseUrl: string, database: string) {
+  const adminUrl = new URL(databaseUrl);
+  adminUrl.pathname = "/";
+  const connection = await mysql.createConnection({ uri: adminUrl.toString() });
+  try {
+    await connection.query(`DROP DATABASE IF EXISTS \`${database}\``);
+    await connection.query(`CREATE DATABASE \`${database}\``);
+  } finally {
+    await connection.end();
+  }
+}
+
+async function runTidbRegression() {
+  const sourceDatabaseUrl = process.env.DATABASE_URL;
+  if (!sourceDatabaseUrl) {
+    throw new Error(
+      "DATABASE_URL e obrigatoria para executar a regressao TiDB da issue #217"
+    );
   }
 
-  for (const [script] of tidbCommands) run("pnpm", [script]);
+  const onboardingDatabase = scratchDatabaseName(
+    sourceDatabaseUrl,
+    "onboarding"
+  );
+  const billingDatabase = scratchDatabaseName(sourceDatabaseUrl, "billing");
+  const onboardingDatabaseUrl = withDatabase(
+    sourceDatabaseUrl,
+    onboardingDatabase
+  );
+  const billingDatabaseUrl = withDatabase(sourceDatabaseUrl, billingDatabase);
+
+  await resetDatabase(sourceDatabaseUrl, onboardingDatabase);
+  console.log(
+    `[issue-217] TiDB onboarding isolado em ${onboardingDatabase}.`
+  );
+  run("pnpm", [tidbCommands[0][0]], { DATABASE_URL: onboardingDatabaseUrl });
+  run("pnpm", [tidbCommands[1][0]], { DATABASE_URL: onboardingDatabaseUrl });
+
+  await resetDatabase(sourceDatabaseUrl, billingDatabase);
+  console.log(`[issue-217] TiDB billing isolado em ${billingDatabase}.`);
+  run("pnpm", ["exec", "drizzle-kit", "push", "--force"], {
+    DATABASE_URL: billingDatabaseUrl,
+  });
+  run("pnpm", [tidbCommands[2][0]], { DATABASE_URL: billingDatabaseUrl });
 }
 
 const args = new Set(process.argv.slice(2));
@@ -127,4 +188,4 @@ const withTidb = args.has("--with-tidb");
 validateContract();
 
 if (!contractOnly && !tidbOnly) runUnitRegression();
-if (tidbOnly || withTidb) runTidbRegression();
+if (tidbOnly || withTidb) await runTidbRegression();
