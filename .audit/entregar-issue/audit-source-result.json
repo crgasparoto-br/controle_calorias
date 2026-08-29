@@ -1,26 +1,20 @@
 {
-  "schema_version": 1,
   "contract_version": "2026-08-20.3",
+  "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+  "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
   "status": "rejected",
-  "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
-  "head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-  "identity": {
-    "published_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-    "material_head_sha": "cc47377936566568939628659c3594b1fa1f2189"
-  },
-  "recovery_scope": "post-write-refreeze",
-  "requires_refreeze": true,
   "findings": [
     {
-      "id": "A-003",
-      "title": "handoff and gates bound to an outdated develop base",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
-      "actionable": true,
+      "severity": "blocking",
       "remediation_mode": "targeted-remediation",
-      "audit_escape": true
+      "actionable": true,
+      "reason": "handoff-not-produced",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false
     }
   ],
-  "recommendations": [],
-  "summary": "Independent audit rejected PR #1015 because develop advanced after the certified handoff, leaving the published candidate behind the current base and non-mergeable until the branch was synchronized and re-frozen."
+  "recommendations": []
 }

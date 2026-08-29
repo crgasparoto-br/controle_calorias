@@ -1,0 +1,19 @@
+# Complemento solicitado para alinhar o onboarding com o novo controle administrativo de assinaturas definido na #145
+
+## Ativação manual/admin via usuário master
+
+Quando o fluxo de onboarding depender de pagamento, trial ou ativação manual, a ativação manual deve ser controlada pela tela admin e acessível somente ao usuário master.
+
+### Requisitos adicionais
+- Se o usuário master marcar um usuário como liberado sem assinatura, o onboarding pode considerar essa liberação como condição válida de ativação.
+- A liberação manual deve ser auditável e registrar motivo, data e usuário responsável.
+- A liberação manual não deve criar checkout nem simular assinatura paga no provedor.
+- O fluxo de WhatsApp deve consultar a mesma regra central de acesso usada pelo backend/web, por exemplo `userCanUseSystem(userId)`.
+- Usuários em `pending_payment` ou equivalente só devem passar a `active` se houver pagamento confirmado, trial válido ou liberação manual ativa concedida pelo master.
+- A mensagem de boas-vindas/ativação pelo WhatsApp deve ser enviada apenas após uma dessas condições válidas.
+
+## Critérios de aceite adicionais
+- Usuário liberado manualmente pelo master conclui ativação sem assinatura paga.
+- Usuário não liberado manualmente continua bloqueado até pagamento/trial válido, conforme regra definida.
+- Comandos alimentares via WhatsApp respeitam a regra central de acesso e não processam usuários pendentes sem condição válida.
+- Testes cobrem ativação por liberação manual, além de pagamento confirmado e trial, se existir.

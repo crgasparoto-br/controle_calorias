@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 215,
+  "pull_request": 1021,
+  "material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+  "base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
+  "changed_paths": [
+    "docs/design-docs/whatsapp-onboarding.md",
+    "server/auth.whatsappOnboarding.test.ts",
+    "server/modules/billing/subscriptionLifecycleRuntime.ts",
+    "server/modules/onboarding/whatsappActivationReconciler.test.ts",
+    "server/modules/onboarding/whatsappActivationReconciler.ts",
+    "server/routers.ts"
+  ],
+  "remote_ci": [
+    {
+      "workflow": "Onboarding activation TiDB gate",
+      "run_id": 33252255345,
+      "job_id": 99099846068,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "observations": [
+        "Validate migration and concurrent transitions: success",
+        "Preserve onboarding activation diagnostics: success"
+      ]
+    },
+    {
+      "workflow": "Billing persistence TiDB gate",
+      "run_id": 33252255338,
+      "job_id": 99099845946,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
+      "observations": [
+        "Apply current repository schema: success",
+        "Validate billing persistence, concurrency, and idempotency: success",
+        "Validate referential integrity: success"
+      ]
+    },
+    {
+      "workflow": "Agent-first gate",
+      "run_id": 33252255350,
+      "status": "in_progress",
+      "conclusion": null,
+      "head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79"
+    }
+  ],
+  "exact_head_static_observations": [
+    "whatsappActivationReconciler.ts performs a bounded pending_activation scan and delegates each candidate to activateWhatsappOnboardingUser; per-user failures are logged and do not stop later candidates.",
+    "subscriptionLifecycleRuntime.ts calls onboarding reconciliation after startContract, financial facts, ticks and due processing, and catches reconciliation failure so authoritative commercial state is not rolled back.",
+    "routers.ts returns getBillingWebOverview after creating the new-account session and only from a protected procedure for existing-account linking; commercial read failure returns null.",
+    "auth.whatsappOnboarding.test.ts contains direct public-boundary assertions for generic conflict messaging, authenticated linking, authenticated-user target binding and recoverable commercial read failure.",
+    "whatsappActivationReconciler.test.ts contains focused controls for activated/blocked/already_active outcomes, isolated per-user failure, unavailable persistence and scan failure.",
+    "docs/design-docs/whatsapp-onboarding.md is updated in the issue-local delta to document authoritative backend billing, commercial activation reconciliation, eligibility precedence, pre-pipeline blocking and privacy constraints."
+  ],
+  "audit_remediation": {
+    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+    "finding_id": "A-001",
+    "reason": "handoff-not-produced",
+    "remediation_mode": "targeted-remediation",
+    "observation": "The previous .audit package is inherited byte-identically from the immutable base and belongs to issue #896 / PR #1015; it is not reused for this package."
+  }
+}

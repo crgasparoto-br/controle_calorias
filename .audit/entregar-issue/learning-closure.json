@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
     "finding_ids": [
-      "A-003"
+      "A-001"
     ],
-    "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
+    "audit_report_sha256": "d0012f26b6a775c2accbffeb92533d895674d24ba792916b4825bcd6ee3396ca"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery contract already requires fresh base/head identity checks, post-write refreeze after material synchronization, and terminal handoff validation. This rejection was caused by external base advancement after a previously valid handoff, so applying the existing controls closes the event without adding a repository-specific or duplicate global rule."
+    "reason": "The installed delivery skill already has explicit inherited-base target-binding and terminal handoff guards. This targeted remediation executes those existing controls and fixes the delivery package without introducing a new global rule."
   }
 }

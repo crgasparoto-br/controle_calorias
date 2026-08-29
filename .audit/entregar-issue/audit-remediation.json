@@ -3,32 +3,37 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
-    "audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-    "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
+    "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+    "audit_report_sha256": "d0012f26b6a775c2accbffeb92533d895674d24ba792916b4825bcd6ee3396ca",
+    "audited_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79"
   },
-  "candidate_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "candidate_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-003",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
+      "closure_kind": "behavioral-fix",
       "changed_files": [
-        "server/countableFoodQuantity.ts",
-        "server/householdMeasureResolution.ts",
-        "server/householdMeasureResolution.regression1016.test.ts",
-        ".audit/entregar-issue/freeze.json",
+        ".audit/entregar-issue/specification-snapshot.json",
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
         ".audit/entregar-issue/handoff-ready.json"
       ],
-      "evidence": ".audit/entregar-issue/evidence/handoff-remediation-a003.txt",
+      "evidence": [
+        "The inherited package from the immutable develop base is excluded from reuse and a complete package is rebuilt for repository controle_calorias, issue 215, PR 1021 and the unchanged material head."
+      ],
       "validations": [
-        "current develop is incorporated as a direct merge parent of the remediated material",
-        "PR #1015 is mergeable against the current develop base",
-        "exact-head Agent-first full gate completed successfully",
-        "all applicable exact-head TiDB gates completed successfully",
-        "post-write refreeze recovery floor is preserved before terminal handoff"
+        "Canonical specification coverage, attack matrix, evidence freshness, risk saturation and target binding are validated before publication; terminal handoff is revalidated after the result-only child is published."
       ]
     }
   ],
